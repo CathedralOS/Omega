@@ -81,7 +81,7 @@ machine step3(main: &mut Main, l: i32, m: i32, r: i32)
         true -> s_store(main, (((l + 1) % 26) << 10) | (((m + 1) % 26) << 5) | ((r + 1) % 26))
         _ -> s_chk(main, l, m, r)
     }
-    state s_chk(main: &mut Main, l: i32, m: i32, r: i32)
+    machine s_chk(main: &mut Main, l: i32, m: i32, r: i32)
         requires 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         transition r == 21 {
@@ -89,11 +89,11 @@ machine step3(main: &mut Main, l: i32, m: i32, r: i32)
             _ -> s_store(main, (l << 10) | (m << 5) | ((r + 1) % 26))
         }
     }
-    state s_store(main: &mut Main, p: i32) {
+    machine s_store(main: &mut Main, p: i32) {
         main.p = p;
         transition { _ -> s_done(main) }
     }
-    state s_done(main: &mut Main) {}
+    machine s_done(main: &mut Main) {}
 }
 
 // The plugboard-free scrambler permutation at one wheel position: forward
@@ -108,7 +108,7 @@ machine core_perm(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
 {
     transition { _ -> pf_r(main, v, l, m, r) }
 
-    state pf_r(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
+    machine pf_r(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
         requires 0 <= v && v < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         let j: i32 = (v + r) % 26;
@@ -118,7 +118,7 @@ machine core_perm(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
             _ -> pdone(main)
         }
     }
-    state pf_m(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
+    machine pf_m(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
         requires 0 <= w && w < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         let j: i32 = ((w - r + 26) % 26 + m) % 26;
@@ -128,7 +128,7 @@ machine core_perm(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
             _ -> pdone(main)
         }
     }
-    state pf_l(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
+    machine pf_l(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
         requires 0 <= w && w < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         let j: i32 = ((w - m + 26) % 26 + l) % 26;
@@ -138,7 +138,7 @@ machine core_perm(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
             _ -> pdone(main)
         }
     }
-    state pf_b(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
+    machine pf_b(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
         requires 0 <= w && w < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         let j: i32 = (w - l + 26) % 26;
@@ -148,7 +148,7 @@ machine core_perm(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
             _ -> pdone(main)
         }
     }
-    state pb_l(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
+    machine pb_l(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
         requires 0 <= w && w < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         let j: i32 = (w + l) % 26;
@@ -158,7 +158,7 @@ machine core_perm(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
             _ -> pdone(main)
         }
     }
-    state pb_m(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
+    machine pb_m(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
         requires 0 <= w && w < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         let j: i32 = ((w - l + 26) % 26 + m) % 26;
@@ -168,7 +168,7 @@ machine core_perm(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
             _ -> pdone(main)
         }
     }
-    state pb_r(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
+    machine pb_r(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
         requires 0 <= w && w < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         let j: i32 = ((w - m + 26) % 26 + r) % 26;
@@ -178,11 +178,11 @@ machine core_perm(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
             _ -> pdone(main)
         }
     }
-    state pstore(main: &mut Main, t: i32) {
+    machine pstore(main: &mut Main, t: i32) {
         main.pout = t;
         transition { _ -> pdone(main) }
     }
-    state pdone(main: &mut Main) {}
+    machine pdone(main: &mut Main) {}
 }
 
 // One keypress end to end: plugboard in, scrambler, plugboard out. Writes
@@ -192,7 +192,7 @@ machine enc_char(main: &mut Main, key: i32, l: i32, m: i32, r: i32)
 {
     transition { _ -> e_pin(main, key, l, m, r) }
 
-    state e_pin(main: &mut Main, key: i32, l: i32, m: i32, r: i32)
+    machine e_pin(main: &mut Main, key: i32, l: i32, m: i32, r: i32)
         requires 0 <= key && key < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         let pin: i32 = main.plug[key];
@@ -201,7 +201,7 @@ machine enc_char(main: &mut Main, key: i32, l: i32, m: i32, r: i32)
             _ -> edone(main)
         }
     }
-    state e_mid(main: &mut Main, pin: i32, l: i32, m: i32, r: i32)
+    machine e_mid(main: &mut Main, pin: i32, l: i32, m: i32, r: i32)
         requires 0 <= pin && pin < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         core_perm(main, pin, l, m, r);
@@ -211,7 +211,7 @@ machine enc_char(main: &mut Main, key: i32, l: i32, m: i32, r: i32)
             _ -> edone(main)
         }
     }
-    state e_out(main: &mut Main, mid: i32)
+    machine e_out(main: &mut Main, mid: i32)
         requires 0 <= mid && mid < 26
     {
         let q: i32 = main.plug[mid];
@@ -220,11 +220,11 @@ machine enc_char(main: &mut Main, key: i32, l: i32, m: i32, r: i32)
             _ -> edone(main)
         }
     }
-    state estore(main: &mut Main, t: i32) {
+    machine estore(main: &mut Main, t: i32) {
         main.eout = t;
         transition { _ -> edone(main) }
     }
-    state edone(main: &mut Main) {}
+    machine edone(main: &mut Main) {}
 }
 
 // Identity plugboard plus the derived inverse wirings, in its own machine so
@@ -233,18 +233,18 @@ machine enc_char(main: &mut Main, key: i32, l: i32, m: i32, r: i32)
 machine derive_tables(main: &mut Main) reaches Console {
     transition { _ -> dt_init(main) }
 
-    state dt_init(main: &mut Main) {
+    machine dt_init(main: &mut Main) {
         main.x = 0;
         transition { _ -> dt_loop(main) }
     }
-    state dt_loop(main: &mut Main) {
+    machine dt_loop(main: &mut Main) {
         let x: i32 = main.x;
         transition x >= 0 && x < 26 {
             true -> dt_read(main, x)
             _ -> dt_done(main)
         }
     }
-    state dt_read(main: &mut Main, x: i32)
+    machine dt_read(main: &mut Main, x: i32)
         requires 0 <= x && x < 26
     {
         main.plug[x] = x;
@@ -256,7 +256,7 @@ machine derive_tables(main: &mut Main) reaches Console {
             _ -> dt_bad(main)
         }
     }
-    state dt_write(main: &mut Main, x: i32, il: i32, im: i32, ir: i32)
+    machine dt_write(main: &mut Main, x: i32, il: i32, im: i32, ir: i32)
         requires 0 <= x && x < 26 && 0 <= il && il < 26 && 0 <= im && im < 26 && 0 <= ir && ir < 26
     {
         main.inv_left[il] = x;
@@ -265,11 +265,11 @@ machine derive_tables(main: &mut Main) reaches Console {
         main.x = x + 1;
         transition { _ -> dt_loop(main) }
     }
-    state dt_bad(main: &mut Main) {
+    machine dt_bad(main: &mut Main) {
         Console::write_line("FAIL: an index left its guarded range (exit 4)");
         Console::exit_process(4);
     }
-    state dt_done(main: &mut Main) {}
+    machine dt_done(main: &mut Main) {}
 }
 
 // Press every letter of main.plain through the stepping scrambler: step the
@@ -277,14 +277,14 @@ machine derive_tables(main: &mut Main) reaches Console {
 machine press_all(main: &mut Main) reaches Console {
     transition { _ -> pa_loop(main) }
 
-    state pa_loop(main: &mut Main) {
+    machine pa_loop(main: &mut Main) {
         let i: i32 = main.i;
         transition i >= 0 && i < 5 {
             true -> pa_press(main, i)
             _ -> pa_done(main)
         }
     }
-    state pa_press(main: &mut Main, i: i32)
+    machine pa_press(main: &mut Main, i: i32)
         requires 0 <= i && i < 5
     {
         let k: i32 = main.plain[i];
@@ -296,7 +296,7 @@ machine press_all(main: &mut Main) reaches Console {
             _ -> pa_bad_char(main)
         }
     }
-    state pa_step(main: &mut Main, i: i32, k: i32, l: i32, m: i32, r: i32)
+    machine pa_step(main: &mut Main, i: i32, k: i32, l: i32, m: i32, r: i32)
         requires 0 <= i && i < 5 && 0 <= k && k < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         step3(main, l, m, r);
@@ -305,7 +305,7 @@ machine press_all(main: &mut Main) reaches Console {
         main.pos_right = (main.p & 31) % 26;
         transition { _ -> pa_enc(main, i, k) }
     }
-    state pa_enc(main: &mut Main, i: i32, k: i32)
+    machine pa_enc(main: &mut Main, i: i32, k: i32)
         requires 0 <= i && i < 5 && 0 <= k && k < 26
     {
         let l: i32 = main.pos_left;
@@ -316,7 +316,7 @@ machine press_all(main: &mut Main) reaches Console {
             _ -> pa_bad_index(main)
         }
     }
-    state pa_enc_call(main: &mut Main, i: i32, k: i32, l: i32, m: i32, r: i32)
+    machine pa_enc_call(main: &mut Main, i: i32, k: i32, l: i32, m: i32, r: i32)
         requires 0 <= i && i < 5 && 0 <= k && k < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         enc_char(main, k, l, m, r);
@@ -326,7 +326,7 @@ machine press_all(main: &mut Main) reaches Console {
             _ -> pa_bad_index(main)
         }
     }
-    state pa_emit(main: &mut Main, i: i32, c: i32)
+    machine pa_emit(main: &mut Main, i: i32, c: i32)
         requires 0 <= i && i < 5 && 0 <= c && c < 26
     {
         main.cipher[i] = c;
@@ -334,15 +334,15 @@ machine press_all(main: &mut Main) reaches Console {
         main.i = i + 1;
         transition { _ -> pa_loop(main) }
     }
-    state pa_bad_char(main: &mut Main) {
+    machine pa_bad_char(main: &mut Main) {
         Console::write_line("FAIL: a pressed letter is not A-Z (exit 3)");
         Console::exit_process(3);
     }
-    state pa_bad_index(main: &mut Main) {
+    machine pa_bad_index(main: &mut Main) {
         Console::write_line("FAIL: an index left its guarded range (exit 4)");
         Console::exit_process(4);
     }
-    state pa_done(main: &mut Main) {}
+    machine pa_done(main: &mut Main) {}
 }
 
 // Compare the produced letters against the expected vector; exits 1 on any
@@ -350,19 +350,19 @@ machine press_all(main: &mut Main) reaches Console {
 machine compare_all(main: &mut Main) reaches Console {
     transition { _ -> ca_init(main) }
 
-    state ca_init(main: &mut Main) {
+    machine ca_init(main: &mut Main) {
         Console::write_byte(10);
         main.i = 0;
         transition { _ -> ca_loop(main) }
     }
-    state ca_loop(main: &mut Main) {
+    machine ca_loop(main: &mut Main) {
         let i: i32 = main.i;
         transition i >= 0 && i < 5 {
             true -> ca_one(main, i)
             _ -> ca_done(main)
         }
     }
-    state ca_one(main: &mut Main, i: i32)
+    machine ca_one(main: &mut Main, i: i32)
         requires 0 <= i && i < 5
     {
         let c: i32 = main.cipher[i];
@@ -372,17 +372,17 @@ machine compare_all(main: &mut Main) reaches Console {
             _ -> ca_fail(main)
         }
     }
-    state ca_next(main: &mut Main, i: i32)
+    machine ca_next(main: &mut Main, i: i32)
         requires 0 <= i && i < 5
     {
         main.i = i + 1;
         transition { _ -> ca_loop(main) }
     }
-    state ca_fail(main: &mut Main) {
+    machine ca_fail(main: &mut Main) {
         Console::write_line("FAIL: ciphertext differs from the expected vector (exit 1)");
         Console::exit_process(1);
     }
-    state ca_done(main: &mut Main) {}
+    machine ca_done(main: &mut Main) {}
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -395,13 +395,13 @@ machine Main::main(main: &mut Main) reaches Console {
     main.i = 0;
     transition { _ -> m_load(main) }
 
-    state m_load(main: &mut Main) {
+    machine m_load(main: &mut Main) {
         derive_tables(main);
         transition { _ -> m_check1(main) }
     }
 
     // ---- check 1: start AAA, no plugboard, AAAAA -> BDZGO ----
-    state m_check1(main: &mut Main) {
+    machine m_check1(main: &mut Main) {
         main.pos_left = 0;
         main.pos_mid = 0;
         main.pos_right = 0;
@@ -410,18 +410,18 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("check 1: start AAA, no plugboard, pressing AAAAA");
         transition { _ -> m_press1(main) }
     }
-    state m_press1(main: &mut Main) {
+    machine m_press1(main: &mut Main) {
         press_all(main);
         transition { _ -> m_verdict1(main) }
     }
-    state m_verdict1(main: &mut Main) {
+    machine m_verdict1(main: &mut Main) {
         compare_all(main);
         Console::write_line("PASS: AAAAA -> BDZGO, no plugboard");
         transition { _ -> m_check2(main) }
     }
 
     // ---- check 2: start AAA, plugboard AW ER MT, AAAAA -> KGYRQ ----
-    state m_check2(main: &mut Main) {
+    machine m_check2(main: &mut Main) {
         main.pos_left = 0;
         main.pos_mid = 0;
         main.pos_right = 0;
@@ -436,11 +436,11 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("check 2: start AAA, plug AW ER MT, pressing AAAAA");
         transition { _ -> m_press2(main) }
     }
-    state m_press2(main: &mut Main) {
+    machine m_press2(main: &mut Main) {
         press_all(main);
         transition { _ -> m_verdict2(main) }
     }
-    state m_verdict2(main: &mut Main) {
+    machine m_verdict2(main: &mut Main) {
         compare_all(main);
         Console::write_line("PASS: AAAAA -> KGYRQ with plug AW ER MT");
         Console::write_line("enigma: both self-checks pass (exit 0)");

@@ -1,0 +1,23 @@
+// Fact: an alpha-renamed const bound survives an ordinary Build-selected implementation, permitting subtraction from 64u64.
+// Expected exit: 0
+// Public, implementation and forwarding binders keep distinct lexical identities.
+boundary trait BoundedValue {
+    machine bound<const Bound: u64>(value: u64) -> u64 reaches
+        requires value <= Bound ensures result <= Bound;
+}
+
+PortableBoundedValue satisfies BoundedValue {
+    machine bound<const Cap: u64>(value: u64) -> u64
+        requires value <= Cap ensures result <= Cap { value }
+}
+machine forward<const Maximum: u64>(value: u64) -> u64
+    reaches BoundedValue invokes BoundedValue;
+    requires value <= Maximum ensures result <= Maximum
+{ BoundedValue::bound<Maximum>(value) }
+machine subtract(value: u64) -> u64 requires value <= 64 { 64u64 - value }
+machine main() reaches BoundedValue invokes BoundedValue; crashes Trap {
+    let remaining: u64 = subtract(forward<64>(42));
+    transition remaining == 22 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

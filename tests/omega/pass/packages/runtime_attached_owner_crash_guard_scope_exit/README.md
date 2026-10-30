@@ -1,0 +1,3 @@
+An unused public attached callable retains its nominal declaration lifetime in a published crash guard static type argument. Its method-local lifetime list is empty; the owner declares `storage`. The guard remains part of package review even though the program entry does not invoke the callable.
+
+Ordinary `omega update --project <fixture> --target macos_arm64 --dangerously-accept-all` must admit the package, then `omega run --both <fixture>/main.omg` must execute with native and interpreter exit zero. Source-only checking is insufficient to establish the package contract. The build binds all four hosted ProgramEntry targets.

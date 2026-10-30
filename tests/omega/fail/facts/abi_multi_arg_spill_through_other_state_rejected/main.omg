@@ -27,7 +27,7 @@ machine probe() -> u64 {
     transition {
         _ -> step(1, 2, 3, 4, 5, 6, 7, 8, 24, 39)
     }
-    state step(
+    machine step(
         s1: u64, s2: u64, s3: u64, s4: u64, s5: u64,
         s6: u64, s7: u64, s8: u64, s9: u64, s10: u64
     ) -> u64
@@ -45,6 +45,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

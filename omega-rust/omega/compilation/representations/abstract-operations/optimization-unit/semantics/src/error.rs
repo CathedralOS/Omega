@@ -31,6 +31,14 @@ impl OperationSite {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizationUnitValidationError {
+    InvalidNoNormalInvocation {
+        machine: MachineId,
+        callee: MachineId,
+        reason: &'static str,
+    },
+    InvalidRuntimeEvidence {
+        reason: &'static str,
+    },
     InvalidActivationStorage {
         machine: MachineId,
         reason: &'static str,

@@ -79,6 +79,47 @@ macro_rules! receipt_selected_identities {
     };
 }
 
+/// Every rewrite receipt's canonical identity: the family's own domain
+/// separator, both selected-plan identities, the optimization unit, the fuel
+/// schedule, the transformed function coordinate, and the rule's instruction
+/// coordinate(s). One declarative row per rule expands the encoder and the
+/// receipt's own `identity()` accessor, so a rule declares only what
+/// distinguishes its identity. A row's prose stays a plain `//` comment: a doc
+/// comment on a macro invocation is an unused attribute.
+macro_rules! rewrite_receipt_identity {
+    (
+        $function:ident, $identity:ident, $receipt:ident,
+        $separator:literal, $phrase:literal, $($coordinate:ident),+ $(,)?
+    ) => {
+        pub(crate) fn $function(receipt: &$receipt) -> $identity {
+            $identity::from_canonical_bytes(&crate::rewrites::rewrite_bytes(
+                $separator,
+                &receipt.source_selected.bytes(),
+                &receipt.transformed_selected.bytes(),
+                &receipt.optimization_unit.bytes(),
+                |bytes| {
+                    crate::codec_bytes::push_encoded(bytes, receipt.fuel_schedule.marker().to_le_bytes());
+                    bytes.extend_from_slice(
+                        &u64::try_from(receipt.function_index)
+                            .expect(concat!($phrase, " function index fits u64"))
+                            .to_le_bytes(),
+                    );
+                    $(crate::codec_bytes::push_encoded(bytes, receipt.$coordinate.0.to_le_bytes());)+
+                },
+            ))
+        }
+
+        impl $receipt {
+            /// The durable transformation identity the post-allocation
+            /// manifest ledger records: the receipt's exact fields under its
+            /// family's domain separator.
+            pub fn identity(&self) -> $identity {
+                $function(self)
+            }
+        }
+    };
+}
+
 /// A rule that declares a consumer and a producer `MachineSemanticKind`
 /// answers the same kind-probe twice: whether an instruction kind is the
 /// declared consumer or producer. One row per rule expands both probes.
@@ -215,7 +256,8 @@ pub use runtime_rematerialization::{
 
 pub use runtime_spill::{
     RuntimeSpillError, RuntimeSpillSpanPolicy, ValidatedRuntimeSpill, spill_selected_runtime_value,
-    spill_selected_runtime_value_with_crossing_status, spill_selected_runtime_value_with_span_policy,
+    spill_selected_runtime_value_with_crossing_status,
+    spill_selected_runtime_value_with_span_policy,
 };
 pub use runtime_split::{RuntimeSplitError, ValidatedRuntimeSplit, split_selected_runtime_value};
 pub(crate) use selected_lowering::enabled_pair_rules;
@@ -225,7 +267,7 @@ pub(crate) use selected_lowering::literal_fold_identity;
 // test corpus.
 pub(crate) use selected_lowering::{
     FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, LiteralFoldPlan, LiteralFoldPolicy,
-    LiteralFoldValidationReceipt, PairOperandShape, PairResultDisposition, PairUnitDefRelation,
+    LiteralFoldValidationReceipt, PairResultDisposition, PairUnitDefRelation,
     SELECTED_LOWERING_RULE_CATALOG, SelectedInstructionPairRule, SelectedLoweringRuleCatalogEntry,
     SelectedLoweringRuleCatalogError, resolve_selected_lowering_rules,
 };
@@ -248,7 +290,7 @@ use optimization_core::{
     OptimizationPhaseSelections, OptimizationSelections, OptimizationWorkBudget,
 };
 use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::RegisterInstructionConstraint;
+use register_model::{RegisterClassId, RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlan, SelectedOperand, VirtualRegisterId,
@@ -324,6 +366,84 @@ pub(crate) fn charge_steps<E>(
         return Err(exceeded());
     }
     Ok(())
+}
+
+/// The target's integer copy row in the classes a rewrite moves a value
+/// between: exactly two operands — an untied, non-early-clobber `Use` at
+/// position 0 in the value's class and its `Def` at position 1 in the
+/// output's class — carrying no implicit unit traffic and no clobber. A row
+/// that is anything else would extend a value identity or destroy state no
+/// proof retired, so every rewrite that replaces a value with a copy reads
+/// this audit from here instead of restating it beside its own admission.
+pub(crate) fn integer_copy_row<'environment, E>(
+    environment: &'environment ValidatedTargetRegisterEnvironment,
+    value_class: RegisterClassId,
+    output_class: RegisterClassId,
+    mismatch: impl Fn() -> E,
+) -> Result<&'environment RegisterInstructionConstraint, E> {
+    let Some(row) = environment.constraint(environment.selected_keys().copy_i64) else {
+        return Err(mismatch());
+    };
+    if !declares_pair(row, RegisterOperandAccess::Use, RegisterOperandAccess::Def)
+        || row.operands[0].class != value_class
+        || row.operands[1].class != output_class
+        || !row.implicit_uses.is_empty()
+        || !row.implicit_defs.is_empty()
+        || !row.clobbers.is_empty()
+        || row.operands.iter().any(|operand| {
+            operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
+        })
+    {
+        return Err(mismatch());
+    }
+    Ok(row)
+}
+
+/// Whether `row` declares the two operand positions every admission restates:
+/// operand 0 is `first_access` and operand 1 is `second_access`. Class, tie,
+/// and clobber checks stay with the caller; those are that family's contract.
+pub(crate) fn declares_pair(
+    row: &RegisterInstructionConstraint,
+    first_access: RegisterOperandAccess,
+    second_access: RegisterOperandAccess,
+) -> bool {
+    let [first, second] = row.operands.as_slice() else {
+        return false;
+    };
+    first.operand == 0
+        && first.access == first_access
+        && second.operand == 1
+        && second.access == second_access
+}
+
+/// A rewrite's candidate carrier in the emitted two-operand form every
+/// pre-allocation rule admits: exactly two operands — a `Use` at position 0 and
+/// `second_access` at position 1 — carrying no implicit unit traffic, no
+/// clobber, and no fixed view, tie, or early clobber riding along that the
+/// rewrite would silently keep on a malformed shape. Returns the two operands
+/// so the caller binds their registers and classes to its own roster; a rule
+/// with an extra condition on either operand checks it after.
+pub(crate) fn carrier_pair(
+    instruction: &SelectedInstruction,
+    second_access: RegisterOperandAccess,
+) -> Option<(&SelectedOperand, &SelectedOperand)> {
+    let [first, second] = instruction.operands.as_slice() else {
+        return None;
+    };
+    if !instruction.implicit_uses.is_empty()
+        || !instruction.implicit_defs.is_empty()
+        || !instruction.clobbers.is_empty()
+        || first.operand != 0
+        || first.access != RegisterOperandAccess::Use
+        || second.operand != 1
+        || second.access != second_access
+        || instruction.operands.iter().any(|operand| {
+            operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
+        })
+    {
+        return None;
+    }
+    Some((first, second))
 }
 
 /// The cone-propagation bound every walked family's measured-step contract

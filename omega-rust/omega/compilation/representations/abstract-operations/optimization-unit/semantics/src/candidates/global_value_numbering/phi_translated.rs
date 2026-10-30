@@ -1,30 +1,28 @@
 //! Phi-translated join validation and rewrite application.
 use crate::candidates::accept_region_rewrite;
+use crate::candidates::candidate_block;
+use crate::candidates::candidate_function;
+use crate::candidates::contract;
 use crate::candidates::global_value_numbering::ScalarCseProofClass;
+use crate::candidates::retire_node_custody;
 use crate::candidates::rewrite_accounting::common_subexpression::reconstruct_phi_translated_cse_accounting;
-use crate::candidates::rewrite_accounting::preserve_edge_custody;
 use crate::candidates::rewrite_accounting::substitutions::{
     rewrite_scalar_value_uses, rewrite_successor_operation,
 };
-use crate::unit_validation::derived_metadata::{
-    expected_definitions, expected_ownership, expected_uses,
-};
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
-use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationSafetyClass,
-};
 use optimization_unit::{
     NodeLocation, OptimizationFact, PhiTranslatedScalarIncoming, PsiOptimizationUnit,
     PsiRewriteCandidate, PsiRewritePatch, ValueDefinition, ValueDefinitionSite,
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use super::admission::{independent_cse_expression, independently_accepted_operation_fact};
 use super::dominance_reconstruction::independent_reachable_dominators;
 use super::expression_keys::{
     independent_compatible_policy_scalar_leader, independent_compatible_policy_scalar_redundant,
 };
-use crate::candidates::set_node_effect_link;
+use super::rule_catalog;
+use crate::candidates::sweep_output_nodes;
 
 /// Independently validate one obligation-free, proof-certified, or
 /// proof-certified compatible-policy scalar
@@ -36,28 +34,14 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
     candidate: &PsiRewriteCandidate,
     proof_class: ScalarCseProofClass,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    let expected_safety = match proof_class {
-        ScalarCseProofClass::ObligationFree => OptimizationSafetyClass::ExactOperationSemantics,
-        ScalarCseProofClass::ProofCertified | ScalarCseProofClass::CompatiblePolicy => {
-            OptimizationSafetyClass::ProofCertified
-        }
-    };
-    if candidate.required_analyses()
-        != AnalysisSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::Dominators,
-            AnalysisKind::UseDefinition,
-            AnalysisKind::EffectSummaries,
-        ])
-        || candidate.invalidated_analyses()
-            != AnalysisInvalidationSet::new([
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ])
-        || candidate.safety_class() != expected_safety
-        || candidate.predicted_cost_delta() != -1
-        || !candidate.substitutions().is_empty()
-    {
+    contract::admit_roster(
+        candidate,
+        rule_catalog::DOMINATING_ANALYSES,
+        contract::USE_DEFINITION_AND_EFFECT_SUMMARIES,
+        rule_catalog::safety_class(proof_class),
+        Some(-1),
+    )?;
+    if !candidate.substitutions().is_empty() {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
     let PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(patch) = candidate.patch()
@@ -67,12 +51,8 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
     if candidate.node_decision_point() != Some(patch.redundant) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input
-        .function(patch.redundant.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let join = function
-        .block(patch.redundant.block)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let function = candidate_function(input, patch.redundant.machine)?;
+    let join = candidate_block(function, patch.redundant.block)?;
     let redundant_index = usize::try_from(patch.redundant.node)
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
     let redundant = crate::candidates::candidate_node(join, patch.redundant.node)?;
@@ -86,24 +66,7 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let value_types = function
-        .parameters
-        .iter()
-        .map(|row| (row.value, row.scalar_type))
-        .chain(function.blocks.iter().flat_map(|block| {
-            block
-                .parameters
-                .iter()
-                .map(|row| (row.value, row.scalar_type))
-        }))
-        .chain(function.blocks.iter().flat_map(|block| {
-            block.nodes.iter().flat_map(|node| {
-                node.definitions
-                    .iter()
-                    .map(|row| (row.value, row.scalar_type))
-            })
-        }))
-        .collect::<BTreeMap<_, _>>();
+    let value_types = super::scalar_value_types(function);
     let (_, redundant_operation, redundant_result, redundant_type, redundant_obligation) =
         match proof_class {
             ScalarCseProofClass::CompatiblePolicy => {
@@ -292,11 +255,6 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
     let (expected_blocks, accepted_provenance) =
         reconstruct_phi_translated_cse_accounting(function, &patch)
             .ok_or(OptimizationUnitValidationError::CandidateProvenanceMismatch)?;
-    if candidate.affected_blocks() != expected_blocks
-        || candidate.provenance() != accepted_provenance
-    {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
 
     accept_region_rewrite(
         input,
@@ -335,13 +293,7 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
                     position: patch.parameter_position,
                 },
             });
-            let removed = output_join.nodes.remove(redundant_index);
-            let receiver = output_join
-                .nodes
-                .get_mut(redundant_index)
-                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-            receiver.provenance.extend_from_slice(&removed.provenance);
-            receiver.fuel.extend_from_slice(&removed.fuel);
+            retire_node_custody(output_join, redundant_index)?;
             for incoming in &patch.incoming {
                 let source = output_function
                     .blocks
@@ -373,18 +325,7 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
                     return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
                 }
             }
-            let mut effect = 0u64;
-            for block in &mut output_function.blocks {
-                for (node_index, node) in block.nodes.iter_mut().enumerate() {
-                    let node_index = u32::try_from(node_index)
-                        .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-                    node.definitions = expected_definitions(&node.operation, block.id, node_index);
-                    node.uses = expected_uses(&node.operation, block.id, node_index);
-                    node.successors = preserve_edge_custody(node);
-                    node.ownership = expected_ownership(&node.operation);
-                    effect = set_node_effect_link(node, effect)?;
-                }
-            }
+            sweep_output_nodes(output_function, |_| Ok(()))?;
             Ok(())
         },
     )

@@ -41,5 +41,5 @@ machine const_sized_buffer() {
         _ -> done(71)
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

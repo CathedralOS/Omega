@@ -25,6 +25,9 @@ pub(super) fn build(
     let constraints = builder.constraints;
     let keys = &constraints.keys;
     match &block.terminator {
+        LegalizedScalarTerminator::InvokeNoNormal { .. } => {
+            super::no_normal::build(function, source, block, builder, environment)
+        }
         LegalizedScalarTerminator::ExternalCompletion { .. } => Err(invalid()),
         LegalizedScalarTerminator::ReturnCleanup { returned, calls } => {
             if calls.is_empty()
@@ -347,7 +350,7 @@ fn terminal(
         .ok_or(SelectedInstructionError::custody())
 }
 
-fn successor(
+pub(super) fn successor(
     source: &LegalizedScalarFunction,
     order: &[usize],
     builder: &mut Builder<'_>,

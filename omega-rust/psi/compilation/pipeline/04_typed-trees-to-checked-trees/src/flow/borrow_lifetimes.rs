@@ -53,12 +53,14 @@ pub(crate) fn filter_expired_borrow_loans(
                 }
                 keep
             }
-            FlowConstraintKind::Unknown | checked_trees::borrow_context_quint_pattern!(..) => true,
+            FlowConstraintKind::Unknown | checked_trees::nonloan_constraint_pattern!(..) => true,
         }
     })
 }
 
-/// Both flow construction and independent replay prepare their resolver before
+/// The destination is already resolved by completed operand capture and must
+/// name one exact, still-current slot. Both flow construction and independent
+/// replay prepare their resolver before
 /// traversing statements. `None` is that immutable preparation's failed result,
 /// not a request to reconstruct the resolver for each loan-lifetime query.
 pub(crate) fn filter_reassigned_borrow_loans(
@@ -66,13 +68,18 @@ pub(crate) fn filter_reassigned_borrow_loans(
     constraint_refs: &mut arena::PagedArenaSet<FlowConstraintRef>,
     source: arena::HandleSpan<FlowConstraintRef>,
     borrow: &BorrowFacts,
+    homes: validation::completed_storage::InstalledLoanHomes<'_>,
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
-    reassigned_place: Option<CanonicalPlace>,
+    captured_destination: Option<CanonicalPlace>,
+    state: &typed_trees::state::State,
     statement_index: usize,
     statement: &typed_trees::statement::StatementNode,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> arena::HandleSpan<FlowConstraintRef> {
+    // Calls on the lexical continuation publish one current occurrence per
+    // exact slot. Outgoing-arm replacements do not retire the guard's retained
+    // fallthrough inventory; their selected call already owns that custody.
     // Completed calls publish one current occurrence for each exact slot,
     // including incoming alternatives on no-write routes. Their former
     // occurrences retire only after RHS formation. Weak stores leave other
@@ -80,14 +87,39 @@ pub(crate) fn filter_reassigned_borrow_loans(
     if !constraint_refs
         .span_or_empty(source)
         .iter()
-        .any(|constraint| matches!(constraint.kind, FlowConstraintKind::BorrowLoan { .. }))
+        .any(|constraint| {
+            matches!(
+                constraint.kind,
+                FlowConstraintKind::BorrowLoan { .. }
+                    | FlowConstraintKind::BorrowIncomingReference { .. }
+            )
+        })
     {
         return source;
     }
-    let source = if let Some(effects) =
-        call_frames.and_then(|frames| frames.stored_reference_effects(machine, statement))
+    let source = if let Some(effects) = call_frames
+        .and_then(|frames| frames.stored_reference_fallthrough_effects(machine, statement))
     {
         reference_spans::filter_constraint_refs(constraint_refs, source, |constraint| {
+            if let FlowConstraintKind::BorrowIncomingReference { identity } = constraint.kind {
+                let incoming = borrow.incoming_references.get(identity);
+                if matches!(
+                    incoming.origin,
+                    checked_trees::IncomingReferenceOrigin::ParameterReferent { .. }
+                ) {
+                    return true;
+                }
+                return !effects.iter().any(|effect| {
+                    !effect.may_select
+                        && facts::PlaceRoot::Symbol(incoming.parameter_symbol())
+                            == facts::PlaceRoot::Symbol(effect.destination.local_symbol)
+                        && crate::borrow::place_path_covers_owner(
+                            program,
+                            &effect.destination.local_segments,
+                            borrow.owner_segments.span_or_empty(incoming.owner_path),
+                        )
+                });
+            }
             let FlowConstraintKind::BorrowLoan { loan } = constraint.kind else {
                 return true;
             };
@@ -100,7 +132,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
                         && crate::borrow::place_path_covers_owner(
                             program,
                             &effect.destination.local_segments,
-                            borrow.loan_owner_path(active),
+                            &homes.owner_path(program, active),
                         )
                 });
             if replaced {
@@ -115,24 +147,19 @@ pub(crate) fn filter_reassigned_borrow_loans(
     } else {
         source
     };
-    let Some(place) = reassigned_place else {
+    let Some(destination) = captured_destination else {
         return source;
     };
-    let (reassigned_symbol, reassigned_segments) = match place.root {
-        facts::PlaceRoot::Symbol(symbol) => (symbol, place.segments),
-        _ => return source,
-    };
-
     // Reference carriers have the same lifetime rule at a root or a projection:
     // writing through one preserves its captured loan, while replacing it ends
     // the old occurrence. Classify the typed target before comparing owner paths.
     let mut writes_referent = false;
-    if let Some(assignment) = statement.as_assignment()
-        && let Some((machine, state)) =
-            validation::find_state(program, program.symbols.get(reassigned_symbol).parent)
-        && let Some(mut reference) =
+    if let Some(assignment) = statement.as_assignment() {
+        let Some(mut reference) =
             validation::declared_place_type_raw(program, machine, Some(state), assignment.target)
-    {
+        else {
+            return source;
+        };
         while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
             program.type_reference_table.type_reference(reference)
         {
@@ -151,48 +178,31 @@ pub(crate) fn filter_reassigned_borrow_loans(
         }
     }
 
-    let target = checked_trees::CapturedPlace {
-        incoming_reference: Default::default(),
-        root: facts::PlaceRoot::Symbol(reassigned_symbol),
-        segments: reassigned_segments,
-    };
-    let destinations =
-        validation::find_state(program, program.symbols.get(reassigned_symbol).parent)
-            .map(|(_, state)| {
-                crate::borrow::store_destination_places(
-                    program,
-                    state,
-                    target.clone(),
-                    writes_referent,
-                    constraint_refs
-                        .span_or_empty(source)
-                        .iter()
-                        .filter_map(|constraint| match constraint.kind {
-                            FlowConstraintKind::BorrowLoan { loan } => Some(borrow.loans.get(loan)),
-                            _ => None,
-                        })
-                        .filter(|loan| loan.statement_index < statement_index)
-                        .map(|loan| {
-                            (
-                                loan.storage_owner,
-                                borrow.loan_owner_path(loan),
-                                loan.incoming_reference,
-                                loan.root,
-                                borrow.loan_segments(loan),
-                            )
-                        }),
-                )
-            })
-            .unwrap_or_else(|| vec![target.clone()]);
-    let [destination] = destinations.as_slice() else {
-        // A may-alias set cannot prove which old slot was replaced.
-        return source;
-    };
+    // The caller supplies the one completed, still-current address. It has
+    // already crossed reference ancestors; resolving it again using the live
+    // loan set could redirect it to a different slot.
+    let authored_carrier = statement.as_assignment().and_then(|assignment| {
+        validation::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            statement_index,
+            assignment.target,
+        )
+    });
 
+    if writes_referent && authored_carrier.is_none() {
+        return source;
+    }
     if !constraint_refs
         .span_or_empty(source)
         .iter()
-        .any(|constraint| matches!(constraint.kind, FlowConstraintKind::BorrowLoan { .. }))
+        .any(|constraint| {
+            matches!(
+                constraint.kind,
+                FlowConstraintKind::BorrowLoan { .. }
+                    | FlowConstraintKind::BorrowIncomingReference { .. }
+            )
+        })
     {
         return source;
     }
@@ -205,13 +215,13 @@ pub(crate) fn filter_reassigned_borrow_loans(
                 // overwritten whole/place are invalidated precisely.
                 let keep = active.storage_owner != destination.root
                     || (writes_referent
-                        && destination == &target
-                        && borrow.loan_owner_path(active).len() == target.segments.len())
+                        && authored_carrier.as_ref() == Some(&destination)
+                        && borrow.loan_owner_path(active).len() == destination.segments.len())
                     || active.statement_index == statement_index
                     || !crate::borrow::place_path_covers_owner(
                         program,
                         &destination.segments,
-                        borrow.loan_owner_path(active),
+                        &homes.owner_path(program, active),
                     );
                 if !keep {
                     borrow_weakenings.append(FlowBorrowWeakeningFact {
@@ -222,7 +232,27 @@ pub(crate) fn filter_reassigned_borrow_loans(
                 }
                 keep
             }
-            FlowConstraintKind::Unknown | checked_trees::borrow_context_quint_pattern!(..) => true,
+            FlowConstraintKind::BorrowIncomingReference { identity } => {
+                let incoming = borrow.incoming_references.get(identity);
+                let owner = borrow.owner_segments.span_or_empty(incoming.owner_path);
+                // Canonical roots retain opaque invocation referent/output
+                // namespaces; only this parameter's descriptor slot can die.
+                destination.root != facts::PlaceRoot::Symbol(incoming.parameter_symbol())
+                    || (writes_referent
+                        && authored_carrier.as_ref() == Some(&destination)
+                        && owner.len() == destination.segments.len())
+                    || !crate::borrow::place_path_covers_owner(
+                        program,
+                        &destination.segments,
+                        owner,
+                    )
+            }
+            FlowConstraintKind::Unknown
+            | FlowConstraintKind::SemanticContext { .. }
+            | FlowConstraintKind::BorrowState { .. }
+            | FlowConstraintKind::BorrowCall { .. }
+            | FlowConstraintKind::BorrowWritableRoot { .. }
+            | FlowConstraintKind::BorrowAccess { .. } => true,
         }
     })
 }

@@ -21,12 +21,74 @@ use checked_trees::statement::{StatementNode, TransitionGuardNode};
 use symbols::SymbolHandle;
 
 /// The saved subject expressions and cases a transition arm's guard selected.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct DispatchExtraction {
     selected_cases: Vec<(ExpressionHandle, SymbolHandle)>,
 }
 
 impl DispatchExtraction {
+    /// Authenticate a read of an already selected payload binding. The parser
+    /// retains the case qualifier on that binding's projection; an authored
+    /// read at the same storage coordinates is a different occurrence.
+    pub fn reads_payload_binding(
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+        payload: ExpressionHandle,
+    ) -> bool {
+        Self::payload_binding_receiver(program, expression, payload).is_some()
+    }
+
+    /// The actual projection occurrence that consumes this selected binding.
+    /// Parser copies retain structural correspondence to the extraction owner;
+    /// the flow use record separately authenticates the consuming occurrence.
+    /// The returned boundary excludes the already completed source selectors.
+    pub fn payload_binding_receiver(
+        program: &dyn crate::CheckingInput,
+        mut expression: ExpressionHandle,
+        payload: ExpressionHandle,
+    ) -> Option<ExpressionHandle> {
+        if !program.expression_table.expression_is_valid(expression)
+            || !program.expression_table.expression_is_valid(payload)
+        {
+            return None;
+        }
+        let source = program.expression_table.member_node(payload)?;
+        source.case_variant.as_ref()?;
+        loop {
+            match program.expression_table.expression(expression) {
+                ExpressionNode::Member(member) => {
+                    if member.case_variant.is_some() {
+                        // The nearest qualified projection owns this read.
+                        // Nested extractions never also consume an outer copy.
+                        return program
+                            .expression_table
+                            .expressions_structurally_equal(expression, payload)
+                            .then_some(expression);
+                    }
+                    expression = member.receiver;
+                }
+                ExpressionNode::Indexed(indexed) => expression = indexed.collection,
+                _ => return None,
+            }
+        }
+    }
+
+    /// A completed observation can retain a reference descriptor while its
+    /// payload projections still name the captured source place. The caller
+    /// authenticates that correspondence against the actual operand/store
+    /// records and their write epochs before supplying either occurrence.
+    pub fn rejoin_completed_subject(
+        &mut self,
+        observed: ExpressionHandle,
+        captured: ExpressionHandle,
+    ) {
+        for (subject, _) in &mut self.selected_cases {
+            if *subject == observed {
+                *subject = captured;
+            }
+        }
+    }
+
     /// Read the case tests of the transition arm at `statement_index`.
     pub fn of_transition_arm(
         program: &dyn crate::CheckingInput,
@@ -71,11 +133,23 @@ impl DispatchExtraction {
     pub fn reads_extracted_copy(
         &self,
         program: &dyn crate::CheckingInput,
-        mut expression: ExpressionHandle,
+        expression: ExpressionHandle,
         is_plain_copy: impl Fn(ExpressionHandle) -> bool,
     ) -> bool {
+        self.extracted_copy_payload(program, expression, is_plain_copy)
+            .is_some()
+    }
+
+    /// The exact payload value selected by this arm, independently of the
+    /// descendant operation that later consumes its copy.
+    pub fn extracted_copy_payload(
+        &self,
+        program: &dyn crate::CheckingInput,
+        mut expression: ExpressionHandle,
+        is_plain_copy: impl Fn(ExpressionHandle) -> bool,
+    ) -> Option<ExpressionHandle> {
         if self.selected_cases.is_empty() {
-            return false;
+            return None;
         }
         let (payload, member) = loop {
             match program.expression_table.expression(expression) {
@@ -84,44 +158,51 @@ impl DispatchExtraction {
                 }
                 ExpressionNode::Member(member) => expression = member.receiver,
                 ExpressionNode::Indexed(indexed) => expression = indexed.collection,
-                _ => return false,
+                _ => return None,
             }
         };
         // A subject need not denote storage: a completed call or literal also
         // produces a saved value. The case-qualified projection is parser-
         // generated and must rejoin that exact selected subject, not merely a
         // call returning the same type. Lowering may clone its expression tree.
-        self.selected_cases.iter().any(|(selected, case)| {
-            if !program
-                .expression_table
-                .expressions_structurally_equal(*selected, member.receiver)
-            {
-                return false;
-            }
-            let Some(owner) = program.data_definition_by_symbol(program.symbols.get(*case).parent)
-            else {
-                return false;
-            };
-            let Some(variant) = program
-                .data_members(owner)
-                .iter()
-                .find_map(|row| match row {
-                    typed_trees::data::DataMember::Variant(variant) if variant.symbol == *case => {
-                        Some(variant)
-                    }
-                    _ => None,
-                })
-            else {
-                return false;
-            };
-            // Payload names can repeat in sibling cases. Resolve only within
-            // the guard's exact selected case, retaining any bound field identity.
-            member.case_variant.as_ref() == Some(&variant.name)
-                && program.data_payload_fields(variant).iter().any(|field| {
-                    field.name == member.member
-                        && (!member.member_symbol.is_valid()
-                            || member.member_symbol == field.symbol)
-                })
-        }) && is_plain_copy(payload)
+        self.selected_cases
+            .iter()
+            .any(|(selected, case)| {
+                if !program
+                    .expression_table
+                    .expressions_structurally_equal(*selected, member.receiver)
+                {
+                    return false;
+                }
+                let Some(owner) =
+                    program.data_definition_by_symbol(program.symbols.get(*case).parent)
+                else {
+                    return false;
+                };
+                let Some(variant) = program
+                    .data_members(owner)
+                    .iter()
+                    .find_map(|row| match row {
+                        typed_trees::data::DataMember::Variant(variant)
+                            if variant.symbol == *case =>
+                        {
+                            Some(variant)
+                        }
+                        _ => None,
+                    })
+                else {
+                    return false;
+                };
+                // Payload names can repeat in sibling cases. Resolve only within
+                // the guard's exact selected case, retaining any bound field identity.
+                member.case_variant.as_ref() == Some(&variant.name)
+                    && program.data_payload_fields(variant).iter().any(|field| {
+                        field.name == member.member
+                            && (!member.member_symbol.is_valid()
+                                || member.member_symbol == field.symbol)
+                    })
+            })
+            .then_some(payload)
+            .filter(|payload| is_plain_copy(*payload))
     }
 }

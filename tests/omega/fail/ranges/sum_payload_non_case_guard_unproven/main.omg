@@ -5,12 +5,10 @@
 // (`main.flag`), which says nothing about `main.p`'s case (`p = Two{w:900}`,
 // so `main.p.v` reads `One`'s field on a `Two`-active value -- a checked
 // partial op). The payload must NOT be admitted: no `Equal(main.p, P::Case)`
-// conjunct exists, so the argument's domain membership stays unestablished.
+// conjunct exists, so the selected payload and numeric call requirement stay unproved.
 // MUST reject with the expected fragment.
 use omega_language_std::console;
-domain i32::Fifty(value) requires 0 <= value && value <= 50;
-domain i32::Thousand(value) requires 0 <= value && value <= 1000;
-data P { case One(v: i32 in Fifty); case Two(w: i32 in Thousand); }
+data P requires ((self in P::One) && 0 <= self.v && self.v <= 50) || ((self in P::Two) && 0 <= self.w && self.w <= 1000) { case One(v: i32); case Two(w: i32); }
 data Main { flag: bool; p: P; }
 machine Main::main(main: &mut Main) reaches Console {
     main.p = P::Two { w: 900 };
@@ -19,6 +17,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> use_v(main, main.p.v)
         false -> use_v(main, 0)
     }
-    state use_v(main: &mut Main, x: i32 in Fifty) { Console::exit_process(x); }
+    machine use_v(main: &mut Main, x: i32) requires 0 <= x && x <= 50 { Console::exit_process(x); }
 }
 machine Main::run(main: &mut Main) { Main::main(main); }

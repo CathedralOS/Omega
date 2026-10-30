@@ -23,6 +23,6 @@ machine main() crashes Trap {
     let first: u64 = exercise(true);
     let second: u64 = exercise(false);
     transition first == 29 && second == 29 { true -> done() _ -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

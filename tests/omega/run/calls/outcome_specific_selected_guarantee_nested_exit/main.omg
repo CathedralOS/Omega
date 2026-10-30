@@ -48,19 +48,19 @@ machine helper() -> i32 {
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> second(main) }
 
-    state second(main: &mut Main) {
+    machine second(main: &mut Main) {
         transition pick() {
             Outcome::Success { ; selected: proof } -> third(main)
             _ -> finish(main, 1)
         }
     }
 
-    state third(main: &mut Main) {
+    machine third(main: &mut Main) {
         let nested: i32 = helper();
         transition { _ -> finish(main, nested) }
     }
 
-    state finish(main: &mut Main, code: i32) {
+    machine finish(main: &mut Main, code: i32) {
         Console::exit_process(code);
     }
 }

@@ -124,7 +124,7 @@ impl CapturedValue for ScalarValue {
                     .program
                     .state_parameters(live.program.state_by_symbol(live.state)?),
                 symbols,
-                value_at_place: |place: &CanonicalPlace| Self::at_place(place, live),
+                value_at_place: |place: &CanonicalPlace, _observation| Self::at_place(place, live),
             },
         )
     }

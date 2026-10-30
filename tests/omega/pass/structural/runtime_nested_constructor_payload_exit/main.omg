@@ -30,7 +30,7 @@ machine main() crashes Trap {
         Envelope::Ready { payload } -> inspect(payload)
         Envelope::Empty -> bad()
     }
-    state inspect(payload: [Sample; 2]) {
+    machine inspect(payload: [Sample; 2]) {
         let observed: bool = changed(payload);
         transition observed && payload[0].grid[0][0] == -5i16
             && payload[0].grid[1][0] == 9i16
@@ -41,6 +41,6 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

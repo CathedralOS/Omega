@@ -27,7 +27,7 @@ machine TimedWait::wait() -> i32 reaches Clock {
     transition {
         _ -> at_once()
     }
-    state at_once() -> i32 {
+    machine at_once() -> i32 {
         TimedWait::poll(0, 0, 20)
     }
 }
@@ -40,7 +40,7 @@ machine Main::main(main: &mut Main) {
         true -> done(main)
         _ -> done(main)
     }
-    state done(main: &mut Main) { main.hits = 1; }
+    machine done(main: &mut Main) { main.hits = 1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

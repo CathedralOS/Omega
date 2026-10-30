@@ -10,28 +10,29 @@ use super::super::{
     TotalScalarIdentityRewrite,
 };
 impl PsiRewriteCandidate {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_integer_evaluation(
-        input: OptimizationUnitIdentity,
-        contract: OptimizationRuleContract,
-        affected_blocks: Vec<BlockId>,
-        substitutions: Vec<ScalarSubstitution>,
-        provenance: Vec<ProvenanceRewrite>,
-        witness: ScalarEvaluationWitness,
-        predicted_cost_delta: i64,
-        patch: IntegerConstantRewrite,
-    ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new(
-            input,
-            contract,
-            affected_blocks,
-            substitutions,
-            provenance,
-            PsiRewriteWitness::ScalarEvaluation(witness),
-            predicted_cost_delta,
-            PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch),
-        )
-    }
+    #[rustfmt::skip]
+    structural_identity_constructors![
+        ( new_dead_scalar_node, DeadScalarNodeRewrite, RemoveDeadScalarNode ),
+        ( new_phi_translated_scalar_common_subexpression, PhiTranslatedScalarGvnRewrite, EliminatePhiTranslatedScalarCommonSubexpression ),
+    ];
+
+    #[rustfmt::skip]
+    scalar_evaluation_constructors![
+        ( new_integer_evaluation, IntegerConstantRewrite, ReplaceIntegerOperationWithConstant ),
+        ( new_boolean_evaluation, BooleanConstantRewrite, ReplaceBooleanOperationWithConstant ),
+    ];
+
+    #[rustfmt::skip]
+    accepted_obligation_constructors![
+        ( new_proof_certified_dead_scalar_node, DeadScalarNodeRewrite, RemoveDeadScalarNode ),
+        ( new_proof_certified_phi_translated_scalar_common_subexpression, PhiTranslatedScalarGvnRewrite, EliminatePhiTranslatedScalarCommonSubexpression ),
+    ];
+
+    #[rustfmt::skip]
+    redundant_result_pair_constructors![
+        (new_local_scalar_common_subexpression, new_proof_certified_local_scalar_common_subexpression, LocalScalarCommonSubexpressionRewrite, EliminateLocalScalarCommonSubexpression, redundant_result, leader_result, scalar_type),
+        (new_dominating_scalar_common_subexpression, new_proof_certified_dominating_scalar_common_subexpression, DominatingScalarCommonSubexpressionRewrite, EliminateDominatedScalarCommonSubexpression, redundant_result, leader_result, scalar_type),
+    ];
 
     /// Replace one proof-certified integer operation with an independently
     /// equivalent typed constant while preserving its result and source
@@ -91,71 +92,6 @@ impl PsiRewriteCandidate {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn new_boolean_evaluation(
-        input: OptimizationUnitIdentity,
-        contract: OptimizationRuleContract,
-        affected_blocks: Vec<BlockId>,
-        substitutions: Vec<ScalarSubstitution>,
-        provenance: Vec<ProvenanceRewrite>,
-        witness: ScalarEvaluationWitness,
-        predicted_cost_delta: i64,
-        patch: BooleanConstantRewrite,
-    ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new(
-            input,
-            contract,
-            affected_blocks,
-            substitutions,
-            provenance,
-            PsiRewriteWitness::ScalarEvaluation(witness),
-            predicted_cost_delta,
-            PsiRewritePatch::ReplaceBooleanOperationWithConstant(patch),
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_dead_scalar_node(
-        input: OptimizationUnitIdentity,
-        contract: OptimizationRuleContract,
-        affected_blocks: Vec<BlockId>,
-        provenance: Vec<ProvenanceRewrite>,
-        predicted_cost_delta: i64,
-        patch: DeadScalarNodeRewrite,
-    ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new(
-            input,
-            contract,
-            affected_blocks,
-            Vec::new(),
-            provenance,
-            PsiRewriteWitness::StructuralIdentity,
-            predicted_cost_delta,
-            PsiRewritePatch::RemoveDeadScalarNode(patch),
-        )
-    }
-
-    pub fn new_proof_certified_dead_scalar_node(
-        input: OptimizationUnitIdentity,
-        contract: OptimizationRuleContract,
-        affected_blocks: Vec<BlockId>,
-        provenance: Vec<ProvenanceRewrite>,
-        obligation_fact: AcceptedObligationFactIdentity,
-        predicted_cost_delta: i64,
-        patch: DeadScalarNodeRewrite,
-    ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new(
-            input,
-            contract,
-            affected_blocks,
-            Vec::new(),
-            provenance,
-            PsiRewriteWitness::AcceptedObligation(obligation_fact),
-            predicted_cost_delta,
-            PsiRewritePatch::RemoveDeadScalarNode(patch),
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
     pub fn new_proof_certified_scalar_identity(
         input: OptimizationUnitIdentity,
         contract: OptimizationRuleContract,
@@ -211,145 +147,6 @@ impl PsiRewriteCandidate {
             PsiRewriteWitness::TotalScalarIdentity { constant_fact },
             predicted_cost_delta,
             PsiRewritePatch::EliminateTotalScalarIdentity(patch),
-        )
-    }
-
-    pub fn new_local_scalar_common_subexpression(
-        input: OptimizationUnitIdentity,
-        contract: OptimizationRuleContract,
-        affected_blocks: Vec<BlockId>,
-        provenance: Vec<ProvenanceRewrite>,
-        predicted_cost_delta: i64,
-        patch: LocalScalarCommonSubexpressionRewrite,
-    ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new(
-            input,
-            contract,
-            affected_blocks,
-            vec![ScalarSubstitution {
-                from: patch.redundant_result,
-                to: patch.leader_result,
-                scalar_type: patch.scalar_type,
-            }],
-            provenance,
-            PsiRewriteWitness::StructuralIdentity,
-            predicted_cost_delta,
-            PsiRewritePatch::EliminateLocalScalarCommonSubexpression(patch),
-        )
-    }
-
-    pub fn new_proof_certified_local_scalar_common_subexpression(
-        input: OptimizationUnitIdentity,
-        contract: OptimizationRuleContract,
-        affected_blocks: Vec<BlockId>,
-        provenance: Vec<ProvenanceRewrite>,
-        obligation_fact: AcceptedObligationFactIdentity,
-        predicted_cost_delta: i64,
-        patch: LocalScalarCommonSubexpressionRewrite,
-    ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new(
-            input,
-            contract,
-            affected_blocks,
-            vec![ScalarSubstitution {
-                from: patch.redundant_result,
-                to: patch.leader_result,
-                scalar_type: patch.scalar_type,
-            }],
-            provenance,
-            PsiRewriteWitness::AcceptedObligation(obligation_fact),
-            predicted_cost_delta,
-            PsiRewritePatch::EliminateLocalScalarCommonSubexpression(patch),
-        )
-    }
-
-    pub fn new_dominating_scalar_common_subexpression(
-        input: OptimizationUnitIdentity,
-        contract: OptimizationRuleContract,
-        affected_blocks: Vec<BlockId>,
-        provenance: Vec<ProvenanceRewrite>,
-        predicted_cost_delta: i64,
-        patch: DominatingScalarCommonSubexpressionRewrite,
-    ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new(
-            input,
-            contract,
-            affected_blocks,
-            vec![ScalarSubstitution {
-                from: patch.redundant_result,
-                to: patch.leader_result,
-                scalar_type: patch.scalar_type,
-            }],
-            provenance,
-            PsiRewriteWitness::StructuralIdentity,
-            predicted_cost_delta,
-            PsiRewritePatch::EliminateDominatedScalarCommonSubexpression(patch),
-        )
-    }
-
-    pub fn new_proof_certified_dominating_scalar_common_subexpression(
-        input: OptimizationUnitIdentity,
-        contract: OptimizationRuleContract,
-        affected_blocks: Vec<BlockId>,
-        provenance: Vec<ProvenanceRewrite>,
-        obligation_fact: AcceptedObligationFactIdentity,
-        predicted_cost_delta: i64,
-        patch: DominatingScalarCommonSubexpressionRewrite,
-    ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new(
-            input,
-            contract,
-            affected_blocks,
-            vec![ScalarSubstitution {
-                from: patch.redundant_result,
-                to: patch.leader_result,
-                scalar_type: patch.scalar_type,
-            }],
-            provenance,
-            PsiRewriteWitness::AcceptedObligation(obligation_fact),
-            predicted_cost_delta,
-            PsiRewritePatch::EliminateDominatedScalarCommonSubexpression(patch),
-        )
-    }
-
-    pub fn new_phi_translated_scalar_common_subexpression(
-        input: OptimizationUnitIdentity,
-        contract: OptimizationRuleContract,
-        affected_blocks: Vec<BlockId>,
-        provenance: Vec<ProvenanceRewrite>,
-        predicted_cost_delta: i64,
-        patch: PhiTranslatedScalarGvnRewrite,
-    ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new(
-            input,
-            contract,
-            affected_blocks,
-            Vec::new(),
-            provenance,
-            PsiRewriteWitness::StructuralIdentity,
-            predicted_cost_delta,
-            PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(patch),
-        )
-    }
-
-    pub fn new_proof_certified_phi_translated_scalar_common_subexpression(
-        input: OptimizationUnitIdentity,
-        contract: OptimizationRuleContract,
-        affected_blocks: Vec<BlockId>,
-        provenance: Vec<ProvenanceRewrite>,
-        obligation_fact: AcceptedObligationFactIdentity,
-        predicted_cost_delta: i64,
-        patch: PhiTranslatedScalarGvnRewrite,
-    ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new(
-            input,
-            contract,
-            affected_blocks,
-            Vec::new(),
-            provenance,
-            PsiRewriteWitness::AcceptedObligation(obligation_fact),
-            predicted_cost_delta,
-            PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(patch),
         )
     }
 }

@@ -370,7 +370,7 @@ fn parameter_projection_paths(
     paths
 }
 
-pub(super) fn expression_statement_index(
+pub(crate) fn expression_statement_index(
     program: &dyn crate::CheckingInput,
     state: &State,
     expression: ExpressionHandle,
@@ -580,6 +580,105 @@ impl StructuralPrefixVisitor for CompletedProjectionVisitor<'_> {
             } else {
                 self.observations = Some(projections);
             }
+        }
+    }
+}
+
+/// Case identity emitted by the completed value, before a later statement
+/// can mutate its source. This is geometry only, not default-domain admission.
+/// Every normal initializer path must prove the same exact applied case.
+pub(crate) fn completed_value_case_at_occurrence(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+) -> Option<SymbolHandle> {
+    let mut visitor = CompletedCaseVisitor {
+        site: super::structural_prefix::StructuralPrefixSite {
+            state: state.symbol,
+            statement_index,
+            in_transition_target: false,
+        },
+        expression,
+        reference,
+        case: None,
+        complete: true,
+        observed: false,
+    };
+    observe_runtime_state_prefix(program, machine, state, &mut visitor)?;
+    (visitor.complete && visitor.observed)
+        .then_some(visitor.case)
+        .flatten()
+}
+
+struct CompletedCaseVisitor {
+    site: super::structural_prefix::StructuralPrefixSite,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    case: Option<SymbolHandle>,
+    complete: bool,
+    observed: bool,
+}
+
+impl StructuralPrefixVisitor for CompletedCaseVisitor {
+    fn site(&self) -> super::structural_prefix::StructuralPrefixSite {
+        self.site
+    }
+    fn unresolved(&mut self, _machine: &Machine) {
+        self.complete = false;
+    }
+    fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
+        let (program, machine, state, judge, environment) = observation;
+        let Some(definition) =
+            crate::field_domains::owned_nominal_data_definition(program, self.reference)
+        else {
+            self.complete = false;
+            return;
+        };
+        let Some(entries) = judge.normal_value_entries(
+            self.site.statement_index,
+            self.expression,
+            environment,
+            (machine, state, self.reference),
+        ) else {
+            self.complete = false;
+            return;
+        };
+        if entries.is_empty() {
+            self.complete = false;
+        }
+        for entry in entries {
+            let [Some(value)] = entry.arguments.as_slice() else {
+                self.complete = false;
+                continue;
+            };
+            let mut proven = program
+                .data_members(definition)
+                .iter()
+                .filter_map(|member| member.as_variant())
+                .filter(|variant| {
+                    matches!(
+                        entry
+                            .judge
+                            .judge_case(value.clone(), definition.symbol, variant.symbol),
+                        super::structural_judgment::StructuralJudgment::Proven
+                    )
+                });
+            let Some(selected) = proven.next().map(|variant| variant.symbol) else {
+                self.complete = false;
+                continue;
+            };
+            if proven.next().is_some() {
+                self.complete = false;
+                continue;
+            }
+            if self.observed && self.case != Some(selected) {
+                self.complete = false;
+            }
+            self.case = Some(selected);
+            self.observed = true;
         }
     }
 }

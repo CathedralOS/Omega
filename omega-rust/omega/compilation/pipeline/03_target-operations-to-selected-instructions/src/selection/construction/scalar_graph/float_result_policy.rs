@@ -1,10 +1,8 @@
 //! Select post-call result adaptation; Psi already established overflow
 //! eligibility over exact original operands before the boundary operation.
-use super::{
-    Builder, LegalizedScalarInstructionKind, SelectedInstructionKind,
-    SelectedInstructionProvenance, VirtualRegisterId,
-};
+use super::{Builder, LegalizedScalarInstructionKind, SelectedInstructionKind, VirtualRegisterId};
 use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use selected_instructions::{FloatResultPolicyForm, FloatResultPolicyKind, MachineSemanticKind};
 use semantic_vocabulary::ScalarType;
 use terminal_psi::FloatResultPolicy;
@@ -55,12 +53,10 @@ pub(super) fn emit(
         SelectedInstructionKind::FloatResultPolicy { form },
         key,
         &registers,
-        SelectedInstructionProvenance {
-            operations: vec![operation.operation],
-            values: values.into_iter().chain([result.value]).collect(),
-            fuel: operation.fuel.clone(),
-            ..Default::default()
-        },
+        operation_provenance(
+            operation,
+            values.into_iter().chain([result.value]).collect(),
+        ),
     )?;
     Ok(output)
 }

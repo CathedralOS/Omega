@@ -36,11 +36,11 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
 
-    state ok(main: &mut Main) {
+    machine ok(main: &mut Main) {
         Console::exit_process(0);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(1);
     }
 }

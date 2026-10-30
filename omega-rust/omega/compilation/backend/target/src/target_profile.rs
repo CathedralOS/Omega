@@ -35,7 +35,7 @@ pub enum ObjectFormat {
 /// The selected deployment profile. Unlike [`NativeTarget`], this identity
 /// retains policy distinctions that share one architecture/object format
 /// (notably Windows and UEFI x86-64).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum TargetProfile {
     LinuxArm64,
     LinuxX64,
@@ -74,19 +74,7 @@ impl TargetProfileIdentity {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProgramEntrySchema {
-    /// Hosted launch hides physical image/storage arrival from source.
-    HostedApplication,
-    /// Freestanding launch exposes the image and initial-storage roots.
-    ProgramStorageApplication,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProgramEntryVisibleParameters {
-    None,
-    ImageAndInitialStorage,
-}
+pub use semantic_vocabulary::{ProgramEntrySchema, ProgramEntryVisibleParameters};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProgramEntryCallingConvention {
@@ -97,7 +85,7 @@ pub enum ProgramEntryCallingConvention {
 
 /// Closed identity of a toolchain-owned physical-entry contract package.
 /// Source paths prove membership in this identity; they never define it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProgramEntryPhysicalContractPackage {
     UefiX64,
     MacosArm64,
@@ -261,6 +249,46 @@ pub struct ProgramEntrySlotDeclaration {
     pub visible_parameters: ProgramEntryVisibleParameters,
 }
 
+/// The existing target-profile catalog exposes source requirements without
+/// receiving source trees or participating in source compatibility checking.
+pub struct ProgramEntrySlots;
+
+impl semantic_vocabulary::ProgramEntrySourceCatalog for ProgramEntrySlots {
+    fn source_contract(
+        &self,
+        slot: &str,
+    ) -> Result<semantic_vocabulary::ProgramEntrySourceContract, String> {
+        let (owner, name) = slot.rsplit_once("::").ok_or_else(|| {
+            format!("root slot `{slot}` is not target-qualified; expected `target::ProgramEntry`")
+        })?;
+        let profile = TargetProfile::from_root_slot_owner(owner).map_err(|_| {
+            format!("root slot `{slot}` belongs to unknown target profile `{owner}`")
+        })?;
+        let required = profile.required_root_slot(name).ok_or_else(|| {
+            format!(
+                "target profile `{}` declares no required root slot `{slot}`",
+                profile.target_name()
+            )
+        })?;
+        let slot = required.program_entry().ok_or_else(|| {
+            format!("root slot `{slot}` does not have a supported ProgramEntry signature")
+        })?;
+        Ok(slot.source_contract())
+    }
+}
+
+impl ProgramEntrySlotDeclaration {
+    pub const fn source_contract(self) -> semantic_vocabulary::ProgramEntrySourceContract {
+        semantic_vocabulary::ProgramEntrySourceContract {
+            owner: self.owner.root_slot_owner_name(),
+            slot_name: self.slot_name,
+            schema: self.schema,
+            semantic_arrival_requirement: self.semantic_arrival_requirement,
+            visible_parameters: self.visible_parameters,
+        }
+    }
+}
+
 /// One build-bound environment-to-program root required by a target profile.
 ///
 /// The catalog is intentionally an enum rather than a flattened bag of entry
@@ -299,6 +327,38 @@ impl From<ProgramEntrySlotDeclaration> for TargetRequiredRootSlotDeclaration {
 }
 
 impl TargetProfile {
+    /// The selected target's primitive model must fit the Terminal producer's
+    /// current representation capability. An abstract profile with no model
+    /// supplies no model premise; model-dependent formations still require a
+    /// concrete closure before Terminal production.
+    pub fn admit_address_representation(self) -> Result<(), String> {
+        if self.address_model().is_some_and(|model| {
+            model != semantic_vocabulary::IntegerType::supported_address_representation()
+        }) {
+            return Err(format!(
+                "target `{}` address model has no supported Terminal representation",
+                self.target_name()
+            ));
+        }
+        Ok(())
+    }
+
+    /// The default source address space fixed by this concrete deployment
+    /// profile. This is explicit target data, independent of host pointer
+    /// width and the language's count carrier. Abstract profiles do not close
+    /// an address-model subject.
+    pub fn address_model(self) -> Option<semantic_vocabulary::IntegerType> {
+        match self {
+            Self::LinuxArm64
+            | Self::LinuxX64
+            | Self::MacosArm64
+            | Self::MacosX64
+            | Self::WindowsX64
+            | Self::UefiX64 => semantic_vocabulary::IntegerType::address(64).ok(),
+            Self::CrossPlatformCli | Self::LocalUnchecked | Self::AlphaBootstrap => None,
+        }
+    }
+
     /// Complete trusted deployment-profile catalog in canonical identity order.
     ///
     /// Consumers that retain profile-indexed evidence must use this catalog

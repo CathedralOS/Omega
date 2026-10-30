@@ -9,7 +9,7 @@ machine starts_with(bytes: &[u8], pattern: &[u8]) -> bool {
         true -> (true)
         false -> nonempty(bytes, pattern)
     }
-    state nonempty(bytes: &[u8], pattern: &[u8]) -> bool
+    machine nonempty(bytes: &[u8], pattern: &[u8]) -> bool
     requires pattern.len > 0
     {
         transition bytes.len > 0 {
@@ -17,7 +17,7 @@ machine starts_with(bytes: &[u8], pattern: &[u8]) -> bool {
             false -> (false)
         }
     }
-    state compare(bytes: &[u8], pattern: &[u8]) -> bool
+    machine compare(bytes: &[u8], pattern: &[u8]) -> bool
     requires bytes.len > 0 && pattern.len > 0
     {
         transition bytes[0] == pattern[0] {
@@ -29,7 +29,7 @@ machine starts_with(bytes: &[u8], pattern: &[u8]) -> bool {
 
 machine find(bytes: &[u8], pattern: &[u8]) -> Optional<u64> {
     transition { _ -> search(bytes, pattern, 0) }
-    state search(bytes: &[u8], pattern: &[u8], position: u64) -> Optional<u64>
+    machine search(bytes: &[u8], pattern: &[u8], position: u64) -> Optional<u64>
     requires position <= bytes.len
     {
         let remaining: &[u8] = bytes[position..];
@@ -39,7 +39,7 @@ machine find(bytes: &[u8], pattern: &[u8]) -> Optional<u64> {
             false -> advance(bytes, pattern, position)
         }
     }
-    state advance(bytes: &[u8], pattern: &[u8], position: u64) -> Optional<u64>
+    machine advance(bytes: &[u8], pattern: &[u8], position: u64) -> Optional<u64>
     requires position <= bytes.len
     {
         transition position < bytes.len {
@@ -67,7 +67,7 @@ machine collect_matches(bytes: &[u8], pattern: &[u8], output: &mut [u64]) -> u64
 requires pattern.len > 0
 {
     transition { _ -> scan(bytes, pattern, output, 0, 0) }
-    state scan(bytes: &[u8], pattern: &[u8], output: &mut [u64], position: u64, count: u64) -> u64
+    machine scan(bytes: &[u8], pattern: &[u8], output: &mut [u64], position: u64, count: u64) -> u64
     requires position <= bytes.len && count <= output.len
     {
         transition position < bytes.len && count < output.len {
@@ -75,7 +75,7 @@ requires pattern.len > 0
             false -> (count)
         }
     }
-    state examine(bytes: &[u8], pattern: &[u8], output: &mut [u64], position: u64, count: u64) -> u64
+    machine examine(bytes: &[u8], pattern: &[u8], output: &mut [u64], position: u64, count: u64) -> u64
     requires position < bytes.len && count < output.len
     {
         let matches: bool = starts_with(bytes[position..], pattern);
@@ -84,7 +84,7 @@ requires pattern.len > 0
             false -> scan(bytes, pattern, output, position + 1, count)
         }
     }
-    state record(bytes: &[u8], pattern: &[u8], output: &mut [u64], position: u64, count: u64) -> u64
+    machine record(bytes: &[u8], pattern: &[u8], output: &mut [u64], position: u64, count: u64) -> u64
     requires position < bytes.len && count < output.len
     {
         output[count] = position;
@@ -115,6 +115,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

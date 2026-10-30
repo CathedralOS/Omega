@@ -82,6 +82,17 @@ pub(crate) fn scalar_storage_read_with_selectors(
         authored_parameters,
         selector,
     )?;
+    scalar_storage_read_projection(program, expression, authored_parameters, projection)
+}
+
+/// Classify a typed read after its owner has substituted the exact formal root
+/// and selector namespace. The original occurrence and ordered path survive.
+pub(crate) fn scalar_storage_read_projection(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+    authored_parameters: &[StateParameter],
+    projection: ScalarStorageProjection,
+) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
     let first_index = projection.path.iter().position(|segment| {
         matches!(
             segment,
@@ -100,6 +111,11 @@ pub(crate) fn scalar_storage_read_with_selectors(
             .collect::<Option<Vec<_>>>()?;
         let mut reference = projection.selected_type;
         if path.is_empty() {
+            // Structural projection already enters a borrowed formal's referent
+            // namespace. Authenticate access on the declared carrier, not on
+            // the scalar endpoint returned by that projection.
+            let parameter = authored_parameters.get(usize::try_from(parameter_position).ok()?)?;
+            reference = parameter.type_reference;
             let shell = validation::reference_shell(program, reference)?;
             if !matches!(
                 shell.access,
@@ -124,6 +140,7 @@ pub(crate) fn scalar_storage_read_with_selectors(
         let expression = if primitive_type == PrimitiveType::Bool {
             CheckedScalarExpression::Boolean(Box::new(
                 checked_trees::CheckedBooleanExpression::StructuralParameterField {
+                    observation: expression,
                     parameter_position,
                     path,
                 },
@@ -135,6 +152,7 @@ pub(crate) fn scalar_storage_read_with_selectors(
                 return None;
             }
             CheckedScalarExpression::StructuralParameterField {
+                observation: expression,
                 parameter_position,
                 path,
                 primitive_type,
@@ -170,6 +188,7 @@ pub(crate) fn scalar_storage_read_with_selectors(
     }
     Some((
         CheckedScalarExpression::StructuralParameterIndexedRead {
+            observation: expression,
             root: projection.root,
             path,
             index: Box::new(index),
@@ -228,9 +247,6 @@ pub(crate) fn storage_projection(
                 cursor = indexed.collection;
             }
             ExpressionNode::Member(member) => {
-                if member.case_variant.is_some() {
-                    return None;
-                }
                 projections.push(Projection::Field(cursor));
                 cursor = member.receiver;
             }
@@ -244,20 +260,16 @@ pub(crate) fn storage_projection(
     for projection in projections.into_iter().rev() {
         match projection {
             Projection::Field(occurrence) => {
-                let field = structural_fields::element_member_field(
+                let (path, selected_type) = structural_fields::member_projection(
                     program,
                     element_type,
                     program.expression_table.member_node(occurrence)?,
                 )?;
-                element_path.push(checked_trees::CheckedScalarReadProjection::Static(
-                    CheckedStructuralPredicatePathSegment::Field(
-                        checked_trees::CheckedMemberIdentity::of_member(
-                            field.identity,
-                            field.name.clone(),
-                        ),
-                    ),
-                ));
-                element_type = field.type_reference;
+                element_path.extend(
+                    path.into_iter()
+                        .map(checked_trees::CheckedScalarReadProjection::Static),
+                );
+                element_type = selected_type;
             }
             Projection::Index {
                 occurrence,
@@ -287,6 +299,7 @@ pub(crate) fn storage_projection(
                     checked_trees::CheckedScalarSelector {
                         expression: value,
                         occurrence,
+                        entry_bound: None,
                     },
                 ));
             }
@@ -300,7 +313,7 @@ pub(crate) fn storage_projection(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn pure_selector(
+pub(crate) fn pure_selector(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     operand: ExpressionHandle,

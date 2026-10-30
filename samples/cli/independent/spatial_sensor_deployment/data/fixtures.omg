@@ -22,12 +22,12 @@ machine Problem::load(problem: &mut Problem, variant: u64 in Wrapping) {
         7 -> boundary(problem)
         _ -> done()
     }
-    state unreachable(problem: &mut Problem) { problem.minimum = 14; }
-    state tied(problem: &mut Problem) { problem.sites[1].x = 0; problem.sites[1].cost = 2; }
-    state capacity(problem: &mut Problem) { problem.sites[0].capacity = 1; }
-    state redundant(problem: &mut Problem) { problem.sites[2].y = 0; problem.sites[2].capacity = 2; }
-    state empty(problem: &mut Problem) { problem.budget = 0; }
-    state threshold(problem: &mut Problem) { problem.minimum = 12; }
-    state boundary(problem: &mut Problem) { problem.sites[0].radius = 1; problem.budget = 5; }
-    state done() { }
+    machine unreachable(problem: &mut Problem) { problem.minimum = 14; }
+    machine tied(problem: &mut Problem) { problem.sites[1].x = 0; problem.sites[1].cost = 2; }
+    machine capacity(problem: &mut Problem) { problem.sites[0].capacity = 1; }
+    machine redundant(problem: &mut Problem) { problem.sites[2].y = 0; problem.sites[2].capacity = 2; }
+    machine empty(problem: &mut Problem) { problem.budget = 0; }
+    machine threshold(problem: &mut Problem) { problem.minimum = 12; }
+    machine boundary(problem: &mut Problem) { problem.sites[0].radius = 1; problem.budget = 5; }
+    machine done() { }
 }

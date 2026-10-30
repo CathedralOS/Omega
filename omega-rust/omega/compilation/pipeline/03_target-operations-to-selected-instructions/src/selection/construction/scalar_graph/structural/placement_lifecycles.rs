@@ -106,10 +106,9 @@ pub(super) fn emit(
     };
     // The receiving contract authenticates these roles. Rejoin the retained
     // geometry rather than treating an equal-sized unrelated field as an owner.
-    let result_declaration = declarations
-        .iter()
-        .find(|declaration| declaration.id == result.structural_type)
-        .ok_or_else(|| failure("resident extraction result declaration is missing"))?;
+    let result_declaration =
+        terminal_psi::find_structural_type(declarations, result.structural_type)
+            .ok_or_else(|| failure("resident extraction result declaration is missing"))?;
     let StructuralTypeShape::Sum { cases } = &result_declaration.shape else {
         return Err(failure(
             "resident extraction result is not its authenticated sum",
@@ -262,9 +261,7 @@ fn owner_word(
     home: ImageHome,
     identity: semantic_vocabulary::StructuralFieldId,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let owner = types
-        .iter()
-        .find(|declaration| declaration.id == plan.storage.carrier)
+    let owner = terminal_psi::find_structural_type(types, plan.storage.carrier)
         .ok_or_else(|| failure("lifecycle owner declaration is missing"))?;
     let StructuralTypeShape::Record { fields, .. } = &owner.shape else {
         return Err(failure("lifecycle owner is not its retained record"));
@@ -367,9 +364,7 @@ fn transfer_image(
     value: ImageHome,
     direction: ImageDirection,
 ) -> Result<(), SelectedInstructionError> {
-    let declaration = declarations
-        .iter()
-        .find(|declaration| declaration.id == plan.schema)
+    let declaration = terminal_psi::find_structural_type(declarations, plan.schema)
         .ok_or_else(|| failure("resident image schema is missing"))?;
     let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
         return Err(failure(
@@ -508,13 +503,13 @@ fn aggregate_chunks(
     let declaration = field
         .field_type
         .as_structural()
-        .and_then(|root| {
-            declarations
-                .iter()
-                .find(|declaration| declaration.id == root)
-        })
+        .and_then(|root| terminal_psi::find_structural_type(declarations, root))
         .ok_or_else(|| failure("resident aggregate lost its structural type"))?;
-    if let StructuralTypeShape::FixedArray { element, length } = declaration.shape {
+    if let StructuralTypeShape::FixedArray {
+        element,
+        length: terminal_psi::ArrayExtent::Literal(length),
+    } = declaration.shape
+    {
         let element_shape = structural_reference_input::shape(element, declarations)
             .ok_or_else(|| failure("resident array element has no native storage"))?;
         let element_size = u64::from(element_shape.byte_size);

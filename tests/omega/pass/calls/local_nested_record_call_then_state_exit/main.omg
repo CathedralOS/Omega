@@ -40,19 +40,19 @@ machine Main::main(context: &mut Main) reaches Console {
         _ -> rejected(context)
     }
 
-    state project(context: &mut Main, workspace: &Workspace) {
+    machine project(context: &mut Main, workspace: &Workspace) {
         transition { _ -> observe(context, &workspace.source, &workspace.output) }
     }
 
-    state observe(context: &mut Main, source: &Buffer, output: &Buffer) {
+    machine observe(context: &mut Main, source: &Buffer, output: &Buffer) {
         transition source.length == 35 && output.length == 35 {
             true -> accepted(context)
             _ -> rejected(context)
         }
     }
 
-    state accepted(context: &mut Main) { Console::exit_process(70); }
-    state rejected(context: &mut Main) { Console::exit_process(71); }
+    machine accepted(context: &mut Main) { Console::exit_process(70); }
+    machine rejected(context: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -5,11 +5,11 @@ boundary trait Supplied { machine get() -> u32 reaches; }
 Actual satisfies Supplied { machine get() -> u32 { 1 } }
 machine main() reaches Required crashes Trap {
     transition { _ -> read(Required::get()) }
-    state read(index: u32) requires index <= 2 {
+    machine read(index: u32) requires index <= 2 {
         let values: [u32; 2] = [7, 11];
         let observed: u32 = values[index];
     transition observed == 11 { true -> done() false -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

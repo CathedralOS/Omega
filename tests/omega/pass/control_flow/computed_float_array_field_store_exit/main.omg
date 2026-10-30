@@ -3,19 +3,19 @@ data Trace { a: [f64; 2]; b: [f64; 2]; observed: [f64; 2]; }
 data Fit { amount_a: f64; amount_b: f64; reconstruction: [f64; 2]; residual: [f64; 2]; }
 machine finish(trace: &Trace, fit: &mut Fit) {
  transition { _ -> scan(trace, fit, 0) }
- state scan(trace: &Trace, fit: &mut Fit, index: i32 in Wrapping) {
+ machine scan(trace: &Trace, fit: &mut Fit, index: i32 in Wrapping) {
   transition index >= 0 && index < 2 {
    true -> write(trace, fit, index)
    _ -> done()
   }
  }
- state write(trace: &Trace, fit: &mut Fit, index: i32 in Wrapping) {
+ machine write(trace: &Trace, fit: &mut Fit, index: i32 in Wrapping) {
   let value: f64 = fit.amount_a * trace.a[index] + fit.amount_b * trace.b[index];
   fit.reconstruction[index] = value;
   fit.residual[index] = trace.observed[index] - value;
   transition { _ -> scan(trace, fit, index + 1) }
  }
- state done() { }
+ machine done() { }
 }
 machine main() crashes Trap {
  let trace: Trace = Trace { a: [1.0, 2.0], b: [0.0, 1.0], observed: [2.0, 7.0] };
@@ -27,6 +27,6 @@ machine main() crashes Trap {
   true -> done()
   _ -> bad()
  }
- state done() { }
- state bad() { crash Trap; }
+ machine done() { }
+ machine bad() { crash Trap; }
 }

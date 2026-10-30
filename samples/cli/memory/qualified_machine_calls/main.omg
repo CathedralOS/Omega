@@ -28,11 +28,11 @@ machine main() crashes Trap {
         true -> another_state()
         false -> wrong()
     }
-    state another_state() {
+    machine another_state() {
         let mut observed: u64;
         forwarded(&mut observed);
         transition observed == 17 { true -> done() false -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

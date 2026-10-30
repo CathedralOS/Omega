@@ -11,5 +11,5 @@ machine make_items() -> Token<SEVEN> { Token { marker: 1 } }
 machine main() crashes Trap {
     let observed: u64 = read(make_items());
     transition observed == 7 { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

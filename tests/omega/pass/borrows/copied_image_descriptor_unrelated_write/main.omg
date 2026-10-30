@@ -7,6 +7,6 @@ machine main() crashes Trap {
     let mut counter: u64 = 0;
     let length: u64 = receive(span, tick(&mut counter));
     transition length == 2 && counter == 1 {true -> done() false -> bad()}
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

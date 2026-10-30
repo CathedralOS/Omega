@@ -16,13 +16,13 @@ public machine configure(config: &mut Configuration, mode: u8) {
         57 -> invalid_extent(config)
         _ -> done()
     }
-    state shifted(config: &mut Configuration) { config.grid.x = 1; config.grid.y = 1; }
-    state coarse(config: &mut Configuration) { config.grid.width = 4; config.grid.height = 4; config.grid.columns = 1; config.grid.rows = 1; }
-    state outside(config: &mut Configuration) { config.grid.x = 6; }
-    state unequal(config: &mut Configuration) { config.grid.width = 3; config.grid.height = 3; }
-    state nodata(config: &mut Configuration) { config.a = 0; config.b = 0; config.c = 0; config.d = 0; }
-    state invalid_width(config: &mut Configuration) { config.grid.width = 0; }
-    state invalid_class(config: &mut Configuration) { config.b = 4; }
-    state invalid_extent(config: &mut Configuration) { config.grid.rows = 5; }
-    state done() { }
+    machine shifted(config: &mut Configuration) { config.grid.x = 1; config.grid.y = 1; }
+    machine coarse(config: &mut Configuration) { config.grid.width = 4; config.grid.height = 4; config.grid.columns = 1; config.grid.rows = 1; }
+    machine outside(config: &mut Configuration) { config.grid.x = 6; }
+    machine unequal(config: &mut Configuration) { config.grid.width = 3; config.grid.height = 3; }
+    machine nodata(config: &mut Configuration) { config.a = 0; config.b = 0; config.c = 0; config.d = 0; }
+    machine invalid_width(config: &mut Configuration) { config.grid.width = 0; }
+    machine invalid_class(config: &mut Configuration) { config.b = 4; }
+    machine invalid_extent(config: &mut Configuration) { config.grid.rows = 5; }
+    machine done() { }
 }

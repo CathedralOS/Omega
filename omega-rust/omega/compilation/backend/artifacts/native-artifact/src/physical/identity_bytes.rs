@@ -29,18 +29,22 @@ pub(super) fn append_operator_occurrence_identity(
 pub(super) fn append_boundary_occurrence_identity(
     canonical: &mut Vec<u8>,
     machine: semantic_vocabulary::MachineId,
-    site: impl Into<semantic_vocabulary::BoundaryInvocationSite>,
+    site: impl Into<semantic_vocabulary::InvocationSite>,
     boundary: semantic_vocabulary::BoundaryMachineId,
     operation_ordinal: usize,
 ) {
     crate::codec_bytes::push_encoded(canonical, machine.get().to_le_bytes());
     match site.into() {
-        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+        semantic_vocabulary::InvocationSite::Operation(operation) => {
             canonical.push(0);
             crate::codec_bytes::push_encoded(canonical, operation.get().to_le_bytes());
         }
-        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+        semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
             canonical.push(1);
+            crate::codec_bytes::push_encoded(canonical, edge.get().to_le_bytes());
+        }
+        semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+            canonical.push(2);
             crate::codec_bytes::push_encoded(canonical, edge.get().to_le_bytes());
         }
     }

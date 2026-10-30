@@ -1,0 +1,107 @@
+// The read-only transmit policy cannot authorize the authored write.
+// An externally installed placed view retains its exact backing through subordinate read/write calls and retirement.
+use omega::language::core::layout;
+
+public data Registers {
+    status: u32;
+    transmit: u8;
+}
+
+public data RegPlacement {}
+
+machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    let access: AccessPlan = AccessPlan::inaccessible(&schema);
+    transition { _ -> place_status(schema, access, entries) }
+
+    machine place_status(
+        schema: Schema,
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        let status_key: u64 = schema.fields[0].key;
+        transition { _ -> place_transmit(
+            schema,
+            AccessPlan::with(
+                access,
+                status_key,
+                FieldAccess::External {
+                    read: ExternalRead::Read,
+                    write: false,
+                    exposure: Exposure::Exported,
+                },
+            ),
+            entries
+        ) }
+    }
+
+    machine place_transmit(
+        schema: Schema,
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        transition { _ -> finish(
+            AccessPlan::with(
+                access,
+                schema.fields[1].key,
+                FieldAccess::External {
+                    read: ExternalRead::Read,
+                    write: false,
+                    exposure: Exposure::Exported,
+                },
+            ),
+            entries
+        ) }
+    }
+
+    machine finish(
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        let mut services: [u64; 32];
+        services[0] = 7;
+        PlacementPlan {
+            layout: Plan {
+                entries: entries,
+                entry_count: 2,
+                size_fixed: 8,
+                size_is_dynamic: false,
+                align: 4,
+            },
+            access: access,
+            reach: BoundaryReach {
+                services: services,
+                service_count: 0,
+            },
+        }
+    }
+}
+
+machine inspect(view: &mut Placed<RegPlacement, Registers>) -> u32 {
+    placed_write(&mut view.transmit, 9u8);
+    placed_read(&view.status)
+}
+
+machine inspect_bound(view: &mut Placed<RegPlacement, Registers>) -> u32 {
+    let status: u32 = placed_read(&view.status);
+    status
+}
+
+machine main(view: &mut Placed<RegPlacement, Registers>) crashes Trap {
+    let written_status: u32 = inspect(view);
+    let bound_status: u32 = inspect_bound(view);
+    transition written_status == 41u32 && bound_status == 41u32 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

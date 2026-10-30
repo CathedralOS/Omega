@@ -107,16 +107,17 @@ file protocol and platform limits. The [command operation](src/package_manager/R
 owns package/alias selection, persisted per-target findings, exact candidate
 resume, and reviewed publication for `omega install` and `omega update`.
 
-`prepare_local_project` selects an accepted lock target before source acquisition
-and preserves dependency pins, fetching only recorded commits when needed.
+`begin_local_project_preparation` opens recovery and snapshot policy before
+application-owned execution resolves the source graph. Accepted discovery
+preserves dependency pins, fetching only recorded commits when needed.
 Accepted compilation requires exact source identities for every occurrence,
 including the local root, together with the dependency projections, identities,
 roles, and selected edges. A source edit requires explicit `omega update` review
 before ordinary accepted compilation; there is no mutable-root exception.
 Local package identity remains tied to its canonical path.
 
-`prepare_local_project_with_options` additionally accepts invocation-local
-`offline` selection. Cached accepted Git pins and unlocked local-only graphs
+The application's `BuildRequest` accepts invocation-local `offline` selection.
+Cached accepted Git pins and unlocked local-only graphs
 remain usable. Missing recorded Git content fails without transport. Offline
 selection does not waive source/compiler identity matching or change the lock
 format.
@@ -124,7 +125,7 @@ format.
 Per the owner ruling of 2026-10-03, ordinary checks and native production use
 accepted compilation, not the candidate-review pipeline. The application
 [`omega-build`](../../application/build/README.md) owns their compiler invocation,
-including inspection and prepared-project SDK consumers. Package management's
+including inspection and SDK consumers. Package management's
 `admit_project_compilation` returns ordered requests plus a completion owner
 retaining staging, aggregate sponsors and source custody. Completion maps occurrence
 failures back to packages, checks compiler-library identity and reports disposal

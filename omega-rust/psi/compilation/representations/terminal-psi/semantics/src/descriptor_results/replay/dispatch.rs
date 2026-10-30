@@ -6,7 +6,7 @@ use super::*;
 /// that leaves a slot untouched contributes its incoming contents. Result
 /// predicates and geometry remain those of the public requirement.
 pub(super) fn join(mut joined: Summary, summaries: &[Summary]) -> Summary {
-    joined.invalidates_contents = summaries.iter().any(|summary| summary.invalidates_contents);
+    joined.invalidates_contents |= summaries.iter().any(|summary| summary.invalidates_contents);
     for summary in summaries {
         for effect in &summary.effects {
             if !joined

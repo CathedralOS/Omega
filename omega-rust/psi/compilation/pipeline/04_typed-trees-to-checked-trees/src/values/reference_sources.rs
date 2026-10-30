@@ -87,13 +87,37 @@ pub(crate) fn capture(
         typed_trees::expression::ExpressionHandle,
     ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
 ) -> Option<ReferenceCapture> {
+    capture_source(
+        program,
+        machine,
+        state,
+        statement_index,
+        validation::reference_formation_source(program, expression)?,
+        reference,
+        selector,
+    )
+}
+
+/// Geometry for an admitted reference capture, explicit or implicit. The
+/// caller selects custody from checked evidence; this operation retains the
+/// actual runtime source and every descriptor crossing, not ultimate backing.
+pub(crate) fn capture_source(
+    program: &dyn validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    formation: validation::ReferenceFormationSource,
+    reference: TypeReferenceHandle,
+    selector: &dyn Fn(
+        typed_trees::expression::ExpressionHandle,
+    ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
+) -> Option<ReferenceCapture> {
     // Formation captures borrowed storage for every reference descriptor.
     // The pointer-roster query excludes byte/slice descriptors by design;
     // using it here would erase a fixed-byte local's actual establishment.
     let shell = validation::reference_shell(program, reference)?;
     let referent = shell.referee;
     let access = CheckedStructuralAccess::from(shell.access);
-    let formation = validation::reference_formation_source(program, expression)?;
     if CheckedStructuralAccess::from(formation.access) != access {
         return None;
     }
@@ -145,11 +169,11 @@ pub(crate) fn capture(
     {
         return None;
     }
-    // Call projections end at their selected carrier. Reference formation
-    // instead names the storage it lends: cross every stored reference shell
-    // at that leaf. An ordinary storage endpoint needs no additional crossing.
-    // Stage05 preserves this ending marker independently of ordinary argument
-    // projections; omitting it would borrow a descriptor rather than its referent.
+    // Formation lends the authored referee's storage. Cross stored reference
+    // shells only until that exact storage is reached: a reference to a
+    // descriptor must retain the descriptor, whereas a reborrow of its referent
+    // owes the corresponding load. Equal peeled identities cannot distinguish
+    // those operations. Stage05 consumes these explicit physical crossings.
     let mut endpoint = backing_type;
     // A whole borrowed formal denotes ingress referent storage, not a stored
     // pointer value. Only subsequent reference shells are physical crossings.
@@ -164,7 +188,26 @@ pub(crate) fn capture(
         endpoint = shell.referee;
     }
     let mut crossings = 0;
-    while let Some(shell) = validation::reference_shell(program, endpoint) {
+    let requested_storage =
+        validation::stored_structural_type_identity(program, referent, &[], &[]);
+    if !requested_storage.is_valid() {
+        return None;
+    }
+    let mut remaining = program.type_reference_table.type_reference_count();
+    loop {
+        let selected_storage =
+            validation::stored_structural_type_identity(program, endpoint, &[], &[]);
+        if !selected_storage.is_valid() {
+            return None;
+        }
+        if !is_view && selected_storage == requested_storage {
+            break;
+        }
+        let Some(shell) = validation::reference_shell(program, endpoint) else {
+            break;
+        };
+        remaining = remaining.checked_sub(1)?;
+        // Crossing descriptor metadata forms the loan without observing its referent.
         if !access_can_supply(shell.access.into(), access) {
             return None;
         }
@@ -179,8 +222,8 @@ pub(crate) fn capture(
     // restrictions. Keep those restrictions exact here; equal byte geometry
     // does not authorize an unrelated owner or a stronger writable referee.
     if !is_view
-        && validation::structural_type_identity(program, endpoint, &[], &[])
-            != validation::structural_type_identity(program, referent, &[], &[])
+        && validation::stored_structural_type_identity(program, endpoint, &[], &[])
+            != validation::stored_structural_type_identity(program, referent, &[], &[])
     {
         return None;
     }
@@ -268,7 +311,22 @@ pub(crate) fn capture(
                 if declaration_index >= statement_index || owner.relevance.is_erased() {
                     return None;
                 }
-                if let Some(shell) = validation::reference_shell(program, owner.type_reference) {
+                if validation::reference_shell(program, owner.type_reference).is_some()
+                    && path.is_empty()
+                    && validation::stored_structural_type_identity(
+                        program,
+                        owner.type_reference,
+                        &[],
+                        &[],
+                    ) == validation::stored_structural_type_identity(program, endpoint, &[], &[])
+                {
+                    // The owned binding is the selected storage, including
+                    // when it stores a reference. Its inner access grants no
+                    // permission to replace that binding or its referent.
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: root }
+                } else if let Some(shell) =
+                    validation::reference_shell(program, owner.type_reference)
+                {
                     let supplied = CheckedStructuralAccess::from(shell.access);
                     if !matches!(
                         (supplied, access),
@@ -286,12 +344,23 @@ pub(crate) fn capture(
                     }
                     CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
                         symbol: root,
-                        root_type_identity: validation::structural_type_identity(
-                            program,
-                            shell.referee,
-                            &[],
-                            &[],
-                        ),
+                        root_type_identity: if place.segments.is_empty() {
+                            // The requested address may be a descriptor slot.
+                            // Whole-root presentation stops at that exact slot.
+                            validation::stored_structural_type_identity(program, endpoint, &[], &[])
+                        } else {
+                            validation::stored_structural_type_identity(
+                                program,
+                                shell.referee,
+                                &[],
+                                &[],
+                            )
+                        },
+                        root_reference_hops: if place.segments.is_empty() {
+                            u32::try_from(crossings).ok()?
+                        } else {
+                            0
+                        },
                     }
                 } else {
                     // Owned contents lend their admitted access independently of
@@ -321,7 +390,8 @@ pub(crate) fn capture(
         source: CheckedUnitStructuralArgumentPlan {
             source,
             path,
-            type_identity: validation::structural_type_identity(program, endpoint, &[], &[]),
+            projection_evaluations: Default::default(),
+            type_identity: validation::stored_structural_type_identity(program, endpoint, &[], &[]),
             access,
         },
         storage,
@@ -335,35 +405,4 @@ fn access_can_supply(source: CheckedStructuralAccess, result: CheckedStructuralA
             source,
             CheckedStructuralAccess::Owned | CheckedStructuralAccess::MutableBorrow
         )
-}
-
-/// Existing stored descriptors retain their current carrier. Fresh formations
-/// use the same source capture as locals, with their selector evaluation owned
-/// by the consuming value occurrence.
-pub(crate) fn plan(
-    program: &dyn validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    expression: typed_trees::expression::ExpressionHandle,
-    reference: TypeReferenceHandle,
-    selector: &dyn Fn(
-        typed_trees::expression::ExpressionHandle,
-    ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
-) -> Option<CheckedUnitStructuralArgumentPlan> {
-    if validation::reference_formation_source(program, expression).is_some() {
-        return Some(
-            capture(
-                program,
-                machine,
-                state,
-                statement_index,
-                expression,
-                reference,
-                selector,
-            )?
-            .source,
-        );
-    }
-    validation::reference_result_custody::initializer_source(program, state, expression, reference)
 }

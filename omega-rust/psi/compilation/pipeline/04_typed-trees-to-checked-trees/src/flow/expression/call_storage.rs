@@ -5,10 +5,9 @@ use super::Execution;
 use arena::Handle;
 use checked_trees::FlowOperandFact;
 use facts::PlaceSegment;
-use validation::CanonicalPlace;
 
 pub(super) struct CallPlaceProjection {
-    pub(super) addresses: Vec<CanonicalPlace>,
+    pub(super) addresses: Vec<super::super::CapturedReferencePlace>,
     pub(super) type_reference: typed_trees::types::TypeReferenceHandle,
 }
 
@@ -25,18 +24,20 @@ impl Execution<'_, '_, '_> {
         let mut reference = actual.type_reference;
         let mut places = if let Some(shell) = validation::reference_shell(self.program, reference) {
             reference = shell.referee;
-            let places = self.captured_referent_places(actual.referents);
+            let places = self.captured_reference_places(actual.referents);
             if places.is_empty() {
                 return None;
             }
             places
         } else {
-            vec![validation::canonical_place_from_expression_in_state(
-                self.program,
-                self.state.symbol,
-                self.statement_index,
-                actual.expression,
-            )?]
+            vec![super::super::CapturedReferencePlace::unformed(
+                validation::canonical_place_from_expression_in_state(
+                    self.program,
+                    self.state.symbol,
+                    self.statement_index,
+                    actual.expression,
+                )?,
+            )]
         };
         for (ordinal, segment) in path.iter().enumerate() {
             if matches!(
@@ -53,12 +54,7 @@ impl Execution<'_, '_, '_> {
             }
             places = places
                 .into_iter()
-                .map(|place| {
-                    super::super::operand_values::project_captured_view_place(
-                        place,
-                        std::slice::from_ref(segment),
-                    )
-                })
+                .map(|place| place.projected(std::slice::from_ref(segment)))
                 .collect::<Option<Vec<_>>>()?;
             if ordinal + 1 < path.len()
                 && let Some(shell) = validation::reference_shell(self.program, reference)
@@ -71,32 +67,17 @@ impl Execution<'_, '_, '_> {
                 if !captured_actual.is_valid() {
                     captured_actual = self.context.control.operands.insert(*actual);
                 }
-                let selected = validation::completed_storage::reference_captures_at_path(
+                places = super::super::stored_views::reference_places_at_snapshot(
                     self.program,
                     &self.context.control,
                     captured_actual,
                     &path[..=ordinal],
                     at,
-                )?
-                .captures()?;
-                let mut pointees = Vec::new();
-                for selected in selected {
-                    // Lifetime-only subtree evidence supplies no address.
-                    if !selected.projection.is_empty() {
-                        return None;
-                    }
-                    let descriptor = self.context.control.operands.get(selected.capture);
-                    let addresses = self.captured_referent_places(descriptor.referents);
-                    if addresses.is_empty() {
-                        return None;
-                    }
-                    for place in addresses {
-                        if !pointees.contains(&place) {
-                            pointees.push(place);
-                        }
-                    }
+                    |place| self.is_incoming_descriptor_place(place),
+                )?;
+                if places.is_empty() {
+                    return None;
                 }
-                places = pointees;
             }
         }
         Some(CallPlaceProjection {
@@ -145,7 +126,7 @@ impl Execution<'_, '_, '_> {
             if !validation::storage_origin_types_match(self.program, actual_type, expected_type) {
                 return None;
             }
-            let referents = self.append_referent_places(&projected.addresses);
+            let referents = self.append_captured_references(&projected.addresses);
             let retention = self.retention_from_referents(referents);
             return Some(vec![(
                 FlowOperandFact {
@@ -254,7 +235,7 @@ impl Execution<'_, '_, '_> {
                 self.program,
                 &self.context.control,
                 at,
-                &place,
+                &place.place,
                 super::super::stored_values::StoredObservation::Binding,
             )?
             .captures()?;

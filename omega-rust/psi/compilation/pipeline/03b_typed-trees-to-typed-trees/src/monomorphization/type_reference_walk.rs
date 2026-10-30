@@ -9,25 +9,6 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 /// inspects each visited node before its children enqueue and `on_range`
 /// receives each `Range` constraint's endpoints; returning true from either
 /// stops the walk and propagates true.
-/// Collect every `(minimum, maximum)` bound-expression pair reachable under
-/// `root`'s range constraints.
-pub(crate) fn type_reference_endpoints(
-    program: &dyn ::validation::CheckingInput,
-    root: TypeReferenceHandle,
-) -> Vec<(ExpressionHandle, ExpressionHandle)> {
-    let mut endpoints = Vec::new();
-    for_each_type_reference(
-        program,
-        &[root],
-        |_, _| false,
-        |_, minimum, maximum| {
-            endpoints.push((minimum, maximum));
-            false
-        },
-    );
-    endpoints
-}
-
 pub(crate) fn for_each_type_reference(
     program: &dyn ::validation::CheckingInput,
     roots: &[TypeReferenceHandle],

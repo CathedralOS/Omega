@@ -17,12 +17,46 @@ use std::sync::Arc;
 /// may change to enter a capture between operations. Caching either a link target
 /// or a negative observation could send the later physical read through that
 /// changed alias, bypassing captured bytes and captured missing entries.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SourceFileSystem {
     captures: BTreeMap<PathBuf, Arc<CapturedSourceTree>>,
 }
 
 impl SourceFileSystem {
+    /// A canonical source root under a mounted namespace is already bounded
+    /// by immutable bytes, including missing entries. This is a pure ownership
+    /// query; it never follows live aliases or reopens the physical root.
+    pub fn has_captured_namespace(&self, canonical_root: &Path) -> bool {
+        canonical_root.is_absolute()
+            && self
+                .captures
+                .keys()
+                .any(|root| canonical_root.starts_with(root))
+    }
+
+    /// Join already captured namespaces without replacing either snapshot or
+    /// reopening a physical source. Conflicts refuse before changing this view.
+    pub fn join_captures(&mut self, other: &Self) -> io::Result<()> {
+        for (root, tree) in &other.captures {
+            if self
+                .captures
+                .get(root)
+                .is_some_and(|existing| existing != tree)
+            {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("source captures disagree at {}", root.display()),
+                ));
+            }
+        }
+        for (root, tree) in &other.captures {
+            self.captures
+                .entry(root.clone())
+                .or_insert_with(|| Arc::clone(tree));
+        }
+        Ok(())
+    }
+
     /// Construct a view with ordinary physical behavior until captures are added.
     pub fn new() -> Self {
         Self::default()

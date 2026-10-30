@@ -30,10 +30,32 @@ pub(crate) fn path_type_reference(
     let parameter = usize::try_from(parameter_position)
         .ok()
         .and_then(|position| parameters.get(position))?;
-    let mut receiver = parameter.type_reference;
+    let mut receiver =
+        structural_fields::predicate_parameter_type(program, parameter.type_reference)?;
     let mut selected_case = None;
     for segment in path {
         match segment {
+            CheckedStructuralPredicatePathSegment::Referent => {
+                if selected_case.is_some() {
+                    return None;
+                }
+                let mut selected = receiver;
+                while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
+                    program.type_reference_table.type_reference(selected)
+                {
+                    selected = *base_type;
+                }
+                let typed_trees::types::TypeReferenceNode::Reference {
+                    referee, access, ..
+                } = program.type_reference_table.type_reference(selected)
+                else {
+                    return None;
+                };
+                if *access == language_core::ReferenceAccess::WriteOnly {
+                    return None;
+                }
+                receiver = *referee;
+            }
             CheckedStructuralPredicatePathSegment::FixedIndex(element_index) => {
                 if selected_case.is_some() {
                     return None;

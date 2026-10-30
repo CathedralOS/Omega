@@ -1,0 +1,12 @@
+// Expected exit: 0
+// A cached independent component must preserve its checked result and native body.
+use producer::main;
+machine main() reaches Reading + NativeAbsolute crashes Trap {
+    let value: i32 = Reading::read();
+    transition value == 42 {
+        true -> done()
+        _ -> failed()
+    }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

@@ -262,12 +262,17 @@ fn evaluate_const_fact_expression_at(
             // `has_builtin_const_operator` answers before operand carriers
             // are known: an authored spelling on an incompatible carrier
             // (the core `Nat` `<=` and `-` machines) makes it decline facts
-            // the authored machine could never bind. A subject-bound replay
-            // keeps that opaque answer — its scalar binding is carrier-lossy
-            // — while closed operands let `authored_operator_can_bind`
-            // decide by carrier.
+            // the authored machine could never bind. An untyped integer
+            // subject keeps that conservative answer. Declared integers and
+            // Booleans retain their exact carrier, so the completed operands
+            // below can exclude incompatible authored meanings normally.
             let builtin = has_builtin_const_operator(syntax, binary);
-            if !builtin && subject.and_then(ConstFactSubject::scalar).is_some() {
+            if !builtin
+                && matches!(
+                    subject.and_then(ConstFactSubject::scalar),
+                    Some(ConstScalarValue::Integer(_))
+                )
+            {
                 return Ok(None);
             }
             validate_anonymous_remainder(syntax, binary)?;
@@ -380,7 +385,6 @@ enum ConstSubjectBinding<'a> {
 #[derive(Clone, Copy)]
 enum ConstFactSubject<'a> {
     Value {
-        name: &'a str,
         binding: Option<ConstSubjectBinding<'a>>,
     },
     /// Bare lexical fields in a data or active-case predicate. The complete
@@ -390,16 +394,13 @@ enum ConstFactSubject<'a> {
 
 impl<'a> ConstFactSubject<'a> {
     fn matches(self, syntax: &SyntaxTrees, expression: ExpressionHandle) -> bool {
-        let Self::Value {
-            name: subject_name, ..
-        } = self
-        else {
+        let Self::Value { .. } = self else {
             return false;
         };
         let ExpressionNode::Name(path) = syntax.expressions.expression(expression) else {
             return false;
         };
-        matches!(syntax.expressions.identifier_path_members(*path), [name] if name.as_str(syntax) == subject_name)
+        matches!(syntax.expressions.identifier_path_members(*path), [name] if name.as_str(syntax) == "self")
     }
 
     fn binding(self) -> Option<ConstSubjectBinding<'a>> {
@@ -464,6 +465,26 @@ fn const_field_projection<'value>(
                 .map(|(_, value)| Some(*value)))
         }
         ExpressionNode::Member(member) => {
+            // This projector is entered only with one data predicate's own
+            // completed field ledger. Its logical subject is not a runtime
+            // value or an outer lexical name; unavailable members stay fenced.
+            let logical_subject = match syntax.expressions.expression(member.receiver) {
+                ExpressionNode::Name(path) => {
+                    matches!(syntax.expressions.identifier_path_members(*path), [name]
+                        if name.as_str(syntax) == "self")
+                }
+                _ => false,
+            };
+            if logical_subject {
+                return Ok(Some(if member.case_variant.is_none() {
+                    fields
+                        .iter()
+                        .find(|(field, _)| *field == member.member.as_str(syntax))
+                        .map(|(_, value)| *value)
+                } else {
+                    None
+                }));
+            }
             let Some(receiver) =
                 const_field_projection(syntax, member.receiver, fields, evaluate_index)?
             else {
@@ -995,10 +1016,11 @@ fn evaluate_selected_domain_facts(
         }
         Some(subject_binding)
     };
-    let subject = domain.subject.as_ref().map(|name| ConstFactSubject::Value {
-        name: name.as_str(syntax),
-        binding,
-    });
+    // Syntax-level constant replay and typed predicate checking bind the same
+    // logical subject, including the parent fact of a refinement chain. The
+    // spelling is fixed by the language; an absent authored binder cannot
+    // erase the exact value being qualified or expose an outer constant.
+    let subject = Some(ConstFactSubject::Value { binding });
     let warning_start = warnings.len();
     visiting.push((domain.name.source_span(), domain_key));
     let result = (|| {
@@ -1175,9 +1197,12 @@ fn evaluate_indexed_const_domain(
     }
     let mut parameter_values = HashMap::new();
     for (parameter, argument) in index_parameters.iter().zip(arguments.iter()) {
-        let TypeParameterKind::Const {
+        let (TypeParameterKind::Const {
             type_reference: parameter_type,
-        } = parameter.kind
+        }
+        | TypeParameterKind::Value {
+            type_reference: parameter_type,
+        }) = parameter.kind
         else {
             return Ok(None);
         };
@@ -1300,6 +1325,13 @@ fn evaluate_domain_index_argument(
                     return Ok(ConstScalarValue::from_canonical(&atom));
                 }
                 Some(ConstScalarSpelling::Integer(value)) => {
+                    if let Some(integer_type) = integer_type {
+                        validate_declared_integer(integer_type, value)?;
+                        return Ok(Some(ConstScalarValue::DeclaredInteger {
+                            value,
+                            integer_type,
+                        }));
+                    }
                     return Ok(Some(ConstScalarValue::Integer(value)));
                 }
                 Some(ConstScalarSpelling::Boolean(value)) => {
@@ -1311,19 +1343,19 @@ fn evaluate_domain_index_argument(
                 // Forwarding binds a declared value, not an anonymous integer.
                 // Retain the caller telescope until its carrier is checked;
                 // reducing to i128 first would let `u64` silently become `u8`.
-                let Some(syntax_trees::item::TypeParameter {
-                    kind: TypeParameterKind::Const { type_reference },
-                    ..
-                }) = argument_parameters
+                let Some(syntax_trees::item::TypeParameter { kind, .. }) = argument_parameters
                     .iter()
                     .find(|parameter| parameter.name.as_str(syntax) == name.as_str(syntax))
                 else {
                     return Ok(None);
                 };
-                let actual = crate::preparation::generic_data::syntax_type_identity(
-                    syntax,
-                    *type_reference,
-                )?;
+                let type_reference = match kind {
+                    TypeParameterKind::Const { type_reference }
+                    | TypeParameterKind::Value { type_reference } => *type_reference,
+                    _ => return Ok(None),
+                };
+                let actual =
+                    crate::preparation::generic_data::syntax_type_identity(syntax, type_reference)?;
                 let required =
                     crate::preparation::generic_data::syntax_type_identity(syntax, parameter_type)?;
                 if actual != required {
@@ -1577,7 +1609,7 @@ pub(in crate::preparation::generic_data) fn prove_const_leaf_domain_constraints(
 /// Find declaration predicates through the exact selected member types. This
 /// only selects a required check; it grants no value or membership. Recursion
 /// rejoins source-owned declarations rather than guessing from a leaf spelling.
-fn const_type_requires_declaration_proof(
+pub(crate) fn const_type_requires_declaration_proof(
     syntax: &SyntaxTrees,
     type_reference: TypeReferenceHandle,
     visiting: &mut Vec<source::SourceSpan>,
@@ -1680,6 +1712,19 @@ pub(crate) fn prove_const_literal_predicates(
     if crate::constant::requires_const_initializer_evaluation(syntax, definition) {
         return Ok(());
     }
+    if definition
+        .qualification
+        .as_ref()
+        .is_some_and(|qualification| {
+            qualification.destination == definition.type_reference
+                && qualification.initializer == definition.value
+        })
+    {
+        return super::super::canonicalize_selected_declared_const_definition(
+            syntax, definition, selection,
+        )
+        .map(|_| ());
+    }
     if !const_type_requires_declaration_proof(
         syntax,
         definition.type_reference,
@@ -1760,7 +1805,12 @@ fn evaluate_const_domain_expression(
         }
         ExpressionNode::Binary(binary) => {
             let builtin = has_builtin_const_operator(syntax, binary);
-            if !builtin && subject.and_then(ConstFactSubject::scalar).is_some() {
+            if !builtin
+                && matches!(
+                    subject.and_then(ConstFactSubject::scalar),
+                    Some(ConstScalarValue::Integer(_))
+                )
+            {
                 return Ok(None);
             }
             validate_anonymous_remainder(syntax, binary)?;

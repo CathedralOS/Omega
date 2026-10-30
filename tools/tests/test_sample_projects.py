@@ -88,7 +88,10 @@ class ProjectGateTests(unittest.TestCase):
                                         (0, "index `4` is within length 4", False),
                                         (1, "package acceptance is missing", False),
                                         (-11, "index `4` is within length 4", False)]:
-            with self.subTest(code=code, output=output), patch.object(check_gate.subprocess, "run", return_value=subprocess.CompletedProcess([], code, "", output)):
+            with self.subTest(code=code, output=output), patch.object(check_gate.subprocess, "Popen") as launch:
+                process = launch.return_value.__enter__.return_value
+                process.returncode = code
+                process.communicate.return_value = ("", output)
                 row = check_gate.check_one(Path("omega"), self.root / "scratch", directory)
                 self.assertEqual(row["checked"], accepted)
                 self.assertEqual(row["rejected"], accepted)
@@ -112,7 +115,9 @@ class ProjectGateTests(unittest.TestCase):
             row = native_gate.measure("omega", str(directory), "linux_x86_64", 10)
         self.assertEqual(row["state"], "rejection-failed")
         self.assertIn("missing authored", row["detail"])
-        with patch.object(check_gate.subprocess, "run", side_effect=subprocess.TimeoutExpired("omega", 10)):
+        with patch.object(check_gate.subprocess, "Popen") as launch, patch.object(check_gate, "kill_process_tree"):
+            process = launch.return_value.__enter__.return_value
+            process.communicate.side_effect = [subprocess.TimeoutExpired("omega", 10), ("", "")]
             self.assertFalse(check_gate.check_one(Path("omega"), self.root / "scratch", directory, 10)["checked"])
 
     def test_failed_positive_check_only_is_red_without_native_score(self):
@@ -139,6 +144,14 @@ class ProjectGateTests(unittest.TestCase):
         self.assertFalse(projects.rejection_verdict(project, 1, "callee obligation")[0])
         self.assertTrue(projects.rejection_verdict(project, 1, "callee obligation: structurally false")[0])
 
+    def test_invocation_control_requires_run_admission_refusal(self):
+        directory = self.negative()
+        (directory / "entry_ram.txt").write_text("0=00\n")
+        for code, accepted in [(200, True), (1, False), (202, False), (139, False), (0, False)]:
+            with self.subTest(code=code), patch.object(native_gate, "run", return_value=subprocess.CompletedProcess([], code, "", "index `4` is within length 4")):
+                row = native_gate.measure("omega", str(directory), "linux_x86_64", 10)
+                self.assertEqual(row["state"] == "rejected", accepted)
+
     def test_authored_alternatives_casefold_and_stderr_scope(self):
         directory = self.negative()
         (directory / "sample.json").write_text(json.dumps(dict(
@@ -149,7 +162,10 @@ class ProjectGateTests(unittest.TestCase):
                                  ("index custody denied", False), ("cannot prove package admission", False)]:
             self.assertEqual(projects.rejection_verdict(project, 1, output)[0], expected)
         refusal = subprocess.CompletedProcess([], 1, "INDEX cannot PROVE", "package custody denied")
-        with patch.object(check_gate.subprocess, "run", return_value=refusal):
+        with patch.object(check_gate.subprocess, "Popen") as launch:
+            process = launch.return_value.__enter__.return_value
+            process.returncode = refusal.returncode
+            process.communicate.return_value = (refusal.stdout, refusal.stderr)
             self.assertFalse(check_gate.check_one(Path("omega"), self.root / "scratch", directory)["checked"])
         with patch.object(native_gate, "run", return_value=refusal), patch.object(native_gate, "accept_review") as review:
             self.assertEqual(native_gate.measure("omega", str(directory), "linux_x86_64", 10)["state"], "rejection-failed")

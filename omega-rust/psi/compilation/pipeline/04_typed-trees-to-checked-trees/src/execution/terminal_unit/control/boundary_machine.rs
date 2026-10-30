@@ -56,9 +56,19 @@ pub(crate) fn build_boundary_machine(
     // made `Opaque::operation(value)` demand a representation of Opaque even
     // when no argument or result contained it. All boundary storage and
     // custody come from the explicit signature, exactly as for checked bodies.
-    let (structural_parameters, scalar_parameters) =
+    let signature = if machine.target_family_interface {
+        super::super::calls::free_structural_scalar_entry_signature_traced(
+            program,
+            shapes,
+            state,
+            &binders,
+            &LocalConstructionTrace::default(),
+        )
+    } else {
         free_structural_scalar_signature(program, shapes, state, &binders)
-            .ok_or("boundary explicit parameters have no runtime signature")?;
+    };
+    let (structural_parameters, scalar_parameters) =
+        signature.ok_or("boundary explicit parameters have no runtime signature")?;
     let domain_requirements = boundary_domain_requirements(
         program,
         shapes,
@@ -89,8 +99,19 @@ pub(crate) fn build_boundary_machine(
         program.machine_contracts(machine),
         program.state_contracts(state),
         &contract.closed_scalar_values,
-    )
-    .ok_or("boundary scalar requirements have no retained plan")?;
+    );
+    let (scalar_requires, pending_scalar_requires, pending_scalar_recipes) = match scalar_requires {
+        Some(rows) => (rows, Vec::new(), Vec::new()),
+        None => {
+            let (clauses, recipes) = super::boundary_contracts::pending_recipe_requires(
+                program,
+                program.machine_contracts(machine),
+                program.state_contracts(state),
+            )
+            .ok_or("boundary scalar requirements have no retained plan")?;
+            (Vec::new(), clauses, recipes)
+        }
+    };
     // The callable's checked reach can include target-family members. Its
     // empty interface state is not the machine's inferred execution closure.
     let machine_reach = facts
@@ -127,11 +148,14 @@ pub(crate) fn build_boundary_machine(
         scalar_parameters,
         result,
         domain_requirements: domain_requirements.structural,
+        normal_qualifications: domain_requirements.normal,
         scalar_domain_requirements: domain_requirements.scalar,
         scalar_ensures: validation::derive_scalar_boundary_guarantees(
             program, facts, machine, contract,
         ),
         scalar_requires,
+        pending_scalar_requires,
+        pending_scalar_recipes,
         contract_report_fingerprint: contract.report_fingerprint,
         contract_commitment: contract.commitment,
         contract_service_reach: facts
@@ -277,7 +301,7 @@ pub(crate) fn build_static_boundary_requirements(
         .iter()
         .filter(|definition| definition.is_boundary)
     {
-        for signature in program.trait_machine_instances(definition) {
+        for signature in program.executable_trait_machine_instances(definition) {
             // The declaration's outer telescope remains authored and open.
             // Prepared instances retain its exact application and substituted
             // formals; publish those instances without admitting the open head
@@ -292,7 +316,7 @@ pub(crate) fn build_static_boundary_requirements(
                     signature.symbol,
                     crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
                     checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        "boundary requirement: open trait application",
+                        std::borrow::Cow::Borrowed("boundary requirement: open trait application"),
                     ),
                 ));
                 continue;
@@ -368,7 +392,9 @@ pub(crate) fn build_static_boundary_requirements(
                         signature.symbol,
                         crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
                         checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                            "boundary requirement: unresolved invocation telescope",
+                            std::borrow::Cow::Borrowed(
+                                "boundary requirement: unresolved invocation telescope",
+                            ),
                         ),
                     ));
                     continue;
@@ -393,7 +419,9 @@ pub(crate) fn build_static_boundary_requirements(
                     signature.symbol,
                     crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
                     checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        "boundary requirement: result shape or domain authorization",
+                        std::borrow::Cow::Borrowed(
+                            "boundary requirement: result shape or domain authorization",
+                        ),
                     ),
                 ));
                 continue;
@@ -411,7 +439,7 @@ pub(crate) fn build_static_boundary_requirements(
                     signature.symbol,
                     crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
                     checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        "boundary requirement: parameter signature",
+                        std::borrow::Cow::Borrowed("boundary requirement: parameter signature"),
                     ),
                 ));
                 continue;
@@ -425,7 +453,9 @@ pub(crate) fn build_static_boundary_requirements(
                     signature.symbol,
                     crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
                     checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        "boundary requirement: checked contract commitment",
+                        std::borrow::Cow::Borrowed(
+                            "boundary requirement: checked contract commitment",
+                        ),
                     ),
                 ));
                 continue;
@@ -442,7 +472,7 @@ pub(crate) fn build_static_boundary_requirements(
                     signature.symbol,
                     crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
                     checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        "boundary requirement: published service reach",
+                        std::borrow::Cow::Borrowed("boundary requirement: published service reach"),
                     ),
                 ));
                 continue;
@@ -465,7 +495,9 @@ pub(crate) fn build_static_boundary_requirements(
                     signature.symbol,
                     crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
                     checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        "boundary requirement: structural precondition representation",
+                        std::borrow::Cow::Borrowed(
+                            "boundary requirement: structural precondition representation",
+                        ),
                     ),
                 ));
                 continue;
@@ -497,7 +529,9 @@ pub(crate) fn build_static_boundary_requirements(
                     signature.symbol,
                     crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
                     checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        "boundary requirement: scalar precondition representation",
+                        std::borrow::Cow::Borrowed(
+                            "boundary requirement: scalar precondition representation",
+                        ),
                     ),
                 ));
                 continue;
@@ -527,7 +561,9 @@ pub(crate) fn build_static_boundary_requirements(
                             program,
                             signature.symbol,
                             crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
-                            checked_trees::CheckedUnitPlanGapReason::Unsupported(reason),
+                            checked_trees::CheckedUnitPlanGapReason::Unsupported(
+                                std::borrow::Cow::Borrowed(reason),
+                            ),
                         ));
                         continue;
                     }
@@ -541,9 +577,12 @@ pub(crate) fn build_static_boundary_requirements(
                 scalar_parameters,
                 result,
                 domain_requirements: domain_requirements.structural,
+                normal_qualifications: domain_requirements.normal,
                 scalar_domain_requirements: domain_requirements.scalar,
                 scalar_ensures,
                 scalar_requires,
+                pending_scalar_requires: Vec::new(),
+                pending_scalar_recipes: Vec::new(),
                 contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
                 contract_commitment: capsule.target_contract_commitment(),
                 contract_service_reach: language_semantics::ServiceReachPlan {
@@ -643,9 +682,12 @@ fn build_boundary_operator(
         scalar_parameters,
         result,
         domain_requirements: domain_requirements.structural,
+        normal_qualifications: domain_requirements.normal,
         scalar_domain_requirements: domain_requirements.scalar,
         scalar_ensures: Vec::new(),
         scalar_requires,
+        pending_scalar_requires: Vec::new(),
+        pending_scalar_recipes: Vec::new(),
         contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
         contract_commitment: capsule.target_contract_commitment(),
         contract_service_reach: language_semantics::ServiceReachPlan {

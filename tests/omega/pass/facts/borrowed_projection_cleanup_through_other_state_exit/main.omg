@@ -13,8 +13,8 @@ machine read_captured(receipt: &CapturedReceipt) -> u64 {
 }
 machine verify_captured(code: u64, counter: &[u64; 1]) crashes Trap {
     transition code == 7 && counter[0] == 1 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 data Seed [copy] { code: u64; }
 data CapturedToken [linear] { code: u64; }
@@ -33,12 +33,12 @@ data Pair { first: Receipt; second: Receipt; }
 machine Pair::drop(pair: &mut Pair) {}
 machine observe(receipt: &Receipt) crashes Trap {
     transition receipt.code == 7 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine main() crashes Trap {
     transition { _ -> next(Seed { code: 7 }) }
-    state next(seed: Seed) requires seed.code == 7 { observe(&Pair { first: Receipt { code: 7 }, second: Receipt { code: seed.code } }.second);
+    machine next(seed: Seed) requires seed.code == 7 { observe(&Pair { first: Receipt { code: 7 }, second: Receipt { code: seed.code } }.second);
     let mut direct_drops: [u64; 1] = [0];
     let direct_code: u64 = capture(&CapturedReceipt { code: seed.code, counter: &mut direct_drops }).receipt.code;
     verify_captured(direct_code, &direct_drops);

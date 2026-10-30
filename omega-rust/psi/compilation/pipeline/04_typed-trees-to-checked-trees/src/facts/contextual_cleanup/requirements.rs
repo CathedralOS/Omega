@@ -215,12 +215,13 @@ impl SelectedRequirement {
             .control
             .state(disposition.machine, disposition.state)
         {
-            retained.extend(crate::checks::contracts::cleanup_predicates(
+            let transported = crate::checks::contracts::cleanup_predicates(
                 program,
                 facts,
                 state,
                 &self.current.contexts,
                 &mut required,
+                &retained,
                 |binding| {
                     self.current.entry_stable(
                         program,
@@ -230,7 +231,11 @@ impl SelectedRequirement {
                         },
                     )
                 },
-            ));
+            );
+            if transported.proves_required {
+                return true;
+            }
+            retained.extend(transported.predicates);
         }
         crate::checks::contracts::proves_captured_predicates(
             program,
@@ -729,12 +734,25 @@ pub(crate) fn occurrence_contexts(
             return None;
         }
         let statement = receipt.statement_ordinal as usize;
-        let source = facts.flow.state_statement(state, statement)?;
+        if !facts.flow.control.operands.is_valid(receipt.value) {
+            return None;
+        }
+        let value = facts.flow.control.operands.get(receipt.value);
+        if value.state_symbol != receipt.state
+            || value.statement_index != statement
+            || value.expression != receipt.expression
+            || value.type_reference != receipt.type_reference
+        {
+            return None;
+        }
+        // Completion already filtered facts invalidated by operand effects.
+        // Reconstructing this cut from the statement would use a transition's
+        // missed-guard facts or a newer occupant of the same source home.
         return Some(vec![(
             statement,
             facts
                 .flow
-                .semantic_constraint_contexts(source.pre_store_constraints)
+                .semantic_constraint_contexts(value.constraints)
                 .collect(),
         )]);
     }

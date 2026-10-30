@@ -14,7 +14,7 @@ machine Main::main(main: &mut Main) {
         _ -> even(main)
     }
 
-    state below(main: &mut Main) { main.answer = 70; }
-    state above(main: &mut Main) { main.answer = 71; }
-    state even(main: &mut Main) { main.answer = 72; }
+    machine below(main: &mut Main) { main.answer = 70; }
+    machine above(main: &mut Main) { main.answer = 71; }
+    machine even(main: &mut Main) { main.answer = 72; }
 }

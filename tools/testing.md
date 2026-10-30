@@ -8,6 +8,11 @@ one command.
 
 ## Validation scope
 
+Terminal corpus execution defaults to one million fuel units. A long fixture may
+author one positive `u64` in `terminal_fuel_allowance.txt` to raise its allowance
+for ordinary interpretation and target-installation observations. Exhaustion
+remains a failed execution oracle; the allowance changes no program semantics.
+
 Iteration uses focused behavioral feedback; landing establishes the scoped
 change and attributes affected failures; release runs the full release matrix.
 A known-red unrelated baseline need not block a checkpoint, but is not release
@@ -42,6 +47,37 @@ lanes' drift and cannot attribute either. Confirmed unrelated failures do not bl
 scoped change: retain the command, revision, and evidence, and report them without
 repairing them in the same task. New or unexplained failures in affected behavior
 must be resolved before landing. Do not repeat broad suites to attribute one test.
+
+### Exact fixtures on a hosted pilot
+
+The existing `Compiler queue pilot` manual dispatch accepts a comma-separated
+`fixtures` string and `native_host` (`linux_x86_64` or `windows_x86_64`). A
+nonempty selection replaces its default smoke; it does not extend a foreign
+cohort or start the full corpus. PR and merge-group pilot checks keep their
+existing Linux check behavior.
+
+For example, qualify the unchanged conversion witness with its existing
+unproved-conversion control on the requested work ref:
+
+```sh
+gh workflow run compiler-pilot.yml --ref work/NAME \
+  -f native_host=linux_x86_64 \
+  -f fixtures=pass/float/named_integer_conversion_source_proofs_exit,fail/float/named_float_to_integer_no_context_unproven
+```
+
+Select `windows_x86_64` for a separate matching-host run. Host-specific caches,
+concurrency groups and artifact names keep their observations distinct; Windows
+uses the short `D:/ot` target directory. The artifact retains the actual producer
+profiles, source revision and corpus observations, not just workflow success.
+
+Locally, the same selector is `python tools/ci/compiler_pilot.py --fixtures IDS`
+or `OMEGA_COMPILER_PILOT_FIXTURES=IDS`. IDs must be existing normalized
+`pass/group/name` or `fail/group/name` directories containing `main.omg`.
+Empty entries, duplicates, traversal, missing roots and substring-filter
+collisions refuse before building; malformed input never selects default smoke.
+An unset/empty environment variable leaves the default unchanged. Pass fixtures
+run both engines with the existing numeric and stream oracles; fail fixtures
+run the existing source/rejection gate only.
 
 ### Optimized validation compilers
 
@@ -115,6 +151,16 @@ what it hid.
   hash-consistent with what was stored and wrong; macOS `openrsync` rejects
   GNU-only flags by printing usage and copying nothing (124 MB of 19 GB in the
   wave's case) while a pipeline reported exit 0.
+- **A tautological runtime oracle or unobservable cleanup in a fact witness.**
+  A `match` witness that tests only the boundary input where the matched arm and
+  the `_` fallback evaluate to the same number (for example, `Cell { value: 73 }`
+  against `Cell::Ready -> cell.value, _ -> 73`, then `selected - 73 == 0`) exits
+  0 even if `Psi 05–07` or `Omega 00–09` inverts the branch or always takes `_`.
+  Likewise, a `Resource::drop` witness that mutates only `resource.valid = 0` on
+  the dying local or drops a plain scalar struct exits 0 even if the backend
+  never emits the cleanup call. Fact witnesses must exercise both matching and
+  fallback paths with distinct runtime outcomes and observe cleanup or
+  restoration in caller-visible state ([requirements and evidence](../AGENTS.md#requirements-and-evidence)).
 
 The rule: when a check reports clean, ask what it structurally cannot see, and
 measure that thing separately. Every instance above was found by adding the
@@ -159,13 +205,16 @@ reason to reuse or rerun. Keep raw outcomes with their actual observed revision.
 Qualify the outcome on a fixed recorded revision, with source/oracle hashes,
 compiler binary identity and producer revision, toolchain, target and relevant
 environment/resources. Keep frozen expected results and refusal controls intact.
-After main advances, compare the incoming changes against those recorded inputs:
+Keep the initial base fixed through publication. A changed main or queue SHA
+alone does not trigger pull, rebase, rebuild, requalification or review. Only a
+demonstrated actual merge conflict, concrete prerequisite or changed affected
+source justifies targeted local work and reassessment against recorded inputs.
 
 Use the executable [pinned qualification runner](qualification.md) to capture
 reviewed dependency identities and measured checks on that revision. Keep the
-checkpoint fixed during qualification; integrate main near publication, outside
-the queue, then `assess`/`run-pending` the exact incoming changes. Its worktree
-registration binds the final assessment to ordinary landing verification, while
+checkpoint fixed through publication; `assess`/`run-pending` uses that recorded
+base. After justified source integration, assess only the actual changed closure.
+Qualification records source evidence; GitHub owns integration admission, while
 the original observation SHA remains visible when evidence is reused. Immutable
 producer artifacts and complete reviewed closures are required; file replacement
 during capture invalidates evidence even when the validator exits successfully.
@@ -211,6 +260,8 @@ Independent-workspace checks remain part of focused author validation, not a
 per-main-movement qualification loop. New affected failures still require repair;
 authority, custody, digest and golden rules remain. Post-merge runtime checks and
 release qualification are separate from the deliberately small admission gate.
+Postlanding verification observes the merged source head, published commit and
+CI results; it does not rebuild the compiler or rerun local qualification.
 
 ### Independent semantic review
 
@@ -220,7 +271,13 @@ original baseline outcomes, preserved positives/controls, the evidence ledger,
 current versus historical observations, and known limitations. Review the
 [requirements and evidence](../AGENTS.md#requirements-and-evidence) established
 by those consumers, including the semantic premise behind a rewrite, exact
-subjects/actuals, effects/lifetime, formation and authority. Inspect raw evidence;
+subjects/actuals, effects/lifetime, formation and authority. For every fact
+witness under `samples/cli/facts/`, check the runtime counterfactual alongside
+the static reject twin: if `Psi 05–07` or `Omega 00–09` inverted the branch,
+took the wildcard arm, omitted the cleanup action, or miscalculated the slot
+offset, would `main()` trap? A witness whose branches yield the same result on
+the only tested input or whose cleanup mutates only a dying temporary fails
+semantic review just as a missing `invalid/main.omg` twin does. Inspect raw evidence;
 check counts, file presence and a reviewer's identity field alone prove none of
 those obligations. Choose necessary independent replays from the affected scope.
 
@@ -468,20 +525,24 @@ print('not inspectable', len(absent | local), 'of', len(shas), 'stamps')
 PY
 ```
 
-`--record` now refuses a stamp that is not an ancestor of the published main
-this checkout can see. The refusal names both honest remedies and never
-substitutes a revision of its own, because what a row stamps belongs to the
-person recording. A fixture-only record satisfies the check by **anchoring**:
-leave the fixture and golden changes staged with HEAD at the published base the
-candidate sits on, and the stamp reads `@<base>+wt` — the base stays an ancestor
-after the candidate is rebased, and it names the revision the observation was
-taken against. A record whose *compiler* changed cannot be anchored that way,
-because the base's compiler is not the one that produced the rows; it has to be
-taken after the compiler commit lands. The existing unresolvable stamps are
-history and are deliberately not mass re-recorded here: re-recording
-un-dispositioned rows converts a possible regression into a baseline. A later
-scoped re-record still needs the
-[two-part golden guard](#splicing-a-golden-the-content-guard).
+For a commit outside known published main history, `--record` retains it in
+`refs/corpus-observations/<full-sha>` and an immutable Git bundle at
+`build/corpus-source/<full-sha>.bundle` before writing rows. Publish the bundle
+with PR evidence and preserve it with the run receipts through squash and branch
+cleanup. The bundle excludes only a locally known published ancestor; restore it
+in a clone containing that prerequisite with `git bundle unbundle FILE.bundle`.
+No ancestry on moving main or postlanding compiler run is required. A bundle
+failure refuses recording, and an existing bundle must verify and bind the exact
+stamped commit. This retains source provenance; it does not qualify behavior.
+
+A clean stamp still requires each measured fixture in that commit. `+wt` still
+means the working tree differs: retain its source patch, untracked sources and
+replay inputs with the existing run evidence, rather than treating the base as
+those changed bytes. Never move HEAD back to a published base to relabel a run.
+Historical unresolvable stamps are not mass re-recorded: that could turn a
+regression into a baseline. Scoped recording still requires the
+[two-part golden guard](#splicing-a-golden-the-content-guard), actual engine
+observations, optimized producer checks and all authored oracles.
 
 ### Attributing a move
 
@@ -568,8 +629,9 @@ This permits bounded runtime-only comparison slices after the build phase has
 released its resource hold. A run exits 1 when any fixture loses its outcome, its
 expected fragments or an execution fact such as `exit:70`, and prints every
 loss and gain. Name the base explicitly: comparing against a newer `main` than
-your series sits on attributes other lanes' movement to you. Rebase first, then
-compare against the commit you rebased onto. Edits made to this tree while its
+your series sits on attributes other lanes' movement to you. Compare directly
+against the recorded base commit of your worktree; do not chase main or rebase
+merely because main moved. Edits made to this tree while its
 own runner links still change what the head side measured, so finish edits
 before starting a run.
 
@@ -592,6 +654,12 @@ On the pinned nightly, content freshness needs both
 `CARGO_UNSTABLE_CHECKSUM_FRESHNESS=true` (or `cargo -Z checksum-freshness`)
 and `CARGO_BUILD_FINGERPRINT=content`; enabling the unstable feature alone keeps
 timestamp freshness. See [Cargo's checksum freshness contract](https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#checksum-freshness).
+
+Profile admission also requires a regular executable image (ELF, Mach-O or PE)
+with host execution permission. A matching Cargo profile receipt alone does
+not admit a damaged linker or strip output: `rust-objcopy` can report a disk
+write failure as a warning while Cargo exits successfully. Preserve that failed
+build's records and rebuild its executable after recovering disk headroom.
 
 **A directly invoked `target/debug/omega` can predate the commit you are
 judging, and it reports failures the tree does not have.** The same hazard as a

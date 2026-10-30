@@ -8,7 +8,7 @@ data Main { }
 // this edge, not after the destination state has started.
 machine select(first: Pair, second: Pair) -> i32 {
     transition { _ -> finish(first.left, second.right) }
-    state finish(left: Leaf, right: Leaf) -> i32 {
+    machine finish(left: Leaf, right: Leaf) -> i32 {
         left.value + right.value
     }
 }
@@ -21,7 +21,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 0)
         _ -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

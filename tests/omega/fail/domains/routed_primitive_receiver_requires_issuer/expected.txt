@@ -1,0 +1,2 @@
+row requires u64::IssuedIndex
+requires every write to be established in that domain

@@ -71,5 +71,5 @@ machine main() reaches Version, WideVersion crashes Trap {
  let version: &RawView = Version::locate();
  let widened: &i64 = WideVersion::locate();
  transition widened == version.value.value { true -> done() false -> bad() }
- state done() {} state bad() { crash Trap; }
+ machine done() {} machine bad() { crash Trap; }
 }

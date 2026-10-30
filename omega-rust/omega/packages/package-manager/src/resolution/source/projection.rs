@@ -1,9 +1,9 @@
 use super::{ResolvePackageSourceError, SourceRootRole};
-use crate::declarations::PackageName;
 use crate::declarations::dependencies::read::{
     DependencyProjectionError, DependencyProjections, extract_build_dependency_projection,
 };
-use crate::declarations::roles::{BuildDeclaration, BuildDeclarationError, BuildDeclarationKind};
+use crate::declarations::{BuildDeclarationError, BuildDeclarationKind, PackageName};
+use build_declarations::BuildDeclaration;
 use std::path::Path;
 
 /// The identity-bearing declaration projected from one selected source root.
@@ -21,36 +21,6 @@ pub(super) fn project_package_build(
     role: SourceRootRole,
 ) -> Result<ProjectedPackageBuild, ResolvePackageSourceError> {
     project_build_projection(extract_build_dependency_projection(snapshot_root), role)
-}
-
-pub(super) fn project_captured_package_build(
-    root: &Path,
-    tree: &source::CapturedSourceTree,
-    role: SourceRootRole,
-) -> Result<ProjectedPackageBuild, ResolvePackageSourceError> {
-    let path = root.join("build.omg");
-    let text = tree
-        .read_to_string(Path::new("build.omg"))
-        .map_err(|error| {
-            if error.kind() == std::io::ErrorKind::NotFound {
-                ResolvePackageSourceError::Declaration(BuildDeclarationError::MissingBuildFile {
-                    path: path.clone(),
-                })
-            } else if error.kind() == std::io::ErrorKind::InvalidData {
-                ResolvePackageSourceError::Declaration(
-                    BuildDeclarationError::InvalidBuildFileEncoding { path: path.clone() },
-                )
-            } else {
-                ResolvePackageSourceError::Declaration(BuildDeclarationError::ReadBuildFile {
-                    path: path.clone(),
-                    message: error.to_string(),
-                })
-            }
-        })?;
-    project_build_projection(
-        crate::declarations::dependencies::read::extract_build_projection_from_source(&text),
-        role,
-    )
 }
 
 fn project_build_projection(
@@ -95,13 +65,13 @@ fn project_build_projection(
     let (declaration, dependencies) = projection.into_parts();
     match declaration {
         BuildDeclaration::Package(package) => Ok(ProjectedPackageBuild {
-            name: package.name,
+            name: PackageName::from(package.name),
             role: BuildDeclarationKind::Package,
             dependencies,
         }),
         BuildDeclaration::Application(application) if role.allows_application_root() => {
             Ok(ProjectedPackageBuild {
-                name: application.name,
+                name: PackageName::from(application.name),
                 role: BuildDeclarationKind::Application,
                 dependencies,
             })

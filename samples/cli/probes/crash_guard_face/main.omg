@@ -24,8 +24,8 @@ crashes Trap
         true -> member_fail()
         _ -> member_succeed()
     }
-    state member_fail() -> bool { crash Trap; }
-    state member_succeed() -> bool { false }
+    machine member_fail() -> bool { crash Trap; }
+    machine member_succeed() -> bool { false }
 }
 
 machine scalar_guarded(flag: bool) -> bool
@@ -36,8 +36,8 @@ crashes Trap
         true -> scalar_fail()
         _ -> scalar_succeed()
     }
-    state scalar_fail() -> bool { crash Trap; }
-    state scalar_succeed() -> bool { false }
+    machine scalar_fail() -> bool { crash Trap; }
+    machine scalar_succeed() -> bool { false }
 }
 
 data Main { hits: i32 in Wrapping; }
@@ -49,8 +49,8 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

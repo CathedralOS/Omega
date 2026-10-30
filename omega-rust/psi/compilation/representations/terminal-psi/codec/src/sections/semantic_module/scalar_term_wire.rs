@@ -39,6 +39,14 @@ pub(crate) fn encode_scalar_term(
         return Err(CodecError::ScalarTermNestingTooDeep);
     }
     match term {
+        ScalarTerm::Application {
+            application,
+            scalar_type,
+        } => {
+            writer.u8(41);
+            writer.id(*application);
+            encode_scalar_type(writer, *scalar_type);
+        }
         ScalarTerm::StructuralRead {
             root,
             path,
@@ -52,6 +60,7 @@ pub(crate) fn encode_scalar_term(
             for projection in path {
                 match projection {
                     ScalarReadProjection::Referent => writer.u8(5),
+                    ScalarReadProjection::Extent => writer.u8(6),
                     ScalarReadProjection::Static(CanonicalStructuralPathSegment::Field(field)) => {
                         writer.u8(1);
                         writer.id(*field);
@@ -65,6 +74,11 @@ pub(crate) fn encode_scalar_term(
                     ScalarReadProjection::Static(CanonicalStructuralPathSegment::Case(case)) => {
                         writer.u8(3);
                         writer.id(*case);
+                    }
+                    ScalarReadProjection::Static(CanonicalStructuralPathSegment::Referent) => {
+                        return Err(CodecError::MalformedProposition(
+                            semantic_vocabulary::PropositionError::NonCanonicalScalarReadProjection,
+                        ));
                     }
                     ScalarReadProjection::Index(index) => {
                         writer.u8(4);
@@ -400,6 +414,10 @@ pub(crate) fn decode_scalar_term(
         return Err(CodecError::ScalarTermNestingTooDeep);
     }
     Ok(match reader.u8()? {
+        41 => ScalarTerm::Application {
+            application: reader.id("ScalarApplicationId")?,
+            scalar_type: decode_scalar_type(reader)?,
+        },
         1 => ScalarTerm::value(reader.id("ValueId")?, decode_scalar_type(reader)?),
         2 => ScalarTerm::boolean(reader.boolean()?),
         3 => {
@@ -501,6 +519,7 @@ pub(crate) fn decode_scalar_term(
                         depth + 1,
                     )?)),
                     5 => ScalarReadProjection::Referent,
+                    6 => ScalarReadProjection::Extent,
                     tag => return Err(CodecError::InvalidTag("ScalarReadProjection", tag)),
                 })
             })?;
@@ -509,4 +528,47 @@ pub(crate) fn decode_scalar_term(
         }
         tag => return Err(CodecError::InvalidTag("ScalarTerm", tag)),
     })
+}
+
+#[cfg(test)]
+mod scalar_read_projection_tests {
+    use super::*;
+    use semantic_vocabulary::{PlaceId, ScalarType};
+
+    #[test]
+    fn explicit_reference_read_has_an_exact_canonical_wire_roundtrip() {
+        let term = ScalarTerm::structural_read(
+            PlaceId::new(1).unwrap(),
+            vec![ScalarReadProjection::Referent],
+            ScalarType::Boolean,
+        )
+        .unwrap();
+        let mut writer = Writer::default();
+        encode_scalar_term(&mut writer, &term, 0).unwrap();
+        let bytes = writer.finish();
+        let mut reader = Reader::new(&bytes);
+        let decoded = decode_scalar_term(&mut reader, 0).unwrap();
+        assert_eq!(decoded, term);
+        assert_eq!(reader.remaining(), 0);
+        let mut repeated = Writer::default();
+        encode_scalar_term(&mut repeated, &decoded, 0).unwrap();
+        assert_eq!(repeated.finish(), bytes);
+    }
+
+    #[test]
+    fn static_reference_alias_cannot_be_published_on_the_scalar_read_wire() {
+        let term = ScalarTerm::StructuralRead {
+            root: PlaceId::new(1).unwrap(),
+            path: vec![ScalarReadProjection::Static(
+                CanonicalStructuralPathSegment::Referent,
+            )],
+            scalar_type: ScalarType::Boolean,
+        };
+        assert!(matches!(
+            encode_scalar_term(&mut Writer::default(), &term, 0),
+            Err(CodecError::MalformedProposition(
+                PropositionError::NonCanonicalScalarReadProjection
+            ))
+        ));
+    }
 }

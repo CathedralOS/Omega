@@ -15,6 +15,6 @@ machine Main::main(main: &mut Main) {
         _ -> differ(main)
     }
 
-    state same(main: &mut Main) { main.answer = 70; }
-    state differ(main: &mut Main) { main.answer = 71; }
+    machine same(main: &mut Main) { main.answer = 70; }
+    machine differ(main: &mut Main) { main.answer = 71; }
 }

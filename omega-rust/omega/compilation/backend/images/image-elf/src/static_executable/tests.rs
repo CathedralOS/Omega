@@ -1,11 +1,11 @@
-use crate::emit_elf_aarch64_executable;
+use crate::emit_elf_executable;
 use arena::Handle;
 use image::{FinalImage, FinalImageSection, FinalImageSymbol};
 
 #[test]
 fn emits_entry_address_from_final_image_entry_symbol() {
     let mut image = FinalImage::with_capacity(
-        FinalImage::default().target,
+        target::NativeTarget::linux_arm64(),
         image::FinalImageMemory {
             text: vec![0; 16],
             ..Default::default()
@@ -24,11 +24,27 @@ fn emits_entry_address_from_final_image_entry_symbol() {
     });
     image.symbol_table.entry_symbol = entry_symbol;
 
-    let output = emit_elf_aarch64_executable(image).expect("ELF image should emit");
+    let output = emit_elf_executable(image).expect("ELF image should emit");
     let entry_bytes: [u8; 8] = output.bytes[24..32].try_into().unwrap();
 
     assert_eq!(u64::from_le_bytes(entry_bytes), 0x401004);
+    assert_eq!(output.format, "elf64-aarch64-executable");
+    assert_eq!(&output.bytes[18..20], &183u16.to_le_bytes(), "e_machine");
     assert_eq!(output.executable_regions.text_address, 0x401000);
     assert_eq!(output.executable_regions.text_byte_count, 16);
     assert_eq!(output.executable_regions.unclassified_gaps.len(), 1);
+
+    // A Mach-O target is off this emitter's two diagonals: the derivation above
+    // is the only other outcome, and it refuses before any byte is written.
+    assert!(
+        emit_elf_executable(FinalImage::with_capacity(
+            target::NativeTarget::macos_arm64(),
+            image::FinalImageMemory::default(),
+            Handle::invalid(),
+            0,
+            0,
+            0,
+        ))
+        .is_err()
+    );
 }

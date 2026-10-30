@@ -67,6 +67,6 @@ machine observe(raw: i32) -> i32 {
 
 machine main() crashes Trap {
     transition observe(11) == 3 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

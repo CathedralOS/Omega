@@ -11,6 +11,8 @@ pub(crate) mod identities;
 pub(crate) mod preservation_storage;
 pub(crate) mod register_vocabulary;
 pub(crate) mod reservation_profiles;
+#[cfg(feature = "test-support")]
+pub mod test_support;
 
 use crate::{
     RegisterClass, RegisterClassId, RegisterReservationOverlay, RegisterUnit, RegisterUnitId,
@@ -52,6 +54,16 @@ impl PhysicalRegisterModel {
         self.views.iter().find(|view| view.id == id)
     }
 
+    /// The register unit keyed `id`, when the model declares it.
+    pub fn unit(&self, id: RegisterUnitId) -> Option<&RegisterUnit> {
+        self.units.iter().find(|unit| unit.id == id)
+    }
+
+    /// The register class keyed `id`, when the model declares it.
+    pub fn class(&self, id: RegisterClassId) -> Option<&RegisterClass> {
+        self.classes.iter().find(|class| class.id == id)
+    }
+
     /// The preservation convention named `name`, when the model declares it.
     pub fn convention_named(&self, name: &str) -> Option<&PreservationConvention> {
         self.conventions
@@ -70,6 +82,121 @@ impl PhysicalRegisterModel {
     }
 }
 
+/// Appends register classes, units and views in declaration order and seals
+/// them into a [`PhysicalRegisterModel`]. The class roster, the layout and the
+/// conventions and reservations stay with the architecture that declares them;
+/// the builder only owns the id assignment every architecture repeats.
+pub struct PhysicalModelBuilder {
+    units: Vec<RegisterUnit>,
+    views: Vec<RegisterView>,
+    classes: Vec<RegisterClass>,
+}
+
+impl PhysicalModelBuilder {
+    /// Start a model whose register classes are `class_names`, in id order.
+    pub fn with_classes(class_names: &[&str]) -> Self {
+        Self {
+            units: Vec::new(),
+            views: Vec::new(),
+            classes: class_names
+                .iter()
+                .enumerate()
+                .map(|(id, name)| RegisterClass {
+                    id: RegisterClassId(u16::try_from(id).expect("class id fits u16")),
+                    name: (*name).into(),
+                    views: Vec::new(),
+                })
+                .collect(),
+        }
+    }
+
+    /// Append one unit and return its declaration-order id.
+    pub fn unit(&mut self, name: String, bits: u16, kind: RegisterUnitKind) -> RegisterUnitId {
+        let id = RegisterUnitId(u16::try_from(self.units.len()).expect("unit id fits u16"));
+        self.units.push(RegisterUnit {
+            id,
+            name,
+            bits,
+            kind,
+        });
+        id
+    }
+
+    /// Append one view and register it under its class.
+    #[allow(clippy::too_many_arguments)]
+    pub fn view(
+        &mut self,
+        name: String,
+        class: RegisterClassId,
+        units: Vec<RegisterUnitId>,
+        write_units: Vec<RegisterUnitId>,
+        bits: u16,
+        write_semantics: RegisterWriteSemantics,
+        allocatable: bool,
+    ) -> RegisterViewId {
+        let id = RegisterViewId(u16::try_from(self.views.len()).expect("view id fits u16"));
+        self.views.push(RegisterView {
+            id,
+            name,
+            class,
+            units,
+            write_units,
+            bits,
+            write_semantics,
+            allocatable,
+        });
+        self.classes[usize::from(class.0)].views.push(id);
+        id
+    }
+
+    /// Every unit declared so far, in declaration order.
+    pub fn unit_ids(&self) -> Vec<RegisterUnitId> {
+        self.units.iter().map(|unit| unit.id).collect()
+    }
+
+    /// Seal the table with the architecture's conventions and reservations.
+    pub fn finish(
+        self,
+        architecture: Architecture,
+        conventions: Vec<PreservationConvention>,
+        reservations: Vec<RegisterReservationOverlay>,
+    ) -> PhysicalRegisterModel {
+        PhysicalRegisterModel {
+            architecture,
+            units: self.units,
+            views: self.views,
+            classes: self.classes,
+            conventions,
+            reservations,
+        }
+    }
+}
+
+/// The units `names` select from `units`, sorted.
+pub fn units_for(
+    units: &BTreeMap<String, Vec<RegisterUnitId>>,
+    names: &[&str],
+) -> Vec<RegisterUnitId> {
+    crate::sorted_units(names.iter().flat_map(|name| units[*name].iter().copied()))
+}
+
+/// Everything in `all` that is neither fixed nor callee-saved.
+pub fn complement(
+    all: &[RegisterUnitId],
+    fixed: &[RegisterUnitId],
+    callee: &[RegisterUnitId],
+) -> Vec<RegisterUnitId> {
+    all.iter()
+        .copied()
+        .filter(|unit| !fixed.contains(unit) && !callee.contains(unit))
+        .collect()
+}
+
+/// The view ids `names` select from `views`, in order.
+pub fn view_ids(views: &BTreeMap<String, RegisterViewId>, names: &[&str]) -> Vec<RegisterViewId> {
+    names.iter().map(|name| views[*name]).collect()
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedPhysicalRegisterModel {
     model: PhysicalRegisterModel,
@@ -85,6 +212,8 @@ impl ValidatedPhysicalRegisterModel {
         self.identity
     }
 
+    /// Unwrap for tests that mutate the validated model and validate it again.
+    #[cfg(test)]
     pub(crate) fn into_model(self) -> PhysicalRegisterModel {
         self.model
     }
@@ -146,21 +275,6 @@ pub fn validate_physical_register_model(
         return Err(RegisterModelValidationError::DuplicateName);
     }
 
-    let units = model
-        .units
-        .iter()
-        .map(|unit| (unit.id, unit))
-        .collect::<BTreeMap<_, _>>();
-    let views = model
-        .views
-        .iter()
-        .map(|view| (view.id, view))
-        .collect::<BTreeMap<_, _>>();
-    let classes = model
-        .classes
-        .iter()
-        .map(|class| (class.id, class))
-        .collect::<BTreeMap<_, _>>();
     if model.units.iter().any(|unit| unit.bits == 0) {
         return Err(RegisterModelValidationError::ZeroWidthUnit);
     }
@@ -172,17 +286,17 @@ pub fn validate_physical_register_model(
         if view.units.is_empty() {
             return Err(RegisterModelValidationError::EmptyViewUnits);
         }
-        validate_unit_set(&view.units, &units)?;
-        validate_unit_set(&view.write_units, &units)?;
+        validate_unit_set(&view.units, &model)?;
+        validate_unit_set(&view.write_units, &model)?;
         let storage_bits = view
             .units
             .iter()
-            .map(|unit| u32::from(units[unit].bits))
+            .map(|unit| u32::from(model.unit(*unit).expect("view unit validated above").bits))
             .sum::<u32>();
         if u32::from(view.bits) > storage_bits {
             return Err(RegisterModelValidationError::ViewWidthExceedsUnits(view.id));
         }
-        if !classes.contains_key(&view.class) {
+        if model.class(view.class).is_none() {
             return Err(RegisterModelValidationError::UnknownClass(view.class));
         }
         if !view
@@ -206,10 +320,10 @@ pub fn validate_physical_register_model(
                 ));
             }
             RegisterWriteSemantics::Discards
-                if view
-                    .units
-                    .iter()
-                    .any(|unit| units[unit].kind != RegisterUnitKind::Zero) =>
+                if view.units.iter().any(|unit| {
+                    model.unit(*unit).expect("view unit validated above").kind
+                        != RegisterUnitKind::Zero
+                }) =>
             {
                 return Err(RegisterModelValidationError::WriteFootprintMismatch(
                     view.id,
@@ -221,15 +335,20 @@ pub fn validate_physical_register_model(
         covered.extend(view.write_units.iter().copied());
     }
     for class in &model.classes {
-        validate_view_set(&class.views, &views)?;
+        validate_view_set(&class.views, &model)?;
         for view in &class.views {
-            if views[view].class != class.id {
+            if model.view(*view).expect("class view validated above").class != class.id {
                 return Err(RegisterModelValidationError::ClassMembershipMismatch);
             }
         }
     }
     for view in &model.views {
-        if !classes[&view.class].views.contains(&view.id) {
+        if !model
+            .class(view.class)
+            .expect("view class validated above")
+            .views
+            .contains(&view.id)
+        {
             return Err(RegisterModelValidationError::ClassMembershipMismatch);
         }
     }
@@ -238,13 +357,13 @@ pub fn validate_physical_register_model(
     }
 
     for convention in &model.conventions {
-        validate_convention(convention, &units, &views)?;
+        validate_convention(convention, &model)?;
     }
     for reservation in &model.reservations {
         if reservation.units.is_empty() {
             return Err(RegisterModelValidationError::EmptyReservation);
         }
-        validate_unit_set(&reservation.units, &units)?;
+        validate_unit_set(&reservation.units, &model)?;
     }
     let identity = identities::physical_register_model_identity(&model);
     Ok(ValidatedPhysicalRegisterModel { model, identity })
@@ -268,12 +387,12 @@ fn unique_names<'a>(names: impl Iterator<Item = &'a str> + Clone) -> bool {
 
 fn validate_unit_set(
     set: &[RegisterUnitId],
-    known: &BTreeMap<RegisterUnitId, &RegisterUnit>,
+    model: &PhysicalRegisterModel,
 ) -> Result<(), RegisterModelValidationError> {
     if set.windows(2).any(|pair| pair[0] >= pair[1]) {
         return Err(RegisterModelValidationError::NonCanonicalUnitSet);
     }
-    if let Some(unit) = set.iter().find(|unit| !known.contains_key(unit)) {
+    if let Some(unit) = set.iter().find(|unit| model.unit(**unit).is_none()) {
         return Err(RegisterModelValidationError::UnknownUnit(*unit));
     }
     Ok(())
@@ -281,12 +400,12 @@ fn validate_unit_set(
 
 fn validate_view_set(
     set: &[RegisterViewId],
-    known: &BTreeMap<RegisterViewId, &RegisterView>,
+    model: &PhysicalRegisterModel,
 ) -> Result<(), RegisterModelValidationError> {
     if set.windows(2).any(|pair| pair[0] >= pair[1]) {
         return Err(RegisterModelValidationError::NonCanonicalViewSet);
     }
-    if let Some(view) = set.iter().find(|view| !known.contains_key(view)) {
+    if let Some(view) = set.iter().find(|view| model.view(**view).is_none()) {
         return Err(RegisterModelValidationError::UnknownView(*view));
     }
     Ok(())
@@ -294,8 +413,7 @@ fn validate_view_set(
 
 fn validate_convention(
     convention: &PreservationConvention,
-    units: &BTreeMap<RegisterUnitId, &RegisterUnit>,
-    views: &BTreeMap<RegisterViewId, &RegisterView>,
+    model: &PhysicalRegisterModel,
 ) -> Result<(), RegisterModelValidationError> {
     if convention.argument_views.is_empty() || convention.result_views.is_empty() {
         return Err(RegisterModelValidationError::EmptyConvention);
@@ -303,11 +421,11 @@ fn validate_convention(
     if convention.stack_alignment == 0 || !convention.stack_alignment.is_power_of_two() {
         return Err(RegisterModelValidationError::InvalidStackAlignment);
     }
-    validate_ordered_views(&convention.argument_views, views)?;
-    validate_ordered_views(&convention.result_views, views)?;
-    validate_unit_set(&convention.caller_saved, units)?;
-    validate_unit_set(&convention.callee_saved, units)?;
-    validate_unit_set(&convention.fixed, units)?;
+    validate_ordered_views(&convention.argument_views, model)?;
+    validate_ordered_views(&convention.result_views, model)?;
+    validate_unit_set(&convention.caller_saved, model)?;
+    validate_unit_set(&convention.callee_saved, model)?;
+    validate_unit_set(&convention.fixed, model)?;
     let mut partition = BTreeSet::new();
     for unit in convention
         .caller_saved
@@ -321,9 +439,14 @@ fn validate_convention(
             ));
         }
     }
-    if let Some(unit) = units.keys().find(|unit| !partition.contains(unit)) {
+    if let Some(unit) = model
+        .units
+        .iter()
+        .map(|unit| unit.id)
+        .find(|unit| !partition.contains(unit))
+    {
         return Err(RegisterModelValidationError::ConventionPartitionOmission(
-            *unit,
+            unit,
         ));
     }
     Ok(())
@@ -331,12 +454,12 @@ fn validate_convention(
 
 fn validate_ordered_views(
     ordered: &[RegisterViewId],
-    known: &BTreeMap<RegisterViewId, &RegisterView>,
+    model: &PhysicalRegisterModel,
 ) -> Result<(), RegisterModelValidationError> {
     if ordered.iter().copied().collect::<BTreeSet<_>>().len() != ordered.len() {
         return Err(RegisterModelValidationError::NonCanonicalViewSet);
     }
-    if let Some(view) = ordered.iter().find(|view| !known.contains_key(view)) {
+    if let Some(view) = ordered.iter().find(|view| model.view(**view).is_none()) {
         return Err(RegisterModelValidationError::UnknownView(*view));
     }
     Ok(())

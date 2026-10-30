@@ -6,10 +6,10 @@ machine build(builder: &mut Build) {
         true -> unselected(builder)
         false -> done()
     }
-    state unselected(builder: &mut Build) {
+    machine unselected(builder: &mut Build) {
         Build::audit_service<audit_driver::Untaken>(builder);
     }
-    state done() {}
+    machine done() {}
 }
 
 machine configure(builder: &mut Build) {

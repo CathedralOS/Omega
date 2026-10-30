@@ -108,9 +108,6 @@ impl PackageLockTarget {
     pub fn occurrences(&self) -> &[PackagePolicyOccurrence] {
         &self.occurrences
     }
-    pub fn decisions(&self) -> &HistoricalPackagePolicyDecisions {
-        &self.decisions
-    }
     pub fn target(&self) -> TargetProfile {
         self.source.target_profile()
     }

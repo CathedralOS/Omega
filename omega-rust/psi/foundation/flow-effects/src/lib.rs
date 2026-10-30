@@ -13,7 +13,8 @@ pub use flow_effects::{
     CapabilityFlowPlan, CapturedSelectorArgument, CapturedSelectorCall, CapturedSelectorCalls,
     CapturedSelectorOrigin, CleanupDependency, InstallationReachRequirement,
     InvocationInferencePlan, InvocationTarget, MachineInvocationInference, MachineOperational,
-    MachineServiceReachInference, OperationalPlan, ServiceReachDependency,
-    ServiceReachInferencePlan, StateOperational, StateServiceReachInference,
-    StaticMachineCallBinding, capabilities, invocations, operational, service_reach,
+    MachineServiceReachInference, OperationalPlan, RealizedInvocationTarget,
+    ServiceReachDependency, ServiceReachInferencePlan, StateOperational,
+    StateServiceReachInference, StaticMachineCallBinding, capabilities, invocations, operational,
+    service_reach,
 };

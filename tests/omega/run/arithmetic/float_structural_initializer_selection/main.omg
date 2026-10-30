@@ -11,10 +11,10 @@ machine Main::main(root: &mut Main) reaches Console {
         true -> success(root)
         false -> failure(root)
     }
-    state success(root: &mut Main) {
+    machine success(root: &mut Main) {
         Console::exit_process(0);
     }
-    state failure(root: &mut Main) {
+    machine failure(root: &mut Main) {
         Console::exit_process(1);
     }
 }

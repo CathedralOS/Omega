@@ -14,7 +14,7 @@ machine Main::main(main: &mut Main) {
         _ -> rest(main)
     }
 
-    state zero(main: &mut Main) { main.answer = 70; }
-    state one(main: &mut Main) { main.answer = 71; }
-    state rest(main: &mut Main) { main.answer = 72; }
+    machine zero(main: &mut Main) { main.answer = 70; }
+    machine one(main: &mut Main) { main.answer = 71; }
+    machine rest(main: &mut Main) { main.answer = 72; }
 }

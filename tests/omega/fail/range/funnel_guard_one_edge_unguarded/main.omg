@@ -15,13 +15,13 @@ machine Main::main(main: &mut Main, sp_in: i32) reaches Console {
         false -> other(main)
     }
 
-    state other(main: &mut Main) {
+    machine other(main: &mut Main) {
         transition { _ -> push(main) }
     }
 
-    state push(main: &mut Main) requires main.sp >= 0 && main.sp < 16 {
+    machine push(main: &mut Main) requires main.sp >= 0 && main.sp < 16 {
         let mut y: i32 = main.sp;
         transition y == 7 { true -> m(main) false -> m(main) }
     }
-    state m(main: &mut Main) { Console::exit_process(1); }
+    machine m(main: &mut Main) { Console::exit_process(1); }
 }

@@ -15,8 +15,7 @@ mod structural_members;
 mod structural_route_buckets;
 
 pub(crate) use argument_prefix::{
-    captured_crash_argument, structural_crash_argument_type,
-    structural_crash_route_prefix_from_type,
+    captured_crash_argument, structural_crash_route_prefix_from_type,
 };
 pub(crate) use crash_predicates::checked_boolean_proposition;
 pub(crate) use scalar_terms::{
@@ -26,7 +25,7 @@ pub(crate) use scalar_terms::{
 pub(crate) use structural_members::{
     lower_byte_predicate_term, lower_sequence_extent_term, lower_structural_case_membership,
     lower_structural_indexed_term, lower_structural_member_path, lower_structural_member_term,
-    lower_structural_result_member_term,
+    lower_structural_result_indexed_term, lower_structural_result_member_term,
 };
 pub(crate) use structural_route_buckets::{
     lower_structural_crash_predicates, lower_structural_crash_route_buckets,
@@ -177,10 +176,22 @@ pub(crate) fn lower_checked_crash_exit(
     let Some(checked_site) = crash_plan.checked_site_at(state, statement_ordinal) else {
         return unsupported("explicit crash has no body-derived checked crash-site row");
     };
-    let matching_contracts = crash_plan
-        .covering_buckets_for_site(checked_site)
-        .map(|(_, bucket)| bucket)
-        .collect::<Vec<_>>();
+    // A private inferred body has checked sites but no authored covering
+    // buckets. Its terminator uses the same effective ceiling as its machine
+    // contract and callers. Published ceilings still require the checker's
+    // exact site-to-bucket coverage; inference cannot repair a false promise.
+    let matching_contracts = match crash_plan.interface() {
+        checked_trees::CrashInterface::InternalInferred => {
+            crate::unit::crash_interface::effective_crash_routes(checked, machine)?
+                .into_iter()
+                .filter(|bucket| bucket.cause() == checked_site.cause())
+                .collect::<Vec<_>>()
+        }
+        checked_trees::CrashInterface::PublishedCeiling => crash_plan
+            .covering_buckets_for_site(checked_site)
+            .map(|(_, bucket)| bucket.clone())
+            .collect(),
+    };
     let [covering_bucket] = matching_contracts.as_slice() else {
         return unsupported(
             "an explicit crash in the terminal-Psi source slice requires exactly one prechecked covering route bucket",

@@ -20,7 +20,7 @@ const FLOAT_PROJECTION_CONTRACT_DOMAIN: &[u8] = b"psi-float-projection-contract\
 
 /// Source-free identity of one sealed toolchain projection declaration and
 /// the numeric catalog against which its complete signature was checked.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct FloatProjectionContractIdentity {
     pub format: u16,
     pub operation: u8,
@@ -31,7 +31,7 @@ pub struct FloatProjectionContractIdentity {
     pub commitment: [u8; 32],
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum FloatProjectionOperation {
     Meaning32,
     Meaning64,

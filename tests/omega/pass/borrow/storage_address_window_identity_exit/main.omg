@@ -10,6 +10,6 @@ machine main() crashes Trap {
     transition selected == original && selected != sibling && selected != 0 && independent_address != original {
         true -> done() false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

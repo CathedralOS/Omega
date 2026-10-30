@@ -1,0 +1,14 @@
+// Logical self qualifies exact scalar, generic, indexed and record constants.
+const value: u64 = 99;
+const bytes: u64 = 99;
+const packet: u64 = 99;
+domain u64::Small requires self < 5;
+domain<const Bound: u64> u64::Below<Bound> requires self < Bound;
+domain<const Index: u64> [u64; 2]::SmallAt<Index> requires Index < 2 && (self[Index] in Small);
+data Packet [copy] { prefix: u64; count: u64; suffix: u64; }
+domain Packet::SmallCount requires self.count < 5;
+const SCALAR: u64 in Small = 3;
+const GENERIC: u64 in Below<5> = 3;
+const ARRAY: [u64; 2] in SmallAt<1> = [99, 3];
+const RECORD: Packet in SmallCount = Packet { prefix: 11, count: 3, suffix: 13 };
+machine check() {}

@@ -16,7 +16,7 @@ machine Main::main(main: &mut Main) -> i32 {
         _ -> drop_result(main)
     }
 
-    state drop_result(main: &mut Main) {
+    machine drop_result(main: &mut Main) -> i32 {
         Main::roll();
 
         transition {
@@ -24,7 +24,7 @@ machine Main::main(main: &mut Main) -> i32 {
         }
     }
 
-    state shutdown() {
+    machine shutdown() -> i32 {
         0
     }
 }

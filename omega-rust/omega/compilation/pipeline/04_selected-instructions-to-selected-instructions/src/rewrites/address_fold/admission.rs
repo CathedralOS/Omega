@@ -113,25 +113,11 @@ pub(super) fn admit<'source>(
     // silently keep on a malformed shape.
     let (scale, second_access) =
         consumer_shape(consumer.kind).ok_or(AddressFoldError::UnsupportedInstruction)?;
-    if consumer.operands.len() != 2
-        || !consumer.implicit_uses.is_empty()
-        || !consumer.implicit_defs.is_empty()
-        || !consumer.clobbers.is_empty()
-    {
+    let Some((pointer_operand, second_operand)) =
+        crate::rewrites::carrier_pair(consumer, second_access)
+    else {
         return Err(AddressFoldError::UnsupportedInstruction);
-    }
-    let pointer_operand = &consumer.operands[0];
-    let second_operand = &consumer.operands[1];
-    if pointer_operand.operand != 0
-        || pointer_operand.access != RegisterOperandAccess::Use
-        || second_operand.operand != 1
-        || second_operand.access != second_access
-        || consumer.operands.iter().any(|operand| {
-            operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
-        })
-    {
-        return Err(AddressFoldError::UnsupportedInstruction);
-    }
+    };
     let pointer = pointer_operand.virtual_register;
     let find_register = |register| function.virtual_register(register);
     let pointer_register = find_register(pointer).ok_or(AddressFoldError::UnsupportedProducer)?;
@@ -145,13 +131,9 @@ pub(super) fn admit<'source>(
     let row = environment
         .constraint(consumer.constraint)
         .ok_or(AddressFoldError::ConstraintMismatch)?;
-    if row.operands.len() != 2
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Use
+    if !crate::rewrites::declares_pair(row, RegisterOperandAccess::Use, second_access)
         || row.operands[0].class != pointer_operand.class
         || pointer_operand.class != pointer_register.class
-        || row.operands[1].operand != 1
-        || row.operands[1].access != second_access
         || row.operands[1].class != second_operand.class
         || second_operand.class != second_register.class
     {
@@ -176,24 +158,12 @@ pub(super) fn admit<'source>(
     else {
         return Err(AddressFoldError::UnsupportedProducer);
     };
-    if producer.operands.len() != 2
-        || !producer.implicit_uses.is_empty()
-        || !producer.implicit_defs.is_empty()
-        || !producer.clobbers.is_empty()
-    {
+    let Some((base_operand, result_operand)) =
+        crate::rewrites::carrier_pair(producer, RegisterOperandAccess::Def)
+    else {
         return Err(AddressFoldError::UnsupportedProducer);
-    }
-    let base_operand = &producer.operands[0];
-    let result_operand = &producer.operands[1];
-    if base_operand.operand != 0
-        || base_operand.access != RegisterOperandAccess::Use
-        || result_operand.operand != 1
-        || result_operand.access != RegisterOperandAccess::Def
-        || result_operand.virtual_register != pointer
-        || producer.operands.iter().any(|operand| {
-            operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
-        })
-    {
+    };
+    if result_operand.virtual_register != pointer {
         return Err(AddressFoldError::UnsupportedProducer);
     }
     let base = base_operand.virtual_register;
@@ -211,13 +181,12 @@ pub(super) fn admit<'source>(
     let producer_row = environment
         .constraint(producer.constraint)
         .ok_or(AddressFoldError::ConstraintMismatch)?;
-    if producer_row.operands.len() != 2
-        || producer_row.operands[0].operand != 0
-        || producer_row.operands[0].access != RegisterOperandAccess::Use
-        || producer_row.operands[0].class != base_operand.class
+    if !crate::rewrites::declares_pair(
+        producer_row,
+        RegisterOperandAccess::Use,
+        RegisterOperandAccess::Def,
+    ) || producer_row.operands[0].class != base_operand.class
         || base_operand.class != base_register.class
-        || producer_row.operands[1].operand != 1
-        || producer_row.operands[1].access != RegisterOperandAccess::Def
         || producer_row.operands[1].class != result_operand.class
         || result_operand.class != pointer_register.class
     {

@@ -13,7 +13,15 @@ machine build(builder: &mut Build) {
 
 machine configure_echo(builder: &mut Build, mode: CompositionMode) {
     let selected_mode: CompositionMode = SelectionHelper::select_provider<Build, Build>(mode);
-    Build::select_provider<Echo, EchoProviderEchoImplementation>(builder, selected_mode);
+    Build::select_provider<Echo, EchoProviderEchoImplementation>(builder, linux_arm64, selected_mode);
+    Build::select_provider<Echo, EchoProviderEchoImplementation>(builder, linux_x86_64, selected_mode);
+    Build::select_provider<Echo, EchoProviderEchoImplementation>(builder, macos_arm64, selected_mode);
+    Build::select_provider<Echo, EchoProviderEchoImplementation>(builder, macos_x86_64, selected_mode);
+    Build::select_provider<Echo, EchoProviderEchoImplementation>(builder, windows_x86_64, selected_mode);
+    Build::select_provider<Echo, EchoProviderEchoImplementation>(builder, uefi_x86_64, selected_mode);
+    Build::select_provider<Echo, EchoProviderEchoImplementation>(builder, cross_platform_cli, selected_mode);
+    Build::select_provider<Echo, EchoProviderEchoImplementation>(builder, local_unchecked, selected_mode);
+    Build::select_provider<Echo, EchoProviderEchoImplementation>(builder, alpha_bootstrap, selected_mode);
 }
 
 // Sharing the spelling does not make this ordinary machine a Build operation.

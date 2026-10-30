@@ -3,7 +3,7 @@ use optimization_core::OptimizationValidatorIdentity;
 
 pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
     OptimizationValidatorIdentity::from_canonical_bytes(
-        b"omega.terminal-target-legalization-independent-replay.v55",
+        b"omega.terminal-target-legalization-independent-replay.v56",
     )
 }
 
@@ -55,6 +55,24 @@ impl LegalizationValidationReceipt {
     }
 }
 
+/// Error-only snapshot of the storage-to-resident join. The normal path
+/// retains no extra catalog, allocation, or permission from this diagnostic.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceObservationContext {
+    pub position: Option<(semantic_vocabulary::BlockId, u32)>,
+    pub place: semantic_vocabulary::PlaceId,
+    pub path: Vec<terminal_psi::StructuralPathSegment>,
+    pub carrier: Option<semantic_vocabulary::StructuralTypeId>,
+    pub catalog_available: bool,
+    pub location: Option<terminal_semantics::descriptor_lifetimes::DescriptorLocation>,
+    pub observation_available: bool,
+    pub storage: Option<terminal_semantics::descriptor_lifetimes::DescriptorLocation>,
+    pub resident_path: Option<Vec<terminal_psi::StructuralPathSegment>>,
+    pub resident_referent: Option<semantic_vocabulary::StructuralTypeId>,
+    pub origin_count: Option<usize>,
+    pub interference: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizationError {
     /// The raw target, abstract, and optimization-unit custody disagree, or a
@@ -72,6 +90,22 @@ pub enum LegalizationError {
         operation: Option<semantic_vocabulary::OperationId>,
         site: optimization_core::CompilerCheckSite,
     },
+    /// Preserve the failed descriptor origin reconstruction boundary.
+    DescriptorCallOrigins {
+        machine: semantic_vocabulary::MachineId,
+        result: semantic_vocabulary::PlaceId,
+        reason: &'static str,
+    },
+    /// A current reference read failed its exact observation/resident join.
+    /// This adds context to an unchanged custody refusal; storage geometry
+    /// never substitutes for the missing permission occurrence.
+    ReferenceObservation {
+        machine: semantic_vocabulary::MachineId,
+        operation: Option<semantic_vocabulary::OperationId>,
+        site: optimization_core::CompilerCheckSite,
+        reason: &'static str,
+        context: Box<ReferenceObservationContext>,
+    },
     /// The node is well formed, but this stage has no legal scalar instruction
     /// for its operation family at its scalar type (for example a port write
     /// or an abstract fused multiply-add, or integer arithmetic at a
@@ -85,6 +119,13 @@ pub enum LegalizationError {
     /// Retain the exact store and failed contract so a refusal does not need
     /// another compiler build merely to identify the rejected invariant.
     InvalidScalarStore {
+        machine: semantic_vocabulary::MachineId,
+        operation: semantic_vocabulary::OperationId,
+        reason: &'static str,
+    },
+    /// A thin foreign pointer must retain an independently reconstructed
+    /// physical backing width. Preserve the failed reconstruction boundary.
+    InvalidScalarReferenceBacking {
         machine: semantic_vocabulary::MachineId,
         operation: semantic_vocabulary::OperationId,
         reason: &'static str,
@@ -152,6 +193,19 @@ impl LegalizationError {
                 machine: Some(machine),
                 operation,
                 site,
+            },
+            Self::ReferenceObservation {
+                machine: owner,
+                operation: None,
+                site,
+                reason,
+                context,
+            } => Self::ReferenceObservation {
+                machine: owner,
+                operation,
+                site,
+                reason,
+                context,
             },
             other => other,
         }

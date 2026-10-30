@@ -10,10 +10,10 @@ machine forward(destination: &write Pair, choose_left: bool, value: i32) {
         true -> left(&write destination, value)
         false -> right(&write destination, value)
     }
-    state left(destination: &write Pair, value: i32) {
+    machine left(destination: &write Pair, value: i32) {
         replace(&write destination.left, value);
     }
-    state right(destination: &write Pair, value: i32) {
+    machine right(destination: &write Pair, value: i32) {
         replace(&write destination.right, value);
     }
 }

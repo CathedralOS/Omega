@@ -97,7 +97,7 @@ machine Main::main(main: &mut Main) reaches Console + Magnitude + CText {
         true -> done(70)
         _ -> done(71)
     }
-    state done(code: i32) { Console::exit_process(code); }
+    machine done(code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

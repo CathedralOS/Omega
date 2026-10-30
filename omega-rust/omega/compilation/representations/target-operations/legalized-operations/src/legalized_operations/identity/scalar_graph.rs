@@ -1,5 +1,5 @@
 use super::calling::{encode_call_plan, encode_placement};
-use super::encoding::{encode_fuel, encode_ids, encode_len};
+use super::encoding::{encode_fuel, encode_ids, encode_len, encode_option};
 use super::scalar::{encode_bindings, encode_integer, encode_integer_type, encode_scalar_type};
 use super::structural::{encode_effect, encode_ownership_roster};
 use crate::legalized_operations::{
@@ -9,7 +9,13 @@ use crate::legalized_operations::{
 };
 use crate::{SaturatingCarrier, SaturatingOperation};
 use optimization_unit::encode_value_definition_site_identity;
-pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
+use semantic_vocabulary::{ObligationId, ValueId};
+
+pub(super) fn encode(
+    bytes: &mut Vec<u8>,
+    function: &LegalizedScalarFunction,
+    cached_catalog: &mut Option<(abstract_operations::StructuralTypeCatalog, Vec<u8>)>,
+) {
     crate::codec_bytes::push_encoded(bytes, function.machine.get().to_le_bytes());
     optimization_core::encode_option_u64(bytes, function.attachment.map(|value| value.get()));
     optimization_core::encode_option_u64(
@@ -29,13 +35,9 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
         function.provenance.edges.iter().map(|value| value.get()),
     );
     encode_call_plan(bytes, &function.call_plan);
-    match &function.structural {
-        Some(signature) => {
-            bytes.push(1);
-            super::plan::encode_structural_contract(bytes, signature);
-        }
-        None => bytes.push(0),
-    }
+    encode_option(bytes, function.structural.as_ref(), |bytes, signature| {
+        super::plan::encode_structural_contract(bytes, signature, cached_catalog)
+    });
 
     encode_len(bytes, function.parameters.len());
     for parameter in &function.parameters {
@@ -61,15 +63,11 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
         encode_len(bytes, block.instructions.len());
         for instruction in &block.instructions {
             crate::codec_bytes::push_encoded(bytes, instruction.operation.get().to_le_bytes());
-            match instruction.result {
-                Some(result) => {
-                    bytes.push(1);
-                    crate::codec_bytes::push_encoded(bytes, result.value.get().to_le_bytes());
-                    encode_scalar_type(bytes, result.scalar_type);
-                    encode_value_definition_site_identity(bytes, result.definition_site);
-                }
-                None => bytes.push(0),
-            }
+            encode_option(bytes, instruction.result, |bytes, result| {
+                crate::codec_bytes::push_encoded(bytes, result.value.get().to_le_bytes());
+                encode_scalar_type(bytes, result.scalar_type);
+                encode_value_definition_site_identity(bytes, result.definition_site);
+            });
             match &instruction.kind {
                 LegalizedScalarInstructionKind::PlacementLifecycle {
                     boundary,
@@ -562,6 +560,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                                         (2, *index)
                                     }
                                     CanonicalStructuralPathSegment::Case(case) => (3, case.get()),
+                                    CanonicalStructuralPathSegment::Referent => (4, 0),
                                 };
                                 bytes.push(tag);
                                 crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
@@ -908,13 +907,9 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                             }
                         }
                     }
-                    match accepted_fact {
-                        Some(fact) => {
-                            bytes.push(1);
-                            bytes.extend_from_slice(&fact.bytes());
-                        }
-                        None => bytes.push(0),
-                    }
+                    encode_option(bytes, accepted_fact.as_ref(), |bytes, fact| {
+                        bytes.extend_from_slice(&fact.bytes())
+                    });
                 }
                 LegalizedScalarInstructionKind::ElementViewWrite {
                     path,
@@ -1056,10 +1051,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     accepted_fact,
                 } => {
                     bytes.push(saturating_tag(SaturatingOperation::Divide, *carrier));
-                    crate::codec_bytes::push_encoded(bytes, left.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, right.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                    bytes.extend_from_slice(&accepted_fact.bytes());
+                    encode_obligated_pair(bytes, *left, *right, *obligation, accepted_fact);
                 }
                 LegalizedScalarInstructionKind::SaturatingMultiply {
                     carrier,
@@ -1092,10 +1084,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     accepted_fact,
                 } => {
                     bytes.push(saturating_tag(SaturatingOperation::Remainder, *carrier));
-                    crate::codec_bytes::push_encoded(bytes, left.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, right.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                    bytes.extend_from_slice(&accepted_fact.bytes());
+                    encode_obligated_pair(bytes, *left, *right, *obligation, accepted_fact);
                 }
                 LegalizedScalarInstructionKind::WrappingRemainder {
                     left,
@@ -1104,10 +1093,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     accepted_fact,
                 } => {
                     bytes.push(37);
-                    crate::codec_bytes::push_encoded(bytes, left.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, right.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                    bytes.extend_from_slice(&accepted_fact.bytes());
+                    encode_obligated_pair(bytes, *left, *right, *obligation, accepted_fact);
                 }
                 LegalizedScalarInstructionKind::WrappingDivide {
                     left,
@@ -1116,10 +1102,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     accepted_fact,
                 } => {
                     bytes.push(70);
-                    crate::codec_bytes::push_encoded(bytes, left.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, right.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                    bytes.extend_from_slice(&accepted_fact.bytes());
+                    encode_obligated_pair(bytes, *left, *right, *obligation, accepted_fact);
                 }
                 LegalizedScalarInstructionKind::WrappingAdd { left, right } => {
                     bytes.push(38);
@@ -1153,10 +1136,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     accepted_fact,
                 } => {
                     bytes.push(83);
-                    crate::codec_bytes::push_encoded(bytes, value.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, count.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                    bytes.extend_from_slice(&accepted_fact.bytes());
+                    encode_obligated_pair(bytes, *value, *count, *obligation, accepted_fact);
                 }
                 LegalizedScalarInstructionKind::ExactShiftRight {
                     value,
@@ -1165,10 +1145,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     accepted_fact,
                 } => {
                     bytes.push(84);
-                    crate::codec_bytes::push_encoded(bytes, value.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, count.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                    bytes.extend_from_slice(&accepted_fact.bytes());
+                    encode_obligated_pair(bytes, *value, *count, *obligation, accepted_fact);
                 }
                 LegalizedScalarInstructionKind::ExactBinary {
                     operator,
@@ -1185,10 +1162,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                         LegalizedExactIntegerOperator::Multiply => 3,
                         LegalizedExactIntegerOperator::Remainder => 4,
                     });
-                    crate::codec_bytes::push_encoded(bytes, left.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, right.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                    bytes.extend_from_slice(&accepted_fact.bytes());
+                    encode_obligated_pair(bytes, *left, *right, *obligation, accepted_fact);
                 }
                 LegalizedScalarInstructionKind::BitwiseAnd { left, right } => {
                     bytes.push(24);
@@ -1353,6 +1327,10 @@ fn encode_cleanup_calls(
     encode_len(bytes, calls.len());
     for (owner, call) in calls {
         match owner {
+            target_operations::CallSiteOwner::InvokeNoNormal(edge) => {
+                bytes.push(3);
+                crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
+            }
             target_operations::CallSiteOwner::ExternalCompletion(edge) => {
                 bytes.push(2);
                 crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
@@ -1378,6 +1356,35 @@ fn encode_cleanup_calls(
 
 fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator) {
     match terminator {
+        LegalizedScalarTerminator::InvokeNoNormal {
+            psi_edge,
+            call,
+            declared_result,
+            fuel,
+            effect,
+            ownership,
+        } => {
+            bytes.push(8);
+            crate::codec_bytes::push_encoded(bytes, psi_edge.get().to_le_bytes());
+            let invocation = call.canonical_bytes();
+            encode_len(bytes, invocation.len());
+            bytes.extend_from_slice(&invocation);
+            match declared_result {
+                abstract_operations::AbstractFunctionResult::Unit => bytes.push(0),
+                abstract_operations::AbstractFunctionResult::Scalar(result) => {
+                    bytes.push(1);
+                    crate::codec_bytes::push_encoded(bytes, result.value.get().to_le_bytes());
+                    encode_scalar_type(bytes, result.scalar_type);
+                }
+                abstract_operations::AbstractFunctionResult::Structural(result) => {
+                    bytes.push(2);
+                    super::structural_result::encode_result(bytes, result);
+                }
+            }
+            encode_fuel(bytes, fuel);
+            encode_effect(bytes, *effect);
+            encode_ownership_roster(bytes, ownership);
+        }
         LegalizedScalarTerminator::ExternalCompletion {
             psi_edge,
             boundary,
@@ -1506,6 +1513,18 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                     encode_scalar_type(bytes, payload.parameter.scalar_type);
                     encode_value_definition_site_identity(bytes, payload.parameter.definition_site);
                 }
+                encode_len(bytes, case.structural_bindings.len());
+                for binding in &case.structural_bindings {
+                    crate::codec_bytes::push_encoded(
+                        bytes,
+                        binding.semantic.parameter.get().to_le_bytes(),
+                    );
+                    super::structural_types::encode_structural_argument(
+                        bytes,
+                        &binding.semantic.argument,
+                    );
+                    encode_runtime_indices(bytes, &binding.indices);
+                }
                 encode_len(bytes, case.cleanup_actions.len());
                 for action in &case.cleanup_actions {
                     super::structural::encode_cleanup_action(bytes, action);
@@ -1628,6 +1647,22 @@ fn encode_store_destination(
     }
 }
 
+/// One obligated operand row: both operand identities, the obligation the
+/// operation retains and the accepted fact that discharges it. Every exact,
+/// saturating and wrapping form that keeps a proof writes this same tail.
+fn encode_obligated_pair(
+    bytes: &mut Vec<u8>,
+    left: ValueId,
+    right: ValueId,
+    obligation: ObligationId,
+    accepted_fact: &optimization_core::AcceptedObligationFactIdentity,
+) {
+    crate::codec_bytes::push_encoded(bytes, left.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, right.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
+    bytes.extend_from_slice(&accepted_fact.bytes());
+}
+
 pub(super) fn encode_runtime_indices(
     bytes: &mut Vec<u8>,
     indices: &[crate::legalized_operations::LegalizedRuntimeIndexOperand],
@@ -1637,13 +1672,9 @@ pub(super) fn encode_runtime_indices(
         crate::codec_bytes::push_encoded(bytes, index.operand.value.get().to_le_bytes());
         encode_scalar_type(bytes, index.operand.scalar_type);
         crate::codec_bytes::push_encoded(bytes, index.stride.to_le_bytes());
-        match index.extent {
-            Some(extent) => {
-                bytes.push(1);
-                crate::codec_bytes::push_encoded(bytes, extent.to_le_bytes());
-            }
-            None => bytes.push(0),
-        }
+        encode_option(bytes, index.extent, |bytes, extent| {
+            crate::codec_bytes::push_encoded(bytes, extent.to_le_bytes())
+        });
         crate::codec_bytes::push_encoded(bytes, index.obligation.get().to_le_bytes());
         bytes.extend_from_slice(&index.accepted_fact.bytes());
     }

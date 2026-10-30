@@ -20,6 +20,13 @@ the runner checks the listed effects before discarding the test directory.
 Ordinary fixtures retain privately issued snapshot/staging execution. This
 is test-supplied authority, not a source spelling or a new product grant mode.
 
+A fail fixture may supply `expected_failed_scalar_accounting.txt` with a positive
+minimum canonical scalar receipt count. In addition to its normal package
+refusal, the runner submits the same reviewed inputs through the standalone
+native batch API and requires a failed outcome retaining complete, valid charges.
+This observes failed report accounting before package policy flattens diagnostics;
+it neither accepts the source nor replaces the fixture's expected diagnostic.
+
 `corpus_runner.rs` compiles every fixture and prints one outcome record each.
 Negative fixtures check once under their authored Build sponsors and input
 custody. Without a declared program entry, source acceptance records `checked`,
@@ -61,7 +68,7 @@ distinct program inputs and each owns one production.
 
 For target installations whose entry carries hosted context or service bindings,
 `terminal_target_provisions.txt` may contain `compiled-application`. This trusted
-fixture configuration requests one ordinary compilation cohort for the host and
+fixture configuration requests one ordinary compilation cohort for the requested target and
 the authored target roster. Each target supplies only its own actual admitted
 runtime provisions, and every report must retain the same canonical Terminal
 artifact. No foreign image is executed by this option; the observations are
@@ -86,6 +93,18 @@ checks unchanged semantic bytes, identity and canonical module storage after eac
 installation, and records `terminal-targets:match` only when every row agrees.
 Malformed oracles and checked/built rows with missing or mismatched observations
 cannot be blessed by `--record`.
+
+An optional `expected_terminal_fences.txt` requires that target-installation
+route and gives each target's ordered, nonempty sequence of `lfence`, `sfence`,
+`mfence`, `dmb_ld`, `dmb_st` and `dmb_sy` events. The corpus roundtrips the same
+source-produced artifact, requires missing and wrong-architecture memory-model
+supplies to refuse before entry effects, and executes under the explicitly
+selected private sequential model. A second instance pauses inside the sequence
+and funds exactly one refused site at a time; unfunded and completed retries must
+repeat neither events nor fuel charges. Exact completed event order, total fuel
+and unchanged artifact identity are execution oracles, independent of the
+program's scalar exit. They establish private-model interpretation, not live
+shared/device ordering or foreign native execution.
 
 `pass/targets/portable_family_entry_installations_exit` pins portable family-root
 installation: Windows traps while the other authored targets return Unit. This
@@ -163,6 +182,28 @@ producer and reloads its canonical artifact. Debug companions
 must retain the same program identity; changing that identity must reject at
 external ingress. This tests inspection without requiring a native program entry.
 
+`task-activation-controls` requires source-authored start and try-start demands
+with suspension storage. It compares complete native activation plans from the
+retained and reloaded artifacts under the fixture's selected providers, rejects
+absent providers on both routes, and exercises malformed task root, entry,
+callee, specialization and truncated-wire controls at external ingress. This
+establishes static activation planning, not task-executor runtime support.
+
+`dynamic-image-controls` selects an existing Source-produced image-view fixture.
+It round-trips its isolated literal-returning dynamic row, then requires exact
+canonical refusals for mutable/write-only public regions and an Invocation-origin
+contract. The access mutations exercise the earlier public access guard; the
+Invocation mutation exercises image-origin admission. No forged module executes.
+
+`synchronous-provider-controls` retains a source-authored provider alternative,
+then drops the source session and reloads its Terminal artifact. Selecting the
+alternative must reject a synchronous cycle in both portable and native
+admission, including when the default entry does not call either provider.
+Opaque bindings of those same authored schemas exercise their invocation ceilings
+and reject even with toolchain markers; removing one ceiling edge must admit.
+Changed selections never execute. The fixture's ordinary native/Terminal legs
+separately establish its authored runtime result.
+
 An optional `expected_native_component_descriptions.txt` contains the nonzero
 number of independently emitted native component products expected by a fixture.
 The native leg consumes each canonical description through `verify_component`,
@@ -205,6 +246,14 @@ portable fixture oracle. Source or compiler changes require fresh review, not
 copying bindings or deleting a stale lock to turn it into an unlocked request.
 
 ### Captured Build input fixtures
+
+This section describes the existing legacy fixture harness, not the ratified
+public authoring model. `STAGED-BUILD-CAPABILITIES` in
+[TASKS.md](../../../../../TASKS.md) migrates these controls to ordinary explicit
+filesystem views and context-specific staged execution, then removes the
+BuildInputs/BuildSource registry and related facets. Retain the same isolation,
+missing-file, source-capture and immutable-publication obligations; a renamed
+wrapper around the old protocol is not that migration.
 
 An authored fixture may supply named host-API inputs as immediate directories
 under `build-inputs/<slot>/`. The corpus harness captures each sealed directory
@@ -368,3 +417,7 @@ For positive fixtures they still run when native realization refuses; the row
 retains its native diagnostics and rejected verdict alongside the inspection
 facts. Such a result can establish Terminal-only behavior, never native
 acceptance. Intended-invalid fixtures do not execute inspection provisions.
+
+The source-backed target/provider custody check runs with the existing SDK suite:
+`mbx nextest run -p compiler --test package_review historical_constant_closure_requires_exact_target_and_provider`.
+It checks canonical transport, exact target/provider inputs and Windows Terminal execution without running a foreign native image.

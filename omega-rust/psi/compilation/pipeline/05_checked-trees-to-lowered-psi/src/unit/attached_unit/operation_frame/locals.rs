@@ -6,12 +6,10 @@
 //! operation buffer and the machine-wide catalog.
 
 use super::super::view_ranges::ViewRangeSite;
-use super::{
-    OperationFrame, StructuralResults, StructuralTypeRoster, allocate_structural_result,
-    operation_result_declaration,
-};
+use super::{OperationFrame, StructuralResults, StructuralTypeRoster, allocate_structural_result};
 use crate::emission::borrowed_window::{BorrowedWindowRepairValue, WindowEvaluation};
 use crate::emission::operation_emission::buffer::StructuralBinding;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::unit::{
     CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, LoweringError, Operation,
     OperationKind, OperationResult, PlaceId, StructuralAccess, StructuralDomainId,
@@ -188,11 +186,9 @@ impl OperationFrame<'_, '_> {
                 "mutable scalar value refinements require invariant-window custody",
             );
         }
-        let machine = crate::terminal_identities::lookup_machine_id_with(
-            self.calls.machine_ids,
-            self.machine,
-            "local refinement lost its machine identity",
-        )?;
+        // Fused helpers retain their source namespace above, but their blocks
+        // and arrival obligations belong to the actual emitted machine.
+        let machine = self.calls.terminal_machine;
         self.values.push(value);
         self.evaluation.require_value_refinements(
             identities,
@@ -308,7 +304,7 @@ impl OperationFrame<'_, '_> {
             // statement's local here; the state-graph row's own registration
             // already named it.
             if *source == checked_trees::CheckedArrayConstructionSource::Statement {
-                super::super::structural_values::bind_local(
+                if let Some(binding) = super::super::structural_values::local_binding(
                     operation,
                     declaration,
                     crate::terminal_identities::lookup_type_id(
@@ -316,8 +312,9 @@ impl OperationFrame<'_, '_> {
                         &result.type_identity,
                     )?,
                     self.structural_types.declarations(),
-                    &mut self.evaluation.structural_locals,
-                )?;
+                ) {
+                    self.evaluation.bind_structural_local(binding);
+                }
             }
         }
         Ok(())
@@ -371,10 +368,6 @@ impl OperationFrame<'_, '_> {
         } else {
             Vec::new()
         };
-        let result_claims = crate::emission::claim_bindings::emit_establishment_claims(
-            &prepared_claims,
-            &mut self.calls.claims,
-        )?;
         let place = {
             let (mut environment, emission) = self.reborrow().split();
             let mut evaluation = WindowEvaluation {
@@ -392,7 +385,7 @@ impl OperationFrame<'_, '_> {
                 moved,
                 expression,
                 result,
-                result_claims,
+                &prepared_claims,
                 &mut evaluation,
                 emission.values,
                 emission.next_value,
@@ -401,13 +394,6 @@ impl OperationFrame<'_, '_> {
                 emission.operations,
             )
         }?;
-        crate::emission::claim_bindings::record_prepared_introductions(
-            self.operations,
-            place,
-            &prepared_claims,
-            &self.calls.claims,
-            crate::emission::claim_bindings::ClaimEstablishmentKind::DetachedValue,
-        )?;
         Ok(place)
     }
 
@@ -476,13 +462,7 @@ impl OperationFrame<'_, '_> {
         let Some(produced) = producer.result.as_structural() else {
             return unsupported("borrowed-window move established no structural value");
         };
-        let declaration = StructuralPlaceDeclaration {
-            id: moved,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: producer.id,
-                structural_type: produced.structural_type,
-            },
-        };
+        let declaration = operation_result_place(moved, producer.id, produced.structural_type);
         let produced = produced.clone();
         match &mut self.results {
             StructuralResults::Dense(roster) => roster.push((Some(declaration), false)),
@@ -581,20 +561,21 @@ impl OperationFrame<'_, '_> {
         };
         self.private_places.push(declaration);
         let id = self.operations.allocate();
-        self.operations.push(Operation {
+        // A literal view's bytes are image storage: the predicate obligation
+        // belongs to the consuming store, as in `emit_literal_view`, not to
+        // this establishment.
+        self.operations.push(Operation::unsuspended(
             id,
-            static_reach_binding: None,
-            suspension_crossing: None,
-            result: OperationResult::Unit,
-            // A literal view's bytes are image storage: the predicate
-            // obligation belongs to the consuming store, as in
-            // `emit_literal_view`, not to this establishment.
-            kind: OperationKind::EstablishByteSequenceLiteral {
+            OperationResult::Unit,
+            OperationKind::EstablishByteSequenceLiteral {
                 destination,
                 bytes: bytes.to_vec(),
                 qualifications: Vec::new(),
             },
-        });
+        ));
+        self.evaluation
+            .current_claims
+            .publish(destination, Vec::new())?;
         // The literal roster owns its declaration. Dense bindings index that
         // same place; a graph's registry retains its explicit literal kind.
         if let StructuralResults::Dense(roster) = &mut self.results {
@@ -812,7 +793,7 @@ impl OperationFrame<'_, '_> {
             OperationKind::EstablishStructuralLocal {},
         )?;
         self.results.push(
-            operation_result_declaration(home, producer, structural_type),
+            operation_result_place(home, producer, structural_type),
             *discard_result_on_return,
         );
         let produced = self
@@ -952,11 +933,9 @@ impl OperationFrame<'_, '_> {
                 // would partially move an affine parent before its next use.
                 let place = place_id(allocate_dense(self.next_place)?);
                 let producer = self.operations.allocate();
-                self.operations.push(Operation {
-                    static_reach_binding: None,
-                    suspension_crossing: None,
-                    id: producer,
-                    result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                self.operations.push(Operation::unsuspended(
+                    producer,
+                    OperationResult::Structural(terminal_psi::StructuralOperationResult {
                         place,
                         structural_type: selected,
                         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
@@ -965,13 +944,13 @@ impl OperationFrame<'_, '_> {
                         qualification_establishments: Vec::new(),
                         claims: Vec::new(),
                     }),
-                    kind: OperationKind::StructuralLeafCopy {
+                    OperationKind::StructuralLeafCopy {
                         source: repair.place,
                         path,
                     },
-                });
+                ));
                 self.private_places
-                    .push(operation_result_declaration(place, producer, selected));
+                    .push(operation_result_place(place, producer, selected));
                 repair.place = place;
                 repair.structural_type = selected;
             } else {
@@ -1251,6 +1230,17 @@ impl OperationFrame<'_, '_> {
                                 );
                             }
                             *access = None;
+                            // Stored shared views add the descriptor's copy
+                            // permission as well as its access. The canonical
+                            // ingress catalog deliberately owns neither bit.
+                            // Undo both exact producer transformations before
+                            // comparing the complete declarations.
+                            if !canonical.copyable {
+                                return unsupported(
+                                    "shared view rebind lost its descriptor copy permission",
+                                );
+                            }
+                            canonical.copyable = false;
                             canonical.id = ingress.id;
                             canonical.identity = ingress.identity;
                             if canonical != *ingress {
@@ -1371,7 +1361,7 @@ impl OperationFrame<'_, '_> {
         self.evaluation
             .structural_locals
             .retain(|local| local.root != facts::PlaceRoot::Symbol(symbol));
-        self.evaluation.structural_locals.push(
+        self.evaluation.bind_structural_local(
             crate::expression_preparation::bindings::StructuralLocalBinding {
                 result_binding_ordinal: value.source_structural_result_binding_ordinal(),
                 root: facts::PlaceRoot::Symbol(symbol),

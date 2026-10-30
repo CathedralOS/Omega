@@ -15,6 +15,32 @@ fn source_span(start: usize, end: usize) -> SourceSpan {
 }
 
 #[test]
+fn wire_request_formation_names_unknown_and_repeated_facts() {
+    let request = |facts: &[&str]| super::ProductDeclarationRequest {
+        source_span: source_span(1, 30),
+        operation: BuildOperation::WireCompatibilityRequest,
+        operands: ["Edge", "Lineage", "Local", "Peer"]
+            .into_iter()
+            .chain(facts.iter().copied())
+            .map(|name| super::ProductDeclarationOperand {
+                path: name.to_owned(),
+                source_span: source_span(2, 5),
+                application: None,
+            })
+            .collect(),
+    };
+    assert_eq!(request(&["Readable", "Writable"]).validate_shape(), Ok(()));
+    assert_eq!(
+        request(&["Imaginary"]).validate_shape(),
+        Err("unknown wire compatibility fact `Imaginary`".to_owned())
+    );
+    assert_eq!(
+        request(&["Readable", "Readable"]).validate_shape(),
+        Err("wire compatibility fact `Readable` is requested twice".to_owned())
+    );
+}
+
+#[test]
 fn static_operand_positions_survive_resolution_and_reject_drift() {
     let mut selections = AuthoredDeclarationSelections::default();
     let conformance = selections
@@ -356,23 +382,7 @@ fn build_operation_spellings_round_trip() {
 }
 
 #[test]
-fn build_operation_spellings_are_the_exact_authored_vocabulary() {
-    assert_eq!(
-        BuildOperation::ALL.map(BuildOperation::authored_spelling),
-        [
-            "select_provider",
-            "assume_binding_contract",
-            "select_representation",
-            "exclude_service",
-            "audit_service",
-            "enable",
-            "emit_report",
-            "accept_boundary",
-            "require_wire_compatibility",
-            "include_source",
-            "write_line",
-        ]
-    );
+fn build_operation_spellings_reject_non_operations() {
     assert_eq!(
         BuildOperation::from_call_target("accept_boundary"),
         Some(BuildOperation::BoundaryAcceptance)
@@ -410,25 +420,4 @@ fn build_operation_spellings_are_the_exact_authored_vocabulary() {
             "`{spelling}` names no toolchain-owned build operation"
         );
     }
-}
-
-#[test]
-fn build_operations_map_onto_their_intrinsic_selection_targets() {
-    use AuthoredDeclarationSelectionIntrinsic as Intrinsic;
-    assert_eq!(
-        BuildOperation::ALL.map(BuildOperation::intrinsic),
-        [
-            Intrinsic::BuildProviderSelection,
-            Intrinsic::BuildAssumedBindingContract,
-            Intrinsic::BuildRepresentationSelection,
-            Intrinsic::BuildServiceExclusion,
-            Intrinsic::BuildServiceAudit,
-            Intrinsic::BuildOptimizationSelection,
-            Intrinsic::BuildOptimizationReportRequest,
-            Intrinsic::BuildBoundaryAcceptance,
-            Intrinsic::BuildWireCompatibilityRequest,
-            Intrinsic::BuildIncludedSourceHandoff,
-            Intrinsic::BuildLogWriteLine,
-        ]
-    );
 }

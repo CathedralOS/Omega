@@ -61,6 +61,7 @@ fn validate() -> Result<(), String> {
             })
             .ok_or_else(|| format!("{name}: native report retained no Terminal artifact"))?;
         let terminal = terminal_runtime::execute(TerminalRuntimeRequest {
+            native_provider: None,
             x86_flags: terminal_runtime::capture_host_x86_flags(target.target_name()).expect("host flags capture"),
             artifact,
             target: Some(target.target_name()),

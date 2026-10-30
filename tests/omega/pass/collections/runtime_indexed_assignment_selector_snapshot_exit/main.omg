@@ -11,12 +11,12 @@ machine store(bytes: &mut [u8], cursor: &mut Cursor) {
         true -> at(bytes, cursor)
         _ -> done()
     }
-    state at(bytes: &mut [u8], cursor: &mut Cursor)
+    machine at(bytes: &mut [u8], cursor: &mut Cursor)
     requires cursor.index >= 0 && cursor.index < bytes.len
     {
         bytes[cursor.index] = value(cursor);
     }
-    state done() {}
+    machine done() {}
 }
 
 machine main() crashes Trap {
@@ -28,6 +28,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

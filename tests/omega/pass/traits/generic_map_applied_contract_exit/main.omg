@@ -20,6 +20,6 @@ machine main() crashes Trap {
     let result: u32 = selected<Identity<Ceiling>>(100);
     let literal: u32 = selected<Identity<100>>(42);
     transition result == 100 && literal == 42 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

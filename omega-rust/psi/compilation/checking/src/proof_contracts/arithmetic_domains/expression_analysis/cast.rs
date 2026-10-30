@@ -44,6 +44,21 @@ pub(super) fn analyze(
             primitive,
         };
     }
+    // Executable operands use their actual invocation. Declaration recipes
+    // receive the same address-fit check from specification formation, with
+    // their lexical telescope and retained obligations rather than a frame.
+    if let Some(machine) = walk.machine {
+        crate::proof_contracts::arithmetic_domains::validate_anonymous_address_landing(
+            program,
+            machine,
+            walk.state,
+            cast.value,
+            primitive,
+            walk.owner,
+            diagnostics,
+            &mut decisions.integer_range_obligations,
+        );
+    }
     let source = source_value(walk, cast, primitive, diagnostics, decisions);
     // Source facts precede target qualification. In particular a Wrapping cast
     // must not use its asserted target range to prove that same range, or
@@ -271,7 +286,6 @@ fn require_exact_integer_fit(
     };
     let fits = integer_interval_fits_primitive(source.interval, source_primitive, target)
         || (walk.checks_occurrence_fit
-            && (source_primitive == PrimitiveType::Addr || target == PrimitiveType::Addr)
             && walk
                 .machine
                 .zip(walk.state)

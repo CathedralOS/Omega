@@ -3,7 +3,9 @@
 //! predicates and nominal identity remain independent; neither provider choice
 //! nor projection of the numeric component can establish routed membership.
 
-use super::signature_contracts::signature_progress_requirement;
+use super::signature_contracts::{
+    normal_mutable_parameter_position, signature_progress_requirement,
+};
 use super::{
     CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralParameterPlan, ShapeCollector,
 };
@@ -16,6 +18,7 @@ use typed_trees::signature::{SignatureContract, SignatureContractKind, StatePara
 
 pub(in crate::execution::terminal_unit) struct BoundaryDomainRequirements {
     pub structural: Vec<CheckedUnitStructuralDomainRequirementPlan>,
+    pub normal: Vec<CheckedUnitStructuralDomainRequirementPlan>,
     pub scalar: Vec<CheckedBoundaryScalarDomainRequirementPlan>,
 }
 
@@ -30,21 +33,52 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements<'a>(
 ) -> Option<BoundaryDomainRequirements> {
     let mut structural = Vec::new();
     let mut scalar = Vec::new();
+    let mut normal = Vec::new();
     for (argument_index, parameter) in structural_parameters.iter().enumerate() {
         for domain in &parameter.qualifications {
             structural.push(CheckedUnitStructuralDomainRequirementPlan {
                 argument_index: u32::try_from(argument_index).ok()?,
+                path: Vec::new(),
                 domain: *domain,
             });
         }
+        let source = source_parameters.get(parameter.position as usize)?;
+        if parameter.access == checked_trees::CheckedStructuralAccess::MutableBorrow {
+            // This is the declaration's descendant/default roster, before any
+            // arrival or authored requires facts augment a parameter. Its
+            // normal duty is distinct from an additional root qualification.
+            let declared =
+                validation::structural_qualification_contract(program, source.type_reference)
+                    .ok()?;
+            for reference in declared.projection_types {
+                shapes.add_type(reference, binders, &[])?;
+            }
+            for (domain, carrier) in declared.domains {
+                shapes.add_domain(domain, carrier, binders)?;
+            }
+            for row in declared.projected_qualifications {
+                normal.push(CheckedUnitStructuralDomainRequirementPlan {
+                    argument_index: u32::try_from(argument_index).ok()?,
+                    path: row.path,
+                    domain: row.domain,
+                });
+            }
+        }
     }
-    for contract in contracts.filter(|contract| contract.kind == SignatureContractKind::Requires) {
+    for contract in contracts.filter(|contract| {
+        matches!(
+            contract.kind,
+            SignatureContractKind::Requires | SignatureContractKind::Ensures
+        )
+    }) {
+        let entry = contract.kind == SignatureContractKind::Requires;
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             let Some(membership) = fact.as_membership() else {
                 continue;
             };
-            if let Some(valid) =
-                signature_progress_requirement(program, source_parameters, membership)
+            if entry
+                && let Some(valid) =
+                    signature_progress_requirement(program, source_parameters, membership)
             {
                 if !valid {
                     return None;
@@ -61,6 +95,15 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements<'a>(
                         .iter()
                         .position(|parameter| parameter.symbol == root)
                 });
+            // Result guarantees have their own owner. This normal roster
+            // preserves existing memberships on one exact mutable formal;
+            // it neither infers projected subjects nor grants new membership.
+            if !entry
+                && normal_mutable_parameter_position(program, source_parameters, membership.value)
+                    .is_none()
+            {
+                continue;
+            }
             let primitive_type = validation::scalar_membership_value_carrier(program, membership);
             if primitive_type.is_some()
                 && !validation::field_domains::domain_requires_provenance(
@@ -96,10 +139,19 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements<'a>(
                     binders,
                     false,
                 )?;
-                structural.push(CheckedUnitStructuralDomainRequirementPlan {
+                let row = CheckedUnitStructuralDomainRequirementPlan {
                     argument_index: u32::try_from(argument_index).ok()?,
+                    path: Vec::new(),
                     domain,
-                });
+                };
+                if entry {
+                    structural.push(row);
+                } else {
+                    normal.push(row);
+                }
+                continue;
+            }
+            if !entry {
                 continue;
             }
             if let Some(primitive_type) = primitive_type {
@@ -147,5 +199,11 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements<'a>(
         return None;
     }
     scalar.dedup();
-    Some(BoundaryDomainRequirements { structural, scalar })
+    normal.sort_by_key(|row| (row.argument_index, row.domain.0));
+    normal.dedup();
+    Some(BoundaryDomainRequirements {
+        structural,
+        scalar,
+        normal,
+    })
 }

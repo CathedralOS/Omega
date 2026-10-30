@@ -30,6 +30,17 @@ pub(crate) struct ByteSequenceView {
     window: Range<usize>,
     /// Exact metadata of a projected binding; absent for a newly owned descriptor.
     descriptor_home: Option<crate::values::TerminalStructuralValue>,
+    /// Companion of an actual borrowed array descriptor. Ordinary snapshots
+    /// never infer this association from equal bytes or descriptor labels.
+    original_array: Option<OriginalByteArrayWindow>,
+}
+
+#[derive(Clone)]
+pub(crate) struct OriginalByteArrayWindow {
+    pub(crate) array: crate::structural_inputs::byte_arrays::storage::ArrayStorage,
+    pub(crate) array_type: semantic_vocabulary::StructuralTypeId,
+    pub(crate) offset: usize,
+    pub(crate) length: usize,
 }
 
 struct ByteSequenceBacking {
@@ -65,6 +76,7 @@ impl ByteSequenceView {
             }),
             window: 0..length,
             descriptor_home: None,
+            original_array: None,
         }
     }
 
@@ -74,6 +86,31 @@ impl ByteSequenceView {
     ) -> Self {
         self.descriptor_home = Some(home);
         self
+    }
+
+    pub(crate) fn with_original_array(mut self, window: OriginalByteArrayWindow) -> Self {
+        self.original_array = Some(window);
+        self
+    }
+
+    pub(crate) fn original_array(&self) -> Option<&OriginalByteArrayWindow> {
+        self.original_array.as_ref()
+    }
+
+    /// A genuine owned value copy retains immutable bytes, never the loan of
+    /// an array from which those bytes were observed.
+    pub(crate) fn owned_snapshot(&self) -> Self {
+        let mut copy = self.detached_descriptor();
+        copy.original_array = None;
+        copy
+    }
+
+    pub(crate) fn original_byte_allocation(&self) -> Option<(u64, usize, usize)> {
+        Some((
+            self.backing.exposure_namespace?,
+            self.backing.storage.bytes().len(),
+            self.window.start,
+        ))
     }
 
     pub(crate) fn descriptor_home(&self) -> Option<&crate::values::TerminalStructuralValue> {
@@ -128,6 +165,27 @@ impl ByteSequenceView {
         &self.backing.storage.bytes()[self.window.clone()]
     }
 
+    /// A foreign host result cannot charge another invocation or omit the
+    /// receiving invocation's storage budget. Preserve its allocation only
+    /// when it already belongs to that exact account.
+    pub(crate) fn into_account(
+        self,
+        account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+    ) -> Result<Self, crate::errors::TerminalInterpretError> {
+        let same = match (self.backing.storage.account(), account) {
+            (None, None) => true,
+            (Some(previous), Some(current)) => previous.same_invocation(current),
+            _ => false,
+        };
+        if same {
+            return Ok(self);
+        }
+        Ok(Self::new(storage::ByteSequenceStorage::copy(
+            self.bytes(),
+            account,
+        )?))
+    }
+
     pub(crate) fn get(&self, index: usize) -> Option<&u8> {
         self.bytes().get(index)
     }
@@ -159,15 +217,26 @@ impl ByteSequenceView {
             storage.bytes_mut()[byte_index] = value;
             *self = Self::new(storage);
         }
+        self.original_array = None;
         Ok(())
     }
 
     pub(crate) fn subslice(&self, start: usize, end: usize) -> Option<Self> {
         self.bytes().get(start..end)?;
+        let original_array = match &self.original_array {
+            Some(original) => Some(OriginalByteArrayWindow {
+                array: original.array.clone(),
+                array_type: original.array_type,
+                offset: original.offset.checked_add(start)?,
+                length: end - start,
+            }),
+            None => None,
+        };
         Some(Self {
             backing: Arc::clone(&self.backing),
             window: self.window.start.checked_add(start)?..self.window.start.checked_add(end)?,
             descriptor_home: None,
+            original_array,
         })
     }
 }

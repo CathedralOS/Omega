@@ -1,0 +1,12 @@
+// Expected exit: 0
+machine scan(value: u64) {
+}
+
+data Main {
+}
+
+machine Main::main() {
+    transition {
+        _ -> scan(1)
+    }
+}

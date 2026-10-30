@@ -1,0 +1,8 @@
+// Changed storage cannot reuse an earlier guarantee.
+data Storage { value: i64; touched: u64; canary: u64; }
+machine probe(output: &mut Storage, value: i64) -> i64 ensures result != -1; {
+ output.value = 0;
+ transition { _ -> overwrite(output, value) }
+ machine overwrite(buffer: &mut Storage, candidate: i64) -> i64 { buffer.value = candidate; buffer.value }
+}
+machine main() {}

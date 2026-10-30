@@ -36,26 +36,26 @@ machine Main::main(main: &mut Main) reaches Console {
         (Cell::Empty, Cell::Empty) -> wrong(main)
     }
 
-    state sum(main: &mut Main, left_n: i32, right_n: i32) {
+    machine sum(main: &mut Main, left_n: i32, right_n: i32) {
         transition (main.left, main.right) {
             (Cell::Value { n as guard_left }, Cell::Value { n as guard_right }) if (guard_left as i64) + (guard_right as i64) == (left_n as i64) + (right_n as i64) -> records(main)
             _ -> wrong(main)
         }
     }
-    state records(main: &mut Main) {
+    machine records(main: &mut Main) {
         transition (Main::make(main, 10), Main::make(main, 20)) {
             (Point { x as ax, y as ay }, Point { x as bx, y as by }) -> check_points(main, ax, ay, bx, by)
             _ -> wrong(main)
         }
     }
-    state check_points(main: &mut Main, ax: i32, ay: i32, bx: i32, by: i32) {
+    machine check_points(main: &mut Main, ax: i32, ay: i32, bx: i32, by: i32) {
         transition main.calls == 2 && (ax as i64) + (ay as i64) + (bx as i64) + (by as i64) == 70 {
             true -> good(main)
             _ -> wrong(main)
         }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state wrong(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine wrong(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

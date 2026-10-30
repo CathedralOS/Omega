@@ -25,7 +25,7 @@ machine mixed(value: &i32, choice: bool) -> i32 {
         true -> (consume(held))
         false -> finish(held)
     }
-    state finish(remaining: Held) -> i32 { consume(remaining) }
+    machine finish(remaining: Held) -> i32 { consume(remaining) }
 }
 machine abandoning(value: &i32, choice: bool) -> i32 crashes Trap {
     let held: Held = Held { value: value };
@@ -33,7 +33,7 @@ machine abandoning(value: &i32, choice: bool) -> i32 crashes Trap {
         true -> (consume(held))
         false -> failed(held)
     }
-    state failed(remaining: Held) -> i32 { crash Trap; }
+    machine failed(remaining: Held) -> i32 { crash Trap; }
 }
 machine main() crashes Trap {
     let value: i32 = 17;
@@ -45,6 +45,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -18,14 +18,14 @@ machine Main::main(main: &mut Main) {
         _ -> miss(main)
     }
 
-    state measure(main: &mut Main, captured: u64) {
+    machine measure(main: &mut Main, captured: u64) {
         transition (&captured as &i64) == 258 {
             true -> good(main)
             _ -> low(main)
         }
     }
 
-    state good(main: &mut Main) { main.verdict = 70; }
-    state low(main: &mut Main) { main.verdict = 71; }
-    state miss(main: &mut Main) { main.verdict = 72; }
+    machine good(main: &mut Main) { main.verdict = 70; }
+    machine low(main: &mut Main) { main.verdict = 71; }
+    machine miss(main: &mut Main) { main.verdict = 72; }
 }

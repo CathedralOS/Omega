@@ -4,6 +4,7 @@
 //! FixedIndex paths. Declared result metadata never supplies missing child proof.
 use super::storage::{ConstructorStorage, ConstructorValue};
 use super::*;
+use crate::execution::operation_kind;
 use terminal_psi::OperationKind;
 
 impl TerminalExecution<'_> {
@@ -11,11 +12,12 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<crate::execution::OperationFlow, TerminalInterpretError> {
-        let OperationKind::EstablishStructuralArray { elements } = &operation.kind else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => EstablishStructuralArray { elements });
         let result = operation.result.structural().ok_or_else(malformed)?;
-        let Some(StructuralTypeShape::FixedArray { element, length }) = self
+        let Some(StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        }) = self
             .program
             .structural_types()
             .get(&result.structural_type)
@@ -27,23 +29,17 @@ impl TerminalExecution<'_> {
         if u64::try_from(elements.len()).ok() != Some(*length)
             || !result.qualifications.is_empty()
             || self.live_affine_discard_at(result.place).is_some()
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(result.place))
+            || crate::custody::place_is_claimed(&self.live_claims, result.place)
         {
             return Err(malformed());
         }
         let mut cursor = self.local_structural_identities.cursor();
-        let mut value = TerminalStructuralValue {
-            opaque_identity: self
-                .local_structural_identities
+        let mut value = TerminalStructuralValue::minted(
+            self.local_structural_identities
                 .allocate_staged(&mut cursor)?,
-            structural_type: result.structural_type,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            path: Vec::new(),
-        };
+            result.structural_type,
+            Vec::new(),
+        );
         let mut staged = ConstructorStorage::new(self.account.as_ref());
         let mut frontier = self.live_affine_frontier.clone();
         let mut consumed = Vec::new();
@@ -81,7 +77,7 @@ impl TerminalExecution<'_> {
         let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
         staged.publish(self)?;
         self.structural_values.insert(result.place, value)?;
-        retirement.commit(self);
+        retirement.commit(self)?;
         self.local_structural_identities.commit_cursor(cursor);
         Ok(crate::execution::OperationFlow::Advance)
     }

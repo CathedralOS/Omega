@@ -46,7 +46,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.probes[3].scale = 1.5;
     transition { _ -> inspect(main, 0) }
 
-    state inspect(main: &mut Main, k: u64) requires k <= 3 {
+    machine inspect(main: &mut Main, k: u64) requires k <= 3 {
         let scale: f32 = main.probes[k].scale;
         transition main.probes[k].reading == 18.5 {
             true -> confirm(main, k, scale)
@@ -54,28 +54,28 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state confirm(main: &mut Main, k: u64, scale: f32) requires k <= 3 {
+    machine confirm(main: &mut Main, k: u64, scale: f32) requires k <= 3 {
         transition scale < 2.0 {
             true -> found(main, k)
             false -> advance(main, k)
         }
     }
 
-    state advance(main: &mut Main, k: u64) requires k <= 3 {
+    machine advance(main: &mut Main, k: u64) requires k <= 3 {
         transition k < 3 {
             true -> inspect(main, k + 1)
             false -> finish(main, 72)
         }
     }
 
-    state found(main: &mut Main, k: u64) {
+    machine found(main: &mut Main, k: u64) {
         transition k == 2 {
             true -> finish(main, 70)
             false -> finish(main, 71)
         }
     }
 
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

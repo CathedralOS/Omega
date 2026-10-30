@@ -7,7 +7,7 @@ machine joined(flag: bool) -> addr {
 }
 machine another_state() -> addr {
     transition { _ -> next() }
-    state next() -> addr { 0 as addr }
+    machine next() -> addr { 0 as addr }
 }
 data Other {}
 machine Other::value() -> addr { 0 as addr }
@@ -22,6 +22,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

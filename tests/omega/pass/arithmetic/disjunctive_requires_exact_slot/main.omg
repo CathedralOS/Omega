@@ -8,7 +8,7 @@ requires position >= 0 && position <= 3 && (side == 0 || side == 1)
 ensures result >= 0 && result < 8
 {
     transition { _ -> product(position, side) }
-    state product(position: i32, side: i32) -> i32
+    machine product(position: i32, side: i32) -> i32
     requires position >= 0 && position <= 3 && (side == 0 || side == 1)
     {
         position * 2 + side

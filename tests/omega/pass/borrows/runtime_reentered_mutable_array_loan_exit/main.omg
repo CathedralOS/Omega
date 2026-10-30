@@ -22,8 +22,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> reached(main)
         _ -> missed(main)
     }
-    state reached(main: &mut Main) { Console::exit_process(70); }
-    state missed(main: &mut Main) { Console::exit_process(71); }
+    machine reached(main: &mut Main) { Console::exit_process(70); }
+    machine missed(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

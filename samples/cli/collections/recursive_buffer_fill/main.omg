@@ -37,8 +37,8 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine fill_slice(bytes: &mut [u8], position: u64) -> u64

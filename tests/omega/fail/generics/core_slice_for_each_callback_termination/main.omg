@@ -5,7 +5,7 @@ data Item { value: u32; }
 machine does_not_finish(item: &mut Item)
 satisfies ElementStep<Item>::apply {
     transition { _ -> again(item) }
-    state again(item: &mut Item) {
+    machine again(item: &mut Item) {
         transition { _ -> again(item) }
     }
 }

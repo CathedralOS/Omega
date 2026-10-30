@@ -9,7 +9,7 @@ data Main {}
 machine Main::main(context: &mut Main) reaches Grant {
     let root: Root = Grant::grant(Root { value: 42 });
     transition { _ -> consume(root, root) }
-    state consume(first: Root in Granted, second: Root in Granted) {
+    machine consume(first: Root in Granted, second: Root in Granted) {
         drop(first);
         drop(second);
     }

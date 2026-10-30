@@ -1,3 +1,4 @@
+use crate::record::accessors::field_projection_accessors;
 use crate::record::{
     PackagePolicyCrashRoute, PackagePolicyTermination, PackageReviewCallableContract,
     PackageReviewDataProperties, PackageReviewNominalIdentity,
@@ -52,23 +53,13 @@ pub struct PackagePolicyMachineParameterSignature {
 }
 
 impl PackagePolicyTypeParameter {
-    pub const fn kind(&self) -> &PackagePolicyTypeParameterKind {
-        &self.kind
-    }
-    pub const fn bounds(&self) -> PackageReviewDataProperties {
-        self.bounds
-    }
+    field_projection_accessors!(borrowed kind: &PackagePolicyTypeParameterKind);
+    field_projection_accessors!(copied bounds: PackageReviewDataProperties);
 }
 impl PackagePolicyMachineParameterContract {}
 impl PackagePolicyMachineParameterSignature {
-    pub const fn lifetime_parameter_count(&self) -> usize {
-        self.lifetime_parameter_count
-    }
-    pub fn type_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.type_parameters
-    }
-    pub fn parameters(&self) -> &[PackageReviewSignatureParameter] {
-        &self.parameters
-    }
+    field_projection_accessors!(copied lifetime_parameter_count: usize);
+    field_projection_accessors!(sliced type_parameters: &[PackagePolicyTypeParameter]);
+    field_projection_accessors!(sliced parameters: &[PackageReviewSignatureParameter]);
     crate::record::accessors::package_policy_callable_signature_accessors!();
 }

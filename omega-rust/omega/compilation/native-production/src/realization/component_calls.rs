@@ -91,8 +91,21 @@ impl<'input> ComponentNativeCall<'input> {
         digest.raw(locator.identity_digest());
         digest.raw(&image.authority().review().identity());
         digest.raw(plan.identity_digest().as_bytes());
-        digest.raw(&selection.receiver().vocabulary_marker.get().to_le_bytes());
-        digest.raw(selection.receiver().program_fingerprint.as_bytes());
+        digest.raw(
+            &selection
+                .receiver()
+                .semantic()
+                .vocabulary_marker
+                .get()
+                .to_le_bytes(),
+        );
+        digest.raw(
+            selection
+                .receiver()
+                .semantic()
+                .program_fingerprint
+                .as_bytes(),
+        );
         digest.u64(u64::from(selection.receiving_boundary().get()));
         digest.raw(&application.commitment);
         digest.u64(bytes);
@@ -136,15 +149,6 @@ impl<'input> ComponentNativeCall<'input> {
         })
     }
 
-    pub const fn image(&self) -> &ComponentExportImage<'input> {
-        self.image
-    }
-    pub const fn locator(&self) -> &target::NormalizedComponentLocator {
-        &self.locator
-    }
-    pub const fn commitment(&self) -> &[u8; 32] {
-        &self.commitment
-    }
     pub const fn call(&self) -> &AdmittedNativeComponentCall<'input> {
         self.call
     }

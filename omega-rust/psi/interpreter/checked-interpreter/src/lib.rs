@@ -129,14 +129,12 @@ pub use evaluation_accounting::{
 pub use value::{Cell, Reference, Value};
 
 pub use evaluation::{
-    BuildIncludedSource, BuildMachineEvaluationFailure, BuildMachineEvaluationFailureKind,
-    BuildOutputObligation, BuildOutputObligationState, BuildOutputReceipt,
+    BuildIncludedSource, BuildOutputObligation, BuildOutputObligationState, BuildOutputReceipt,
     BuildTimeOperationEvaluation, CURRENT_EVALUATION_SEMANTICS, CURRENT_EVALUATION_STEP_SCHEDULE,
-    CURRENT_EVALUATION_USAGE_SCHEMA, EvaluationObservations, EvaluationSemanticsIdentity,
-    EvaluationStepScheduleIdentity, EvaluationUsage, EvaluationUsageSchemaIdentity,
-    ExecutedBehaviorExclusion, ExecutedBehaviorExclusionKind, ExecutedBehaviorExclusionSite,
-    ExecutedBuildSelection, InterpretOutcome, MAX_BUILD_OUTPUT_OBLIGATIONS,
-    MAX_INCLUDED_BUILD_SOURCES, MeasuredBuildMachineEvaluation, MeasuredEvaluation,
+    CURRENT_EVALUATION_USAGE_SCHEMA, EvaluationSemanticsIdentity, EvaluationStepScheduleIdentity,
+    EvaluationUsage, EvaluationUsageSchemaIdentity, ExecutedBehaviorExclusion,
+    ExecutedBehaviorExclusionKind, ExecutedBehaviorExclusionSite, ExecutedBuildSelection,
+    InterpretOutcome, MAX_BUILD_OUTPUT_OBLIGATIONS, MAX_INCLUDED_BUILD_SOURCES, MeasuredEvaluation,
     PrivateLayoutPlacementReceipt,
 };
 pub use filesystem_access::{CapturedFilesystemRoot, FilesystemAccess};
@@ -151,8 +149,7 @@ pub use filesystem_operation_attempts::{
 };
 pub use interpreter::{
     BuildMachineEntry, BuildMachineEvaluationRequest, BuildMachineProgram, InterpretOptions,
-    SelectedBuildTimeMachineBody, evaluate_build_machine_arguments, evaluate_build_time_machine,
-    evaluate_const_machine, evaluate_const_machine_measured,
-    evaluate_granted_build_machine_arguments, evaluate_prepared_build_time_machine,
-    interpret_entry, materialize_zero_initialized_build_time_value,
+    SelectedBuildTimeMachineBody, evaluate_build_time_machine, evaluate_const_machine,
+    evaluate_const_machine_measured, evaluate_prepared_build_time_machine, interpret_entry,
+    materialize_zero_initialized_build_time_value, pure_evaluation_step_ceiling,
 };

@@ -15,7 +15,7 @@ pub use typed_trees::data::DataMemberIdentity as CheckedMemberIdentity;
 /// authored literal, or the retained recipe only a target closure fixes.
 pub use typed_trees::constant_recipes::DeclaredArrayExtent as CheckedExtent;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedTrivialAffineStructuralLocalPlan {
     pub declaration_ordinal: u32,
     pub type_identity: TypeIdentityId,
@@ -24,13 +24,13 @@ pub struct CheckedTrivialAffineStructuralLocalPlan {
     pub construction: Option<CheckedAffineConstructionElementPlan>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedAffineConstructionElementPlan {
     pub root_type_identity: TypeIdentityId,
     pub index: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralResultPlan {
     pub type_identity: TypeIdentityId,
     pub multiplicity: Multiplicity,
@@ -41,7 +41,7 @@ pub struct CheckedStructuralResultPlan {
 /// A qualification belongs to its exact subplace, independently of the claim
 /// identity or content theorem at that place. Rows use nonempty canonical paths
 /// and sort by path followed by normalized domain identity.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct CheckedStructuralPathQualification {
     pub path: Vec<CheckedUnitStructuralPathSegment>,
     pub domain: SemanticDomainId,
@@ -49,7 +49,7 @@ pub struct CheckedStructuralPathQualification {
 
 /// One concrete target-neutral structural shape. Identities are interned
 /// semantic type identity handles rather than source-tree handles.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitStructuralTypePlan {
     pub identity: TypeIdentityId,
     /// The normalized nominal carrier owns one whole linear obligation.
@@ -79,7 +79,7 @@ pub struct CheckedUnitStructuralTypePlan {
 /// Physical storage remains unresolved until the exact target layout is closed.
 /// The typed application owns its checked alternatives; this row retains the
 /// precise application and schema needed by source-free Terminal publication.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitRecordStorage {
     Packed,
     /// Logical placed interpretation; schema storage is an independent root.
@@ -95,7 +95,7 @@ pub enum CheckedUnitRecordStorage {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitStructuralTypeShape {
     /// A routed binding occurrence, independent of provider selection.
     /// This is not an empty record: construction requires establishment.
@@ -154,13 +154,13 @@ pub enum CheckedUnitStructuralTypeShape {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitStructuralCasePlan {
     pub identity: CheckedMemberIdentity,
     pub fields: Vec<CheckedUnitStructuralFieldPlan>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, compiler_storage::Record)]
 pub struct CheckedUnitStructuralFieldPlan {
     /// Exact authored receiving type; numeric storage restrictions do not
     /// replace its independent nominal scalar memberships.
@@ -172,6 +172,10 @@ pub struct CheckedUnitStructuralFieldPlan {
     pub identity: CheckedMemberIdentity,
     pub relevance: BindingRelevance,
     pub field_type: CheckedUnitStructuralFieldType,
+    /// Standalone geometry retained by an inline byte field. Borrowed fields
+    /// dispose this descriptor, never the backing it references. Zero means
+    /// this field has no inline byte carrier.
+    pub byte_sequence_type_identity: TypeIdentityId,
     pub storage: Option<semantic_vocabulary::AuthoredFieldStorage>,
     /// The carrier types this field's qualifications are registered against
     /// when its inline field plan names no structural type: a refined scalar
@@ -183,10 +187,15 @@ pub struct CheckedUnitStructuralFieldPlan {
 
 impl PartialEq for CheckedUnitStructuralFieldPlan {
     fn eq(&self, other: &Self) -> bool {
+        // The source reference supplies receiving predicates to lowering, but
+        // its arena coordinate is not part of the field's semantic identity.
+        // Compare its complete normalized type instead of either dropping
+        // qualifications or requiring independently cloned references to alias.
         self.receiving_type_identity == other.receiving_type_identity
             && self.identity == other.identity
             && self.relevance == other.relevance
             && self.field_type == other.field_type
+            && self.byte_sequence_type_identity == other.byte_sequence_type_identity
             && self.storage == other.storage
             && self.qualification_carriers == other.qualification_carriers
     }
@@ -196,16 +205,37 @@ impl Eq for CheckedUnitStructuralFieldPlan {}
 
 impl CheckedUnitStructuralFieldPlan {
     /// Every structural type a catalog must keep alongside this field's
-    /// owner: the field's own structural type and its qualification carriers.
+    /// owner: its structural or inline byte type and qualification carriers.
     pub fn retained_type_identities(&self) -> impl Iterator<Item = TypeIdentityId> + '_ {
         self.field_type
             .structural_type_identity()
             .into_iter()
+            .chain(
+                self.byte_sequence_type_identity
+                    .is_valid()
+                    .then_some(self.byte_sequence_type_identity),
+            )
             .chain(self.qualification_carriers.iter().copied())
+    }
+
+    /// A field with its own disposal region. Inline scalars and owned bytes
+    /// need no child action (zero); borrowed bytes retain descriptor custody.
+    pub fn cleanup_type_identity(&self) -> TypeIdentityId {
+        match &self.field_type {
+            CheckedUnitStructuralFieldType::Structural { type_identity } => *type_identity,
+            field
+                if field
+                    .byte_sequence_carrier()
+                    .is_some_and(|carrier| carrier.is_borrowed()) =>
+            {
+                self.byte_sequence_type_identity
+            }
+            _ => TypeIdentityId::default(),
+        }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitStructuralFieldType {
     Scalar(PrimitiveType),
     /// Atomic storage retains its access contract separately from its carrier.
@@ -272,7 +302,7 @@ impl CheckedUnitStructuralFieldType {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedBindingFieldReceipt {
     pub requirement: SymbolHandle,
 }
@@ -280,14 +310,14 @@ pub struct CheckedBindingFieldReceipt {
 /// Exact source occurrence of a Binding parameter. The full carrier identity
 /// and requirement survive independently of its structural position. Selection
 /// and storage are realization decisions, not facts supplied by this receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedBindingParameterReceipt {
     pub source_parameter: SymbolHandle,
     pub carrier_type_identity: TypeIdentityId,
     pub requirement: SymbolHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedByteSequenceCarrier {
     /// A `&'r [u8]` or `&'r mut [u8]` descriptor. `access` binds on a record
     /// field, which is what a byte store's authority is read from, and is
@@ -364,8 +394,14 @@ impl CheckedByteSequenceCarrier {
 }
 
 /// One normalized structural qualification required by a retained parameter.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitStructuralDomainPlan {
+    /// Same-subject memberships retained independently of the local predicate.
+    /// None is unknown; Some([]) is a completely represented empty relation.
+    pub required_memberships: Option<Vec<SemanticDomainId>>,
+    /// The retained predicate/issuer vocabulary describes the complete source
+    /// theory; no independent role, cleanup, alias or refinement is omitted.
+    pub complete_predicate_theory: bool,
     /// Complete closed declaration predicates over formal subject zero; None is opaque.
     pub predicate: Option<crate::CheckedBooleanExpression>,
     pub byte_predicate: Option<language_semantics::byte_predicates::ByteSequencePredicate>,
@@ -381,16 +417,17 @@ pub struct CheckedUnitStructuralDomainPlan {
 /// One exact structural-domain precondition on a boundary argument. The
 /// argument index is dense over `structural_parameters`; no source expression
 /// or contract-fact handle survives into this plan.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitStructuralDomainRequirementPlan {
     pub argument_index: u32,
+    pub path: Vec<CheckedUnitStructuralPathSegment>,
     pub domain: SemanticDomainId,
 }
 
 /// Semantic authority retained by one structural carrier. Borrowed modes have
 /// the same physical pointer ABI, but are deliberately distinct in checked and
 /// Terminal identity so lowering cannot widen a non-observing loan.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedStructuralAccess {
     Owned,
     SharedBorrow,
@@ -420,7 +457,7 @@ impl CheckedStructuralAccess {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitStructuralParameterPlan {
     /// Position in the authored state signature. Structural argument lists use
     /// their own dense order and therefore never reinterpret this coordinate.
@@ -451,7 +488,7 @@ pub struct CheckedUnitStructuralParameterPlan {
 /// evaluates that value into the segment's `RuntimeIndex { index, obligation }`
 /// spelling, whose `index < extent` bound the verifier re-proves at the
 /// operation that carries the path.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum CheckedUnitStructuralPathSegment {
     /// Source element qualification contract; never an executable projection.
     AllElements,
@@ -589,10 +626,12 @@ pub fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTypeShape)
 /// are partial-affine leaves — a partially moved value reconstructs the
 /// untouched complement from these without executable cleanup.
 pub fn is_partial_affine_field_type(field_type: &CheckedUnitStructuralFieldType) -> bool {
+    if let CheckedUnitStructuralFieldType::Structural { type_identity } = field_type {
+        return type_identity.is_valid();
+    }
     matches!(
         field_type,
-        CheckedUnitStructuralFieldType::Structural { .. }
-            | CheckedUnitStructuralFieldType::BoundedInteger(_)
+        CheckedUnitStructuralFieldType::BoundedInteger(_)
             | CheckedUnitStructuralFieldType::RefinedScalar { .. }
             | CheckedUnitStructuralFieldType::ByteSequence(
                 CheckedByteSequenceCarrier::BoundedOwned { .. }
@@ -641,6 +680,7 @@ mod field_identity_tests {
             identity: CheckedMemberIdentity::of_spelling("operations"),
             relevance: BindingRelevance::Relevant,
             field_type: CheckedUnitStructuralFieldType::Scalar(PrimitiveType::Selector),
+            byte_sequence_type_identity: TypeIdentityId::default(),
             storage: None,
             qualification_carriers: Vec::new(),
         };

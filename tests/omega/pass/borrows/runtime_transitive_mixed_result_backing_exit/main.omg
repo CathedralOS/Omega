@@ -13,17 +13,17 @@ machine main() crashes Trap {
         true -> inspect(payload)
         false -> bad()
     }
-    state inspect(payload: Payload) {
+    machine inspect(payload: Payload) {
         transition payload.bytes.len == 2 && payload.holder.cell.value == 41 {
             true -> read(payload)
             false -> bad()
         }
     }
-    state read(payload: Payload) requires payload.bytes.len == 2 {
+    machine read(payload: Payload) requires payload.bytes.len == 2 {
         transition payload.bytes[0] == 65 && payload.bytes[1] == 90 && payload.holder.cell.value == 41 {
             true -> done() false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

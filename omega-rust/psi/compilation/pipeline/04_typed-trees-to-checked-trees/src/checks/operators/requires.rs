@@ -302,6 +302,8 @@ pub(super) fn selected_binary_requires_diagnostics(
             point,
             facts,
             &invocation_contexts,
+            operator_use.origin,
+            operator_use.expression,
             parameters,
             type_parameters,
             &operands,
@@ -389,6 +391,8 @@ pub(super) fn selected_binary_requires_diagnostics(
             point,
             facts,
             &invocation_contexts,
+            named_use.origin,
+            named_use.expression,
             parameters,
             type_parameters,
             &operands,
@@ -510,6 +514,8 @@ fn check_requires_facts(
     point: facts::ProgramPoint,
     facts: &CheckFacts,
     invocation_contexts: &InvocationContexts<'_>,
+    origin: checked_trees::CheckedValueOrigin,
+    source_expression: ExpressionHandle,
     parameters: &[StateParameter],
     type_parameters: &[typed_trees::data::TypeParameter],
     operands: &[ExpressionHandle],
@@ -530,7 +536,14 @@ fn check_requires_facts(
             operands,
             operand_labels,
             fact,
-        );
+        ) || fact.as_expression().is_some_and(|required| {
+            invocation_contexts.proves_selected_requirement(
+                program,
+                origin,
+                source_expression,
+                *required,
+            )
+        });
         if !proven {
             diagnostics.push(report(fact));
         }
@@ -1263,7 +1276,7 @@ fn contexts_prove_case_membership(
             .context_view(semantic.contexts.get(*context))
             .facts()
             .any(|fact| {
-                matches!(fact.payload, FactPayload::AssignedCase { variant } if variant == case)
+                matches!(fact.payload, FactPayload::CaseValue { variant, value: true } if variant == case)
                     && matches!(fact.place, FactPlace::Place(candidate) if
                     crate::flow::canonical_place_from_semantic_place(
                         program,

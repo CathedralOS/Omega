@@ -7,13 +7,13 @@ requires count > 0 && count <= items.len
     let window: &[u8] = &items[0..count];
     let length: u64 = window.len;
     transition { _ -> pick(window, items.len) }
-    state pick(window: &[u8], length: u64) -> u8
+    machine pick(window: &[u8], length: u64) -> u8
     requires length >= window.len && length > 0
     { window[length - 1] }
 }
 machine main() crashes Trap {
     let items: [u8; 4] = [4, 7, 8, 9];
     transition last_byte(&items[..], 3) == 8 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

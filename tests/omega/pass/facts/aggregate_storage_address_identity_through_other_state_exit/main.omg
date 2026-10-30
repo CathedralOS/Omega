@@ -5,7 +5,7 @@ machine expose(value: &Pair) -> addr { address_of(value) }
 machine probe() -> bool {
     let mut value: Pair = Pair { left: 7, right: 11 };
     transition { _ -> inspect(value) }
-    state inspect(mut value: Pair) -> bool {
+    machine inspect(mut value: Pair) -> bool {
     let original: addr = address_of(&value);
     let forwarded: addr = expose(&value);
     value.left = 13;
@@ -15,6 +15,6 @@ machine probe() -> bool {
 }
 machine main() crashes Trap {
     transition probe() { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

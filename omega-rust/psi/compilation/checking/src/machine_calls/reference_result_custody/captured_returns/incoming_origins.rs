@@ -74,7 +74,9 @@ impl Captures<'_> {
         loan: &checked_trees::BorrowReturnedLoanFact,
         origin: &crate::LocalWriteSource,
     ) -> bool {
-        if loan.root != facts::PlaceRoot::Symbol(origin.root) {
+        if loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency
+            || loan.root != facts::PlaceRoot::Symbol(origin.root)
+        {
             return false;
         }
         let Some(region) = self.facts.borrow.access_segments.span(loan.segments) else {

@@ -8,6 +8,6 @@ requires offset <= 256 {
         true -> selected(width, offset)
         false -> 0
     }
-    state selected(width: u64, offset: u64) -> u64
+    machine selected(width: u64, offset: u64) -> u64
     requires offset <= 256, width <= 256 - offset { width }
 }

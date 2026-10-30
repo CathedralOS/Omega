@@ -8,7 +8,7 @@ requires lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40
     transition {
         _ -> step(lhs, rhs)
     }
-    state step(l: u8, r: u8) -> u8
+    machine step(l: u8, r: u8) -> u8
     requires l >= 100 && l <= 180 && r >= 20 && r <= 40
     {
         let diff: u8 = l - r;
@@ -27,6 +27,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -16,7 +16,7 @@ machine Main::main(main: &mut Main) {
         _ -> bad(main)
     }
 
-    state push(main: &mut Main, v: u64) { main.answer = v; }
-    state drop(main: &mut Main) { main.answer = 71; }
-    state bad(main: &mut Main) { main.answer = 72; }
+    machine push(main: &mut Main, v: u64) { main.answer = v; }
+    machine drop(main: &mut Main) { main.answer = 71; }
+    machine bad(main: &mut Main) { main.answer = 72; }
 }

@@ -49,6 +49,6 @@ machine main() crashes Trap {
         true -> good()
         false -> bad()
     }
-    state good() {}
-    state bad() { crash Trap; }
+    machine good() {}
+    machine bad() { crash Trap; }
 }

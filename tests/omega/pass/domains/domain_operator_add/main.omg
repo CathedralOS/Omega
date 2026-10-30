@@ -6,9 +6,9 @@
 data Quantity {
     value: i32;
 }
-domain Quantity::Additive(quantity)
+domain Quantity::Additive
 requires
-    quantity.value >= 0;
+    self.value >= 0;
 machine + Quantity::Additive::add(left: Quantity, right: Quantity) -> Quantity
 requires
     right in Quantity::Additive

@@ -11,8 +11,8 @@ use crate::proof_contracts::default_domains::data_reads::range_gates_hold;
 use crate::proof_contracts::default_domains::place_queries::{
     data_definition_for_expression, data_has_case_where_facts, declared_root_established,
     expression_root_symbol, fact_mentions_any_field, fact_span_mentions_field,
-    field_is_where_mentioned, is_data_rooted, is_subplace, membership_field_name,
-    place_spelling_covers, place_spellings_may_overlap, write_place_spelling,
+    field_is_where_mentioned, is_data_rooted, is_subplace, membership_field, place_spelling_covers,
+    place_spellings_may_overlap, write_place_spelling,
 };
 use crate::proof_contracts::default_domains::state_flow::PlaceValuation;
 use crate::proof_contracts::default_domains::symbolic_values::{
@@ -177,10 +177,25 @@ pub(crate) fn handle_assignment<'program>(
                 window_open: false,
                 elements: Vec::new(),
                 element_windows: Vec::new(),
-                // The literal's selected case replaces the place's active case:
-                // the previous case's facts lapse with its payload, and the new
-                // case's facts were already proven at construction.
-                active_case: literal.and_then(|literal| literal.case_symbol),
+                // Whole replacement transports the same completed case row as
+                // initialization. Syntax cannot stand in for an emitted case;
+                // unknown or disagreeing normal outcomes retain no case fact.
+                active_case: crate::value_custody::places::declared_place_type_raw(
+                    program,
+                    machine,
+                    Some(state),
+                    target,
+                )
+                .and_then(|reference| {
+                    crate::proof_contracts::contract_entailment::completed_value_case_at_occurrence(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        value,
+                        reference,
+                    )
+                }),
             });
         }
     }
@@ -302,23 +317,22 @@ pub(crate) fn handle_assignment<'program>(
     // Obligation: a field participating in either an authored `where` fact or
     // an implicit range/containment gate must help re-establish the whole
     // value. Unrelated writes preserve the current establishment state.
-    let field_type =
-        program
-            .data_members(place.definition)
-            .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field)
-                    if field.name.as_str() == field_name =>
-                {
-                    Some(field.type_reference)
-                }
-                _ => None,
-            });
-    if let Some(field) = program
-        .data_members(place.definition)
-        .iter()
-        .filter_map(|member| member.as_field())
-        .find(|field| field.name.as_str() == field_name)
+    let selected_symbol =
+        crate::value_custody::places::effective_member_symbol(program, member.receiver, member);
+    let selected_field = crate::value_custody::places::exact_data_member_field(
+        program,
+        place.definition,
+        selected_symbol,
+        &field_name,
+        member.case_variant.as_ref().map(|case| case.as_str()),
+    )
+    .filter(|field| {
+        let parent = program.symbols.get(field.symbol).parent;
+        program.symbols.get(parent).kind != symbols::SymbolKind::Variant
+            || place.active_case.is_none_or(|active| active == parent)
+    });
+    let field_type = selected_field.map(|field| field.type_reference);
+    if let Some(field) = selected_field
         && !place.spelling.contains("[*]")
         && !place.established_fields.contains(&field.symbol)
     {
@@ -354,39 +368,24 @@ pub(crate) fn handle_assignment<'program>(
     // Interval-only facts each bound one field, and every store to that field
     // is range-checked against it, so they hold after any accepted store.
     let store_checked = super::data_where_field_intervals(program, place.definition).is_some();
-    // A TYPE-WIDE fact naming no field constrains the declaration's CONST
-    // PARAMETERS alone, and the specialization decided it once:
-    // `FixedBuffer<const N: u64> where N > 0 && N <= 8` is settled when 4 is
-    // substituted, not re-proved at every write to `used`. The valuation
-    // below carries field values, so folding such a fact can only answer
-    // "unknown" -- which would open an invariant window no later store could
-    // close. A CASE fact is not filtered this way: its names are the
-    // variant's payload bindings, which are not members of the data.
+    // Const-only clauses settle at application. A tag-only clause is also
+    // preserved by a scalar field store; whole-value replacement owns its
+    // tag and complete default-domain construction obligation separately.
     let definition = place.definition;
     // A collection-predicate fact over other fields is untouched by this
     // store; its element windows are tracked separately.
-    let written_field = program
-        .data_members(definition)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == field_name => {
-                Some(field.symbol)
-            }
-            _ => None,
-        });
-    // When every fact bounds one field by a literal, a store can change only
-    // the written field's own conjuncts. A place that was established with no
-    // open window still satisfies every other field's bounds, so folding them
-    // against a valuation that may not know those fields would only invent
-    // unknowns; the written field's conjuncts are re-proved below.
+    let written_field = selected_field.map(|field| field.symbol);
+    // Complete Cartesian field bounds preserve every unwritten component.
+    // Retain and re-prove the written component's original clauses; normalized
+    // intervals are not replacement source predicates or new proof premises.
     let written_field_conjuncts = written_field
         .filter(|_| !store_checked && place.established && !place.any_window_open())
         .and_then(|written| {
             Some(
-                super::data_where_field_literal_bounds(program, definition)?
+                super::data_where_field_representation_bounds(program, definition)?
                     .into_iter()
-                    .filter(|bound| bound.field == written)
-                    .map(|bound| typed_trees::domain::ProofFact::Expression(bound.conjunct))
+                    .filter(|bound| bound.field() == written)
+                    .map(|bound| typed_trees::domain::ProofFact::Expression(bound.conjunct()))
                     .collect::<Vec<_>>(),
             )
         });
@@ -400,7 +399,7 @@ pub(crate) fn handle_assignment<'program>(
         .filter(|fact| fact_mentions_any_field(program, definition, fact))
         .filter(|fact| {
             !region_was_established
-                || super::place_queries::fact_names_field(program, fact, &field_name)
+                || super::place_queries::fact_names_field(program, definition, fact, &field_name)
         })
         .filter(|fact| {
             let Some(expression) = fact.as_expression() else {
@@ -461,8 +460,8 @@ pub(crate) fn handle_assignment<'program>(
                 }
             }
             typed_trees::domain::ProofFact::Membership(membership) => {
-                let mentioned = membership_field_name(program, membership.value);
-                if mentioned == Some(field_name.as_str()) {
+                let mentioned = membership_field(program, place.definition, membership.value);
+                if mentioned.is_some_and(|field| Some(field.symbol) == written_field) {
                     if !crate::proof_contracts::proof_facts::string_literal_grants_domain(
                         program,
                         value,
@@ -470,6 +469,12 @@ pub(crate) fn handle_assignment<'program>(
                     ) {
                         all_hold = false;
                     }
+                } else if mentioned.is_none() {
+                    all_hold &= crate::proof_contracts::proof_facts::string_literal_grants_domain(
+                        program,
+                        membership.value,
+                        membership.domain_symbol,
+                    );
                 } else if !place.established || place.any_window_open() {
                     // A write to another field preserves a previously true
                     // membership, but cannot manufacture a missing one.
@@ -594,7 +599,12 @@ fn case_fact_spans_mentioning(
         .filter_map(|member| {
             let variant = member.as_variant()?;
             if variant.where_facts.is_empty()
-                || !fact_span_mentions_field(program, variant.where_facts, field_name)
+                || !fact_span_mentions_field(
+                    program,
+                    place.definition,
+                    variant.where_facts,
+                    field_name,
+                )
                 || place
                     .active_case
                     .is_some_and(|active| active != variant.symbol)

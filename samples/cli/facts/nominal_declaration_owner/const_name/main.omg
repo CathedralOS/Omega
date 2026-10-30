@@ -6,6 +6,6 @@ const TOKEN: Token = Token { value: 7 };
 machine transported() -> u8 { read(TOKEN) }
 machine main() crashes Trap {
     transition transported() == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

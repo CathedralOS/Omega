@@ -27,22 +27,22 @@ machine store(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { value = 
 linux_x86_64 machine visit(rows: &mut [Row; 3], cursor: &mut Cursor, row: u64, column: u64)
 requires row == 2, column == 1 {
     transition { _ -> apply(&rows[choose_row(cursor, row)].data[choose_column(cursor, column)], replacement(cursor)) }
-    state apply(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { store(value, incoming); }
+    machine apply(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { store(value, incoming); }
 }
 linux_arm64 machine visit(rows: &mut [Row; 3], cursor: &mut Cursor, row: u64, column: u64)
 requires row == 2, column == 1 {
     transition { _ -> apply(&rows[choose_row(cursor, row)].data[choose_column(cursor, column)], replacement(cursor)) }
-    state apply(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { store(value, incoming); }
+    machine apply(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { store(value, incoming); }
 }
 macos_arm64 machine visit(rows: &mut [Row; 3], cursor: &mut Cursor, row: u64, column: u64)
 requires row == 2, column == 1 {
     transition { _ -> apply(&rows[choose_row(cursor, row)].data[choose_column(cursor, column)], replacement(cursor)) }
-    state apply(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { store(value, incoming); }
+    machine apply(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { store(value, incoming); }
 }
 windows_x86_64 machine visit(rows: &mut [Row; 3], cursor: &mut Cursor, row: u64, column: u64)
 requires row == 2, column == 1 {
     transition { _ -> apply(&rows[choose_row(cursor, row)].data[choose_column(cursor, column)], replacement(cursor)) }
-    state apply(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { store(value, incoming); }
+    machine apply(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { store(value, incoming); }
 }
 machine main() crashes Trap {
     let mut rows: [Row; 3];
@@ -56,6 +56,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

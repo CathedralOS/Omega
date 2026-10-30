@@ -3,7 +3,7 @@
 data Holder<'storage> { reference: &'storage i32; }
 machine replace<'storage>(holder: &mut Holder<'storage>, incoming: &'storage i32) {
     transition { _ -> apply(holder, incoming) }
-    state apply(holder: &mut Holder<'storage>, incoming: &'storage i32) {
+    machine apply(holder: &mut Holder<'storage>, incoming: &'storage i32) {
         holder.reference = incoming;
     }
 }
@@ -13,6 +13,6 @@ machine main() crashes Trap {
     let mut holder: Holder = Holder { reference: &before };
     replace(&mut holder, &after);
     transition holder.reference == 29 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

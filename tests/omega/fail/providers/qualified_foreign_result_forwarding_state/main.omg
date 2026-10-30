@@ -1,7 +1,7 @@
 data Status [copy] { code: u64; }
 data Table { read: addr; }
 data Guid [copy] { value: u64; }
-domain Guid::Selected(value) requires value.value == 42;
+domain Guid::Selected requires self.value == 42;
 boundary trait Reports {
     machine read(table: &Table, protocol: &Guid) -> Status
     reaches
@@ -18,7 +18,7 @@ machine wrong(table: &Table, original: &mut Guid) -> Status
 requires original in Guid::Selected
 ensures result.code == 0; {
     transition { _ -> next(table, original) }
-    state next(table: &Table, renamed: &mut Guid) {
+    machine next(table: &Table, renamed: &mut Guid) -> Status {
         renamed.value = 0;
         Table::read(table, renamed)
     }

@@ -48,7 +48,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> check_swap(main)
         false -> bad_prior_s(main)
     }
-    state check_swap(main: &mut Main) {
+    machine check_swap(main: &mut Main) {
         transition main.counter == 99 {
             true -> failure_path(main)
             false -> bad_after_swap(main)
@@ -57,33 +57,33 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // ---- FAILURE PATH ----
     // counter is now 99; CAS(expected=10, new=42) must FAIL.
-    state failure_path(main: &mut Main) {
+    machine failure_path(main: &mut Main) {
         let prior_f: u32 in Wrapping = main.counter.compare_exchange(10, 42, ReceivePublish, Receive);
         transition prior_f == 99 {
             true -> check_unchanged(main)
             false -> bad_prior_f(main)
         }
     }
-    state check_unchanged(main: &mut Main) {
+    machine check_unchanged(main: &mut Main) {
         transition main.counter == 99 {
             true -> good(main)
             false -> bad_after_fail(main)
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
-    state bad_prior_s(main: &mut Main) {
+    machine bad_prior_s(main: &mut Main) {
         Console::exit_process(71);
     }
-    state bad_after_swap(main: &mut Main) {
+    machine bad_after_swap(main: &mut Main) {
         Console::exit_process(72);
     }
-    state bad_prior_f(main: &mut Main) {
+    machine bad_prior_f(main: &mut Main) {
         Console::exit_process(73);
     }
-    state bad_after_fail(main: &mut Main) {
+    machine bad_after_fail(main: &mut Main) {
         Console::exit_process(74);
     }
 }

@@ -1,36 +1,26 @@
 //! A full coherent-memory barrier, independent of cell width or value storage.
 use register_model::RegisterConstraintKey;
 use selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedEffects, MachineLatencyKnowledge, MachineMemoryEffect,
-    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    MachineAlternativeFamily, MachineBarrier, MachineEffectDeclaration, MachineEncodedEffects,
+    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
 };
 
 pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
-        semantic: MachineSemanticKind::AtomicFence,
+    MachineEffectDeclaration::single(
+        MachineSemanticKind::AtomicFence,
         constraint,
-        memory: MachineMemoryEffect::AtomicFenceV1,
-        trap: MachineTrapBehavior::NeverV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::AtomicFence,
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(4),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: MachineEncodedEffects::atomic_fence_v1(),
-        }],
-    }
+        MachineMemoryEffect::AtomicFenceV1,
+        MachineTrapBehavior::NeverV1,
+        MachineBarrier::ExternalEffect,
+        MachineAlternativeFamily::AtomicFence,
+        MachineSizeKnowledge::ExactBytes(4),
+        MachineEncodedEffects::atomic_fence_v1(),
+    )
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::rejects_every_bit_flip;
     use selected_instructions::{
         MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects,
         SelectedInstructionKind,
@@ -54,21 +44,7 @@ mod tests {
             encoded.footprint().encoded,
             MachineEncodedEffects::atomic_fence_v1()
         );
-        for bit in 0..encoded.bytes().len() * 8 {
-            let mut bytes = encoded.bytes().to_vec();
-            bytes[bit / 8] ^= 1 << (bit % 8);
-            assert!(
-                crate::validate_aarch64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    alternative,
-                    &[],
-                    &bytes
-                )
-                .is_err(),
-                "changed bit {bit}"
-            );
-        }
+        rejects_every_bit_flip(&physical, kind, alternative, &[], encoded.bytes());
         let mut extended = encoded.bytes().to_vec();
         extended.push(0);
         for bytes in [&extended[..], &encoded.bytes()[..encoded.bytes().len() - 1]] {

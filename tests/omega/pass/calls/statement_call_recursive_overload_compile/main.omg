@@ -24,9 +24,9 @@ machine walk(n: i32) {
         _ -> done()
     }
 
-    state descend(n: i32) {
+    machine descend(n: i32) {
         walk(n - 1);
     }
 
-    state done() { }
+    machine done() { }
 }

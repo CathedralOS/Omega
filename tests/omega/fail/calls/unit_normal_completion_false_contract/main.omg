@@ -1,0 +1,10 @@
+// Expected exit: 0
+machine set(value: &mut u32) ensures value == 7 { value = 7; }
+machine forwarded(value: &mut u32) ensures value == 8 { set(value) }
+machine main() crashes Trap {
+    let mut value: u32 = 1;
+    forwarded(&mut value);
+    transition value == 7 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

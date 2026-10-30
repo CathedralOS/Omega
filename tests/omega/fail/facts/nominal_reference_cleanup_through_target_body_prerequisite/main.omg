@@ -10,8 +10,8 @@ machine Keeper::drop(keeper: &mut Keeper) requires keeper.code == 7 {
 machine observe(keeper: &Keeper) {}
 machine check(output: &Counter) crashes Trap {
     transition output.value == 7 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 windows_x86_64 machine consume(seed: Seed) requires seed.code == 6 crashes Trap {
     let mut output: Counter = Counter { value: 0 };

@@ -1,6 +1,6 @@
 //! boundary checks slice of borrowed_windows.
 
-use super::{exclusive_storage_chain, place_spelling};
+use super::{StorageWalk, place_spelling};
 
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -107,7 +107,7 @@ pub(in crate::checks::multiplicity) fn check_recorded_invocations(
             .contextual_cleanup
             .segments
             .span_or_empty(invocation.absent.segments);
-        let spelling = place_spelling(program, machine, state, invocation.absent.root, path);
+        let spelling = place_spelling(program, invocation.absent.root, path);
         let extraction = invocation
             .opened_statement
             .map(|statement| format!(" at statement {statement}"))
@@ -263,13 +263,11 @@ pub(in crate::checks::multiplicity) fn borrowed_transfer_diagnostic(
 /// different routes (a `&mut` local versus the owner path), so each arm's
 /// route is checked on its own links even though the join opens one hole.
 pub(in crate::checks::multiplicity) fn authored_route_exclusive(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    walk: &StorageWalk<'_>,
     statement_index: usize,
     root: facts::PlaceRoot,
     path: &[facts::PlaceSegment],
 ) -> bool {
     matches!(root, facts::PlaceRoot::Symbol(_))
-        && exclusive_storage_chain(program, machine, state, statement_index, root, path)
+        && walk.exclusive_storage_chain(statement_index, root, path)
 }

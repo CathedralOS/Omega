@@ -3,8 +3,8 @@
 use std::collections::BTreeMap;
 
 use abstract_operations::AbstractOperation as O;
-use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind, StructuralTypeId};
+use optimization_unit::{PsiOptimizationFunction, operation_result_placement};
+use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralOperationResult};
 
 use crate::{OperationSite, OptimizationUnitValidationError};
@@ -17,14 +17,7 @@ pub(super) fn validate(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let claim_free = |place| {
-        function
-            .entry_claim_declarations
-            .iter()
-            .all(|claim| claim.input != place)
-            && function
-                .content_entry_claims
-                .iter()
-                .all(|claim| claim.input.root != place)
+        !function.entry_claim_declared(place) && !function.content_entry_claim_declared(place)
     };
     let primitive = |structural_type, scalar_type| {
         types.get(&structural_type).is_some_and(|declaration| {
@@ -34,8 +27,8 @@ pub(super) fn validate(
     };
     let local_matches = |result: &StructuralOperationResult, scalar_type| {
         result.multiplicity == StructuralMultiplicity::Unrestricted
-            && result.qualifications.is_empty()
             && result.projected_qualifications.is_empty()
+            && result.qualification_establishments.is_empty()
             && result.claims.is_empty()
             && claim_free(result.place)
             && primitive(result.structural_type, scalar_type)
@@ -56,14 +49,7 @@ pub(super) fn validate(
             ..
         } => {
             local_matches(result, value.scalar_type)
-                && function.structural_places.iter().any(|place| {
-                    place.id == result.place
-                        && place.kind
-                            == StructuralPlaceKind::OperationResult {
-                                producer: *psi_operation,
-                                structural_type: result.structural_type,
-                            }
-                })
+                && operation_result_placement(function, result, *psi_operation)
         }
         O::PrimitiveLocalStore {
             destination, value, ..
@@ -72,6 +58,7 @@ pub(super) fn validate(
             // valid initialization cannot authorize a later restricted write;
             // those writes must carry the common store's exact range evidence.
             local_matches(result, value.scalar_type)
+                && result.qualifications.is_empty()
                 && types
                     .get(&result.structural_type)
                     .is_some_and(|declaration| declaration.scalar_restriction.is_none())

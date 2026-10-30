@@ -21,8 +21,8 @@ machine Kind::tag(kind: Kind) -> u64 in Trapping {
         _ -> two()
     }
 
-    state one() -> u64 in Trapping { 1 }
-    state two() -> u64 in Trapping { 2 }
+    machine one() -> u64 in Trapping { 1 }
+    machine two() -> u64 in Trapping { 2 }
 }
 
 // Straight-line: the copy's case field and count are replaced.
@@ -40,14 +40,14 @@ machine Item::promoted_when(item: Item, promote: bool) -> Item {
         _ -> keep(item)
     }
 
-    state promote(item: Item) -> Item {
+    machine promote(item: Item) -> Item {
         let mut copy: Item = item;
         copy.kind = Kind::Second;
         copy.count = 9;
         copy
     }
 
-    state keep(item: Item) -> Item { item }
+    machine keep(item: Item) -> Item { item }
 }
 
 data Main {
@@ -66,7 +66,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         _ -> done(main, 71)
     }
 
-    state done(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine done(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

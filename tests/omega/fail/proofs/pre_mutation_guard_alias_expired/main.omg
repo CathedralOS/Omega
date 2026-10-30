@@ -4,6 +4,6 @@ machine main() {
     let mut record: Context = Context { count: 0 };
     let alias: &mut Context = &mut record;
     transition alias.count < 6 && overwrite(alias) { true -> bounded(alias) false -> done() }
-    state bounded(value: &Context) requires value.count < 6 { }
-    state done() { }
+    machine bounded(value: &Context) requires value.count < 6 { }
+    machine done() { }
 }

@@ -7,6 +7,58 @@ use crate::flow::{canonical_place_from_semantic_place, canonical_place_from_symb
 use facts::{FactContext, FactPayload, FactPlan, ScalarValue};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
+/// Assignment inputs shared by queries over one immutable context selection.
+/// The borrowed plan prevents this batch from crossing a fact mutation or reset.
+/// Keep every selected context, duplicate and payload in publication order;
+/// agreement and scalar refusal still belong to the ordinary snapshot readers.
+pub(crate) struct AssignmentObservationBatch<'input> {
+    program: &'input dyn ::validation::CheckingInput,
+    semantic: &'input FactPlan,
+    observations: Vec<AssignmentObservation>,
+}
+
+impl<'input> AssignmentObservationBatch<'input> {
+    pub(crate) fn prepare<'context>(
+        program: &'input dyn ::validation::CheckingInput,
+        semantic: &'input FactPlan,
+        contexts: impl IntoIterator<Item = &'context FactContext>,
+    ) -> Self {
+        let observations = contexts
+            .into_iter()
+            .flat_map(|context| prepare_assignment_observations(program, semantic, context))
+            .collect();
+        Self {
+            program,
+            semantic,
+            observations,
+        }
+    }
+
+    fn payloads<'query>(
+        &'query self,
+        subject: &'query CanonicalPlace,
+    ) -> impl Iterator<Item = FactPayload> + 'query {
+        let literal = literal_assignment_payload(self.program, subject);
+        let observations = if literal.is_some() {
+            &[][..]
+        } else {
+            self.observations.as_slice()
+        };
+        literal.into_iter().chain(
+            observations
+                .iter()
+                .filter(move |observation| {
+                    crate::flow::canonical_places_agree(self.program, &observation.place, subject)
+                })
+                .map(|observation| observation.payload),
+        )
+    }
+
+    pub(crate) fn scalar_value(&self, subject: &CanonicalPlace) -> Option<ScalarValue> {
+        scalar_value_from_payloads(self.program, self.semantic, self.payloads(subject))
+    }
+}
+
 /// Read scalar bindings and structural fields from the same live storage facts.
 /// Bindings use dense scalar positions; structural paths use authored parameters.
 pub(crate) struct PlaceScalarValues<'a, Resolve> {
@@ -16,19 +68,23 @@ pub(crate) struct PlaceScalarValues<'a, Resolve> {
     pub value_at_place: Resolve,
 }
 
-impl<Resolve: FnMut(&CanonicalPlace) -> Option<ScalarValue>> super::ScalarValueSource
-    for PlaceScalarValues<'_, Resolve>
+impl<Resolve: FnMut(&CanonicalPlace, ExpressionHandle) -> Option<ScalarValue>>
+    super::ScalarValueSource for PlaceScalarValues<'_, Resolve>
 {
     fn binding(&mut self, position: usize) -> Option<ScalarValue> {
         self.storage(*self.symbols.get(position)?)
     }
 
     fn storage(&mut self, symbol: symbols::SymbolHandle) -> Option<ScalarValue> {
-        (self.value_at_place)(&canonical_place_from_symbol(symbol)?)
+        (self.value_at_place)(
+            &canonical_place_from_symbol(symbol)?,
+            ExpressionHandle::invalid(),
+        )
     }
 
     fn structural_field(
         &mut self,
+        observation: typed_trees::expression::ExpressionHandle,
         parameter_position: u32,
         path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     ) -> Option<ScalarValue> {
@@ -43,7 +99,7 @@ impl<Resolve: FnMut(&CanonicalPlace) -> Option<ScalarValue>> super::ScalarValueS
         )?;
         let mut place = canonical_place_from_symbol(symbol)?;
         place.segments = segments;
-        (self.value_at_place)(&place)
+        (self.value_at_place)(&place, observation)
     }
 }
 

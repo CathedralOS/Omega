@@ -67,9 +67,7 @@ fn domain_predicate_meaning(
             .find_named_type_reference(symbol)
     };
     if let Some(reference) = validation::exact_domain_subject_type(program, domain, expression) {
-        if !subjects.contains(&expression) {
-            subjects.push(expression);
-        }
+        crate::collections::push_unique(&mut *subjects, expression);
         return Some(Some(reference));
     }
     Some(match program.expression_table.expression(expression) {

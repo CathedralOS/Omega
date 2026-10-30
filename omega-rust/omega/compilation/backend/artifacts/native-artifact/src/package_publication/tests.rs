@@ -43,7 +43,7 @@ fn signed_executable(identifier: &str) -> Vec<u8> {
         kind: object_file::SymbolKind::Function,
         ..Default::default()
     });
-    image_macho::emit_macho_aarch64_executable_signed(image, identifier)
+    image_macho::emit_macho_executable_signed(image, identifier)
         .expect("emit signed fixture")
         .bytes
 }

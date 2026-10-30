@@ -32,12 +32,15 @@ pub mod storage_path_relations;
 pub use captured_ownership::ownership_place_from_expression_in_state;
 pub mod collection_operations;
 mod declaration_types;
+pub(crate) use declaration_types::declaration_type_equations;
 pub use declaration_types::declaration_type_reference;
+pub use declaration_types::state_root_type;
 
 use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::struct_literals::data_declares_field;
 use access_plans::BorrowPolarity;
 use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -351,6 +354,50 @@ pub fn declared_place_type_raw(
         return Some(type_reference);
     }
 
+    // A bare scoped place that carries its declaration symbol answers from that
+    // exact identity: copied target-family preconditions rebase symbols while
+    // retaining authored spelling, so a spelling search can name the wrong
+    // same-spelled binding in another scope. Only a unique, consistent identity
+    // claims this branch. A synthesized operand -- an inline-assembly scratch
+    // local, for instance, whose retained path keeps no member symbol -- owes its
+    // type to the spelling resolver below, exactly as it did before symbol
+    // resolution; answering `None` here erases that place's declared type.
+    if let Some(path) = program.expression_table.name_path_node(handle)
+        && path.symbol.is_valid()
+        && path.head_symbol == path.symbol
+        && program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            == 1
+        && program
+            .expression_table
+            .name_path_member_symbols(path.member_symbols)
+            == [path.symbol]
+        && let Some(state) = current_state
+    {
+        let mut matching = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .filter_map(|statement| statement.as_local_data())
+            .filter(|local| local.symbol == path.symbol)
+            .map(|local| local.type_reference)
+            .chain(
+                program
+                    .state_parameters(state)
+                    .iter()
+                    .filter(|parameter| parameter.symbol == path.symbol)
+                    .map(|parameter| parameter.type_reference),
+            );
+        if let Some(reference) = matching.next()
+            && matching.next().is_none()
+            && reference.is_valid()
+        {
+            return Some(reference);
+        }
+    }
+
     if let Some(path) = program.expression_table.name_path_node(handle)
         && path.head_symbol == path.symbol
         && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Field
@@ -476,14 +523,18 @@ mod builtin_coordinates;
 mod exact_self_field;
 mod structural_scalar_field;
 pub use structural_scalar_field::{
-    StructuralScalarField, StructuralSource, saved_dispatch_call, saved_dispatch_subject,
-    structural_atomic_field, structural_scalar_field, structural_scalar_field_at_coordinate,
-    structural_scalar_field_in_parameters, structural_source,
+    ScalarCoordinateProjection, StructuralScalarCoordinate, StructuralScalarField,
+    StructuralSource, saved_dispatch_call, saved_dispatch_subject, structural_atomic_field,
+    structural_scalar_coordinate, structural_scalar_coordinate_in_type, structural_scalar_field,
+    structural_scalar_field_at_coordinate, structural_scalar_field_at_element_coordinate,
+    structural_scalar_field_in_parameters, structural_scalar_field_of_evaluated_receiver,
+    structural_source,
 };
 mod member_paths;
 mod parameter_scoped;
 pub(crate) use parameter_scoped::has_retained_builtin_index_meaning;
 pub(crate) use parameter_scoped::parameter_scoped_type_reference;
+pub use parameter_scoped::parameter_source_type_application;
 mod projected_members;
 mod result_shape;
 pub use attached_storage::{
@@ -492,8 +543,8 @@ pub use attached_storage::{
 };
 pub use builtin_coordinates::{
     assignment_target_indexes, assignment_target_selectors, collection_length_receiver,
-    declared_collection_extent, ensured_range_call_endpoints, fixed_array_type_length,
-    has_builtin_subslice_meaning, indexed_operation_has_builtin_meaning,
+    declared_collection_extent, ensured_range_call_endpoints, fixed_array_type_extent,
+    fixed_array_type_length, has_builtin_subslice_meaning, indexed_operation_has_builtin_meaning,
     mutable_byte_slice_parameter_element, range_operator_establishes_endpoint_extent,
     subslice_expression, whole_collection_view_source,
 };
@@ -508,7 +559,7 @@ use member_paths::{collect_member_path, data_field_or_payload, data_field_or_pay
 pub(crate) use member_paths::{
     data_definition_for_type, declared_member_path_type, first_unknown_nested_field,
 };
-pub(crate) use projected_members::applied_data_member_field;
+pub use projected_members::applied_data_member_field;
 pub use projected_members::declared_case_projection_field;
 pub use projected_members::exact_data_member_field;
 pub(crate) use result_shape::expression_result_is_reference;
@@ -600,14 +651,11 @@ pub fn unwrapped_type_reference(
 /// reproduces.
 pub fn peel_declared_constraints(
     program: &dyn crate::CheckingInput,
-    mut type_reference: TypeReferenceHandle,
+    type_reference: TypeReferenceHandle,
 ) -> TypeReferenceHandle {
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(type_reference)
-    {
-        type_reference = *base_type;
-    }
-    type_reference
+    program
+        .type_reference_table
+        .unconstrained_type_reference(type_reference)
 }
 
 /// The element type a `FixedArray` or `Slice` carrier declares — `None` for
@@ -624,109 +672,48 @@ pub fn collection_element_type(
 }
 
 /// The declared reference access beneath a type's `Constrained` shells —
-/// `None` when the peeled carrier is not a `Reference`.
+/// `None` when the peeled carrier is not a `Reference`. The peel and the
+/// node check are `reference_shells`' classification, shared with every
+/// other reader of a declared borrow.
 pub fn declared_reference_access(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<language_core::ReferenceAccess> {
-    let peeled = peel_declared_constraints(program, type_reference);
-    let TypeReferenceNode::Reference { access, .. } =
-        program.type_reference_table.type_reference(peeled)
-    else {
-        return None;
-    };
-    Some(*access)
+    super::reference_shells::reference_shell(program, type_reference).map(|shell| shell.access)
 }
 
-/// Two declared types name the same storage carrier when they differ only by
-/// `Constrained` shells, at any depth: a `&[u8] in Utf8` leaf and a `&[u8]`
-/// destination both describe the 16-byte shared-view descriptor. Reference
-/// access, fixed extents, and generic arguments stay strict — they change
-/// layout or custody, which no qualification erases. A pair that differs in
-/// any other way keeps its full normalized-identity comparison.
+mod declared_carriers;
+pub(crate) use declared_carriers::substituted_declared_carrier;
+
+/// Two declared types retain the same storage carrier through constraint shells.
+/// Reference access, fixed extents and generic arguments remain strict.
 pub fn declared_carriers_match(
     program: &dyn crate::CheckingInput,
     left: TypeReferenceHandle,
     right: TypeReferenceHandle,
 ) -> bool {
-    let left = peel_declared_constraints(program, left);
-    let right = peel_declared_constraints(program, right);
-    match (
-        program.type_reference_table.type_reference(left),
-        program.type_reference_table.type_reference(right),
-    ) {
-        (
-            TypeReferenceNode::Reference {
-                referee: left_referee,
-                access: left_access,
-                ..
-            },
-            TypeReferenceNode::Reference {
-                referee: right_referee,
-                access: right_access,
-                ..
-            },
-        ) => {
-            left_access == right_access
-                && declared_carriers_match(program, *left_referee, *right_referee)
-        }
-        (
-            TypeReferenceNode::Slice {
-                element_type: left_element,
-            },
-            TypeReferenceNode::Slice {
-                element_type: right_element,
-            },
-        ) => declared_carriers_match(program, *left_element, *right_element),
-        (
-            TypeReferenceNode::FixedArray {
-                element_type: left_element,
-                length: left_length,
-            },
-            TypeReferenceNode::FixedArray {
-                element_type: right_element,
-                length: right_length,
-            },
-        ) => {
-            program
-                .fixed_array_length_identity(left_length, &[], &[])
-                .is_some_and(|left| {
-                    Some(left) == program.fixed_array_length_identity(right_length, &[], &[])
-                })
-                && declared_carriers_match(program, *left_element, *right_element)
-        }
-        (
-            TypeReferenceNode::Generic {
-                base_symbol: left_symbol,
-                arguments: left_arguments,
-                ..
-            },
-            TypeReferenceNode::Generic {
-                base_symbol: right_symbol,
-                arguments: right_arguments,
-                ..
-            },
-        ) => {
-            let left_handles = program
-                .type_reference_table
-                .type_reference_handles(*left_arguments);
-            let right_handles = program
-                .type_reference_table
-                .type_reference_handles(*right_arguments);
-            left_symbol == right_symbol
-                && left_handles.len() == right_handles.len()
-                && left_handles.iter().zip(right_handles.iter()).all(
-                    |(left_argument, right_argument)| {
-                        declared_carriers_match(program, *left_argument, *right_argument)
-                    },
-                )
-        }
-        _ => {
-            program.type_identity_with_simultaneous_substitutions(
-                typed_trees::type_identity::TypeIdentityRequest::ordinary(left),
-            ) == program.normalized_type_identity(right)
-        }
-    }
+    declared_carriers_match_under_application(program, left, right, &[])
+}
+
+/// Exact lexical declaration equations refine both logical sides transitively.
+pub(crate) fn declared_carriers_match_with_substitutions(
+    program: &dyn crate::CheckingInput,
+    left: TypeReferenceHandle,
+    right: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    declared_carriers::under_equations(program, left, right, substitutions)
+}
+
+/// One authored application substitutes only formal/right-hand leaves.
+/// Supplied caller operands retain their independent scope.
+pub(crate) fn declared_carriers_match_under_application(
+    program: &dyn crate::CheckingInput,
+    left: TypeReferenceHandle,
+    right: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    declared_carriers::under_application(program, left, right, substitutions)
 }
 
 /// Whether a declared type is wholly zero-constructible: a primitive scalar,
@@ -837,10 +824,14 @@ pub use member_resolution::{
 };
 mod projection_types;
 pub use projection_types::{
-    canonical_place_source_type_application, canonical_place_type_reference,
+    StorageObservationTypePath, StorageObservationTypePathError,
+    canonical_owned_place_type_reference, canonical_place_source_type_application,
+    canonical_place_type_reference, canonical_qualification_path,
     collection_element_type_reference, expression_type_reference_in_state,
     loan_carrier_has_owned_storage, observed_storage_type_references,
-    project_type_reference_from_segments, unique_data_definition_by_symbol,
+    owned_projection_type_reference, project_type_reference_from_segments,
+    qualification_storage_path, source_type_application_from_segments,
+    unique_data_definition_by_symbol,
 };
 pub mod receiver_projections;
 pub use receiver_projections::{

@@ -17,11 +17,17 @@ pub(crate) use argument_paths::{projected_evaluated_path, value_index_segment};
 pub(super) mod argument_presentation;
 mod boundary_admission;
 mod call_operations;
+mod call_targets;
+pub(in crate::execution::terminal_unit) use call_targets::{
+    ResolvedCallTarget, resolve_call_target,
+};
 mod computation_arguments;
 mod dynamic_call;
 mod parameter_argument_paths;
 mod reference_forwarding;
 mod result_arguments;
+mod result_owners;
+pub(super) use result_owners::structural_result_owner;
 mod service_forward;
 mod signatures;
 mod structural_arguments;
@@ -102,8 +108,8 @@ pub(crate) use computation_arguments::{
     structural_computation_argument, subslice_computation_argument,
 };
 pub(crate) use signatures::{
-    ambient_self_scalar_signature, entry_claims, free_structural_scalar_signature,
-    free_structural_scalar_signature_traced, parameter_signatures,
-    structural_scalar_signature_traced, structural_signature,
+    ambient_self_scalar_signature, entry_claims, free_structural_scalar_entry_signature_traced,
+    free_structural_scalar_signature, free_structural_scalar_signature_traced,
+    parameter_signatures, structural_scalar_signature_traced, structural_signature,
 };
 pub(crate) use structural_arguments::{call_claim_transfers, computed_call_claim_transfers};

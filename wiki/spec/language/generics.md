@@ -9,7 +9,11 @@ const-generic substitution. Lifetime binders follow [lifetimes](lifetimes.md).
 These are source contracts, not a claim of complete implementation; current
 normalization limits belong beside [source resolution](../../../omega-rust/psi/compilation/pipeline/README.md#value-generic-staging).
 
-An explicit `where machine Step(...)` or `where machine Step satisfies
+Requirement spelling follows [unified requirement clauses](state_contracts.md#requirement-clauses);
+the spelling does not merge static admission with runtime entry obligations or
+flatten nested callable contracts.
+
+An explicit `requires machine Step(...)` or `requires machine Step satisfies
 Trait::requirement` clause can determine the kind of Step introduced without
 a kind marker in the generic list. Retaining `machine Step` there is also legal.
 The clause is a declaration, not inference from body usage or the current
@@ -17,6 +21,13 @@ consumer set. Missing or conflicting kinds/contracts reject. This rule applies
 to selected named bodies and does not infer whole-trait conformance evidence.
 
 ## Applications and specialization
+
+An `asm machine` uses these same binders and machine-satisfaction rules; its
+body language does not require an asm-specific generic or iterator facility.
+Every admitted specialization must justify its exact instruction widths,
+layouts, copying rights and target obligations. Selecting an assembly callback
+does not imply textual expansion, unrolling or inlining. See
+[generic assembly](assembly.md#generics-slices-and-tracked-storage).
 
 Lexically nested machines may refer to enclosing static generic selections
 (types, static values, machine selections and conformance evidence) by their
@@ -42,6 +53,61 @@ or obligations. Named constants and forwarded binders must match that carrier
 before canonical identity erases their source names. Authored local annotations
 remain independent store obligations; inferred call-result types follow the
 selected application's substituted result.
+
+## Transparent type aliases
+
+Named decision: `transparent-generic-type-aliases`, settled 2026-10-27.
+
+A data declaration with `=` and a type expression is a transparent alias, not
+a new nominal data definition:
+
+```omega
+public data CLayout<T> = LayoutStorage<T, CAbiPolicy<T>>;
+data ByteBuffer<const Capacity: u64> = Buffer<u8, Capacity>;
+data SmallBytes = ByteBuffer<64>;
+```
+
+The aliases partially apply an existing constructor: they may fix, forward,
+reorder or compute arguments and expose the remaining ordinary parameters.
+Their binders use the same type, lifetime, value, static-machine and named
+implementation kinds and contracts as other generic declarations. Buffer and
+the policy implementation above are selected ordinary declarations, not names
+that grant alias-specific compiler behavior. General aliases are not the
+domain-conjunction aliases described under [domains](domains.md#aliases-and-identity).
+
+Expansion substitutes exact declaration identities, validates every underlying
+argument and obligation, and precedes canonical type identity and ordinary
+matching. An alias and its complete expansion are the same type, with the same
+representation, ABI, multiplicity, cleanup, qualifications, access and lifetime
+obligations. There is no wrapper field, constructor, conversion, additional
+nominal case owner or new ownership identity. Existing data construction,
+case qualification and matching name the normalized underlying carrier.
+The alias cannot weaken requirements, hide an incompatible representation or
+turn a conversion into type equality. Nominal distinction requires an ordinary
+data declaration with a body.
+
+Closed argument expressions may execute ordinary admitted compile-time code.
+A computed const value retains its declared carrier and canonical value;
+a selected machine or named implementation retains its exact code/evidence
+identity. Runtime-capable indices retain exact runtime subjects and cannot be
+silently promoted to compile-time constants. Alias expansion supplies no host
+grant or exception to [evaluation admission](evaluation.md).
+
+Alias expansion is acyclic, including indirect and growing generic cycles;
+normalization reports the alias chain rather than looping. Name resolution,
+visibility, public-signature exposure and retained private implementation
+identities follow their existing rules. Exporting an alias does not grant
+permission to inspect or name private constituents. The compiler retains enough
+application and expansion provenance for diagnostics, serialization and replay
+without treating the alias spelling as a distinct semantic or ABI key.
+This facility does not introduce first-class higher-kinded arguments or ambient
+conformance search.
+
+The source spelling and semantics are ratified; parser, resolution, retained
+identity and end-to-end implementation remain tracked by
+`LIBRARY-REPRESENTATION-FAMILIES` in [TASKS.md](../../../TASKS.md).
+
+## Closed applications and canonical identity
 
 Closed static values use [canonical static identities](evaluation.md#canonical-static-identities).
 Equivalent literals and named canonical values have the same application
@@ -106,7 +172,7 @@ limit:
 
 ```omega
 data Index<Limit: u32>
-where
+requires
     value < Limit,
 {
     value: u32;
@@ -164,7 +230,7 @@ equality, assignability, compatible layout, or conformance. Generic constraints
 may combine these propositions with ordinary Boolean connectives:
 
 ```omega
-where
+requires
     T == u16 || T == u32 || T == u64
 ```
 
@@ -200,7 +266,7 @@ ambient conformance selection or permit changing the meaning of `==` on values.
 
 ## Structural type equations and inference
 
-A `where` type equation relates already declared binders. Its structural matching
+A `requires` type equation relates already declared binders. Its structural matching
 may recover omitted type/value arguments from known type structure:
 
 ```omega
@@ -208,7 +274,7 @@ domain<const Capacity: u64> u64::AtMost<Capacity>
     requires self <= Capacity;
 
 data TinyBytes<Length, const Capacity: u64>
-where
+requires
     Length == u64::AtMost<Capacity>
 {
     storage: [u8; Capacity];
@@ -234,7 +300,7 @@ occurs check prevents a parameter being defined through itself.
 Bracketed scalar range shells are not type structure and cannot infer generic
 arguments. Use explicit type/value/const binders and equations, or an intentionally
 named indexed domain when its nominal identity is part of the API. Bounds proved
-by `where`, `requires`, `ensures`, or flow establish obligations after selection;
+by `requires`, `ensures`, or flow establish obligations after selection;
 they never choose specialization or layout identity.
 
 For ordinary data and machine applications, omitted arguments can be recovered
@@ -319,7 +385,7 @@ initialization authority.
 
 ## Finite specialization boundary
 
-An explicit finite disjunction of equalities in a generic `where` clause can
+An explicit finite disjunction of equalities in a generic `requires` clause can
 define the supported specialization family. No separate roster keyword or
 reflection API is required. This example illustrates a runtime-capable machine
 family with one common result shape:
@@ -327,7 +393,7 @@ family with one common result shape:
 ```omega
 trait ByteScanner {
     machine scan<Width: u32>(bytes: &[u8]) -> u64
-    where
+    requires
         Width == 16 || Width == 32 || Width == 64;
 }
 ```
@@ -404,7 +470,7 @@ acknowledgements follow the abstract envelope, not incidental stronger behavior.
 A required member operation belongs to a named trait and is supplied through an
 explicit conformance binder, for example `Order satisfies Ranked<Element>`.
 There is no anonymous member requirement inferred or carried by a
-`where machine T::member(...)` clause. A structural contract for an independently
+`requires machine T::member(...)` clause. A structural contract for an independently
 bound machine parameter is the distinct form below.
 
 [Named conformances](conformances.md#declaration-and-selection) owns whole-map
@@ -423,8 +489,8 @@ for machine-shaped theorem hypotheses; it is not executable callback selection.
 
 | Category | Declaration contract | Permitted use |
 | --- | --- | --- |
-| Structural callable | `where machine Key(card: &Card) -> u64` | Static calls under that complete callable contract. |
-| Nominal callable | `where machine Handler satisfies HookProcedure::call` | Static calls or contextual realization under that exact requirement. |
+| Structural callable | `requires machine Key(card: &Card) -> u64` | Static calls under that complete callable contract. |
+| Nominal callable | `requires machine Handler satisfies HookProcedure::call` | Static calls or contextual realization under that exact requirement. |
 | Declaration identity | A trait's `machine Requirement` binder without a callable clause | Identity relationships only; no invocation. |
 
 A callable binder always has an authored contract. The compiler cannot infer
@@ -501,13 +567,18 @@ A structural machine contract may bind machine parameters of its own:
 
 ```omega
 machine forward<machine Schema, machine Selected>(value: Stream<Selected>) -> Stream<Selected>
-where machine Schema<machine Inner>(value: Stream<Inner>) -> Stream<Inner>
-where machine Inner(index: Nat) -> Rat;
-where machine Selected(index: Nat) -> Rat;
+requires machine Schema<machine Inner>(value: Stream<Inner>) -> Stream<Inner>
+    requires machine Inner(index: Nat) -> Rat;
+;
+requires machine Selected(index: Nat) -> Rat;
 {
     Schema<Selected>(value)
 }
 ```
+
+Each callable contract has its own terminator: `Inner` ends first, then the
+standalone semicolon closes `Schema`. `Selected` belongs to `forward`, not to
+`Schema`. These delimiters do not separate ordinary predicate clauses.
 
 Here `Stream` denotes an appropriate proof-only family. Refinement is binder-
 positional: renaming `Inner` changes no contract, but changing its nested shape,

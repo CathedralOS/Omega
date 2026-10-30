@@ -1,5 +1,5 @@
 use super::super::super::RelationConstraint;
-use super::super::ValueComparison;
+use super::super::{EqualityQuery, ValueComparison};
 use super::{DifferenceGraph, Operand, Relation};
 
 fn place(position: u32) -> Operand {
@@ -105,6 +105,21 @@ fn compact_difference_rows_match_symbolic_walk_with_cycles_and_overflow() {
         for from in operands.iter().chain(operands.iter().rev()) {
             let expected = reference_gaps(&relations, from);
             for to in &operands {
+                let mutual = expected
+                    .iter()
+                    .any(|(operand, gap)| *operand == to && *gap >= 0)
+                    && reference_gaps(&relations, to)
+                        .iter()
+                        .any(|(operand, gap)| *operand == from && *gap >= 0);
+                assert_eq!(graph.mutual_nonnegative_gap(from, to), mutual);
+                if let (Some(source), Some(destination)) =
+                    (graph.operand_index(from), graph.operand_index(to))
+                {
+                    assert_eq!(
+                        graph.mutual_nonnegative_gap_indexed(source, destination),
+                        mutual
+                    );
+                }
                 assert_eq!(
                     graph.nonnegative_gap(from, to),
                     expected
@@ -118,7 +133,7 @@ fn compact_difference_rows_match_symbolic_walk_with_cycles_and_overflow() {
 }
 
 #[test]
-fn constructor_congruence_keeps_effectful_occurrences_and_generations() {
+fn constructor_congruence_keeps_denotations_events_and_declaration_generations() {
     let left = place(1);
     let right = place(2);
     let relations = [
@@ -126,13 +141,20 @@ fn constructor_congruence_keeps_effectful_occurrences_and_generations() {
         relation(right.clone(), left.clone(), 0),
     ];
     let mut comparison = ValueComparison::new(&relations);
-    let call = |argument: Operand| Operand::Call {
-        target: symbols::SymbolHandle::from_arena_index(3),
+    // Only admitted repeatable denotations enter Operand::Call. Runtime
+    // event leaves keep exact occurrence identity and gain no child congruence.
+    let call = |argument: Operand, target| Operand::Call {
+        target,
         arguments: vec![argument],
     };
-    let repeated_left = call(left.clone());
-    let repeated_right = call(right.clone());
+    let target = symbols::SymbolHandle::from_parts(3, 1);
+    let repeated_left = call(left.clone(), target);
+    let repeated_right = call(right.clone(), target);
     assert!(comparison.same_value(&repeated_left, &repeated_right));
+    let different_target = call(right.clone(), symbols::SymbolHandle::from_parts(4, 1));
+    let stale_target = call(right.clone(), symbols::SymbolHandle::from_parts(3, 2));
+    assert!(!comparison.same_value(&repeated_left, &different_target));
+    assert!(!comparison.same_value(&repeated_left, &stale_target));
     let first_event = Operand::CompletedCall {
         target: symbols::SymbolHandle::from_arena_index(3),
         occurrence: typed_trees::expression::ExpressionHandle::from_parts(4, 1),
@@ -183,4 +205,77 @@ fn a_new_relation_environment_does_not_inherit_equalities() {
         .same_value(&left, &right)
     );
     assert!(!ValueComparison::new(&[]).same_value(&left, &right));
+}
+
+#[test]
+fn one_subject_closure_matches_separate_endpoint_queries() {
+    let operands = (1..=8).map(place).collect::<Vec<_>>();
+    let length = |operand: &Operand| Operand::CollectionLength(Box::new(operand.clone()));
+    let mut random = 0x853c_49e6_748f_ea9b_u64;
+    let mut next = || {
+        random ^= random << 13;
+        random ^= random >> 7;
+        random ^= random << 17;
+        random
+    };
+    for case in 0..64 {
+        let mut relations = vec![
+            relation(operands[0].clone(), operands[1].clone(), 0),
+            relation(operands[1].clone(), operands[0].clone(), 0),
+            relation(operands[2].clone(), length(&operands[0]), 0),
+            relation(length(&operands[0]), operands[2].clone(), 0),
+        ];
+        for _ in 0..case % 12 {
+            let left = operands[(next() % 8) as usize].clone();
+            let right = operands[(next() % 8) as usize].clone();
+            relations.push(relation(left, right, (next() % 3) as i64 - 1));
+        }
+        let subject = length(&operands[1]);
+        let mut shared = EqualityQuery::new(&relations, &subject, &subject);
+        for relation in relations.iter().chain(relations.iter().rev()) {
+            for candidate in [&relation.left, &relation.right] {
+                let expected = ValueComparison::new(&relations).same_value(&subject, candidate);
+                assert_eq!(
+                    shared.same_value(&subject, candidate),
+                    expected,
+                    "case {case}"
+                );
+            }
+        }
+        assert!(shared.same_value(&subject, &operands[2]));
+        // A new immutable relation set must not inherit the preceding closure.
+        assert!(!EqualityQuery::new(&[], &subject, &subject).same_value(&subject, &operands[2]));
+    }
+}
+
+#[test]
+fn one_subject_closure_preserves_answers_near_finite_limits() {
+    let length = |operand: Operand| Operand::CollectionLength(Box::new(operand));
+    let subject = length(place(2));
+    for count in [32, 128, 176, 180, 192, 250, 256, 257] {
+        let mut relations = vec![
+            relation(place(1), place(2), 0),
+            relation(place(2), place(1), 0),
+            relation(place(3), length(place(1)), 0),
+            relation(length(place(1)), place(3), 0),
+        ];
+        for position in 4..count {
+            relations.push(relation(place(position), place(1), 1));
+        }
+        for reverse in [false, true] {
+            if reverse {
+                relations.reverse();
+            }
+            let mut shared = EqualityQuery::new(&relations, &subject, &subject);
+            for candidate in [place(3), place(count - 1), place(1), place(3)] {
+                assert_eq!(
+                    shared.same_value(&subject, &candidate),
+                    ValueComparison::new(&relations).same_value(&subject, &candidate),
+                    "{count} terms, reverse={reverse}"
+                );
+            }
+            // Exhausting constructor closure must still permit direct proofs.
+            assert!(shared.same_value(&place(1), &place(2)));
+        }
+    }
 }

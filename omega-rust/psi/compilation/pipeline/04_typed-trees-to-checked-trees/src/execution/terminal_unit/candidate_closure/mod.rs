@@ -186,7 +186,9 @@ fn admit_call_target(
         }
         (
             CheckedUnitCallRoute::Module { .. },
-            CheckedUnitCallResult::Unit | CheckedUnitCallResult::Structural { .. },
+            CheckedUnitCallResult::Unit
+            | CheckedUnitCallResult::Structural { .. }
+            | CheckedUnitCallResult::NoNormal,
         ) => {
             // Call admission consumes this roster's exact body,
             // not a different return catalog's coverage promise.
@@ -213,6 +215,33 @@ fn admit_call_target(
     }
 }
 
+fn admit_operation_cleanups(
+    closure: &mut CandidateClosure,
+    caller: usize,
+    control: &checked_trees::CheckedCleanupControlPlans,
+    state: SymbolHandle,
+    operation: &CheckedUnitEffectOperationPlan,
+) {
+    let site = match operation {
+        CheckedUnitEffectOperationPlan::ContinuationCleanup { boundary, .. } => {
+            cleanup_site(state, boundary)
+        }
+        CheckedUnitEffectOperationPlan::ReleaseReference {
+            statement_index, ..
+        } => GapSite::Statement {
+            state,
+            index: *statement_index,
+        },
+        _ => GapSite::State(state),
+    };
+    for cleanup in control
+        .operation_actions(operation)
+        .filter_map(checked_trees::CheckedNormalCleanupAction::nominal)
+    {
+        closure.require_entry(caller, cleanup.cleanup_machine, cleanup.cleanup_state, site);
+    }
+}
+
 /// Prune both catalogs to the bodies whose every call dependency is available,
 /// returning one gap per dropped machine that names the direct dependency
 /// that failed at its call site.
@@ -226,7 +255,7 @@ pub(super) fn retain_available(
     candidates: &mut Vec<CheckedUnitEffectMachinePlan>,
     composed_machines: &mut Vec<CheckedComposedUnitControlMachinePlan>,
     partial_affine_machines: &mut Vec<CheckedPartialAffineUnitCleanupMachinePlan>,
-    prepared_value_calls: &[super::structural_value_calls::PreparedValueCalls],
+    prepared_calls: &super::structural_value_calls::PreparedCalls,
 ) -> Vec<CheckedUnitPlanGap> {
     // Candidate ordinals: ordinary bodies, then composed bodies, then the
     // partial-affine bodies, which are ordinary bodies with a residual
@@ -270,14 +299,7 @@ pub(super) fn retain_available(
         for operation in plan
             .operations
             .iter()
-            .chain(
-                prepared_value_calls
-                    .iter()
-                    .filter(|row| row.owner == plan.machine && row.state == plan.state)
-                    .flat_map(
-                        super::structural_value_calls::PreparedValueCalls::operation_dependencies,
-                    ),
-            )
+            .chain(prepared_calls.operations_for(plan.machine, plan.state))
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
         {
             match operation {
@@ -306,6 +328,7 @@ pub(super) fn retain_available(
                 ),
                 // Selected execution already joined exact realization custody.
                 CheckedUnitEffectOperationPlan::RegisterAccess { .. }
+                | CheckedUnitEffectOperationPlan::EvaluateStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. },
                 )
@@ -343,24 +366,15 @@ pub(super) fn retain_available(
                         );
                     }
                 }
-                CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                    boundary,
-                    cleanup_actions,
-                    ..
-                } => {
-                    for cleanup in cleanup_actions
-                        .iter()
-                        .filter_map(checked_trees::CheckedNormalCleanupAction::nominal)
-                    {
-                        closure.require_entry(
-                            caller_index,
-                            cleanup.cleanup_machine,
-                            cleanup.cleanup_state,
-                            cleanup_site(plan.state, boundary),
-                        );
-                    }
-                }
+                CheckedUnitEffectOperationPlan::ContinuationCleanup { .. } => {}
             }
+            admit_operation_cleanups(
+                &mut closure,
+                caller_index,
+                cleanup_control,
+                plan.state,
+                operation,
+            );
             if !closure.retained[caller_index] {
                 break;
             }
@@ -387,9 +401,7 @@ pub(super) fn retain_available(
             }
             for operation in state
                 .operation_dependencies()
-                .chain(prepared_value_calls.iter()
-                    .filter(|row| row.owner == plan.machine && row.state == state.state)
-                    .flat_map(super::structural_value_calls::PreparedValueCalls::operation_dependencies))
+                .chain(prepared_calls.operations_for(plan.machine, state.state))
                 .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
             {
                 let call_site =
@@ -432,7 +444,8 @@ pub(super) fn retain_available(
                     // are dense, and a sum field's copy or construction and
                     // its window repair stay in-frame. A port write is a
                     // checked physical event with exact operands, not a call.
-                    CheckedUnitEffectOperationPlan::Store(_)
+                    CheckedUnitEffectOperationPlan::EvaluateStructuralValue { .. }
+                    | CheckedUnitEffectOperationPlan::Store(_)
                     | CheckedUnitEffectOperationPlan::AtomicFence { .. }
                     | CheckedUnitEffectOperationPlan::AtomicAccess(_)
                     | CheckedUnitEffectOperationPlan::RegisterAccess { .. }
@@ -459,22 +472,20 @@ pub(super) fn retain_available(
                     // already a custody row inside this same state.
                     | checked_trees::structural_field_write_pattern!()
                     => {}
-                    CheckedUnitEffectOperationPlan::ContinuationCleanup { boundary, cleanup_actions, .. } => {
-                        for cleanup in cleanup_actions.iter().filter_map(checked_trees::CheckedNormalCleanupAction::nominal) {
-                            closure.require_entry(
-                                caller_index,
-                                cleanup.cleanup_machine,
-                                cleanup.cleanup_state,
-                                cleanup_site(state.state, boundary),
-                            );
-                        }
-                    }
+                    CheckedUnitEffectOperationPlan::ContinuationCleanup { .. } => {}
                     _ => closure.drop_candidate(
                         caller_index,
-                        CheckedUnitPlanGapReason::Unsupported("composed control vocabulary"),
+                        CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed("composed control vocabulary")),
                         GapSite::State(state.state),
                     ),
                 }
+                admit_operation_cleanups(
+                    &mut closure,
+                    caller_index,
+                    cleanup_control,
+                    state.state,
+                    operation,
+                );
                 if !closure.retained[caller_index] {
                     break;
                 }
@@ -508,7 +519,7 @@ pub(super) fn retain_available(
         .iter()
         .zip(&causes)
         .filter_map(|(machine, cause)| {
-            let (reason, site) = (*cause)?;
+            let (reason, site) = cause.clone()?;
             let key = symbol_key(*machine);
             (!surviving.contains(&key) && reported.insert(key))
                 .then(|| plan_gap(program, *machine, site, reason))

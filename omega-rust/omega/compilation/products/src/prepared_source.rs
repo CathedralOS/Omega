@@ -6,29 +6,122 @@
 //! the slot occurs only after preparation succeeds. Neither product grants authority.
 
 use artifacts::compile_timings::CompileTimings;
+use compiler_storage::Record;
 use diagnostics::Diagnostic;
-use package_compilation::source_assembly::ImmutableSourceParseCheckpoint;
-use package_compilation::{PackageCompilationInputs, SourceAssemblyInputs};
+use package_compilation::source_assembly::{
+    DeferredProductSources, ImmutableSourceParseCheckpoint,
+};
+use package_compilation::{PackageCompilationInputs, ProductSourceInputs, SourceAssemblyInputs};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+/// One invocation owns source coordinates and canonical Psi frontend inputs.
+/// The coordinator borrows coordinates only during admission; no execution or
+/// semantic stage runs while the catalogue is locked.
+#[derive(Clone, Default, compiler_storage::Record)]
+pub struct SourcePreparation {
+    catalogue: Arc<Mutex<source::SourceCatalogue>>,
+    pub frontends: psi_compiler::SourceFrontends,
+}
+impl SourcePreparation {
+    pub fn catalogue(
+        &self,
+    ) -> Result<std::sync::MutexGuard<'_, source::SourceCatalogue>, Vec<Diagnostic>> {
+        self.catalogue
+            .lock()
+            .map_err(|_| vec![Diagnostic::error("source catalogue owner is poisoned")])
+    }
+}
+
 /// Indexed declarations and completed Build-context bodies before admission.
-/// Product implementations remain pending under their original source custody.
+/// With authored Build, Product imports remain unopened under captured custody;
+/// otherwise the default-Build route retains pending Product implementations.
 /// This is a reusable compilation checkpoint, not a portable program form.
-#[derive(Clone)]
+#[derive(Clone, compiler_storage::Record)]
 pub struct TypedCompilationFrontier {
+    pub preparation: SourcePreparation,
     pub source: psi_compiler::SourceContinuation,
+    /// Acquired source custody survives frontend preparation. Build uses the
+    /// same inventory before its executed declaration has a package owner.
+    pub anonymous_source: Option<package_compilation::AnonymousSourceCapture>,
+    /// Product imports and declarations are prepared only after Build's join.
+    /// No checked identity or initial name-resolution context is rewritten.
+    pub product_sources: Option<DeferredProductCompilation>,
     pub build_source_id: Option<source::SourceId>,
     pub source_file_count: usize,
     pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
     pub base_sources: Arc<source::SourceMap>,
-    pub application: Option<build_declarations::ApplicationDeclaration>,
+}
+
+/// Siblings of one captured Build prefix share its deferred Product preparation.
+/// Only the frontend is retained: Build returns, charges and selections are not.
+#[derive(Clone, compiler_storage::Record)]
+pub struct DeferredProductCompilation {
+    sources: DeferredProductSources,
+    frontiers: Arc<Mutex<Vec<(ProductSourceInputs, TypedCompilationFrontier)>>>,
+}
+
+impl DeferredProductCompilation {
+    pub fn new(sources: DeferredProductSources) -> Self {
+        Self {
+            sources,
+            frontiers: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    pub fn retained(
+        &self,
+        inputs: &ProductSourceInputs,
+        packages: Option<&PackageCompilationInputs>,
+    ) -> Result<Option<TypedCompilationFrontier>, Vec<Diagnostic>> {
+        let frontier = self
+            .frontiers
+            .lock()
+            .map_err(|_| {
+                vec![Diagnostic::error(
+                    "deferred Product frontend retention is poisoned",
+                )]
+            })?
+            .iter()
+            .find(|(stored, _)| stored == inputs)
+            .map(|(_, frontier)| frontier.clone());
+        let frontier = frontier.and_then(|frontier| frontier.rejoin_current_authority(packages));
+        if frontier.is_some() {
+            self.sources.admit_inputs(packages)?;
+        }
+        Ok(frontier)
+    }
+
+    pub fn sources(&self) -> DeferredProductSources {
+        self.sources.clone()
+    }
+
+    /// Publish only successful preparation, never a partially typed judgment.
+    pub fn retain(
+        &self,
+        inputs: ProductSourceInputs,
+        frontier: &TypedCompilationFrontier,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if Arc::strong_count(&self.frontiers) == 1 {
+            return Ok(());
+        }
+        let mut frontiers = self.frontiers.lock().map_err(|_| {
+            vec![Diagnostic::error(
+                "deferred Product frontend retention is poisoned",
+            )]
+        })?;
+        frontiers.retain(|(stored, _)| *stored != inputs);
+        frontiers.push((inputs, frontier.clone()));
+        Ok(())
+    }
 }
 
 /// Immutable parsing shared by exact checked children. Forks share storage;
 /// consuming the last checkpoint allows assembly to move the original arenas.
 /// Every child supplies its own policy and independently admits its custody.
 pub struct PreparedCheckedSource {
+    restored: bool,
+    preparation: SourcePreparation,
     source_checkpoint: ImmutableSourceParseCheckpoint,
     shared_timings: CompileTimings,
     frontiers: Arc<Mutex<Vec<(SourceAssemblyInputs, TypedCompilationFrontier)>>>,
@@ -52,9 +145,28 @@ pub struct TypedFrontierRetention {
 }
 
 impl PreparedCheckedSource {
+    pub fn preparation(&self) -> SourcePreparation {
+        self.preparation.clone()
+    }
+    /// A persisted observation is historical. Fresh requests start their own
+    /// enabled/disabled clock accumulator, with no replayed elapsed durations.
+    pub fn fork_for_request(&mut self, collect_timings: bool) -> Self {
+        let mut source = self.fork();
+        if source.restored {
+            source.shared_timings = if collect_timings {
+                CompileTimings::enabled()
+            } else {
+                CompileTimings::default()
+            };
+        }
+        source
+    }
+
     /// Fork only at a real sibling boundary, freezing shared source pages once.
     pub fn fork(&mut self) -> Self {
         Self {
+            restored: self.restored,
+            preparation: self.preparation.clone(),
             source_checkpoint: self.source_checkpoint.fork(),
             shared_timings: self.shared_timings.clone(),
             frontiers: self.frontiers.clone(),
@@ -64,8 +176,11 @@ impl PreparedCheckedSource {
     pub fn from_parsed(
         source_checkpoint: ImmutableSourceParseCheckpoint,
         shared_timings: CompileTimings,
+        preparation: SourcePreparation,
     ) -> Self {
         Self {
+            restored: false,
+            preparation,
             source_checkpoint,
             shared_timings,
             frontiers: Arc::new(Mutex::new(Vec::new())),
@@ -73,12 +188,7 @@ impl PreparedCheckedSource {
     }
 
     pub fn admit_root(&self, root_path: &Path) -> Result<(), Vec<Diagnostic>> {
-        if root_path != self.source_checkpoint.root_path() {
-            return Err(vec![Diagnostic::error(
-                "checked child compilation root does not match its prepared source checkpoint",
-            )]);
-        }
-        Ok(())
+        self.source_checkpoint.admit_root(root_path)
     }
 
     /// Select by the package owner's complete assembly inputs. Even an exact
@@ -98,6 +208,8 @@ impl PreparedCheckedSource {
             .iter()
             .find(|(stored, _)| *stored == inputs)
             .map(|(_, frontier)| frontier.clone());
+        let retained =
+            retained.and_then(|frontier| frontier.rejoin_current_authority(package_inputs));
         if let Some(frontier) = retained {
             if let Some(packages) = package_inputs {
                 packages.validate_for_compilation(
@@ -130,5 +242,49 @@ impl TypedFrontierRetention {
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         entries.retain(|(stored, _)| *stored != self.inputs);
         entries.push((self.inputs, frontier.clone()));
+    }
+}
+
+impl TypedCompilationFrontier {
+    fn rejoin_current_authority(self, packages: Option<&PackageCompilationInputs>) -> Option<Self> {
+        let authority = packages.map(|packages| {
+            Arc::new(packages.clone())
+                as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
+        });
+        match self.source.rejoin_current_authority(authority) {
+            Ok(source) => Some(Self { source, ..self }),
+            Err(reason) => {
+                phase_profile::count("source.graph.authority_misses", 1);
+                if phase_profile::enabled() {
+                    eprintln!("retained source frontier ignored: {reason}");
+                }
+                None
+            }
+        }
+    }
+}
+impl compiler_storage::Record for PreparedCheckedSource {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        output.record(|output| {
+            self.preparation.write(output)?;
+            self.source_checkpoint.write(output)?;
+            self.frontiers.write(output)
+        })
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        input.record(|input| {
+            Ok(Self {
+                restored: true,
+                preparation: Record::read(input)?,
+                source_checkpoint: Record::read(input)?,
+                shared_timings: CompileTimings::default(),
+                frontiers: Record::read(input)?,
+            })
+        })
     }
 }

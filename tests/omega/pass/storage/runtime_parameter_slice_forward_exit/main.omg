@@ -8,12 +8,12 @@ data Room { exits: [Counter; 2]; }
 machine mutate(room: &mut Room) {
     let exits: &mut [Counter] = &mut room.exits[..];
     transition { _ -> first(exits) }
-    state first(exits: &mut [Counter]) {
+    machine first(exits: &mut [Counter]) {
         let position: u64 = 0;
         exits[position].n = exits[position].n + 1;
         transition { _ -> second(exits) }
     }
-    state second(exits: &mut [Counter]) {
+    machine second(exits: &mut [Counter]) {
         let position: u64 = 1;
         exits[position].n = exits[position].n + 2;
     }
@@ -30,8 +30,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good()
         _ -> bad()
     }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(71); }
+    machine good() { Console::exit_process(70); }
+    machine bad() { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

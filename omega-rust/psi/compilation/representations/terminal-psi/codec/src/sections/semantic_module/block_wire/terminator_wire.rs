@@ -2,7 +2,8 @@
 
 use super::super::CodecError;
 use super::super::contract_wire::{
-    decode_crash_predicate, decode_successor_edge, encode_crash_predicate, encode_successor_edge,
+    decode_crash_predicate, decode_crash_routes, decode_successor_edge, encode_crash_predicate,
+    encode_successor_edge,
 };
 use super::super::wire::{Reader, Writer};
 use crate::sections::semantic_module::proof_term_wire::{decode_proof_terms, encode_proof_terms};
@@ -27,6 +28,24 @@ pub(super) fn encode_terminator(
     terminator: &Terminator,
 ) -> Result<(), CodecError> {
     match terminator {
+        Terminator::InvokeNoNormal {
+            edge,
+            static_reach_binding,
+            ..
+        } => {
+            writer.u8(19);
+            writer.id(*edge);
+            writer.boolean(static_reach_binding.is_some());
+            if let Some(binder) = static_reach_binding {
+                writer.u32(*binder);
+            }
+            super::call_operations::encode_module_invocation_inputs(
+                writer,
+                terminator
+                    .module_invocation()
+                    .expect("matched module invocation"),
+            )?;
+        }
         Terminator::ExternalCompletion {
             edge,
             boundary,
@@ -44,25 +63,13 @@ pub(super) fn encode_terminator(
             writer.u8(match kind {
                 ExternalCompletionKind::ProcessExit => 1,
             });
-            writer.len("external completion arguments", arguments.len())?;
-            for argument in arguments {
-                writer.id(*argument);
-            }
+            writer.ids("external completion arguments", arguments)?;
             encode_structural_arguments(writer, structural_arguments)?;
-            writer.len(
-                "external completion requirements",
-                requirement_obligations.len(),
-            )?;
-            for obligation in requirement_obligations {
-                writer.id(*obligation);
-            }
-            writer.len(
+            writer.ids("external completion requirements", requirement_obligations)?;
+            writer.ids(
                 "external completion frontier lower bound",
-                frontier_lower_bound.len(),
+                frontier_lower_bound,
             )?;
-            for claim in frontier_lower_bound {
-                writer.id(*claim);
-            }
         }
         Terminator::Jump {
             edge,
@@ -77,17 +84,15 @@ pub(super) fn encode_terminator(
             writer.u8(14);
             writer.id(*edge);
             writer.id(*target);
-            writer.len("jump arguments", arguments.len())?;
-            for argument in arguments {
-                writer.id(*argument);
-            }
+            writer.ids("jump arguments", arguments)?;
             encode_scalar_terms(writer, erased_arguments)?;
             encode_proof_terms(writer, erased_proof_arguments)?;
             encode_structural_arguments(writer, structural_arguments)?;
-            writer.len("jump cleanup actions", cleanup_actions.len())?;
-            for action in cleanup_actions {
-                encode_affine_cleanup_action(writer, action)?;
-            }
+            writer.counted(
+                "jump cleanup actions",
+                cleanup_actions,
+                encode_affine_cleanup_action,
+            )?;
         }
         Terminator::Return {
             edge,
@@ -97,10 +102,11 @@ pub(super) fn encode_terminator(
             writer.u8(2);
             writer.id(*edge);
             writer.id(*value);
-            writer.len("scalar return cleanup actions", cleanup_actions.len())?;
-            for action in cleanup_actions {
-                encode_affine_cleanup_action(writer, action)?;
-            }
+            writer.counted(
+                "scalar return cleanup actions",
+                cleanup_actions,
+                encode_affine_cleanup_action,
+            )?;
         }
         Terminator::ReturnUnit {
             edge,
@@ -109,10 +115,11 @@ pub(super) fn encode_terminator(
             // Tag 13 replaces the retired split Unit cleanup envelopes (5, 7, 8).
             writer.u8(13);
             writer.id(*edge);
-            writer.len("Unit return cleanup actions", cleanup_actions.len())?;
-            for action in cleanup_actions {
-                encode_affine_cleanup_action(writer, action)?;
-            }
+            writer.counted(
+                "Unit return cleanup actions",
+                cleanup_actions,
+                encode_affine_cleanup_action,
+            )?;
         }
         Terminator::ReturnStructural {
             edge,
@@ -126,10 +133,11 @@ pub(super) fn encode_terminator(
             writer.id(*edge);
             writer.id(*source);
             encode_claim_bindings(writer, returned_claims)?;
-            writer.len("structural return cleanup actions", cleanup_actions.len())?;
-            for action in cleanup_actions {
-                encode_affine_cleanup_action(writer, action)?;
-            }
+            writer.counted(
+                "structural return cleanup actions",
+                cleanup_actions,
+                encode_affine_cleanup_action,
+            )?;
         }
         Terminator::Conditional {
             condition,
@@ -159,6 +167,7 @@ pub(super) fn encode_terminator(
                 for field in &case.payload_fields {
                     writer.id(*field);
                 }
+                encode_structural_arguments(writer, &case.structural_arguments)?;
                 writer.len("case successor cleanup actions", case.cleanup_actions.len())?;
                 for action in &case.cleanup_actions {
                     encode_affine_cleanup_action(writer, action)?;
@@ -177,14 +186,8 @@ pub(super) fn encode_terminator(
                 CrashCause::Trap => 1,
                 CrashCause::Abort => 2,
             });
-            writer.len("crash site guard", site_guard.len())?;
-            for predicate in site_guard {
-                encode_crash_predicate(writer, predicate)?;
-            }
-            writer.len("crash frontier lower bound", frontier_lower_bound.len())?;
-            for claim in frontier_lower_bound {
-                writer.id(*claim);
-            }
+            writer.counted("crash site guard", site_guard, encode_crash_predicate)?;
+            writer.ids("crash frontier lower bound", frontier_lower_bound)?;
         }
     }
     Ok(())
@@ -192,6 +195,22 @@ pub(super) fn encode_terminator(
 
 pub(super) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, CodecError> {
     Ok(match reader.u8()? {
+        19 => Terminator::InvokeNoNormal {
+            edge: reader.id("EdgeId")?,
+            static_reach_binding: if reader.boolean()? {
+                Some(reader.u32()?)
+            } else {
+                None
+            },
+            callee: reader.id("MachineId")?,
+            arguments: decode_ids(reader, "ValueId")?,
+            erased_arguments: decode_scalar_terms(reader)?,
+            erased_proof_arguments: decode_proof_terms(reader)?,
+            structural_arguments: decode_structural_arguments(reader)?,
+            claim_transfers: super::call_operations::decode_claim_transfers(reader)?,
+            requirement_obligations: decode_ids(reader, "ObligationId")?,
+            crash_continuations: decode_crash_routes(reader)?,
+        },
         17 => {
             let edge = reader.id("EdgeId")?;
             let boundary = reader.id("BoundaryMachineId")?;
@@ -268,6 +287,7 @@ pub(super) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, C
                     target: reader.id("BlockId")?,
                     case: reader.id("StructuralCaseId")?,
                     payload_fields: decode_ids(reader, "StructuralFieldId")?,
+                    structural_arguments: decode_structural_arguments(reader)?,
                     cleanup_actions: decode_counted(reader, decode_affine_cleanup_action)?,
                 })
             })?;

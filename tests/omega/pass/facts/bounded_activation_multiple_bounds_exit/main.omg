@@ -6,7 +6,7 @@ machine inspect(first: &mut [u8], second: &mut [u8]) -> bool {
         true -> access(first, second)
         false -> (false)
     }
-    state access(first: &mut [u8], second: &mut [u8]) -> bool
+    machine access(first: &mut [u8], second: &mut [u8]) -> bool
     requires first.len >= 16 && second.len >= 8 {
         first[15] = 61u8;
         second[7] = 29u8;
@@ -18,13 +18,13 @@ machine main() crashes Trap {
         ActivationClaimAttempt::Established { claim } -> first(claim)
         ActivationClaimAttempt::Rejected -> bad()
     }
-    state first(first: ActivationClaim) {
+    machine first(first: ActivationClaim) {
         transition Activation::try_claim<8>(8) {
             ActivationClaimAttempt::Established { claim } -> both(first, claim)
             ActivationClaimAttempt::Rejected -> rejected(first)
         }
     }
-    state both(first: ActivationClaim, second: ActivationClaim) {
+    machine both(first: ActivationClaim, second: ActivationClaim) {
         let mut first_owner: ActivationClaim = first;
         let mut second_owner: ActivationClaim = second;
         let first_bytes: &mut [u8] = ActivationClaim::bytes(&mut first_owner);
@@ -34,7 +34,7 @@ machine main() crashes Trap {
         ActivationClaim::release(first_owner);
         transition disjoint { true -> done() false -> bad() }
     }
-    state rejected(first: ActivationClaim) { ActivationClaim::release(first); crash Trap; }
-    state done() {}
-    state bad() { crash Trap; }
+    machine rejected(first: ActivationClaim) { ActivationClaim::release(first); crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

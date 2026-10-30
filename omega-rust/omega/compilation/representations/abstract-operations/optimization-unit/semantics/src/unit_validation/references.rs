@@ -173,14 +173,8 @@ pub fn reference_projection(
             path,
             required_access,
         )
-        && function
-            .entry_claim_declarations
-            .iter()
-            .all(|claim| claim.input != destination)
-        && function
-            .content_entry_claims
-            .iter()
-            .all(|claim| claim.input.root != destination))
+        && !function.entry_claim_declared(destination)
+        && !function.content_entry_claim_declared(destination))
     .then_some(source.structural_type)
 }
 
@@ -281,8 +275,10 @@ pub(crate) fn leaf_type(
         }
         if let terminal_psi::StructuralPathSegment::FixedIndex(index) = segment {
             let declaration = types.get(&current)?;
-            let terminal_psi::StructuralTypeShape::FixedArray { element, length } =
-                &declaration.shape
+            let terminal_psi::StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } = &declaration.shape
             else {
                 return None;
             };
@@ -450,14 +446,8 @@ pub(crate) fn reference_source_accessible(
         return false;
     }
     path.contains(&terminal_psi::StructuralPathSegment::Referent)
-        || (function
-            .entry_claim_declarations
-            .iter()
-            .all(|claim| claim.input != source.place)
-            && function
-                .content_entry_claims
-                .iter()
-                .all(|claim| claim.input.root != source.place))
+        || (!function.entry_claim_declared(source.place)
+            && !function.content_entry_claim_declared(source.place))
 }
 
 /// Direct storage loans use the same contract for arrival parameters and local
@@ -486,14 +476,8 @@ pub(crate) fn reference_source_type(
             || contract.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             || !contract.is_unqualified()
             || contract.has_result_evidence()
-            || function
-                .entry_claim_declarations
-                .iter()
-                .any(|claim| claim.input == source.place)
-            || function
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == source.place)
+            || function.entry_claim_declared(source.place)
+            || function.content_entry_claim_declared(source.place)
         {
             return None;
         }
@@ -531,14 +515,8 @@ fn direct_reference_parameter<'a>(
         && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
-        && function
-            .entry_claim_declarations
-            .iter()
-            .all(|claim| claim.input != source.place)
-        && function
-            .content_entry_claims
-            .iter()
-            .all(|claim| claim.input.root != source.place))
+        && !function.entry_claim_declared(source.place)
+        && !function.content_entry_claim_declared(source.place))
     .then_some(parameter)
 }
 
@@ -753,14 +731,8 @@ pub(crate) fn validate_function_references(
             }
             || !parameter.qualifications.is_empty()
             || !constructible(types, parameter.structural_type)
-            || function
-                .entry_claim_declarations
-                .iter()
-                .any(|claim| claim.input == parameter.place)
-            || function
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == parameter.place)
+            || function.entry_claim_declared(parameter.place)
+            || function.content_entry_claim_declared(parameter.place)
         {
             return Err(invalid());
         }

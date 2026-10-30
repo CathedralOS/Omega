@@ -1,27 +1,20 @@
-// `count - used` under `used <= count` is exact and non-negative.
-// Reject: the operation loses the `used <= count` premise at `subtracted`.
+// `count - used` under `used <= count` is non-negative in exact u32.
+// `data where count <= 11` keeps that fact standing for `as i32`.
+// Compile-checked only: no Main::exit.
 data Main where count <= 11 { count: u32; j: u32; out: i32; }
 
-machine subtracted(count: u32, used: u32) -> i32
+machine copied_used(count: u32, used: u32) -> u32
+requires used <= count
+ensures result <= count
+{ used }
+machine gap(count: u32, used: u32) -> i32
 requires count <= 11
 {
     let remaining: u32 = count - used;
     remaining as i32
 }
-
-machine deliver(count: u32, used: u32) -> i32
-requires count <= 11
-{ subtracted(count, used) }
-
-machine entry() crashes Trap {
-    let mut a: Main = Main { count: 11, j: 4, out: 0 };
-    a.out = deliver(a.count, a.j);
-    transition a.out == 7 {
-        true -> done()
-        _ -> bad()
-    }
-    state done() {}
-    state bad() {
-        crash Trap;
-    }
+machine Main::main(main: &mut Main)
+    requires main.j <= main.count
+{
+    main.out = gap(main.count, copied_used(main.count, main.j));
 }

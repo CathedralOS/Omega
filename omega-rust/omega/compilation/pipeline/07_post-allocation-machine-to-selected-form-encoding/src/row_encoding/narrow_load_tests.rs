@@ -1,9 +1,9 @@
 //! Current target catalogs, physical addresses and independent byte replay agree on narrow loads.
-use super::tests::selected_function;
+use super::tests::{encode_fixture_row, replay_fixture_row};
 use super::{
     Architecture, NativeTarget, OptimizedSelectedFormEncodingError,
     PostAllocationMachineInstruction, SelectedFormEncodingState, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, encode_row,
+    SelectedInstructionId, SelectedInstructionKind,
 };
 use physical_instructions::{
     PhysicalAddressOperation, PhysicalOperandFootprint, PostAllocationMachineFunction,
@@ -155,26 +155,16 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
             let resolved = crate::frame_address::resolve(&function, None, &machine).unwrap();
             crate::frame_address::validate_address(&function, None, &machine, resolved).unwrap();
             let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
-            let row = encode_row(
+            let row = encode_fixture_row(
                 target,
                 &selected,
                 &machine,
                 &physical,
-                &selected_function(),
                 resolved,
                 &mut encoded,
             )
             .unwrap();
-            crate::validation::row::validate(
-                target,
-                &selected_function(),
-                &selected,
-                &machine,
-                &physical,
-                &row,
-                &encoded,
-            )
-            .unwrap();
+            replay_fixture_row(target, &selected, &machine, &physical, &row, &encoded).unwrap();
             assert_eq!(
                 machine.alternative.encoded.memory,
                 selected_instructions::MachineEncodedMemoryEffect::ReadPointerV1 {
@@ -209,14 +199,13 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
                     }
                 }
                 assert!(
-                    crate::validation::row::validate(
+                    replay_fixture_row(
                         target,
-                        &selected_function(),
                         &selected,
                         &changed_machine,
                         &physical,
                         &changed_row,
-                        &changed_encoded,
+                        &changed_encoded
                     )
                     .is_err(),
                     "{target:?} {kind:?} mutation {mutation}"
@@ -242,28 +231,26 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
             });
             let foreign = crate::frame_address::resolve(&function, None, &foreign_machine).unwrap();
             assert!(matches!(
-                encode_row(
+                encode_fixture_row(
                     target,
                     &selected,
                     &foreign_machine,
                     &physical,
-                    &selected_function(),
                     foreign,
-                    &mut encoded.clone(),
+                    &mut encoded.clone()
                 ),
                 Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
             ));
             let mut changed_row = row.clone();
             changed_row.address = foreign;
             assert!(
-                crate::validation::row::validate(
+                replay_fixture_row(
                     target,
-                    &selected_function(),
                     &selected,
                     &foreign_machine,
                     &physical,
                     &changed_row,
-                    &encoded,
+                    &encoded
                 )
                 .is_err()
             );

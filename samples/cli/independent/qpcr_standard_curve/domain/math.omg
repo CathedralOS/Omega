@@ -5,14 +5,14 @@
 use omega::language::core::float_operations;
 public machine logarithm(value: f64) -> f64 {
     transition { _ -> reduce(value, 0.0) }
-    state reduce(value: f64, offset: f64) -> f64 {
+    machine reduce(value: f64, offset: f64) -> f64 {
         transition value >= 2.0 { true -> reduce(value / 2.0, offset + 0.6931471805599453094) _ -> series(value, offset) }
     }
-    state series(value: f64, offset: f64) -> f64 {
+    machine series(value: f64, offset: f64) -> f64 {
         let ratio: f64 = (value - 1.0) / (value + 1.0);
         transition { _ -> term(ratio * ratio, ratio, 1.0, 0.0, offset, 0) }
     }
-    state term(square: f64, power: f64, denominator: f64, sum: f64, offset: f64, count: i32 in Wrapping) -> f64 {
+    machine term(square: f64, power: f64, denominator: f64, sum: f64, offset: f64, count: i32 in Wrapping) -> f64 {
         let total: f64 = sum + power / denominator;
         transition count < 39 { true -> term(square, power * square, denominator + 2.0, total, offset, count + 1) _ -> (offset + 2.0 * total) / 2.3025850929940456840 }
     }
@@ -20,12 +20,12 @@ public machine logarithm(value: f64) -> f64 {
 public machine exponential(value: f64) -> f64 {
     let reduced: f64 = value / 128.0;
     transition { _ -> term(reduced, 1.0, 1.0, 1.0, 1) }
-    state term(reduced: f64, sum: f64, previous: f64, denominator: f64, count: i32 in Wrapping) -> f64 {
+    machine term(reduced: f64, sum: f64, previous: f64, denominator: f64, count: i32 in Wrapping) -> f64 {
         let next: f64 = previous * reduced / denominator;
         let total: f64 = sum + next;
         transition count < 32 { true -> term(reduced, total, next, denominator + 1.0, count + 1) _ -> square(total) }
     }
-    state square(value: f64) -> f64 {
+    machine square(value: f64) -> f64 {
         let power2: f64 = value * value; let power4: f64 = power2 * power2;
         let power8: f64 = power4 * power4; let power16: f64 = power8 * power8;
         let power32: f64 = power16 * power16; let power64: f64 = power32 * power32;
@@ -39,13 +39,13 @@ public machine residual_sum(logarithms: &[f64], cycles: &[f64], residuals: &mut 
 crashes Trap
 {
     transition logarithms.len == cycles.len && cycles.len == residuals.len { true -> scan(logarithms, cycles, residuals, slope, intercept, 0, 0.0) _ -> bad() }
-    state bad() -> f64 { crash Trap; }
-    state scan(logarithms: &[f64], cycles: &[f64], residuals: &mut [f64], slope: f64, intercept: f64, index: i32 in Wrapping, sum: f64) -> f64
+    machine bad() -> f64 { crash Trap; }
+    machine scan(logarithms: &[f64], cycles: &[f64], residuals: &mut [f64], slope: f64, intercept: f64, index: i32 in Wrapping, sum: f64) -> f64
     requires logarithms.len == cycles.len && cycles.len == residuals.len
     {
         transition index >= 0 && index < logarithms.len { true -> value(logarithms, cycles, residuals, slope, intercept, index, sum) _ -> sum }
     }
-    state value(logarithms: &[f64], cycles: &[f64], residuals: &mut [f64], slope: f64, intercept: f64, index: i32 in Wrapping, sum: f64) -> f64
+    machine value(logarithms: &[f64], cycles: &[f64], residuals: &mut [f64], slope: f64, intercept: f64, index: i32 in Wrapping, sum: f64) -> f64
     requires logarithms.len == cycles.len && cycles.len == residuals.len && index >= 0 && index < logarithms.len
     {
         let residual: f64 = cycles[index] - (intercept + slope * logarithms[index]);

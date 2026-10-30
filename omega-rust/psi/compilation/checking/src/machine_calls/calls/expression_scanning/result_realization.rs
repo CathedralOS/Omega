@@ -13,7 +13,9 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
+use typed_trees::statement::StatementNode;
+
+use super::super::unit_returns::unit_type;
 
 mod boundary_return;
 
@@ -310,21 +312,6 @@ fn initializer_target_is_admitted(
             ExpressionNode::Name(path) if path.symbol == definition.symbol)
 }
 
-fn unit_type(
-    program: &dyn crate::CheckingInput,
-    mut type_reference: typed_trees::types::TypeReferenceHandle,
-) -> bool {
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                type_reference = *base_type
-            }
-            typed_trees::types::TypeReferenceNode::Unit => return true,
-            _ => return false,
-        }
-    }
-}
-
 /// Every resolved local call evaluates operands before binding its result.
 /// Scalar computations and structural result operations share ordered operand
 /// preparation. Reference custody remains attached to those operations; a
@@ -342,19 +329,13 @@ fn local_initializer_has_operand_evaluation(
     if !program.expression_table.expression_is_valid(value) {
         return false;
     }
-    let Some(call) = program.expression_table.call_node(value) else {
+    let Some(_) = program.expression_table.call_node(value) else {
         return false;
     };
-    // A prepared dynamic slot already retains the exact closed method call
-    // contract. Its static family coordinates do not change the local result's
-    // ordered operand owner. Evidence arguments retain their separate fence;
-    // ordinary call validation still owns all generic/type/effect obligations.
-    if !call.evidence_arguments.is_empty()
-        || (!call.machine_arguments.is_empty()
-            && program.dynamic_slot_by_symbol(call.target_symbol).is_none())
-    {
-        return false;
-    }
+    // A generic source local can retain static/evidence operands before
+    // executable specialization. Those remain independent source admission
+    // obligations. Product construction still requires a closed ordered plan;
+    // this result-owner judgment establishes no executable operand supply.
     // An explicit implementation map retains its selection syntax, but that
     // does not change the local's ordered operand-evaluation owner. Actual
     // receiver, selection and custody admission remain ordinary call checks.
@@ -523,13 +504,10 @@ fn first_nested_call(
     }
 }
 
-/// A VOID callee in VALUE position used to compile and silently bind 0 (ZII)
-/// -- and native/interp DIVERGED on the bound value. "Void" means: no declared
-/// return type on the resolved state (the parser now lands `-> T` written
-/// after the machine clauses too; it used to be silently dropped) AND no state
-/// of the callee machine produces a value through a transition VALUE arm --
-/// undeclared-return value machines (`transition r > 0 { true -> self.f(r-1)
-/// false -> 0 }`, the termination-canary surface) stay callable.
+/// Unit cannot supply an ordinary value operand. The caller retains its
+/// actual root-use permission, while one shared result query handles concrete
+/// heads/states and terminal Unit wrappers without re-scanning source syntax.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn report_void_value_callee(
     program: &dyn crate::CheckingInput,
     callee_machine: &Machine,
@@ -537,37 +515,16 @@ pub(super) fn report_void_value_callee(
     current_state: &State,
     callee_state: &State,
     expression: ExpressionHandle,
+    unit_completion: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if callee_state.return_type.is_valid()
-        || crate::machine_calls::calls::unit_statement_call_is_admitted(
+        || unit_completion
+        || !crate::machine_calls::calls::unit_returns::machine_has_unit_result(
             program,
-            current_machine,
-            current_state,
-            expression,
+            callee_machine,
         )
     {
-        return;
-    }
-    let produces_value = program.machine_states(callee_machine).iter().any(|state| {
-        state.return_type.is_valid()
-            || program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .any(|statement| {
-                    let Some(transition) = statement.as_transition() else {
-                        return false;
-                    };
-                    transition.targets().any(|handle| {
-                        matches!(
-                            program.statement_table.transition_target(handle),
-                            TransitionTargetNode::Value(_)
-                        )
-                    })
-                })
-    });
-    if produces_value {
         return;
     }
     let Some(call) = program.expression_table.call_node(expression) else {

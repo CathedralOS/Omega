@@ -4,9 +4,7 @@ mod layout;
 mod planning;
 mod rendering;
 
-use crate::declarations::dependencies::read::{
-    DependencyProjectionError, validate_static_dependency_source,
-};
+use crate::declarations::dependencies::read::DependencyProjectionError;
 pub(crate) use planning::{
     plan_dependency_addition_from_source, plan_dependency_replacement_from_source,
 };
@@ -41,19 +39,11 @@ impl BuildFileReplacement {
     /// Construct a replacement from command-owned source, including unchanged
     /// source or a saved proposal resumed by the command.
     ///
-    /// Both sources must have valid ordinary dependency projections. The expected
-    /// digest covers the exact `before` bytes. This does not read or write the
-    /// path, verify its current contents, or certify the proposed change.
-    pub(crate) fn from_sources(
-        build_path: PathBuf,
-        before: &str,
-        proposed: String,
-    ) -> Result<Self, BuildDependencyEditError> {
-        validate_static_dependency_source(before)
-            .map_err(BuildDependencyEditError::InvalidBuild)?;
-        validate_static_dependency_source(&proposed)
-            .map_err(BuildDependencyEditError::InvalidBuild)?;
-        Ok(Self::new(build_path, source_digest(before), proposed))
+    /// The expected digest covers the exact `before` bytes. This is only an edit
+    /// proposal: executed Build discovery and Product review validate its meaning
+    /// before publication. Dynamic declarations need no static projection.
+    pub(crate) fn from_sources(build_path: PathBuf, before: &str, proposed: String) -> Self {
+        Self::new(build_path, source_digest(before), proposed)
     }
 
     fn new(build_path: PathBuf, expected_sha256: [u8; 32], replacement_source: String) -> Self {
@@ -103,18 +93,8 @@ impl BuildDependencyManualPatch {
         }
     }
 
-    pub fn expected_sha256(&self) -> &[u8; 32] {
-        &self.expected_sha256
-    }
-
     pub fn reason(&self) -> BuildDependencyManualReason {
         self.reason
-    }
-
-    /// Canonical, compiler-generated text for the accepted row, when this is a
-    /// replacement. This is never copied from package source.
-    pub(crate) fn current_statement(&self) -> Option<&str> {
-        self.current_statement.as_deref()
     }
 
     /// Canonical, compiler-generated text for the requested row. Every
@@ -169,20 +149,12 @@ impl fmt::Display for BuildDependencyManualReason {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BuildDependencyEditError {
-    ReadBuildFile { path: PathBuf, message: String },
-    InvalidBuildFileEncoding { path: PathBuf },
     InvalidBuild(DependencyProjectionError),
 }
 
 impl fmt::Display for BuildDependencyEditError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ReadBuildFile { path, message } => {
-                write!(formatter, "cannot read {}: {message}", path.display())
-            }
-            Self::InvalidBuildFileEncoding { path } => {
-                write!(formatter, "{} is not UTF-8 Omega source", path.display())
-            }
             Self::InvalidBuild(error) => {
                 write!(formatter, "cannot edit invalid package build: {error}")
             }

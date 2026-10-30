@@ -14,8 +14,7 @@ use semantic_vocabulary::{
     ClaimId, PlaceId, QualifiedScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId,
 };
 use terminal_psi::{
-    CrashCause as TerminalCrashCause, StructuralArgument, StructuralMultiplicity,
-    StructuralParameterDeclaration,
+    CrashCause as TerminalCrashCause, StructuralArgument, StructuralParameterDeclaration,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -212,6 +211,64 @@ fn state_position(target: usize, state_count: usize) -> Result<Option<usize>, Lo
     Ok(position)
 }
 
+impl LoweredScalarBranchTerminator {
+    /// The retained expansion owns successor topology. Namespace and producer
+    /// emission consume the same roster, including every case fallback.
+    pub(crate) fn for_each_target(
+        &self,
+        mut target: impl FnMut(usize) -> Result<(), LoweringError>,
+    ) -> Result<(), LoweringError> {
+        match self {
+            Self::Capture { target: next, .. }
+            | Self::CompleteReturn { target: next, .. }
+            | Self::Jump { target: next, .. }
+            | Self::Qualify { target: next, .. } => target(*next)?,
+            Self::Conditional {
+                when_true_target,
+                when_false_target,
+                ..
+            }
+            | Self::CaseDispatch {
+                when_true_target,
+                when_false_target,
+                ..
+            } => {
+                target(*when_false_target)?;
+                target(*when_true_target)?;
+            }
+            Self::CaseDispatchSplit {
+                armed,
+                fallback_target,
+                ..
+            } => {
+                target(*fallback_target)?;
+                for arm in armed {
+                    target(arm.target)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn owned_successor_arguments(&self) -> &[StructuralArgument] {
+        match self {
+            Self::Jump {
+                structural_arguments,
+                ..
+            }
+            | Self::Qualify {
+                structural_arguments,
+                ..
+            } => structural_arguments,
+            Self::Capture { .. }
+            | Self::CompleteReturn { .. }
+            | Self::Conditional { .. }
+            | Self::CaseDispatch { .. }
+            | Self::CaseDispatchSplit { .. } => &[],
+        }
+    }
+}
+
 /// Allocate producer identities in control-flow order, not backward
 /// continuation-construction order. Reverse-postorder keeps dominating owners
 /// before their later consumers and gives independent cleanup reverse production
@@ -248,35 +305,9 @@ pub(crate) fn scalar_state_emission_order(
                 }
                 Ok(())
             };
-            match &states[position].terminator {
-                LoweredScalarBranchTerminator::Capture { target, .. }
-                | LoweredScalarBranchTerminator::CompleteReturn { target, .. }
-                | LoweredScalarBranchTerminator::Jump { target, .. }
-                | LoweredScalarBranchTerminator::Qualify { target, .. } => push_target(*target)?,
-                LoweredScalarBranchTerminator::Conditional {
-                    when_true_target,
-                    when_false_target,
-                    ..
-                }
-                | LoweredScalarBranchTerminator::CaseDispatch {
-                    when_true_target,
-                    when_false_target,
-                    ..
-                } => {
-                    push_target(*when_false_target)?;
-                    push_target(*when_true_target)?;
-                }
-                LoweredScalarBranchTerminator::CaseDispatchSplit {
-                    armed,
-                    fallback_target,
-                    ..
-                } => {
-                    push_target(*fallback_target)?;
-                    for arm in armed {
-                        push_target(arm.target)?;
-                    }
-                }
-            }
+            states[position]
+                .terminator
+                .for_each_target(&mut push_target)?;
         }
         order.extend(component.drain(..).rev());
     }
@@ -308,16 +339,30 @@ pub(crate) enum LoweredScalarEffect {
         statement: u32,
         expression: typed_trees::expression::ExpressionHandle,
     },
+    CompleteArgumentSnapshots {
+        places: Vec<PlaceId>,
+    },
+    /// Retain an authorized address or observed descriptor before later effects.
+    CaptureStructuralPlace {
+        source: crate::emission::operation_emission::calls::PreparedStructuralArgument,
+        place: PlaceId,
+        capture: crate::emission::completed_place::Capture,
+        access: terminal_psi::StructuralAccess,
+    },
     /// Snapshot a copyable value while retaining its checked carrier custody.
     CopyStructuralValue {
-        source: crate::expression_preparation::bindings::PreparedStructuralCopy,
+        source: crate::emission::operation_emission::calls::PreparedStructuralArgument,
         place: PlaceId,
         structural_type: StructuralTypeId,
-        multiplicity: StructuralMultiplicity,
     },
     ProduceStructuralValue {
         value: checked_trees::CheckedStructuralValueHandle,
         structural_type: StructuralTypeId,
+    },
+    /// Publish another lexical name for an already completed value. This
+    /// creates no storage or ownership and never repeats its producer.
+    BindCompletedValueAlias {
+        value: checked_trees::CheckedStructuralValueHandle,
         alias: typed_trees::expression::ExpressionHandle,
     },
     EstablishElementView(crate::unit::attached_unit::view_ranges::CollectionView),

@@ -6,7 +6,7 @@ data Main {
 machine Main::run(main: &mut Main) {
     main.index = 2;
     transition { _ -> fill(main) }
-    state fill(main: &mut Main) {
+    machine fill(main: &mut Main) {
         let value: u8 = main.items[main.index];
         main.index = main.index + 2147483647;
         transition main.index < 4 { true -> fill(main) _ -> {} }

@@ -103,13 +103,10 @@ impl ExitScalars<'_, '_> {
             };
             let (candidate, value_type) = match self.program.expression_table.expression(value) {
                 ExpressionNode::Name(path) => {
-                    if path.symbol != path.head_symbol
-                        || self
-                            .program
-                            .expression_table
-                            .name_path_members(path.members)
-                            .len()
-                            != 1
+                    if !self
+                        .program
+                        .expression_table
+                        .name_path_is_single_member(path)
                     {
                         continue;
                     }

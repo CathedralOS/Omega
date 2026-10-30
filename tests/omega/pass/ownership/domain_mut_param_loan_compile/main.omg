@@ -1,9 +1,9 @@
 // A `&mut` parameter may itself carry a domain: `fill(cell: &mut u64 in
 // Tiny)` declares exclusive access qualified to {0..4} — writes the
 // callee makes must stay inside the domain's established range.
-domain u64::Tiny(value)
+domain u64::Tiny
 requires
-    value <= 4;
+    self <= 4;
 
 machine Main::fill(cell: &mut u64 in Tiny) {
     cell = 4;
@@ -22,6 +22,6 @@ machine Main::main(main: &mut Main) {
         _ -> bad(main)
     }
 
-    state good(main: &mut Main) { main.answer = 70; }
-    state bad(main: &mut Main) { main.answer = 71; }
+    machine good(main: &mut Main) { main.answer = 70; }
+    machine bad(main: &mut Main) { main.answer = 71; }
 }

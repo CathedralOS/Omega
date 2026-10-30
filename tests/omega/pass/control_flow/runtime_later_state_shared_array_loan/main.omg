@@ -4,18 +4,18 @@ data Tally { total: u64; }
 
 machine Workshop::main() crashes Trap {
     transition { _ -> prepare() }
-    state prepare() {
+    machine prepare() {
         let tally: Tally;
         let cells: [u8; 16];
         transition { _ -> fill(&mut tally, &cells) }
     }
-    state fill(tally: &mut Tally, cells: &[u8]) {
+    machine fill(tally: &mut Tally, cells: &[u8]) {
         tally.total = 91;
         transition tally.total == 91 && cells.len == 16 {
             true -> done()
             false -> failed()
         }
     }
-    state done() {}
-    state failed() { crash Trap; }
+    machine done() {}
+    machine failed() { crash Trap; }
 }

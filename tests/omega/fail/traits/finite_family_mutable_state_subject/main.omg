@@ -9,7 +9,7 @@ Selected satisfies Factory { Factory::make = produce; }
 
 machine choose(selected: dyn Factory) -> Packet {
     transition { _ -> changed(selected, 16) }
-    state changed(selected: dyn Factory, mut width: u32) -> Packet
+    machine changed(selected: dyn Factory, mut width: u32) -> Packet
     requires width == 16 || width == 32;
     {
         width = 7;

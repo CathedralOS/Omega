@@ -18,7 +18,7 @@ requires gate < 9;
         true -> operands(network, definition)
         false -> invalid()
     }
-    state operands(network: &Network, definition: Gate) -> bool
+    machine operands(network: &Network, definition: Gate) -> bool
     requires definition.left < 9 && definition.right < 9;
     {
         let left: bool = network.values[definition.left];
@@ -30,8 +30,8 @@ requires gate < 9;
             _ -> invalid()
         }
     }
-    state invert(left: bool) -> bool { !left }
-    state conjunction(left: bool, right: bool) -> bool { left && right }
-    state disjunction(left: bool, right: bool) -> bool { left || right }
-    state invalid() -> bool { false }
+    machine invert(left: bool) -> bool { !left }
+    machine conjunction(left: bool, right: bool) -> bool { left && right }
+    machine disjunction(left: bool, right: bool) -> bool { left || right }
+    machine invalid() -> bool { false }
 }

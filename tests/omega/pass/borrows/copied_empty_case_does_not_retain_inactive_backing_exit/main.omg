@@ -10,6 +10,6 @@ machine main() crashes Trap {
     let envelope: Envelope = Envelope::Empty;
     let observed: i32 = consume(envelope, mutate(&mut second));
     transition observed == 17 && second.value == 23 {true -> done() false -> bad()}
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

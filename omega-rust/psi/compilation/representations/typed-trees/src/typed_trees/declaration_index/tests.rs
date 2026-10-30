@@ -1,0 +1,364 @@
+use crate::TypedTrees;
+use crate::data::{TypeParameter, TypeParameterKind};
+use crate::types::TypeReferenceHandle;
+use symbols::SymbolHandle;
+
+fn parameter(symbol: SymbolHandle, kind: TypeParameterKind) -> TypeParameter {
+    TypeParameter {
+        symbol,
+        kind,
+        ..TypeParameter::default()
+    }
+}
+
+#[test]
+fn lexical_machine_scope_retains_header_without_executable_root() {
+    let symbol = SymbolHandle::from_parts(3, 1);
+    let other_generation = SymbolHandle::from_parts(3, 2);
+    let mut program = TypedTrees::default();
+    let retained = program.tables.machines.insert(crate::machine::Machine {
+        symbol,
+        ..crate::machine::Machine::default()
+    });
+    assert!(program.machine_by_symbol(symbol).is_none());
+    assert_eq!(
+        program.machine_declaration_for_lexical_scope(symbol),
+        Some(program.tables.machines.get(retained))
+    );
+    assert!(
+        program
+            .machine_declaration_for_lexical_scope(other_generation)
+            .is_none()
+    );
+    assert!(
+        program
+            .machine_declaration_for_lexical_scope(SymbolHandle::invalid())
+            .is_none()
+    );
+
+    let duplicate = program.tables.machines.insert(crate::machine::Machine {
+        symbol,
+        ..crate::machine::Machine::default()
+    });
+    assert_eq!(
+        program.machine_declaration_for_lexical_scope(symbol),
+        Some(program.tables.machines.get(retained))
+    );
+    program
+        .tables
+        .machines
+        .get_mut(duplicate)
+        .lifetime_parameters
+        .push(crate::name::Identifier::from("conflicting"));
+    assert!(
+        program
+            .machine_declaration_for_lexical_scope(symbol)
+            .is_none()
+    );
+    assert!(program.tables.machines.free(duplicate));
+    assert_eq!(
+        program.machine_declaration_for_lexical_scope(symbol),
+        Some(program.tables.machines.get(retained))
+    );
+    program.tables.machines.get_mut(retained).symbol = other_generation;
+    assert!(
+        program
+            .machine_declaration_for_lexical_scope(symbol)
+            .is_none()
+    );
+    assert_eq!(
+        program.machine_declaration_for_lexical_scope(other_generation),
+        Some(program.tables.machines.get(retained))
+    );
+}
+
+#[test]
+fn lexical_machine_scope_distinguishes_span_relocation_from_conflicting_headers() {
+    let owner = SymbolHandle::from_parts(7, 1);
+    let unrelated = SymbolHandle::from_parts(8, 1);
+    let next_root = SymbolHandle::from_parts(9, 1);
+    let mut program = TypedTrees::default();
+    program.push_machine(crate::machine::Machine {
+        symbol: owner,
+        lifetime_parameters: vec![crate::name::Identifier::from("declared")],
+        ..crate::machine::Machine::default()
+    });
+    program.tables.machines.insert(crate::machine::Machine {
+        symbol: unrelated,
+        ..crate::machine::Machine::default()
+    });
+    program.push_machine(crate::machine::Machine {
+        symbol: next_root,
+        ..crate::machine::Machine::default()
+    });
+    assert_eq!(
+        program
+            .tables
+            .machines
+            .iter()
+            .filter(|(_, machine)| machine.symbol == owner)
+            .count(),
+        2
+    );
+    program.roots.machines = arena::HandleSpan::empty();
+    assert!(program.machine_by_symbol(owner).is_none());
+    let header = program
+        .machine_declaration_for_lexical_scope(owner)
+        .unwrap();
+    assert_eq!(header.lifetime_parameters[0].as_str(), "declared");
+    let mut conflicting = header.clone();
+    conflicting.lifetime_parameters.clear();
+    program.tables.machines.insert(conflicting);
+    assert!(
+        program
+            .machine_declaration_for_lexical_scope(owner)
+            .is_none()
+    );
+}
+
+#[test]
+fn lexical_machine_scope_prefers_current_header_and_tracks_projection() {
+    let symbol = SymbolHandle::from_parts(5, 1);
+    let mut program = TypedTrees::default();
+    let retained = program.tables.machines.insert(crate::machine::Machine {
+        symbol,
+        name: crate::name::Identifier::from("retained"),
+        ..crate::machine::Machine::default()
+    });
+    program.push_machine(crate::machine::Machine {
+        symbol,
+        name: crate::name::Identifier::from("current"),
+        ..crate::machine::Machine::default()
+    });
+    assert_eq!(
+        program.machine_declaration_for_lexical_scope(symbol),
+        program.machine_by_symbol(symbol)
+    );
+    assert_eq!(
+        program.machine_by_symbol(symbol).unwrap().name.as_str(),
+        "current"
+    );
+    let mut projection = program.clone();
+    projection.roots.machines = arena::HandleSpan::empty();
+    assert!(projection.machine_by_symbol(symbol).is_none());
+    assert!(
+        projection
+            .machine_declaration_for_lexical_scope(symbol)
+            .is_none()
+    );
+    assert!(projection.tables.machines.free(retained));
+    assert_eq!(
+        projection
+            .machine_declaration_for_lexical_scope(symbol)
+            .unwrap()
+            .name
+            .as_str(),
+        "current"
+    );
+    assert_eq!(
+        program.machine_by_symbol(symbol).unwrap().name.as_str(),
+        "current"
+    );
+}
+
+#[test]
+fn parameter_occurrences_select_before_testing_binder_kind() {
+    let symbol = SymbolHandle::from_parts(1, 1);
+    let reference = TypeReferenceHandle::from_parts(1, 1);
+    let mut program = TypedTrees::default();
+    program
+        .data_type_parameters
+        .insert(parameter(symbol, TypeParameterKind::Type));
+    program.data_type_parameters.insert(parameter(
+        symbol,
+        TypeParameterKind::Value {
+            type_reference: reference,
+        },
+    ));
+
+    // A later value declaration must not supply the first declaration's type.
+    let first = program.first_data_type_parameter_by_symbol(symbol).unwrap();
+    assert_eq!(first.kind, TypeParameterKind::Type);
+    assert!(!first.kind.is_const_or_value());
+    assert_eq!(
+        program.data_type_parameter_by_symbol(symbol).unwrap().kind,
+        TypeParameterKind::Value {
+            type_reference: reference,
+        }
+    );
+}
+
+#[test]
+fn parameter_occurrences_keep_complete_symbol_generations() {
+    let original = SymbolHandle::from_parts(1, 1);
+    let replacement = SymbolHandle::from_parts(1, 2);
+    let mut program = TypedTrees::default();
+    let first = program
+        .data_type_parameters
+        .insert(parameter(original, TypeParameterKind::Type));
+    let other = program
+        .data_type_parameters
+        .insert(parameter(replacement, TypeParameterKind::Implementation));
+    let last = program.data_type_parameters.insert(parameter(
+        original,
+        TypeParameterKind::Const {
+            type_reference: TypeReferenceHandle::from_parts(2, 1),
+        },
+    ));
+
+    assert_eq!(
+        program.first_data_type_parameter_by_symbol(original),
+        Some(program.data_type_parameters.get(first))
+    );
+    assert_eq!(
+        program.data_type_parameter_by_symbol(original),
+        Some(program.data_type_parameters.get(last))
+    );
+    assert_eq!(
+        program.first_data_type_parameter_by_symbol(replacement),
+        Some(program.data_type_parameters.get(other))
+    );
+    assert_eq!(
+        program.data_type_parameter_by_symbol(replacement),
+        Some(program.data_type_parameters.get(other))
+    );
+    for absent in [SymbolHandle::from_parts(1, 3), SymbolHandle::invalid()] {
+        assert!(
+            program
+                .first_data_type_parameter_by_symbol(absent)
+                .is_none()
+        );
+        assert!(program.data_type_parameter_by_symbol(absent).is_none());
+    }
+}
+
+#[test]
+fn parameter_occurrences_refresh_mutation_reuse_and_cloned_owners() {
+    let original = SymbolHandle::from_parts(1, 1);
+    let replacement = SymbolHandle::from_parts(2, 1);
+    let mut program = TypedTrees::default();
+    assert!(
+        program
+            .first_data_type_parameter_by_symbol(original)
+            .is_none()
+    );
+    assert!(program.data_type_parameter_by_symbol(original).is_none());
+    let first = program
+        .data_type_parameters
+        .insert(parameter(original, TypeParameterKind::Type));
+    assert_eq!(
+        program.first_data_type_parameter_by_symbol(original),
+        program.data_type_parameter_by_symbol(original)
+    );
+    let last = program.data_type_parameters.insert(parameter(
+        original,
+        TypeParameterKind::Value {
+            type_reference: TypeReferenceHandle::from_parts(1, 1),
+        },
+    ));
+    assert_eq!(
+        program.data_type_parameter_by_symbol(original),
+        Some(program.data_type_parameters.get(last))
+    );
+    program.data_type_parameters.get_mut(first).symbol = replacement;
+    assert_eq!(
+        program.first_data_type_parameter_by_symbol(original),
+        Some(program.data_type_parameters.get(last))
+    );
+    assert!(program.data_type_parameter_by_symbol(replacement).is_some());
+
+    let mut snapshot = program.clone();
+    snapshot.data_type_parameters.get_mut(first).kind = TypeParameterKind::Implementation;
+    assert_eq!(
+        snapshot
+            .first_data_type_parameter_by_symbol(replacement)
+            .unwrap()
+            .kind,
+        TypeParameterKind::Implementation
+    );
+    assert_eq!(
+        program
+            .first_data_type_parameter_by_symbol(replacement)
+            .unwrap()
+            .kind,
+        TypeParameterKind::Type
+    );
+
+    assert!(program.data_type_parameters.free(first));
+    assert!(
+        program
+            .first_data_type_parameter_by_symbol(replacement)
+            .is_none()
+    );
+    let reused = program.data_type_parameters.insert(parameter(
+        original,
+        TypeParameterKind::Const {
+            type_reference: TypeReferenceHandle::from_parts(2, 1),
+        },
+    ));
+    assert_eq!(first.arena_index(), reused.arena_index());
+    assert_ne!(first.generation(), reused.generation());
+    // Slot reuse is first in current arena order despite being inserted last.
+    assert_eq!(
+        program.first_data_type_parameter_by_symbol(original),
+        Some(program.data_type_parameters.get(reused))
+    );
+    assert_eq!(
+        program.data_type_parameter_by_symbol(original),
+        Some(program.data_type_parameters.get(last))
+    );
+    assert!(
+        snapshot
+            .first_data_type_parameter_by_symbol(replacement)
+            .is_some()
+    );
+}
+
+#[test]
+fn named_value_types_refresh_equal_revision_parameter_replacement() {
+    let symbol = SymbolHandle::from_parts(7, 3);
+    let first_type = TypeReferenceHandle::from_parts(1, 1);
+    let replacement_type = TypeReferenceHandle::from_parts(2, 1);
+    let parameter = |type_reference| crate::signature::StateParameter {
+        symbol,
+        type_reference,
+        ..crate::signature::StateParameter::default()
+    };
+    // There is deliberately no machine body: this is an indexed declaration
+    // table query over the same flat formals used by bodyless signatures.
+    let mut program = TypedTrees::default();
+    let original_handle = program.state_parameters.insert(parameter(first_type));
+    assert_eq!(
+        program.first_named_value_declared_type(symbol, symbol),
+        Some(first_type)
+    );
+    let snapshot = program.clone();
+
+    let mut replacement = arena::Arena::default();
+    let replacement_handle = replacement.insert(parameter(replacement_type));
+    assert_eq!(original_handle, replacement_handle);
+    assert_eq!(program.state_parameters.revision(), replacement.revision());
+
+    // Supported mutable table access must discard the warmed grouping even
+    // though the unrelated replacement carries the same revision and handle.
+    program.state_parameters = replacement;
+    assert_eq!(
+        program.first_named_value_declared_type(symbol, symbol),
+        Some(replacement_type)
+    );
+    assert_eq!(
+        snapshot.first_named_value_declared_type(symbol, symbol),
+        Some(first_type)
+    );
+
+    let frozen_replacement = crate::FrozenTypedTrees::from(program);
+    let frozen_snapshot = crate::FrozenTypedTrees::from(snapshot);
+    assert_eq!(
+        frozen_replacement.first_named_value_declared_type(symbol, symbol),
+        Some(replacement_type)
+    );
+    assert_eq!(
+        frozen_snapshot.first_named_value_declared_type(symbol, symbol),
+        Some(first_type)
+    );
+}

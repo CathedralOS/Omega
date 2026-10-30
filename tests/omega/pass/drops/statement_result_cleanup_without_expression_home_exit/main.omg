@@ -11,6 +11,6 @@ machine main() crashes Trap {
     _ = outcome();
     let named: Token = token(9);
     transition named.value == 9 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

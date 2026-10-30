@@ -20,14 +20,14 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> step(1, 1, 0)
     }
 
-    state step(left: i32 in Wrapping, right: i32 in Wrapping, iteration: i32 in Wrapping) {
+    machine step(left: i32 in Wrapping, right: i32 in Wrapping, iteration: i32 in Wrapping) {
         transition iteration == 13 {
             true -> ratio_calc(left, right)
             _ -> advance(left, right, iteration)
         }
     }
 
-    state advance(left: i32 in Wrapping, right: i32 in Wrapping, iteration: i32 in Wrapping) {
+    machine advance(left: i32 in Wrapping, right: i32 in Wrapping, iteration: i32 in Wrapping) {
         let next: i32 in Wrapping = left + right;
         let next_iteration: i32 in Wrapping = iteration + 1;
         transition {
@@ -35,7 +35,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state ratio_calc(left: i32 in Wrapping, right: i32 in Wrapping) {
+    machine ratio_calc(left: i32 in Wrapping, right: i32 in Wrapping) {
         let left_float: f64 = F64::from_i32(left as i32);
         let right_float: f64 = F64::from_i32(right as i32);
         let ratio: f64 = right_float / left_float;

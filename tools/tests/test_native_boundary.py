@@ -5,7 +5,8 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from check_native_boundary import NATIVE_ROOT, RUNTIME_ROOT, RUNTIME_OWNERS, dependency_violations
+from check_native_boundary import NATIVE_ROOT, RUNTIME_ROOT, RUNTIME_OWNERS, NATIVE_PROVIDER_RUNTIME_ROOT, NATIVE_PROVIDER_RUNTIME_OWNERS, dependency_violations
+from check_native_boundary import PROVIDER_SELECTION_ROOT, PROVIDER_SELECTION_OWNERS
 
 
 class NativeBoundaryTests(unittest.TestCase):
@@ -95,6 +96,28 @@ class NativeBoundaryTests(unittest.TestCase):
         runtime = self.package("terminal-runtime", RUNTIME_ROOT)
         self.edge(runtime, self.native)
         self.assertEqual(len(dependency_violations(self.metadata, RUNTIME_ROOT, RUNTIME_OWNERS)), 1)
+
+    def test_provider_selection_cannot_reopen_source_or_drive_native_compilation(self):
+        selection = self.package("provider-selection", PROVIDER_SELECTION_ROOT)
+        self.edge(selection, self.evidence)
+        self.assertEqual(dependency_violations(self.metadata, PROVIDER_SELECTION_ROOT, PROVIDER_SELECTION_OWNERS), [])
+        typed = self.package("typed-trees", "omega-rust/psi/compilation/representations/typed-trees")
+        self.edge(selection, typed)
+        self.edge(selection, self.native)
+        violations = dependency_violations(self.metadata, PROVIDER_SELECTION_ROOT, PROVIDER_SELECTION_OWNERS)
+        self.assertEqual(len(violations), 2)
+        self.assertTrue(any("provider-selection -> typed-trees" in violation for violation in violations))
+        self.assertTrue(any("provider-selection -> native-production" in violation for violation in violations))
+
+    def test_native_worker_consumes_artifacts_without_a_compiler(self):
+        worker = self.package("native-provider-runtime", NATIVE_PROVIDER_RUNTIME_ROOT)
+        artifacts = self.package("native-artifact", "omega-rust/omega/compilation/backend/artifacts/native-artifact")
+        self.edge(worker, artifacts)
+        self.assertEqual(dependency_violations(self.metadata, NATIVE_PROVIDER_RUNTIME_ROOT, NATIVE_PROVIDER_RUNTIME_OWNERS), [])
+        self.edge(artifacts, self.native, optional=True, target='cfg(windows)')
+        failures = dependency_violations(self.metadata, NATIVE_PROVIDER_RUNTIME_ROOT, NATIVE_PROVIDER_RUNTIME_OWNERS)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("native-provider-runtime -> native-artifact -> native-production", failures[0])
 
 
 if __name__ == "__main__":

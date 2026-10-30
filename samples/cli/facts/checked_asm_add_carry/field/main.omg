@@ -5,8 +5,8 @@ machine main() crashes Trap {
  let mut object: Snapshot = Snapshot { value: 0 };
  observe(&mut object);
  transition (object.value & 2261u64) == 85u64 { true -> done() false -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }
 machine observe(object: &mut Snapshot) {
  asm { entry: mov eax, 4294967295; add eax, 1; pushfq object.value; jmp observed;

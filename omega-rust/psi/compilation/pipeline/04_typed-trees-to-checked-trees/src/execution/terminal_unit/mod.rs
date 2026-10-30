@@ -135,7 +135,7 @@ use checked_trees::{
 use diagnostics::Diagnostic;
 use language_semantics::{
     CarryPolicy, MachineSupplyMode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
-    PermissionEventKind, PermissionEventSource, PermissionProvenance, SemanticDomainId,
+    PermissionEventKind, PermissionEventSource, SemanticDomainId,
 };
 use symbols::SymbolHandle;
 use typed_trees::{
@@ -190,9 +190,10 @@ pub(crate) fn build_checked_unit_effect_plans(
 ) -> (
     CheckedUnitEffectPlans,
     CheckedPartialAffineUnitCleanupPlans,
-    Vec<structural_value_calls::PreparedValueCalls>,
+    structural_value_calls::PreparedCalls,
 ) {
     let mut shapes = ShapeCollector::new(program);
+    let mut prepared_calls = structural_value_calls::PreparedCalls::default();
     let mut boundary_gaps = Vec::new();
     let (boundary_machines, dynamic_slots, boundary_symbols) =
         phase_profile::scope("05.d.8_10.a.3.1.boundary_and_dynamic", || {
@@ -209,7 +210,9 @@ pub(crate) fn build_checked_unit_effect_plans(
                         Ok(plan) => Some(plan),
                         Err(reason) => {
                             let reason = shapes.take_unselected_opaque().map_or(
-                                CheckedUnitPlanGapReason::Unsupported(reason),
+                                CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed(
+                                    reason,
+                                )),
                                 CheckedUnitPlanGapReason::UnselectedOpaqueRepresentation,
                             );
                             boundary_gaps.push(plan_gaps::plan_gap(
@@ -246,7 +249,6 @@ pub(crate) fn build_checked_unit_effect_plans(
     // callee like any ordinary body; only its return edge differs.
     let mut candidates = Vec::new();
     let mut composed_machines = Vec::new();
-    let mut prepared_value_calls = Vec::new();
     let mut partial_affine_machines = Vec::new();
     let mut construction_gaps = BTreeMap::new();
     phase_profile::scope("05.d.8_10.a.3.2.candidate_bodies", || {
@@ -259,6 +261,7 @@ pub(crate) fn build_checked_unit_effect_plans(
         {
             let trace = LocalConstructionTrace::default();
             shapes.take_unselected_opaque();
+            let mut attempt_calls = structural_value_calls::PreparedCalls::default();
             let route = phase_profile::scope("05.d.8_10.a.3.2a.body_route", || {
                 body_route(program, machine)
             });
@@ -270,6 +273,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                             facts,
                             scalar_callees,
                             &mut shapes,
+                            &mut attempt_calls,
                             machine,
                             call_frames,
                             &trace,
@@ -280,11 +284,11 @@ pub(crate) fn build_checked_unit_effect_plans(
                                 residual_affine_discards,
                                 has_projected_parameter_moves,
                             )| {
-                                let calls = structural_value_calls::prepare_state(
+                                structural_value_calls::prepare_state(
                                     program,
                                     facts,
                                     &mut shapes,
-                                    plan.machine,
+                                    &mut attempt_calls,
                                     plan.machine,
                                     plan.state,
                                     &structural_value_calls::StateCallInputs {
@@ -293,16 +297,15 @@ pub(crate) fn build_checked_unit_effect_plans(
                                         operations: &plan.operations,
                                         trivial_locals: &plan.trivial_affine_locals,
                                     },
-                                );
+                                )?;
                                 trace.phase("single-state body: value call source custody");
                                 structural_value_calls::consume_caller_results(
                                     program,
                                     plan.machine,
                                     plan.state,
                                     &mut plan.operations,
-                                    calls.iter().map(|row| row.calls.as_slice()),
+                                    attempt_calls.state_schedules(plan.machine, plan.state),
                                 )?;
-                                prepared_value_calls.extend(calls);
                                 if has_projected_parameter_moves {
                                     partial_affine_machines.push(
                                         CheckedPartialAffineUnitCleanupMachinePlan {
@@ -324,16 +327,17 @@ pub(crate) fn build_checked_unit_effect_plans(
                         facts,
                         scalar_callees,
                         &mut shapes,
+                        &mut attempt_calls,
                         machine,
                         call_frames,
                         &trace,
                     )
-                    .map(|(plan, calls)| {
-                        composed_machines.push(plan);
-                        prepared_value_calls.extend(calls);
-                    })
+                    .map(|plan| composed_machines.push(plan))
                 }),
             };
+            if planned.is_some() {
+                prepared_calls.append(machine.symbol, attempt_calls);
+            }
             if planned.is_none() {
                 let mut gap = trace.gap(program, machine.symbol);
                 // A shape the collector could not supply because the build
@@ -384,9 +388,25 @@ pub(crate) fn build_checked_unit_effect_plans(
             &plan.structural_parameters,
             &plan.operations,
         )?;
+        // Owned qualified arguments are not a pre-construction scalar-control
+        // veto. Admission requires these complete current-exit rows, including
+        // moved locals and selected residual owners; no candidate is published
+        // until their ordinary cleanup actions have been selected and installed.
         let normal =
             cleanup::normal_edges::sequence_cleanups(program, facts, &targets, &mut shapes, plan)?;
-        if plan.scalar_control.is_none() {
+        if let Some(stopping) = plan
+            .operations
+            .iter()
+            .position(|operation| !operation.has_normal_continuation())
+        {
+            // The evaluated prefix still owns its temporary actions. Its
+            // suspended caller has no normal exit to select or fabricate.
+            if stopping + 1 != plan.operations.len()
+                || !shapes.cleanup_control.normal_exits(normal).is_empty()
+            {
+                return None;
+            }
+        } else if plan.scalar_control.is_none() {
             let [row] = shapes.cleanup_control.normal_exits(normal) else {
                 return None;
             };
@@ -430,7 +450,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                         &mut shapes,
                         state,
                     )
-                    .ok_or((state.state, "normal-exit cleanup"))?;
+                    .map_err(|reason| (state.state, reason))?;
                     Ok((temporary, normal))
                 })
                 .collect::<Result<Vec<_>, _>>()
@@ -459,7 +479,9 @@ pub(crate) fn build_checked_unit_effect_plans(
                         program,
                         plan.machine,
                         GapSite::State(state),
-                        CheckedUnitPlanGapReason::Unsupported(construct),
+                        CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed(
+                            construct,
+                        )),
                     )
                 });
             false
@@ -470,6 +492,16 @@ pub(crate) fn build_checked_unit_effect_plans(
         if cleanup::temporary_actions::install(&mut plan.operations, selected).is_none() {
             return false;
         }
+        plan.normal_exit_cleanups = normal;
+        if plan
+            .operations
+            .last()
+            .is_some_and(|operation| !operation.has_normal_continuation())
+        {
+            // Selection above retained no normal row. Preserve the actual
+            // stopping invocation instead of demanding a fictional Complete.
+            return true;
+        }
         let Some(CheckedUnitEffectOperationPlan::Complete {
             trivial_affine_discards,
             ..
@@ -477,7 +509,6 @@ pub(crate) fn build_checked_unit_effect_plans(
         else {
             return false;
         };
-        plan.normal_exit_cleanups = normal;
         // Parameter dispositions now have one authority and one schedule.
         // The former affine-only reconstruction must not dispose them again.
         trivial_affine_discards.clear();
@@ -493,7 +524,9 @@ pub(crate) fn build_checked_unit_effect_plans(
                         program,
                         plan.machine.machine,
                         GapSite::State(plan.machine.state),
-                        CheckedUnitPlanGapReason::Unsupported("sequence cleanup actions"),
+                        CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed(
+                            "sequence cleanup actions",
+                        )),
                     )
                 });
             false
@@ -509,7 +542,9 @@ pub(crate) fn build_checked_unit_effect_plans(
                         program,
                         plan.machine,
                         GapSite::State(plan.state),
-                        CheckedUnitPlanGapReason::Unsupported("sequence cleanup actions"),
+                        CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed(
+                            "sequence cleanup actions",
+                        )),
                     )
                 });
             false
@@ -533,20 +568,19 @@ pub(crate) fn build_checked_unit_effect_plans(
             &mut candidates,
             &mut composed_machines,
             &mut partial_affine_machines,
-            &prepared_value_calls,
+            &prepared_calls,
         )
     });
     gaps.extend(closure_gaps);
     // Failed cleanup or dependency closure discards the candidate's schedules
     // too. They cannot supply ownership evidence to another surviving body.
-    prepared_value_calls.retain(|row| {
+    prepared_calls.retain_bodies(|owner, state_symbol| {
         candidates
             .iter()
             .chain(partial_affine_machines.iter().map(|plan| &plan.machine))
-            .any(|plan| plan.machine == row.owner && plan.state == row.state)
+            .any(|plan| plan.machine == owner && plan.state == state_symbol)
             || composed_machines.iter().any(|plan| {
-                plan.machine == row.owner
-                    && plan.states.iter().any(|state| state.state == row.state)
+                plan.machine == owner && plan.states.iter().any(|state| state.state == state_symbol)
             })
     });
     gaps.sort_by_key(|gap| symbol_key(gap.machine));
@@ -606,11 +640,10 @@ pub(crate) fn build_checked_unit_effect_plans(
                 .flat_map(|state| state.operation_dependencies()),
         )
         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::EstablishLocal(
-                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
-            ) => Some(*value),
-            _ => None,
+        .filter_map(|operation| {
+            operation
+                .structural_value_evaluation()
+                .map(|(value, _)| value)
         })
         .chain(scalar_value_roots)
         .collect::<Vec<_>>();
@@ -811,11 +844,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 .iter()
                 .flat_map(|state| state.operation_dependencies())
         }))
-        .chain(
-            prepared_value_calls
-                .iter()
-                .flat_map(structural_value_calls::PreparedValueCalls::operation_dependencies),
-        )
+        .chain(prepared_calls.operation_dependencies())
         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
     {
         // Every structural argument carrier — a copied `&T` leaf, a `&[T]`
@@ -972,27 +1001,45 @@ pub(crate) fn build_checked_unit_effect_plans(
         .flatten()
         .collect::<Vec<_>>();
     retained_type_identities.extend(operand_identities.iter().copied());
+    let layout_observations =
+        types::retain_layout_observation_types(program, &mut shapes, &mut retained_type_identities);
     // A performed field observation demands only the concrete declarations
     // along its finite storage path, including nested descriptor crossings.
     for (_, node) in facts.values.scalar_computations.nodes.iter() {
         if let checked_trees::CheckedScalarComputationKind::StructuralField {
             source_type,
-            source_expression,
+            subject,
+            field,
+            field_identity,
+            atomic_ordering,
             ..
-        } = node.kind
-            && let Some(references) = validation::observed_storage_type_references(
-                program,
-                source_type,
-                source_expression,
-            )
+        } = &node.kind
         {
-            for reference in references {
-                if let Some(identity) = shapes.add_type(reference, &[], &[]) {
-                    retained_type_identities.insert(identity);
+            match validation::observed_storage_type_references(
+                program,
+                *source_type,
+                &subject.path,
+                *field,
+                field_identity,
+                atomic_ordering.is_some(),
+            ) {
+                Ok(references) => {
+                    for (reference, substitutions) in references.entries() {
+                        if let Some(identity) = shapes.add_type(reference, &[], substitutions) {
+                            retained_type_identities.insert(identity);
+                        }
+                        if let Some(identity) =
+                            shapes.add_stored_type(reference, &[], substitutions)
+                        {
+                            retained_type_identities.insert(identity);
+                        }
+                    }
                 }
-                if let Some(identity) = shapes.add_stored_type(reference, &[], &[]) {
-                    retained_type_identities.insert(identity);
-                }
+                // This global discovery roster includes undemanded and
+                // unapplied bodies. A missing finite catalog path is producer
+                // coverage, not a new Source formation rule. Demanded lowering
+                // runs this same query and reports its complete path error.
+                Err(_) => {}
             }
         }
     }
@@ -1060,23 +1107,33 @@ pub(crate) fn build_checked_unit_effect_plans(
             }
         }
     }
-    let stored_operand_identities = candidates
-        .iter()
-        .chain(partial_affine_machines.iter().map(|plan| &plan.machine))
-        .flat_map(|plan| {
-            plan.operations
-                .iter()
-                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-                .map(move |operation| (plan.machine, plan.state, operation))
-        })
-        .chain(composed_machines.iter().flat_map(|plan| {
-            plan.states.iter().flat_map(move |state| {
-                state
-                    .operation_dependencies()
+    let retained_operations = || {
+        candidates
+            .iter()
+            .chain(partial_affine_machines.iter().map(|plan| &plan.machine))
+            .flat_map(|plan| {
+                plan.operations
+                    .iter()
                     .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-                    .map(move |operation| (plan.machine, state.state, operation))
+                    .map(move |operation| (plan.machine, plan.state, operation))
             })
-        }))
+            .chain(composed_machines.iter().flat_map(|plan| {
+                plan.states.iter().flat_map(move |state| {
+                    state
+                        .operation_dependencies()
+                        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                        .map(move |operation| (plan.machine, state.state, operation))
+                })
+            }))
+    };
+    types::retain_call_qualification_domains(
+        program,
+        facts,
+        &mut shapes,
+        retained_operations(),
+        &mut retained_type_identities,
+    );
+    let stored_operand_identities = retained_operations()
         .flat_map(|(machine, state, operation)| {
             byte_operands::store_operand_type_identities(
                 program,
@@ -1125,6 +1182,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     (
         CheckedUnitEffectPlans {
             cleanup_control: shapes.cleanup_control,
+            layout_observations,
             structural_types: shapes.types.into_values().collect(),
             structural_domains: {
                 shapes.domains.sort_by_key(|domain| domain.domain.0);
@@ -1137,7 +1195,7 @@ pub(crate) fn build_checked_unit_effect_plans(
             gaps,
         },
         partial_affine_plans,
-        prepared_value_calls,
+        prepared_calls,
     )
 }
 
@@ -1196,7 +1254,7 @@ fn body_route(
     // A result the graph's vocabulary cannot describe is only a sequence's.
     // The classification uses a scratch shape namespace: choosing a route
     // registers no type.
-    if state_graph::result_plan(program, &mut ShapeCollector::new(program), machine).is_none() {
+    if types::declared_result_plan(program, &mut ShapeCollector::new(program), machine).is_none() {
         return BodyRoute::Sequence;
     }
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -1327,7 +1385,7 @@ pub(super) fn scalar_case_value_shapes(
     let mut shapes = ShapeCollector::new(program);
     // A primitive result owns no structural value shape.
     if let checked_trees::CheckedControlResultPlan::Scalar { .. } =
-        state_graph::returns::signature(program, &mut shapes, reference)?
+        types::declared_result_type(program, &mut shapes, reference)?
     {
         return None;
     }
@@ -1381,6 +1439,7 @@ fn retain_value_types(
                 }
             }
             checked_trees::CheckedStructuralValueKind::Projection { source, .. }
+            | checked_trees::CheckedStructuralValueKind::ViewSubslice { source, .. }
             | checked_trees::CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
                 pending.push(*source);
             }

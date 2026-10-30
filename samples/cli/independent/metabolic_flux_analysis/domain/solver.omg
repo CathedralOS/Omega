@@ -16,55 +16,55 @@ public data Solver {
 }
 public machine read_six(values: &[i64 in Wrapping; 6], index: i32 in Wrapping) -> i64 in Wrapping crashes Trap {
     transition index >= 0 && index < 6 { true -> (values[index]) _ -> invalid() }
-    state invalid() -> i64 in Wrapping { crash Trap; }
+    machine invalid() -> i64 in Wrapping { crash Trap; }
 }
 public machine write_six(values: &mut [i64 in Wrapping; 6], index: i32 in Wrapping, value: i64 in Wrapping) crashes Trap {
     transition index >= 0 && index < 6 { true -> write(values, index, value) _ -> invalid() }
-    state write(values: &mut [i64 in Wrapping; 6], index: i32 in Wrapping, value: i64 in Wrapping)
+    machine write(values: &mut [i64 in Wrapping; 6], index: i32 in Wrapping, value: i64 in Wrapping)
     requires index >= 0 && index < 6 { values[index] = value; }
-    state invalid() { crash Trap; }
+    machine invalid() { crash Trap; }
 }
 public machine read_matrix(values: &[i64 in Wrapping; 24], index: i32 in Wrapping) -> i64 in Wrapping crashes Trap {
     transition index >= 0 && index < 24 { true -> (values[index]) _ -> invalid() }
-    state invalid() -> i64 in Wrapping { crash Trap; }
+    machine invalid() -> i64 in Wrapping { crash Trap; }
 }
 public machine write_matrix(values: &mut [i64 in Wrapping; 24], index: i32 in Wrapping, value: i64 in Wrapping) crashes Trap {
     transition index >= 0 && index < 24 { true -> write(values, index, value) _ -> invalid() }
-    state write(values: &mut [i64 in Wrapping; 24], index: i32 in Wrapping, value: i64 in Wrapping)
+    machine write(values: &mut [i64 in Wrapping; 24], index: i32 in Wrapping, value: i64 in Wrapping)
     requires index >= 0 && index < 24 { values[index] = value; }
-    state invalid() { crash Trap; }
+    machine invalid() { crash Trap; }
 }
 public machine read_work(values: &[i64 in Wrapping; 28], index: i32 in Wrapping) -> i64 in Wrapping crashes Trap {
     transition index >= 0 && index < 28 { true -> (values[index]) _ -> invalid() }
-    state invalid() -> i64 in Wrapping { crash Trap; }
+    machine invalid() -> i64 in Wrapping { crash Trap; }
 }
 public machine write_work(values: &mut [i64 in Wrapping; 28], index: i32 in Wrapping, value: i64 in Wrapping) crashes Trap {
     transition index >= 0 && index < 28 { true -> write(values, index, value) _ -> invalid() }
-    state write(values: &mut [i64 in Wrapping; 28], index: i32 in Wrapping, value: i64 in Wrapping)
+    machine write(values: &mut [i64 in Wrapping; 28], index: i32 in Wrapping, value: i64 in Wrapping)
     requires index >= 0 && index < 28 { values[index] = value; }
-    state invalid() { crash Trap; }
+    machine invalid() { crash Trap; }
 }
 machine quotient(numerator: i64 in Wrapping, denominator: i64 in Wrapping) -> i64 in Wrapping crashes Trap {
     transition denominator != 0 { true -> checked(numerator, denominator) _ -> invalid() }
-    state checked(numerator: i64 in Wrapping, denominator: i64 in Wrapping) -> i64 in Wrapping requires denominator != 0 {
+    machine checked(numerator: i64 in Wrapping, denominator: i64 in Wrapping) -> i64 in Wrapping requires denominator != 0 {
         transition numerator % denominator == 0 { true -> (numerator / denominator) _ -> invalid() }
     }
-    state invalid() -> i64 in Wrapping { crash Trap; }
+    machine invalid() -> i64 in Wrapping { crash Trap; }
 }
 public machine solve(solver: &mut Solver) crashes Trap {
     solver.found = false;
     transition { _ -> limit(solver, 0, 1) }
-    state limit(solver: &mut Solver, index: i32 in Wrapping, count: i32 in Wrapping) {
+    machine limit(solver: &mut Solver, index: i32 in Wrapping, count: i32 in Wrapping) {
         transition index < solver.reactions { true -> limit(solver, index + 1, count * 3) _ -> enumerate(solver, 0, count) }
     }
-    state enumerate(solver: &mut Solver, code: i32 in Wrapping, count: i32 in Wrapping) {
+    machine enumerate(solver: &mut Solver, code: i32 in Wrapping, count: i32 in Wrapping) {
         transition code < count { true -> vertex(solver, code, count) _ -> {} }
     }
-    state vertex(solver: &mut Solver, code: i32 in Wrapping, count: i32 in Wrapping) {
+    machine vertex(solver: &mut Solver, code: i32 in Wrapping, count: i32 in Wrapping) {
         let valid: bool = candidate(solver, code);
         transition valid { true -> accepted(solver, code, count) _ -> enumerate(solver, code + 1, count) }
     }
-    state accepted(solver: &mut Solver, code: i32 in Wrapping, count: i32 in Wrapping) {
+    machine accepted(solver: &mut Solver, code: i32 in Wrapping, count: i32 in Wrapping) {
         aggregate(solver);
         transition { _ -> enumerate(solver, code + 1, count) }
     }
@@ -72,158 +72,158 @@ public machine solve(solver: &mut Solver) crashes Trap {
 machine candidate(solver: &mut Solver, code: i32 in Wrapping) -> bool crashes Trap {
     solver.free_count = 0;
     transition { _ -> decode(solver, 0, code) }
-    state decode(solver: &mut Solver, index: i32 in Wrapping, code: i32 in Wrapping) -> bool {
+    machine decode(solver: &mut Solver, index: i32 in Wrapping, code: i32 in Wrapping) -> bool {
         transition index < solver.reactions { true -> reaction(solver, index, code) _ -> assembled_start(solver) }
     }
-    state reaction(solver: &mut Solver, index: i32 in Wrapping, code: i32 in Wrapping) -> bool {
+    machine reaction(solver: &mut Solver, index: i32 in Wrapping, code: i32 in Wrapping) -> bool {
         let selected: i32 in Wrapping = code % 3;
         transition selected == 2 { true -> free_reaction(solver, index, code) _ -> fixed_reaction(solver, index, code, selected) }
     }
-    state free_reaction(solver: &mut Solver, index: i32 in Wrapping, code: i32 in Wrapping) -> bool {
+    machine free_reaction(solver: &mut Solver, index: i32 in Wrapping, code: i32 in Wrapping) -> bool {
         write_six(&mut solver.free, solver.free_count, index as i64 in Wrapping);
         solver.free_count = solver.free_count + 1;
         write_six(&mut solver.flux, index, 0);
         transition { _ -> decode(solver, index + 1, code / 3) }
     }
-    state fixed_reaction(solver: &mut Solver, index: i32 in Wrapping, code: i32 in Wrapping, selected: i32 in Wrapping) -> bool {
+    machine fixed_reaction(solver: &mut Solver, index: i32 in Wrapping, code: i32 in Wrapping, selected: i32 in Wrapping) -> bool {
         let value: i64 in Wrapping = match selected == 0 { true -> read_six(&solver.lower, index) _ -> read_six(&solver.upper, index) };
         write_six(&mut solver.flux, index, value);
         transition { _ -> decode(solver, index + 1, code / 3) }
     }
-    state assembled_start(solver: &mut Solver) -> bool {
+    machine assembled_start(solver: &mut Solver) -> bool {
         transition solver.free_count <= solver.metabolites { true -> clear(solver, 0) _ -> false }
     }
-    state clear(solver: &mut Solver, index: i32 in Wrapping) -> bool {
+    machine clear(solver: &mut Solver, index: i32 in Wrapping) -> bool {
         transition index < 28 { true -> cleared(solver, index) _ -> row(solver, 0) }
     }
-    state cleared(solver: &mut Solver, index: i32 in Wrapping) -> bool {
+    machine cleared(solver: &mut Solver, index: i32 in Wrapping) -> bool {
         write_work(&mut solver.work, index, 0);
         transition { _ -> clear(solver, index + 1) }
     }
-    state row(solver: &mut Solver, row: i32 in Wrapping) -> bool {
+    machine row(solver: &mut Solver, row: i32 in Wrapping) -> bool {
         transition row < solver.metabolites { true -> fixed_sum(solver, row, 0, 0) _ -> pivot(solver, 0, 1) }
     }
-    state fixed_sum(solver: &mut Solver, row: i32 in Wrapping, column: i32 in Wrapping, sum: i64 in Wrapping) -> bool {
+    machine fixed_sum(solver: &mut Solver, row: i32 in Wrapping, column: i32 in Wrapping, sum: i64 in Wrapping) -> bool {
         transition column < solver.reactions { true -> added(solver, row, column, sum) _ -> right(solver, row, sum) }
     }
-    state added(solver: &mut Solver, row: i32 in Wrapping, column: i32 in Wrapping, sum: i64 in Wrapping) -> bool {
+    machine added(solver: &mut Solver, row: i32 in Wrapping, column: i32 in Wrapping, sum: i64 in Wrapping) -> bool {
         let coefficient: i64 in Wrapping = read_matrix(&solver.matrix, row * 6 + column);
         let fixed: i64 in Wrapping = read_six(&solver.flux, column);
         transition { _ -> fixed_sum(solver, row, column + 1, sum + coefficient * fixed) }
     }
-    state right(solver: &mut Solver, row: i32 in Wrapping, sum: i64 in Wrapping) -> bool {
+    machine right(solver: &mut Solver, row: i32 in Wrapping, sum: i64 in Wrapping) -> bool {
         write_work(&mut solver.work, row * 7 + 6, 0 - sum);
         transition { _ -> free_columns(solver, row, 0) }
     }
-    state free_columns(solver: &mut Solver, row: i32 in Wrapping, column: i32 in Wrapping) -> bool {
+    machine free_columns(solver: &mut Solver, row: i32 in Wrapping, column: i32 in Wrapping) -> bool {
         transition column < solver.free_count { true -> free_column(solver, row, column) _ -> row(solver, row + 1) }
     }
-    state free_column(solver: &mut Solver, row: i32 in Wrapping, column: i32 in Wrapping) -> bool {
+    machine free_column(solver: &mut Solver, row: i32 in Wrapping, column: i32 in Wrapping) -> bool {
         let reaction: i64 in Wrapping = read_six(&solver.free, column);
         let coefficient: i64 in Wrapping = read_matrix(&solver.matrix, row * 6 + (narrow_i64_to_i32_wrapping(reaction as i64) as i32 in Wrapping));
         write_work(&mut solver.work, row * 7 + column, coefficient);
         transition { _ -> free_columns(solver, row, column + 1) }
     }
-    state pivot(solver: &mut Solver, column: i32 in Wrapping, previous: i64 in Wrapping) -> bool {
+    machine pivot(solver: &mut Solver, column: i32 in Wrapping, previous: i64 in Wrapping) -> bool {
         transition column < solver.free_count { true -> search(solver, column, column, previous) _ -> scale_start(solver, previous) }
     }
-    state search(solver: &mut Solver, column: i32 in Wrapping, selected: i32 in Wrapping, previous: i64 in Wrapping) -> bool {
+    machine search(solver: &mut Solver, column: i32 in Wrapping, selected: i32 in Wrapping, previous: i64 in Wrapping) -> bool {
         transition selected < solver.metabolites { true -> inspected(solver, column, selected, previous) _ -> false }
     }
-    state inspected(solver: &mut Solver, column: i32 in Wrapping, selected: i32 in Wrapping, previous: i64 in Wrapping) -> bool {
+    machine inspected(solver: &mut Solver, column: i32 in Wrapping, selected: i32 in Wrapping, previous: i64 in Wrapping) -> bool {
         let value: i64 in Wrapping = read_work(&solver.work, selected * 7 + column);
         transition value != 0 { true -> swap(solver, column, selected, previous, 0) _ -> search(solver, column, selected + 1, previous) }
     }
-    state swap(solver: &mut Solver, column: i32 in Wrapping, selected: i32 in Wrapping, previous: i64 in Wrapping, entry: i32 in Wrapping) -> bool {
+    machine swap(solver: &mut Solver, column: i32 in Wrapping, selected: i32 in Wrapping, previous: i64 in Wrapping, entry: i32 in Wrapping) -> bool {
         transition entry < 7 { true -> swapped(solver, column, selected, previous, entry) _ -> eliminate_row(solver, column, column + 1, previous) }
     }
-    state swapped(solver: &mut Solver, column: i32 in Wrapping, selected: i32 in Wrapping, previous: i64 in Wrapping, entry: i32 in Wrapping) -> bool {
+    machine swapped(solver: &mut Solver, column: i32 in Wrapping, selected: i32 in Wrapping, previous: i64 in Wrapping, entry: i32 in Wrapping) -> bool {
         let first: i64 in Wrapping = read_work(&solver.work, column * 7 + entry);
         let second: i64 in Wrapping = read_work(&solver.work, selected * 7 + entry);
         write_work(&mut solver.work, column * 7 + entry, second);
         write_work(&mut solver.work, selected * 7 + entry, first);
         transition { _ -> swap(solver, column, selected, previous, entry + 1) }
     }
-    state eliminate_row(solver: &mut Solver, column: i32 in Wrapping, row: i32 in Wrapping, previous: i64 in Wrapping) -> bool {
+    machine eliminate_row(solver: &mut Solver, column: i32 in Wrapping, row: i32 in Wrapping, previous: i64 in Wrapping) -> bool {
         transition row < solver.metabolites { true -> eliminate_start(solver, column, row, previous) _ -> next_pivot(solver, column) }
     }
-    state eliminate_start(solver: &mut Solver, column: i32 in Wrapping, row: i32 in Wrapping, previous: i64 in Wrapping) -> bool {
+    machine eliminate_start(solver: &mut Solver, column: i32 in Wrapping, row: i32 in Wrapping, previous: i64 in Wrapping) -> bool {
         let factor: i64 in Wrapping = read_work(&solver.work, row * 7 + column);
         let diagonal: i64 in Wrapping = read_work(&solver.work, column * 7 + column);
         transition { _ -> eliminate(solver, column, row, previous, factor, diagonal, column + 1) }
     }
-    state eliminate(solver: &mut Solver, column: i32 in Wrapping, row: i32 in Wrapping, previous: i64 in Wrapping, factor: i64 in Wrapping, diagonal: i64 in Wrapping, entry: i32 in Wrapping) -> bool {
+    machine eliminate(solver: &mut Solver, column: i32 in Wrapping, row: i32 in Wrapping, previous: i64 in Wrapping, factor: i64 in Wrapping, diagonal: i64 in Wrapping, entry: i32 in Wrapping) -> bool {
         transition entry < 7 { true -> eliminated(solver, column, row, previous, factor, diagonal, entry) _ -> zero(solver, column, row, previous) }
     }
-    state eliminated(solver: &mut Solver, column: i32 in Wrapping, row: i32 in Wrapping, previous: i64 in Wrapping, factor: i64 in Wrapping, diagonal: i64 in Wrapping, entry: i32 in Wrapping) -> bool {
+    machine eliminated(solver: &mut Solver, column: i32 in Wrapping, row: i32 in Wrapping, previous: i64 in Wrapping, factor: i64 in Wrapping, diagonal: i64 in Wrapping, entry: i32 in Wrapping) -> bool {
         let value: i64 in Wrapping = read_work(&solver.work, row * 7 + entry);
         let above: i64 in Wrapping = read_work(&solver.work, column * 7 + entry);
         let reduced: i64 in Wrapping = quotient(diagonal * value - factor * above, previous);
         write_work(&mut solver.work, row * 7 + entry, reduced);
         transition { _ -> eliminate(solver, column, row, previous, factor, diagonal, entry + 1) }
     }
-    state zero(solver: &mut Solver, column: i32 in Wrapping, row: i32 in Wrapping, previous: i64 in Wrapping) -> bool {
+    machine zero(solver: &mut Solver, column: i32 in Wrapping, row: i32 in Wrapping, previous: i64 in Wrapping) -> bool {
         write_work(&mut solver.work, row * 7 + column, 0);
         transition { _ -> eliminate_row(solver, column, row + 1, previous) }
     }
-    state next_pivot(solver: &mut Solver, column: i32 in Wrapping) -> bool {
+    machine next_pivot(solver: &mut Solver, column: i32 in Wrapping) -> bool {
         let diagonal: i64 in Wrapping = read_work(&solver.work, column * 7 + column);
         transition { _ -> pivot(solver, column + 1, diagonal) }
     }
-    state scale_start(solver: &mut Solver, denominator: i64 in Wrapping) -> bool {
+    machine scale_start(solver: &mut Solver, denominator: i64 in Wrapping) -> bool {
         solver.denominator = denominator;
         transition { _ -> scale(solver, 0) }
     }
-    state scale(solver: &mut Solver, index: i32 in Wrapping) -> bool {
+    machine scale(solver: &mut Solver, index: i32 in Wrapping) -> bool {
         transition index < solver.reactions { true -> scaled(solver, index) _ -> backwards(solver, solver.free_count - 1) }
     }
-    state scaled(solver: &mut Solver, index: i32 in Wrapping) -> bool {
+    machine scaled(solver: &mut Solver, index: i32 in Wrapping) -> bool {
         let value: i64 in Wrapping = read_six(&solver.flux, index);
         write_six(&mut solver.flux, index, value * solver.denominator);
         transition { _ -> scale(solver, index + 1) }
     }
-    state backwards(solver: &mut Solver, column: i32 in Wrapping) -> bool {
+    machine backwards(solver: &mut Solver, column: i32 in Wrapping) -> bool {
         transition column >= 0 { true -> backward_start(solver, column) _ -> normalize(solver) }
     }
-    state backward_start(solver: &mut Solver, column: i32 in Wrapping) -> bool {
+    machine backward_start(solver: &mut Solver, column: i32 in Wrapping) -> bool {
         let right: i64 in Wrapping = read_work(&solver.work, column * 7 + 6);
         transition { _ -> subtract(solver, column, column + 1, right * solver.denominator) }
     }
-    state subtract(solver: &mut Solver, column: i32 in Wrapping, entry: i32 in Wrapping, numerator: i64 in Wrapping) -> bool {
+    machine subtract(solver: &mut Solver, column: i32 in Wrapping, entry: i32 in Wrapping, numerator: i64 in Wrapping) -> bool {
         transition entry < solver.free_count { true -> subtracted(solver, column, entry, numerator) _ -> solved(solver, column, numerator) }
     }
-    state subtracted(solver: &mut Solver, column: i32 in Wrapping, entry: i32 in Wrapping, numerator: i64 in Wrapping) -> bool {
+    machine subtracted(solver: &mut Solver, column: i32 in Wrapping, entry: i32 in Wrapping, numerator: i64 in Wrapping) -> bool {
         let reaction: i64 in Wrapping = read_six(&solver.free, entry);
         let value: i64 in Wrapping = read_six(&solver.flux, narrow_i64_to_i32_wrapping(reaction as i64) as i32 in Wrapping);
         let coefficient: i64 in Wrapping = read_work(&solver.work, column * 7 + entry);
         transition { _ -> subtract(solver, column, entry + 1, numerator - coefficient * value) }
     }
-    state solved(solver: &mut Solver, column: i32 in Wrapping, numerator: i64 in Wrapping) -> bool {
+    machine solved(solver: &mut Solver, column: i32 in Wrapping, numerator: i64 in Wrapping) -> bool {
         let diagonal: i64 in Wrapping = read_work(&solver.work, column * 7 + column);
         let value: i64 in Wrapping = quotient(numerator, diagonal);
         let reaction: i64 in Wrapping = read_six(&solver.free, column);
         write_six(&mut solver.flux, narrow_i64_to_i32_wrapping(reaction as i64) as i32 in Wrapping, value);
         transition { _ -> backwards(solver, column - 1) }
     }
-    state normalize(solver: &mut Solver) -> bool {
+    machine normalize(solver: &mut Solver) -> bool {
         transition solver.denominator < 0 { true -> positive_start(solver) _ -> bounds(solver, 0) }
     }
-    state positive_start(solver: &mut Solver) -> bool {
+    machine positive_start(solver: &mut Solver) -> bool {
         solver.denominator = 0 - solver.denominator;
         transition { _ -> positive(solver, 0) }
     }
-    state positive(solver: &mut Solver, index: i32 in Wrapping) -> bool {
+    machine positive(solver: &mut Solver, index: i32 in Wrapping) -> bool {
         transition index < solver.reactions { true -> negated(solver, index) _ -> bounds(solver, 0) }
     }
-    state negated(solver: &mut Solver, index: i32 in Wrapping) -> bool {
+    machine negated(solver: &mut Solver, index: i32 in Wrapping) -> bool {
         let value: i64 in Wrapping = read_six(&solver.flux, index);
         write_six(&mut solver.flux, index, 0 - value);
         transition { _ -> positive(solver, index + 1) }
     }
-    state bounds(solver: &mut Solver, index: i32 in Wrapping) -> bool {
+    machine bounds(solver: &mut Solver, index: i32 in Wrapping) -> bool {
         transition index < solver.reactions { true -> bound(solver, index) _ -> balance(solver, 0, 0, 0) }
     }
-    state bound(solver: &mut Solver, index: i32 in Wrapping) -> bool {
+    machine bound(solver: &mut Solver, index: i32 in Wrapping) -> bool {
         let value: i64 in Wrapping = read_six(&solver.flux, index);
         let low: i64 in Wrapping = read_six(&solver.lower, index);
         let high: i64 in Wrapping = read_six(&solver.upper, index);
@@ -231,18 +231,18 @@ machine candidate(solver: &mut Solver, code: i32 in Wrapping) -> bool crashes Tr
             true -> bounds(solver, index + 1) _ -> false
         }
     }
-    state balance(solver: &mut Solver, row: i32 in Wrapping, column: i32 in Wrapping, sum: i64 in Wrapping) -> bool {
+    machine balance(solver: &mut Solver, row: i32 in Wrapping, column: i32 in Wrapping, sum: i64 in Wrapping) -> bool {
         transition row < solver.metabolites { true -> balance_column(solver, row, column, sum) _ -> true }
     }
-    state balance_column(solver: &mut Solver, row: i32 in Wrapping, column: i32 in Wrapping, sum: i64 in Wrapping) -> bool {
+    machine balance_column(solver: &mut Solver, row: i32 in Wrapping, column: i32 in Wrapping, sum: i64 in Wrapping) -> bool {
         transition column < solver.reactions { true -> balance_added(solver, row, column, sum) _ -> balance_done(solver, row, sum) }
     }
-    state balance_added(solver: &mut Solver, row: i32 in Wrapping, column: i32 in Wrapping, sum: i64 in Wrapping) -> bool {
+    machine balance_added(solver: &mut Solver, row: i32 in Wrapping, column: i32 in Wrapping, sum: i64 in Wrapping) -> bool {
         let coefficient: i64 in Wrapping = read_matrix(&solver.matrix, row * 6 + column);
         let value: i64 in Wrapping = read_six(&solver.flux, column);
         transition { _ -> balance(solver, row, column + 1, sum + coefficient * value) }
     }
-    state balance_done(solver: &mut Solver, row: i32 in Wrapping, sum: i64 in Wrapping) -> bool {
+    machine balance_done(solver: &mut Solver, row: i32 in Wrapping, sum: i64 in Wrapping) -> bool {
         transition sum == 0 { true -> balance(solver, row + 1, 0, 0) _ -> false }
     }
 }
@@ -252,13 +252,13 @@ machine aggregate(solver: &mut Solver) crashes Trap {
     transition !solver.found || value * solver.best_denominator > best * solver.denominator {
         true -> replace(solver, 0) _ -> equal(solver, value, best)
     }
-    state equal(solver: &mut Solver, value: i64 in Wrapping, best: i64 in Wrapping) {
+    machine equal(solver: &mut Solver, value: i64 in Wrapping, best: i64 in Wrapping) {
         transition value * solver.best_denominator == best * solver.denominator { true -> ranges(solver, 0) _ -> {} }
     }
-    state replace(solver: &mut Solver, index: i32 in Wrapping) {
+    machine replace(solver: &mut Solver, index: i32 in Wrapping) {
         transition index < solver.reactions { true -> replaced(solver, index) _ -> replaced_done(solver) }
     }
-    state replaced(solver: &mut Solver, index: i32 in Wrapping) {
+    machine replaced(solver: &mut Solver, index: i32 in Wrapping) {
         let value: i64 in Wrapping = read_six(&solver.flux, index);
         write_six(&mut solver.best, index, value);
         write_six(&mut solver.minima, index, value);
@@ -267,28 +267,28 @@ machine aggregate(solver: &mut Solver) crashes Trap {
         write_six(&mut solver.maximum_denominators, index, solver.denominator);
         transition { _ -> replace(solver, index + 1) }
     }
-    state replaced_done(solver: &mut Solver) { solver.found = true; solver.best_denominator = solver.denominator; }
-    state ranges(solver: &mut Solver, index: i32 in Wrapping) {
+    machine replaced_done(solver: &mut Solver) { solver.found = true; solver.best_denominator = solver.denominator; }
+    machine ranges(solver: &mut Solver, index: i32 in Wrapping) {
         transition index < solver.reactions { true -> minimum(solver, index) _ -> {} }
     }
-    state minimum(solver: &mut Solver, index: i32 in Wrapping) {
+    machine minimum(solver: &mut Solver, index: i32 in Wrapping) {
         let value: i64 in Wrapping = read_six(&solver.flux, index);
         let current: i64 in Wrapping = read_six(&solver.minima, index);
         let denominator: i64 in Wrapping = read_six(&solver.minimum_denominators, index);
         transition value * denominator < current * solver.denominator { true -> minimum_set(solver, index, value) _ -> maximum(solver, index) }
     }
-    state minimum_set(solver: &mut Solver, index: i32 in Wrapping, value: i64 in Wrapping) {
+    machine minimum_set(solver: &mut Solver, index: i32 in Wrapping, value: i64 in Wrapping) {
         write_six(&mut solver.minima, index, value);
         write_six(&mut solver.minimum_denominators, index, solver.denominator);
         transition { _ -> maximum(solver, index) }
     }
-    state maximum(solver: &mut Solver, index: i32 in Wrapping) {
+    machine maximum(solver: &mut Solver, index: i32 in Wrapping) {
         let value: i64 in Wrapping = read_six(&solver.flux, index);
         let current: i64 in Wrapping = read_six(&solver.maxima, index);
         let denominator: i64 in Wrapping = read_six(&solver.maximum_denominators, index);
         transition value * denominator > current * solver.denominator { true -> maximum_set(solver, index, value) _ -> ranges(solver, index + 1) }
     }
-    state maximum_set(solver: &mut Solver, index: i32 in Wrapping, value: i64 in Wrapping) {
+    machine maximum_set(solver: &mut Solver, index: i32 in Wrapping, value: i64 in Wrapping) {
         write_six(&mut solver.maxima, index, value);
         write_six(&mut solver.maximum_denominators, index, solver.denominator);
         transition { _ -> ranges(solver, index + 1) }

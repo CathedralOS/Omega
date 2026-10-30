@@ -1,5 +1,3 @@
-use target::{Architecture, ObjectFormat};
-
 use crate::{FunctionLiveness, LivenessIdentity, LivenessPlan};
 
 /// `liveness_identity` from the digests of `plan.functions`, in order.
@@ -17,25 +15,12 @@ pub fn liveness_identity_from_digests(
     bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
     crate::codec_bytes::push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
-    bytes.push(match plan.target.architecture {
-        Architecture::X86_64 => 0,
-        Architecture::Aarch64 => 1,
-    });
-    bytes.push(match plan.target.object_format {
-        ObjectFormat::Elf => 0,
-        ObjectFormat::MachO => 1,
-        ObjectFormat::Coff => 2,
-    });
-    crate::codec_bytes::push_encoded(&mut bytes, (plan.target.pointer_size as u64).to_le_bytes());
-    crate::codec_bytes::push_encoded(
-        &mut bytes,
-        (plan.target.pointer_alignment as u64).to_le_bytes(),
-    );
+    bytes.extend_from_slice(&plan.target.identity_bytes());
     crate::codec_bytes::encode_len(&mut bytes, digests.len());
     for digest in digests {
         bytes.extend_from_slice(digest);
     }
-    LivenessIdentity(crate::digest_encoder::content_identity(&bytes).into())
+    LivenessIdentity::from_canonical_bytes(&bytes)
 }
 
 /// One function's share of `liveness_identity`.

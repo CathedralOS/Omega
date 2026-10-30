@@ -29,7 +29,7 @@ public machine excitation(tick: u64, alternate: bool) -> f64 {
         true -> (1.0)
         false -> later(tick, alternate)
     }
-    state later(tick: u64, alternate: bool) -> f64 {
+    machine later(tick: u64, alternate: bool) -> f64 {
         transition alternate && (tick == 4 || tick == 5) {
             true -> (-1.0)
             false -> (0.0)
@@ -74,13 +74,13 @@ public machine propagate(tree: &mut ReflectionTree, model: &LineModel, tick: u64
         true -> schedule(tree, model, tick, tick + model.first_delay, tick + model.second_delay)
         false -> (false)
     }
-    state schedule(tree: &mut ReflectionTree, model: &LineModel, tick: u64, first_arrival: u64, second_arrival: u64) -> bool {
+    machine schedule(tree: &mut ReflectionTree, model: &LineModel, tick: u64, first_arrival: u64, second_arrival: u64) -> bool {
         transition tick < 64 && first_arrival < 64 && second_arrival < 64 {
             true -> scatter(tree, model, tick, first_arrival, second_arrival)
             false -> (false)
         }
     }
-    state scatter(tree: &mut ReflectionTree, model: &LineModel, tick: u64, first_arrival: u64, second_arrival: u64) -> bool
+    machine scatter(tree: &mut ReflectionTree, model: &LineModel, tick: u64, first_arrival: u64, second_arrival: u64) -> bool
     requires tick < 64 && first_arrival < 64 && second_arrival < 64
     {
         let left: f64 = tree.to_junction_left[tick];

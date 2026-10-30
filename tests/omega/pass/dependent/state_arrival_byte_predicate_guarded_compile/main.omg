@@ -4,9 +4,9 @@
 // arriving edge. Sibling of state_arrival_contract_guarded_compile for the
 // byte-predicate atom; the unguarded shape refuses under
 // fail/dependent/state_arrival_byte_predicate_unproven_rejected.
-domain [u8]::Utf8(bytes)
+domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 
 data Main {
     buffer: [u8; 8];
@@ -21,11 +21,11 @@ machine Main::main(main: &mut Main) {
         true -> checked(main, view)
         false -> bad()
     }
-    state checked(main: &mut Main, view: &[u8])
+    machine checked(main: &mut Main, view: &[u8])
     requires
         valid_utf8(view)
     {
         main.result = view.len;
     }
-    state bad() { }
+    machine bad() { }
 }

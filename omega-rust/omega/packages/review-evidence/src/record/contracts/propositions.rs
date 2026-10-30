@@ -4,6 +4,7 @@ use crate::record::PackageReviewContractKind;
 use crate::record::PackageReviewDataProperties;
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewTypeIdentity;
+use crate::record::accessors::field_projection_accessors;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PackageReviewPropositionBinderKind {
@@ -135,21 +136,10 @@ pub struct PackageReviewPropositionShape {
 }
 
 impl PackageReviewPropositionShape {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
-
-    pub fn binders(&self) -> &[PackageReviewPropositionBinder] {
-        &self.binders
-    }
-
-    pub fn parameter_types(&self) -> &[PackageReviewTypeIdentity] {
-        &self.parameter_types
-    }
-
-    pub const fn body(&self) -> &PackageReviewPublicPropositionBody {
-        &self.body
-    }
+    field_projection_accessors!(borrowed identity: &PackageReviewNominalIdentity);
+    field_projection_accessors!(sliced binders: &[PackageReviewPropositionBinder]);
+    field_projection_accessors!(sliced parameter_types: &[PackageReviewTypeIdentity]);
+    field_projection_accessors!(borrowed body: &PackageReviewPublicPropositionBody);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

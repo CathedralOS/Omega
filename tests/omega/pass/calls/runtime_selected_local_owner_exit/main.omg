@@ -33,7 +33,7 @@ machine choose_payload(selected: bool) -> Payload {
         true -> (payload)
         false -> forward(payload)
     }
-    state forward(payload: Payload) -> Payload { payload }
+    machine forward(payload: Payload) -> Payload { payload }
 }
 
 machine main() crashes Trap {
@@ -48,6 +48,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

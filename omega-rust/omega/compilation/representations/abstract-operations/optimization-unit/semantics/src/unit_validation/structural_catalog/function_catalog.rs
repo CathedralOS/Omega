@@ -6,7 +6,6 @@ use crate::unit_validation::structural_catalog::paths::{
     structural_qualifications_match,
 };
 use abstract_operations::AbstractOperation as O;
-use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, OperationId, StructuralDomainId, StructuralPlaceKind,
@@ -131,54 +130,15 @@ pub(crate) fn validate_function_structural_catalog(
                 structural_type,
             } => {
                 types.contains_key(&structural_type)
-                    && function.block_nodes()
-                        .any(|node| {
-                            matches!(
-                                &node.operation,
-                                abstract_operations::establish_or_subslice_set_pattern!(psi_operation,result, ..)
-                                | abstract_operations::establish_record_or_case_pattern!(psi_operation,
-                                    result, ..)
-                                | O::EstablishZeroedStructural { psi_operation, result }
-                                | O::EstablishStructuralLocal { psi_operation, result }
-                                | O::EstablishReference {
-                                    psi_operation,
-                                    result,
-                                    ..
-                                }
-                                | O::EstablishPlacedReference { psi_operation, result, .. }
-                                // A window extraction's moved subtree is a
-                                // structural operation result like any
-                                // establishment's.
-                                | O::MoveStructuralField {
-                                    psi_operation,
-                                    result,
-                                    ..
-                                }
-                                // A leaf copy's fresh owned value is a
-                                // structural operation result like any
-                                // establishment's.
-                                | O::MoveStructuralValue { psi_operation, result, .. }
-                                | O::TransformContent { psi_operation, result, .. }
-                                | O::StructuralLeafCopy {
-                                    psi_operation,
-                                    result,
-                                    ..
-                                }
-                                | O::CallStructural {
-                                    psi_operation,
-                                    result: AbstractStructuralCallResult::Structural { result, .. },
-                                    ..
-                                }
-                                | O::BoundaryCall {
-                                    psi_operation,
-                                    result: abstract_operations::AbstractBoundaryResult::Structural(result),
-                                    ..
-                                }
-                                    if *psi_operation == producer
-                                        && result.place == place.id
-                                        && result.structural_type == structural_type
-                            )
-                        })
+                    && function.block_nodes().any(|node| {
+                        node.operation
+                            .structural_result()
+                            .is_some_and(|(candidate, result)| {
+                                candidate == producer
+                                    && result.place == place.id
+                                    && result.structural_type == structural_type
+                            })
+                    })
             }
             StructuralPlaceKind::ByteSequenceLiteral { .. } => true,
             StructuralPlaceKind::TrivialAffineLocal { .. } => true,
@@ -199,10 +159,7 @@ pub(crate) fn validate_function_structural_catalog(
             return Err(mismatch());
         }
         if parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-            && !function
-                .entry_claim_declarations
-                .iter()
-                .any(|claim| claim.input == parameter.place)
+            && !function.entry_claim_declared(parameter.place)
         {
             return Err(mismatch());
         }
@@ -228,25 +185,8 @@ pub(crate) fn validate_function_structural_catalog(
         return Err(mismatch());
     }
     for node in function.block_nodes() {
-        let structural_result = match &node.operation {
-            abstract_operations::establish_set_quint_pattern!(result, ..)
-            | abstract_operations::establish_case_or_record_result_pattern!(result)
-            | O::EstablishZeroedStructural { result, .. }
-            | O::MoveStructuralField { result, .. }
-            | O::StructuralLeafCopy { result, .. }
-            | O::MoveStructuralValue { result, .. }
-            | O::TransformContent { result, .. }
-            | O::CallStructural {
-                result: AbstractStructuralCallResult::Structural { result, .. },
-                ..
-            }
-            | O::BoundaryCall {
-                result: abstract_operations::AbstractBoundaryResult::Structural(result),
-                ..
-            } => Some(result),
-            _ => None,
-        };
-        if let Some(result) = structural_result
+        let structural_result = node.operation.structural_result();
+        if let Some((_, result)) = structural_result
             && (!structural_qualifications_match(
                 result.structural_type,
                 &result.qualifications,
@@ -267,59 +207,15 @@ pub(crate) fn validate_function_structural_catalog(
             // tuple compressed into ReturnStructural. Their one-to-one
             // recognition is validated together below.
             O::EstablishTrivialAffineLocal { .. } => None,
-            abstract_operations::establish_set_quint_pattern!(psi_operation, result, ..)
-            | abstract_operations::establish_record_or_case_pattern!(psi_operation, result, ..)
-            | O::EstablishZeroedStructural {
-                psi_operation,
-                result,
-            }
-            | O::EstablishReference {
-                psi_operation,
-                result,
-                ..
-            }
-            | O::EstablishPlacedReference {
-                psi_operation,
-                result,
-                ..
-            }
-            | O::MoveStructuralField {
-                psi_operation,
-                result,
-                ..
-            }
-            | O::MoveStructuralValue {
-                psi_operation,
-                result,
-                ..
-            }
-            | O::TransformContent {
-                psi_operation,
-                result,
-                ..
-            }
-            | O::StructuralLeafCopy {
-                psi_operation,
-                result,
-                ..
-            }
-            | O::CallStructural {
-                psi_operation,
-                result: AbstractStructuralCallResult::Structural { result, .. },
-                ..
-            }
-            | O::BoundaryCall {
-                psi_operation,
-                result: abstract_operations::AbstractBoundaryResult::Structural(result),
-                ..
-            } => Some((
-                result.place,
-                StructuralPlaceKind::OperationResult {
-                    producer: *psi_operation,
-                    structural_type: result.structural_type,
-                },
-            )),
-            _ => None,
+            _ => structural_result.map(|(producer, result)| {
+                (
+                    result.place,
+                    StructuralPlaceKind::OperationResult {
+                        producer,
+                        structural_type: result.structural_type,
+                    },
+                )
+            }),
         };
         if expected.is_some_and(|(place, kind)| places.get(&place) != Some(&kind)) {
             return Err(mismatch());

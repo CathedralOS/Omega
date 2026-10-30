@@ -1,14 +1,20 @@
 # Nested generated dependency under dual-purpose custody
 
 One dependency package serves the root in both scopes: `build_depend_as`
-imports it for Build evaluation while `depend_as` imports the same package
-for the product. The dependency's own Build imports a further `generator`
-package, so generated source flows through two nested build edges: the
-dependency build calls `generator`'s product machine, writes `generated.omg`,
-seals it, and publishes it with `include_source`. The root build calls the
-generated `value()` through the build edge, and the product `entry` calls the
-same generated machine through the product edge — the package's two purpose
-occurrence rows must each carry the correct scoped context.
+requests it for Build work while `depend_as` imports the same package for the
+product. The dependency's own Build requests a further `generator` package.
+Its package-local helper supplies the generation input; Build writes
+`generated.omg` and publishes it with `include_source`. The product entry
+calls the generated `value()` through its Product edge. The package's two
+purpose occurrence rows must each carry the correct scoped context, and every
+outstanding dependency joins even when no provider is awaited.
+
+The old direct Build import of the newly requested generator is retired by
+[Build declarations](../../../../../wiki/spec/build/declarations.md). This
+fixture now pins nested discovery and generated-source custody, not implicit
+execution authority from a dependency request. Explicit cross-package Build
+execution is covered by `explicit_provider_readiness_exit`; the root here does
+not call a dependency during Build.
 
 This is corpus coverage for custody the CLI `package_commands/build_purposes`
 test asserted before the Rust-test cut: a nested generated-dependency chain

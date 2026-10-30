@@ -1,4 +1,4 @@
-//! Canonical source-closure text, version 2; independent of binary version 7.
+//! Canonical source-closure text: v2 for Product graphs, v3 with catalog execution.
 //!
 //! Fixed-order LF-terminated records start with `omega-source-closure 2`, then
 //! `target`, `root` (role/request/selected source), `packages N` (each source,
@@ -7,6 +7,16 @@
 //! alias, selected source), and `end`. Keys expose name and lineage;
 //! resolutions expose commit/tree/content. No field is an encoded binary
 //! subject or admission result. Navigation remains separate from identity.
+//! Version 3 adds `catalog-dependencies N` before `end`: each observer source,
+//! navigation and exact Build request ordinal precedes its closed provider graph
+//! in the same readable text format. These rows do not add Product imports.
+//! Provider graphs contain no nested catalog rows; their observations are
+//! flattened at the outer level, keeping recovery bounded to two levels.
+//! Catalog-free subjects retain v2 text and v7 binary identity unchanged; only
+//! subjects carrying Build-only catalog execution rows use v3 text and v8 binary
+//! identity. Demand-time Product query dependencies use v4 text and v9 binary:
+//! each catalog ordinal is followed by its explicit purpose, keeping Build and
+//! Product ordinal zero distinct. Older versions never gain Product authority.
 //!
 //! Legacy `omega-source-closure 1` records remain readable as the versioned
 //! lock migration: they carry no `authored-build` sections or `purpose` rows

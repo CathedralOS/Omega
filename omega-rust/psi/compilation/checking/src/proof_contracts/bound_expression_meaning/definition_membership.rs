@@ -23,7 +23,7 @@ pub fn has_exact_domain_case_membership_meaning(
         return false;
     }
     exact_case_membership_meaning(program, expression, comparison, |subject, owner| {
-        membership_subject_matches_owner(program, None, subject, owner, |subject| {
+        membership_subject_matches_owner(program, subject, owner, |subject| {
             subject_type(program, DefinitionSubject::Domain(domain), subject, 0)
         })
     })
@@ -49,7 +49,7 @@ pub fn has_exact_data_case_membership_meaning(
         return false;
     }
     exact_case_membership_meaning(program, expression, comparison, |subject, owner| {
-        membership_subject_matches_owner(program, None, subject, owner, |subject| {
+        membership_subject_matches_owner(program, subject, owner, |subject| {
             subject_type(program, DefinitionSubject::Data(data), subject, 0)
         })
     })
@@ -159,6 +159,16 @@ fn subject_type(
                     domain.target_type
                 }
                 DefinitionSubject::Data(data) => {
+                    if data.predicate_subject_symbol.is_valid()
+                        && path.symbol == data.predicate_subject_symbol
+                        && path.head_symbol == path.symbol
+                        && program
+                            .expression_table
+                            .name_path_member_symbols(path.member_symbols)
+                            == [path.symbol]
+                    {
+                        return Some(data.predicate_subject_type);
+                    }
                     if !path.symbol.is_valid()
                         || path.head_symbol != path.symbol
                         || program

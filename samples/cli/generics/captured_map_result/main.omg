@@ -31,7 +31,7 @@ machine Main::main(main: &mut Main) blocks; reaches Console crashes Trap {
         true -> combined(main, seven, eight)
         _ -> bad()
     }
-    state combined(main: &mut Main, first: i32, second: i32)
+    machine combined(main: &mut Main, first: i32, second: i32)
     requires 0 <= first && first <= 9 && 0 <= second && second <= 9
     {
         let combined: i32 = first * 10 + second;
@@ -40,8 +40,8 @@ machine Main::main(main: &mut Main) blocks; reaches Console crashes Trap {
         Console::write_line("");
         transition combined == 78 { true -> done() _ -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

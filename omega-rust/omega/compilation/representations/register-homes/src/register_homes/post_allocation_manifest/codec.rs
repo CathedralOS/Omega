@@ -7,14 +7,8 @@ use optimization_core::{
     PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity,
 };
 use register_model::TargetRegisterEnvironmentIdentity;
-use selected_instructions::{
-    AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity,
-    CopiedCallOperandIdentity, CopyRemovalIdentity, DeadCompareIdentity, EquivalentCompareIdentity,
-    FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity,
-    PressureRematerializationIdentity, RedundantCompareIdentity, RedundantExtensionIdentity,
-    SelectedInstructionPlanIdentity, StoredLoadForwardingIdentity,
-};
-use target::{Architecture, NativeTarget, ObjectFormat};
+use selected_instructions::{LiveRangeIdentity, LivenessIdentity, SelectedInstructionPlanIdentity};
+use target::{NativeTarget, TargetWireIdentityError};
 
 use crate::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RegisterHomeIdentity};
 
@@ -50,93 +44,28 @@ impl PostAllocationOptimizationManifest {
         let pre_physical = PrePhysicalOptimizationManifestIdentity::from_bytes(cursor.array()?);
         let target = decode_target(&mut cursor)?;
         let selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
-        let selected_lowering_completion = match cursor.byte()? {
-            0 => None,
-            1 => Some(SelectedLoweringOptimizationCompletionIdentity::from_bytes(
-                cursor.array()?,
-            )),
-            tag => {
-                return Err(
-                    PostAllocationOptimizationManifestDecodeError::UnknownCompletionStatus(tag),
-                );
-            }
-        };
-        let pre_allocation_completion = match cursor.byte()? {
-            0 => None,
-            1 => Some(PreAllocationOptimizationCompletionIdentity::from_bytes(
-                cursor.array()?,
-            )),
-            tag => {
-                return Err(
-                    PostAllocationOptimizationManifestDecodeError::UnknownCompletionStatus(tag),
-                );
-            }
-        };
-        let transformation_count = cursor.length()?;
-        let mut selected_transformations =
-            Vec::with_capacity(transformation_count.min(cursor.remaining()));
-        for _ in 0..transformation_count {
-            selected_transformations.push(match cursor.byte()? {
-                1 => PostAllocationSelectedTransformation::FixedViewCopy(
-                    FixedViewCopyIdentity::from_bytes(cursor.array()?),
-                ),
-                2 => PostAllocationSelectedTransformation::LiteralFold(
-                    LiteralFoldIdentity::from_bytes(cursor.array()?),
-                ),
-                3 => PostAllocationSelectedTransformation::PressureRematerialization(
-                    PressureRematerializationIdentity::from_bytes(cursor.array()?),
-                ),
-                4 => PostAllocationSelectedTransformation::RuntimeSpill(
-                    SelectedInstructionPlanIdentity::from_bytes(cursor.array()?),
-                ),
-                5 => PostAllocationSelectedTransformation::RuntimeRematerialization(
-                    SelectedInstructionPlanIdentity::from_bytes(cursor.array()?),
-                ),
-                6 => PostAllocationSelectedTransformation::CopyRemoval(
-                    CopyRemovalIdentity::from_bytes(cursor.array()?),
-                ),
-                7 => PostAllocationSelectedTransformation::RedundantExtension(
-                    RedundantExtensionIdentity::from_bytes(cursor.array()?),
-                ),
-                8 => PostAllocationSelectedTransformation::AddressFold(
-                    AddressFoldIdentity::from_bytes(cursor.array()?),
-                ),
-                9 => PostAllocationSelectedTransformation::ConstantBoolean(
-                    ConstantBooleanIdentity::from_bytes(cursor.array()?),
-                ),
-                10 => PostAllocationSelectedTransformation::ConstantBranch(
-                    ConstantBranchIdentity::from_bytes(cursor.array()?),
-                ),
-                11 => PostAllocationSelectedTransformation::DeadCompare(
-                    DeadCompareIdentity::from_bytes(cursor.array()?),
-                ),
-                12 => PostAllocationSelectedTransformation::RedundantCompare(
-                    RedundantCompareIdentity::from_bytes(cursor.array()?),
-                ),
-                13 => PostAllocationSelectedTransformation::EquivalentCompare(
-                    EquivalentCompareIdentity::from_bytes(cursor.array()?),
-                ),
-                14 => PostAllocationSelectedTransformation::RuntimeSplit(
-                    SelectedInstructionPlanIdentity::from_bytes(cursor.array()?),
-                ),
-                15 => PostAllocationSelectedTransformation::CopiedCallOperand(
-                    CopiedCallOperandIdentity::from_bytes(cursor.array()?),
-                ),
-                16 => PostAllocationSelectedTransformation::StoredLoadForwarding(
-                    StoredLoadForwardingIdentity::from_bytes(cursor.array()?),
-                ),
-                17 => PostAllocationSelectedTransformation::FixedOccurrences(
-                    SelectedInstructionPlanIdentity::from_bytes(cursor.array()?),
-                ),
-                tag => {
-                    return Err(
-                        PostAllocationOptimizationManifestDecodeError::UnknownTransformationTag(
-                            tag,
-                        ),
-                    );
-                }
-            });
-        }
+        let selected_lowering_completion = crate::cursor::optional(
+            &mut cursor,
+            |cursor| {
+                Ok(SelectedLoweringOptimizationCompletionIdentity::from_bytes(
+                    cursor.array()?,
+                ))
+            },
+            PostAllocationOptimizationManifestDecodeError::UnknownCompletionStatus,
+        )?;
+        let pre_allocation_completion = crate::cursor::optional(
+            &mut cursor,
+            |cursor| {
+                Ok(PreAllocationOptimizationCompletionIdentity::from_bytes(
+                    cursor.array()?,
+                ))
+            },
+            PostAllocationOptimizationManifestDecodeError::UnknownCompletionStatus,
+        )?;
+        let selected_transformations = crate::codec_bytes::decode_list(
+            &mut cursor,
+            PostAllocationSelectedTransformation::decode,
+        )?;
         let liveness = LivenessIdentity::from_bytes(cursor.array()?);
         let ranges = LiveRangeIdentity::from_bytes(cursor.array()?);
         let legality = AllocationLegalityIdentity::from_bytes(cursor.array()?);
@@ -219,76 +148,8 @@ pub(super) fn encode_manifest_content(manifest: &PostAllocationOptimizationManif
             .to_le_bytes(),
     );
     for transformation in &manifest.selected_transformations {
-        match transformation {
-            PostAllocationSelectedTransformation::FixedViewCopy(identity) => {
-                canonical.push(1);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            PostAllocationSelectedTransformation::LiteralFold(identity) => {
-                canonical.push(2);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            PostAllocationSelectedTransformation::PressureRematerialization(identity) => {
-                canonical.push(3);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            PostAllocationSelectedTransformation::RuntimeSpill(identity) => {
-                canonical.push(4);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            PostAllocationSelectedTransformation::RuntimeRematerialization(identity) => {
-                canonical.push(5);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            PostAllocationSelectedTransformation::CopyRemoval(identity) => {
-                canonical.push(6);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            PostAllocationSelectedTransformation::RedundantExtension(identity) => {
-                canonical.push(7);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            PostAllocationSelectedTransformation::AddressFold(identity) => {
-                canonical.push(8);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            PostAllocationSelectedTransformation::ConstantBoolean(identity) => {
-                canonical.push(9);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            PostAllocationSelectedTransformation::ConstantBranch(identity) => {
-                canonical.push(10);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            PostAllocationSelectedTransformation::DeadCompare(identity) => {
-                canonical.push(11);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            PostAllocationSelectedTransformation::RedundantCompare(identity) => {
-                canonical.push(12);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            PostAllocationSelectedTransformation::EquivalentCompare(identity) => {
-                canonical.push(13);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            PostAllocationSelectedTransformation::FixedOccurrences(identity) => {
-                canonical.push(17);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            PostAllocationSelectedTransformation::RuntimeSplit(identity) => {
-                canonical.push(14);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            PostAllocationSelectedTransformation::CopiedCallOperand(identity) => {
-                canonical.push(15);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            PostAllocationSelectedTransformation::StoredLoadForwarding(identity) => {
-                canonical.push(16);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-        }
+        canonical.push(transformation.wire_tag());
+        canonical.extend_from_slice(&transformation.identity_bytes());
     }
     canonical.extend_from_slice(&manifest.liveness.bytes());
     canonical.extend_from_slice(&manifest.ranges.bytes());
@@ -322,54 +183,23 @@ fn statistics_values(statistics: PostAllocationStatistics) -> [u64; 5] {
 }
 
 fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {
-    bytes.push(match target.architecture {
-        Architecture::Aarch64 => 1,
-        Architecture::X86_64 => 2,
-    });
-    bytes.push(match target.object_format {
-        ObjectFormat::Elf => 1,
-        ObjectFormat::MachO => 2,
-        ObjectFormat::Coff => 3,
-    });
-    bytes.extend_from_slice(
-        &u64::try_from(target.pointer_size)
-            .expect("target pointer size fits u64")
-            .to_le_bytes(),
-    );
-    bytes.extend_from_slice(
-        &u64::try_from(target.pointer_alignment)
-            .expect("target pointer alignment fits u64")
-            .to_le_bytes(),
-    );
+    bytes.extend_from_slice(&target.wire_identity_bytes());
 }
 
 fn decode_target(
     cursor: &mut Cursor<'_>,
 ) -> Result<NativeTarget, PostAllocationOptimizationManifestDecodeError> {
-    let architecture = match cursor.byte()? {
-        1 => Architecture::Aarch64,
-        2 => Architecture::X86_64,
-        tag => {
-            return Err(PostAllocationOptimizationManifestDecodeError::UnknownArchitecture(tag));
+    let encoded = cursor.array::<18>()?;
+    NativeTarget::from_wire_identity_bytes(&encoded).map_err(|error| match error {
+        TargetWireIdentityError::UnknownArchitecture(tag) => {
+            PostAllocationOptimizationManifestDecodeError::UnknownArchitecture(tag)
         }
-    };
-    let object_format = match cursor.byte()? {
-        1 => ObjectFormat::Elf,
-        2 => ObjectFormat::MachO,
-        3 => ObjectFormat::Coff,
-        tag => {
-            return Err(PostAllocationOptimizationManifestDecodeError::UnknownObjectFormat(tag));
+        TargetWireIdentityError::UnknownObjectFormat(tag) => {
+            PostAllocationOptimizationManifestDecodeError::UnknownObjectFormat(tag)
         }
-    };
-    let pointer_size = usize::try_from(cursor.u64()?)
-        .map_err(|_| PostAllocationOptimizationManifestDecodeError::TargetLayoutOverflow)?;
-    let pointer_alignment = usize::try_from(cursor.u64()?)
-        .map_err(|_| PostAllocationOptimizationManifestDecodeError::TargetLayoutOverflow)?;
-    Ok(NativeTarget {
-        architecture,
-        object_format,
-        pointer_size,
-        pointer_alignment,
+        TargetWireIdentityError::LayoutOverflow => {
+            PostAllocationOptimizationManifestDecodeError::TargetLayoutOverflow
+        }
     })
 }
 

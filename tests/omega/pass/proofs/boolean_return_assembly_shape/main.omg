@@ -8,8 +8,8 @@ machine choose() -> bool {
     live:
         jmp yes()
     }
-    state no() -> bool { false }
-    state yes() -> bool { true }
+    machine no() -> bool { false }
+    machine yes() -> bool { true }
 }
 
 machine main() -> bool {

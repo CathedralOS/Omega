@@ -20,7 +20,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, result)
         false -> finish(main, 9)
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 machine Main::view(main: &Main, lo: u64, hi: u64) -> i32 {

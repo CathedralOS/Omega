@@ -10,9 +10,7 @@ pub(super) enum PermissionStep {
         statement: usize,
         evaluation: FlowPermissionEvaluation,
     },
-    MissedGuard {
-        statement: usize,
-    },
+    MissedGuard,
     Exit {
         coordinate: FlowClaimJoinExit,
         crash: bool,
@@ -40,7 +38,7 @@ pub(super) fn walk<S: Clone>(
                 },
                 &mut custody,
             );
-            if ends_domain(
+            if evaluation_has_no_normal_completion(
                 program,
                 state,
                 calls,
@@ -59,7 +57,7 @@ pub(super) fn walk<S: Clone>(
             },
             &mut custody,
         );
-        if ends_domain(
+        if evaluation_has_no_normal_completion(
             program,
             state,
             calls,
@@ -86,7 +84,7 @@ pub(super) fn walk<S: Clone>(
                 },
                 &mut branch,
             );
-            if target_ends_domain(program, target) {
+            if target_has_no_normal_completion(program, state, target) {
                 continue;
             }
             visit(
@@ -106,7 +104,7 @@ pub(super) fn walk<S: Clone>(
         {
             return;
         }
-        visit(PermissionStep::MissedGuard { statement }, &mut custody);
+        visit(PermissionStep::MissedGuard, &mut custody);
     }
     if !transitions.is_empty()
         && super::permission_events::case_transition_run_is_exhaustive(
@@ -136,12 +134,12 @@ pub(super) fn walk<S: Clone>(
     );
 }
 
-/// An admitted external completion has no normal ownership successor. Its
+/// An invocation without normal completion has no normal caller successor. Its
 /// argument evaluation still runs above, but neither cleanup nor a fabricated
 /// consumption event may discharge the remaining frontier. Use the producer's
 /// unconditional call occurrences: a call in only one selected expression arm
 /// cannot erase the other arm's normal-exit obligations.
-fn ends_domain(
+fn evaluation_has_no_normal_completion(
     program: &dyn validation::CheckingInput,
     state: &typed_trees::state::State,
     calls: &[checked_trees::FlowCallFact],
@@ -162,153 +160,168 @@ fn ends_domain(
                 statement,
                 call.call_ordinal,
             ) == evaluation
-            && external_completion(program, call.target_symbol)
+            && call_has_no_normal_completion(program, call.target_symbol)
     })
 }
 
-fn external_completion(
+fn call_has_no_normal_completion(
     program: &dyn validation::CheckingInput,
     target: symbols::SymbolHandle,
 ) -> bool {
     matches!(
         validation::boundary_requirement_completion(program, target),
         semantic_vocabulary::BoundaryCompletion::External(_)
-    )
+    ) || validation::call_target_state(program, target)
+        .is_some_and(|state| validation::normal_completion_possible(program, state) == Some(false))
 }
 
-fn target_ends_domain(
+fn target_has_no_normal_completion(
     program: &dyn validation::CheckingInput,
+    state: &typed_trees::state::State,
     target: typed_trees::statement::TransitionTargetHandle,
 ) -> bool {
     match program.statement_table.transition_target(target) {
         typed_trees::statement::TransitionTargetNode::Named { path, .. } => {
-            external_completion(program, path.symbol)
+            let Some(machine) = program.machine_holding_state(state.symbol) else {
+                return false;
+            };
+            // A same-activation state jump still owns its arrival transfer,
+            // even if the destination can never return from the machine.
+            validation::terminal_callable_target(program, machine, path.symbol).is_some()
+                && call_has_no_normal_completion(program, path.symbol)
         }
-        typed_trees::statement::TransitionTargetNode::Value(value) => program
-            .expression_table
-            .call_node(*value)
-            .is_some_and(|call| external_completion(program, call.target_symbol)),
+        typed_trees::statement::TransitionTargetNode::Value(value) => {
+            validation::expression_normal_completion_possible(program, *value) == Some(false)
+        }
         typed_trees::statement::TransitionTargetNode::Terminal => false,
     }
 }
 
-/// Case alternatives narrow custody on the same chosen edge as its moves.
-pub(super) fn select_cases(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    step: PermissionStep,
-    places: &mut [super::linear_obligations::LinearPlace],
-) {
-    for (statement, subject, variant, positive) in case_tests(program, state, step) {
-        if positive {
-            super::permission_events::select_case_alternative_from_guard(
-                program,
-                state.symbol,
-                statement,
-                subject,
-                variant,
-                places,
-            );
-        } else {
-            super::permission_events::exclude_case_alternative(
-                program,
-                state.symbol,
-                statement,
-                subject,
-                variant,
-                places,
-            );
-        }
-    }
+/// Case exclusions at one evaluation cut. Flow already authenticated the saved
+/// guard receiver, selected polarity and intervening writes. Custody consumes
+/// those exact observations instead of resolving the guard's descriptor again.
+pub(super) struct SelectedCases {
+    inactive: Vec<validation::CanonicalPlace>,
 }
 
-/// Cleanup and linear custody observe the same selected case. An absent case
-/// is excluded from the residual cleanup region, never consumed or retired.
-/// Common fields and the selected payload remain owned; later writes clear
-/// exclusions through ordinary storage establishment.
-pub(super) fn select_cleanup_cases<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    machine: &'program typed_trees::machine::Machine,
-    frames: Option<&validation::CallFrameResolver<'program>>,
-    state: &typed_trees::state::State,
-    step: PermissionStep,
-    remaining: &mut super::cleanup_dispositions::RemainingCustody,
-) {
-    for (statement, subject, variant, positive) in case_tests(program, state, step) {
-        let Some(typed_trees::statement::StatementNode::Transition(transition)) = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(statement)
-        else {
-            continue;
+impl SelectedCases {
+    pub(super) fn at_step(
+        program: &dyn validation::CheckingInput,
+        facts: &checked_trees::CheckFacts,
+        flow: &checked_trees::FlowStateFact,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        step: PermissionStep,
+    ) -> Option<Self> {
+        let (statement, constraints) = match step {
+            PermissionStep::Evaluate {
+                statement,
+                evaluation:
+                    FlowPermissionEvaluation::Statement | FlowPermissionEvaluation::TransitionGuard,
+            } => {
+                let mut rows = facts
+                    .flow
+                    .control
+                    .statements
+                    .span(flow.statements)?
+                    .iter()
+                    .filter(|row| row.statement_index == statement);
+                let row = rows.next()?;
+                if rows.next().is_some() {
+                    return None;
+                }
+                (statement, row.entry_constraints)
+            }
+            PermissionStep::Evaluate {
+                statement,
+                evaluation: FlowPermissionEvaluation::TransitionTarget(target),
+            } => {
+                let mut rows = facts
+                    .flow
+                    .control
+                    .outgoing
+                    .span(flow.outgoing)?
+                    .iter()
+                    .filter(|row| {
+                        row.statement_index == statement
+                            && row.transition_target == target
+                            && row.machine_symbol == machine.symbol
+                            && row.state_symbol == state.symbol
+                    });
+                let row = rows.next()?;
+                if rows.next().is_some() {
+                    return None;
+                }
+                (statement, row.operand_entry_constraints)
+            }
+            PermissionStep::Exit { coordinate, .. }
+                if coordinate.kind == FlowClaimJoinExitKind::FinalExpression =>
+            {
+                let mut rows = facts
+                    .flow
+                    .control
+                    .outgoing
+                    .span(flow.outgoing)?
+                    .iter()
+                    .filter(|row| {
+                        row.statement_index == coordinate.statement_index
+                            && !row.transition_target.is_valid()
+                            && row.machine_symbol == machine.symbol
+                            && row.state_symbol == state.symbol
+                    });
+                let row = rows.next()?;
+                if rows.next().is_some() {
+                    return None;
+                }
+                (coordinate.statement_index, row.constraints)
+            }
+            // Rejected guards live in the next statement's entry cut or the
+            // implicit completion's outgoing cut. A selected target's exit
+            // keeps the exclusions selected before its operands.
+            _ => return None,
         };
-        let TransitionGuardNode::When(guard) = transition.guard else {
-            continue;
-        };
-        // A later conjunct may overwrite an earlier case observation. Unknown
-        // effects cannot justify absence at the end of the complete guard.
-        if !frames.is_some_and(|frames| {
-            frames
-                .expression_write_frame(machine, guard)
-                .into_complete_paths()
-                .is_some_and(|writes| writes.is_empty())
-        }) {
-            continue;
+        if constraints.is_empty() {
+            return None;
         }
-        let Some(place) = validation::canonical_place_from_expression_in_state(
+        let contexts = facts
+            .flow
+            .semantic_constraint_contexts(constraints)
+            .collect::<Vec<_>>();
+        if contexts.is_empty() {
+            return None;
+        }
+        let evidence = crate::flow::CaseEvidence::prepare(
             program,
+            &facts.semantic,
+            &contexts,
+            machine.symbol,
             state.symbol,
             statement,
-            subject,
-        ) else {
-            continue;
-        };
-        remaining.select_owned_case(program, state.symbol, statement, &place, variant, positive);
+        )?;
+        let inactive = evidence.inactive_owned_cases();
+        if inactive.is_empty() {
+            return None;
+        }
+        Some(Self { inactive })
     }
-}
 
-fn case_tests(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    step: PermissionStep,
-) -> Vec<(
-    usize,
-    typed_trees::expression::ExpressionHandle,
-    symbols::SymbolHandle,
-    bool,
-)> {
-    let (statement, target) = match step {
-        PermissionStep::Evaluate {
-            statement,
-            evaluation: FlowPermissionEvaluation::TransitionTarget(target),
-        } => (statement, Some(target)),
-        PermissionStep::MissedGuard { statement } => (statement, None),
-        _ => return Vec::new(),
-    };
-    let StatementNode::Transition(transition) =
-        &program.statement_table.statements(state.statement_nodes)[statement]
-    else {
-        return Vec::new();
-    };
-    let TransitionGuardNode::When(guard) = transition.guard else {
-        return Vec::new();
-    };
-    if target == Some(transition.target) {
-        let mut positive = Vec::new();
-        super::permission_events::collect_positive_case_tests(
-            program,
-            state.symbol,
-            guard,
-            &mut positive,
-        );
-        positive
-            .into_iter()
-            .map(|(subject, variant)| (statement, subject, variant, true))
-            .collect()
-    } else {
-        super::permission_events::exact_positive_case_test(program, state.symbol, guard)
-            .into_iter()
-            .map(|(subject, variant)| (statement, subject, variant, false))
-            .collect()
+    pub(super) fn apply_claims(&self, places: &mut [super::linear_obligations::LinearPlace]) {
+        for excluded in &self.inactive {
+            for place in places.iter_mut().filter(|place| {
+                place.root == excluded.root && place.path.starts_with(&excluded.segments)
+            }) {
+                place.live = false;
+                place.case_excluded = true;
+            }
+        }
+    }
+
+    pub(super) fn apply_cleanup(
+        &self,
+        remaining: &mut super::cleanup_dispositions::RemainingCustody,
+    ) {
+        for excluded in &self.inactive {
+            remaining.exclude_absent_case(excluded);
+        }
     }
 }

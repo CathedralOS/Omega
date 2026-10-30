@@ -33,6 +33,10 @@ fn module() -> TerminalModule {
     guarantee.remap_value_ids(|_| result);
     let mut machine = unit_machine(machine_id);
     machine.declaration.as_mut().unwrap().callable = TerminalIdentityIndex(3);
+    machine.declaration.as_mut().unwrap().semantic_declaration = TerminalIdentityIndex(1);
+    machine
+        .parameter_order
+        .push(terminal_psi::BoundaryParameterKind::Scalar);
     machine.parameters.push(ValueDeclaration {
         id: subject,
         scalar_type,
@@ -59,6 +63,7 @@ fn module() -> TerminalModule {
         .scalar_qualifications
         .domains
         .push(ScalarDomainDeclaration {
+            required_memberships: Some(Vec::new()),
             id: domain,
             semantic_domain: DomainSemanticId::new(1).unwrap(),
             identity: TerminalIdentityIndex(4),
@@ -68,6 +73,9 @@ fn module() -> TerminalModule {
                 proposition: predicate,
             }),
             establishment_routes: vec![ScalarDomainEstablishmentRoute::ExactMachine {
+                declaration: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(
+                    1,
+                )),
                 machine_identity: TerminalIdentityIndex(3),
             }],
         });
@@ -121,6 +129,8 @@ fn scalar_boundary_result_retains_membership_and_rejects_detached_types() {
     let result = module.machines[0].result.scalar().unwrap().value_type();
     let boundary = semantic_vocabulary::BoundaryMachineId::new(1).unwrap();
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        numeric_intrinsic: None,
+        normal_qualifications: Vec::new(),
         scalar_domain_requirements: Vec::new(),
         declaration: None,
         role: terminal_psi::BoundaryDeclarationRole::Callable,
@@ -295,6 +305,9 @@ fn routed_scalar_result_rejects_detached_or_forged_transport() {
         ("wrong issuer", |module| {
             module.scalar_qualifications.domains[0].establishment_routes[0] =
                 ScalarDomainEstablishmentRoute::ExactMachine {
+                    declaration: terminal_psi::NominalDeclarationIdentity::new(
+                        TerminalIdentityIndex(1),
+                    ),
                     machine_identity: TerminalIdentityIndex(2),
                 }
         }),
@@ -358,10 +371,22 @@ fn routed_scalar_specialization_retains_exact_authored_issuer() {
     let declaration = module.machines[0].declaration.as_mut().unwrap();
     declaration.callable = TerminalIdentityIndex(2);
     declaration.specialization = Some(terminal_psi::CheckedMachineSpecialization {
-                capture: None,
+        capture: None,
         template: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
         template_callable: TerminalIdentityIndex(3),
+        template_semantic_declaration: TerminalIdentityIndex(1),
         commitment: [9; 32],
+    });
+    module.machines[0].closed_reach_application = Some(terminal_psi::ClosedReachApplication {
+        template_identity: TerminalIdentityIndex(1),
+        template_commitment: [7; 32],
+        specialization_commitment: [9; 32],
+        parameter_kinds: Vec::new(),
+        telescope: Vec::new(),
+        capture: None,
+        fixed: Vec::new(),
+        dependencies: Vec::new(),
+        calls: Vec::new(),
     });
     assert_eq!(
         decode_module(&encode_module(&module).unwrap()).unwrap(),

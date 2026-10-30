@@ -11,6 +11,6 @@ machine main() crashes Trap {
     let low: Holder = Holder { reading: Reading { value: 0.125 } };
     let high: Holder = Holder { reading: Reading { value: 0.25 } };
     transition probe(&low) == 0.125 && probe(&high) == 0.25 { true -> done() _ -> bad() }
-    state done() { }
-    state bad() { crash Trap; }
+    machine done() { }
+    machine bad() { crash Trap; }
 }

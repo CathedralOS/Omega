@@ -218,9 +218,10 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
             attachment_identity(module, boundary.attachment),
             service_ceiling(module, &boundary.published_service_ceiling),
             format_ids(boundary.requires.iter().map(|requirement| format!(
-                "argument:{}:domain:{}",
+                "argument:{}:domain:{}:path:{:?}",
                 requirement.argument_index,
-                requirement.domain.get()
+                requirement.domain.get(),
+                requirement.path
             )))
         )
         .expect("writing to a String cannot fail");
@@ -292,6 +293,16 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
                 machine.id.get(), block.id.get(), block.parameters, block.erased_scalar_formals,
                 proof_formals(module, &block.erased_proof_formals),
             ).expect("writing to a String cannot fail");
+            for (index, parameter) in block.structural_parameters.iter().enumerate() {
+                writeln!(
+                    output,
+                    "block_parameter machine=machine:{} block=block:{} index={} declaration={parameter:?}",
+                    machine.id.get(),
+                    block.id.get(),
+                    index,
+                )
+                .expect("writing to a String cannot fail");
+            }
             for operation in &block.operations {
                 if let Some(result) = operation.result.structural() {
                     writeln!(

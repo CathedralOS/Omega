@@ -3,7 +3,7 @@ machine main() crashes Trap {
  let mut object:Snapshot=Snapshot{value:0};
  observe(&mut object);
  transition { _ -> done() }
- state done(){}
+ machine done(){}
 }
 machine clear(object:&mut Snapshot) { object.value=0u64; }
 machine observe(object:&mut Snapshot) {

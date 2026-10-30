@@ -51,26 +51,26 @@ machine Main::main(main: &mut Main) reaches Console {
 
     transition s == 70 { true -> check_point(main, p, t, b, nested) _ -> bad(main, 71) }
 
-    state check_point(main: &mut Main, p: Point, t: Tag, b: bool, nested: i32 in Wrapping) {
+    machine check_point(main: &mut Main, p: Point, t: Tag, b: bool, nested: i32 in Wrapping) {
         transition p.x == 30 { true -> check_bool(main, t, b, nested) _ -> bad(main, 72) }
     }
-    state check_bool(main: &mut Main, t: Tag, b: bool, nested: i32 in Wrapping) {
+    machine check_bool(main: &mut Main, t: Tag, b: bool, nested: i32 in Wrapping) {
         transition b { true -> check_nested(main, t, nested) _ -> bad(main, 73) }
     }
-    state check_nested(main: &mut Main, t: Tag, nested: i32 in Wrapping) {
+    machine check_nested(main: &mut Main, t: Tag, nested: i32 in Wrapping) {
         transition nested == 6 { true -> check_tag(main, t) _ -> bad(main, 74) }
     }
-    state check_tag(main: &mut Main, t: Tag) {
+    machine check_tag(main: &mut Main, t: Tag) {
         transition t { Tag::Found { v } -> check_v(main, v) Tag::Missing -> bad(main, 75) }
     }
-    state check_v(main: &mut Main, v: i32 in Trapping) {
+    machine check_v(main: &mut Main, v: i32 in Trapping) {
         transition v == 28 { true -> good(main) _ -> bad(main, 76) }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
-    state bad(main: &mut Main, code: i32 in Trapping) {
+    machine bad(main: &mut Main, code: i32 in Trapping) {
         Console::exit_process(code as i32);
     }
 }

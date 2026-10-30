@@ -4,7 +4,7 @@ use crate::legalization::scalar_graph_input::target;
 
 use super::{
     AbstractOperationPlan, CallPlan, PsiOptimizationFunction, StructuralMultiplicity,
-    StructuralPlaceKind, TargetOperationPlan,
+    TargetOperationPlan,
 };
 use crate::legalization::scalar_graph_input::aggregate_results::home_layout;
 use crate::legalization::scalar_graph_input::structural_case;
@@ -12,7 +12,7 @@ use crate::legalization::scalar_graph_input::structural_parameters;
 pub(in crate::legalization::scalar_graph_input) fn reconstruct(
     argument: &terminal_psi::StructuralArgument,
     position: usize,
-    call_operation: semantic_vocabulary::OperationId,
+    call_operation: semantic_vocabulary::InvocationSite,
     caller: &PsiOptimizationFunction,
     callee: abstract_operations::AbstractCallSignature<'_>,
     call: &CallPlan,
@@ -22,7 +22,7 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct(
     reconstruct_at_owner(
         argument,
         position,
-        target_operations::CallSiteOwner::Operation(call_operation),
+        target_operations::CallSiteOwner::from(call_operation),
         caller,
         callee,
         call,
@@ -77,7 +77,15 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
         return crate::legalization::scalar_graph_input::address_joins::call_argument(
             argument,
             destination,
-            owner.operation().ok_or(LegalizationError::custody())?,
+            match owner {
+                target_operations::CallSiteOwner::Operation(operation) => {
+                    semantic_vocabulary::InvocationSite::Operation(operation)
+                }
+                target_operations::CallSiteOwner::InvokeNoNormal(edge) => {
+                    semantic_vocabulary::InvocationSite::InvokeNoNormal(edge)
+                }
+                _ => return Err(LegalizationError::custody()),
+            },
             caller,
             call,
             callee.scalar_parameter_count() + position,
@@ -173,14 +181,7 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
                     declaration,
                 } => {
                     if !target::control_flow::sources::dominates(caller, block, after.0)
-                        || !caller.structural_places.iter().any(|place| {
-                            place.id == declaration.place
-                                && place.kind
-                                    == StructuralPlaceKind::BlockParameter {
-                                        block,
-                                        position: declaration.position,
-                                    }
-                        })
+                        || !structural_case::block_parameter_declared(caller, block, &declaration)
                     {
                         return Err(LegalizationError::custody());
                     }
@@ -274,14 +275,7 @@ pub(super) fn view_arrival<'caller>(
         .map(|row| &row.shape)?;
     (arrivals.next().is_none()
         && block != caller.entry
-        && caller.structural_places.iter().any(|place| {
-            place.id == declaration.place
-                && place.kind
-                    == StructuralPlaceKind::BlockParameter {
-                        block,
-                        position: declaration.position,
-                    }
-        })
+        && structural_case::block_parameter_declared(caller, block, declaration)
         // Carrier lifetime does not change the descriptor's pointer/extent
         // geometry. Reuse the arrival contract that admits affine borrowed
         // descriptors too; call custody still checks the actual live loan.

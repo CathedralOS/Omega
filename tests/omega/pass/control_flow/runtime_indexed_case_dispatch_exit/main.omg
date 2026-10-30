@@ -32,9 +32,9 @@ machine Main::main(main: &mut Main) reaches Console {
         Color::White -> white(main)
         _ -> other(main)
     }
-    state red(main: &mut Main) { Console::exit_process(1); }
-    state white(main: &mut Main) { Console::exit_process(2); }
-    state other(main: &mut Main) { Console::exit_process(3); }
+    machine red(main: &mut Main) { Console::exit_process(1); }
+    machine white(main: &mut Main) { Console::exit_process(2); }
+    machine other(main: &mut Main) { Console::exit_process(3); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

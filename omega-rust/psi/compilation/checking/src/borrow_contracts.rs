@@ -70,13 +70,7 @@ pub struct ViewReturnFieldSource {
     pub kind: checked_trees::BorrowAccessKind,
 }
 
-/// Borrowing the parameter's referent and transferring a descriptor stored in
-/// it have different lifetimes, even when both have an empty structural path.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ViewReturnInputSource {
-    Referent,
-    Stored,
-}
+pub use checked_trees::ViewReturnInputSource;
 
 /// Why a view-returning signature could not be resolved to a single input.
 #[derive(Debug, Clone)]
@@ -205,7 +199,7 @@ pub fn resolve_applied_signature_view_return_source(
                 source: ViewReturnInputSource::Referent,
                 source_type: parameter.type_reference,
                 parameter_index: *position as usize,
-                kind: checked_trees::BorrowAccessKind::Read,
+                kind: checked_trees::BorrowAccessKind::from(custody.access),
             }],
         };
     }
@@ -498,6 +492,29 @@ pub fn carried_reference_paths(
             .map(|leaf| (leaf.owner_path, leaf.access.into()))
             .collect()
     })
+}
+
+/// Translate retained nominal loan selectors without reconstructing a borrow.
+/// Runtime selectors require their own evaluated capture and cannot be inferred.
+pub fn structural_owner_path(
+    program: &dyn crate::CheckingInput,
+    path: &[BorrowOwnerSegment],
+) -> Option<Vec<checked_trees::CheckedUnitStructuralPathSegment>> {
+    use checked_trees::CheckedUnitStructuralPathSegment as Segment;
+    path.iter()
+        .map(|segment| match segment {
+            BorrowOwnerSegment::Field(symbol) => Some(Segment::Field(
+                program.any_field_owner(*symbol)?.1.member_identity(),
+            )),
+            BorrowOwnerSegment::Case(symbol) => Some(Segment::Case(
+                program.variant_owner(*symbol)?.1.member_identity(),
+            )),
+            BorrowOwnerSegment::FixedIndex(position) => {
+                Some(Segment::FixedIndex(u64::try_from(*position).ok()?))
+            }
+            BorrowOwnerSegment::DynamicIndex => None,
+        })
+        .collect()
 }
 
 /// Borrow classification and projected paths share the complete frontier.

@@ -22,41 +22,41 @@ machine Main::echo_line(main: &mut Main) reaches Console {
     }
 
     // Normalize this command/echo protocol explicitly; the reader preserves raw bytes.
-    state bounded_input(main: &mut Main, count: u64, complete: bool) {
+    machine bounded_input(main: &mut Main, count: u64, complete: bool) {
         transition count <= main.line.len {
             true -> normal_input(main, count, complete)
             false -> input_failed(main)
         }
     }
-    state normal_input(main: &mut Main, count: u64, complete: bool) {
+    machine normal_input(main: &mut Main, count: u64, complete: bool) {
         transition complete {
             true -> completed_input(main, count)
             false -> parsed_input(main, count)
         }
     }
-    state completed_input(main: &mut Main, count: u64) {
+    machine completed_input(main: &mut Main, count: u64) {
         transition count > 0 && count <= main.line.len {
             true -> trim_carriage_return(main, count - 1)
             false -> input_failed(main)
         }
     }
-    state trim_carriage_return(main: &mut Main, count: u64) {
+    machine trim_carriage_return(main: &mut Main, count: u64) {
         transition count > 0 && count <= main.line.len {
             true -> inspect_carriage_return(main, count, count - 1)
             false -> parsed_input(main, count)
         }
     }
-    state inspect_carriage_return(main: &mut Main, count: u64, byte_index: u64) {
+    machine inspect_carriage_return(main: &mut Main, count: u64, byte_index: u64) {
         transition byte_index < main.line.len && main.line[byte_index] == 13 {
             true -> parsed_input(main, byte_index)
             false -> parsed_input(main, count)
         }
     }
 
-    state parsed_input(main: &mut Main, count: u64) {
+    machine parsed_input(main: &mut Main, count: u64) {
         write_prefix(&main.line, count);
     }
-    state input_failed(main: &mut Main) { Console::exit_process(1); }
+    machine input_failed(main: &mut Main) { Console::exit_process(1); }
 }
 
 // The bound is checked on the exact view before forming its output prefix.
@@ -65,10 +65,10 @@ machine write_prefix(bytes: &[u8], count: u64) reaches Console {
         true -> output(bytes[0..count])
         false -> invalid()
     }
-    state output(bytes: &[u8]) {
+    machine output(bytes: &[u8]) {
         Console::write_line(bytes);
     }
-    state invalid() { Console::exit_process(1); }
+    machine invalid() { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

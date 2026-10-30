@@ -1,12 +1,12 @@
 //! Invocation-owned operation identities and exact source-occurrence companions.
 //!
-//! Length observations belong to a control-flow scope, not to the append-only
+//! Storage observations belong to a control-flow scope, not to the append-only
 //! operation roster. Successors can be staged before their guard is emitted;
 //! restoring the whole observation scope prevents a guard or sibling from
 //! borrowing a value defined only in one of those successors.
 
-use crate::lowering_error::LoweringError;
-use crate::terminal_identities::operation_id;
+use crate::lowering_error::{LoweringError, unsupported};
+use crate::terminal_identities::{mint, operation_id};
 use lowered_psi::{
     LoweredSourceCallOccurrence, LoweredSourceCallSite, LoweredSourceFrontierBindings,
 };
@@ -28,18 +28,29 @@ pub(crate) struct SourceQuotientCall {
     pub(crate) call: OperationId,
 }
 
-/// Evaluated operands of a domain-ending call, before its owner allocates the
-/// terminating edge. Keeping this separate from operations prevents a Unit
-/// result, normal completion receipts or implicit cleanup from being invented.
-pub(crate) struct PendingExternalCompletion {
+/// One evaluated invocation that cannot continue normally, before the control
+/// owner allocates its edge. Completion kind remains explicit: ordinary module
+/// nonreturn grants none of an external outcome's delegated domain authority.
+pub(crate) struct PendingInvocationCompletion {
     pub(crate) coordinate: SourceCallCoordinate,
     pub(crate) source_site: Option<checked_trees::NominalMachineUseSite>,
     pub(crate) target: symbols::SymbolHandle,
-    pub(crate) boundary: semantic_vocabulary::BoundaryMachineId,
-    pub(crate) kind: semantic_vocabulary::ExternalCompletionKind,
-    pub(crate) arguments: Vec<ValueId>,
-    pub(crate) structural_arguments: Vec<terminal_psi::StructuralArgument>,
-    pub(crate) requirement_obligations: Vec<ObligationId>,
+    pub(crate) frontier: LoweredSourceFrontierBindings,
+    pub(crate) outcome: PendingInvocationOutcome,
+}
+
+pub(crate) enum PendingInvocationOutcome {
+    ModuleNoNormal {
+        callee: semantic_vocabulary::MachineId,
+        inputs: crate::direct_calls::ModuleInvocationArguments,
+    },
+    External {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        kind: semantic_vocabulary::ExternalCompletionKind,
+        arguments: Vec<ValueId>,
+        structural_arguments: Vec<terminal_psi::StructuralArgument>,
+        requirement_obligations: Vec<ObligationId>,
+    },
 }
 
 /// One authored structural binding. Literal storage is established by a Unit
@@ -174,11 +185,25 @@ pub(crate) fn structural_result_declaration(
     })
 }
 
-/// Length values available on one emission path. Carrier kinds retain their
+/// A completed discriminator Boolean, independently of current payload custody.
+/// Its typed coordinate and actual producer bind the observation epoch. A
+/// consumer must check storage changes before reusing the scalar snapshot.
+#[derive(Clone)]
+pub(crate) struct CapturedStructuralCaseObservation {
+    pub(crate) source: PlaceId,
+    pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
+    pub(crate) structural_type: semantic_vocabulary::StructuralTypeId,
+    pub(crate) case: semantic_vocabulary::StructuralCaseId,
+    pub(crate) value: ValueDeclaration,
+    pub(crate) producer: OperationId,
+}
+
+/// Captured storage observations available on one emission path. Carrier kinds retain their
 /// distinct lookup and mutation rules, but branch entry and exit carry this
 /// state as a whole: every reused value must dominate its consumer.
 #[derive(Clone, Default)]
-pub(crate) struct CollectionLengthObservations {
+pub(crate) struct StorageObservations {
+    pub(crate) cases: Vec<CapturedStructuralCaseObservation>,
     pub(crate) bytes: Vec<(PlaceId, ValueId)>,
     pub(crate) elements: Vec<(terminal_psi::StructuralArgument, ValueId)>,
     pub(crate) field_bytes: Vec<(
@@ -189,8 +214,9 @@ pub(crate) struct CollectionLengthObservations {
     )>,
 }
 
-impl CollectionLengthObservations {
+impl StorageObservations {
     pub(crate) fn clear(&mut self) {
+        self.cases.clear();
         self.bytes.clear();
         self.elements.clear();
         self.field_bytes.clear();
@@ -216,6 +242,20 @@ pub(crate) struct SourceQuotientAdaptation {
 pub(crate) struct ComputedValueBinding {
     pub(crate) argument: terminal_psi::StructuralArgument,
     pub(crate) structural_type: semantic_vocabulary::StructuralTypeId,
+    /// Original observation namespace, captured before producing the value can
+    /// retire or replace its source. Failure matters only to an observation.
+    pub(crate) observation: Result<ComputedValueObservation, LoweringError>,
+}
+
+/// Geometry only: the exact computed-value key and completed argument retain
+/// physical birth/custody. A prefix may revisit the same type through Referent.
+#[derive(Clone, Debug)]
+pub(crate) struct ComputedValueObservation {
+    pub(crate) root_type: semantic_vocabulary::StructuralTypeId,
+    pub(crate) path: Vec<
+        crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment,
+    >,
+    pub(crate) access: terminal_psi::StructuralAccess,
 }
 
 /// A physical home's checked birth, independent of its later source aliases.
@@ -234,14 +274,17 @@ pub(crate) struct OperationBuffer {
         checked_trees::CheckedStructuralValueHandle,
         ComputedValueBinding,
     )>,
-    pub(crate) claim_introductions: Vec<crate::emission::claim_bindings::ClaimIntroduction>,
     pub(crate) claim_edge_bindings: Vec<crate::emission::claim_bindings::ClaimEdgeBinding>,
+    /// Completed private arrivals, including claim-free joins, share the same
+    /// custody namespace as operation results and authored bindings.
+    pub(crate) arrival_claims: Vec<(PlaceId, Vec<terminal_psi::StructuralResultClaimBinding>)>,
     /// Checked destination names for custody arriving at private value joins.
     /// These bind incoming obligations; they never establish new claims.
     pub(crate) block_entry_claims: Vec<terminal_psi::EntryClaim>,
+    pub(crate) claim_introductions: Vec<crate::emission::claim_bindings::ClaimIntroduction>,
     pub(crate) selected_cleanup_groups:
         Vec<crate::emission::selected_continuations::SelectedCleanupGroup>,
-    pub(crate) external_completion: Option<PendingExternalCompletion>,
+    pub(crate) invocation_completion: Option<PendingInvocationCompletion>,
     /// Authored structural bindings may complete at a control join rather than
     /// a call operation. Keep those places in the same state-local namespace.
     pub(crate) structural_values: Vec<(u32, StructuralBinding)>,
@@ -271,7 +314,7 @@ pub(crate) struct OperationBuffer {
     pub(crate) source_checked_obligations: Vec<ObligationId>,
     pub(crate) next_identity: u64,
     pub(crate) operations: Vec<Operation>,
-    pub(crate) length_observations: CollectionLengthObservations,
+    pub(crate) storage_observations: StorageObservations,
     pub(crate) source_calls: Vec<LoweredSourceCallOccurrence>,
     pub(crate) quotient_adaptations: Vec<SourceQuotientAdaptation>,
     pub(crate) quotient_calls: Vec<SourceQuotientCall>,
@@ -285,6 +328,79 @@ pub(crate) struct OperationBuffer {
 }
 
 impl OperationBuffer {
+    /// Immutable producer/arrival declarations describe a home's initial
+    /// transport names. Only an actual fresh completion may use this catalog
+    /// to publish a frame association; current reads use CurrentClaimNames.
+    pub(crate) fn declared_source_claims(
+        &self,
+        argument: &terminal_psi::StructuralArgument,
+    ) -> Result<Option<Vec<terminal_psi::StructuralResultClaimBinding>>, LoweringError> {
+        let mut selected: Option<(usize, Vec<terminal_psi::StructuralResultClaimBinding>)> = None;
+        for (_, binding) in &self.structural_values {
+            if binding.place() != argument.place {
+                continue;
+            }
+            let Some(suffix) = argument.path.strip_prefix(binding.path()) else {
+                continue;
+            };
+            let claims = binding
+                .claims()
+                .iter()
+                .filter_map(|claim| {
+                    claim.path.strip_prefix(suffix).map(|path| {
+                        terminal_psi::StructuralResultClaimBinding {
+                            claim: claim.claim,
+                            path: path.to_vec(),
+                        }
+                    })
+                })
+                .collect::<Vec<_>>();
+            let depth = binding.path().len();
+            if let Some((previous_depth, previous)) = &selected {
+                if *previous_depth > depth {
+                    continue;
+                }
+                if *previous_depth == depth && previous != &claims {
+                    return unsupported("completed source has conflicting custody bindings");
+                }
+            }
+            selected = Some((depth, claims));
+        }
+        if let Some((_, claims)) = selected {
+            return Ok(Some(claims));
+        }
+        let candidates = self
+            .operations
+            .iter()
+            .filter_map(|operation| operation.result.structural())
+            .filter(|result| result.place == argument.place)
+            .map(|result| result.claims.as_slice())
+            .chain(self.arrival_claims.iter().filter_map(|(place, claims)| {
+                (*place == argument.place).then_some(claims.as_slice())
+            }));
+        let mut claims: Option<&[terminal_psi::StructuralResultClaimBinding]> = None;
+        for candidate in candidates {
+            if claims.is_some_and(|previous| previous != candidate) {
+                return unsupported("completed place has conflicting custody declarations");
+            }
+            claims = Some(candidate);
+        }
+        Ok(claims.map(|claims| {
+            claims
+                .iter()
+                .filter_map(|claim| {
+                    claim
+                        .path
+                        .strip_prefix(argument.path.as_slice())
+                        .map(|path| terminal_psi::StructuralResultClaimBinding {
+                            claim: claim.claim,
+                            path: path.to_vec(),
+                        })
+                })
+                .collect()
+        }))
+    }
+
     /// Calls introduce the returned caller-local names except exact input
     /// claims their checked transfer roster forwards through this invocation.
     pub(crate) fn push(&mut self, operation: Operation) {
@@ -322,10 +438,13 @@ impl OperationBuffer {
         }
         if let Some(result) = operation.result.structural() {
             self.structural_establishments.push(result.place);
-        } else if let OperationKind::EstablishTrivialAffineLocal { destination } = &operation.kind {
-            // This owner has no operation result, but its actual establishment
-            // still belongs to the same cleanup chronology. Checked completion
-            // supplies its disposal authority independently.
+        } else if let OperationKind::EstablishTrivialAffineLocal { destination }
+        | OperationKind::EstablishByteSequenceLiteral { destination, .. } =
+            &operation.kind
+        {
+            // Unit-result producers still establish physical storage. Keep
+            // that chronology independent of their result encoding; checked
+            // completion supplies membership and disposal authority separately.
             self.retain_structural_establishment(*destination);
         }
         self.operations.push(operation);
@@ -442,6 +561,44 @@ impl OperationBuffer {
         Ok(())
     }
 
+    /// Add domain qualifications restored on a structural home, including
+    /// guarantees published by completed calls on borrowed parameters.
+    pub(crate) fn add_structural_qualifications(
+        &mut self,
+        place: PlaceId,
+        qualifications: &[semantic_vocabulary::StructuralDomainId],
+        projected_qualifications: &[terminal_psi::StructuralPathQualification],
+    ) {
+        for operation in self.operations.iter_mut().rev() {
+            if let OperationResult::Structural(result) = &mut operation.result {
+                if result.place == place {
+                    result.qualifications.extend_from_slice(qualifications);
+                    result.qualifications.sort();
+                    result.qualifications.dedup();
+                    result
+                        .projected_qualifications
+                        .extend_from_slice(projected_qualifications);
+                    result.projected_qualifications.sort();
+                    result.projected_qualifications.dedup();
+                }
+            }
+        }
+        for (_, binding) in &mut self.structural_values {
+            if let StructuralBinding::OperationResult(result) = binding {
+                if result.place == place {
+                    result.qualifications.extend_from_slice(qualifications);
+                    result.qualifications.sort();
+                    result.qualifications.dedup();
+                    result
+                        .projected_qualifications
+                        .extend_from_slice(projected_qualifications);
+                    result.projected_qualifications.sort();
+                    result.projected_qualifications.dedup();
+                }
+            }
+        }
+    }
+
     /// Allocate the read obligation that canonically certifies the next
     /// operation's bounds, recording it when `bound_decided` requires proof.
     pub(crate) fn push_read_obligation(
@@ -465,7 +622,9 @@ impl OperationBuffer {
     ) -> Self {
         Self {
             source_returns: Vec::new(),
-            external_completion: None,
+            arrival_claims: Vec::new(),
+            block_entry_claims: Vec::new(),
+            invocation_completion: None,
             dynamic_dispatch,
             structural_values: Vec::new(),
             computed_values: Vec::new(),
@@ -478,7 +637,7 @@ impl OperationBuffer {
                 .checked_add(1)
                 .expect("operation identity base admits one-based identities"),
             operations: Vec::new(),
-            length_observations: CollectionLengthObservations::default(),
+            storage_observations: StorageObservations::default(),
             source_calls: Vec::new(),
             quotient_adaptations: Vec::new(),
             quotient_calls: Vec::new(),
@@ -488,18 +647,12 @@ impl OperationBuffer {
             source_checked_obligations: Vec::new(),
             claim_introductions: Vec::new(),
             claim_edge_bindings: Vec::new(),
-            block_entry_claims: Vec::new(),
             selected_cleanup_groups: Vec::new(),
         }
     }
 
     pub(crate) fn allocate(&mut self) -> OperationId {
-        let id = operation_id(self.next_identity);
-        self.next_identity = self
-            .next_identity
-            .checked_add(1)
-            .expect("terminal operation identities advance");
-        id
+        mint(&mut self.next_identity, operation_id)
     }
 
     /// Allocate and push an operation carrying no reach binding or
@@ -510,13 +663,7 @@ impl OperationBuffer {
         kind: OperationKind,
     ) -> OperationId {
         let id = self.allocate();
-        self.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result,
-            kind,
-        });
+        self.push(Operation::unsuspended(id, result, kind));
         id
     }
 
@@ -528,11 +675,11 @@ impl OperationBuffer {
         place: PlaceId,
         path: &[terminal_psi::StructuralPathSegment],
     ) {
-        self.length_observations.elements.retain(|(source, _)| {
+        self.storage_observations.elements.retain(|(source, _)| {
             source.place != place
                 || !terminal_semantics::structural_paths_may_overlap(&source.path, path)
         });
-        self.length_observations
+        self.storage_observations
             .field_bytes
             .retain(|(root, carrier, _, _)| {
                 *root != place || !terminal_semantics::structural_paths_may_overlap(carrier, path)
@@ -556,6 +703,10 @@ impl OperationBuffer {
         )
     }
 
+    // Module callers publish the checked selected state obtained from their
+    // SourceCallCoordinate; boundary/dynamic callers retain their selected
+    // declaration identity. Authored/public spelling stays in FlowCallFact and
+    // never depends on whether a route emitted Unit, scalar or structural data.
     fn record_source_call_site(
         &mut self,
         coordinate: SourceCallCoordinate,
@@ -597,32 +748,70 @@ impl OperationBuffer {
     /// Seal abandonment on the current evaluation path. The empty audit lower
     /// bound does not assert an empty frontier: verification reconstructs live
     /// custody, and runtime domain delegation is a separate admission demand.
-    pub(crate) fn take_external_completion(
+    pub(crate) fn take_invocation_completion(
         &mut self,
         next_edge: &mut u64,
     ) -> Result<Option<terminal_psi::Terminator>, LoweringError> {
-        let Some(completion) = self.external_completion.take() else {
+        let Some(completion) = self.invocation_completion.take() else {
             return Ok(None);
         };
         let edge = crate::terminal_identities::edge_id(crate::terminal_identities::allocate_dense(
             next_edge,
         )?);
+        let (site, terminator) = match completion.outcome {
+            PendingInvocationOutcome::ModuleNoNormal { callee, inputs } => {
+                let crate::direct_calls::ModuleInvocationArguments {
+                    arguments,
+                    erased_arguments,
+                    erased_proof_arguments,
+                    structural_arguments,
+                    claim_transfers,
+                    requirement_obligations,
+                    crash_continuations,
+                } = inputs;
+                (
+                    LoweredSourceCallSite::InvokeNoNormal(edge),
+                    terminal_psi::Terminator::InvokeNoNormal {
+                        static_reach_binding: None,
+                        edge,
+                        callee,
+                        arguments,
+                        erased_arguments,
+                        erased_proof_arguments,
+                        structural_arguments,
+                        claim_transfers,
+                        requirement_obligations,
+                        crash_continuations,
+                    },
+                )
+            }
+            PendingInvocationOutcome::External {
+                boundary,
+                kind,
+                arguments,
+                structural_arguments,
+                requirement_obligations,
+            } => (
+                LoweredSourceCallSite::ExternalCompletion(edge),
+                terminal_psi::Terminator::ExternalCompletion {
+                    edge,
+                    boundary,
+                    kind,
+                    arguments,
+                    structural_arguments,
+                    requirement_obligations,
+                    frontier_lower_bound: Vec::new(),
+                },
+            ),
+        };
         self.record_source_call_site(
             completion.coordinate,
             completion.source_site,
-            LoweredSourceCallSite::ExternalCompletion(edge),
+            site,
             completion.target,
-            &LoweredSourceFrontierBindings::default(),
+            &completion.frontier,
         )?;
-        Ok(Some(terminal_psi::Terminator::ExternalCompletion {
-            edge,
-            boundary: completion.boundary,
-            kind: completion.kind,
-            arguments: completion.arguments,
-            structural_arguments: completion.structural_arguments,
-            requirement_obligations: completion.requirement_obligations,
-            frontier_lower_bound: Vec::new(),
-        }))
+        Ok(Some(terminator))
     }
 }
 

@@ -10,5 +10,5 @@ where machine Callback satisfies SizedHook<Left>::read;
 machine main() crashes Trap {
  let observed: i32 = bridge<3, fixed<3>>();
  transition observed == 83 { true -> done() _ -> bad() }
- state done() {} state bad() { crash Trap; }
+ machine done() {} machine bad() { crash Trap; }
 }

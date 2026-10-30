@@ -1,0 +1,2 @@
+cannot prove ensures contract for exit from RegionSplitProvider::split
+Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))

@@ -30,6 +30,10 @@ impl GitWorkspaceSelectionDeclarations {
 pub(crate) struct GitWorkspaceSelectionEvidence {
     plan: GitWorkspaceSelectionPlan,
     declarations: GitWorkspaceSelectionDeclarations,
+    executed: Option<(
+        compiler::SourceBuildDeclaration,
+        Vec<crate::resolution::source::WorkspaceMemberObservation>,
+    )>,
 }
 
 impl GitWorkspaceSelectionEvidence {
@@ -37,7 +41,49 @@ impl GitWorkspaceSelectionEvidence {
         plan: GitWorkspaceSelectionPlan,
         declarations: GitWorkspaceSelectionDeclarations,
     ) -> Self {
-        Self { plan, declarations }
+        Self {
+            plan,
+            declarations,
+            executed: None,
+        }
+    }
+
+    pub(crate) fn from_executed(
+        selected: &build_declarations::ProjectName,
+        root: compiler::SourceBuildDeclaration,
+        members: Vec<crate::resolution::source::WorkspaceMemberObservation>,
+    ) -> Result<Self, String> {
+        let declarations = members
+            .iter()
+            .map(|member| member.declaration().clone())
+            .collect::<Vec<_>>();
+        let plan = super::executed_selection_plan(selected, &root, &declarations)?;
+        let root_bytes = root
+            .source_capture()
+            .tree()
+            .read_to_string(std::path::Path::new("build.omg"))
+            .map_err(|error| error.to_string())?
+            .as_bytes()
+            .to_vec();
+        let declarations = plan
+            .members()
+            .iter()
+            .zip(&members)
+            .map(|(member, observed)| {
+                let bytes = observed
+                    .declaration()
+                    .source_capture()
+                    .tree()
+                    .read_to_string(std::path::Path::new("build.omg"))
+                    .map_err(|error| error.to_string())?;
+                Ok((member.member_path().clone(), bytes.as_bytes().to_vec()))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        Ok(Self {
+            plan,
+            declarations: GitWorkspaceSelectionDeclarations::new(root_bytes, declarations),
+            executed: Some((root, members)),
+        })
     }
 
     pub const fn plan(&self) -> &GitWorkspaceSelectionPlan {
@@ -48,14 +94,35 @@ impl GitWorkspaceSelectionEvidence {
         &self.declarations
     }
 
+    pub(crate) fn observations(&self) -> &[crate::resolution::source::WorkspaceMemberObservation] {
+        self.executed.as_ref().map_or(&[], |(_, members)| members)
+    }
+
     pub fn revalidate(&self) -> Result<(), PackageSourceSelectionEvidenceError> {
+        if let Some((root, members)) = &self.executed {
+            let declarations = members
+                .iter()
+                .map(|member| member.declaration().clone())
+                .collect::<Vec<_>>();
+            let replayed = super::executed_selection_plan(
+                self.plan().selected_member().package_name(),
+                root,
+                &declarations,
+            )
+            .map_err(PackageSourceSelectionEvidenceError::executed)?;
+            return if replayed == self.plan {
+                Ok(())
+            } else {
+                Err(super::GitWorkspaceSelectionError::DeclarationEvidenceChanged.into())
+            };
+        }
         let root_build = self.declarations().root();
         let mut total_bytes = account_declaration_bytes(0, root_build)
-            .map_err(PackageSourceSelectionEvidenceError::Selection)?;
+            .map_err(PackageSourceSelectionEvidenceError::from)?;
         let mut member_builds = Vec::with_capacity(self.plan().members().len());
         for (member_path, bytes) in self.declarations().members() {
             total_bytes = account_declaration_bytes(total_bytes, bytes)
-                .map_err(PackageSourceSelectionEvidenceError::Selection)?;
+                .map_err(PackageSourceSelectionEvidenceError::from)?;
             member_builds.push((member_path.clone(), bytes.as_slice()));
         }
         let supplied = member_builds
@@ -64,6 +131,6 @@ impl GitWorkspaceSelectionEvidence {
             .collect::<Vec<_>>();
         self.plan()
             .replay(root_build, &supplied)
-            .map_err(PackageSourceSelectionEvidenceError::Selection)
+            .map_err(PackageSourceSelectionEvidenceError::from)
     }
 }

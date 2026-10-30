@@ -3,7 +3,7 @@ data Holder [copy] { bytes: &[u8]; }
 machine returned(holder: Holder) -> &[u8] { holder.bytes }
 machine transferred(holder: Holder) -> bool {
     transition { _ -> inspect(holder.bytes) }
-    state inspect(bytes: &[u8]) -> bool { bytes == "View" }
+    machine inspect(bytes: &[u8]) -> bool { bytes == "View" }
 }
 machine main() crashes Trap {
     let holder: Holder = Holder { bytes: "View" };
@@ -14,6 +14,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

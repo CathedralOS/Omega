@@ -10,9 +10,9 @@ where Item == Token<Setting>
 machine main() crashes Trap {
     let original: Token<SEVEN> = Token { marker: 1 };
     transition { _ -> arrived(original) }
-    state arrived(items: Token<SEVEN>) {
+    machine arrived(items: Token<SEVEN>) {
         let observed: u64 = read(items);
         transition observed == 7 { true -> done() _ -> bad() }
     }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

@@ -20,7 +20,7 @@ machine blank<K [copy], V [copy]>(table: &mut Table<K, V>, key: &K, value: &V) {
     table.live = 0;
     transition { _ -> wipe(table, key, value, 0) }
 
-    state wipe(table: &mut Table<K, V>, key: &K, value: &V, slot: u64)
+    machine wipe(table: &mut Table<K, V>, key: &K, value: &V, slot: u64)
     requires slot < 16;
     {
         table.slots[slot].key = key;
@@ -40,7 +40,7 @@ where machine E(left: &K, right: &K) -> bool;
     let home: u64 = H(key) % 16;
     transition { _ -> scan(table, key, home, 0, 16) }
 
-    state scan(table: &Table<K, V>, key: &K, slot: u64, seen: u64, reusable: u64) -> u64
+    machine scan(table: &Table<K, V>, key: &K, slot: u64, seen: u64, reusable: u64) -> u64
     requires slot < 16;
     requires seen < 16;
     requires reusable <= 16;
@@ -51,14 +51,14 @@ where machine E(left: &K, right: &K) -> bool;
         }
     }
 
-    state open(table: &Table<K, V>, key: &K, slot: u64, reusable: u64) -> u64
+    machine open(table: &Table<K, V>, key: &K, slot: u64, reusable: u64) -> u64
     requires slot < 16;
     requires reusable <= 16;
     {
         transition reusable < 16 { true -> reusable _ -> slot }
     }
 
-    state live(table: &Table<K, V>, key: &K, slot: u64, seen: u64, reusable: u64) -> u64
+    machine live(table: &Table<K, V>, key: &K, slot: u64, seen: u64, reusable: u64) -> u64
     requires slot < 16;
     requires seen < 16;
     requires reusable <= 16;
@@ -69,7 +69,7 @@ where machine E(left: &K, right: &K) -> bool;
         }
     }
 
-    state dead(table: &Table<K, V>, key: &K, slot: u64, seen: u64, reusable: u64) -> u64
+    machine dead(table: &Table<K, V>, key: &K, slot: u64, seen: u64, reusable: u64) -> u64
     requires slot < 16;
     requires seen < 16;
     requires reusable <= 16;
@@ -80,7 +80,7 @@ where machine E(left: &K, right: &K) -> bool;
         }
     }
 
-    state tombstone(table: &Table<K, V>, key: &K, slot: u64, seen: u64, reusable: u64) -> u64
+    machine tombstone(table: &Table<K, V>, key: &K, slot: u64, seen: u64, reusable: u64) -> u64
     requires slot < 16;
     requires seen < 16;
     requires reusable <= 16;
@@ -91,7 +91,7 @@ where machine E(left: &K, right: &K) -> bool;
         }
     }
 
-    state ahead(table: &Table<K, V>, key: &K, slot: u64, seen: u64, reusable: u64) -> u64
+    machine ahead(table: &Table<K, V>, key: &K, slot: u64, seen: u64, reusable: u64) -> u64
     requires slot < 16;
     requires seen < 16;
     requires reusable <= 16;
@@ -114,7 +114,7 @@ where machine E(left: &K, right: &K) -> bool;
     let slot: u64 = probe<H, E>(table, key);
     transition slot < 16 { true -> place(table, key, value, slot) _ -> full() }
 
-    state place(table: &mut Table<K, V>, key: &K, value: &V, slot: u64)
+    machine place(table: &mut Table<K, V>, key: &K, value: &V, slot: u64)
     requires slot < 16;
     {
         transition table.slots[slot].tag == 1 {
@@ -123,13 +123,13 @@ where machine E(left: &K, right: &K) -> bool;
         }
     }
 
-    state update(table: &mut Table<K, V>, value: &V, slot: u64)
+    machine update(table: &mut Table<K, V>, value: &V, slot: u64)
     requires slot < 16;
     {
         table.slots[slot].value = value;
     }
 
-    state fill(table: &mut Table<K, V>, key: &K, value: &V, slot: u64)
+    machine fill(table: &mut Table<K, V>, key: &K, value: &V, slot: u64)
     requires slot < 16;
     {
         table.live = table.live + 1;
@@ -138,7 +138,7 @@ where machine E(left: &K, right: &K) -> bool;
         table.slots[slot].tag = 1;
     }
 
-    state full() {}
+    machine full() {}
 }
 
 // remove tombstones a live key; absent keys leave the table unchanged.
@@ -149,13 +149,13 @@ where machine E(left: &K, right: &K) -> bool;
     let slot: u64 = probe<H, E>(table, key);
     transition slot < 16 { true -> kill(table, slot) _ -> {} }
 
-    state kill(table: &mut Table<K, V>, slot: u64)
+    machine kill(table: &mut Table<K, V>, slot: u64)
     requires slot < 16;
     {
         transition table.slots[slot].tag == 1 { true -> drop_(table, slot) _ -> {} }
     }
 
-    state drop_(table: &mut Table<K, V>, slot: u64)
+    machine drop_(table: &mut Table<K, V>, slot: u64)
     requires slot < 16;
     {
         table.live = table.live - 1;
@@ -171,7 +171,7 @@ where machine E(left: &K, right: &K) -> bool;
     let slot: u64 = probe<H, E>(table, key);
     transition slot < 16 { true -> read(table, miss, slot) _ -> miss }
 
-    state read(table: &Table<K, V>, miss: &V, slot: u64) -> V
+    machine read(table: &Table<K, V>, miss: &V, slot: u64) -> V
     requires slot < 16;
     {
         let hit: V = table.slots[slot].value;
@@ -217,8 +217,8 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad()
     }
 
-    state good() { Console::exit_process(83); }
-    state bad() { Console::exit_process(1); }
+    machine good() { Console::exit_process(83); }
+    machine bad() { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

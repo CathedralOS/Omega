@@ -51,11 +51,12 @@ pub(super) fn shape(
     // A single element chain suffices for fixed arrays. The declaration bound
     // detects cycles even below an empty dimension, without recursive stack use.
     for depth in 0..=declarations.len() {
-        let declaration = declarations
-            .iter()
-            .find(|declaration| declaration.id == current)?;
+        let declaration = terminal_psi::find_structural_type(declarations, current)?;
         match declaration.shape {
-            terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
+            terminal_psi::StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
                 empty |= length == 0;
                 count = count.and_then(|count| count.checked_mul(length));
                 current = element;

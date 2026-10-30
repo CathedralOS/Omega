@@ -57,6 +57,33 @@ pub(super) fn capture_address_operands(
     capture_operands(lowerer, address, true, hoisted)
 }
 
+/// A pending typed subject may become either a value snapshot or a storage
+/// observation. Prepare the address operands of its projection now, before
+/// later subjects execute. The typed owner still decides whether to copy the
+/// completed value or lend the place. A produced root with no projection
+/// already has that pending value binding and needs no additional local.
+pub(super) fn capture_subject_address_operands(
+    lowerer: &mut Lowerer,
+    subject: ExpressionHandle,
+    hoisted: &mut Vec<Statement>,
+) -> ExpressionHandle {
+    match lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .expression(subject)
+    {
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_) | ExpressionNode::Borrow(_) => {
+            capture_address_operands(lowerer, subject, hoisted)
+        }
+        ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+            capture_address_operands(lowerer, subject, hoisted)
+        }
+        _ => subject,
+    }
+}
+
 /// `capture` says whether an operand evaluated at this point needs its own
 /// local: the place is read again later, or a later operand of the same
 /// address may write storage.

@@ -4,10 +4,10 @@ data MutableHolder<'a> { room: &'a mut Room; }
 machine owned_holder(room: &Room) {
  let mut holder: SharedHolder = SharedHolder { room: room };
  transition { _ -> observe(&mut holder.room.count) }
- state observe(count: &mut u32 in Wrapping) { count = 11; }
+ machine observe(count: &mut u32 in Wrapping) { count = 11; }
 }
 machine shared_holder(holder: &MutableHolder) {
  transition { _ -> observe(&mut holder.room.count) }
- state observe(count: &mut u32 in Wrapping) { count = 11; }
+ machine observe(count: &mut u32 in Wrapping) { count = 11; }
 }
 machine main() {}

@@ -20,6 +20,7 @@ use typed_trees::types::{
 };
 
 mod declared_fields;
+pub(crate) use declared_fields::DeclaredTypeDomainQueries;
 pub use declared_fields::{
     FieldDomainRow, WHOLE_ELEMENT_EXTENT, declared_type_domain_rows, exact_declared_field,
     readable_slice_element,
@@ -79,9 +80,9 @@ pub fn assignment_target_domain_constraints<'program>(
     declared_domain_constraints(program, type_reference)
         .into_iter()
         .filter(|domain| {
-            program.domain_definitions().iter().any(|definition| {
-                definition.symbol == domain.symbol && definition.predicate_body.is_present()
-            })
+            program
+                .domain_definition(domain.symbol)
+                .is_some_and(|definition| definition.predicate_presence.is_present())
         })
         .collect()
 }
@@ -428,6 +429,26 @@ pub type FieldDomainIdentity = (
     language_semantics::SemanticDomainId,
 );
 
+/// Every declared child duty of a completed result: readable referents and
+/// owned storage retain the same exact paths and applied domain identities.
+/// This is an obligation roster, not evidence of membership. A checked callee
+/// must prove routed rows from its actual completed values or live referents
+/// before its caller can use the corresponding normal-return promise.
+/// A root reference still requires its caller to select the readable referent;
+/// these rows confer no owned claim or authority to follow a pointer.
+pub fn declared_result_field_domain_identities(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Vec<FieldDomainIdentity> {
+    let mut rows = declared_result_field_domain_paths(program, reference);
+    for row in declared_owned_field_domain_identities(program, reference) {
+        if !rows.contains(&row) {
+            rows.push(row);
+        }
+    }
+    rows
+}
+
 /// Declared child obligations, including linear custody and nominal cleanup
 /// hidden by a parent, and paths whose owned layout is unresolved. These paths do not mint
 /// additional claim identities. A whole-value disposition must account for
@@ -656,6 +677,29 @@ pub fn domain_requires_provenance(
     visit(program, symbol, &mut Vec::new())
 }
 
+/// Whether the normalized predicate and separately retained subject duties
+/// describe this declaration's entire theory. Routes and subject memberships
+/// retain their own authority; a complete predicate alone does not issue them.
+pub fn domain_predicate_theory_is_complete(
+    program: &dyn crate::CheckingInput,
+    definition: &typed_trees::domain::DomainDefinition,
+) -> bool {
+    definition.classification.is_none()
+        && definition.semantic_roles.is_empty()
+        && definition.cleanup_selection.is_none()
+        && definition.alias.is_none()
+        && definition.operators.is_empty()
+        && !matches!(
+            program
+                .type_reference_table
+                .type_reference(definition.target_type),
+            TypeReferenceNode::Constrained { .. }
+        )
+        && domain_constraint_symbols(program, definition.target_type).is_empty()
+        && typed_trees::domain::required_subject_memberships(program.typed_program(), definition)
+            .is_some()
+}
+
 /// Alias atoms must all be predicate- and route-free. This declaration rule
 /// governs both retained qualification uses and scalar computation eligibility.
 pub fn domain_is_vacuous(
@@ -681,7 +725,7 @@ pub fn domain_is_vacuous(
         stack.pop();
         return vacuous;
     }
-    !domain.predicate_body.is_present() && domain.establishment_routes.is_empty()
+    !domain.predicate_presence.is_present() && domain.establishment_routes.is_empty()
 }
 
 /// The data-type name a field's type reference names (peeling `&`/`&mut` and a
@@ -806,7 +850,7 @@ pub fn predicate_domain_constraint_identities(
         .filter(|(symbol, _)| {
             program
                 .domain_definition(*symbol)
-                .is_some_and(|domain| domain.predicate_body.is_present())
+                .is_some_and(|domain| domain.predicate_presence.is_present())
         })
         .collect()
 }
@@ -859,9 +903,7 @@ pub fn domain_membership_implies(
     };
     // Content predicates transport across byte presentations independently of
     // layout. Neither semantic roles nor routed target authority reduce to them.
-    let bytes = |reference| {
-        is_fixed_byte_carrier(program, reference) || is_byte_slice_carrier(program, reference)
-    };
+    let bytes = |reference| is_byte_sequence_carrier(program, reference);
     if !bytes(source.target_type)
         || !bytes(target.target_type)
         || source.semantic_roles != Default::default()
@@ -879,38 +921,24 @@ pub fn domain_membership_implies(
     }
 }
 
-fn is_fixed_byte_carrier(
+/// Whether a declared type is a byte-sequence carrier — a fixed byte array or
+/// a byte slice — once its borrows and domain shells are peeled. These are the
+/// carriers whose declared domain bodies may state content byte predicates.
+fn is_byte_sequence_carrier(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. }
-        | TypeReferenceNode::Reference {
-            referee: base_type, ..
-        } => is_fixed_byte_carrier(program, *base_type),
-        TypeReferenceNode::FixedArray { element_type, .. } => {
-            program.type_reference_table.primitive_type(*element_type)
-                == Some(typed_trees::types::PrimitiveType::U8)
-        }
-        _ => false,
-    }
-}
-
-fn is_byte_slice_carrier(
-    program: &dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. }
-        | TypeReferenceNode::Reference {
-            referee: base_type, ..
-        } => is_byte_slice_carrier(program, *base_type),
-        TypeReferenceNode::Slice { element_type } => {
-            program.type_reference_table.primitive_type(*element_type)
-                == Some(typed_trees::types::PrimitiveType::U8)
-        }
-        _ => false,
-    }
+    let Some(carrier) = super::reference_shells::carrier_beneath_borrows(program, type_reference)
+    else {
+        return false;
+    };
+    let element_type = match program.type_reference_table.type_reference(carrier) {
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => *element_type,
+        _ => return false,
+    };
+    program.type_reference_table.primitive_type(element_type)
+        == Some(typed_trees::types::PrimitiveType::U8)
 }
 
 // --- comptime byte-predicate machinery (moved here from

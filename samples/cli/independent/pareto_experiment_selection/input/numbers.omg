@@ -9,30 +9,30 @@ blocks;
 crashes Trap
 {
     transition { _ -> skip() }
-    state skip() -> Parsed {
+    machine skip() -> Parsed {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> invalid()
             ByteRead::Byte { value } -> start(value)
         }
     }
-    state start(byte: i32) -> Parsed {
+    machine start(byte: i32) -> Parsed {
         transition byte == 32 || byte == 10 || byte == 13 || byte == 9 {
             true -> skip()
             false -> first(byte)
         }
     }
-    state first(byte: i32) -> Parsed {
+    machine first(byte: i32) -> Parsed {
         transition byte >= 48 && byte <= 57 {
             true -> initial(byte)
             false -> invalid()
         }
     }
-    state initial(byte: i32) -> Parsed
+    machine initial(byte: i32) -> Parsed
     requires byte >= 48 && byte <= 57 {
         transition { _ -> scan((byte - 48) as u64, 1) }
     }
-    state scan(value: u64, digits: u64) -> Parsed
+    machine scan(value: u64, digits: u64) -> Parsed
     requires value <= 999
     requires digits >= 1 && digits <= 3 {
         let observed: ByteRead = block Console::read_byte();
@@ -41,7 +41,7 @@ crashes Trap
             ByteRead::Byte { value as byte } -> classify(value, digits, byte)
         }
     }
-    state classify(value: u64, digits: u64, byte: i32) -> Parsed
+    machine classify(value: u64, digits: u64, byte: i32) -> Parsed
     requires value <= 999
     requires digits >= 1 && digits <= 3 {
         transition byte == 32 || byte == 10 || byte == 13 || byte == 9 {
@@ -49,20 +49,20 @@ crashes Trap
             false -> digit(value, digits, byte)
         }
     }
-    state digit(value: u64, digits: u64, byte: i32) -> Parsed {
+    machine digit(value: u64, digits: u64, byte: i32) -> Parsed {
         transition byte >= 48 && byte <= 57 && value <= 99 && digits >= 1 && digits < 3 {
             true -> append(value, digits, byte)
             false -> invalid()
         }
     }
-    state append(value: u64, digits: u64, byte: i32) -> Parsed
+    machine append(value: u64, digits: u64, byte: i32) -> Parsed
     requires value <= 99
     requires digits >= 1 && digits < 3
     requires byte >= 48 && byte <= 57 {
         transition { _ -> scan(value * 10 + ((byte - 48) as u64), digits + 1) }
     }
-    state complete(value: u64) -> Parsed { Parsed { value: value, valid: true } }
-    state invalid() -> Parsed { Parsed { value: 0, valid: false } }
+    machine complete(value: u64) -> Parsed { Parsed { value: value, valid: true } }
+    machine invalid() -> Parsed { Parsed { value: 0, valid: false } }
 }
 
 public machine only_whitespace() -> bool
@@ -72,14 +72,14 @@ blocks;
 crashes Trap
 {
     transition { _ -> scan() }
-    state scan() -> bool {
+    machine scan() -> bool {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> true
             ByteRead::Byte { value } -> check(value)
         }
     }
-    state check(byte: i32) -> bool {
+    machine check(byte: i32) -> bool {
         transition byte == 32 || byte == 10 || byte == 13 || byte == 9 {
             true -> scan()
             false -> false

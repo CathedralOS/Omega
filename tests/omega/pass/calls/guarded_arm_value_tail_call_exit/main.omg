@@ -51,7 +51,7 @@ requires 0 <= value && value <= 100;
         true -> deciding(main, value)
         false -> 2
     }
-    state deciding(main: &mut Main, value: i32) -> i32
+    machine deciding(main: &mut Main, value: i32) -> i32
     requires 0 <= value && value <= 100;
     {
         transition value > 30 {
@@ -66,7 +66,7 @@ machine Main::confirm(tail: &[Entry], chosen: u64) -> i32 {
         true -> emit(tail[chosen].value)
         false -> 4
     }
-    state emit(first: i32) -> i32 {
+    machine emit(first: i32) -> i32 {
         transition { _ -> first }
     }
 }
@@ -86,14 +86,14 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> skipping(main)
         false -> fail(main, 71)
     }
-    state skipping(main: &mut Main) {
+    machine skipping(main: &mut Main) {
         let skipped: i32 = Main::choose(main, 10);
         transition skipped == 1 && main.last == 60 {
             true -> staging(main)
             false -> fail(main, 72)
         }
     }
-    state staging(main: &mut Main) {
+    machine staging(main: &mut Main) {
         let staged: i32 = Main::staged(main, 40);
         let declined: i32 = Main::staged(main, 20);
         transition staged == 47 && declined == 3 && main.last == 40 {
@@ -101,7 +101,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> fail(main, 73)
         }
     }
-    state inspecting(main: &mut Main) {
+    machine inspecting(main: &mut Main) {
         let view: &[Entry] = &main.entries[..];
         let first: i32 = Main::inspect(view, 0);
         let past: i32 = Main::inspect(view, 7);
@@ -110,8 +110,8 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> fail(main, 74)
         }
     }
-    state done(main: &mut Main) { Console::exit_process(70); }
-    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine done(main: &mut Main) { Console::exit_process(70); }
+    machine fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

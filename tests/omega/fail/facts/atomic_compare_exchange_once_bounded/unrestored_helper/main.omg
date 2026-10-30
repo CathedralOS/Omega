@@ -1,0 +1,10 @@
+data Cells where selected <= 100 { selected: AtomicU32; }
+data Proposal where value <= 100 { value: u32; }
+machine break_invariant(proposal: &mut Proposal) -> u32 {
+    proposal.value = 101;
+    0
+}
+machine reject(cells: &Cells) {
+    let mut proposal: Proposal = Proposal { value: 99 };
+    let outcome: AtomicCompareExchangeOnceOutcome<u32> = cells.selected.compare_exchange_once(break_invariant(&mut proposal), proposal.value, ReceivePublish, Receive);
+}

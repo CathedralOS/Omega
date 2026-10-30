@@ -20,13 +20,13 @@ machine main(context: &mut Context) reaches Console {
         _ -> bad(context, 71)
     }
 
-    state caller_empty(context: &mut Context, empty: bool) {
+    machine caller_empty(context: &mut Context, empty: bool) {
         transition empty {
             false -> local(context)
             _ -> bad(context, 72)
         }
     }
-    state local(context: &mut Context) {
+    machine local(context: &mut Context) {
         let mut holder: Holder;
         holder.ready = true;
         let token: Token = holder.tokens[1];
@@ -35,14 +35,14 @@ machine main(context: &mut Context) reaches Console {
             _ -> bad(context, 73)
         }
     }
-    state start(context: &mut Context, start: u64 in Trapping, ready: bool) {
+    machine start(context: &mut Context, start: u64 in Trapping, ready: bool) {
         transition start == 0 && ready {
             true -> good(context)
             _ -> bad(context, 74)
         }
     }
-    state good(context: &mut Context) { Console::exit_process(70); }
-    state bad(context: &mut Context, code: i32) { Console::exit_process(code); }
+    machine good(context: &mut Context) { Console::exit_process(70); }
+    machine bad(context: &mut Context, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

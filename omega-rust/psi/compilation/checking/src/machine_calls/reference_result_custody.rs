@@ -38,7 +38,7 @@ mod source_paths;
 pub use captured_returns::call_sources as call_return_sources;
 pub use captured_returns::returned_sources as captured_return_sources;
 pub use declared_returns::returned_sources as declared_return_sources;
-pub use source_paths::reference_origin_path;
+pub use source_paths::{parameter_reference_origin_path, reference_origin_path};
 
 // An owned formal has a compact type DAG but its returned-origin roster is
 // materialized by path. Bound that expansion before semantic classification or
@@ -285,11 +285,12 @@ pub fn initializer_source(
             return None;
         }
         return Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
             source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: u32::try_from(position).ok()?,
             },
             path: Vec::new(),
-            type_identity: crate::structural_type_identity(program, referent, &[], &[]),
+            type_identity: crate::stored_structural_type_identity(program, referent, &[], &[]),
             access,
         });
     }
@@ -514,9 +515,10 @@ pub fn borrowed_initializer_source(
         return None;
     }
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source,
         path: segments,
-        type_identity: crate::structural_type_identity(program, referent, &[], &[]),
+        type_identity: crate::stored_structural_type_identity(program, referent, &[], &[]),
         access,
     })
 }
@@ -573,14 +575,7 @@ fn aggregate_projection(
         }
     }
     let root_type = match program.expression_table.expression(root) {
-        ExpressionNode::Name(name) => program
-            .state_local_declaration(state, name.symbol)
-            .map(|(_, local)| local.type_reference)
-            .or_else(|| {
-                program
-                    .state_parameter_by_symbol(state, name.symbol)
-                    .map(|parameter| parameter.type_reference)
-            })?,
+        ExpressionNode::Name(name) => crate::state_root_type(program, state, name.symbol)?,
         ExpressionNode::Call(call) => {
             let (_, destination) =
                 crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)
@@ -818,6 +813,7 @@ fn whole_reference_sources(
             return None;
         }
         let source = checked_trees::CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
             source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: u32::try_from(parameter_index).ok()?,
             },
@@ -918,6 +914,7 @@ pub fn record_carrier_sources(
             Some(checked_trees::CheckedReferenceResultSourcePlan {
                 path,
                 source: checked_trees::CheckedUnitStructuralArgumentPlan {
+                    projection_evaluations: Default::default(),
                     source: carrier.clone(),
                     path: source_path,
                     type_identity: leaf.type_identity,
@@ -1110,7 +1107,8 @@ pub fn stored_carrier_ingress_is_complete(
         .filter_map(|(_, row)| {
             (row.machine_symbol == machine
                 && row.state_symbol == state
-                && row.parameter_symbol() == parameter)
+                && row.parameter_symbol() == parameter
+                && row.carrier_type == carrier)
                 .then_some(row)
         })
         .collect::<Vec<_>>();
@@ -1268,6 +1266,17 @@ pub fn storage_place_loans(
         .borrow
         .storage_loans(borrowing, owner, statement_index as usize)?;
     let flow = state_flow(facts, machine, state.symbol)?;
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    let homes = crate::completed_storage::InstalledLoanHomes {
+        control: &facts.flow.control,
+        semantic: &facts.semantic,
+        borrow: &facts.borrow,
+        statements: flow.statements,
+        order: &order,
+        state: state.symbol,
+    };
     let activations = facts
         .flow
         .borrow_lifetimes
@@ -1275,9 +1284,8 @@ pub fn storage_place_loans(
         .span(flow.borrow_activations)?;
     let mut captured = Vec::new();
     for (handle, loan) in facts.borrow.loan_group(loans)? {
-        if !facts
-            .borrow
-            .loan_owner_path(loan)
+        if !homes
+            .owner_path(program, loan)
             .starts_with(&selected_owner_path)
         {
             continue;
@@ -1295,7 +1303,9 @@ pub fn storage_place_loans(
         }
         captured.push(handle);
     }
-    record_leaf_loan_groups(program, facts, reference, owner, &captured, selection)
+    record_leaf_loan_groups(
+        program, facts, reference, owner, &captured, selection, homes,
+    )
 }
 
 /// A borrowed formal has an ingress permission, not an installed owned
@@ -1391,6 +1401,14 @@ fn replaced_stored_reference_carrier(
     )?;
     let owner_path = loan_owner_path(program, reference, selection)?;
     let flow = state_flow(facts, machine, state.symbol)?;
+    let homes = crate::completed_storage::InstalledLoanHomes {
+        control: &facts.flow.control,
+        semantic: &facts.semantic,
+        borrow: &facts.borrow,
+        statements: flow.statements,
+        order: &order,
+        state: state.symbol,
+    };
     let mut formation = None;
     for weakening in facts
         .flow
@@ -1407,7 +1425,7 @@ fn replaced_stored_reference_carrier(
             continue;
         }
         let loan = facts.borrow.loans.get(weakening.loan);
-        if loan.storage_owner != owner || facts.borrow.loan_owner_path(loan) != owner_path {
+        if loan.storage_owner != owner || homes.owner_path(program, loan).as_ref() != owner_path {
             continue;
         }
         if !order.precedes(loan.statement_index, statement_index as usize)
@@ -1468,6 +1486,7 @@ fn record_leaf_loan_groups(
     owner: facts::PlaceRoot,
     loans: &[arena::Handle<checked_trees::BorrowLoanFact>],
     selection: &[checked_trees::CheckedUnitStructuralPathSegment],
+    homes: crate::completed_storage::InstalledLoanHomes<'_>,
 ) -> Option<Vec<RecordLeafLoans>> {
     let source = match owner {
         facts::PlaceRoot::Symbol(symbol) => {
@@ -1493,7 +1512,7 @@ fn record_leaf_loan_groups(
         let mut formation = None;
         for handle in loans.iter().copied() {
             let loan = facts.borrow.loans.get(handle);
-            if facts.borrow.loan_owner_path(loan) != owner_path {
+            if homes.owner_path(program, loan).as_ref() != owner_path {
                 continue;
             }
             if loan.storage_owner != owner
@@ -1770,6 +1789,7 @@ fn active_record_loans(
     }) {
         return None;
     }
+    let flow = state_flow(facts, machine, state.symbol)?;
     record_leaf_loan_groups(
         program,
         facts,
@@ -1777,6 +1797,14 @@ fn active_record_loans(
         facts::PlaceRoot::Symbol(local.symbol),
         &loans,
         &[],
+        crate::completed_storage::InstalledLoanHomes {
+            control: &facts.flow.control,
+            semantic: &facts.semantic,
+            borrow: &facts.borrow,
+            statements: flow.statements,
+            order: &order,
+            state: state.symbol,
+        },
     )
 }
 
@@ -1786,17 +1814,17 @@ fn active_record_loans(
 fn reference_record_call_sources<'program>(
     program: &'program dyn crate::CheckingInput,
     facts: &CheckFacts,
-    call: &typed_trees::expression::TableCallExpression,
+    target: SymbolHandle,
 ) -> Option<(
     &'program [typed_trees::signature::StateParameter],
     Vec<checked_trees::CheckedReturnedReferencePlan>,
 )> {
-    let return_type = crate::call_target_return_type(program, call.target_symbol)?;
-    let parameters = crate::call_target_parameters(program, call.target_symbol)?;
+    let return_type = crate::call_target_return_type(program, target)?;
+    let parameters = crate::call_target_parameters(program, target)?;
     if !is_reference_record(program, return_type) {
         return None;
     }
-    let sources = captured_returns::call_sources(program, facts, call.target_symbol)?;
+    let sources = captured_returns::call_sources(program, facts, target)?;
     Some((parameters, sources))
 }
 
@@ -1809,28 +1837,16 @@ pub fn transient_call_record_loans(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
-    statement_index: u32,
-    expression: typed_trees::expression::ExpressionHandle,
+    call: &checked_trees::FlowCallFact,
     arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     residual_paths: &[Vec<checked_trees::CheckedUnitStructuralPathSegment>],
 ) -> bool {
-    let Some(call) = program.expression_table.call_node(expression) else {
+    let Ok(occurrence) = call_reception::retained_call(facts, machine, state.symbol, call) else {
         return false;
     };
-    let Some((parameters, sources)) = reference_record_call_sources(program, facts, call) else {
-        return false;
-    };
-    let Some(flow) = state_flow(facts, machine, state.symbol) else {
-        return false;
-    };
-    let Some(calls) = facts.flow.control.calls.span(flow.calls) else {
-        return false;
-    };
-    let Some(occurrence) = calls.iter().find(|occurrence| {
-        occurrence.authored_expression == expression
-            && occurrence.statement_index == statement_index as usize
-            && occurrence.target_symbol == call.target_symbol
-    }) else {
+    let Some((parameters, sources)) =
+        reference_record_call_sources(program, facts, occurrence.target_symbol)
+    else {
         return false;
     };
     let Some(paths) = captured_returns::call_result_paths(program, facts, occurrence) else {
@@ -1938,6 +1954,7 @@ fn call_result_field_argument(
         path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
     }
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         },
@@ -2029,6 +2046,7 @@ pub fn record_argument(
         path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
     }
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         },
@@ -2195,6 +2213,37 @@ pub fn path_has_nominal_receiver(
             |reference| crate::nominal_cleanup_machine_for_type(program, reference, &[]).is_some(),
         )
     })
+}
+
+/// A stored value read can duplicate descriptor bytes without acquiring the
+/// referee. Owning/copying that value remains separate from result disposal.
+pub fn is_copyable_stored_value(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    reference.is_valid()
+        && crate::has_contents(
+            program,
+            reference,
+            &[],
+            crate::ContentsRequirement::StoredValue,
+        )
+        && crate::type_satisfies_declared_property(
+            program,
+            &[],
+            reference,
+            crate::DeclaredPropertyRequirement::Copy,
+        )
+}
+
+/// Reusable Source copies do not consume the source's custody. A materialized
+/// result can still have affine descriptor cleanup via result_multiplicity.
+pub fn source_value_is_copied(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    is_copyable_stored_value(program, reference)
+        && program.type_multiplicity(reference) == Multiplicity::Unrestricted
 }
 
 /// Custody of a structural binding that denotes the referent directly.
@@ -2394,7 +2443,8 @@ pub fn result_loans(
                 && !call.authored_expression.is_valid()
                 && call.statement_index == result.statement_index as usize
                 && call.call_ordinal == 0
-                && authored.target_symbol == call.target_symbol =>
+                && crate::call_target_entry_symbol(program, authored.target_symbol)
+                    == call.target_symbol =>
         {
             return Some(arena::HandleSpan::empty());
         }
@@ -2402,11 +2452,15 @@ pub fn result_loans(
     }
     if !call.authored_expression.is_valid()
         || call.statement_index != result.statement_index as usize
-        || program
-            .expression_table
-            .call_node(call.authored_expression)?
-            .target_symbol
-            != call.target_symbol
+        || crate::call_target_entry_symbol(
+            program,
+            crate::call_target_symbol(
+                program,
+                program
+                    .expression_table
+                    .call_node(call.authored_expression)?,
+            ),
+        ) != call.target_symbol
     {
         return None;
     }
@@ -2498,13 +2552,28 @@ pub fn local_storage_loans(
     state: SymbolHandle,
     root: SymbolHandle,
 ) -> Option<Vec<arena::Handle<checked_trees::BorrowLoanFact>>> {
+    storage_loans(facts, machine, state, facts::PlaceRoot::Symbol(root))
+}
+
+/// The same captured backing relationship applies to anonymous owned homes.
+/// Descriptor suppliers name transport history; only the checked loan root
+/// identifies the storage whose disposal must wait for that holder. Only
+/// published statement resources own local retirement; invocation associations
+/// retain their supplier history without adding another independently live home.
+pub fn storage_loans(
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    root: facts::PlaceRoot,
+) -> Option<Vec<arena::Handle<checked_trees::BorrowLoanFact>>> {
     let borrowing = facts.borrow.unique_state_borrow(machine, state)?;
     Some(
         facts
             .borrow
-            .loan_group(borrowing.loans)?
+            .statement_resource_loans(borrowing)?
             .filter_map(|(handle, loan)| {
-                (loan.root == facts::PlaceRoot::Symbol(root)).then_some(handle)
+                (facts.borrow.state_owns_loan(borrowing, handle) && loan.root == root)
+                    .then_some(handle)
             })
             .collect(),
     )

@@ -70,7 +70,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> fail(main, 71)
     }
 
-    state i32_below(main: &mut Main) {
+    machine i32_below(main: &mut Main) {
         let value: i32 in Saturating = I32::from_f64(main.negative_huge64);
         transition value == -2147483648 {
             true -> i32_nan(main)
@@ -78,7 +78,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state i32_nan(main: &mut Main) {
+    machine i32_nan(main: &mut Main) {
         let nan64: f64 = main.zero64 / main.zero64;
         let value: i32 in Saturating = I32::from_f64(nan64);
         transition value == 0 {
@@ -87,7 +87,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state i32_toward_zero(main: &mut Main) {
+    machine i32_toward_zero(main: &mut Main) {
         let value: i32 in Saturating = I32::from_f64(main.fraction64);
         transition value == -1234 {
             true -> i64_above(main)
@@ -95,7 +95,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state i64_above(main: &mut Main) {
+    machine i64_above(main: &mut Main) {
         let value: i64 in Saturating = I64::from_f64(main.enormous64);
         transition value == 9223372036854775807 {
             true -> i64_below(main)
@@ -103,7 +103,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state i64_below(main: &mut Main) {
+    machine i64_below(main: &mut Main) {
         let value: i64 in Saturating = I64::from_f64(main.negative_enormous64);
         transition value < -9223372036854775000 {
             true -> i64_toward_zero(main)
@@ -111,7 +111,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state i64_toward_zero(main: &mut Main) {
+    machine i64_toward_zero(main: &mut Main) {
         let value: i64 in Saturating = I64::from_f64(main.large_fraction64);
         transition value == -123456789012 {
             true -> u32_above(main)
@@ -119,7 +119,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state u32_above(main: &mut Main) {
+    machine u32_above(main: &mut Main) {
         let value: u32 in Saturating = U32::from_f64(main.unsigned_huge64);
         transition value == 4294967295 {
             true -> u32_negative(main)
@@ -127,7 +127,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state u32_negative(main: &mut Main) {
+    machine u32_negative(main: &mut Main) {
         let value: u32 in Saturating = U32::from_f64(main.negative_small64);
         transition value == 0 {
             true -> u32_toward_zero(main)
@@ -135,7 +135,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state u32_toward_zero(main: &mut Main) {
+    machine u32_toward_zero(main: &mut Main) {
         let value: u32 in Saturating = U32::from_f64(main.unsigned_fraction64);
         transition value == 3000000000 {
             true -> u32_nan(main)
@@ -143,7 +143,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state u32_nan(main: &mut Main) {
+    machine u32_nan(main: &mut Main) {
         let nan64: f64 = main.zero64 / main.zero64;
         let value: u32 in Saturating = U32::from_f64(nan64);
         transition value == 0 {
@@ -152,7 +152,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state i32_from_f32(main: &mut Main) {
+    machine i32_from_f32(main: &mut Main) {
         let value: i32 in Saturating = I32::from_f32(main.huge32);
         transition value == 2147483647 {
             true -> i32_from_f32_toward_zero(main)
@@ -160,7 +160,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state i32_from_f32_toward_zero(main: &mut Main) {
+    machine i32_from_f32_toward_zero(main: &mut Main) {
         let value: i32 in Saturating = I32::from_f32(main.fraction32);
         transition value == -7 {
             true -> i64_from_f32(main)
@@ -168,7 +168,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state i64_from_f32(main: &mut Main) {
+    machine i64_from_f32(main: &mut Main) {
         let value: i64 in Saturating = I64::from_f32(main.negative_enormous32);
         transition value < -9223372036854775000 {
             true -> u32_from_f32(main)
@@ -176,7 +176,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state u32_from_f32(main: &mut Main) {
+    machine u32_from_f32(main: &mut Main) {
         let value: u32 in Saturating = U32::from_f32(main.unsigned32);
         transition value == 4000000000 {
             true -> u32_from_f32_nan(main)
@@ -184,7 +184,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state u32_from_f32_nan(main: &mut Main) {
+    machine u32_from_f32_nan(main: &mut Main) {
         let nan32: f32 = main.zero32 / main.zero32;
         let value: u32 in Saturating = U32::from_f32(nan32);
         transition value == 0 {
@@ -193,7 +193,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state i8_above(main: &mut Main) {
+    machine i8_above(main: &mut Main) {
         let value: i8 in Saturating = I8::from_f64(main.thousand64);
         transition value == 127 {
             true -> i8_below(main)
@@ -201,7 +201,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state i8_below(main: &mut Main) {
+    machine i8_below(main: &mut Main) {
         let value: i8 in Saturating = I8::from_f64(main.negative_thousand64);
         transition value == -128 {
             true -> i16_below(main)
@@ -209,7 +209,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state i16_below(main: &mut Main) {
+    machine i16_below(main: &mut Main) {
         let value: i16 in Saturating = I16::from_f32(main.negative_million32);
         transition value == -32768 {
             true -> i16_toward_zero(main)
@@ -217,7 +217,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state i16_toward_zero(main: &mut Main) {
+    machine i16_toward_zero(main: &mut Main) {
         let value: i16 in Saturating = I16::from_f64(main.fraction64);
         transition value == -1234 {
             true -> u8_above(main)
@@ -225,7 +225,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state u8_above(main: &mut Main) {
+    machine u8_above(main: &mut Main) {
         let value: u8 in Saturating = U8::from_f64(main.three_hundred64);
         transition value == 255 {
             true -> u8_nan(main)
@@ -233,7 +233,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state u8_nan(main: &mut Main) {
+    machine u8_nan(main: &mut Main) {
         let nan32: f32 = main.zero32 / main.zero32;
         let value: u8 in Saturating = U8::from_f32(nan32);
         transition value == 0 {
@@ -242,7 +242,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state u16_negative(main: &mut Main) {
+    machine u16_negative(main: &mut Main) {
         let value: u16 in Saturating = U16::from_f64(main.negative_small64);
         transition value == 0 {
             true -> u16_above(main)
@@ -250,7 +250,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state u16_above(main: &mut Main) {
+    machine u16_above(main: &mut Main) {
         let value: u16 in Saturating = U16::from_f32(main.seventy_thousand32);
         transition value == 65535 {
             true -> pass(main)
@@ -258,8 +258,8 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state pass(main: &mut Main) { Console::exit_process(70); }
-    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine pass(main: &mut Main) { Console::exit_process(70); }
+    machine fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

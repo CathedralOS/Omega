@@ -1,5 +1,5 @@
-//! One call's flow fact. `build_call_flow_fact` joins the call into the callee's
-//! incoming values, builds entry, requires, invalidation, and exit contexts
+//! One call's flow fact. `build_call_flow_fact` records conservative invocation
+//! inputs, builds entry, requires, invalidation, and exit contexts
 //! (`call_phases`), adds carry and domain facts to the exit, then appends boundary
 //! edges. The functions after it answer flow qualifications; exact callable types
 //! are owned by validation.
@@ -44,120 +44,139 @@ pub(super) fn build_call_flow_fact<'plans>(
     writes: Option<&super::call_phases::CallStorageWrites>,
 ) -> FlowCallFact {
     let storage_writes = writes.map(|writes| writes.observation_places.as_slice());
-    super::state_values::record_invocation(program, build, machine, state, borrow_call);
-    let contract_call = proof.contract_call_at(&(
-        machine.symbol,
-        state.symbol,
-        borrow_call.statement_index,
-        borrow_call.call_ordinal,
-    ));
-    let entry = build_call_entry_contexts(
-        borrow,
-        build,
-        *active_contexts,
-        *active_constraints,
-        machine.symbol,
-        state.symbol,
-        borrow_call,
-    );
-    super::state_values::lexical_regions::record(
-        program,
-        semantic,
-        build,
-        machine,
-        state,
-        borrow_call,
-        captured_operands,
-        entry.constraints,
-    );
-    let requires = build_call_requires_contexts(semantic, build, machine, state, borrow_call);
-    let argument_sources = super::call_phases::ArgumentSources::new(
-        program,
-        machine.symbol,
-        state.symbol,
-        borrow_call,
-        storage_writes,
-        &build.control,
-        captured_operands,
-    );
-    let observed_writes =
-        writes.map(|writes| writes.with_captured_observations(argument_sources.as_ref()));
-    let invalidation = apply_call_invalidations(
-        program,
-        semantic,
-        domains,
-        build,
-        *active_contexts,
-        *active_constraints,
-        borrow_call,
-        observed_writes.as_ref(),
-    );
-    let mut exit = build_call_exit_contexts(
-        program,
-        proof,
-        semantic,
-        build,
-        machine,
-        state,
-        borrow_call,
-        invalidation.post_contexts,
-        invalidation.post_constraints,
-        argument_sources.as_ref(),
-    );
-    append_one_to_one_call_carry_facts(
-        program,
-        semantic,
-        build,
-        machine,
-        state,
-        borrow_call,
-        &entry,
-        &mut exit,
-    );
-    append_call_result_field_domain_facts(
-        program,
-        semantic,
-        build,
-        machine,
-        state,
-        borrow_call,
-        &mut exit,
-    );
-    append_call_parameter_domain_facts(
-        program,
-        semantic,
-        build,
-        machine,
-        state,
-        borrow_call,
-        &mut exit,
-        argument_sources.as_ref(),
-    );
+    let (contract_call, entry, requires) =
+        phase_profile::scope("05.d.3.b.flow.call.1_entry_and_requires", || {
+            super::state_values::record_invocation(program, build, machine, state, borrow_call);
+            let contract_call = proof.contract_call_at(&(
+                machine.symbol,
+                state.symbol,
+                borrow_call.statement_index,
+                borrow_call.call_ordinal,
+            ));
+            let entry = build_call_entry_contexts(
+                borrow,
+                build,
+                *active_contexts,
+                *active_constraints,
+                machine.symbol,
+                state.symbol,
+                borrow_call,
+            );
+            super::state_values::lexical_regions::record(
+                program,
+                semantic,
+                build,
+                machine,
+                state,
+                borrow_call,
+                captured_operands,
+                entry.contexts,
+            );
+            let requires =
+                build_call_requires_contexts(semantic, build, machine, state, borrow_call);
+            (contract_call, entry, requires)
+        });
+    let (argument_sources, observed_writes, invalidation) =
+        phase_profile::scope("05.d.3.b.flow.call.2_sources_and_invalidation", || {
+            let argument_sources = super::call_phases::ArgumentSources::new(
+                program,
+                machine.symbol,
+                state.symbol,
+                borrow_call,
+                storage_writes,
+                &build.control,
+                captured_operands,
+            );
+            let observed_writes =
+                writes.map(|writes| writes.with_captured_observations(argument_sources.as_ref()));
+            let invalidation = apply_call_invalidations(
+                program,
+                semantic,
+                domains,
+                build,
+                *active_contexts,
+                *active_constraints,
+                borrow_call,
+                observed_writes.as_ref(),
+            );
+            (argument_sources, observed_writes, invalidation)
+        });
+    let mut exit = phase_profile::scope("05.d.3.b.flow.call.3_exit_and_carry", || {
+        let mut exit = build_call_exit_contexts(
+            program,
+            proof,
+            semantic,
+            build,
+            machine,
+            state,
+            borrow_call,
+            invalidation.post_contexts,
+            invalidation.post_constraints,
+            argument_sources.as_ref(),
+        );
+        append_one_to_one_call_carry_facts(
+            program,
+            semantic,
+            build,
+            machine,
+            state,
+            borrow_call,
+            &entry,
+            &mut exit,
+        );
+        exit
+    });
+    phase_profile::scope("05.d.3.b.flow.call.4_result_and_param_domains", || {
+        append_call_result_field_domain_facts(
+            program,
+            semantic,
+            build,
+            machine,
+            state,
+            borrow_call,
+            &mut exit,
+        );
+        append_call_parameter_domain_facts(
+            program,
+            semantic,
+            build,
+            machine,
+            state,
+            borrow_call,
+            &mut exit,
+            argument_sources.as_ref(),
+        );
+    });
     // Every exclusive borrowed referent comes back satisfying the field facts
     // the callee re-proved at its return (checks/contracts/exits).
-    append_call_referent_field_domain_facts(
-        program,
-        semantic,
-        build,
-        machine,
-        state,
-        borrow_call,
-        entry.contexts,
-        &mut exit,
-        argument_sources.as_ref(),
-        domains,
-        writes.map(|writes| writes.contributions.as_slice()),
-    );
-    super::call_phases::append_instruction_effect(
-        program,
-        semantic,
-        build,
-        machine,
-        state,
-        borrow_call,
-        &mut exit,
-    );
-    let boundary_edges = append_call_boundary_edges(program, build, borrow_call);
+    phase_profile::scope("05.d.3.b.flow.call.5_referent_domains", || {
+        append_call_referent_field_domain_facts(
+            program,
+            borrow,
+            semantic,
+            build,
+            machine,
+            state,
+            borrow_call,
+            entry.contexts,
+            &mut exit,
+            argument_sources.as_ref(),
+            domains,
+            writes.map(|writes| writes.contributions.as_slice()),
+        );
+    });
+    let boundary_edges = phase_profile::scope("05.d.3.b.flow.call.6_inst_and_boundary", || {
+        super::call_phases::append_instruction_effect(
+            program,
+            semantic,
+            build,
+            machine,
+            state,
+            borrow_call,
+            &mut exit,
+        );
+        append_call_boundary_edges(program, build, borrow_call)
+    });
     *active_contexts = retained_flow_contexts(&build.contexts.semantic_context_refs, exit.contexts);
     *active_constraints =
         retained_constraint_refs(&build.contexts.constraint_refs, exit.constraints);
@@ -179,6 +198,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         build.control.operand_origin_writes.append_to_span(
             &mut normal_return_writes,
             checked_trees::FlowOperandReferent {
+                formation: arena::Handle::invalid(),
                 root: place.root,
                 segments,
             },
@@ -187,6 +207,7 @@ pub(super) fn build_call_flow_fact<'plans>(
     FlowCallFact {
         statement_index: borrow_call.statement_index,
         call_ordinal: borrow_call.call_ordinal,
+        invocation_storage: Default::default(),
         authored_expression: Default::default(),
         authored_site: Default::default(),
         authored_target: Default::default(),
@@ -387,9 +408,7 @@ fn append_one_to_one_call_carry_facts<'plans>(
             {
                 continue;
             }
-            if !transfers.contains(&(payload, fact.evidence)) {
-                transfers.push((payload, fact.evidence));
-            }
+            crate::collections::push_unique(&mut transfers, (payload, fact.evidence));
         }
     }
     if transfers.is_empty() {
@@ -445,7 +464,25 @@ fn append_call_result_field_domain_facts<'plans>(
     ) else {
         return;
     };
-    let key = (machine.symbol, expression);
+    let selected = program.requirement_call_signature(machine.symbol, call);
+    // A named operator can complete without an authored machine target or a
+    // retained constructor type. Its exact source occurrence still owns the
+    // applied result contract; machine-only lookup would lose its field duties.
+    let Some(return_type) = build.expression_result_type_at(program, machine, state, expression)
+    else {
+        return;
+    };
+    // Live borrowed guarantees are published with their completed descriptor
+    // and write dependencies by expression::result_memberships. Owned results
+    // retain their detached completion namespace here.
+    if validation::reference_shell(program, return_type).is_some() {
+        return;
+    }
+    let key = (
+        borrow_call.target_symbol,
+        selected.map_or(0, |s| std::ptr::from_ref(s) as usize),
+        return_type,
+    );
     // These are provisional checked-signature facts, not new issuance. The
     // content checker independently rejoins routed result claims to this
     // invocation after linear claim reconstruction; ordinary callee exits
@@ -455,7 +492,8 @@ fn append_call_result_field_domain_facts<'plans>(
             program,
             build,
             borrow_call.target_symbol,
-            program.requirement_call_signature(machine.symbol, call),
+            selected,
+            return_type,
         ));
         build.call_result_identities.insert(key, computed);
     }
@@ -486,45 +524,32 @@ fn append_call_result_field_domain_facts<'plans>(
     // an exact result membership the adapter's own contract carries is kept
     // because its body owes it. A promise about an input, another projection,
     // or another domain application cannot stand in for this result row.
-    let realization = checked_realization_result_identities(program, call);
-    let mut refs = HandleSpan::empty();
-    for row @ (path, domain_symbol, semantic_domain) in paths.iter() {
-        if realization
-            .as_ref()
-            .is_some_and(|guaranteed| !guaranteed.contains(row))
-            && program
-                .domain_definition(*domain_symbol)
-                .is_some_and(|domain| {
-                    domain.establishment_routes.iter().any(|route| {
-                        matches!(
-                            route,
-                            language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. }
-                        )
-                    })
-                })
-        {
-            continue;
-        }
-        let place = crate::semantic::places::append_place(
-            semantic,
-            facts::PlaceRoot::Expression(expression),
-            path,
-        );
-        let fact = semantic.append_fact(Fact {
-            place: FactPlace::Place(place),
-            point,
-            origin: FactOrigin::CallEnsures,
-            evidence,
-            payload: FactPayload::DomainMembership {
-                value: ExpressionHandle::invalid(),
-                domain: HandleSpan::empty(),
-                domain_symbol: *domain_symbol,
-                semantic_domain: *semantic_domain,
-            },
-        });
-        semantic.append_ref(&mut refs, fact);
-    }
-    reference_spans::append_semantic_context(semantic, build, exit, point, refs);
+    let realization = checked_realization_result_identities(program, build, call);
+    let rows = paths.iter().filter(|row| {
+        result_identity_is_available(program, realization.as_deref().map(Vec::as_slice), row)
+    });
+    super::call_results::append_memberships(
+        semantic, build, exit, expression, point, evidence, rows,
+    );
+}
+
+/// Preserve the issuer fence for owned and borrowed normal-result publishers.
+/// A direct checked adapter owes the exact result row independently; its
+/// requirement's boundary-only authority cannot supply a missing promise.
+pub(in crate::flow) fn result_identity_is_available(
+    program: &dyn ::validation::CheckingInput,
+    realization: Option<&[validation::field_domains::FieldDomainIdentity]>,
+    row: &validation::field_domains::FieldDomainIdentity,
+) -> bool {
+    !realization.is_some_and(|guaranteed| !guaranteed.contains(row))
+        || !program.domain_definition(row.1).is_some_and(|domain| {
+            domain.establishment_routes.iter().any(|route| {
+                matches!(
+                    route,
+                    language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. }
+                )
+            })
+        })
 }
 
 /// The checked adapter's exact result obligations, when this is a direct call.
@@ -533,15 +558,18 @@ fn append_call_result_field_domain_facts<'plans>(
 /// publisher. Scanning domain symbols alone would let `ensures input in D`
 /// authorize an unrelated `result in D`. An empty checked-body roster grants
 /// nothing; absence denotes a crossing or bodyless provider and adds no fence.
-fn checked_realization_result_identities(
-    program: &dyn ::validation::CheckingInput,
+pub(in crate::flow) fn checked_realization_result_identities<'plans>(
+    program: &'plans dyn ::validation::CheckingInput,
+    build: &mut FlowBuildContext<'plans>,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<
-    Vec<(
-        Vec<facts::PlaceSegment>,
-        SymbolHandle,
-        language_semantics::SemanticDomainId,
-    )>,
+    std::rc::Rc<
+        Vec<(
+            Vec<facts::PlaceSegment>,
+            SymbolHandle,
+            language_semantics::SemanticDomainId,
+        )>,
+    >,
 > {
     let dispatch = call.static_requirement_dispatch.as_ref()?;
     program
@@ -551,11 +579,21 @@ fn checked_realization_result_identities(
     // Monomorphization has already joined the executable target to that
     // selection. Read the actual target's substituted types and contracts:
     // template parameter identities cannot match a closed invocation's rows.
-    Some(call_result_qualification_identities(
-        program,
-        call.target_symbol,
-        None,
-    ))
+    // This fence reads the checked realization's own declared result, not a
+    // public requirement's stronger receiving annotation.
+    let return_type = memoized_call_target_return_type(program, build, call.target_symbol)?;
+    let key = (call.target_symbol, 0, return_type);
+    if !build.call_result_identities.contains_key(&key) {
+        let computed = std::rc::Rc::new(call_result_qualification_identities_indexed(
+            program,
+            build,
+            call.target_symbol,
+            None,
+            return_type,
+        ));
+        build.call_result_identities.insert(key, computed);
+    }
+    build.call_result_identities.get(&key).cloned()
 }
 
 /// Authored `ensures <parameter> in <domain>` claims the call hands back on
@@ -591,10 +629,8 @@ fn append_call_parameter_domain_facts<'plans>(
         _ => None,
     };
     let key = (
-        machine.symbol,
-        state.symbol,
-        borrow_call.statement_index,
-        borrow_call.call_ordinal,
+        borrow_call.target_symbol,
+        selected.map_or(0, |s| std::ptr::from_ref(s) as usize),
     );
     if !build.call_parameter_identities.contains_key(&key) {
         let computed = std::rc::Rc::new(call_parameter_qualification_identities_indexed(
@@ -677,15 +713,17 @@ fn append_call_parameter_domain_facts<'plans>(
 /// state contracts, the entry machine's contracts when the callable is an
 /// entry state, and the trait signature's contracts when the callable is a
 /// bodyless requirement. State and signature symbols are globally unique, so
-/// each source contributes at most once.
+/// each source contributes at most once. A machine head selects its exact
+/// entry contract without changing the invocation's source identity.
 fn collect_callable_contracts(
     program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
 ) -> Vec<&typed_trees::signature::SignatureContract> {
     let mut contracts = Vec::new();
+    let executable_target = validation::call_target_entry_symbol(program, target);
     for machine in program.machines() {
         for (position, state) in program.machine_states(machine).iter().enumerate() {
-            if state.symbol != target {
+            if state.symbol != executable_target {
                 continue;
             }
             contracts.extend(program.state_contracts(state));
@@ -713,7 +751,8 @@ fn collect_callable_contracts_indexed<'plans>(
     target: SymbolHandle,
 ) -> Vec<&'plans typed_trees::signature::SignatureContract> {
     let mut contracts = Vec::new();
-    if let Some((machine_index, state_index)) = build.state_location(program, target) {
+    let executable_target = validation::call_target_entry_symbol(program, target);
+    if let Some((machine_index, state_index)) = build.state_location(program, executable_target) {
         let machine = &program.machines()[machine_index];
         let state = &program.machine_states(machine)[state_index];
         contracts.extend(program.state_contracts(state));
@@ -731,21 +770,21 @@ fn collect_callable_contracts_indexed<'plans>(
 /// independent custody consumer. A conservation primitive may state `result
 /// in D` in ensures rather than on the carrier type; that is still an exact
 /// result promise, not issuer authorization or an argument qualification.
+/// Enumerating a selected public promise does not authenticate its provenance:
+/// the actual invoked declaration must justify each transported ensures fact.
 pub(crate) fn call_result_qualification_identities(
     program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
     selected: Option<&typed_trees::signature::StateSignature>,
+    return_type: typed_trees::types::TypeReferenceHandle,
 ) -> Vec<(
     Vec<facts::PlaceSegment>,
     SymbolHandle,
     language_semantics::SemanticDomainId,
 )> {
-    let Some(return_type) = selected
-        .map(|signature| signature.return_type)
-        .or_else(|| call_target_return_type(program, target))
-    else {
+    if !return_type.is_valid() {
         return Vec::new();
-    };
+    }
     let parameters = selected
         .map(|signature| program.state_signature_parameters(signature))
         .or_else(|| validation::call_target_parameters(program, target));
@@ -757,7 +796,15 @@ pub(crate) fn call_result_qualification_identities(
                 .collect()
         })
         .unwrap_or_else(|| collect_callable_contracts(program, target));
-    result_identity_rows(program, return_type, parameters, &contracts)
+    let qualification_contract =
+        validation::CallQualificationContract::prepare(program, target, selected);
+    result_identity_rows(
+        program,
+        return_type,
+        parameters,
+        &contracts,
+        &qualification_contract,
+    )
 }
 
 /// `call_result_qualification_identities` on the context's memoized lookups
@@ -765,22 +812,20 @@ pub(crate) fn call_result_qualification_identities(
 /// scans. Used inside `call_result_identities`, so each call occurrence pays
 /// the indexed lookup at most once per build. Two calls to one requirement
 /// can have different local index tuples and therefore different result facts.
-fn call_result_qualification_identities_indexed<'plans>(
+pub(in crate::flow) fn call_result_qualification_identities_indexed<'plans>(
     program: &'plans dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
     selected: Option<&'plans typed_trees::signature::StateSignature>,
+    return_type: typed_trees::types::TypeReferenceHandle,
 ) -> Vec<(
     Vec<facts::PlaceSegment>,
     SymbolHandle,
     language_semantics::SemanticDomainId,
 )> {
-    let Some(return_type) = selected
-        .map(|signature| signature.return_type)
-        .or_else(|| memoized_call_target_return_type(program, build, target))
-    else {
+    if !return_type.is_valid() {
         return Vec::new();
-    };
+    }
     let parameters = selected
         .map(|signature| program.state_signature_parameters(signature))
         .or_else(|| memoized_call_target_parameters(program, build, target));
@@ -792,63 +837,25 @@ fn call_result_qualification_identities_indexed<'plans>(
                 .collect()
         })
         .unwrap_or_else(|| collect_callable_contracts_indexed(program, build, target));
-    if !result_type_carries_identity_rows(program, return_type) {
+    if !return_type.is_valid() {
         return Vec::new();
     }
     let domain_rows = build
         .result_identity_domain_rows
         .entry(return_type)
-        .or_insert_with(|| std::rc::Rc::new(result_type_domain_rows(program, return_type)))
+        .or_insert_with(|| {
+            std::rc::Rc::new(super::call_results::type_domain_rows(program, return_type))
+        })
         .clone();
     let mut domains = (*domain_rows).clone();
-    append_ensures_result_rows(program, parameters, &contracts, &mut domains);
-    domains
-}
-
-/// Whether a return type can produce identity rows at all: types whose
-/// peeled carrier is a reference yield none, so every caller can skip the
-/// row build without consulting the (return_type-keyed) domain rows.
-fn result_type_carries_identity_rows(
-    program: &dyn ::validation::CheckingInput,
-    return_type: typed_trees::types::TypeReferenceHandle,
-) -> bool {
-    let carrier = program
-        .type_reference_table
-        .unconstrained_type_reference(return_type);
-    !matches!(
-        program.type_reference_table.type_reference(carrier),
-        typed_trees::types::TypeReferenceNode::Reference { .. }
-    )
-}
-
-/// The return-type-driven identity rows: declared owned-field domains plus
-/// type-level constraint domains. Independent of the callable's contracts,
-/// so callers may memoize them per return type.
-fn result_type_domain_rows(
-    program: &dyn ::validation::CheckingInput,
-    return_type: typed_trees::types::TypeReferenceHandle,
-) -> Vec<(
-    Vec<facts::PlaceSegment>,
-    SymbolHandle,
-    language_semantics::SemanticDomainId,
-)> {
-    let mut domains =
-        validation::field_domains::declared_owned_field_domain_identities(program, return_type);
-    // Normal return also proves predicate requirements on readable children,
-    // including stored borrowed views. Transport that checked promise with the
-    // completed result; the owned-only roster deliberately stops at references.
-    // Routed memberships keep their independent owned provenance judgment.
-    domains.extend(
-        validation::field_domains::declared_result_field_domain_paths(program, return_type)
-            .into_iter()
-            .filter(|(_, domain, _)| {
-                crate::checks::contracts::value_provable_domain(program, *domain)
-            }),
-    );
-    domains.extend(
-        validation::field_domains::domain_constraint_identities(program, return_type)
-            .into_iter()
-            .map(|(symbol, identity)| (Vec::new(), symbol, identity)),
+    let qualification_contract =
+        validation::CallQualificationContract::prepare(program, target, selected);
+    append_ensures_result_rows(
+        program,
+        parameters,
+        &contracts,
+        &qualification_contract,
+        &mut domains,
     );
     domains
 }
@@ -858,16 +865,23 @@ fn result_identity_rows(
     return_type: typed_trees::types::TypeReferenceHandle,
     parameters: Option<&[typed_trees::signature::StateParameter]>,
     contracts: &[&typed_trees::signature::SignatureContract],
+    qualification_contract: &validation::CallQualificationContract<'_>,
 ) -> Vec<(
     Vec<facts::PlaceSegment>,
     SymbolHandle,
     language_semantics::SemanticDomainId,
 )> {
-    if !result_type_carries_identity_rows(program, return_type) {
+    if !return_type.is_valid() {
         return Vec::new();
     }
-    let mut domains = result_type_domain_rows(program, return_type);
-    append_ensures_result_rows(program, parameters, contracts, &mut domains);
+    let mut domains = super::call_results::type_domain_rows(program, return_type);
+    append_ensures_result_rows(
+        program,
+        parameters,
+        contracts,
+        qualification_contract,
+        &mut domains,
+    );
     domains
 }
 
@@ -875,6 +889,7 @@ fn append_ensures_result_rows(
     program: &dyn ::validation::CheckingInput,
     parameters: Option<&[typed_trees::signature::StateParameter]>,
     contracts: &[&typed_trees::signature::SignatureContract],
+    qualification_contract: &validation::CallQualificationContract<'_>,
     domains: &mut Vec<(
         Vec<facts::PlaceSegment>,
         SymbolHandle,
@@ -885,10 +900,22 @@ fn append_ensures_result_rows(
         .iter()
         .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Ensures)
     {
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
+        for (fact_handle, fact) in contract
+            .facts
+            .handles()
+            .zip(program.proof_facts.span_or_empty(contract.facts))
+        {
             let Some(membership) = fact.as_membership() else {
                 continue;
             };
+            if qualification_contract
+                .fact_source(contract.kind.clone(), fact)
+                .is_none()
+                && !qualification_contract
+                    .declares_membership_obligation(contract.kind.clone(), fact_handle)
+            {
+                continue;
+            }
             // This occurrence is already selected from this exact callable's
             // ensures, including bodyless trait requirements. It must be the
             // reserved result form, never a same-spelled parameter.
@@ -908,9 +935,7 @@ fn append_ensures_result_rows(
                 membership.domain_symbol,
                 membership.semantic_domain,
             );
-            if !domains.contains(&row) {
-                domains.push(row);
-            }
+            crate::collections::push_unique(&mut *domains, row);
         }
     }
 }
@@ -940,7 +965,9 @@ pub(crate) fn call_parameter_qualification_identities(
                 .collect()
         })
         .unwrap_or_else(|| collect_callable_contracts(program, target));
-    parameter_identity_rows(program, parameters, &contracts)
+    let qualification_contract =
+        validation::CallQualificationContract::prepare(program, target, selected);
+    parameter_identity_rows(program, parameters, &contracts, &qualification_contract)
 }
 
 /// `call_parameter_qualification_identities` on the context's memoized
@@ -966,23 +993,38 @@ fn call_parameter_qualification_identities_indexed<'plans>(
                 .collect()
         })
         .unwrap_or_else(|| collect_callable_contracts_indexed(program, build, target));
-    parameter_identity_rows(program, parameters, &contracts)
+    let qualification_contract =
+        validation::CallQualificationContract::prepare(program, target, selected);
+    parameter_identity_rows(program, parameters, &contracts, &qualification_contract)
 }
 
 fn parameter_identity_rows(
     program: &dyn ::validation::CheckingInput,
     parameters: &[typed_trees::signature::StateParameter],
     contracts: &[&typed_trees::signature::SignatureContract],
+    qualification_contract: &validation::CallQualificationContract<'_>,
 ) -> Vec<(usize, SymbolHandle, language_semantics::SemanticDomainId)> {
     let mut rows = Vec::new();
     for contract in contracts
         .iter()
         .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Ensures)
     {
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
+        for (fact_handle, fact) in contract
+            .facts
+            .handles()
+            .zip(program.proof_facts.span_or_empty(contract.facts))
+        {
             let Some(membership) = fact.as_membership() else {
                 continue;
             };
+            if qualification_contract
+                .fact_source(contract.kind.clone(), fact)
+                .is_none()
+                && !qualification_contract
+                    .declares_membership_obligation(contract.kind.clone(), fact_handle)
+            {
+                continue;
+            }
             let Some(position) = ensured_parameter_position(program, parameters, membership.value)
             else {
                 continue;
@@ -992,9 +1034,7 @@ fn parameter_identity_rows(
                 membership.domain_symbol,
                 membership.semantic_domain,
             );
-            if !rows.contains(&row) {
-                rows.push(row);
-            }
+            crate::collections::push_unique(&mut rows, row);
         }
     }
     rows

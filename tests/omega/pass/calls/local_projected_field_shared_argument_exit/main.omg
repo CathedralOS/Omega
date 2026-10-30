@@ -14,8 +14,8 @@ machine Engine::check(engine: &Engine) reaches Console {
         true -> fine()
         false -> fail()
     }
-    state fine() { }
-    state fail() { Console::exit_process(71); }
+    machine fine() { }
+    machine fail() { Console::exit_process(71); }
 }
 
 machine Engine::rpm(engine: &Engine) -> i32 {

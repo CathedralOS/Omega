@@ -8,7 +8,7 @@ satisfies Access::plan
 {
     let plan: AccessPlan = AccessPlan::inaccessible(&schema);
     transition { _ -> expose(schema, plan) }
-    state expose(schema: Schema, plan: AccessPlan) -> AccessPlan {
+    machine expose(schema: Schema, plan: AccessPlan) -> AccessPlan {
         AccessPlan::with(
             plan,
             schema.fields[0].key,

@@ -8,7 +8,7 @@ data Main {first:f64;second:f64;tie:f64;small:f32;small_tie:f32;}
 machine Main::main(main:&mut Main) reaches Console {
  let byte:ByteRead=block Console::read_byte();
  transition byte {ByteRead::Byte{value} -> compute(main,value) _ -> fail(main)}
- state compute(main:&mut Main,value:i32) {
+ machine compute(main:&mut Main,value:i32) {
   let one:f64=F64::from_i32(value)-48.0;
   let zero:f64=one-one;
   let nan:f64=zero/zero;
@@ -29,8 +29,8 @@ machine Main::main(main:&mut Main) reaches Console {
     true -> good(main) _ -> fail(main)
   }
  }
- state good(main:&mut Main) {Console::exit_process(70);}
- state fail(main:&mut Main) {Console::exit_process(71);}
+ machine good(main:&mut Main) {Console::exit_process(70);}
+ machine fail(main:&mut Main) {Console::exit_process(71);}
 }
 
 // The entry owns ordinary local state; selection supplies no context.

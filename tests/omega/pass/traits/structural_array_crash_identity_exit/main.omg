@@ -74,10 +74,10 @@ crashes Abort {
         true -> failed(main)
         false -> passed(main)
     }
-    state failed(main: &mut Main) {
+    machine failed(main: &mut Main) {
         reflexive(&main.floating);
     }
-    state passed(main: &mut Main) { Console::exit_process(70); }
+    machine passed(main: &mut Main) { Console::exit_process(70); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

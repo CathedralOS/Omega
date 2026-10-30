@@ -1,5 +1,13 @@
 machine build(builder: &mut Build) {
  Build::application(builder, "runtime_provider_reference_allocation_exit");
- Build::select_provider<Heap, NativeHeap>(builder);
+ Build::select_provider<Heap, NativeHeap>(builder, linux_arm64);
+ Build::select_provider<Heap, NativeHeap>(builder, linux_x86_64);
+ Build::select_provider<Heap, NativeHeap>(builder, macos_arm64);
+ Build::select_provider<Heap, NativeHeap>(builder, macos_x86_64);
+ Build::select_provider<Heap, NativeHeap>(builder, windows_x86_64);
+ Build::select_provider<Heap, NativeHeap>(builder, uefi_x86_64);
+ Build::select_provider<Heap, NativeHeap>(builder, cross_platform_cli);
+ Build::select_provider<Heap, NativeHeap>(builder, local_unchecked);
+ Build::select_provider<Heap, NativeHeap>(builder, alpha_bootstrap);
  Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }

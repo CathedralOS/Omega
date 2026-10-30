@@ -1,0 +1,12 @@
+// Invalid: a selected machine cannot be replaced by a global integer inside a formal extent.
+const Callback: u64 = 2;
+machine marker() -> u64 { 7 }
+machine selected<Length [copy], machine Callback, const Capacity: u64>(items: Length, other: [u8; Callback + 0]) -> u64
+where machine Callback() -> u64;
+where Length == [u8; Capacity]
+{ Capacity }
+machine main() {
+    let items: [u8; 2] = [7, 11];
+    let other: [u8; 2] = [7, 11];
+    let observed: u64 = selected<[u8; 2], marker>(items, other);
+}

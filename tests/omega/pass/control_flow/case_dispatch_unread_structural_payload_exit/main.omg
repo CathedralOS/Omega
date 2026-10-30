@@ -31,11 +31,11 @@ machine fill(bytes: &mut [u8], wanted: u64) -> FillResult {
         true -> write(bytes, wanted)
         _ -> refuse()
     }
-    state write(bytes: &mut [u8], wanted: u64) -> FillResult {
+    machine write(bytes: &mut [u8], wanted: u64) -> FillResult {
         bytes[0] = 70;
         FillResult::Filled { count: wanted }
     }
-    state refuse() -> FillResult {
+    machine refuse() -> FillResult {
         FillResult::Failed { kind: FillError::Short }
     }
 }
@@ -44,7 +44,7 @@ machine Main::main(context: &mut Main) reaches Console {
     let passed: i32 in Wrapping = 0;
     transition { _ -> first(context, passed) }
 
-    state first(context: &mut Main, passed: i32 in Wrapping) {
+    machine first(context: &mut Main, passed: i32 in Wrapping) {
         let mut buffer: [u8; 4];
         let next_passed: i32 in Wrapping = passed + 1;
         let outcome: FillResult = fill(&mut buffer, 4);
@@ -55,7 +55,7 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
 
-    state second(context: &mut Main, passed: i32 in Wrapping, filled: u64) {
+    machine second(context: &mut Main, passed: i32 in Wrapping, filled: u64) {
         let mut buffer: [u8; 4];
         let next_passed: i32 in Wrapping = passed + 1;
         let outcome: FillResult = fill(&mut buffer, 9);
@@ -65,14 +65,14 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
 
-    state verify(context: &mut Main, passed: i32 in Wrapping, filled: u64) {
+    machine verify(context: &mut Main, passed: i32 in Wrapping, filled: u64) {
         transition passed == 2 && filled == 4 && context.head == 70 {
             true -> done(context, 70)
             _ -> done(context, 73)
         }
     }
 
-    state done(context: &mut Main, code: i32) { Console::exit_process(code); }
+    machine done(context: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

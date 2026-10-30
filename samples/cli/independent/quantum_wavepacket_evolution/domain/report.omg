@@ -8,24 +8,24 @@ public machine scaled(value: f64)
 invokes Console;
 reaches Console {
     transition value < 0.0 { true -> negative(value) false -> normalize(value, 0) }
-    state negative(value: f64) {
+    machine negative(value: f64) {
         Console::write("-");
         transition { _ -> normalize(0.0 - value, 0) }
     }
-    state normalize(value: f64, exponent: i32 in Wrapping) {
+    machine normalize(value: f64, exponent: i32 in Wrapping) {
         transition {
             value > 1.0 -> shrink(value, exponent)
             value > 0.0 && value < 0.1 -> grow(value, exponent)
             _ -> emit(value, exponent)
         }
     }
-    state shrink(value: f64, exponent: i32 in Wrapping) {
+    machine shrink(value: f64, exponent: i32 in Wrapping) {
         transition { _ -> normalize(value / 10.0, exponent + 1) }
     }
-    state grow(value: f64, exponent: i32 in Wrapping) {
+    machine grow(value: f64, exponent: i32 in Wrapping) {
         transition { _ -> normalize(value * 10.0, exponent - 1) }
     }
-    state emit(value: f64, exponent: i32 in Wrapping) {
+    machine emit(value: f64, exponent: i32 in Wrapping) {
         let mantissa: i64 in Saturating = I64::from_f64(value * 1000000000000000000.0);
         integer64(mantissa as i64); Console::write("e");
         integer((exponent - 18) as i32);
@@ -43,14 +43,14 @@ reaches Console {
         true -> negative(value)
         false -> positive(value)
     }
-    state negative(value: i64) {
+    machine negative(value: i64) {
         Console::write("-");
         // Unsigned modular negation also handles the full signed minimum.
         let bits: u64 = narrow_i64_to_u64_wrapping(value);
         let magnitude: u64 in Wrapping = 0 - (bits as u64 in Wrapping);
         unsigned(magnitude as u64);
     }
-    state positive(value: i64) {
+    machine positive(value: i64) {
         unsigned(narrow_i64_to_u64_wrapping(value));
     }
 }
@@ -58,7 +58,7 @@ machine unsigned(value: u64)
 invokes Console;
 reaches Console {
     transition { _ -> digits(value, 10000000000000000000, false) }
-    state digits(value: u64, divisor: u64, started: bool)
+    machine digits(value: u64, divisor: u64, started: bool)
     requires divisor > 0
     {
         let digit: u64 = value / divisor % 10;
@@ -67,7 +67,7 @@ reaches Console {
             false -> skip(value, divisor)
         }
     }
-    state emit(value: u64, divisor: u64, digit: u64)
+    machine emit(value: u64, divisor: u64, digit: u64)
     requires divisor > 0
     {
         let byte: u64 in Wrapping = (digit as u64 in Wrapping) + 48;
@@ -77,7 +77,7 @@ reaches Console {
             false -> done()
         }
     }
-    state skip(value: u64, divisor: u64)
+    machine skip(value: u64, divisor: u64)
     requires divisor > 0
     {
         transition divisor >= 10 {
@@ -85,5 +85,5 @@ reaches Console {
             false -> done()
         }
     }
-    state done() { }
+    machine done() { }
 }

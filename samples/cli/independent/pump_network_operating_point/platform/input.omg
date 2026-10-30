@@ -22,13 +22,13 @@ blocks;
 crashes Trap
 {
     transition { _ -> next(input) }
-    state next(input: &mut Input) {
+    machine next(input: &mut Input) {
         transition input.count < 96 {
             true -> byte(input)
             false -> reject(input)
         }
     }
-    state byte(input: &mut Input) {
+    machine byte(input: &mut Input) {
         input.count = input.count + 1;
         let observed: ByteRead = block Console::read_byte();
         transition observed {
@@ -36,7 +36,7 @@ crashes Trap
             ByteRead::Byte { value } -> classify(input, value)
         }
     }
-    state classify(input: &mut Input, value: i32) {
+    machine classify(input: &mut Input, value: i32) {
         transition value {
             10 -> finish(input)
             32 -> separate(input)
@@ -44,63 +44,63 @@ crashes Trap
             _ -> digit(input, value)
         }
     }
-    state sign(input: &mut Input) {
+    machine sign(input: &mut Input) {
         transition input.active {
             true -> reject(input)
             false -> set_sign(input)
         }
     }
-    state set_sign(input: &mut Input) {
+    machine set_sign(input: &mut Input) {
         input.active = true;
         input.negative = true;
         transition { _ -> next(input) }
     }
-    state digit(input: &mut Input, value: i32) {
+    machine digit(input: &mut Input, value: i32) {
         transition value >= 48 && value <= 57 && input.digits < 4 {
             true -> accumulate(input, value)
             false -> reject(input)
         }
     }
-    state accumulate(input: &mut Input, value: i32) {
+    machine accumulate(input: &mut Input, value: i32) {
         input.digits = input.digits + 1;
         input.magnitude = input.magnitude * 10 + (value as i64 in Wrapping) - 48;
         input.active = true;
         input.digit_seen = true;
         transition { _ -> next(input) }
     }
-    state separate(input: &mut Input) {
+    machine separate(input: &mut Input) {
         transition input.active {
             true -> store(input, false)
             false -> next(input)
         }
     }
-    state finish(input: &mut Input) {
+    machine finish(input: &mut Input) {
         transition input.active {
             true -> store(input, true)
             false -> complete(input)
         }
     }
-    state store(input: &mut Input, finished: bool) {
+    machine store(input: &mut Input, finished: bool) {
         transition input.index < 9 && input.digit_seen {
             true -> save(input, finished)
             false -> reject(input)
         }
     }
-    state save(input: &mut Input, finished: bool) {
+    machine save(input: &mut Input, finished: bool) {
         transition input.negative {
             true -> negative(input, finished)
             false -> positive(input, finished)
         }
     }
-    state negative(input: &mut Input, finished: bool) {
+    machine negative(input: &mut Input, finished: bool) {
         input.values[input.index] = -input.magnitude;
         transition { _ -> advance(input, finished) }
     }
-    state positive(input: &mut Input, finished: bool) {
+    machine positive(input: &mut Input, finished: bool) {
         input.values[input.index] = input.magnitude;
         transition { _ -> advance(input, finished) }
     }
-    state advance(input: &mut Input, finished: bool) {
+    machine advance(input: &mut Input, finished: bool) {
         input.index = input.index + 1;
         input.magnitude = 0;
         input.digits = 0;
@@ -112,6 +112,6 @@ crashes Trap
             false -> next(input)
         }
     }
-    state complete(input: &mut Input) { input.accepted = input.index == 9; }
-    state reject(input: &mut Input) { input.accepted = false; }
+    machine complete(input: &mut Input) { input.accepted = input.index == 9; }
+    machine reject(input: &mut Input) { input.accepted = false; }
 }

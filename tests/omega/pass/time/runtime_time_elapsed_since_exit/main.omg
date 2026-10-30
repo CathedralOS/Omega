@@ -18,14 +18,14 @@ machine Main::main(context: &mut Main) reaches Console + Clock {
         true -> check_subsecond(context, elapsed.subsecond_nanoseconds)
         false -> good(context)
     }
-    state check_subsecond(context: &mut Main, subsecond_nanoseconds: u32) {
+    machine check_subsecond(context: &mut Main, subsecond_nanoseconds: u32) {
         transition subsecond_nanoseconds >= 30000000 {
             true -> good(context)
             false -> fail_short(context)
         }
     }
-    state good(context: &mut Main) { Console::exit_process(70); }
-    state fail_short(context: &mut Main) { Console::exit_process(1); }
+    machine good(context: &mut Main) { Console::exit_process(70); }
+    machine fail_short(context: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

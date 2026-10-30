@@ -5,12 +5,10 @@ use super::{
 };
 use register_model::{RegisterConstraintKey, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
-    LocalStorageSlotId, MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey,
-    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
+    LocalStorageSlotId, MachineAlternativeKey, MachineBarrier, MachineEffectDeclaration,
     MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
-    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
-    SelectedInstructionKind,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
+    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
 };
 
 /// `x9` carries the FPCR; a save past the direct `sp` reach also forms its
@@ -81,32 +79,23 @@ pub(crate) fn declaration(
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
     let restore = semantic == MachineSemanticKind::RestoreFloatingControl;
-    MachineEffectDeclaration {
+    MachineEffectDeclaration::single(
         semantic,
         constraint,
-        memory: if restore {
+        if restore {
             MachineMemoryEffect::ReadFrameStorageV1
         } else {
             MachineMemoryEffect::WriteFrameStorageV1
         },
-        trap: MachineTrapBehavior::MayArchitecturalFaultV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: semantic.into(),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 8,
-                maximum_bytes: Some(crate::floating_control::MAX_FPCR_SEQUENCE_BYTES),
-            },
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(restore),
-        }],
-    }
+        MachineTrapBehavior::MayArchitecturalFaultV1,
+        MachineBarrier::ExternalEffect,
+        semantic.into(),
+        MachineSizeKnowledge::EncoderResolved {
+            minimum_bytes: 8,
+            maximum_bytes: Some(crate::floating_control::MAX_FPCR_SEQUENCE_BYTES),
+        },
+        effects(restore),
+    )
 }
 
 fn request(
@@ -192,14 +181,7 @@ pub(crate) fn validate_aarch64_selected_floating_control_form(
 /// Decode the direction and slot offset, then require the canonical bytes:
 /// the access word carries the low bits and any page steps the rest.
 fn decode(bytes: &[u8]) -> Option<(bool, i64)> {
-    let (chunks, tail) = bytes.as_chunks::<4>();
-    if !tail.is_empty() {
-        return None;
-    }
-    let words = chunks
-        .iter()
-        .map(|word| u32::from_le_bytes(*word))
-        .collect::<Vec<_>>();
+    let words = super::word_stream(bytes)?;
     let (restore, steps, access, address) = match words.as_slice() {
         [steps @ .., access, 0xd51b_4409] => (true, steps, *access, 9),
         [0xd53b_4409, steps @ .., access] => (false, steps, *access, 16),
@@ -226,6 +208,7 @@ mod tests {
         effects, encode_aarch64_selected_floating_control_form,
         validate_aarch64_selected_floating_control_form,
     };
+    use crate::test_support::reject_every_bit_flip;
     use selected_instructions::{
         LocalStorageSlotId, MachineAlternativeKey, MachineSemanticKind, SelectedInstructionKind,
     };
@@ -265,22 +248,17 @@ mod tests {
                 )
                 .unwrap();
                 assert_eq!(encoded.footprint().encoded, effects(restore));
-                for bit in 0..encoded.bytes().len() * 8 {
-                    let mut changed = encoded.bytes().to_vec();
-                    changed[bit / 8] ^= 1 << (bit % 8);
-                    assert!(
-                        validate_aarch64_selected_floating_control_form(
-                            &physical,
-                            kind,
-                            alternative,
-                            &[],
-                            displacement,
-                            &changed
-                        )
-                        .is_err(),
-                        "bit {bit}"
-                    );
-                }
+                reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |changed| {
+                    validate_aarch64_selected_floating_control_form(
+                        &physical,
+                        kind,
+                        alternative,
+                        &[],
+                        displacement,
+                        &changed,
+                    )
+                    .is_err()
+                });
                 assert!(
                     validate_aarch64_selected_floating_control_form(
                         &physical,

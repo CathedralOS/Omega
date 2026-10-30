@@ -17,6 +17,6 @@ machine main() crashes Trap {
     let view: &Ticket in Ticket::Observed = retain(&ticket);
     let observed: u64 = observe(view);
     transition observed == 17 { true -> done() _ -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

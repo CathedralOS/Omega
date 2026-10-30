@@ -16,3 +16,9 @@ An optional linear payload exercises both empty and held cases with selection
 enabled and skipped. The payload retains a linear receipt and
 an affine token whose hook prints once, before the younger owner when consumed
 and after it when retained until normal death.
+
+Cleanup selects the optional case before disposing either payload sibling;
+it must not read the discriminator again after one sibling has been released.
+Each selected receiver keeps its own availability check, and an absent sum
+skips the complete case dispatch. A partially moved sum does not authorize a
+new discriminator read or whole-owner cleanup.

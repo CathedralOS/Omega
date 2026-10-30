@@ -12,9 +12,9 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-domain u32::Small(value)
+domain u32::Small
 requires
-    value <= 100;
+    self <= 100;
 
 data Main {
     value: u32 in Small;
@@ -29,8 +29,8 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -9,6 +9,9 @@ name = "calling_conventions"
 path = "src/lib.rs"
 
 [dependencies]
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
+runtime-abi = { path = "../runtime/runtime-abi" }
+layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 arena = { path = "../../../../psi/foundation/arena" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }

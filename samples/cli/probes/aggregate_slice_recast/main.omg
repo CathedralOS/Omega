@@ -59,7 +59,7 @@ machine Main::main(main: &mut Main) {
         true -> inspect(main, read)
         _ -> fail(main)
     }
-    state inspect(main: &mut Main, read: &[Wide]) {
+    machine inspect(main: &mut Main, read: &[Wide]) {
         transition read[0].unsigned_value == 7
             && !read[0].active
             && read[1].unsigned_value == 11
@@ -68,14 +68,14 @@ machine Main::main(main: &mut Main) {
             _ -> fail(main)
         }
     }
-    state mutate(main: &mut Main) {
+    machine mutate(main: &mut Main) {
         let write: &mut [Exact] = &mut main.source as &mut [Exact];
         transition write.len > 1 {
             true -> write_values(main, write)
             _ -> fail(main)
         }
     }
-    state write_values(main: &mut Main, write: &mut [Exact]) {
+    machine write_values(main: &mut Main, write: &mut [Exact]) {
         write[0].unsigned_value = 42;
         write[1].active = false;
         transition write[0].unsigned_value == 42 && !write[1].active {
@@ -83,8 +83,8 @@ machine Main::main(main: &mut Main) {
             _ -> fail(main)
         }
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

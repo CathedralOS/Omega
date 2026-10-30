@@ -30,7 +30,7 @@ machine Counter::pick(counter: &mut Counter) -> Msg {
         _ -> choose(counter)
     }
 
-    state choose(counter: &mut Counter) -> Msg {
+    machine choose(counter: &mut Counter) -> Msg {
         transition counter.n {
             0 -> (Msg::Small { v: counter.n })
             1 -> (Msg::Mid { v: counter.n + 10 })
@@ -51,15 +51,15 @@ machine Main::main(main: &mut Main) reaches Console {
         Msg::Big { v } -> big(main, v)
     }
 
-    state small(main: &mut Main, v: i32) {
+    machine small(main: &mut Main, v: i32) {
         Console::exit_process(v);
     }
 
-    state mid(main: &mut Main, v: i32) {
+    machine mid(main: &mut Main, v: i32) {
         Console::exit_process(v);
     }
 
-    state big(main: &mut Main, v: i32) {
+    machine big(main: &mut Main, v: i32) {
         Console::exit_process(v);
     }
 }

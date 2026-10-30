@@ -123,6 +123,7 @@ pub(super) fn member_types<'trees>(
                 kind: "data",
                 name: &name,
                 parameters: declaration.type_parameters,
+                invocation_lifetimes: &[],
                 parameter_names: &names,
                 const_parameter_types: &const_types,
                 type_equations: &equations,

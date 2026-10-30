@@ -5,19 +5,19 @@ use omega::language::core::float_operations;
 public data Phasor { }
 public machine Phasor::cosine(angle: f64) -> f64 {
     transition { _ -> reduce(angle) }
-    state reduce(angle: f64) {
+    machine reduce(angle: f64) -> f64 {
         transition angle > 3.141592653589793 {
             true -> reduce(angle - 6.283185307179586)
             false -> reduce_lower(angle)
         }
     }
-    state reduce_lower(angle: f64) {
+    machine reduce_lower(angle: f64) -> f64 {
         transition angle < -3.141592653589793 {
             true -> reduce(angle + 6.283185307179586)
             false -> polynomial(angle)
         }
     }
-    state polynomial(angle: f64) {
+    machine polynomial(angle: f64) -> f64 {
         let square: f64 = angle * angle;
         let mut value: f64 = 0.0000000000000000004110317623312165;
         value = -1.56192069685862253e-16 + square * value;

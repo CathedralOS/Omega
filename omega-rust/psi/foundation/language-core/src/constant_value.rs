@@ -3,7 +3,7 @@
 use numerics::literals::FloatFormat;
 
 /// A completed semantic value, independently of whether its representation is known.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum EvaluatedConstant {
     /// An existing declaration encoding; index consumers still validate eligibility.
     Encoded(String),

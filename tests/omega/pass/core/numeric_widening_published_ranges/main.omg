@@ -11,6 +11,7 @@
 // `main` takes no arguments and reaches no service, so the Terminal
 // interpreter runs the same program beside the native product.
 use omega::language::core::numeric_conversion;
+use omega::language::core::integer;
 
 data Inputs {
     max_u8: u8;
@@ -66,9 +67,9 @@ machine signed_wide(inputs: &Inputs) -> bool {
 
 machine main() crashes Trap {
     let inputs: Inputs = Inputs {
-        max_u8: 255,
-        max_u16: 65535,
-        max_u32: 4294967295,
+        max_u8: integer::max<u8>(),
+        max_u16: integer::max<u16>(),
+        max_u32: integer::max<u32>(),
     };
     let unsigned_shifts_held: bool = unsigned_shifts(&inputs);
     let unsigned_products_held: bool = unsigned_products(&inputs);
@@ -79,6 +80,6 @@ machine main() crashes Trap {
         _ -> failed()
     }
 
-    state passed() {}
-    state failed() { crash Trap; }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }

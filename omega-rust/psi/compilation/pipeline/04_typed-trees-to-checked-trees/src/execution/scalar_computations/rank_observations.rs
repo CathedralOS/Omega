@@ -17,8 +17,10 @@ use typed_trees::types::PrimitiveType;
 pub(super) fn record(
     program: &dyn validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
+    semantic: &facts::FactPlan,
     flow: &checked_trees::FlowFacts,
     borrow: &checked_trees::BorrowFacts,
+    proof: &checked_trees::ProofFacts,
     pure: &checked_trees::CheckedScalarExpressionPlans,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
     admitted: &checked_trees::CheckedRankArrivalPlan,
@@ -144,9 +146,12 @@ pub(super) fn record(
         let statement_nodes_start = plans.nodes.storage_slice().len();
         let mut builder = Builder {
             program,
+            shapes: crate::execution::terminal_unit::types::ShapeCollector::new(program),
             operators,
+            semantic,
             flow,
             borrow,
+            proof,
             pure,
             exact_integer_casts,
             machine: owner.symbol,
@@ -164,7 +169,8 @@ pub(super) fn record(
             scalar_occurrences: Vec::new(),
             integer_occurrences: Vec::new(),
         };
-        if let Some(root) = observation(&mut builder, rank, subject, &bindings) {
+        let root = observation(&mut builder, rank, subject, &bindings, admitted);
+        if let Some(root) = root {
             let _ = builder.push_scalar_root(CheckedScalarExpressionRole::RankObservation, root);
         }
     }
@@ -177,15 +183,37 @@ fn input_coordinate(
     bindings: &validation::RankStateBindings,
     primitive_type: PrimitiveType,
 ) -> Option<CheckedScalarComputationHandle> {
-    let subject = subject?;
     let (owner, _) = validation::find_state(builder.program, builder.state)?;
     let entry = builder.program.machine_states(owner).first()?;
-    let source = validation::canonical_place_from_expression_in_state(
-        builder.program,
-        entry.symbol,
-        0,
-        subject,
-    )?;
+    let source = if let Some(subject) = subject {
+        validation::canonical_place_from_expression_in_state(
+            builder.program,
+            entry.symbol,
+            0,
+            subject,
+        )?
+    } else {
+        // A joint component retains an exact primitive entry coordinate even
+        // when this participant authors no separate ranking expression. Its
+        // declaration and admitted identity telescope supply the read; no
+        // source expression or enclosing invocation is reconstructed.
+        let parameter = builder
+            .program
+            .state_parameters(entry)
+            .get(usize::try_from(rank.parameter_position).ok()?)?;
+        if parameter.symbol != rank.parameter
+            || builder
+                .program
+                .primitive_type_reference(parameter.type_reference)
+                != Some(primitive_type)
+        {
+            return None;
+        }
+        validation::CanonicalPlace {
+            root: facts::PlaceRoot::Symbol(parameter.symbol),
+            segments: Vec::new(),
+        }
+    };
     let facts::PlaceRoot::Symbol(parameter) = source.root else {
         return None;
     };
@@ -200,7 +228,9 @@ fn input_coordinate(
         root: facts::PlaceRoot::Symbol(coordinate.parameter),
         segments: coordinate.path,
     };
-    builder.scalar_coordinate(subject, &source, primitive_type)
+    // Bare parameter coordinates require no authored expression; projected
+    // coordinates retain their original occurrence for structural access.
+    builder.scalar_coordinate(subject.unwrap_or_default(), &source, primitive_type, &[])
 }
 
 fn observation(
@@ -208,8 +238,9 @@ fn observation(
     rank: &CheckedStateNaturalRank,
     subject: Option<ExpressionHandle>,
     bindings: &validation::RankStateBindings,
+    admitted: &checked_trees::CheckedRankArrivalPlan,
 ) -> Option<CheckedScalarComputationHandle> {
-    match rank.measure {
+    let observed = match rank.measure {
         CheckedNaturalRankMeasure::DeclaredMeasure {
             measure,
             primitive_type,
@@ -260,18 +291,42 @@ fn observation(
                 builder.expression(*body, primitive_type)
             }
         }
-        CheckedNaturalRankMeasure::IntegerParameter { primitive_type } => {
-            input_coordinate(builder, rank, subject, bindings, primitive_type)
+        CheckedNaturalRankMeasure::IntegerValue {
+            coordinate,
+            primitive_type,
+        } => {
+            let coordinate = admitted.coordinates.get(coordinate);
+            let path = admitted.path_segments.span(coordinate.path)?;
+            if coordinate.parameter != rank.parameter {
+                return None;
+            }
+            let (_, state) = validation::find_state(builder.program, rank.state)?;
+            let parameter = builder
+                .program
+                .state_parameters(state)
+                .get(usize::try_from(rank.parameter_position).ok()?)?;
+            if parameter.symbol != coordinate.parameter {
+                return None;
+            }
+            builder.scalar_coordinate(
+                subject.unwrap_or_default(),
+                &validation::CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(coordinate.parameter),
+                    segments: path.to_vec(),
+                },
+                primitive_type,
+                admitted.entry_indexes.span(coordinate.entry_indexes)?,
+            )
         }
-        CheckedNaturalRankMeasure::SequenceLength { subject } => {
-            let (owner, state) = validation::find_state(builder.program, builder.state)?;
-            let (parameter, position, expression) = validation::ranking_slice_length_observation(
-                builder.program,
-                owner,
-                state,
-                bindings,
-                subject,
-            )?;
+        CheckedNaturalRankMeasure::SequenceLength { coordinate } => {
+            let (_, state) = validation::find_state(builder.program, builder.state)?;
+            let coordinate = admitted.coordinates.get(coordinate);
+            let coordinate = validation::RankSubjectCoordinate {
+                parameter: coordinate.parameter,
+                path: admitted.path_segments.span(coordinate.path)?.to_vec(),
+            };
+            let (parameter, position, expression) =
+                validation::ranking_slice_length_observation(builder.program, state, &coordinate)?;
             (parameter == rank.parameter && position == rank.parameter_position).then_some(())?;
             Some(builder.insert(
                 PrimitiveType::U64,
@@ -281,6 +336,20 @@ fn observation(
         CheckedNaturalRankMeasure::BoundedDistance { primitive_type, .. } => {
             let lower = input_coordinate(builder, rank, subject, bindings, primitive_type)?;
             distance(builder, lower, primitive_type)
+        }
+    }?;
+    match rank.function {
+        checked_trees::CheckedNaturalRankFunction::Identity => Some(observed),
+        checked_trees::CheckedNaturalRankFunction::Complement => {
+            let primitive = match rank.measure {
+                CheckedNaturalRankMeasure::SequenceLength { .. } => PrimitiveType::U64,
+                CheckedNaturalRankMeasure::DeclaredMeasure { primitive_type, .. }
+                | CheckedNaturalRankMeasure::IntegerValue { primitive_type, .. }
+                | CheckedNaturalRankMeasure::BoundedDistance { primitive_type, .. } => {
+                    primitive_type
+                }
+            };
+            distance(builder, observed, primitive)
         }
     }
 }
@@ -294,13 +363,8 @@ fn distance(
     lower: CheckedScalarComputationHandle,
     primitive_type: PrimitiveType,
 ) -> Option<CheckedScalarComputationHandle> {
-    let maximum = match primitive_type {
-        PrimitiveType::U8 => u64::from(u8::MAX),
-        PrimitiveType::U16 => u64::from(u16::MAX),
-        PrimitiveType::U32 => u64::from(u32::MAX),
-        PrimitiveType::U64 => u64::MAX,
-        _ => return None,
-    };
+    let maximum =
+        checked_trees::CheckedNaturalRankFunction::Complement.complement_ceiling(primitive_type)?;
     let ceiling = builder.insert(
         primitive_type,
         CheckedScalarComputationKind::Value(facts::u64_integer_literal(maximum, primitive_type)?),
@@ -316,6 +380,7 @@ fn distance(
         template(1),
         ArithmeticDomain::Exact,
         true,
+        false,
     )?;
     let operands = builder.plans.operands.insert_many([ceiling, lower]);
     Some(builder.insert(

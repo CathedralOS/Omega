@@ -2,7 +2,7 @@ machine quotient(values: &[i64 in Wrapping; 2], index: u64) -> i64 in Wrapping
 requires index < 2
 requires values[index] != 0 {
     transition { _ -> divided(values, index) }
-    state divided(values: &[i64 in Wrapping; 2], mut index: u64) -> i64 in Wrapping
+    machine divided(values: &[i64 in Wrapping; 2], mut index: u64) -> i64 in Wrapping
     requires index < 2
     requires values[index] != 0 {
         index = 1;

@@ -12,17 +12,11 @@ pub(crate) fn encode_nominal(
         match identity.owner {
             PackageReviewNominalOwner::Package(package) => {
                 encoder.tag("package", 0);
-                encoder.field("package", |encoder| {
-                    encoder.package_identity(package);
-                    Ok(())
-                })?;
+                encoder.package_identity_field("package", package)?;
             }
             PackageReviewNominalOwner::ToolchainSource(source) => {
                 encoder.tag("toolchain_source", 1);
-                encoder.field("source_digest", |encoder| {
-                    encoder.fixed_bytes(&source.digest());
-                    Ok(())
-                })?;
+                encoder.fixed_bytes_field("source_digest", &source.digest())?;
             }
             PackageReviewNominalOwner::Unresolved => {
                 return Err(PackageReviewEncodingError::new(
@@ -47,17 +41,11 @@ pub(in crate::encoding) fn encode_selection_owner(
     match owner {
         PackageReviewNominalOwner::Package(package) => {
             encoder.tag("package", 0);
-            encoder.field("package", |encoder| {
-                encoder.package_identity(*package);
-                Ok(())
-            })?;
+            encoder.package_identity_field("package", *package)?;
         }
         PackageReviewNominalOwner::ToolchainSource(source) => {
             encoder.tag("toolchain_source", 1);
-            encoder.field("digest", |encoder| {
-                encoder.fixed_bytes(&source.digest());
-                Ok(())
-            })?;
+            encoder.fixed_bytes_field("digest", &source.digest())?;
         }
         PackageReviewNominalOwner::Unresolved => {
             return Err(PackageReviewEncodingError::new(unresolved_context));

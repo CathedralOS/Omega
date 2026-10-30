@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "asm_port_out_final_validation");
     builder.freestanding = true;
-    Build::select_provider<PortOutput, PortOutputNative>(builder);
+    Build::select_provider<PortOutput, PortOutputNative>(builder, linux_arm64);
+    Build::select_provider<PortOutput, PortOutputNative>(builder, linux_x86_64);
+    Build::select_provider<PortOutput, PortOutputNative>(builder, macos_arm64);
+    Build::select_provider<PortOutput, PortOutputNative>(builder, macos_x86_64);
+    Build::select_provider<PortOutput, PortOutputNative>(builder, windows_x86_64);
+    Build::select_provider<PortOutput, PortOutputNative>(builder, uefi_x86_64);
+    Build::select_provider<PortOutput, PortOutputNative>(builder, cross_platform_cli);
+    Build::select_provider<PortOutput, PortOutputNative>(builder, local_unchecked);
+    Build::select_provider<PortOutput, PortOutputNative>(builder, alpha_bootstrap);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }

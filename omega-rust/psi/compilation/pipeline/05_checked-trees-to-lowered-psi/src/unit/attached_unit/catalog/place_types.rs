@@ -33,7 +33,9 @@ pub(super) fn collect<'plans>(
                 collect_scope(
                     checked,
                     plans,
-                    machine.machine,
+                    crate::declarations::state_declaration(checked, state.state)?
+                        .0
+                        .symbol,
                     state.state,
                     &state.structural_parameters,
                     &state.operations,
@@ -176,10 +178,16 @@ fn collect_scope<'plans>(
                             &[],
                         );
                         collector.roots.push(identity);
-                        collect_path(collector.plans, identity, &subject.path, collector.roots)
-                            .map_err(|error| {
-                                collector.at_statement(Some(root.statement_ordinal), error)
-                            })?;
+                        collect_path(
+                            collector.checked,
+                            collector.plans,
+                            identity,
+                            &subject.path,
+                            collector.roots,
+                        )
+                        .map_err(|error| {
+                            collector.at_statement(Some(root.statement_ordinal), error)
+                        })?;
                     }
                 }
                 Computation::ByteSequenceLiteralComparison { subject, .. }
@@ -242,6 +250,13 @@ impl<'checked> StorageDemand<'checked, '_, '_> {
                 statement,
                 reason,
             ),
+            (Some(statement), LoweringError::MissingUnitStructuralType(reason)) => {
+                LoweringError::MissingUnitStructuralType(format!(
+                    "{reason}; machine `{}`, state `{}`, statement {statement}",
+                    self.checked.symbols.display_path(self.machine, "::"),
+                    self.checked.symbols.display_path(self.state, "::"),
+                ))
+            }
             (_, error) => error,
         }
     }
@@ -252,13 +267,8 @@ impl<'checked> StorageDemand<'checked, '_, '_> {
         namespace: &mut Vec<&'checked CheckedUnitEffectOperationPlan>,
     ) -> Result<(), LoweringError> {
         for operation in operations {
-            if let CheckedUnitEffectOperationPlan::EstablishLocal(
-                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
-                    value, calls, ..
-                },
-            ) = operation
-            {
-                self.value(*value, namespace)?;
+            if let Some((value, calls)) = operation.structural_value_evaluation() {
+                self.value(value, namespace)?;
                 self.calls(calls, &mut namespace.clone())?;
             }
             let subject = match operation {
@@ -308,12 +318,7 @@ impl<'checked> StorageDemand<'checked, '_, '_> {
         // One value's later calls can use its earlier completed calls. Only
         // the containing value boundary discards this temporary namespace.
         for call in calls {
-            self.operations(
-                call.operands()
-                    .iter()
-                    .chain(std::iter::once(call.operation())),
-                namespace,
-            )?;
+            self.operations(call.operands().iter().chain(call.operation()), namespace)?;
         }
         Ok(())
     }
@@ -351,7 +356,8 @@ impl<'checked> StorageDemand<'checked, '_, '_> {
                         &[],
                     );
                     self.roots.push(identity);
-                    collect_path(self.plans, identity, path, self.roots)?;
+                    collect_path(self.checked, self.plans, identity, path, self.roots)
+                        .map_err(|error| self.at_statement(Some(value.statement_index), error))?;
                 }
             }
             let argument = match &value.kind {
@@ -409,7 +415,7 @@ impl<'checked> StorageDemand<'checked, '_, '_> {
             }
         }
         self.roots.push(root);
-        collect_path(self.plans, root, path, self.roots)
+        collect_path(self.checked, self.plans, root, path, self.roots)
             .map_err(|error| self.at_statement(statement, error))
     }
 }
@@ -501,6 +507,7 @@ fn source_type(
 }
 
 fn collect_path(
+    checked: &CheckedTrees,
     plans: UnitPlans<'_>,
     mut identity: TypeIdentityId,
     path: &[Segment],
@@ -508,7 +515,17 @@ fn collect_path(
 ) -> Result<(), LoweringError> {
     let mut payload = None;
     for (position, segment) in path.iter().enumerate() {
-        let declaration = selected_declaration(plans, identity)?;
+        let declaration = selected_declaration(plans, identity).map_err(|error| match error {
+            LoweringError::MissingUnitStructuralType(_) => {
+                LoweringError::MissingUnitStructuralType(format!(
+                    "{identity:?} ({}) at storage path segment {position}: {path:?}",
+                    checked
+                        .type_identity_text(identity)
+                        .unwrap_or_else(|| "unresolved identity".to_owned())
+                ))
+            }
+            error => error,
+        })?;
         match segment {
             Segment::RepresentationView { type_identity, .. } => {
                 identity = *type_identity;

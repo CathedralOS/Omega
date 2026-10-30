@@ -20,13 +20,13 @@ machine main() crashes Trap {
     let left: u64 = 1u64;
     let right: u64 = 1u64;
     transition { _ -> check(left, right) }
-    state check(left: u64, right: u64) {
+    machine check(left: u64, right: u64) {
         let direct: bool = compare<u64>(left, right);
         transition hold(direct) {
             true -> done()
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

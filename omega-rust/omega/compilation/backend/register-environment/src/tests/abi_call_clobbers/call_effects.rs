@@ -280,7 +280,8 @@ fn every_selected_call_rule_rejects_encoded_clobber_loss_on_every_target() {
         let catalog = produced_effects(case, environment.constraints());
         for (key, semantic) in selected_call_rules(&environment) {
             let mut corrupted = catalog.clone();
-            let encoded = &mut declaration_mut(&mut corrupted, key).alternatives[0].encoded;
+            let encoded =
+                &mut declaration_mut(&mut corrupted, key, semantic).alternatives[0].encoded;
             assert!(
                 !encoded.implicit_unit_clobbers.is_empty(),
                 "{key:?} declares no caller-saved clobbers"

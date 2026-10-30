@@ -10,8 +10,8 @@ requires n <= 5
         5 -> top()
         _ -> low()
     }
-    state top() -> u64 { 70 }
-    state low() -> u64 { 71 }
+    machine top() -> u64 { 70 }
+    machine low() -> u64 { 71 }
 }
 
 machine Main::main(main: &mut Main) {

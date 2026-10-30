@@ -1,5 +1,6 @@
 //! Complete checked shape graph for one representation demand.
 
+use crate::record::accessors::field_projection_accessors;
 pub type PackageReviewBoundaryShapeClass = calling_conventions::BoundaryValueClass;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -10,17 +11,8 @@ pub struct PackageReviewBoundaryShape {
 }
 
 impl PackageReviewBoundaryShape {
-    pub const fn class(self) -> PackageReviewBoundaryShapeClass {
-        self.class
-    }
-
-    pub const fn byte_size(self) -> u16 {
-        self.byte_size
-    }
-
-    pub const fn alignment(self) -> u16 {
-        self.alignment
-    }
+    field_projection_accessors!(valued class: PackageReviewBoundaryShapeClass, byte_size: u16);
+    field_projection_accessors!(valued alignment: u16);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -30,13 +22,7 @@ pub struct PackageReviewBoundaryShapeField {
 }
 
 impl PackageReviewBoundaryShapeField {
-    pub const fn shape(self) -> u16 {
-        self.shape
-    }
-
-    pub const fn byte_offset(self) -> u16 {
-        self.byte_offset
-    }
+    field_projection_accessors!(valued shape: u16, byte_offset: u16);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -48,19 +34,8 @@ pub struct PackageReviewBoundaryShapeGraph {
 }
 
 impl PackageReviewBoundaryShapeGraph {
-    pub fn shapes(&self) -> &[PackageReviewBoundaryShape] {
-        &self.shapes
-    }
-
-    pub fn fields(&self) -> &[PackageReviewBoundaryShapeField] {
-        &self.fields
-    }
-
-    pub fn parameters(&self) -> &[u16] {
-        &self.parameters
-    }
-
-    pub const fn result(&self) -> Option<u16> {
-        self.result
-    }
+    field_projection_accessors!(sliced shapes: &[PackageReviewBoundaryShape]);
+    field_projection_accessors!(sliced fields: &[PackageReviewBoundaryShapeField]);
+    field_projection_accessors!(sliced parameters: &[u16]);
+    field_projection_accessors!(copied result: Option<u16>);
 }

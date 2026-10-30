@@ -13,6 +13,7 @@ pub mod declarations;
 pub mod inspection;
 mod item_copies;
 pub mod names;
+mod paged_roster;
 pub mod source_files;
 #[cfg(test)]
 mod tests;
@@ -29,14 +30,14 @@ use crate::types::TypeReferenceTable;
 use source::SourceId;
 use std::ops::{Deref, DerefMut};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, compiler_storage::Record)]
 pub struct SyntaxTrees {
     pub source_id: SourceId,
     pub roots: SyntaxTreeRoots,
     pub tables: SyntaxTreeTables,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, compiler_storage::Record)]
 pub struct SyntaxTreeTables {
     pub text: crate::SyntaxTextOwner,
     pub items: ItemTable,
@@ -45,7 +46,7 @@ pub struct SyntaxTreeTables {
     pub type_references: TypeReferenceTable,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SyntaxTreeRoots {
     pub items: Vec<ItemHandle>,
     /// Closed compiler-private extent entries retain the consuming type's

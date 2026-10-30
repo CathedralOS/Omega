@@ -2,6 +2,7 @@
 
 mod traversal;
 mod traversal_observations;
+pub(crate) use traversal::excluded_from_capture;
 
 use std::path::{Path, PathBuf};
 

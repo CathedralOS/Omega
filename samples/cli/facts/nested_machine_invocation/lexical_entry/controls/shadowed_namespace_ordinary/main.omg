@@ -1,0 +1,11 @@
+// A runtime value cannot acquire module namespace authority.
+use routines;
+machine probe(routines: u64, value: u64) -> u64 requires value > 0; {
+    routines::entry(value)
+}
+machine main() crashes Trap {
+    let first: u64 = probe(19, 7);
+    let second: u64 = probe(23, 9);
+    transition first == 7 && second == 9 { true -> done() false -> bad() }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}

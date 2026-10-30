@@ -50,6 +50,65 @@ pub(crate) fn callable_type_arguments(
     selected: &[StaticMachineArgument],
     arguments: &[ExpressionHandle],
 ) -> Option<Vec<(SymbolHandle, TypeReferenceHandle)>> {
+    scoped_callable_type_arguments(
+        program,
+        caller.symbol,
+        program.machine_type_parameters(caller),
+        parameters,
+        value_parameters,
+        selected,
+        arguments,
+        &|argument| {
+            crate::value_custody::places::declared_place_type_raw(program, caller, state, argument)
+                .or_else(|| {
+                    state.and_then(|state| {
+                        crate::expression_result_type_reference(program, caller, state, argument)
+                    })
+                })
+        },
+    )
+}
+
+/// A constant declaration owns its initializer's operand types without a
+/// runtime state or a callable telescope. Selection uses the same static
+/// argument correspondence as an executable caller, before execution admission.
+pub(crate) fn declaration_call_type_arguments(
+    program: &dyn crate::CheckingInput,
+    owner: SymbolHandle,
+    callee: &Machine,
+    entry: &State,
+    selected: &[StaticMachineArgument],
+    arguments: &[ExpressionHandle],
+) -> Option<Vec<(SymbolHandle, TypeReferenceHandle)>> {
+    let parameters = program.machine_type_parameters(callee);
+    if parameters.is_empty() {
+        return Some(Vec::new());
+    }
+    scoped_callable_type_arguments(
+        program,
+        owner,
+        &[],
+        parameters,
+        program.state_parameters(entry),
+        selected,
+        arguments,
+        &|argument| {
+            crate::parameter_expression_result_type_reference(program, owner, &[], argument)
+        },
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn scoped_callable_type_arguments(
+    program: &dyn crate::CheckingInput,
+    owner: SymbolHandle,
+    caller_parameters: &[typed_trees::data::TypeParameter],
+    parameters: &[typed_trees::data::TypeParameter],
+    value_parameters: &[typed_trees::signature::StateParameter],
+    selected: &[StaticMachineArgument],
+    arguments: &[ExpressionHandle],
+    actual_type: &dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
+) -> Option<Vec<(SymbolHandle, TypeReferenceHandle)>> {
     let type_parameters = parameters
         .iter()
         .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
@@ -72,7 +131,7 @@ pub(crate) fn callable_type_arguments(
                     matches!(program.type_reference_table.type_reference(selected.type_reference),
                     typed_trees::types::TypeReferenceNode::ConstExpression(expression)
                         if crate::value_custody::const_expressions::has_carrier(
-                            program, *expression, &parameter.kind, caller.symbol,
+                            program, *expression, &parameter.kind, owner,
                         ))
                 });
         let actual = if const_expression {
@@ -142,7 +201,7 @@ pub(crate) fn callable_type_arguments(
                     program,
                     parameter,
                     actual,
-                    program.machine_type_parameters(caller),
+                    caller_parameters,
                 ) {
                     return None;
                 }
@@ -160,21 +219,12 @@ pub(crate) fn callable_type_arguments(
             .any(|(symbol, _)| *symbol == parameter.symbol)
     }) {
         for (parameter, argument) in value_parameters.iter().zip(arguments) {
-            let actual = crate::value_custody::places::declared_place_type_raw(
-                program, caller, state, *argument,
-            )
-            .or_else(|| {
-                state.and_then(|state| {
-                    crate::value_custody::expression_types::expression_result_type_reference(
-                        program, caller, state, *argument,
-                    )
-                })
-            });
+            let actual = actual_type(*argument);
             if let Some(actual) = actual {
                 super::super::machine_parameters::infer_call_type_arguments(
                     program,
                     parameters,
-                    program.machine_type_parameters(caller),
+                    caller_parameters,
                     parameter.type_reference,
                     actual,
                     &mut bindings,
@@ -221,6 +271,7 @@ pub(super) fn validate_resolved_call_arguments(
     call: &typed_trees::statement::TableCall,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let site = super::CallSite::Statement(call);
     let parameters = match super::argument_correspondence::executable_parameters(
@@ -269,15 +320,8 @@ pub(super) fn validate_resolved_call_arguments(
         writable_roots.statements,
         selected_float_operation_retains_argument_policy(program, callee.symbol),
         &[],
-        |argument, required| {
-            crate::value_custody::expression_types::argument_matches_call_carrier(
-                program,
-                caller.symbol,
-                argument,
-                required,
-                &bindings,
-            )
-        },
+        call_carrier_matcher(program, caller.symbol, &bindings),
         diagnostics,
+        formation_obligations,
     );
 }

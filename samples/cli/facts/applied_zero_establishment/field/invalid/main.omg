@@ -8,6 +8,6 @@ machine start() crashes Trap {
     let carrier: Carrier;
     let code: u8 = Gate::read(&carrier.value);
     transition code == 0u8 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

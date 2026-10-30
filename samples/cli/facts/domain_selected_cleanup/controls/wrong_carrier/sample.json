@@ -1,0 +1,7 @@
+{
+  "role": "intended-invalid",
+  "rejection_contains": [
+    "cleanup",
+    "receiver"
+  ]
+}

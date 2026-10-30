@@ -13,11 +13,11 @@ machine Main::main(main: &mut Main) {
         _ -> miss(main)
     }
 
-    state measure(main: &mut Main, captured: u64) {
+    machine measure(main: &mut Main, captured: u64) {
         let held: u64 = captured;
         Main::fill(&mut held);
         main.answer = held;
     }
 
-    state miss(main: &mut Main) { main.answer = 71; }
+    machine miss(main: &mut Main) { main.answer = 71; }
 }

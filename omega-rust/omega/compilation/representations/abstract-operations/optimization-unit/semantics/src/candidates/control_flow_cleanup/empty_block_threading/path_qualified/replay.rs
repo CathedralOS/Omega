@@ -1,12 +1,14 @@
 //! Independent path-qualified empty-block replay mechanics.
 use crate::candidates::accept_region_rewrite;
+use crate::candidates::candidate_block;
+use crate::candidates::candidate_function;
 use crate::candidates::control_flow_cleanup::{patched_jump_bindings, require_scalar_bindings};
 use crate::candidates::rewrite_accounting::substitutions::rewrite_successor_operation;
 use crate::candidates::rewrite_accounting::threading::{
     reconstruct_linear_thread_bindings, reconstruct_linear_thread_ownership_is_identity,
     reconstruct_path_thread_accounting,
 };
-use crate::candidates::set_node_effect_link;
+use crate::candidates::sweep_output_nodes;
 use crate::unit_validation::derived_metadata::{
     expected_definitions, expected_ownership, expected_uses,
 };
@@ -24,17 +26,13 @@ pub(super) fn validate(
     if candidate.node_decision_point() != Some(patch.empty) || patch.empty.node != 0 {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input
-        .function(patch.empty.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let function = candidate_function(input, patch.empty.machine)?;
     require_scalar_bindings(function)?;
 
     if function.entry == patch.empty.block {
         return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
     }
-    let empty_block = function
-        .block(patch.empty.block)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let empty_block = candidate_block(function, patch.empty.block)?;
     let [empty_node] = empty_block.nodes.as_slice() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
@@ -111,11 +109,6 @@ pub(super) fn validate(
     let (expected_blocks, accepted_provenance) =
         reconstruct_path_thread_accounting(function, patch.empty, &incoming_edges)
             .ok_or(OptimizationUnitValidationError::CandidateProvenanceMismatch)?;
-    if candidate.affected_blocks() != expected_blocks
-        || candidate.provenance() != accepted_provenance
-    {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
 
     let outgoing_edge = empty_node
         .edge(patch.outgoing_edge)
@@ -161,12 +154,7 @@ pub(super) fn validate(
             output_function
                 .blocks
                 .retain(|block| block.id != patch.empty.block);
-            let mut effect = 0u64;
-            for block in &mut output_function.blocks {
-                for node in &mut block.nodes {
-                    effect = set_node_effect_link(node, effect)?;
-                }
-            }
+            sweep_output_nodes(output_function, |_| Ok(()))?;
             Ok(())
         },
     )

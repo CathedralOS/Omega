@@ -6,17 +6,17 @@ public machine choose(total: u64 in Wrapping, selected: u64 in Wrapping) -> u64 
     transition selected <= total { true -> step(total, selected, 0, 1)
  false -> 0
  }
-    state step(total: u64 in Wrapping, selected: u64 in Wrapping, index: u64 in Wrapping, value: u64 in Wrapping) -> u64 in Wrapping {
+    machine step(total: u64 in Wrapping, selected: u64 in Wrapping, index: u64 in Wrapping, value: u64 in Wrapping) -> u64 in Wrapping {
         transition index < selected {
             true -> advance(total, selected, index, value)
             false -> value
         }
     }
-    state advance(total: u64 in Wrapping, selected: u64 in Wrapping, index: u64 in Wrapping, value: u64 in Wrapping) -> u64 in Wrapping {
+    machine advance(total: u64 in Wrapping, selected: u64 in Wrapping, index: u64 in Wrapping, value: u64 in Wrapping) -> u64 in Wrapping {
         let divisor: u64 in Wrapping = index + 1;
         transition divisor > 0 { true -> divide(total, selected, index, value, divisor) false -> 0 }
     }
-    state divide(total: u64 in Wrapping, selected: u64 in Wrapping, index: u64 in Wrapping, value: u64 in Wrapping, divisor: u64 in Wrapping) -> u64 in Wrapping
+    machine divide(total: u64 in Wrapping, selected: u64 in Wrapping, index: u64 in Wrapping, value: u64 in Wrapping, divisor: u64 in Wrapping) -> u64 in Wrapping
     requires divisor > 0
     {
         transition { _ -> step(total, selected, index + 1, value * (total - index) / divisor) }
@@ -26,13 +26,13 @@ public machine choose(total: u64 in Wrapping, selected: u64 in Wrapping) -> u64 
 public machine tail(total: u64 in Wrapping, annotated: u64 in Wrapping, query: u64 in Wrapping, observed: u64 in Wrapping) -> Fraction {
     let denominator: u64 in Wrapping = choose(total, query);
     transition { _ -> step(total, annotated, query, observed, 0, denominator) }
-    state step(total: u64 in Wrapping, annotated: u64 in Wrapping, query: u64 in Wrapping, hits: u64 in Wrapping, sum: u64 in Wrapping, denominator: u64 in Wrapping) -> Fraction {
+    machine step(total: u64 in Wrapping, annotated: u64 in Wrapping, query: u64 in Wrapping, hits: u64 in Wrapping, sum: u64 in Wrapping, denominator: u64 in Wrapping) -> Fraction {
         transition hits <= query && hits <= annotated {
             true -> accumulate(total, annotated, query, hits, sum, denominator)
             false -> Fraction { numerator: sum, denominator: denominator }
         }
     }
-    state accumulate(total: u64 in Wrapping, annotated: u64 in Wrapping, query: u64 in Wrapping, hits: u64 in Wrapping, sum: u64 in Wrapping, denominator: u64 in Wrapping) -> Fraction {
+    machine accumulate(total: u64 in Wrapping, annotated: u64 in Wrapping, query: u64 in Wrapping, hits: u64 in Wrapping, sum: u64 in Wrapping, denominator: u64 in Wrapping) -> Fraction {
         let ways: u64 in Wrapping = choose(annotated, hits) * choose(total - annotated, query - hits);
         transition { _ -> step(total, annotated, query, hits + 1, sum + ways, denominator) }
     }

@@ -2,9 +2,7 @@
 
 use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind};
 use std::collections::{BTreeMap, BTreeSet};
-use terminal_psi::{
-    Block, StructuralArgument, StructuralParameterDeclaration, TerminalMachine, Terminator,
-};
+use terminal_psi::{Block, StructuralParameterDeclaration, TerminalMachine};
 
 /// Qualification metadata does not add descriptor words. Only element views
 /// carry universal child rows; byte descriptors retain their whole predicates.
@@ -30,9 +28,12 @@ pub fn view_descriptor_projected_qualifications<'types>(
 }
 
 /// A readable descriptor arrival retains its pointer and extent, not its
-/// backing storage. Affine carrier lifetime does not turn borrowed access into
-/// ownership or make the payload a thin address join. Qualification admission,
-/// exact source access and live loan custody remain the consumer's judgments.
+/// backing storage. Canonical views carry access on their occurrence. An affine
+/// stored descriptor retains its own retirement debt and declared access
+/// ceiling; it is not an unrestricted outer loan over a descriptor slot.
+/// Neither representation owns the backing or becomes a thin address join.
+/// Qualification admission, exact source access and live loan custody remain
+/// the consumer's judgments.
 pub fn view_descriptor_parameter<'types>(
     parameter: &StructuralParameterDeclaration,
     declarations: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration>,
@@ -61,11 +62,56 @@ pub fn view_descriptor_parameter<'types>(
                 .projected_qualifications
                 .iter()
                 .all(|row| row.is_element_membership()))
-        && (declaration.shape.is_borrowed_byte_carrier()
-            || matches!(
-                declaration.shape,
-                terminal_psi::StructuralTypeShape::ElementView { .. }
-            ))
+        && (declaration.shape.is_canonical_view_descriptor()
+            || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                && crate::descriptor_results::descriptor_value_access(
+                    std::iter::once(declaration),
+                    parameter.structural_type,
+                    parameter.multiplicity,
+                )
+                .is_some_and(|ceiling| parameter.access.admits_referent(ceiling)))
+}
+
+/// An outer loan to represented storage, including a pointer or view
+/// descriptor slot. Canonical view occurrences instead transport a descriptor
+/// value. Owned descriptor arrivals remain ordinary value transfers. This role
+/// judgment grants neither stored reference access nor current loan evidence.
+pub fn borrowed_storage_parameter<'types>(
+    parameter: &StructuralParameterDeclaration,
+    declarations: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration>,
+) -> bool {
+    if parameter.access == terminal_psi::StructuralAccess::Owned
+        || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+    {
+        return false;
+    }
+    let mut matching = declarations.filter(|row| row.id == parameter.structural_type);
+    let Some(declaration) = matching.next() else {
+        return false;
+    };
+    matching.next().is_none() && !declaration.shape.is_canonical_view_descriptor()
+}
+
+/// The maximum contained-reference access allowed by an outer storage loan.
+/// The receiving operation must still authenticate a live resident descriptor
+/// and its exact backing. Shared storage cannot lend a write-only inner grant.
+pub fn borrowed_storage_reference_ceiling<'types>(
+    parameter: &StructuralParameterDeclaration,
+    mut declarations: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+) -> Option<terminal_psi::StructuralAccess> {
+    use terminal_psi::StructuralAccess;
+    if !borrowed_storage_parameter(parameter, declarations.clone()) {
+        return None;
+    }
+    let declaration = declarations.find(|row| row.id == parameter.structural_type)?;
+    let inner = crate::stored_reference_access(&declaration.shape)?;
+    match parameter.access {
+        StructuralAccess::SharedBorrow if inner != StructuralAccess::WriteOnlyBorrow => {
+            Some(StructuralAccess::SharedBorrow)
+        }
+        StructuralAccess::MutableBorrow => Some(inner),
+        _ => None,
+    }
 }
 
 /// Backing access retained by a live descriptor arrival. Owning the descriptor
@@ -88,8 +134,18 @@ pub fn descriptor_parameter_access<'types>(
             parameter.structural_type,
             parameter.multiplicity,
         )
+    } else if view_descriptor_parameter(parameter, declarations.clone()) {
+        Some(parameter.access)
+    } else if declarations.clone().any(|row| {
+        row.id == parameter.structural_type
+            && crate::reference_views::descriptor_declared_access(&row.shape).is_some()
+    }) {
+        // This is the declared contained-view ceiling, not a direct descriptor
+        // value arrival. The call/block binder must retain its live slot and
+        // authenticate the actual resident backing before using that ceiling.
+        borrowed_storage_reference_ceiling(parameter, declarations)
     } else {
-        view_descriptor_parameter(parameter, declarations).then_some(parameter.access)
+        None
     }
 }
 
@@ -206,7 +262,7 @@ pub fn root_before_edge(
 /// The exact source projection a checked edge binds to this arrival. The path
 /// is retained rather than treating a pointee or field as its carrier root.
 /// This names storage only; access, custody and type correspondence remain
-/// independently checked. Conflicting edges and case payloads supply no match.
+/// independently checked. Conflicting structural arguments supply no match.
 pub fn projection_before_edge<'edge>(
     machine: &TerminalMachine,
     block: BlockId,
@@ -229,15 +285,12 @@ pub fn projection_before_edge<'edge>(
             path: &[],
         });
     };
-    if reaches_by_case(predecessor, block) {
-        return None;
-    }
     let mut forwarded = None;
-    for (target, arguments) in forwarded_bindings(predecessor) {
-        if target != block {
+    for binding in crate::control_graph::forwarded_bindings(predecessor) {
+        if binding.target != block {
             continue;
         }
-        let argument = arguments.get(position as usize)?;
+        let argument = binding.structural_arguments.get(position as usize)?;
         let projection = terminal_psi::OperationProjection {
             root: argument.place,
             path: &argument.path,
@@ -248,13 +301,6 @@ pub fn projection_before_edge<'edge>(
         forwarded = Some(projection);
     }
     forwarded
-}
-
-/// Whether `predecessor` reaches `block` by a structural-case edge, which
-/// declares payload fields instead of forwarding the block's parameters.
-fn reaches_by_case(predecessor: &Block, block: BlockId) -> bool {
-    matches!(&predecessor.terminator, Terminator::StructuralCase { cases, .. }
-        if cases.iter().any(|successor| successor.target == block))
 }
 
 /// Candidate names of the storage at a use, grouped by predecessor block.
@@ -291,36 +337,14 @@ pub fn storage_names(machine: &TerminalMachine, block: BlockId, root: PlaceId) -
             continue;
         }
         for predecessor in &machine.blocks {
-            let reaches = reaches_by_case(predecessor, block)
-                || forwarded_bindings(predecessor)
+            let reaches = crate::control_graph::reaches_by_case(predecessor, block)
+                || crate::control_graph::forwarded_bindings(predecessor)
                     .iter()
-                    .any(|(target, _)| *target == block);
+                    .any(|binding| binding.target == block);
             if reaches && let Some(before) = root_before_edge(machine, block, predecessor, root) {
                 pending.push((predecessor.id, before));
             }
         }
     }
     StorageNames { behind }
-}
-
-/// Each edge out of `predecessor` that forwards the target block's structural
-/// parameters, as the target and its positional bindings. A structural-case
-/// edge is absent: it declares payload fields instead of forwarding them.
-fn forwarded_bindings(predecessor: &Block) -> Vec<(BlockId, &[StructuralArgument])> {
-    match &predecessor.terminator {
-        Terminator::Jump {
-            target,
-            structural_arguments,
-            ..
-        } => vec![(*target, structural_arguments.as_slice())],
-        Terminator::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => [when_true, when_false]
-            .into_iter()
-            .map(|successor| (successor.target, successor.structural_arguments.as_slice()))
-            .collect(),
-        _ => Vec::new(),
-    }
 }

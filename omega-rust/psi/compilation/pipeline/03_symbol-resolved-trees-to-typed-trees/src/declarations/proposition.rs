@@ -81,10 +81,9 @@ pub(crate) fn lower_proposition_definition(
                 .bodies
                 .expressions
                 .expression(*proposition)
-                && call.target_symbol.is_valid()
-                && matches!(
-                    lowerer.source_trees.symbols.get(call.target_symbol).kind,
-                    symbols::SymbolKind::Proposition | symbols::SymbolKind::PropositionParameter
+                && crate::expressions::proposition::is_proposition_call_target(
+                    &lowerer.source_trees.symbols,
+                    call.target_symbol,
                 ) {
                 typed::proposition::PropositionFormula::Application(lower_proposition_application(
                     lowerer, call,

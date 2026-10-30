@@ -31,7 +31,7 @@ fn check_state_assembly_facts(
     state_flow: &FlowStateFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some((_machine, state)) = validation::machine_state_by_symbols(
+    let Some((machine, state)) = validation::machine_state_by_symbols(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -39,6 +39,7 @@ fn check_state_assembly_facts(
         return;
     };
 
+    let predicates = validation::StatementPredicateObservations::new(program, machine, state);
     let statements = program.statement_table.statements(state.statement_nodes);
     for (statement_index, statement) in statements.iter().enumerate() {
         let Some(fact) = statement.as_assembly_fact() else {
@@ -89,6 +90,10 @@ fn check_state_assembly_facts(
                     &contexts,
                     fact.fact,
                     !invalidated_inside_block,
+                ) || matches!(
+                    program.proof_facts.get(fact.fact),
+                    typed_trees::domain::ProofFact::Expression(expression)
+                        if predicates.proves(*observation, *expression)
                 )
             })
         {
@@ -271,7 +276,9 @@ pub(super) fn expression_reads_overlapping_place(
             .struct_fields(struct_literal.fields)
             .iter()
             .any(|field| recurse(field.value)),
-        typed_trees::spelled_literal_expression_pattern!() => false,
+        ExpressionNode::TypeExpression(_) | typed_trees::spelled_literal_expression_pattern!() => {
+            false
+        }
     }
 }
 
@@ -397,7 +404,7 @@ fn assembly_fact_is_proven(
                 );
             }
             membership.semantic_domain.is_valid() && contexts.iter().any(|context| facts.semantic.context_view(facts.semantic.contexts.get(*context)).facts().any(|candidate| {
-                matches!(candidate.payload, facts::domain_membership_symbol_and_instance_pattern!(domain_symbol, semantic_domain) if domain_symbol == membership.domain_symbol && semantic_domain == membership.semantic_domain)
+                matches!(candidate.payload, facts::domain_membership_pattern!(domain_symbol, semantic_domain) if domain_symbol == membership.domain_symbol && semantic_domain == membership.semantic_domain)
                 && candidate.place.as_place().and_then(|handle| crate::flow::canonical_place_from_semantic_place(program, &facts.semantic, facts.semantic.places.get(handle))).is_some_and(|candidate| candidate == place)
             }))
         }

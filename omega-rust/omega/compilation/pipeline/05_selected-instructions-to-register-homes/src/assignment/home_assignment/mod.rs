@@ -1,9 +1,6 @@
 //! Optimizer module role: executable entrance. Transition-free physical-home assignment entrance.
 
-use register_model::{
-    TargetRegisterEnvironmentConstraintKeys, ValidatedPhysicalRegisterModel,
-    ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
-};
+use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges,
 };
@@ -21,48 +18,26 @@ use selected_instructions::LiveRangeIdentity;
 
 /// Assign deterministic physical views for the bounded transition-free,
 /// spill-free lane. The result grants no emission or publication authority.
+///
+/// The register environment is one owner of its own parts: callers hand the
+/// validated environment over instead of re-listing its identity, physical
+/// model, constraint catalog, reservation profile and constraint keys.
 pub(crate) fn assign_register_homes(
     legality: &ValidatedAllocationLegality,
     ranges: &ValidatedLiveRanges,
-    register_environment: TargetRegisterEnvironmentIdentity,
-    physical: &ValidatedPhysicalRegisterModel,
-    constraints: &ValidatedRegisterConstraintCatalog,
-    reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
+    environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
-    assign_register_homes_reusing(
-        legality,
-        ranges,
-        register_environment,
-        physical,
-        constraints,
-        reservations,
-        selected_keys,
-        None,
-    )
+    assign_register_homes_reusing(legality, ranges, environment, None)
 }
 
 /// `assign_register_homes` reusing unchanged functions' homes from `reuse`.
 pub(crate) fn assign_register_homes_reusing(
     legality: &ValidatedAllocationLegality,
     ranges: &ValidatedLiveRanges,
-    register_environment: TargetRegisterEnvironmentIdentity,
-    physical: &ValidatedPhysicalRegisterModel,
-    constraints: &ValidatedRegisterConstraintCatalog,
-    reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
+    environment: &ValidatedTargetRegisterEnvironment,
     reuse: Option<&mut compute::FunctionHomeReuse>,
 ) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
-    let plan = compute::compute_terminal_register_homes(
-        legality,
-        ranges,
-        register_environment,
-        physical,
-        constraints,
-        reservations,
-        selected_keys,
-        reuse,
-    )?;
+    let plan = compute::compute_terminal_register_homes(legality, ranges, environment, reuse)?;
     let receipt = receipt::build(&plan, ranges);
     Ok(ValidatedRegisterHomes {
         plan: plan.into(),
@@ -85,36 +60,18 @@ pub struct RegisterHomeValidationReceipt {
 }
 
 impl RegisterHomeValidationReceipt {
-    pub const fn identity(self) -> RegisterHomeIdentity {
-        self.identity
-    }
-    pub const fn legality(self) -> AllocationLegalityIdentity {
-        self.legality
-    }
-    pub const fn ranges(self) -> LiveRangeIdentity {
-        self.ranges
-    }
-    pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
-    pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn assignment_count(self) -> usize {
-        self.assignment_count
-    }
-    pub const fn tied_pair_count(self) -> usize {
-        self.tied_pair_count
-    }
-    pub const fn tied_component_count(self) -> usize {
-        self.tied_component_count
-    }
-    pub const fn early_clobber_count(self) -> usize {
-        self.early_clobber_count
-    }
+    receipt_accessor_rows!(RegisterHomeValidationReceipt {
+        identity: RegisterHomeIdentity,
+        legality: AllocationLegalityIdentity,
+        ranges: LiveRangeIdentity,
+        register_environment: TargetRegisterEnvironmentIdentity,
+        allocator_availability: AllocatorAvailabilityIdentity,
+        function_count: usize,
+        assignment_count: usize,
+        tied_pair_count: usize,
+        tied_component_count: usize,
+        early_clobber_count: usize,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -132,9 +89,9 @@ impl ValidatedRegisterHomes {
     pub fn plan(&self) -> &RegisterHomePlan {
         &self.plan
     }
-    pub const fn receipt(&self) -> RegisterHomeValidationReceipt {
-        self.receipt
-    }
+    receipt_accessor_rows!(ref ValidatedRegisterHomes {
+        receipt: RegisterHomeValidationReceipt,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -211,13 +168,7 @@ impl RegisterHomeError {
     }
 }
 
-impl std::fmt::Display for RegisterHomeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "Terminal register-home assignment failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for RegisterHomeError {}
+stage_error_display!(
+    RegisterHomeError,
+    "Terminal register-home assignment failed"
+);

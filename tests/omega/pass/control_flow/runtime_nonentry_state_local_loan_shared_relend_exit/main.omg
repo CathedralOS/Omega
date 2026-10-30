@@ -21,37 +21,37 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> prepare(main) }
 
-    state prepare(main: &mut Main) {
+    machine prepare(main: &mut Main) {
         let mut parser: Parser;
         parser.cursor = 3;
         transition { _ -> parse(main, &mut parser) }
     }
-    state parse(main: &mut Main, parser: &mut Parser) {
+    machine parse(main: &mut Main, parser: &mut Parser) {
         parser.output.count = 70;
         parser.output.accepted = true;
         transition { _ -> inspect(main, parser) }
     }
-    state inspect(main: &mut Main, parser: &Parser) {
+    machine inspect(main: &mut Main, parser: &Parser) {
         transition parser.cursor == 3 {
             true -> report(main, &parser.output)
             _ -> wrong(main, 71)
         }
     }
-    state report(main: &mut Main, output: &Output) {
+    machine report(main: &mut Main, output: &Output) {
         transition output.count == 70 && output.accepted {
             true -> returning(main)
             _ -> wrong(main, 71)
         }
     }
-    state returning(main: &mut Main) {
+    machine returning(main: &mut Main) {
         let measured: u64 = measure(4);
         transition measured == 66 {
             true -> done(main)
             _ -> wrong(main, 72)
         }
     }
-    state done(main: &mut Main) { Console::exit_process(70); }
-    state wrong(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine done(main: &mut Main) { Console::exit_process(70); }
+    machine wrong(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 machine measure(seed: u64) -> u64 {
@@ -59,20 +59,20 @@ machine measure(seed: u64) -> u64 {
         true -> prepare(seed)
         _ -> zero()
     }
-    state prepare(seed: u64) -> u64 {
+    machine prepare(seed: u64) -> u64 {
         let mut parser: Parser;
         parser.cursor = seed;
         transition { _ -> parse(&mut parser) }
     }
-    state parse(parser: &mut Parser) -> u64 {
+    machine parse(parser: &mut Parser) -> u64 {
         parser.output.count = 66;
         transition { _ -> inspect(parser) }
     }
-    state inspect(parser: &Parser) -> u64 {
+    machine inspect(parser: &Parser) -> u64 {
         transition { _ -> report(&parser.output) }
     }
-    state report(output: &Output) -> u64 { output.count }
-    state zero() -> u64 { 0 }
+    machine report(output: &Output) -> u64 { output.count }
+    machine zero() -> u64 { 0 }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

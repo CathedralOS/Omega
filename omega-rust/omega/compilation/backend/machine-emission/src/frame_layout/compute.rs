@@ -1,5 +1,3 @@
-use selected_instructions::MachineAlternativeFamily;
-
 use crate::frame_layout::{
     FrameAbiPreservationConvention, StagedOptimizedPostAllocationMachinePlan,
     ValidatedAllocatedCalleeSavedRequirements, ValidatedNonAuthoritativeCalleeSaveStorage,
@@ -7,9 +5,9 @@ use crate::frame_layout::{
 };
 
 use super::{
-    CalleeSaveFrameSlot, FrameContinuationCustody, FrameUnwindPlan, FrameUnwindRestore,
-    FunctionTargetFrameLayout, ReturnAddressFrameCustody, StackProbePlan, TargetFrameLayoutError,
-    TargetFrameLayoutPlan, TargetFrameLayoutPolicy, call_site::call_site_stack_contract,
+    CalleeSaveFrameSlot, FrameContinuationCustody, FrameUnwindPlan, FunctionTargetFrameLayout,
+    ReturnAddressFrameCustody, StackProbePlan, TargetFrameLayoutError, TargetFrameLayoutPlan,
+    TargetFrameLayoutPolicy, call_site::call_site_stack_contract,
     stack_commit::stack_commit_granule_bytes, unwind::frame_unwind_policy,
 };
 
@@ -59,39 +57,8 @@ pub(super) fn derive(
                 {
                     return Err(TargetFrameLayoutError::FunctionRosterMismatch);
                 }
-                let contains_call = machine_function.instructions().any(|instruction| {
-                    matches!(
-                        instruction.alternative.key.family,
-                        MachineAlternativeFamily::CallScalar
-                            | MachineAlternativeFamily::CallUnit
-                            | MachineAlternativeFamily::CallAggregate
-                            | MachineAlternativeFamily::NormalizedForeignCall
-                    )
-                });
-                // A frame-address materialization on an activation-local
-                // slot loans that slot's stable coordinate to whatever
-                // observes the pointer. Allocator spill slots only gain the
-                // private reload materializations allocation inserts, which
-                // are consumed inside the same window, so they are never
-                // loans.
-                let stable_address_loans = machine_function
-                    .instructions()
-                    .filter_map(|instruction| match instruction.address {
-                        Some(physical_instructions::PhysicalAddressOperation::FrameAddress {
-                            slot: selected_instructions::FrameStorageSlotId::Local(slot),
-                            ..
-                        }) if !matches!(
-                            slot,
-                            selected_instructions::LocalStorageSlotId::Spill { .. }
-                        ) =>
-                        {
-                            Some(slot)
-                        }
-                        _ => None,
-                    })
-                    .collect::<std::collections::BTreeSet<_>>()
-                    .into_iter()
-                    .collect::<Vec<_>>();
+                let contains_call = super::geometry::contains_call(machine_function);
+                let stable_address_loans = super::geometry::stable_address_loans(machine_function);
                 let callee_save_slots = storage_function
                     .slots
                     .iter()
@@ -379,34 +346,7 @@ fn function_layout(
     let committed_bytes = frame_size_bytes - red_zone_resident_bytes;
     let stack_probe = probe_plan(environment.target(), committed_bytes)?;
 
-    // The unwind roster is the epilogue's restoration sequence: a saved link
-    // register sits at the highest frame coordinate and is restored first,
-    // then preservation slots in reverse save order — strictly descending
-    // frame offsets. The release returns exactly the committed extent to the
-    // caller's stack.
-    let mut restores = Vec::with_capacity(callee_save_slots.len() + 1);
-    if let ReturnAddressFrameCustody::SavedLinkRegister {
-        view,
-        frame_offset_bytes,
-        size_bytes,
-    } = return_address
-    {
-        restores.push(FrameUnwindRestore {
-            view,
-            frame_offset_bytes,
-            size_bytes: u64::from(size_bytes),
-        });
-    }
-    restores.extend(
-        callee_save_slots
-            .iter()
-            .rev()
-            .map(|slot| FrameUnwindRestore {
-                view: slot.storage_view,
-                frame_offset_bytes: slot.frame_offset_bytes,
-                size_bytes: slot.size_bytes,
-            }),
-    );
+    let restores = super::geometry::unwind_restores(return_address, &callee_save_slots);
 
     Ok(FunctionTargetFrameLayout {
         machine,

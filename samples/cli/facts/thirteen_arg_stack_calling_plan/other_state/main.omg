@@ -36,7 +36,7 @@ ensures result == 0i32
     transition {
         _ -> step(res)
     }
-    state step(s_res: u64) -> i32
+    machine step(s_res: u64) -> i32
     requires s_res == 60u64
     {
         let headroom: u64 = 80u64 - s_res;
@@ -47,10 +47,10 @@ ensures result == 0i32
             _ -> bad()
         }
     }
-    state ok() {
+    machine ok() -> i32 {
         0i32
     }
-    state bad() {
+    machine bad() -> i32 {
         crash Trap;
     }
 }
@@ -60,6 +60,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

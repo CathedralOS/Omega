@@ -13,13 +13,13 @@ machine selected(items: &[u64], keep: bool) -> bool {
         true -> retained(window)
         false -> done()
     }
-    state retained(window: Window) -> bool {
+    machine retained(window: Window) -> bool {
         transition window.items.len == 3 {
             true -> (window.items[1] == 25)
             false -> false
         }
     }
-    state done() -> bool { true }
+    machine done() -> bool { true }
 }
 machine main() crashes Trap {
     let values: [u64; 3] = [17, 25, 31];
@@ -31,7 +31,7 @@ machine main() crashes Trap {
         true -> inspect(first, returned)
         false -> bad()
     }
-    state inspect(first: Window, returned: Window)
+    machine inspect(first: Window, returned: Window)
     requires first.items.len == 3; returned.items.len == 3
     {
         transition first.items[0] == 17 && returned.items[2] == 31 {
@@ -39,6 +39,6 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -1,0 +1,2 @@
+constant invocation cannot establish its own pending target condition
+requires contract for call need from limit

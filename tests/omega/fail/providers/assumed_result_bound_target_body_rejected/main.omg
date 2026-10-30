@@ -22,6 +22,6 @@ macos_arm64 machine exercise() -> u32 reaches Required {
 machine main() reaches Required crashes Trap {
     let observed: u32 = exercise();
     transition observed == 11 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

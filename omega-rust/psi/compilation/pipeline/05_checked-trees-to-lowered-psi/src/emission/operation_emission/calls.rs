@@ -6,6 +6,7 @@ use crate::direct_calls::DirectCallResult;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 use crate::proofs::crash_routes::lowered_erased_scalar_term;
+use crate::terminal_identities::mint;
 use crate::terminal_identities::obligation_id;
 use crate::terminal_identities::value_id;
 use semantic_vocabulary::{MachineId, ObligationId, QualifiedScalarType, ValueId};
@@ -156,6 +157,7 @@ impl PreparedStructuralArgument {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct LoweredDirectCallBinding {
     pub(crate) source_coordinate: SourceCallCoordinate,
+    pub(crate) caller_types: crate::expression_preparation::bindings::PublishedStructuralTypes,
     pub(crate) loan_completions: Vec<crate::emission::loan_completions::PreparedLoanCompletion>,
     pub(crate) target_machine: symbols::SymbolHandle,
     pub(crate) result_type: QualifiedScalarType,
@@ -179,6 +181,8 @@ pub(crate) struct CallEmissionContext<'a> {
     /// Actual emitted owner, including all source owners of a fused graph.
     pub(crate) terminal_machine: MachineId,
     pub(crate) domain_ids: &'a [crate::terminal_identities::StructuralDomainBinding],
+    pub(crate) domain_declarations: &'a [terminal_psi::StructuralDomainDeclaration],
+    pub(crate) scalar_qualifications: &'a terminal_psi::ScalarQualificationCatalog,
     pub(crate) claims: crate::emission::claim_bindings::ClaimBindings<'a>,
     pub(crate) cleanup_receivers: &'a [(symbols::SymbolHandle, semantic_vocabulary::PlaceId)],
     pub(crate) machine_ids: &'a [(symbols::SymbolHandle, MachineId)],
@@ -217,6 +221,7 @@ pub(super) fn emit_scalar_call_binding(
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
     call_emission: &mut CallEmissionContext<'_>,
+    current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
 ) -> Result<ValueId, LoweringError> {
     let parameter_types = parameters
         .iter()
@@ -249,6 +254,7 @@ pub(super) fn emit_scalar_call_binding(
         next_value_identity,
         operations,
         call_emission,
+        current_claims,
     )
 }
 
@@ -264,16 +270,14 @@ fn emit_direct_call_operation(
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
     call_emission: &mut CallEmissionContext<'_>,
+    current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
 ) -> Result<ValueId, LoweringError> {
     let callee = crate::terminal_identities::lookup_machine_id_with(
         call_emission.machine_ids,
         call.target_machine,
         "direct scalar call target is absent from the terminal closure",
     )?;
-    let result = value_id(*next_value_identity);
-    *next_value_identity = next_value_identity
-        .checked_add(1)
-        .expect("generated value identity advances after a direct call");
+    let result = mint(next_value_identity, value_id);
     let erased_arguments = call
         .erased_arguments
         .iter()
@@ -285,6 +289,7 @@ fn emit_direct_call_operation(
         identities,
         checked,
         call.source_coordinate,
+        &call.caller_types,
         call.target_machine,
         arguments,
         erased_arguments,
@@ -297,12 +302,12 @@ fn emit_direct_call_operation(
         call_emission,
         next_value_identity,
         operations,
+        current_claims,
     )?
     .emit(
+        checked,
         operations,
         call.source_coordinate,
-        None,
-        call.target_machine,
         crate::direct_calls::CallRecord::Frontier(frontier),
         terminal_psi::OperationResult::Scalar(ValueDeclaration {
             qualifications: call.result_type.qualifications,

@@ -18,8 +18,8 @@ ensures result == holder.spare {
 machine observe(value: i32, expected: i32)
 requires value == expected crashes Trap {
     transition value == expected { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine exercise(initial: i32, replacement: i32) crashes Trap {

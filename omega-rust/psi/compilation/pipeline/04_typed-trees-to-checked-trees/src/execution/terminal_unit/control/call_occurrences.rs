@@ -17,24 +17,68 @@ struct ComputationVisit {
     completed: bool,
 }
 
-/// An unconditional named machine invocation completes this Unit body after
+/// All consumers of one statement share exact computation occurrence custody.
+/// A retained value can be reached through several roles without executing its
+/// child twice. Different computations still cannot consume one captured call.
+#[derive(Default)]
+struct CallOccurrenceLedger {
+    calls: Vec<arena::Handle<checked_trees::FlowCallFact>>,
+    accounted_computations: Vec<AccountedComputation>,
+    pending_minima: Vec<Option<u32>>,
+}
+
+struct AccountedComputation {
+    state: SymbolHandle,
+    statement: usize,
+    computation: CheckedScalarComputationHandle,
+    /// Smallest actual Source-call ordinal in this exact immutable subtree.
+    /// Pure computations have no call ordinal to constrain a consumer.
+    minimum_call_ordinal: Option<u32>,
+}
+
+impl CallOccurrenceLedger {
+    fn record_minimum(&mut self, minimum: Option<u32>) {
+        if let Some(minimum) = minimum {
+            for pending in &mut self.pending_minima {
+                *pending = Some(pending.map_or(minimum, |prior| prior.min(minimum)));
+            }
+        }
+    }
+    fn contains(&self, call: &arena::Handle<checked_trees::FlowCallFact>) -> bool {
+        self.calls.contains(call)
+    }
+    fn push(&mut self, call: arena::Handle<checked_trees::FlowCallFact>) {
+        self.calls.push(call);
+    }
+    /// Record one call occurrence once: a walk that reaches the same authored
+    /// call twice records it at its first position and drops the repeat.
+    fn record_once(&mut self, call: arena::Handle<checked_trees::FlowCallFact>) {
+        crate::collections::push_unique(&mut self.calls, call);
+    }
+    fn iter(&self) -> std::slice::Iter<'_, arena::Handle<checked_trees::FlowCallFact>> {
+        self.calls.iter()
+    }
+}
+
+/// An unconditional machine invocation completes this body after
 /// its ordinary call operation. Internal state destinations remain control
 /// edges; guarded invocations must not be hoisted into this linear sequence.
 /// Return the authored identity to join captured occurrences; the call builder
 /// separately resolves the callee's executable entry and signature.
 mod collecting;
+mod structural_values;
 mod traced;
 
 pub(in crate::execution::terminal_unit) use collecting::call_owns_statement_computations;
 pub(in crate::execution::terminal_unit) use traced::outer_calls_in_prefix_traced;
 
-pub(in crate::execution::terminal_unit) fn terminal_named_call(
+pub(in crate::execution::terminal_unit) fn terminal_invocation(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
 ) -> Option<SymbolHandle> {
-    use typed_trees::statement::{TransitionExit, TransitionGuardNode, TransitionTargetNode};
+    use typed_trees::statement::{TransitionExit, TransitionGuardNode};
     let statements = typed_trees::statement::reachable_state_statements(
         program.statement_table.statements(state.statement_nodes),
     );
@@ -61,17 +105,17 @@ pub(in crate::execution::terminal_unit) fn terminal_named_call(
     {
         return None;
     }
-    let TransitionTargetNode::Named { path, .. } =
-        program.statement_table.transition_target(transition.target)
-    else {
-        return None;
-    };
-    // The authored path spells the callee as its machine or as its entry
+    let invocation = validation::completing_transition_invocation(program, transition.target)?;
+    // The invocation selects the callee as its machine or as its entry
     // state (a body-only machine resolves to the state itself); the flow
     // call facts name the entry state either way, so the terminal call is
     // identified by that resolved callable, not by the authored spelling.
     let (callable, return_type) =
-        validation::terminal_callable_target(program, machine, path.symbol)?;
+        validation::terminal_callable_target(program, machine, invocation.target)?;
+    // Result custody belongs to the shared sequence: a retained value root
+    // owns its call computation, while an invocation without that root forwards
+    // its ordinary bound result. Unit has no value root. Classify every result
+    // here; the sequence schedules exactly one of those completion owners.
     (program.normalized_type_identity(return_type)
         == program.normalized_type_identity(state.return_type))
     .then_some(callable)
@@ -185,4 +229,37 @@ pub(in crate::execution::terminal_unit) fn outer_calls_traced<'a>(
         std::ops::Bound::Unbounded,
         trace,
     )
+}
+
+/// Authenticate the outer invocation of an unconditional terminal call. Nested
+/// operands can share its declaration but never inherit its control position.
+pub(in crate::execution::terminal_unit) fn is_terminal_call_occurrence(
+    program: &dyn validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    call: &checked_trees::FlowCallFact,
+) -> bool {
+    let Some(expected) = terminal_invocation(program, machine, state, call.statement_index) else {
+        return false;
+    };
+    if validation::terminal_callable_target(program, machine, call.target_symbol)
+        .is_none_or(|(target, _)| target != expected)
+    {
+        return false;
+    }
+    let Some(transition) = program
+        .statement_table
+        .statement_at(state, call.statement_index)
+        .and_then(StatementNode::as_transition)
+    else {
+        return false;
+    };
+    validation::find_call_site_in_state(
+        program,
+        machine,
+        state,
+        call.statement_index,
+        call.call_ordinal,
+    )
+    .is_some_and(|site| site.completes_transition(program, transition.target))
 }

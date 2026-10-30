@@ -1,1 +1,1 @@
-constrained const declarations require declaration-site proof checking
+const parameter `Count` of `capacity` requires `u64`, but `SelectedCount` declares `u64[1 constraint]`

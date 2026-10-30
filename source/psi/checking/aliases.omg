@@ -38,7 +38,7 @@ crashes Trap
         _ -> done()
     }
 
-    state condition(checker: &mut Checker, place: u64 in Trapping, root: u64 in Trapping, expression: Expression, value: Value) {
+    machine condition(checker: &mut Checker, place: u64 in Trapping, root: u64 in Trapping, expression: Expression, value: Value) {
         transition expression.kind {
             ExpressionKind::Binary -> own(checker, place, root)
             ExpressionKind::Unary -> own(checker, place, root)
@@ -49,11 +49,11 @@ crashes Trap
         }
     }
 
-    state own(checker: &mut Checker, place: u64 in Trapping, root: u64 in Trapping) {
+    machine own(checker: &mut Checker, place: u64 in Trapping, root: u64 in Trapping) {
         Checker::add_alias(checker, place, root);
     }
 
-    state copied(checker: &mut Checker, place: u64 in Trapping, value: Value) {
+    machine copied(checker: &mut Checker, place: u64 in Trapping, value: Value) {
         let condition: u64 in Trapping = Checker::alias_condition(checker, value.place);
         transition condition > 0 {
             true -> chained(checker, place, condition - 1)
@@ -61,11 +61,11 @@ crashes Trap
         }
     }
 
-    state chained(checker: &mut Checker, place: u64 in Trapping, condition: u64 in Trapping) {
+    machine chained(checker: &mut Checker, place: u64 in Trapping, condition: u64 in Trapping) {
         Checker::add_alias(checker, place, condition);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // At a statement-level dispatch or guard (never inside a tree, where the
@@ -82,7 +82,7 @@ crashes Trap
         _ -> placed(checker, syntax, resolution, typing, root, holds)
     }
 
-    state placed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, holds: bool) {
+    machine placed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, holds: bool) {
         let value: Value = Checker::value_at(checker, node);
         let condition: u64 in Trapping = Checker::alias_condition(checker, value.place);
         transition condition > 0 {
@@ -91,12 +91,12 @@ crashes Trap
         }
     }
 
-    state aliased(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, condition: u64 in Trapping, holds: bool) {
+    machine aliased(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, condition: u64 in Trapping, holds: bool) {
         Checker::replay_tree(checker, syntax, resolution, typing, condition);
         Checker::assume(checker, syntax, condition, holds);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A Boolean subject's `true`/`false` arm assumes the subject's alias held or
@@ -119,11 +119,11 @@ crashes Trap
         _ -> done()
     }
 
-    state literal(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, holds: bool) {
+    machine literal(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, holds: bool) {
         Checker::assume_alias(checker, syntax, resolution, typing, subject, holds);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // The condition `place` stands for, plus one; zero when it has none.
@@ -135,14 +135,14 @@ crashes Trap
         _ -> answer(0)
     }
 
-    state next(checker: &Checker, place: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
+    machine next(checker: &Checker, place: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         transition index < checker.aliases.count && index < 16 {
             true -> entry(checker, place, index)
             _ -> answer(0)
         }
     }
 
-    state entry(checker: &Checker, place: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping
+    machine entry(checker: &Checker, place: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping
     requires index < 16
     {
         let aliased: u64 = checker.aliases.places[index];
@@ -154,7 +154,7 @@ crashes Trap
         }
     }
 
-    state answer(condition: u64 in Trapping) -> u64 in Trapping {
+    machine answer(condition: u64 in Trapping) -> u64 in Trapping {
         condition
     }
 }
@@ -170,7 +170,7 @@ crashes Trap
         _ -> done()
     }
 
-    state write(checker: &mut Checker, place: u64 in Trapping, condition: u64 in Trapping, index: u64)
+    machine write(checker: &mut Checker, place: u64 in Trapping, condition: u64 in Trapping, index: u64)
     requires index < 16
     {
         checker.aliases.places[index] = place as u64;
@@ -179,7 +179,7 @@ crashes Trap
         checker.aliases.count = index + 1;
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A written place forgets every alias it is, and every alias formed while it
@@ -197,14 +197,14 @@ crashes Trap
 {
     transition { _ -> next(checker, place, older, 0) }
 
-    state next(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping) {
+    machine next(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.aliases.count && index < 16 {
             true -> entry(checker, place, older, index)
             _ -> done()
         }
     }
 
-    state entry(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping)
+    machine entry(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping)
     requires index < 16
     {
         let aliased: u64 = checker.aliases.places[index];
@@ -217,14 +217,14 @@ crashes Trap
     }
 
     // The last alias takes the removed one's slot and is examined next.
-    state removed(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping) {
+    machine removed(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping) {
         transition checker.aliases.count > 0 && checker.aliases.count <= 16 && index < 16 {
             true -> moved(checker, place, older, index, checker.aliases.count - 1)
             _ -> done()
         }
     }
 
-    state moved(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping, last: u64)
+    machine moved(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping, last: u64)
     requires index < 16, last < 16
     {
         let last_place: u64 = checker.aliases.places[last];
@@ -237,7 +237,7 @@ crashes Trap
         transition { _ -> next(checker, place, older, index) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Copy only an existing, still-valid predicate association. This does not
@@ -251,10 +251,10 @@ crashes Trap
         true -> copied(checker, target, condition - 1)
         _ -> done()
     }
-    state copied(checker: &mut Checker, target: u64 in Trapping, condition: u64 in Trapping) {
+    machine copied(checker: &mut Checker, target: u64 in Trapping, condition: u64 in Trapping) {
         Checker::add_alias(checker, target, condition);
     }
-    state done() {}
+    machine done() {}
 }
 
 // Intersect associations by identity; an unreachable predecessor contributes
@@ -266,39 +266,39 @@ crashes Trap
         true -> reachable(table, other, current_live)
         _ -> done()
     }
-    state reachable(table: &mut AliasTable, other: &AliasTable, current_live: bool) {
+    machine reachable(table: &mut AliasTable, other: &AliasTable, current_live: bool) {
         transition current_live {
             true -> next(table, other, 0)
             _ -> copied(table, other)
         }
     }
-    state copied(table: &mut AliasTable, other: &AliasTable) {
+    machine copied(table: &mut AliasTable, other: &AliasTable) {
         let saved: AliasTable = AliasTable {
             places: other.places, conditions: other.conditions,
             limits: other.limits, count: other.count
         };
         table = saved;
     }
-    state next(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping) {
+    machine next(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping) {
         transition index < table.count && index < 16 {
             true -> candidate(table, other, index)
             _ -> done()
         }
     }
-    state candidate(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping)
+    machine candidate(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping)
     requires index < 16
     {
         let place: u64 = table.places[index];
         let condition: u64 = table.conditions[index];
         transition { _ -> find(table, other, index, place, condition, 0) }
     }
-    state find(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, place: u64, condition: u64, offset: u64 in Trapping) {
+    machine find(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, place: u64, condition: u64, offset: u64 in Trapping) {
         transition offset < other.count && offset < 16 {
             true -> compare(table, other, index, place, condition, offset)
             _ -> removed(table, other, index)
         }
     }
-    state compare(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, place: u64, condition: u64, offset: u64 in Trapping)
+    machine compare(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, place: u64, condition: u64, offset: u64 in Trapping)
     requires offset < 16, index < 16
     {
         let same: bool = other.places[offset] == place && other.conditions[offset] == condition;
@@ -307,7 +307,7 @@ crashes Trap
             _ -> find(table, other, index, place, condition, offset + 1)
         }
     }
-    state kept(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, offset: u64 in Trapping)
+    machine kept(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, offset: u64 in Trapping)
     requires index < 16, offset < 16
     {
         let limit: u64 = other.limits[offset];
@@ -316,19 +316,19 @@ crashes Trap
             _ -> next(table, other, index + 1)
         }
     }
-    state limited(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, limit: u64)
+    machine limited(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, limit: u64)
     requires index < 16
     {
         table.limits[index] = limit;
         transition { _ -> next(table, other, index + 1) }
     }
-    state removed(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping) {
+    machine removed(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping) {
         transition table.count > 0 && table.count <= 16 && index < 16 {
             true -> moved(table, other, index, table.count - 1)
             _ -> done()
         }
     }
-    state moved(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, last: u64)
+    machine moved(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, last: u64)
     requires index < 16, last < 16
     {
         table.places[index] = table.places[last];
@@ -337,5 +337,5 @@ crashes Trap
         table.count = last;
         transition { _ -> next(table, other, index) }
     }
-    state done() {}
+    machine done() {}
 }

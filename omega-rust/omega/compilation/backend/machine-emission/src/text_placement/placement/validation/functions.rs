@@ -105,11 +105,16 @@ pub(super) fn check(
                     match owner {
                         target_operations::CallSiteOwner::Operation(operation)
                             if source_row.provenance.operations.last() == Some(&operation) => {}
+                        target_operations::CallSiteOwner::InvokeNoNormal(edge) => {
+                            super::super::conversion::validate_invocation_site(
+                                semantic_vocabulary::InvocationSite::InvokeNoNormal(edge),
+                                &source_row.provenance.operations,
+                                &source_row.provenance.edges,
+                            )?;
+                        }
                         target_operations::CallSiteOwner::ExternalCompletion(edge) => {
-                            super::super::conversion::validate_boundary_invocation_site(
-                                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(
-                                    edge,
-                                ),
+                            super::super::conversion::validate_invocation_site(
+                                semantic_vocabulary::InvocationSite::ExternalCompletion(edge),
                                 &source_row.provenance.operations,
                                 &source_row.provenance.edges,
                             )?;
@@ -196,7 +201,7 @@ pub(super) fn check(
                     if boundary != fixup.boundary || ordinal != fixup.ordinal {
                         return Err(TextPlacementError::SourceShapeMismatch);
                     }
-                    super::super::conversion::validate_boundary_invocation_site(
+                    super::super::conversion::validate_invocation_site(
                         invocation_site,
                         &source_row.provenance.operations,
                         &source_row.provenance.edges,

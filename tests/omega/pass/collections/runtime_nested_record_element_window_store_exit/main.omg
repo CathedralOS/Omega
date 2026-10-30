@@ -11,7 +11,7 @@ machine inspect(envelopes: &[Envelope]) -> i32 {
             envelopes[1].items[1].scores[1], envelopes[1].items[1].active)
         _ -> (0)
     }
-    state selected(first: i32, second: i32, score: i32, active: bool) -> i32 {
+    machine selected(first: i32, second: i32, score: i32, active: bool) -> i32 {
         transition first == 0 && score == 23 && active {
             true -> (second)
             _ -> (0)
@@ -56,6 +56,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

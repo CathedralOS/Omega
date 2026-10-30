@@ -1,11 +1,11 @@
-//! The selected edge loads payloads before committing destination bindings.
+//! Capture selected payloads into the common edge snapshot frontier.
 use super::{
-    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, SelectedSelectionConstraints,
-    SelectedSuccessorRole, SelectedTerminator, ValidatedRegisterConstraintCatalog, VirtualRegister,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
+    SelectedSelectionConstraints, ValidatedRegisterConstraintCatalog, VirtualRegister,
     VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
+use crate::selection::scalar_call_abi::load_transfer;
 use selected_instructions::SelectedSuccessor;
 use selected_instructions::{
     FrameStorageSlotId, SelectedCasePayloadTransport, SelectedLocalStorageSlot,
@@ -14,10 +14,9 @@ use selected_instructions::{
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn prepare(
+pub(super) fn snapshot(
     function: usize,
     successor: &mut SelectedSuccessor,
-    block_position: usize,
     registers: &mut Vec<VirtualRegister>,
     memory: &mut Vec<SelectedMemoryAccess>,
     slots: &[SelectedLocalStorageSlot],
@@ -25,21 +24,13 @@ pub(super) fn prepare(
     constraints: &SelectedSelectionConstraints,
     catalog: &ValidatedRegisterConstraintCatalog,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
-    mut cleanup: Vec<selected_instructions::SelectedInstruction>,
-) -> Result<Option<SelectedBlock>, SelectedInstructionError> {
+    instructions: &mut Vec<selected_instructions::SelectedInstruction>,
+) -> Result<(), SelectedInstructionError> {
     let invalid = || super::super::invalid(function);
     let psi_edge = successor.psi_edge.ok_or_else(invalid)?;
-    let case = successor.structural_case.as_ref().ok_or_else(invalid)?;
-    if !successor.bindings.is_empty() || !successor.structural_bindings.is_empty() {
+    let case = successor.structural_case.as_mut().ok_or_else(invalid)?;
+    if !successor.bindings.is_empty() {
         return Err(invalid());
-    }
-    if cleanup.is_empty()
-        && case
-            .payloads
-            .iter()
-            .all(|payload| payload.transport == SelectedCasePayloadTransport::Unused)
-    {
-        return Ok(None);
     }
     let (place, byte_bound) = match case.source {
         selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
@@ -56,14 +47,8 @@ pub(super) fn prepare(
             place, byte_size, ..
         } => (place, byte_size),
     };
-    let bridge_id = SelectedBlockId(block_position.try_into().map_err(|_| invalid())?);
-    let mut continuation = successor.clone();
-    continuation.role = SelectedSuccessorRole::EdgeTransferContinuation;
-    continuation.fuel.clear();
-    let continued = continuation.structural_case.as_mut().ok_or_else(invalid)?;
-    continued.cleanup_actions.clear();
-    let mut instructions = Vec::new();
-    for payload in &mut continued.payloads {
+    let source = case.source;
+    for payload in &mut case.payloads {
         let parameter = match payload.transport {
             SelectedCasePayloadTransport::Unused => continue,
             SelectedCasePayloadTransport::Unmaterialized { parameter } => parameter,
@@ -98,7 +83,7 @@ pub(super) fn prepare(
             edges: vec![psi_edge],
             ..Default::default()
         };
-        let pointer = match case.source {
+        let pointer = match source {
             selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
                 let slot = slots
                     .iter()
@@ -196,21 +181,8 @@ pub(super) fn prepare(
             )?);
             (address, 0)
         };
-        let load_kind = match byte_count {
-            1 => SelectedInstructionKind::Load8 {
-                byte_offset: displacement,
-            },
-            2 => SelectedInstructionKind::Load16 {
-                byte_offset: displacement,
-            },
-            4 => SelectedInstructionKind::Load32 {
-                byte_offset: displacement,
-            },
-            8 => SelectedInstructionKind::Load64 {
-                byte_offset: displacement,
-            },
-            _ => return Err(invalid()),
-        };
+        let (load_kind, _) =
+            load_transfer(&constraints.keys, byte_count, displacement).ok_or_else(invalid)?;
         let load_instruction =
             SelectedInstructionId((*next_instruction).try_into().map_err(|_| invalid())?);
         *next_instruction += 1;
@@ -284,38 +256,5 @@ pub(super) fn prepare(
             parameter,
         };
     }
-    // Payloads have been loaded; the destination still owns none of them.
-    instructions.append(&mut cleanup);
-    let jump_id = SelectedInstructionId((*next_instruction).try_into().map_err(|_| invalid())?);
-    *next_instruction += 1;
-    let jump = crate::selection::constraints::instruction(
-        jump_id,
-        SelectedInstructionKind::Jump,
-        constraints.keys.jump,
-        &[],
-        Default::default(),
-        catalog,
-    )?;
-    let bridge = SelectedBlock {
-        id: bridge_id,
-        origin: SelectedBlockOrigin::EdgeTransfer {
-            edge: psi_edge,
-            target: successor.source_target,
-        },
-        instructions,
-        terminator: SelectedTerminator::Jump {
-            instruction: jump,
-            successor: continuation,
-        },
-    };
-    successor.block = bridge_id;
-    for payload in &mut successor
-        .structural_case
-        .as_mut()
-        .ok_or_else(invalid)?
-        .payloads
-    {
-        payload.transport = SelectedCasePayloadTransport::Unused;
-    }
-    Ok(Some(bridge))
+    Ok(())
 }

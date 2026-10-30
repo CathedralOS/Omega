@@ -84,7 +84,14 @@ pub fn validate_aarch64_selected_form_encoding(
     validate_request(physical, kind, alternative, operands)?;
     let registers = resolve_scalar_registers(physical, kind, operands)?;
     validate_return_home(kind, &registers)?;
-    if let SelectedInstructionKind::AtomicAccess { form } = kind {
+    if let SelectedInstructionKind::RegisterAccess {
+        operation: selected_instructions::RegisterOperation::MemoryFence(expected),
+    } = kind
+    {
+        if super::memory_fence::decode(bytes) != Some(expected) {
+            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+        }
+    } else if let SelectedInstructionKind::AtomicAccess { form } = kind {
         super::atomic::validate(form, &registers, bytes)?;
     } else if let SelectedInstructionKind::NearestIeeeFloatArithmetic { form } = kind {
         super::ieee_float_arithmetic::validate(form, &registers, bytes)?;
@@ -142,6 +149,14 @@ fn family_and_operand_count(
             MachineAlternativeFamily::FloatResultPolicy(form),
             form.operand_count() + 1,
         ),
+        SelectedInstructionKind::RegisterAccess {
+            operation: selected_instructions::RegisterOperation::MemoryFence(kind),
+        } => {
+            if kind.target() != selected_instructions::RegisterTargetApplicability::Aarch64 {
+                return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
+            }
+            (MachineAlternativeFamily::MemoryFence, 0)
+        }
         SelectedInstructionKind::RegisterAccess { operation } => (
             if operation.produces_value() {
                 MachineAlternativeFamily::SystemRegisterRead
@@ -326,6 +341,7 @@ fn family_and_operand_count(
         | SelectedInstructionKind::HostedExitProcessI32
         | selected_instructions::hosted_slot_quad_pattern!(..)
         | SelectedInstructionKind::FrameAddress { .. }
+        | SelectedInstructionKind::InvokeNoNormal { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::Jump
         | SelectedInstructionKind::CallAggregate { .. }
@@ -368,6 +384,34 @@ fn resolve_scalar_registers(
         return Ok(vec![0]);
     }
     resolve_registers(physical, operands)
+}
+
+/// Admit a dedicated form's request: the canonical model every encoder is
+/// written against, its exact single-variant alternative, exactly the operand
+/// count the form's plan consumes, and the early-clobber contract — every slot
+/// from `first_early` on is written before the slots after it are read, so it
+/// may not repeat an earlier slot's home. A form with no early-clobber operand
+/// passes `COUNT`.
+pub(super) fn request_registers<const COUNT: usize>(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: MachineAlternativeKey,
+    family: MachineAlternativeFamily,
+    operands: &[RegisterViewId],
+    first_early: usize,
+) -> Result<[u8; COUNT], Aarch64SelectedFormEncodingError> {
+    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
+        return Err(Aarch64SelectedFormEncodingError::NonCanonicalPhysicalModel);
+    }
+    if alternative != (MachineAlternativeKey { family, variant: 0 }) {
+        return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
+    }
+    let registers: [u8; COUNT] = resolve_registers(physical, operands)?
+        .try_into()
+        .map_err(|_| Aarch64SelectedFormEncodingError::OperandCountMismatch)?;
+    if (first_early..COUNT).any(|slot| registers[..slot].contains(&registers[slot])) {
+        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    Ok(registers)
 }
 
 pub(crate) fn resolve_registers(
@@ -431,6 +475,15 @@ fn encode_unchecked(
         }
         SelectedInstructionKind::FloatResultPolicy { form } => {
             return super::float_result_policy::encode(form, registers);
+        }
+        SelectedInstructionKind::RegisterAccess {
+            operation: selected_instructions::RegisterOperation::MemoryFence(kind),
+        } => {
+            if !registers.is_empty() {
+                return Err(Aarch64SelectedFormEncodingError::OperandCountMismatch);
+            }
+            return super::memory_fence::encode(kind)
+                .ok_or(Aarch64SelectedFormEncodingError::AlternativeMismatch);
         }
         SelectedInstructionKind::RegisterAccess { operation } => {
             return super::register_access::encode(operation, registers);

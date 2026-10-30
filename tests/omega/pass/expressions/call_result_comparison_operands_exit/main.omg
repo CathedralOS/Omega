@@ -33,7 +33,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
 
-    state atomic_load(main: &mut Main) {
+    machine atomic_load(main: &mut Main) {
         let current: u32 = main.counter.load(Receive);
         transition current == 99 {
             true -> ordinary_calls(main)
@@ -41,7 +41,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state ordinary_calls(main: &mut Main) {
+    machine ordinary_calls(main: &mut Main) {
         let echoed: u32 = echo(7);
         main.copied = echo(8);
         transition echoed == 7 && main.copied == 8 && matches(echo(9), 9) && echo(10) == 10 {
@@ -50,8 +50,8 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

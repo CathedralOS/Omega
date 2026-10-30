@@ -67,8 +67,4 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-Proposed solutions below are recommendations, not owner rulings. The owner
-removes an entry once it is answered; unfinished implementation stays on its
-owning task.
-
-None.
+None currently.

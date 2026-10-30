@@ -150,6 +150,7 @@ pub enum FixedViewCopyDecodeError {
     UnknownStructuralAccess(u8),
     UnknownReferenceOriginExtent(u8),
     UnknownStructuralTypeShape(u8),
+    UnknownArrayExtent(u8),
     UnknownByteSequenceCarrier(u8),
     UnknownBindingRelevance(u8),
     UnknownStructuralFieldType(u8),
@@ -193,8 +194,4 @@ pub enum FixedViewCopyDecodeError {
     TrailingBytes,
 }
 
-optimization_core::truncated_from_adapter!(FixedViewCopyDecodeError);
-
-optimization_core::take_error_from_adapter!(FixedViewCopyDecodeError);
-
-crate::decode_error_display! { FixedViewCopyDecodeError, "invalid Terminal fixed-view-copy artifact" }
+crate::decode_error! { FixedViewCopyDecodeError, "invalid Terminal fixed-view-copy artifact" }

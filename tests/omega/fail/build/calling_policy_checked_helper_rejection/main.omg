@@ -12,7 +12,7 @@ machine LocalPolicy::bounded(value: u64) -> bool {
         true -> accept(value)
         false -> false
     }
-    state accept(value: u64) -> bool requires value <= 1 { true }
+    machine accept(value: u64) -> bool requires value <= 1 { true }
 }
 
 machine LocalPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult {
@@ -20,12 +20,12 @@ machine LocalPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult {
         true -> observed()
         false -> unexpected()
     }
-    state observed() -> BoundaryPlanResult {
+    machine observed() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "checked helper observed" },
         }
     }
-    state unexpected() -> BoundaryPlanResult {
+    machine unexpected() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "wrong helper result" },
         }

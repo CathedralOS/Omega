@@ -297,7 +297,7 @@ public machine posix_terminated_path(path: &[u8], out: &mut [u8]) -> bool {
         _ -> rejected(out)
     }
 
-    state rejected(out: &mut [u8]) -> bool {
+    machine rejected(out: &mut [u8]) -> bool {
         posix_put_path_byte("", out, 0);
         transition { _ -> (false) }
     }
@@ -312,7 +312,7 @@ terminates by (index, path.len) -> Nat::BoundedDistance;
         _ -> done()
     }
 
-    state done() { }
+    machine done() { }
 }
 
 // Position `index` of the terminated copy: the path byte below the path's
@@ -324,29 +324,29 @@ machine posix_put_path_byte(path: &[u8], out: &mut [u8], index: u64) {
         _ -> terminator(out, index)
     }
 
-    state byte(path: &[u8], out: &mut [u8], index: u64) {
+    machine byte(path: &[u8], out: &mut [u8], index: u64) {
         transition index + 1 < out.len {
             true -> write_byte(path, out, index)
             _ -> done()
         }
     }
 
-    state write_byte(path: &[u8], out: &mut [u8], index: u64) {
+    machine write_byte(path: &[u8], out: &mut [u8], index: u64) {
         out[index] = path[index];
         transition { _ -> done() }
     }
 
-    state terminator(out: &mut [u8], index: u64) {
+    machine terminator(out: &mut [u8], index: u64) {
         transition index < out.len {
             true -> write_terminator(out, index)
             _ -> done()
         }
     }
 
-    state write_terminator(out: &mut [u8], index: u64) {
+    machine write_terminator(out: &mut [u8], index: u64) {
         out[index] = 0;
         transition { _ -> done() }
     }
 
-    state done() { }
+    machine done() { }
 }

@@ -1,2 +1,2 @@
-domain i64::Positive(value) requires value > 0 {}
+domain i64::Positive requires self > 0;
 let bad(): i64 in Positive = 0;

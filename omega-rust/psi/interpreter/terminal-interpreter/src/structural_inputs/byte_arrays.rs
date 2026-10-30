@@ -44,7 +44,11 @@ pub(crate) fn byte_array_length(
     {
         return Some(capacity);
     }
-    let StructuralTypeShape::FixedArray { element, length } = types.get(&array)?.shape else {
+    let StructuralTypeShape::FixedArray {
+        element,
+        length: terminal_psi::ArrayExtent::Literal(length),
+    } = types.get(&array)?.shape
+    else {
         return None;
     };
     let StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(element)) =
@@ -131,10 +135,7 @@ impl TerminalExecution<'_> {
                 terminal_psi::nonlinear_multiplicity_pair_pattern!()
             ) || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
-                || self
-                    .live_claims
-                    .values()
-                    .any(|claim| claim.place == Some(parameter.place))
+                || crate::custody::place_is_claimed(&self.live_claims, parameter.place)
             {
                 return Err(malformed());
             }
@@ -200,7 +201,16 @@ impl TerminalExecution<'_> {
                 }
             }
             if self.structural_byte_storage.contains_key(&array)
-                || storage.insert(array, bytes)?.is_some()
+                || storage
+                    .insert(
+                        array,
+                        storage::StructuralByteArrayStorage::new(
+                            array_type,
+                            bytes,
+                            self.account.as_ref(),
+                        ),
+                    )?
+                    .is_some()
             {
                 return Err(malformed());
             }
@@ -230,15 +240,12 @@ impl TerminalExecution<'_> {
             let root = match local_array_roots.get(&place) {
                 Some(root) => root.clone(),
                 None => {
-                    let root = TerminalStructuralValue {
-                        opaque_identity: self
-                            .local_structural_identities
+                    let root = TerminalStructuralValue::minted(
+                        self.local_structural_identities
                             .allocate_staged(identity_cursor)?,
-                        structural_type: array.structural_type,
-                        qualifications: array.qualifications.clone(),
-                        projected_qualifications: Vec::new(),
-                        path: Vec::new(),
-                    };
+                        array.structural_type,
+                        array.qualifications.clone(),
+                    );
                     local_array_roots.insert(place, root.clone())?;
                     root
                 }
@@ -281,12 +288,19 @@ impl TerminalExecution<'_> {
         place: semantic_vocabulary::PlaceId,
     ) -> Option<ArrayStorageHome> {
         let loan = self.element_view_values.get(&place)?;
-        let (depth, frame_place, structural_type) = loan.whole_scalar_array_frame()?;
+        let (depth, frame_place, structural_type) =
+            loan.complete_scalar_array_frame(&self.program.structural_types())?;
         let array = self.frame_array(depth, frame_place)?;
-        if array.structural_type != structural_type || loan.len() != array.elements().len() {
+        if array.structural_type != structural_type
+            || !loan.matches_descriptor_home(self.structural_values.get(&place)?)
+            || terminal_semantics::scalar_array_leaf_shape(
+                self.program.structural_types().values(),
+                structural_type,
+            )?
+            .1 != u64::try_from(array.len()).ok()?
+        {
             return None;
         }
-        byte_array_length(&self.program.structural_types(), structural_type)?;
         Some(ArrayStorageHome::Frame {
             depth,
             place: frame_place,
@@ -367,47 +381,9 @@ impl TerminalExecution<'_> {
                 let bytes = bytes.with_descriptor_home(value.clone());
                 return Ok((value, ByteSequenceBinding::Immutable(bytes)));
             }
-            // Shared inline collections retain the existing primitive snapshot
-            // semantics, including genuinely empty initialized arrays. Host
-            // input policy for pointer-only byte arrays remains independent.
-            let terminal_semantics::CollectionExtent::Fixed(count) = collection.extent else {
-                return Err(malformed());
-            };
-            let byte_type = semantic_vocabulary::IntegerType::new(
-                semantic_vocabulary::IntegerSign::Unsigned,
-                8,
-            )
-            .map_err(|_| malformed())?;
-            let mut path = source.path.clone();
-            let mut bytes = ByteSequenceStorage::zeroed(
-                usize::try_from(count).map_err(|_| malformed())?,
-                self.account.as_ref(),
-            )?;
-            for index in 0..count {
-                path.push(StructuralPathSegment::FixedIndex(index));
-                let value =
-                    self.read_primitive_place(source.place, &path, ScalarType::Integer(byte_type))?;
-                path.pop();
-                let crate::values::TerminalScalarValue::Integer {
-                    value: semantic_vocabulary::IntegerValue::Unsigned(byte),
-                    ..
-                } = value
-                else {
-                    return Err(malformed());
-                };
-                bytes.bytes_mut()[usize::try_from(index).map_err(|_| malformed())?] =
-                    u8::try_from(byte).map_err(|_| malformed())?;
-            }
-            return Ok((
-                TerminalStructuralValue {
-                    opaque_identity: source.place.get(),
-                    structural_type: view_type,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    path: Vec::new(),
-                },
-                ByteSequenceBinding::Immutable(ByteSequenceView::new(bytes)),
-            ));
+            // Fixed-array shared descriptors use the same authenticated home
+            // as mutable descriptors below. Their ordinary reads remain an
+            // immutable observation; only the descriptor retains its loan.
         }
         let (root, home) = self.array_storage_root_staged(
             source.place,
@@ -436,6 +412,19 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         referent.structural_type = view_type;
+        if source.access == StructuralAccess::SharedBorrow {
+            let length = usize::try_from(length).map_err(|_| malformed())?;
+            let bytes = self
+                .stored_byte_array_snapshot(&array, 0, length)?
+                .with_original_array(crate::byte_sequences::OriginalByteArrayWindow {
+                    array,
+                    array_type,
+                    offset: 0,
+                    length,
+                })
+                .with_descriptor_home(referent.clone());
+            return Ok((referent, ByteSequenceBinding::Immutable(bytes)));
+        }
         let binding = ByteSequenceBinding::MutableArray {
             array,
             array_type,
@@ -474,10 +463,7 @@ impl TerminalExecution<'_> {
             parameter,
             self.program.structural_types().values(),
         ) || argument.access != parameter.access
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(argument.place))
+            || crate::custody::place_is_claimed(&self.live_claims, argument.place)
         {
             return Err(malformed());
         }
@@ -760,6 +746,12 @@ impl TerminalExecution<'_> {
             .map_err(|_| malformed())?;
             let descriptor = self
                 .stored_byte_array_snapshot(&array, start, end)?
+                .with_original_array(crate::byte_sequences::OriginalByteArrayWindow {
+                    array: array.clone(),
+                    array_type,
+                    offset: start,
+                    length: end - start,
+                })
                 .with_descriptor_home(referent.clone());
             return Ok(Some((referent, ByteSequenceBinding::Immutable(descriptor))));
         }

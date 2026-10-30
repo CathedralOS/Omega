@@ -21,6 +21,7 @@ pub(super) fn report_argument_bounds(
     target_name: &str,
     retains_float_result_policy: bool,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     report_placed_scalar_write_predicate(
         program,
@@ -38,6 +39,16 @@ pub(super) fn report_argument_bounds(
     let owner = format!(
         "machine `{}` state `{target_name}` argument `{}`",
         current_machine.name, parameter.name,
+    );
+    arithmetic_domains::validate_anonymous_address_landing(
+        program,
+        current_machine,
+        current_state,
+        argument,
+        Some(parameter_primitive),
+        &owner,
+        diagnostics,
+        formation_obligations,
     );
     let before = diagnostics.len();
     if let Some((interval, _, _)) = arithmetic_domains::validate_anonymous_integer_range(

@@ -64,6 +64,17 @@ pub fn aarch64_aapcs64_register_call_keys() -> Vec<RegisterConstraintKey> {
         .collect()
 }
 
+/// Register-only Unit call keys of the target's ABI, indexed by argument
+/// count. Every consumer states its target once through this selector
+/// instead of re-spelling the AAPCS64/Darwin pair beside each use.
+pub fn aarch64_register_unit_call_keys(darwin: bool) -> Vec<RegisterConstraintKey> {
+    if darwin {
+        aarch64_darwin_register_unit_call_keys()
+    } else {
+        aarch64_aapcs64_register_unit_call_keys()
+    }
+}
+
 /// One AAPCS64 import template. Evaluated call placement supplies operands.
 pub fn aarch64_aapcs64_normalized_foreign_call_keys() -> Vec<RegisterConstraintKey> {
     vec![RegisterConstraintKey::call(3000)]

@@ -32,7 +32,7 @@ machine Main::main(context: &mut Main) reaches Console {
 machine compute_dot_product(a: &[i32 in Wrapping; 3], b: &[i32 in Wrapping; 3]) -> i32 in Wrapping {
     transition { _ -> step(a, b, 0, 0) }
 
-    state step(a: &[i32 in Wrapping; 3], b: &[i32 in Wrapping; 3], index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
+    machine step(a: &[i32 in Wrapping; 3], b: &[i32 in Wrapping; 3], index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0 {
         transition index < 3 {
             true -> accumulate(a, b, index, sum)
@@ -40,14 +40,14 @@ machine compute_dot_product(a: &[i32 in Wrapping; 3], b: &[i32 in Wrapping; 3]) 
         }
     }
 
-    state accumulate(a: &[i32 in Wrapping; 3], b: &[i32 in Wrapping; 3], index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
+    machine accumulate(a: &[i32 in Wrapping; 3], b: &[i32 in Wrapping; 3], index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0
     requires index < 3 {
         let next_sum: i32 in Wrapping = sum + a[index] * b[index];
         transition { _ -> step(a, b, index + 1, next_sum) }
     }
 
-    state done(sum: i32 in Wrapping) -> i32 in Wrapping { sum }
+    machine done(sum: i32 in Wrapping) -> i32 in Wrapping { sum }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

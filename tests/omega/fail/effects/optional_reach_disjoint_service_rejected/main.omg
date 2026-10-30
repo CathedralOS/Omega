@@ -8,6 +8,6 @@ machine read_mark() -> u64 reaches Mark + Unused { Forbidden::read() }
 machine main() reaches Mark + Forbidden + Unused crashes Trap {
     let value: u64 = read_mark();
     transition value == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

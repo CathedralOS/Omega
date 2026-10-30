@@ -34,13 +34,13 @@ macos_arm64 machine read_asm() -> u64 ensures result <= 97u64 {
 
 machine main() crashes Trap {
     transition { _ -> evaluate(read_asm()) }
-    state evaluate(val: u64) requires val <= 97u64 {
+    machine evaluate(val: u64) requires val <= 97u64 {
         let diff: u64 = 96u64 - val;
         transition diff == 0u64 {
             true -> done()
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

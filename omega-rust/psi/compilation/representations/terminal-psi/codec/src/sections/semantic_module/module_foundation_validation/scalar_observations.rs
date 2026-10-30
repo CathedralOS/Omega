@@ -119,6 +119,27 @@ pub(super) fn machine(
     }
     for block in &machine.blocks {
         use terminal_psi::Terminator;
+        if let Some(invocation) = block.terminator.module_invocation() {
+            validate_terms(
+                module,
+                invocation
+                    .erased_arguments
+                    .iter()
+                    .map(|term| (term, false))
+                    .collect(),
+                &root,
+                &value,
+            )?;
+            for route in invocation
+                .crash_continuations
+                .iter()
+                .flat_map(|row| &row.alternatives)
+            {
+                if let terminal_psi::CrashRouteGuard::Predicate(predicate) = route {
+                    validate(module, predicate.proposition(), &root, &value)?;
+                }
+            }
+        }
         let arguments = match &block.terminator {
             Terminator::Jump {
                 erased_arguments, ..
@@ -279,6 +300,20 @@ fn validate_terms(
     value_type: &impl Fn(ValueId) -> Option<ScalarType>,
 ) -> Result<(), CodecError> {
     while let Some((term, selector)) = scalars.pop() {
+        if let ScalarTerm::Application {
+            application,
+            scalar_type,
+        } = term
+        {
+            if module
+                .scalar_applications
+                .declaration(*application)
+                .and_then(|declaration| declaration.scalar_type())
+                != Some(*scalar_type)
+            {
+                return malformed("scalar application term has no exact catalog carrier");
+            }
+        }
         if let ScalarTerm::BooleanField { root, path }
         | ScalarTerm::IntegerField { root, path, .. }
         | ScalarTerm::IeeeFloatField { root, path, .. } = term
@@ -289,7 +324,7 @@ fn validate_terms(
             let projections = path
                 .iter()
                 .cloned()
-                .map(semantic_vocabulary::ScalarReadProjection::Static)
+                .map(semantic_vocabulary::ScalarReadProjection::from)
                 .collect::<Vec<_>>();
             if terminal_semantics::structural_read_scalar_type(
                 module.structural_types.iter(),

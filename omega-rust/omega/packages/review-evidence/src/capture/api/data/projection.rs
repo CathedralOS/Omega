@@ -1,7 +1,7 @@
 use super::evidence::require_rederived_data_definition_facts;
 use crate::capture::PackageReviewInput;
 use crate::capture::api::domains::facts::project_definition_contract_fact;
-use crate::capture::contracts::facts::ContractProjectionContext;
+use crate::capture::contracts::facts::{ContractProjectionContext, reviewed_package};
 use crate::capture::semantics::declarations::{
     is_product_scope_instance, nominal_identity, reviewed_package_owns,
 };
@@ -39,15 +39,7 @@ pub(crate) fn project_data_invariant_facts(
         lifetime_substitutions: &[],
         selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     };
-    let reviewed_package = compilation
-        .custody
-        .sources()
-        .package_identity()
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "data invariant review requires package-aware checked compilation",
-            )]
-        })?;
+    let reviewed_package = reviewed_package(compilation, "data invariant")?;
     let mut projected = Vec::new();
     for fact_handle in definition.where_facts.handles() {
         require_exact_checked_data_fact(compilation, definition.symbol, fact_handle, identity)?;
@@ -96,9 +88,14 @@ pub(crate) fn project_public_data<'a>(
     require_rederived_data_definition_facts(compilation)?;
     let quotient_formations = validation::validate_quotient_formations(compilation.checking_input)?;
     let mut rows = Vec::new();
-    for definition in compilation.data_definitions().iter().filter(|row| {
-        row.is_public && is_product_scope_instance(&compilation.typed.symbols, row.symbol)
-    }) {
+    for definition in compilation
+        .data_definitions()
+        .iter()
+        .filter(|row| row.is_public)
+    {
+        if !is_product_scope_instance(compilation, definition.symbol)? {
+            continue;
+        }
         let identity = nominal_identity(compilation, definition.symbol)?;
         if !reviewed_package_owns(&identity, package)? {
             continue;

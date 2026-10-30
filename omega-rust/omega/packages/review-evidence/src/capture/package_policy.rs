@@ -6,14 +6,38 @@
 mod assumed_bindings;
 mod authority;
 mod external;
+mod native_bindings;
 mod restricted_build;
 mod semantic_dependencies;
 
 use crate::capture::PackageReviewInput;
+use crate::capture::refusal;
 use crate::record::PackagePolicyBaseline;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
+
+/// One projection borrows both immutable namespaces for its whole lifetime.
+/// Family heads rederive original declarations repeatedly; their normalization
+/// belongs to custody, independently of the supplied candidate's query state.
+struct PolicyCheckingContexts<'program> {
+    candidate: validation::CheckingContext<'program>,
+    custody: validation::CheckingContext<'program>,
+}
+
+impl<'program> PolicyCheckingContexts<'program> {
+    fn new(
+        candidate: &'program checked_trees::CheckedTrees,
+        custody: &'program checked_trees::CheckedTrees,
+    ) -> Self {
+        Self {
+            candidate: validation::CheckingContext::new(&candidate.typed)
+                .with_authored_declaration_selections(candidate.authored_declaration_selections()),
+            custody: validation::CheckingContext::new(&custody.typed)
+                .with_authored_declaration_selections(custody.authored_declaration_selections()),
+        }
+    }
+}
 
 pub fn project_checked_package_policy<'a>(
     input: impl Into<PackageReviewInput<'a>>,
@@ -21,12 +45,14 @@ pub fn project_checked_package_policy<'a>(
     package: PackageKeyIdentity,
 ) -> Result<PackagePolicyBaseline, Vec<Diagnostic>> {
     let input = input.into();
-    // The checked program is read-only for the whole projection; its
-    // program-pure tables are shared across every declaration's projection.
-    let checking_context = ::validation::CheckingContext::new(&input.program.typed)
-        .with_authored_declaration_selections(input.program.authored_declaration_selections());
+    let queries = PolicyCheckingContexts::new(input.program, input.custody);
+    let external_providers = input.project_external_providers()?;
+    let services = input.project_service_declarations();
     let compilation = &PackageReviewInput {
-        checking_input: &checking_context,
+        service_declarations: Some(&services),
+        external_providers: Some(&external_providers),
+        checking_input: &queries.candidate,
+        custody_checking_input: &queries.custody,
         ..input
     };
     if compilation.custody.sources().package_identity() != Some(package)
@@ -61,6 +87,7 @@ pub fn project_checked_package_policy<'a>(
         terminal_permissions,
         representation,
         external_supplies,
+        native_bindings: native_bindings::project(compilation, package)?,
         dangerous_capabilities,
         slack_uses,
         semantic_dependencies,
@@ -74,8 +101,4 @@ pub fn project_checked_package_policy<'a>(
     Ok(policy)
 }
 
-fn rejected(reason: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!(
-        "package policy rejects {reason}"
-    ))]
-}
+refusal!(reason, "package policy rejects {reason}");

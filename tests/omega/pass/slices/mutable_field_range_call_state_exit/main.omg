@@ -8,16 +8,16 @@ machine write_pair(values: &mut [i32]) {
         true -> write(values)
         false -> skip()
     }
-    state write(values: &mut [i32]) {
+    machine write(values: &mut [i32]) {
         values[0] = 7;
         values[1] = 9;
     }
-    state skip() {}
+    machine skip() {}
 }
 
 machine through_state(context: &mut WindowBuffer) {
     transition { _ -> narrowed(&mut context.items[0..2]) }
-    state narrowed(values: &mut [i32]) {
+    machine narrowed(values: &mut [i32]) {
         write_pair(values);
     }
 }
@@ -32,6 +32,6 @@ machine main() crashes Trap {
         true -> passed()
         false -> failed()
     }
-    state passed() {}
-    state failed() { crash Trap; }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }

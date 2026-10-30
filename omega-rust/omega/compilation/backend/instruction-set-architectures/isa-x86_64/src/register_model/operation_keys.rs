@@ -232,6 +232,8 @@ pub const X86_64_INTERRUPT_CONTROL: RegisterConstraintKey = RegisterConstraintKe
 
 pub const X86_64_PORT_WRITE: RegisterConstraintKey = RegisterConstraintKey::instruction(802);
 
+pub const X86_64_MEMORY_FENCE: RegisterConstraintKey = RegisterConstraintKey::instruction(809);
+
 pub const X86_64_ATOMIC_FENCE: RegisterConstraintKey = RegisterConstraintKey::instruction(801);
 pub const X86_64_ATOMIC_LOAD: RegisterConstraintKey = RegisterConstraintKey::instruction(71);
 
@@ -317,7 +319,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey::instructio
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub(crate) const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 90] = [
+pub(crate) const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 91] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_RETURN,
@@ -394,6 +396,7 @@ pub(crate) const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 9
     X86_64_BYTE_LITERAL_IMAGE_ADDRESS,
     X86_64_IEEE_FLOAT_DIRECTED_BINARY,
     X86_64_IEEE_FLOAT_DIRECTED_UNARY,
+    X86_64_MEMORY_FENCE,
     X86_64_ATOMIC_FENCE,
     X86_64_PORT_WRITE,
     X86_64_PORT_REGISTER_READ,

@@ -1,0 +1,2 @@
+cannot prove default-domain field requirement for return from choose
+cells[index].storage requires [u8; N]::Ascii

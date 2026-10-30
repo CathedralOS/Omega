@@ -1,0 +1,17 @@
+// Imported integer data must not publish unused floating-point defaults.
+// Both checked exports remain, although this component's own entry calls only run.
+use records::main;
+public boundary trait Probe {
+    machine run(length: u64) -> u64 reaches;
+    machine idle() -> u64 reaches;
+}
+public ProbeProvider satisfies Probe {
+    machine run(length: u64) -> u64 {
+        let mut scan: Scan;
+        prepare(length, &mut scan)
+    }
+    machine idle() -> u64 { 7u64 }
+}
+public machine entry() reaches Probe invokes Probe; {
+    let observed: u64 = Probe::run(64u64);
+}

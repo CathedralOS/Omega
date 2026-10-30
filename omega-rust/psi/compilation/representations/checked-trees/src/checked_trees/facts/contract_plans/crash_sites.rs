@@ -11,7 +11,7 @@ use symbols::SymbolHandle;
 /// machine body. State identity plus the statement's state-local ordinal is
 /// stable against unrelated statement-arena insertions and is sufficient for
 /// checked-tree consumers to join the derived site back to its body.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CrashSiteLocation {
     pub(crate) state: SymbolHandle,
     pub(crate) statement_ordinal: u32,
@@ -21,7 +21,7 @@ pub struct CrashSiteLocation {
 /// body. This deliberately reuses the flow layer's state/statement/call
 /// coordinates so later crash propagation never has to rediscover a source
 /// expression.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CrashCallSiteLocation {
     pub(crate) state: SymbolHandle,
     pub(crate) statement_ordinal: u32,
@@ -82,7 +82,7 @@ impl CrashSiteLocation {
 /// Body-derived seed for a crash-terminator plan. Structurally unconditional
 /// guard coverage is attached immediately; path-conditioned entailment and
 /// frontier reconstruction remain independent later passes.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedCrashSite {
     pub(crate) location: CrashSiteLocation,
     pub(crate) cause: CrashCause,
@@ -188,7 +188,7 @@ impl CheckedCrashSite {
 /// surviving set is meaningful evidence that the selected summary is
 /// crash-free at this invocation, so such records are retained rather than
 /// elided.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedCrashCallSite {
     pub(crate) location: CrashCallSiteLocation,
     target_machine: SymbolHandle,
@@ -205,7 +205,7 @@ pub struct CheckedCrashCallSite {
 /// callable contract; the fingerprint is a compatibility/report coordinate.
 /// Independent operational axes and the crash ceiling stay directly queryable
 /// without reopening the authored signature.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CrashContractCapsule {
     pub(crate) target_machine: SymbolHandle,
     pub(crate) target_state: SymbolHandle,
@@ -275,21 +275,12 @@ impl CrashContractCapsule {
         self
     }
 
-    pub const fn target_machine(&self) -> SymbolHandle {
-        self.target_machine
-    }
-
-    pub const fn target_state(&self) -> SymbolHandle {
-        self.target_state
-    }
-
-    pub const fn target_contract_report_fingerprint(&self) -> u64 {
-        self.target_contract_report_fingerprint
-    }
-
-    pub const fn target_contract_commitment(&self) -> MachineContractCommitment {
-        self.target_contract_commitment
-    }
+    super::contract_identity_accessors!(
+        target_machine,
+        target_state,
+        target_contract_report_fingerprint,
+        target_contract_commitment
+    );
 
     pub fn published_buckets(&self) -> &[CrashRouteBucket] {
         &self.published_buckets
@@ -359,21 +350,12 @@ impl CheckedCrashCallSite {
         self.location
     }
 
-    pub const fn target_machine(&self) -> SymbolHandle {
-        self.target_machine
-    }
-
-    pub const fn target_state(&self) -> SymbolHandle {
-        self.target_state
-    }
-
-    pub const fn target_contract_report_fingerprint(&self) -> u64 {
-        self.target_contract_report_fingerprint
-    }
-
-    pub const fn target_contract_commitment(&self) -> MachineContractCommitment {
-        self.target_contract_commitment
-    }
+    super::contract_identity_accessors!(
+        target_machine,
+        target_state,
+        target_contract_report_fingerprint,
+        target_contract_commitment
+    );
 
     pub fn path_guard_conjuncts(&self) -> &[CrashPredicateIdentity] {
         &self.path_guard_conjuncts

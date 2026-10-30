@@ -19,9 +19,9 @@ pub(crate) fn machine_has_content_evidence(
         || facts
             .qualifications
             .content
-            .partition_compositions
+            .partition_returns
             .iter()
-            .any(|fact| fact.machine_symbol == machine && fact.state_symbol == state)
+            .any(|fact| fact.plan.owner == machine && fact.plan.callable == state)
 }
 
 pub(crate) fn has_exact_root_affine_discard(

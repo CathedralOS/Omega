@@ -12,60 +12,94 @@ requires value >= 40u64 && value <= 63u64
     }
 }
 
-linux_x86_64 machine exercise(raw: u64) -> u64 crashes Trap {
-    let masked: u64 = raw & 127u64;
-    transition masked >= 40u64 && masked <= 64u64 {
-        true -> step(masked)
-        _ -> bad()
-    }
-    state step(m: u64) -> u64 {
-        verify_masked(m)
-    }
-    state bad() { crash Trap; }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine exercise(raw: u64) -> u64 crashes Trap {
-    let masked: u64 = raw & 127u64;
-    transition masked >= 40u64 && masked <= 64u64 {
-        true -> step(masked)
-        _ -> bad()
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    state step(m: u64) -> u64 {
-        verify_masked(m)
-    }
-    state bad() { crash Trap; }
 }
 
-macos_arm64 machine exercise(raw: u64) -> u64 crashes Trap {
-    let masked: u64 = raw & 127u64;
-    transition masked >= 40u64 && masked <= 64u64 {
-        true -> step(masked)
-        _ -> bad()
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    state step(m: u64) -> u64 {
-        verify_masked(m)
-    }
-    state bad() { crash Trap; }
 }
 
-windows_x86_64 machine exercise(raw: u64) -> u64 crashes Trap {
-    let masked: u64 = raw & 127u64;
-    transition masked >= 40u64 && masked <= 64u64 {
-        true -> step(masked)
-        _ -> bad()
-    }
-    state step(m: u64) -> u64 {
-        verify_masked(m)
-    }
-    state bad() { crash Trap; }
+boundary trait SelectedProbe {
+    machine exercise(raw: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        crashes Trap;
 }
 
-machine main() crashes Trap {
-    let rc: u64 = exercise(116u64);
+X86Probe satisfies SelectedProbe {
+    machine exercise(raw: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let masked: u64 = raw & 127u64;
+        transition masked >= 40u64 && masked <= 64u64 {
+            true -> step(masked)
+            _ -> bad()
+        }
+        machine step(m: u64) -> u64 {
+            verify_masked(m)
+        }
+        machine bad() -> u64 { crash Trap; }
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine exercise(raw: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let masked: u64 = raw & 127u64;
+        transition masked >= 40u64 && masked <= 64u64 {
+            true -> step(masked)
+            _ -> bad()
+        }
+        machine step(m: u64) -> u64 {
+            verify_masked(m)
+        }
+        machine bad() -> u64 { crash Trap; }
+    }
+}
+
+
+
+
+
+
+
+
+
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
+    let rc: u64 = SelectedProbe::exercise(116u64);
     transition rc == 0u64 {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

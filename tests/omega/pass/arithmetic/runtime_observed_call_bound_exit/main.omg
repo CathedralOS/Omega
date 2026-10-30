@@ -10,7 +10,7 @@ machine visit(selected: &Values, position: u64) -> u64 {
         true -> advance(position)
         false -> 0
     }
-    state advance(position: u64) -> u64 { position + 1 }
+    machine advance(position: u64) -> u64 { position + 1 }
 }
 
 machine Main::main(context: &mut Main) reaches Console {
@@ -21,8 +21,8 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> success(context)
         false -> failure(context)
     }
-    state success(context: &mut Main) { Console::exit_process(42); }
-    state failure(context: &mut Main) { Console::exit_process(1); }
+    machine success(context: &mut Main) { Console::exit_process(42); }
+    machine failure(context: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

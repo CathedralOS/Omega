@@ -21,19 +21,19 @@ Its [authored grant checker](src/root_grants/authored.rs) reconstructs static
 acceptances with their exact source occurrences. Build execution and package
 review both call it directly. [Component assumptions](src/component_assumptions.rs)
 retain exact accepted digests and reject malformed declarations.
-The [exclusion selection checker](src/behavior_exclusions/selections.rs)
-rejoins executed interpreter receipts to exact toolchain cases or boundary
-traits; unreachable calls still select nothing. These are typed-source admission
-boundaries, not claims that this package is already a Terminal-only consumer.
+These are typed-source admission boundaries, not claims that this package is
+already a Terminal-only consumer.
+
+Behavior exclusions belong to Product orchestration, not grant reconstruction.
+The [Product selection owner](../../driver/src/checked/checking/product_selections.rs)
+resolves executed Build requests against the final source declarations. The
+[Terminal admission adapter](../../driver/src/terminal/behavior_exclusions.rs)
+checks the selected unoptimized composition against that policy and attributes
+refusals. Its checker and shared records remain in backend provider evidence;
+it never reopens source trees or resolves declarations.
 
 The other owners are meaningful siblings:
 
-- [behavior_exclusions.rs](src/behavior_exclusions.rs) admits authored exclusions
-  against the retained unoptimized Terminal composition, using backend provider
-  evidence. It owns source attribution for prohibited behavior and incomplete
-  evidence; both remain rejections. Optional optimization never establishes
-  absence. Authored exclusion records live beside the backend evidence checker,
-  so Build evaluation and admission share them without a compiler dependency.
 - [trust_admission.rs](src/trust_admission/mod.rs) defines admission values, strong
   subject digests, and identity comparison. Compact report identities are not
   admission authority.

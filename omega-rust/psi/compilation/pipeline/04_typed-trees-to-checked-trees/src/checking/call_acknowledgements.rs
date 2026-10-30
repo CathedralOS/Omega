@@ -28,12 +28,10 @@ pub(crate) fn validate_call_acknowledgements(
 
             for (statement_index, statement) in statements.iter().enumerate() {
                 let mut call_ordinal = 0usize;
-                let terminal = statement_index + 1 == statements.len();
                 validate_statement(
                     program,
                     statement,
                     statement_index,
-                    terminal,
                     operational_calls,
                     &mut call_ordinal,
                     &mut diagnostics,
@@ -53,7 +51,6 @@ fn validate_statement(
     program: &dyn ::validation::CheckingInput,
     statement: &StatementNode,
     statement_index: usize,
-    terminal: bool,
     operational_calls: &[CallOperational],
     call_ordinal: &mut usize,
     diagnostics: &mut Vec<Diagnostic>,
@@ -81,6 +78,7 @@ fn validate_statement(
         StatementNode::Call(call) => {
             validate_call(
                 call.target.as_str(),
+                call.source_span,
                 statement_index,
                 true,
                 operational_calls,
@@ -102,7 +100,9 @@ fn validate_statement(
             program,
             *expression,
             statement_index,
-            terminal,
+            // The root of a complete expression statement has no enclosing
+            // partially evaluated expression, whether or not a statement follows.
+            true,
             operational_calls,
             call_ordinal,
             diagnostics,
@@ -132,7 +132,10 @@ fn validate_statement(
             for target in transition.targets() {
                 match program.statement_table.transition_target(target) {
                     TransitionTargetNode::Named {
-                        path, arguments, ..
+                        path,
+                        arguments,
+                        source_span,
+                        ..
                     } => {
                         let target_name = program
                             .statement_table
@@ -142,6 +145,7 @@ fn validate_statement(
                         // when internal control flow has no operational call.
                         validate_call(
                             &target_name,
+                            *source_span,
                             statement_index,
                             true,
                             operational_calls,
@@ -296,6 +300,7 @@ fn validate_expression(
         ExpressionNode::Call(call) => {
             validate_call(
                 call.target.as_str(),
+                program.expression_table.source_span(expression),
                 statement_index,
                 direct_position,
                 operational_calls,
@@ -393,12 +398,14 @@ fn validate_expression(
             call_ordinal,
             diagnostics,
         ),
-        typed_trees::literal_expression_pattern!() => {}
+        ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => {}
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn validate_call(
     target: &str,
+    source_span: source::SourceSpan,
     statement_index: usize,
     direct_position: bool,
     operational_calls: &[CallOperational],
@@ -414,26 +421,36 @@ fn validate_call(
         return;
     };
 
+    // Generated calls may have no authored span. Preserve that absence rather
+    // than attributing their errors to the first source unit at byte zero.
+    let at_call = |message| {
+        let diagnostic = Diagnostic::error(message);
+        if source_span.span.start < source_span.span.end {
+            diagnostic.with_source_span(source_span)
+        } else {
+            diagnostic
+        }
+    };
     let acknowledgement = call.acknowledgement;
     let may_suspend = call.transitive_may_suspend;
     let may_block = call.transitive_may_block;
     if acknowledgement.acknowledges_suspend != may_suspend
         || acknowledgement.acknowledges_block != may_block
     {
-        diagnostics.push(Diagnostic::error(format!(
+        diagnostics.push(at_call(format!(
             "call to `{target}` has operational envelope {} but acknowledges {}; call acknowledgements must match exactly",
             envelope_label(may_suspend, may_block),
             envelope_label(
                 acknowledgement.acknowledges_suspend,
                 acknowledgement.acknowledges_block,
             ),
-        )));
+        )).with_source_span(source_span));
     }
 
     if may_suspend && !direct_position {
-        diagnostics.push(Diagnostic::error(format!(
+        diagnostics.push(at_call(format!(
             "suspending call to `{target}` is nested inside a partially evaluated expression; bind it as a complete statement, simple `let` right-hand side, transition subject, or terminal expression before continuation planning",
-        )));
+        )).with_source_span(source_span));
     }
 }
 

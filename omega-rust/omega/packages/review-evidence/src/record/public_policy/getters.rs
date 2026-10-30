@@ -1,3 +1,4 @@
+use crate::record::accessors::field_projection_accessors;
 use crate::record::{
     PackagePolicyConformanceShape, PackagePolicyDataShape, PackagePolicyDomainShape,
     PackagePolicyOperatorShape, PackagePolicyTraitRequirement, PackagePolicyTraitShape,
@@ -10,144 +11,59 @@ use crate::record::{
 };
 
 impl PackagePolicyTraitShape {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
-    pub const fn is_boundary(&self) -> bool {
-        self.is_boundary
-    }
-    pub const fn lifetime_parameter_count(&self) -> usize {
-        self.lifetime_parameter_count
-    }
-    pub fn type_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.type_parameters
-    }
-    pub fn conformance_bounds(&self) -> &[PackageReviewConformanceBound] {
-        &self.conformance_bounds
-    }
-    pub fn parents(&self) -> &[PackageReviewTraitParent] {
-        &self.parents
-    }
-    pub fn requirements(&self) -> &[PackagePolicyTraitRequirement] {
-        &self.requirements
-    }
+    field_projection_accessors!(borrowed identity: &PackageReviewNominalIdentity);
+    field_projection_accessors!(copied lifetime_parameter_count: usize);
+    field_projection_accessors!(sliced type_parameters: &[PackagePolicyTypeParameter]);
+    field_projection_accessors!(sliced conformance_bounds: &[PackageReviewConformanceBound]);
+    field_projection_accessors!(copied is_boundary: bool);
+    field_projection_accessors!(sliced parents: &[PackageReviewTraitParent]);
+    field_projection_accessors!(sliced requirements: &[PackagePolicyTraitRequirement]);
 }
 impl PackagePolicyTraitRequirement {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
-    pub const fn spelling(&self) -> Option<language_core::OperatorSpelling> {
-        self.spelling
-    }
-    pub const fn has_default_realization(&self) -> bool {
-        self.has_default_realization
-    }
-    pub const fn lifetime_parameter_count(&self) -> usize {
-        self.lifetime_parameter_count
-    }
-    pub fn type_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.type_parameters
-    }
-    pub fn parameters(&self) -> &[PackageReviewSignatureParameter] {
-        &self.parameters
-    }
+    field_projection_accessors!(borrowed identity: &PackageReviewNominalIdentity);
+    field_projection_accessors!(copied spelling: Option<language_core::OperatorSpelling>);
+    field_projection_accessors!(copied lifetime_parameter_count: usize);
+    field_projection_accessors!(sliced type_parameters: &[PackagePolicyTypeParameter]);
+    field_projection_accessors!(sliced parameters: &[PackageReviewSignatureParameter]);
+    field_projection_accessors!(copied has_default_realization: bool);
+
     crate::record::accessors::package_policy_callable_signature_accessors!();
 }
 impl PackagePolicyConformanceShape {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
-    pub const fn lifetime_parameter_count(&self) -> usize {
-        self.lifetime_parameter_count
-    }
-    pub fn type_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.type_parameters
-    }
-    pub const fn interface(&self) -> &PackageReviewEvidenceInterface {
-        &self.interface
-    }
+    field_projection_accessors!(borrowed identity: &PackageReviewNominalIdentity);
+    field_projection_accessors!(copied lifetime_parameter_count: usize);
+    field_projection_accessors!(sliced type_parameters: &[PackagePolicyTypeParameter]);
+    field_projection_accessors!(borrowed interface: &PackageReviewEvidenceInterface);
 }
 impl PackagePolicyDomainShape {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
-    pub fn type_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.type_parameters
-    }
-    pub const fn target_type(&self) -> &PackageReviewTypeIdentity {
-        &self.target_type
-    }
-    pub fn index_arguments(&self) -> &[PackageReviewTypeIdentity] {
-        &self.index_arguments
-    }
-    pub const fn predicate_body(&self) -> language_semantics::DomainPredicateBody {
-        self.predicate_body
-    }
-    pub const fn classification(&self) -> Option<PackageReviewDomainClassification> {
-        self.classification
-    }
-    pub fn semantic_roles(&self) -> &[PackageReviewDomainSemanticRole] {
-        &self.semantic_roles
-    }
-    pub fn establishment_routes(&self) -> &[PackageReviewDomainEstablishmentRoute] {
-        &self.establishment_routes
-    }
+    field_projection_accessors!(borrowed identity: &PackageReviewNominalIdentity);
+    field_projection_accessors!(sliced type_parameters: &[PackagePolicyTypeParameter]);
+    field_projection_accessors!(borrowed target_type: &PackageReviewTypeIdentity);
+    field_projection_accessors!(sliced index_arguments: &[PackageReviewTypeIdentity]);
+    field_projection_accessors!(copied predicate_presence: language_semantics::DomainPredicatePresence);
+    field_projection_accessors!(copied classification: Option<PackageReviewDomainClassification>);
+    field_projection_accessors!(sliced semantic_roles: &[PackageReviewDomainSemanticRole]);
+    field_projection_accessors!(sliced establishment_routes: &[PackageReviewDomainEstablishmentRoute]);
 }
 impl PackagePolicyOperatorShape {
-    pub const fn coordinate(&self) -> &PackageReviewOperatorCoordinate {
-        &self.coordinate
-    }
-    pub const fn is_boundary(&self) -> bool {
-        self.is_boundary
-    }
-    pub const fn spelling(&self) -> Option<language_core::OperatorSpelling> {
-        self.spelling
-    }
-    pub const fn lifetime_parameter_count(&self) -> usize {
-        self.lifetime_parameter_count
-    }
-    pub fn type_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.type_parameters
-    }
-    pub fn parameters(&self) -> &[PackageReviewSignatureParameter] {
-        &self.parameters
-    }
-    pub const fn return_type(&self) -> Option<&PackageReviewTypeIdentity> {
-        self.return_type.as_ref()
-    }
-    pub fn contracts(&self) -> &[PackageReviewCallableContract] {
-        &self.contracts
-    }
+    field_projection_accessors!(copied spelling: Option<language_core::OperatorSpelling>);
+    field_projection_accessors!(copied lifetime_parameter_count: usize);
+    field_projection_accessors!(sliced type_parameters: &[PackagePolicyTypeParameter]);
+    field_projection_accessors!(sliced parameters: &[PackageReviewSignatureParameter]);
+    field_projection_accessors!(optional return_type: Option<&PackageReviewTypeIdentity>);
+    field_projection_accessors!(borrowed coordinate: &PackageReviewOperatorCoordinate);
+    field_projection_accessors!(copied is_boundary: bool);
+    field_projection_accessors!(sliced contracts: &[PackageReviewCallableContract]);
 }
 impl PackagePolicyDataShape {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
-    pub const fn kind(&self) -> &PackageReviewDataKind {
-        &self.kind
-    }
-    pub const fn supply(&self) -> language_semantics::DataSupplyMode {
-        self.supply
-    }
-    pub const fn lifetime_parameter_count(&self) -> usize {
-        self.lifetime_parameter_count
-    }
-    pub fn type_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.type_parameters
-    }
-    pub const fn properties(&self) -> PackageReviewDataProperties {
-        self.properties
-    }
-    pub const fn zero_gated(&self) -> bool {
-        self.zero_gated
-    }
-    pub fn invariants(&self) -> &[PackageReviewContractFact] {
-        &self.invariants
-    }
-    pub fn retired_identities(&self) -> &[u64] {
-        &self.retired_identities
-    }
-    pub fn members(&self) -> &[PackageReviewDataMember] {
-        &self.members
-    }
+    field_projection_accessors!(borrowed identity: &PackageReviewNominalIdentity);
+    field_projection_accessors!(copied lifetime_parameter_count: usize);
+    field_projection_accessors!(sliced type_parameters: &[PackagePolicyTypeParameter]);
+    field_projection_accessors!(borrowed kind: &PackageReviewDataKind);
+    field_projection_accessors!(copied supply: language_semantics::DataSupplyMode);
+    field_projection_accessors!(copied properties: PackageReviewDataProperties);
+    field_projection_accessors!(copied zero_gated: bool);
+    field_projection_accessors!(sliced invariants: &[PackageReviewContractFact]);
+    field_projection_accessors!(sliced retired_identities: &[u64]);
+    field_projection_accessors!(sliced members: &[PackageReviewDataMember]);
 }

@@ -8,8 +8,8 @@ public machine count(selection: i32) -> u32 {
         true -> cycle()
         _ -> single()
     }
-    state cycle() -> u32 { 4 }
-    state single() -> u32 { 1 }
+    machine cycle() -> u32 { 4 }
+    machine single() -> u32 { 1 }
 }
 
 public machine load(selection: i32, index: u32, stage: &mut Stage) {
@@ -32,7 +32,7 @@ public machine load(selection: i32, index: u32, stage: &mut Stage) {
         8 -> stationary(stage)
         _ -> reverse_square(stage)
     }
-    state reverse(index: u32, stage: &mut Stage) {
+    machine reverse(index: u32, stage: &mut Stage) {
         transition index {
             0 -> reverse_hold(stage)
             1 -> low_expand(stage)
@@ -40,39 +40,39 @@ public machine load(selection: i32, index: u32, stage: &mut Stage) {
             _ -> high_compress(stage)
         }
     }
-    state reverse_hold(stage: &mut Stage) {
+    machine reverse_hold(stage: &mut Stage) {
         stage.end_volume = 1.0; stage.end_pressure = 1.0;
         stage.isochoric = true;
     }
-    state low_expand(stage: &mut Stage) { stage.pressure = 1.0; }
-    state reverse_low_hold(stage: &mut Stage) {
+    machine low_expand(stage: &mut Stage) { stage.pressure = 1.0; }
+    machine reverse_low_hold(stage: &mut Stage) {
         stage.volume = 2.0; stage.pressure = 1.0;
         stage.isochoric = true;
     }
-    state high_compress(stage: &mut Stage) {
+    machine high_compress(stage: &mut Stage) {
         stage.volume = 2.0; stage.end_volume = 1.0;
     }
-    state square(stage: &mut Stage) {
+    machine square(stage: &mut Stage) {
         stage.pressure = 12.0; stage.end_volume = 3.0; stage.exponent = 2;
     }
-    state cube(stage: &mut Stage) { stage.pressure = 8.0; stage.exponent = 3; }
-    state rising(stage: &mut Stage) {
+    machine cube(stage: &mut Stage) { stage.pressure = 8.0; stage.exponent = 3; }
+    machine rising(stage: &mut Stage) {
         stage.pressure = 2.0; stage.end_volume = 3.0; stage.exponent = -1;
     }
-    state zero(stage: &mut Stage) { stage.end_volume = 0.0; }
-    state ordinary(index: u32, stage: &mut Stage) { forward(index, stage); }
-    state broken(index: u32, stage: &mut Stage) {
+    machine zero(stage: &mut Stage) { stage.end_volume = 0.0; }
+    machine ordinary(index: u32, stage: &mut Stage) { forward(index, stage); }
+    machine broken(index: u32, stage: &mut Stage) {
         forward(index, stage);
         transition index == 2 { true -> gap(stage) _ -> done() }
     }
-    state gap(stage: &mut Stage) { stage.pressure = 2.0; }
-    state unsupported(stage: &mut Stage) { stage.exponent = 1; }
-    state stationary(stage: &mut Stage) { stage.end_volume = 1.0; stage.exponent = 2; }
-    state reverse_square(stage: &mut Stage) {
+    machine gap(stage: &mut Stage) { stage.pressure = 2.0; }
+    machine unsupported(stage: &mut Stage) { stage.exponent = 1; }
+    machine stationary(stage: &mut Stage) { stage.end_volume = 1.0; stage.exponent = 2; }
+    machine reverse_square(stage: &mut Stage) {
         stage.volume = 3.0; stage.pressure = 4.0 / 3.0;
         stage.end_volume = 1.0; stage.exponent = 2;
     }
-    state done() {}
+    machine done() {}
 }
 
 machine forward(index: u32, stage: &mut Stage) {
@@ -82,17 +82,17 @@ machine forward(index: u32, stage: &mut Stage) {
             2 -> low_compress(stage)
             _ -> low_hold(stage)
         }
-    state high_hold(stage: &mut Stage) {
+    machine high_hold(stage: &mut Stage) {
         stage.volume = 2.0; stage.end_volume = 2.0;
         stage.end_pressure = 1.0; stage.isochoric = true;
     }
-    state low_compress(stage: &mut Stage) {
+    machine low_compress(stage: &mut Stage) {
         stage.volume = 2.0; stage.pressure = 1.0;
         stage.end_volume = 1.0;
     }
-    state low_hold(stage: &mut Stage) {
+    machine low_hold(stage: &mut Stage) {
         stage.pressure = 1.0; stage.end_volume = 1.0;
         stage.isochoric = true;
     }
-    state done() {}
+    machine done() {}
 }

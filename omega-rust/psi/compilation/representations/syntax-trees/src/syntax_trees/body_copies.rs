@@ -72,6 +72,14 @@ impl SyntaxCopy<'_> {
             for nested in application.arguments.iter_mut() {
                 self.remap_static_machine_argument(other, nested);
             }
+            if application.member.is_valid() {
+                let member = other
+                    .expressions
+                    .static_member(application.member)
+                    .expect("qualified static member belongs to the copied syntax table");
+                let copied = self.copy_static_machine_argument(other, member);
+                application.member = self.expressions.insert_static_member(copied);
+            }
         }
     }
 
@@ -859,11 +867,15 @@ impl SyntaxCopy<'_> {
         mut map: impl FnMut(&mut Self, S) -> T,
         mut append: impl FnMut(&mut Self, T) -> Handle<T>,
     ) -> HandleSpan<T> {
+        // Recursive copies may allocate into the destination arena too. Finish
+        // every child before publishing the contiguous span of outer values.
+        let mapped = values
+            .into_iter()
+            .map(|value| map(self, value))
+            .collect::<Vec<_>>();
         let mut start = Handle::invalid();
         let mut count = 0u32;
-
-        for value in values {
-            let value = map(self, value);
+        for value in mapped {
             let handle = append(self, value);
             if count == 0 {
                 start = handle;

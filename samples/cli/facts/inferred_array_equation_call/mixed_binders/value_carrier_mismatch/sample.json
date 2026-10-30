@@ -1,0 +1,1 @@
+{"role": "intended-invalid", "entry": "main.omg", "rejection_contains": ["const parameter `Count` of `capacity` requires `u64`, but `Supplied` declares `u32`"]}

@@ -3,7 +3,7 @@ use omega::language::core::float_operations;
 // Retaining a closed IEEE predicate cannot authorize an unchecked arrival.
 machine unchecked(value: f64) -> f64 {
     transition { _ -> bounded(value) }
-    state bounded(value: f64) -> f64
+    machine bounded(value: f64) -> f64
     requires value == value && value >= -100.0 && value <= 100.0
     { transition { _ -> (value) } }
 }

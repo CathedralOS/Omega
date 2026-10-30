@@ -1,9 +1,16 @@
 //! Assemble one source forest with exact package, import and generated-source custody.
 //!
-//! `ImmutableSourceParseCheckpoint::prepare` discovers and parses immutable
-//! physical sources. `assemble` admits a child's inputs, appends dependency
-//! outputs, resolves deferred imports, and injects entry contracts and the Build
-//! prelude. Both discover ordered frontiers; the Psi facade owns their parsing.
+//! `ImmutableSourceParseCheckpoint::prepare` consumes an acquired capture or
+//! captures sources, then parses the authored Build's import closure, or the
+//! Product roots for a default Build.
+//! `assemble` admits the selected scope's inputs and prelude. An authored Build
+//! retains `DeferredProductSources`: after its dependency join, Product imports
+//! and target entry contracts join the same captured namespace and parse prefix.
+//! Product imports cannot supply names to the initial Build context. Each source
+//! frontier goes through Psi's parser; no host source is recaptured at the join.
+//! An initially unbound capture may acquire its exact named package owner on
+//! that separate parsed prefix, before Product resolution. This never rewrites
+//! the checked Build's private invocation identity.
 //! `GeneratedSourceExtension::parse` consumes the activation's admitted output
 //! through that same facade, preserving separate generated-unit forests.
 //! No Build machine executes here; resolution and typing consume the result.
@@ -12,12 +19,12 @@ use crate::PackageCompilationInputs;
 use crate::source_imports::{
     GeneratedSourceExtension, ImportQueue, PackageImportPhase, PendingPackageImport,
     ProjectSourceSelection, SourceStorage, discover_imports, discover_imports_with_packages,
-    discover_package_imports, validate_package_source_frontier, validate_selected_build_role,
+    discover_package_imports, validate_package_source_frontier,
 };
 use artifacts::compile_timings::{CompileTimings, StageMeta};
 use diagnostics::Diagnostic;
 use psi_compiler::{PsiCompilationObserver, PsiCompilationStage, SourceInput};
-use source::{LoadedSource, SourceId, SourceOrigin};
+use source::{SourceContents, SourceOrigin, SourceResolutionStratum};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -25,17 +32,22 @@ use syntax_trees::SyntaxTrees;
 
 #[derive(Clone)]
 pub struct AssembledSyntax {
+    pub root_sources: Vec<source::SourceId>,
     pub syntax_trees: SyntaxTrees,
+    /// Parser-issued source ownership for authored item roots. Later synthesis
+    /// owns its own cohort; diagnostic template spans are not membership.
+    pub source_items: Vec<(source::SourceId, Vec<syntax_trees::item::ItemHandle>)>,
     pub sources: Arc<source::SourceMap>,
+    /// Anonymous ownership inputs. Initial Build leaves these unbound; the
+    /// joined Product context establishes ownership before resolution/typing.
+    pub anonymous_owner: Option<crate::AnonymousSourceCapture>,
+    /// Product roots remain unopened until the authored Build has returned and
+    /// its dependencies have joined. Both phases retain the same captured bytes.
+    pub product_sources: Option<DeferredProductSources>,
     /// Exact companion `build.omg` selected during project discovery. Build
     /// authority is attached to this source, never reconstructed from a leaf
     /// filename after imports have expanded the source frontier.
     pub build_source_id: Option<source::SourceId>,
-    /// The validated authored application declaration (name and artifact-only
-    /// intent) when the selected build root declares `Build::application(builder, ...)`;
-    /// `None` for package/workspace roles or a missing build root. Publication
-    /// never re-derives it.
-    pub application: Option<build_declarations::ApplicationDeclaration>,
     pub source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
     /// Sources the build scope owns: the selected build entry, the
@@ -52,33 +64,303 @@ pub struct AssembledSyntax {
 
 /// Immutable physical source and parse frontier formed before exact target
 /// generated sources or target-scoped imports join compilation.
+#[derive(compiler_storage::Record)]
 pub struct ImmutableSourceParseCheckpoint {
     root_path: PathBuf,
     source_storage: Arc<SourceStorage>,
     build_source_id: Option<source::SourceId>,
-    /// The validated `Build::application` declaration retained at
-    /// parse-checkpoint custody; its name supplies the `.app` basename and
-    /// inner executable leaf, and its artifact-only intent narrows the
-    /// admitted route, all without revisiting source text.
-    application: Option<build_declarations::ApplicationDeclaration>,
     package_imports: Arc<[PendingPackageImport]>,
     package_source_inputs: Option<Arc<crate::PackageCompilationSourceInputs>>,
+    product_roots: Option<Arc<[PathBuf]>>,
+}
+
+/// The captured source namespace and Build parse prefix, not a Product judgment.
+/// Loading Product imports consumes this continuation after the Build join.
+#[derive(compiler_storage::Record)]
+pub struct DeferredProductSources {
+    checkpoint: ImmutableSourceParseCheckpoint,
+}
+
+impl Clone for DeferredProductSources {
+    fn clone(&self) -> Self {
+        Self {
+            checkpoint: self.checkpoint.clone_shared(),
+        }
+    }
+}
+
+impl DeferredProductSources {
+    /// Inspect the frozen authored Product namespace while Build is paused.
+    /// This does not settle the root, append its generated outputs, or grant
+    /// executable Product authority. The original Build parse prefix is shared.
+    pub fn assemble_query(
+        &self,
+        inputs: &crate::source_imports::ProductQueryInputs,
+        timings: &mut CompileTimings,
+        catalogue: &mut source::SourceCatalogue,
+    ) -> Result<AssembledSyntax, Vec<Diagnostic>> {
+        let checkpoint = &self.checkpoint;
+        checkpoint.validate_child(inputs.original())?;
+        let mut storage = checkpoint.source_storage.as_ref().clone();
+        let loaded = storage.reselect_current_sources(catalogue)?;
+        inputs.mount(&mut storage)?;
+        let build_source_id = checkpoint
+            .build_source_id
+            .map(|original| {
+                storage
+                    .sources
+                    .get(original)
+                    .and_then(|file| storage.sources.rejoined_source_id(file))
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "Product query lost its authored Build correspondence",
+                        )]
+                    })
+            })
+            .transpose()?;
+        let parsed = SourceInput(loaded.into_iter().collect())
+            .append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
+        let discovered = inputs.discover(&parsed, &mut storage)?;
+        storage.attach_parsed(parsed);
+        let mut imports = ImportQueue::default();
+        for source in storage.sources.selected_files() {
+            imports.mark_loaded(&source.path, source.dependency_scope);
+        }
+        imports.enqueue(discovered)?;
+        for root in checkpoint
+            .product_roots
+            .iter()
+            .flat_map(|roots| roots.iter())
+        {
+            imports.seed(root.clone(), source::DependencyScope::Product);
+        }
+        load_source_frontiers(
+            &mut storage,
+            &mut imports,
+            SourceRouting::Query(inputs),
+            timings,
+            catalogue,
+        )?;
+        imports.seed(
+            crate::source_imports::bundled_core_root()?.join("code_layout.omg"),
+            source::DependencyScope::Product,
+        );
+        for scope in [
+            source::DependencyScope::Build,
+            source::DependencyScope::Product,
+        ] {
+            if sources_mention_floats(&storage, scope) {
+                imports.seed(
+                    crate::source_imports::bundled_core_root()?.join("float_operations.omg"),
+                    scope,
+                );
+            }
+        }
+        for seed in inputs.entry_contract_seeds(&storage)? {
+            imports.seed(
+                seed.register_custody(&mut storage),
+                source::DependencyScope::Product,
+            );
+        }
+        load_source_frontiers(
+            &mut storage,
+            &mut imports,
+            SourceRouting::Query(inputs),
+            timings,
+            catalogue,
+        )?;
+        let mut bindings = append_build_prelude(&mut storage, build_source_id, timings, catalogue)?;
+        bindings.extend(crate::source_imports::retain_module_import_bindings(
+            &storage,
+        )?);
+        let root_sources = storage.root_sources();
+        let source_items = storage
+            .source_roots
+            .iter()
+            .map(|(_, roots)| (roots.source_id, roots.root_items.clone()))
+            .collect();
+        let build_scope_sources = storage
+            .sources
+            .selected_files()
+            .filter(|file| file.dependency_scope == source::DependencyScope::Build)
+            .map(|file| file.source_id)
+            .collect();
+        Ok(AssembledSyntax {
+            root_sources,
+            source_items,
+            syntax_trees: storage.syntax_trees,
+            sources: Arc::new(storage.sources),
+            anonymous_owner: None,
+            product_sources: None,
+            build_source_id,
+            source_scoped_top_level_bindings: bindings,
+            generated_source_custody: Vec::new(),
+            build_scope_sources,
+        })
+    }
+
+    /// Revalidate a sibling's live custody even when its frontend is retained.
+    /// An anonymous capture must join the same named source owner as assembly.
+    pub fn admit_inputs(
+        &self,
+        package_inputs: Option<&PackageCompilationInputs>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let mut checkpoint = self.checkpoint.clone_shared();
+        checkpoint.admit_product_inputs(package_inputs)
+    }
+
+    /// Load Product roots after successful Build return and dependency settlement.
+    /// A previously unbound capture may receive its exact named owner here.
+    /// Already supplied package inputs cannot be replaced. New dependency custody
+    /// still requires the pending executed-request settlement protocol.
+    pub fn assemble(
+        self,
+        package_inputs: Option<&PackageCompilationInputs>,
+        timings: &mut CompileTimings,
+        catalogue: &mut source::SourceCatalogue,
+    ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
+        let mut checkpoint = self.checkpoint;
+        checkpoint.join_product_inputs(package_inputs, timings, catalogue)?;
+        let roots = checkpoint.product_roots.take().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "Product source continuation has already been consumed",
+            )]
+        })?;
+        let mut storage = Arc::unwrap_or_clone(checkpoint.source_storage);
+        let mut imports = ImportQueue::default();
+        for source in storage.sources.selected_files() {
+            imports.mark_loaded(&source.path, source.dependency_scope);
+        }
+        for root in roots.iter() {
+            imports.seed(root.clone(), source::DependencyScope::Product);
+        }
+        if let Some(inputs) = package_inputs {
+            for source in inputs.product_selection_source_seeds()? {
+                imports.seed(source, source::DependencyScope::Product);
+            }
+        }
+        let mut package_imports = checkpoint.package_imports.to_vec();
+        package_imports.extend(load_imports(
+            &mut storage,
+            &mut imports,
+            &checkpoint.root_path,
+            package_inputs,
+            PackageImportPhase::TargetIndependent,
+            timings,
+            catalogue,
+        )?);
+        checkpoint.source_storage = Arc::new(storage);
+        checkpoint.package_imports = package_imports.into();
+        checkpoint.assemble(package_inputs, timings, catalogue)
+    }
 }
 
 impl ImmutableSourceParseCheckpoint {
+    /// Source capture normalizes the physical root before parsing. The public
+    /// request may keep a relative or symlink spelling of that same entry;
+    /// resolve both through the retained capture, never through reopened bytes.
+    pub fn admit_root(&self, root: &Path) -> Result<(), Vec<Diagnostic>> {
+        if root == self.root_path {
+            return Ok(());
+        }
+        let resolve = |path: &Path| {
+            self.source_storage
+                .filesystem
+                .canonicalize(path)
+                .map_err(|reason| {
+                    vec![Diagnostic::error(format!(
+                        "cannot resolve prepared source entry: {reason}"
+                    ))]
+                })
+        };
+        if resolve(root)? != resolve(&self.root_path)? {
+            return Err(vec![Diagnostic::error(
+                "checked child compilation root does not match its prepared source checkpoint",
+            )]);
+        }
+        Ok(())
+    }
+
+    fn admit_product_inputs(
+        &mut self,
+        package_inputs: Option<&PackageCompilationInputs>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if self.package_source_inputs.is_none()
+            && let Some(inputs) = package_inputs
+        {
+            Arc::make_mut(&mut self.source_storage).join_package_inputs(inputs)?;
+            self.package_source_inputs = Some(inputs.source_inputs());
+        }
+        self.validate_child(package_inputs)
+    }
+
+    /// Sealing changes the Product source instance, not the checked Build's
+    /// source map. Reparse captured bytes under the sealed coordinates before
+    /// any resolver continuation can consume this Product selection.
+    fn join_product_inputs(
+        &mut self,
+        package_inputs: Option<&PackageCompilationInputs>,
+        timings: &mut CompileTimings,
+        catalogue: &mut source::SourceCatalogue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(inputs) = package_inputs.filter(|_| self.package_source_inputs.is_none()) else {
+            return self.validate_child(package_inputs);
+        };
+        self.admit_product_inputs(Some(inputs))?;
+        let storage = Arc::make_mut(&mut self.source_storage);
+        let loaded = storage.reselect_current_sources(catalogue)?;
+        storage
+            .sources
+            .retain_product_dependency_scope(inputs.dependencies());
+        let parsed = SourceInput(loaded.into_iter().collect())
+            .append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
+        let (discovered, mut requests) = discover_package_imports(
+            &parsed,
+            &storage.syntax_trees,
+            inputs,
+            PackageImportPhase::TargetIndependent,
+            &mut storage.resolved_imports,
+            &storage.toolchain_contract_custody,
+        )?;
+        storage.attach_parsed(parsed);
+        let mut imports = ImportQueue::default();
+        for file in storage.sources.selected_files() {
+            imports.mark_loaded(&file.path, file.dependency_scope);
+        }
+        imports.enqueue(discovered)?;
+        requests.extend(load_imports(
+            storage,
+            &mut imports,
+            &self.root_path,
+            Some(inputs),
+            PackageImportPhase::TargetIndependent,
+            timings,
+            catalogue,
+        )?);
+        self.build_source_id =
+            ProjectSourceSelection::prepare(&self.root_path, &storage.filesystem)?
+                .build_source_id(storage)?;
+        self.package_imports = requests.into();
+        Ok(())
+    }
+
     /// Publish page sharing on the first actual fork. A uniquely consumed
     /// checkpoint keeps its original allocations without freezing overhead.
     pub fn fork(&mut self) -> Self {
         if let Some(storage) = Arc::get_mut(&mut self.source_storage) {
             storage.syntax_trees.share_pages();
         }
+        self.clone_shared()
+    }
+
+    fn clone_shared(&self) -> Self {
         Self {
             root_path: self.root_path.clone(),
             source_storage: self.source_storage.clone(),
             build_source_id: self.build_source_id,
-            application: self.application.clone(),
             package_imports: self.package_imports.clone(),
             package_source_inputs: self.package_source_inputs.clone(),
+            product_roots: self.product_roots.clone(),
         }
     }
 
@@ -86,12 +368,15 @@ impl ImmutableSourceParseCheckpoint {
         &self.root_path
     }
 
-    /// Prepare shared physical sources without admitting a child's target
-    /// attachments. Target-local generated bundles join later during assembly.
+    /// Prepare shared physical sources without Product imports or a child's
+    /// target attachments when an authored Build exists. Target-local generated
+    /// bundles join their respective scope during assembly.
     pub fn prepare_from_sources(
         root_path: &Path,
         package_sources: Option<Arc<crate::PackageCompilationSourceInputs>>,
+        source_capture: Option<&crate::CapturedLocalSource>,
         timings: &mut CompileTimings,
+        catalogue: &mut source::SourceCatalogue,
     ) -> Result<Self, Vec<Diagnostic>> {
         let package_inputs = package_sources
             .map(|sources| PackageCompilationInputs::from_parts(sources, Default::default()))
@@ -102,19 +387,37 @@ impl ImmutableSourceParseCheckpoint {
                     .map(|error| Diagnostic::error(error.to_string()))
                     .collect::<Vec<_>>()
             })?;
-        Self::prepare(root_path, package_inputs.as_ref(), timings)
+        Self::prepare(
+            root_path,
+            package_inputs.as_ref(),
+            source_capture,
+            timings,
+            catalogue,
+        )
     }
 
     pub fn prepare(
         root_path: &Path,
         package_inputs: Option<&PackageCompilationInputs>,
+        source_capture: Option<&crate::CapturedLocalSource>,
         timings: &mut CompileTimings,
+        catalogue: &mut source::SourceCatalogue,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let mut source_storage = SourceStorage::prepare(root_path, package_inputs)?;
+        let mut source_storage =
+            SourceStorage::prepare(root_path, package_inputs, source_capture, catalogue)?;
         let project = ProjectSourceSelection::prepare(root_path, &source_storage.filesystem)?;
         let mut imports = ImportQueue::default();
+        let has_build = project
+            .sources()
+            .iter()
+            .any(|(_, scope)| *scope == source::DependencyScope::Build);
+        let mut product_roots = Vec::new();
         for (path, scope) in project.sources() {
-            imports.seed(path.clone(), *scope);
+            if has_build && *scope == source::DependencyScope::Product {
+                product_roots.push(path.clone());
+            } else {
+                imports.seed(path.clone(), *scope);
+            }
         }
         let package_imports = load_imports(
             &mut source_storage,
@@ -123,16 +426,16 @@ impl ImmutableSourceParseCheckpoint {
             package_inputs,
             PackageImportPhase::TargetIndependent,
             timings,
+            catalogue,
         )?;
         let build_source_id = project.build_source_id(&source_storage)?;
-        let application = validate_selected_build_role(&source_storage, build_source_id)?;
         Ok(Self {
             root_path: root_path.to_path_buf(),
             source_storage: Arc::new(source_storage),
             build_source_id,
-            application,
             package_imports: package_imports.into(),
             package_source_inputs: package_inputs.map(PackageCompilationInputs::source_inputs),
+            product_roots: has_build.then(|| product_roots.into()),
         })
     }
 
@@ -141,22 +444,31 @@ impl ImmutableSourceParseCheckpoint {
     /// dependency-generated sources the inputs carry. No target selects
     /// anything here; each target's package inputs were admitted for it.
     pub fn assemble(
-        self,
+        mut self,
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
+        catalogue: &mut source::SourceCatalogue,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
         self.validate_child(package_inputs)?;
+        let deferred_product = self.product_roots.is_some().then(|| self.fork());
+        let source_scope = if deferred_product.is_some() {
+            source::DependencyScope::Build
+        } else {
+            source::DependencyScope::Product
+        };
         let mut source_storage = Arc::unwrap_or_clone(self.source_storage);
         let mut imports = ImportQueue::default();
-        for source in source_storage.sources.files() {
+        for source in source_storage.sources.selected_files() {
             imports.mark_loaded(&source.path, source.dependency_scope);
         }
         let mut generated_source_custody = match package_inputs {
-            Some(package_inputs) => append_dependency_generated_sources_to_storage(
+            Some(package_inputs) => append_dependency_build_handoffs_to_storage(
                 &mut source_storage,
                 &mut imports,
                 package_inputs,
+                source_scope,
                 timings,
+                catalogue,
             )?,
             None => Vec::new(),
         };
@@ -178,24 +490,30 @@ impl ImmutableSourceParseCheckpoint {
             package_inputs,
             PackageImportPhase::ExactTarget(None),
             timings,
+            catalogue,
         )?;
         // Core query results are ordinary source-backed data. Load their
         // canonical declarations even for an import-free query occurrence;
         // source discovery neither evaluates the query nor selects a machine.
         let core_root = crate::source_imports::bundled_core_root()?;
         let query_types = core_root.join("code_layout.omg");
-        imports.seed(query_types, source::DependencyScope::Product);
+        imports.seed(query_types, source_scope);
         // Primitive float spellings select ordinary source declarations and
         // their exact target satisfiers (numeric_values.md, Primitive surface).
         // Make that canonical declaration forest available without requiring
         // an authored import. Loading supplies no selection or provider
         // authority: normal operand applicability, ambiguity, checked boundary
         // applications and selected ProviderPlans still own those judgments.
-        if product_sources_mention_floats(&source_storage) {
-            imports.seed(
-                core_root.join("float_operations.omg"),
-                source::DependencyScope::Product,
-            );
+        // The joined Product forest retains Build declarations too. Supply
+        // implicit vocabulary for each present checked scope, not only the
+        // roots being appended in this phase.
+        for scope in [
+            source::DependencyScope::Build,
+            source::DependencyScope::Product,
+        ] {
+            if sources_mention_floats(&source_storage, scope) {
+                imports.seed(core_root.join("float_operations.omg"), scope);
+            }
         }
         load_imports(
             &mut source_storage,
@@ -204,10 +522,17 @@ impl ImmutableSourceParseCheckpoint {
             package_inputs,
             PackageImportPhase::ExactTarget(None),
             timings,
+            catalogue,
         )?;
         // Every target's entry contract joins the set; the selected target
         // only decides which one realizes the program entry later.
-        let seeds = crate::source_imports::entry_contract_seeds(package_inputs, &source_storage)?;
+        // Build bindings carry inert paths. Target entry contracts and Product
+        // suppliers are not part of the initial Build name-resolution context.
+        let seeds = if deferred_product.is_none() {
+            crate::source_imports::entry_contract_seeds(package_inputs, &source_storage)?
+        } else {
+            Vec::new()
+        };
         if !seeds.is_empty() {
             for seed in seeds {
                 imports.seed(
@@ -222,30 +547,95 @@ impl ImmutableSourceParseCheckpoint {
                 package_inputs,
                 PackageImportPhase::ExactTarget(None),
                 timings,
+                catalogue,
             )?;
         }
-        let mut source_scoped_top_level_bindings = Vec::new();
-        if let Some(prelude) =
-            crate::source_imports::prepare_build_prelude(&source_storage, self.build_source_id)
-        {
-            let parsed = SourceInput::Retained(
-                [LoadedSource {
-                    source_id: SourceId(source_storage.next_source_id()),
-                    path: PathBuf::from("<build-prelude>"),
-                    source: Arc::from(prelude.source.as_str()),
-                    origin: Some(SourceOrigin::Toolchain),
-                    scope: source::DependencyScope::Build,
-                }]
-                .into_iter()
-                .collect(),
-            )
-            .append(
-                &mut source_storage.syntax_trees,
-                &mut ParsingTimings(timings),
-            )?;
-            source_storage.extend(parsed)?;
-            source_scoped_top_level_bindings = prelude.bindings;
+        // A Product preparation follows the completed dependency join, whether
+        // Build was implicit or authored. Retaining an authored Build source
+        // does not leave its Product declarations anonymously owned. Initial
+        // Build preparation still defers this operation until normal return.
+        if deferred_product.is_none() {
+            source_storage.seal_product_owner(catalogue)?;
         }
+        // Each new preparation gets a fresh consumer cohort. Reusing parser
+        // coordinates across discovery and final binding would make the old
+        // authored-selection ledger own this run's freshly resolved calls.
+        // Dependencies keep their catalogue identities and remain reusable.
+        let loaded = source_storage.reselect_current_sources(catalogue)?;
+        if let Some(inputs) = package_inputs {
+            source_storage
+                .sources
+                .retain_product_dependency_scope(inputs.dependencies());
+        }
+        let parsed = SourceInput(loaded.into_iter().collect()).append(
+            &mut source_storage.syntax_trees,
+            &mut ParsingTimings(timings),
+        )?;
+        let discovered = match package_inputs {
+            Some(inputs) => {
+                discover_package_imports(
+                    &parsed,
+                    &source_storage.syntax_trees,
+                    inputs,
+                    PackageImportPhase::ExactTarget(None),
+                    &mut source_storage.resolved_imports,
+                    &source_storage.toolchain_contract_custody,
+                )?
+                .0
+            }
+            None => discover_imports(
+                &parsed,
+                &source_storage.syntax_trees,
+                &self.root_path,
+                &source_storage.filesystem,
+                &mut source_storage.resolved_imports,
+            )?,
+        };
+        source_storage.attach_parsed(parsed);
+        imports.enqueue(discovered)?;
+        load_imports(
+            &mut source_storage,
+            &mut imports,
+            &self.root_path,
+            package_inputs,
+            PackageImportPhase::ExactTarget(None),
+            timings,
+            catalogue,
+        )?;
+        if let Some(original) = self.build_source_id {
+            let file = source_storage.sources.get(original).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "source preparation lost its authored Build source",
+                )]
+            })?;
+            self.build_source_id = Some(
+                source_storage
+                    .sources
+                    .rejoined_source_id(file)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "authored Build source has no admitted consumer correspondence",
+                        )]
+                    })?,
+            );
+        }
+        let product_sources = deferred_product
+            .map(|mut checkpoint| {
+                checkpoint.rejoin_sources(
+                    &source_storage.sources,
+                    package_inputs,
+                    timings,
+                    catalogue,
+                )?;
+                Ok::<_, Vec<Diagnostic>>(DeferredProductSources { checkpoint })
+            })
+            .transpose()?;
+        let mut source_scoped_top_level_bindings = append_build_prelude(
+            &mut source_storage,
+            self.build_source_id,
+            timings,
+            catalogue,
+        )?;
         // Wire codec machines are compiler-generated source, admitted by the
         // ordinary pipeline like the build prelude above them. They load as a
         // package source under the product root so generated machines carry
@@ -273,23 +663,22 @@ impl ImmutableSourceParseCheckpoint {
             // stays virtual, while the retained bytes answer the
             // consumption-commitment re-read instead of a physical file.
             let codec_path = codec_root.join(".omega/generated/wire-codec.omg");
-            let codec_source_id = source::SourceId(source_storage.next_source_id());
-            let parsed = SourceInput::Retained(
-                [LoadedSource {
-                    source_id: codec_source_id,
+            let admitted = source_storage.admit_source(
+                SourceContents {
                     path: codec_path,
                     source: Arc::from(codec_source.as_str()),
-                    origin: Some(SourceOrigin::User),
                     scope: source::DependencyScope::Product,
-                }]
-                .into_iter()
-                .collect(),
-            )
-            .append(
+                },
+                Some(SourceOrigin::User),
+                SourceResolutionStratum::Base,
+                catalogue,
+            )?;
+            let codec_source_id = admitted.source_id;
+            let parsed = SourceInput([admitted].into_iter().collect()).append(
                 &mut source_storage.syntax_trees,
                 &mut ParsingTimings(timings),
             )?;
-            source_storage.extend(parsed)?;
+            source_storage.attach_parsed(parsed);
             generated_source_custody.push((
                 codec_source_id,
                 build_output::PackageGeneratedSource::from_retained_parts(
@@ -301,29 +690,138 @@ impl ImmutableSourceParseCheckpoint {
         source_scoped_top_level_bindings.extend(
             crate::source_imports::retain_module_import_bindings(&source_storage)?,
         );
-        // Default Build has completed its empty dependency join. No authored
-        // activation is run or replayed here, and supplied graph owners remain
-        // authoritative. Product declaration identities have not been minted.
-        if self.build_source_id.is_none() {
-            source_storage.seal_default_anonymous_owner(&generated_source_custody)?;
-        }
+        let root_sources = source_storage.root_sources();
         let source_file_count = source_storage.file_count();
         let build_scope_sources = source_storage
             .sources
-            .files()
+            .selected_files()
             .filter(|file| file.dependency_scope == source::DependencyScope::Build)
             .map(|file| file.source_id)
             .collect();
+        // Initial authored Build remains unbound. A Product preparation has
+        // sealed its source owner before parsing, after the dependency join.
+        // Supplied graph owners remain authoritative in either case.
+        let capture = source_storage.retain_anonymous_owner(&generated_source_custody)?;
+        let (sources, anonymous_owner) = match capture {
+            Some(capture) => (capture.sources().clone(), Some(capture)),
+            None => (Arc::new(source_storage.sources), None),
+        };
         let syntax = AssembledSyntax {
+            root_sources,
+            source_items: source_storage
+                .source_roots
+                .iter()
+                .map(|(_, roots)| (roots.source_id, roots.root_items.clone()))
+                .collect(),
             syntax_trees: source_storage.syntax_trees,
-            sources: Arc::new(source_storage.sources),
+            sources,
+            anonymous_owner,
+            product_sources,
             build_source_id: self.build_source_id,
-            application: self.application,
             source_scoped_top_level_bindings,
             generated_source_custody,
             build_scope_sources,
         };
         Ok((source_file_count, syntax))
+    }
+
+    /// Retain the actual Build source coordinates without retaining its later
+    /// generated/import extension twice. The deferred owner keeps its original
+    /// captured namespace and reparses only that admitted source selection.
+    fn rejoin_sources(
+        &mut self,
+        current: &source::SourceMap,
+        package_inputs: Option<&PackageCompilationInputs>,
+        timings: &mut CompileTimings,
+        catalogue: &mut source::SourceCatalogue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let previous = &self.source_storage.sources;
+        let selected = previous
+            .selected_files()
+            .map(|file| {
+                current.rejoined_source_id(file).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "deferred Product source lost its executed Build correspondence",
+                    )]
+                })
+            })
+            .collect::<Result<HashSet<_>, _>>()?;
+        let primary = previous
+            .get(self.source_storage.syntax_trees.source_id)
+            .and_then(|file| current.rejoined_source_id(file))
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "deferred Product parser lost its primary source correspondence",
+                )]
+            })?;
+        if let Some(build) = self.build_source_id {
+            self.build_source_id = Some(
+                previous
+                    .get(build)
+                    .and_then(|file| current.rejoined_source_id(file))
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "deferred Product lost its authored Build source correspondence",
+                        )]
+                    })?,
+            );
+        }
+        let mut sources = current.clone();
+        sources.retain_selected_sources(|file| selected.contains(&file.source_id));
+        let loaded = sources
+            .selected_files()
+            .map(|file| source::LoadedSource {
+                source_id: file.source_id,
+                path: file.path.clone(),
+                source: file.source.clone(),
+                origin: Some(file.origin),
+                scope: file.dependency_scope,
+            })
+            .collect::<source::LoadedSources>();
+        let storage = Arc::make_mut(&mut self.source_storage);
+        storage.sources = sources;
+        storage.syntax_trees = SyntaxTrees::new(primary);
+        storage.source_roots = Default::default();
+        storage.resolved_imports.clear();
+        let parsed =
+            SourceInput(loaded).append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
+        let (discovered, mut requests) = match package_inputs {
+            Some(inputs) => discover_package_imports(
+                &parsed,
+                &storage.syntax_trees,
+                inputs,
+                PackageImportPhase::TargetIndependent,
+                &mut storage.resolved_imports,
+                &storage.toolchain_contract_custody,
+            )?,
+            None => (
+                discover_imports(
+                    &parsed,
+                    &storage.syntax_trees,
+                    &self.root_path,
+                    &storage.filesystem,
+                    &mut storage.resolved_imports,
+                )?,
+                Vec::new(),
+            ),
+        };
+        storage.attach_parsed(parsed);
+        let mut imports = ImportQueue::default();
+        for file in storage.sources.selected_files() {
+            imports.mark_loaded(&file.path, file.dependency_scope);
+        }
+        imports.enqueue(discovered)?;
+        requests.extend(load_imports(
+            storage,
+            &mut imports,
+            &self.root_path,
+            package_inputs,
+            PackageImportPhase::TargetIndependent,
+            timings,
+            catalogue,
+        )?);
+        self.package_imports = requests.into();
+        Ok(())
     }
 
     fn validate_child(
@@ -375,19 +873,22 @@ impl GeneratedSourceExtension {
                 scope: source.dependency_scope,
             });
         }
-        let units = SourceInput::Retained(generated_sources.into_iter().collect())
+        let units = SourceInput(generated_sources.into_iter().collect())
             .into_units(&mut ParsingTimings(timings))?;
         Ok((sources, units))
     }
 }
 
-fn append_dependency_generated_sources_to_storage(
+fn append_dependency_build_handoffs_to_storage(
     source_storage: &mut SourceStorage,
     imports: &mut ImportQueue,
     package_inputs: &PackageCompilationInputs,
+    source_scope: source::DependencyScope,
     timings: &mut CompileTimings,
+    catalogue: &mut source::SourceCatalogue,
 ) -> Result<Vec<(source::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
-    let entries = crate::source_imports::admit_dependency_generated_sources(package_inputs)?;
+    let entries =
+        crate::source_imports::admit_dependency_build_handoffs(package_inputs, source_scope)?;
 
     for entry in &entries {
         imports.mark_loaded(&entry.logical_path, entry.scope);
@@ -403,19 +904,18 @@ fn append_dependency_generated_sources_to_storage(
             package,
             scope,
         } = entry;
-        let source_id = source::SourceId(source_storage.next_source_id());
-        let parsed = SourceInput::Retained(
-            [LoadedSource {
-                source_id,
+        let admitted = source_storage.admit_source(
+            SourceContents {
                 path: logical_path,
                 source: Arc::from(text),
-                origin: Some(SourceOrigin::User),
                 scope,
-            }]
-            .into_iter()
-            .collect(),
-        )
-        .append(
+            },
+            Some(SourceOrigin::User),
+            SourceResolutionStratum::DependencyActivationExtension,
+            catalogue,
+        )?;
+        let source_id = admitted.source_id;
+        let parsed = SourceInput([admitted].into_iter().collect()).append(
             &mut source_storage.syntax_trees,
             &mut ParsingTimings(timings),
         )?;
@@ -429,7 +929,7 @@ fn append_dependency_generated_sources_to_storage(
         )?;
         imports.enqueue(discovered)?;
         imports.enqueue(entry_base)?;
-        source_storage.extend_dependency_generated(parsed)?;
+        source_storage.attach_parsed(parsed);
         retained.push((source_id, source.clone()));
     }
     Ok(retained)
@@ -442,59 +942,152 @@ fn load_imports(
     package_inputs: Option<&PackageCompilationInputs>,
     phase: PackageImportPhase,
     timings: &mut CompileTimings,
+    catalogue: &mut source::SourceCatalogue,
+) -> Result<Vec<PendingPackageImport>, Vec<Diagnostic>> {
+    load_source_frontiers(
+        source_storage,
+        imports,
+        SourceRouting::Compilation {
+            root_path,
+            package_inputs,
+            phase,
+        },
+        timings,
+        catalogue,
+    )
+}
+
+enum SourceRouting<'inputs> {
+    Compilation {
+        root_path: &'inputs Path,
+        package_inputs: Option<&'inputs PackageCompilationInputs>,
+        phase: PackageImportPhase,
+    },
+    Query(&'inputs crate::source_imports::ProductQueryInputs),
+}
+
+fn load_source_frontiers(
+    source_storage: &mut SourceStorage,
+    imports: &mut ImportQueue,
+    routing: SourceRouting<'_>,
+    timings: &mut CompileTimings,
+    catalogue: &mut source::SourceCatalogue,
 ) -> Result<Vec<PendingPackageImport>, Vec<Diagnostic>> {
     let mut retained_requests = Vec::new();
     while imports.has_pending() {
         let frontier = imports.take_frontier();
-        let frontier = match package_inputs {
-            Some(package_inputs) => {
-                validate_package_source_frontier(frontier, package_inputs, source_storage)?
-            }
-            None => frontier,
+        let frontier = match &routing {
+            SourceRouting::Compilation {
+                package_inputs: Some(package_inputs),
+                ..
+            } => validate_package_source_frontier(frontier, package_inputs, source_storage)?,
+            SourceRouting::Query(inputs) => inputs.validate_frontier(frontier, source_storage)?,
+            _ => frontier,
         };
-        let parsed = SourceInput::Files {
+        let loaded = psi_compiler::load_source_files(
             frontier,
-            first_source: source_storage.next_source_id(),
-            filesystem: &source_storage.filesystem,
+            &source_storage.filesystem,
+            &mut ParsingTimings(timings),
+        )?;
+        let admitted = loaded
+            .into_iter()
+            .map(|contents| {
+                source_storage.admit_source(
+                    contents,
+                    None,
+                    SourceResolutionStratum::Base,
+                    catalogue,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if source_storage.source_roots.is_empty()
+            && let Some(first) = admitted.first()
+        {
+            source_storage.syntax_trees.source_id = first.source_id;
         }
-        .append(
+        let parsed = SourceInput(admitted.into_iter().collect()).append(
             &mut source_storage.syntax_trees,
             &mut ParsingTimings(timings),
         )?;
-        let discovered = match package_inputs {
-            Some(package_inputs) => {
+        let discovered = match &routing {
+            SourceRouting::Compilation {
+                package_inputs: Some(package_inputs),
+                phase,
+                ..
+            } => {
                 let (discovered, mut requests) = discover_package_imports(
                     &parsed,
                     &source_storage.syntax_trees,
                     package_inputs,
-                    phase,
+                    *phase,
                     &mut source_storage.resolved_imports,
                     &source_storage.toolchain_contract_custody,
                 )?;
                 retained_requests.append(&mut requests);
                 discovered
             }
-            None => discover_imports(
+            SourceRouting::Compilation {
+                root_path,
+                package_inputs: None,
+                ..
+            } => discover_imports(
                 &parsed,
                 &source_storage.syntax_trees,
                 root_path,
+                &source_storage.filesystem,
                 &mut source_storage.resolved_imports,
             )?,
+            SourceRouting::Query(inputs) => inputs.discover(&parsed, source_storage)?,
         };
         imports.enqueue(discovered)?;
-        source_storage.extend(parsed)?;
+        source_storage.attach_parsed(parsed);
     }
     Ok(retained_requests)
+}
+
+fn append_build_prelude(
+    storage: &mut SourceStorage,
+    build_source: Option<source::SourceId>,
+    timings: &mut CompileTimings,
+    catalogue: &mut source::SourceCatalogue,
+) -> Result<Vec<symbols::SourceScopedTopLevelBinding>, Vec<Diagnostic>> {
+    let Some(prelude) = crate::source_imports::prepare_build_prelude(storage, build_source) else {
+        return Ok(Vec::new());
+    };
+    let admitted = storage.admit_source(
+        SourceContents {
+            path: PathBuf::from("<build-prelude>"),
+            source: Arc::from(prelude.source),
+            scope: source::DependencyScope::Build,
+        },
+        Some(SourceOrigin::Toolchain),
+        SourceResolutionStratum::Base,
+        catalogue,
+    )?;
+    let bindings = prelude
+        .alias_for
+        .map(|build_source| {
+            symbols::SourceScopedTopLevelBinding::new(build_source, admitted.source_id, "Build")
+        })
+        .into_iter()
+        .collect();
+    let parsed = SourceInput([admitted].into_iter().collect())
+        .append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
+    storage.attach_parsed(parsed);
+    Ok(bindings)
 }
 
 /// Observe Psi's source work using the package invocation's existing report.
 struct ParsingTimings<'timings>(&'timings mut CompileTimings);
 
-fn product_sources_mention_floats(source_storage: &crate::source_imports::SourceStorage) -> bool {
+fn sources_mention_floats(
+    source_storage: &crate::source_imports::SourceStorage,
+    scope: source::DependencyScope,
+) -> bool {
     source_storage
         .sources
-        .files()
-        .filter(|file| file.dependency_scope == source::DependencyScope::Product)
+        .selected_files()
+        .filter(|file| file.dependency_scope == scope)
         .any(|file| {
             let text = file.source.as_ref();
             text.contains("f32")
@@ -520,7 +1113,8 @@ fn product_sources_mention_floats(source_storage: &crate::source_imports::Source
                                 .source_span(handle),
                         )
                         .is_some_and(|file| {
-                            file.dependency_scope == source::DependencyScope::Product
+                            source_storage.sources.source_is_selected(file.source_id)
+                                && file.dependency_scope == scope
                         })
             })
 }

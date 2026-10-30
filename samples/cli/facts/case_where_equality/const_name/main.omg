@@ -12,10 +12,10 @@ machine Main::main<const INTERVAL: Interval>(main: &mut Main) {
         Interval::Point { lo, hi } -> take(lo, hi, main)
         _ -> done()
     }
-    state take(lo: u64, hi: u64, main: &mut Main) {
+    machine take(lo: u64, hi: u64, main: &mut Main) {
         main.width = hi - lo;
     }
-    state done() { }
+    machine done() { }
 }
 
 const NAMED_INTERVAL: Interval = Interval::Point { lo: 4, hi: 4 };
@@ -26,8 +26,8 @@ machine Main::selected(main: &mut Main) crashes Trap {
         true -> pass()
         _ -> fail()
     }
-    state pass() { }
-    state fail() { crash Trap; }
+    machine pass() { }
+    machine fail() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

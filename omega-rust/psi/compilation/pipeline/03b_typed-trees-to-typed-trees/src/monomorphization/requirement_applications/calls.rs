@@ -18,6 +18,13 @@ pub(super) struct InvocationTuple {
     pub lifetimes: Vec<typed_trees::static_applications::StaticMachineLifetimeBinding>,
 }
 
+struct PreparedInvocation {
+    site: super::super::CallSite,
+    owner: SymbolHandle,
+    target: SymbolHandle,
+    tuple: InvocationTuple,
+}
+
 fn occurrence(
     program: &TypedTrees,
     owner: SymbolHandle,
@@ -47,11 +54,11 @@ fn occurrence(
     }
 }
 
-fn instance(
-    program: &TypedTrees,
+fn instance<'p>(
+    program: &'p TypedTrees,
     lexical_owner: SymbolHandle,
     target: SymbolHandle,
-    receiver: Option<AppliedTraitScope<'_>>,
+    receiver: impl FnOnce() -> Option<AppliedTraitScope<'p>>,
     application: TypeReferenceHandle,
     invocation: &InvocationTuple,
 ) -> Result<SymbolHandle, Vec<Diagnostic>> {
@@ -67,7 +74,7 @@ fn source_scope<'p>(
     program: &'p TypedTrees,
     lexical_owner: SymbolHandle,
     target: SymbolHandle,
-    receiver: Option<AppliedTraitScope<'p>>,
+    receiver: impl FnOnce() -> Option<AppliedTraitScope<'p>>,
     application: TypeReferenceHandle,
 ) -> Result<
     Option<(
@@ -118,7 +125,7 @@ fn source_scope<'p>(
     // Static provider slots inherit their exact application from the authored
     // requirement qualifier. A source routing carrier no longer supplies that
     // scope; selected maps and equal ABI signatures still cannot invent it.
-    let qualifier_scope = receiver.and_then(|scope| scope.declaring_scope(program, owner.symbol));
+    let qualifier_scope = receiver().and_then(|scope| scope.declaring_scope(program, owner.symbol));
     let scope = match qualifier_scope {
         Some(scope) => Some(scope),
         None if program.trait_type_parameters(owner).is_empty()
@@ -227,17 +234,77 @@ fn source_expression_roster(
     expressions
 }
 
+/// Close only transient invocation views before borrowing their logical scopes.
+/// The retained application remains the source recipe final checking admits.
+fn prepare_invocations(
+    program: &mut TypedTrees,
+) -> Result<Vec<PreparedInvocation>, Vec<Diagnostic>> {
+    let mut invocations = Vec::new();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for (position, statement) in program
+                .statement_table
+                .indexed_statements(state.statement_nodes)
+            {
+                if let Some(call) = statement.as_call() {
+                    invocations.push(PreparedInvocation {
+                        site: super::super::CallSite::Statement(
+                            state.statement_nodes.handle_at(position as u32),
+                        ),
+                        owner: machine.symbol,
+                        target: call.target_symbol,
+                        tuple: occurrence(
+                            program,
+                            machine.symbol,
+                            StaticArgumentCall::Statement(call),
+                        ),
+                    });
+                }
+                for expression in source_expression_roster(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    position,
+                    statement,
+                ) {
+                    if let Some(call) = program.expression_table.call_node(expression) {
+                        invocations.push(PreparedInvocation {
+                            site: super::super::CallSite::Expression(expression),
+                            owner: machine.symbol,
+                            target: call.target_symbol,
+                            tuple: occurrence(
+                                program,
+                                machine.symbol,
+                                StaticArgumentCall::Expression(expression, call),
+                            ),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    for invocation in &mut invocations {
+        super::super::body_rewriting::normalize_const_arguments(
+            program,
+            invocation.tuple.owner,
+            &mut invocation.tuple.arguments,
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])?;
+    }
+    Ok(invocations)
+}
+
 /// Static calls instantiate their own complete invocation tuples. These rows
 /// are public contract applications, never a finite dynamic-dispatch roster.
-pub(super) fn invocation_tuples(
-    program: &TypedTrees,
+pub(super) fn invocation_tuples<'p>(
+    program: &'p TypedTrees,
     requirement: SymbolHandle,
     scope: &typed_trees::trait_definition::AppliedTraitScope<'_>,
 ) -> Result<Vec<InvocationTuple>, Vec<Diagnostic>> {
     let mut tuples = Vec::new();
     let mut add = |owner,
                    target,
-                   receiver,
+                   receiver: &dyn Fn() -> Option<AppliedTraitScope<'p>>,
                    application: TypeReferenceHandle,
                    dispatch: Option<&typed_trees::typed_trees::StaticRequirementDispatch>,
                    invocation: InvocationTuple|
@@ -246,14 +313,18 @@ pub(super) fn invocation_tuples(
             let applications = program.selected_conformance_applications(
                 owner,
                 dispatch.selection_application,
+                dispatch.evidence_parameter,
                 dispatch.requirement,
                 dispatch.application_report_fingerprint,
                 dispatch.application_commitment,
             );
             if applications.len() != 1 {
-                return Err(vec![Diagnostic::error(
-                    "static method occurrence has no unique selected conformance",
-                )]);
+                return Err(vec![Diagnostic::error(format!(
+                    "static method occurrence in `{}` has {} selected conformance applications for `{}`; exactly one is required",
+                    program.symbols.display_path(owner, "::"),
+                    applications.len(),
+                    program.symbols.display_path(dispatch.requirement, "::"),
+                ))]);
             }
             let template = program
                 .closed_requirement_application(dispatch.requirement)
@@ -286,14 +357,16 @@ pub(super) fn invocation_tuples(
                     add(
                         machine.symbol,
                         call.target_symbol,
-                        validation::qualified_trait_scope(
-                            program,
-                            machine.symbol,
-                            call.receiver_symbol,
-                            validation::projected_statement_receiver_type_reference(
-                                program, state, position, call,
-                            ),
-                        ),
+                        &|| {
+                            validation::qualified_trait_scope(
+                                program,
+                                machine.symbol,
+                                call.receiver_symbol,
+                                validation::projected_statement_receiver_type_reference(
+                                    program, state, position, call,
+                                ),
+                            )
+                        },
                         TypeReferenceHandle::invalid(),
                         call.static_requirement_dispatch.as_ref(),
                         occurrence(program, machine.symbol, StaticArgumentCall::Statement(call)),
@@ -311,20 +384,26 @@ pub(super) fn invocation_tuples(
                         add(
                             machine.symbol,
                             call.target_symbol,
-                            validation::qualified_trait_scope(
-                                program,
-                                machine.symbol,
-                                program
-                                    .expression_table
-                                    .name_path_node(call.receiver)
-                                    .map_or_else(SymbolHandle::invalid, |path| path.symbol),
-                                validation::expression_type_reference_in_state(
-                                    program,
-                                    state.symbol,
-                                    position,
-                                    call.receiver,
-                                ),
-                            ),
+                            &|| {
+                                if call.receiver.is_valid() {
+                                    validation::qualified_trait_scope(
+                                        program,
+                                        machine.symbol,
+                                        program
+                                            .expression_table
+                                            .name_path_node(call.receiver)
+                                            .map_or_else(SymbolHandle::invalid, |path| path.symbol),
+                                        validation::expression_type_reference_in_state(
+                                            program,
+                                            state.symbol,
+                                            position,
+                                            call.receiver,
+                                        ),
+                                    )
+                                } else {
+                                    None
+                                }
+                            },
                             call.requirement_application,
                             call.static_requirement_dispatch.as_ref(),
                             occurrence(
@@ -353,6 +432,7 @@ fn dispatch_instance(
     let applications = program.selected_conformance_applications(
         owner,
         dispatch.selection_application,
+        dispatch.evidence_parameter,
         dispatch.requirement,
         dispatch.application_report_fingerprint,
         dispatch.application_commitment,
@@ -370,7 +450,14 @@ fn dispatch_instance(
 }
 
 pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    let mut invocations = Vec::new();
+    let invocations = prepare_invocations(program)?;
+    let invocation_map: std::collections::HashMap<
+        (super::super::CallSite, SymbolHandle),
+        &InvocationTuple,
+    > = invocations
+        .iter()
+        .map(|invocation| ((invocation.site, invocation.owner), &invocation.tuple))
+        .collect();
     let mut expression_updates = Vec::new();
     let mut expression_dispatch_updates = Vec::new();
     let mut diagnostics = Vec::new();
@@ -383,44 +470,41 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                 .indexed_statements(state.statement_nodes)
             {
                 if let Some(call) = statement.as_call() {
-                    invocations.push((
-                        super::super::CallSite::Statement(
-                            state.statement_nodes.handle_at(position as u32),
-                        ),
-                        machine.symbol,
-                        call.target_symbol,
-                    ));
+                    let site = super::super::CallSite::Statement(
+                        state.statement_nodes.handle_at(position as u32),
+                    );
+                    let invocation = invocation_map
+                        .get(&(site, machine.symbol))
+                        .copied()
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "requirement call lost its prepared invocation",
+                            )]
+                        })?;
                     if let Some(dispatch) = &call.static_requirement_dispatch {
-                        let selected = dispatch_instance(
-                            program,
-                            machine.symbol,
-                            dispatch,
-                            &occurrence(
-                                program,
-                                machine.symbol,
-                                StaticArgumentCall::Statement(call),
-                            ),
-                        );
+                        let selected =
+                            dispatch_instance(program, machine.symbol, dispatch, invocation);
                         if selected.is_valid() {
                             statement_dispatch_updates
                                 .push((state.statement_nodes.handle_at(position as u32), selected));
                         }
                     }
-                    let receiver = validation::qualified_trait_scope(
-                        program,
-                        machine.symbol,
-                        call.receiver_symbol,
-                        validation::projected_statement_receiver_type_reference(
-                            program, state, position, call,
-                        ),
-                    );
                     let selected = instance(
                         program,
                         machine.symbol,
                         call.target_symbol,
-                        receiver,
+                        || {
+                            validation::qualified_trait_scope(
+                                program,
+                                machine.symbol,
+                                call.receiver_symbol,
+                                validation::projected_statement_receiver_type_reference(
+                                    program, state, position, call,
+                                ),
+                            )
+                        },
                         TypeReferenceHandle::invalid(),
-                        &occurrence(program, machine.symbol, StaticArgumentCall::Statement(call)),
+                        invocation,
                     )?;
                     if selected.is_valid() {
                         statement_updates
@@ -438,22 +522,18 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                     let Some(call) = program.expression_table.call_node(expression) else {
                         continue;
                     };
-                    invocations.push((
-                        super::super::CallSite::Expression(expression),
-                        machine.symbol,
-                        call.target_symbol,
-                    ));
+                    let site = super::super::CallSite::Expression(expression);
+                    let invocation = invocation_map
+                        .get(&(site, machine.symbol))
+                        .copied()
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "requirement call lost its prepared invocation",
+                            )]
+                        })?;
                     if let Some(dispatch) = &call.static_requirement_dispatch {
-                        let selected = dispatch_instance(
-                            program,
-                            machine.symbol,
-                            dispatch,
-                            &occurrence(
-                                program,
-                                machine.symbol,
-                                StaticArgumentCall::Expression(expression, call),
-                            ),
-                        );
+                        let selected =
+                            dispatch_instance(program, machine.symbol, dispatch, invocation);
                         if selected.is_valid() {
                             if let Some((_, prior)) = expression_dispatch_updates
                                 .iter()
@@ -467,31 +547,32 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                             }
                         }
                     }
-                    let receiver = validation::qualified_trait_scope(
-                        program,
-                        machine.symbol,
-                        program
-                            .expression_table
-                            .name_path_node(call.receiver)
-                            .map_or_else(SymbolHandle::invalid, |path| path.symbol),
-                        validation::expression_type_reference_in_state(
-                            program,
-                            state.symbol,
-                            position,
-                            call.receiver,
-                        ),
-                    );
                     let selected = instance(
                         program,
                         machine.symbol,
                         call.target_symbol,
-                        receiver,
+                        || {
+                            if call.receiver.is_valid() {
+                                validation::qualified_trait_scope(
+                                    program,
+                                    machine.symbol,
+                                    program
+                                        .expression_table
+                                        .name_path_node(call.receiver)
+                                        .map_or_else(SymbolHandle::invalid, |path| path.symbol),
+                                    validation::expression_type_reference_in_state(
+                                        program,
+                                        state.symbol,
+                                        position,
+                                        call.receiver,
+                                    ),
+                                )
+                            } else {
+                                None
+                            }
+                        },
                         call.requirement_application,
-                        &occurrence(
-                            program,
-                            machine.symbol,
-                            StaticArgumentCall::Expression(expression, call),
-                        ),
+                        invocation,
                     )?;
                     if !selected.is_valid() {
                         continue;
@@ -513,25 +594,44 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    for &(site, owner, target) in &invocations {
+    for invocation in &invocations {
+        let (site, owner, target) = (invocation.site, invocation.owner, invocation.target);
         let mut template = program
             .closed_requirement_application(target)
             .map_or(target, |closed| closed.template);
         if program.trait_machine_signature(template).is_none()
-            && let Some((requirement, _)) =
-                source_scope(program, owner, target, None, TypeReferenceHandle::invalid())?
+            && let Some((requirement, _)) = source_scope(
+                program,
+                owner,
+                target,
+                || None,
+                TypeReferenceHandle::invalid(),
+            )?
         {
             template = requirement;
         }
-        let Some((_, signature)) = program.trait_machine_signature(template) else {
+        let lexical_signature = program
+            .machine_by_symbol(owner)
+            .and_then(|machine| program.machine_parameter_signature_in(machine, target));
+        let signature = lexical_signature.or_else(|| {
+            program
+                .trait_machine_signature(template)
+                .map(|(_, signature)| signature)
+        });
+        let Some(signature) = signature else {
             continue;
         };
+        // A lexical callable parameter owns its invocation header, independently
+        // of whether any actual is itself a machine or an executable is chosen.
+        if lexical_signature.is_some() {
+            template = target;
+        }
         let parameters = program.state_signature_type_parameters(signature).to_vec();
         if parameters.is_empty() {
             continue;
         }
         let application = super::super::applications::retain_authored_call(program, site, owner);
-        let arguments = program
+        let mut arguments = program
             .expression_table
             .static_machine_application_arguments(application)
             .to_vec();
@@ -539,6 +639,16 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
             // Argument admission owns malformed source telescopes.
             continue;
         }
+        let lexical_owner = program
+            .expression_table
+            .static_machine_application(application)
+            .lexical_owner;
+        super::super::body_rewriting::normalize_const_arguments(
+            program,
+            lexical_owner,
+            &mut arguments,
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])?;
         let bindings = super::invocation_bindings(program, &parameters, &arguments)?;
         program
             .expression_table
@@ -578,7 +688,8 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
             dispatch.contract_signature = selected;
         }
     }
-    for (site, owner, _) in invocations {
+    for invocation in invocations {
+        let (site, owner) = (invocation.site, invocation.owner);
         let super::super::CallSite::Expression(expression) = site else {
             continue;
         };
@@ -589,6 +700,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
             let applications = program.selected_conformance_applications(
                 owner,
                 dispatch.selection_application,
+                dispatch.evidence_parameter,
                 dispatch.requirement,
                 dispatch.application_report_fingerprint,
                 dispatch.application_commitment,
@@ -605,7 +717,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                 program,
                 owner,
                 call.target_symbol,
-                None,
+                || None,
                 call.requirement_application,
             )?
         };

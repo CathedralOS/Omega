@@ -8,7 +8,7 @@ machine probe(val: u32) -> u32
         _ -> consume(shifted)
     }
 
-    state consume(forwarded: u32) -> u32
+    machine consume(forwarded: u32) -> u32
     requires
         forwarded >= 80u32 && forwarded <= 80u32
     {
@@ -22,6 +22,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

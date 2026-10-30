@@ -1,8 +1,8 @@
 // Expected exit: 0. A routed root owes predicates on the evaluated fields,
 // not one constant value or an assumption from its own result annotation.
 data Handle { value: u64; ignored: u64; }
-domain Handle::Open(handle)
-requires handle.value != 0 && handle.value <= 2147483648
+domain Handle::Open
+requires self.value != 0 && self.value <= 2147483648
 established by local_handle, inline_handle, returned_handle, stored_handle, snapshot_handle;
 data Storage { value: u64; }
 
@@ -23,7 +23,7 @@ machine returned_handle(descriptor: i32) -> Handle in Open requires descriptor >
 machine stored_handle(descriptor: i32) -> Handle in Open requires descriptor >= 0 {
     let stored: Storage = Storage { value: encode(descriptor) };
     transition { _ -> issue(stored) }
-    state issue(stored: Storage) -> Handle in Open
+    machine issue(stored: Storage) -> Handle in Open
     requires stored.value > 0 && stored.value <= 2147483648 {
         Handle { value: stored.value }
     }
@@ -49,6 +49,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -23,7 +23,7 @@ crashes Trap
         ByteRead::Eof -> ByteRead::Eof
         ByteRead::Byte { value } -> capacity(reader, value)
     }
-    state capacity(reader: &mut InputReader, value: i32) -> ByteRead
+    machine capacity(reader: &mut InputReader, value: i32) -> ByteRead
     requires value >= 0 && value <= 255
     {
         transition reader.remaining > 0 {
@@ -31,13 +31,13 @@ crashes Trap
             _ -> limit(reader)
         }
     }
-    state consume(reader: &mut InputReader, value: i32) -> ByteRead
+    machine consume(reader: &mut InputReader, value: i32) -> ByteRead
     requires value >= 0 && value <= 255
     {
         reader.remaining = reader.remaining - 1;
         ByteRead::Byte { value: value }
     }
-    state limit(reader: &mut InputReader) -> ByteRead {
+    machine limit(reader: &mut InputReader) -> ByteRead {
         reader.exhausted = true;
         ByteRead::Eof
     }
@@ -48,33 +48,33 @@ blocks;
 crashes Trap
 {
     transition { _ -> skip(reader) }
-    state skip(reader: &mut InputReader) -> Token {
+    machine skip(reader: &mut InputReader) -> Token {
         let byte: ByteRead = block next_byte(reader);
         transition byte {
             ByteRead::Eof -> Token::End
             ByteRead::Byte { value } -> first(reader, value)
         }
     }
-    state first(reader: &mut InputReader, byte: i32) -> Token {
+    machine first(reader: &mut InputReader, byte: i32) -> Token {
         transition byte == 32 || byte == 9 || byte == 10 || byte == 13 {
             true -> skip(reader)
             _ -> sign(reader, byte)
         }
     }
-    state sign(reader: &mut InputReader, byte: i32) -> Token {
+    machine sign(reader: &mut InputReader, byte: i32) -> Token {
         transition byte == 45 {
             true -> next(reader, 0, 0, true)
             _ -> digit(reader, byte, 0, 0, false)
         }
     }
-    state digit(reader: &mut InputReader, byte: i32, magnitude: i32 in Wrapping,
+    machine digit(reader: &mut InputReader, byte: i32, magnitude: i32 in Wrapping,
                 digits: i32 in Wrapping, negative: bool) -> Token {
         transition byte >= 48 && byte <= 57 && digits < 7 {
             true -> accumulate(reader, byte, magnitude, digits, negative)
             _ -> Token::Invalid
         }
     }
-    state accumulate(reader: &mut InputReader, byte: i32, magnitude: i32 in Wrapping,
+    machine accumulate(reader: &mut InputReader, byte: i32, magnitude: i32 in Wrapping,
                      digits: i32 in Wrapping, negative: bool) -> Token {
         let updated: i32 in Wrapping = magnitude * 10 + (byte as i32 in Wrapping) - 48;
         transition updated <= 1000000 {
@@ -82,7 +82,7 @@ crashes Trap
             _ -> Token::Invalid
         }
     }
-    state next(reader: &mut InputReader, magnitude: i32 in Wrapping,
+    machine next(reader: &mut InputReader, magnitude: i32 in Wrapping,
                digits: i32 in Wrapping, negative: bool) -> Token {
         let byte: ByteRead = block next_byte(reader);
         transition byte {
@@ -90,20 +90,20 @@ crashes Trap
             ByteRead::Byte { value } -> delimiter(reader, value, magnitude, digits, negative)
         }
     }
-    state delimiter(reader: &mut InputReader, byte: i32, magnitude: i32 in Wrapping,
+    machine delimiter(reader: &mut InputReader, byte: i32, magnitude: i32 in Wrapping,
                     digits: i32 in Wrapping, negative: bool) -> Token {
         transition byte == 32 || byte == 9 || byte == 10 || byte == 13 {
             true -> finish(magnitude, digits, negative)
             _ -> digit(reader, byte, magnitude, digits, negative)
         }
     }
-    state finish(magnitude: i32 in Wrapping, digits: i32 in Wrapping, negative: bool) -> Token {
+    machine finish(magnitude: i32 in Wrapping, digits: i32 in Wrapping, negative: bool) -> Token {
         transition digits > 0 {
             true -> signed_value(magnitude, negative)
             _ -> Token::Invalid
         }
     }
-    state signed_value(magnitude: i32 in Wrapping, negative: bool) -> Token {
+    machine signed_value(magnitude: i32 in Wrapping, negative: bool) -> Token {
         transition negative {
             true -> Token::Number { value: (0 - magnitude) as i32 }
             _ -> Token::Number { value: magnitude as i32 }
@@ -121,46 +121,46 @@ crashes Trap
         Token::Number { value } -> direction(reader, observations, value)
         _ -> false
     }
-    state direction(reader: &mut InputReader, observations: &mut Observations, value: i32) -> bool {
+    machine direction(reader: &mut InputReader, observations: &mut Observations, value: i32) -> bool {
         observations.direction = value;
         transition value == 1 || value == -1 {
             true -> size(reader, observations)
             _ -> false
         }
     }
-    state size(reader: &mut InputReader, observations: &mut Observations) -> bool {
+    machine size(reader: &mut InputReader, observations: &mut Observations) -> bool {
         let item: Token = block token(reader);
         transition item {
             Token::Number { value } -> count(reader, observations, value)
             _ -> false
         }
     }
-    state count(reader: &mut InputReader, observations: &mut Observations, value: i32) -> bool {
+    machine count(reader: &mut InputReader, observations: &mut Observations, value: i32) -> bool {
         observations.count = value as i32 in Wrapping;
         transition value >= 8 && value <= 32 {
             true -> noise(reader, observations)
             _ -> false
         }
     }
-    state noise(reader: &mut InputReader, observations: &mut Observations) -> bool {
+    machine noise(reader: &mut InputReader, observations: &mut Observations) -> bool {
         let item: Token = block token(reader);
         transition item {
             Token::Number { value } -> sigma(reader, observations, value)
             _ -> false
         }
     }
-    state sigma(reader: &mut InputReader, observations: &mut Observations, value: i32) -> bool {
+    machine sigma(reader: &mut InputReader, observations: &mut Observations, value: i32) -> bool {
         observations.sigma = F64::from_i32(value) / 1000.0;
         transition value >= 1 && value <= 10000 {
             true -> begin(reader, observations)
             _ -> false
         }
     }
-    state begin(reader: &mut InputReader, observations: &mut Observations) -> bool {
+    machine begin(reader: &mut InputReader, observations: &mut Observations) -> bool {
         let mut row: Row;
         transition { _ -> rows(reader, observations, &mut row, 0, 0) }
     }
-    state rows(reader: &mut InputReader, observations: &mut Observations, row: &mut Row,
+    machine rows(reader: &mut InputReader, observations: &mut Observations, row: &mut Row,
                position: i32 in Wrapping, field: i32 in Wrapping) -> bool {
         let item: Token = block token(reader);
         transition item {
@@ -169,21 +169,21 @@ crashes Trap
             _ -> false
         }
     }
-    state finish(reader: &InputReader, observations: &Observations,
+    machine finish(reader: &InputReader, observations: &Observations,
                  position: i32 in Wrapping, field: i32 in Wrapping) -> bool {
         transition position == observations.count && field == 0 && !reader.exhausted {
             true -> validate_design(observations)
             _ -> false
         }
     }
-    state capacity(reader: &mut InputReader, observations: &mut Observations, row: &mut Row,
+    machine capacity(reader: &mut InputReader, observations: &mut Observations, row: &mut Row,
                    position: i32 in Wrapping, field: i32 in Wrapping, value: i32) -> bool {
         transition position >= 0 && position < 32 && position < observations.count {
             true -> select(reader, observations, row, position, field, value)
             _ -> false
         }
     }
-    state select(reader: &mut InputReader, observations: &mut Observations, row: &mut Row,
+    machine select(reader: &mut InputReader, observations: &mut Observations, row: &mut Row,
                  position: i32 in Wrapping, field: i32 in Wrapping, value: i32) -> bool {
         transition field {
             0 -> dose(reader, observations, row, position, value)
@@ -192,7 +192,7 @@ crashes Trap
             _ -> response(reader, observations, row, position, value)
         }
     }
-    state dose(reader: &mut InputReader, observations: &mut Observations, row: &mut Row,
+    machine dose(reader: &mut InputReader, observations: &mut Observations, row: &mut Row,
                position: i32 in Wrapping, value: i32) -> bool {
         row.dose = value;
         transition value >= 0 && value <= 10000 {
@@ -200,7 +200,7 @@ crashes Trap
             _ -> false
         }
     }
-    state replicate(reader: &mut InputReader, observations: &mut Observations, row: &mut Row,
+    machine replicate(reader: &mut InputReader, observations: &mut Observations, row: &mut Row,
                     position: i32 in Wrapping, value: i32) -> bool {
         row.replicate = value;
         transition value >= 1 && value <= 32 {
@@ -208,7 +208,7 @@ crashes Trap
             _ -> false
         }
     }
-    state role(reader: &mut InputReader, observations: &mut Observations, row: &mut Row,
+    machine role(reader: &mut InputReader, observations: &mut Observations, row: &mut Row,
                position: i32 in Wrapping, value: i32) -> bool {
         row.role = value;
         transition value >= 0 && value <= 2 {
@@ -216,7 +216,7 @@ crashes Trap
             _ -> false
         }
     }
-    state response(reader: &mut InputReader, observations: &mut Observations, row: &mut Row,
+    machine response(reader: &mut InputReader, observations: &mut Observations, row: &mut Row,
                    position: i32 in Wrapping, value: i32) -> bool {
         transition value >= -20000 && value <= 120000
             && ((row.role == 0 && row.dose > 0) || (row.role != 0 && row.dose == 0)) {
@@ -224,7 +224,7 @@ crashes Trap
             _ -> false
         }
     }
-    state store(reader: &mut InputReader, observations: &mut Observations, row: &mut Row,
+    machine store(reader: &mut InputReader, observations: &mut Observations, row: &mut Row,
                 position: i32 in Wrapping, value: i32) -> bool {
         observations.dose[position] = row.dose;
         observations.replicate[position] = row.replicate;
@@ -238,20 +238,20 @@ crashes Trap
 // would silently double its statistical weight, so it is an input refusal.
 machine validate_design(observations: &Observations) -> bool {
     transition { _ -> scan(observations, 0, 0) }
-    state scan(observations: &Observations, position: i32 in Wrapping, distinct: i32 in Wrapping) -> bool {
+    machine scan(observations: &Observations, position: i32 in Wrapping, distinct: i32 in Wrapping) -> bool {
         transition position >= 0 && position < 32 && position < observations.count {
             true -> compare(observations, position, 0, distinct, false)
             _ -> (distinct >= 5)
         }
     }
-    state compare(observations: &Observations, position: i32 in Wrapping,
+    machine compare(observations: &Observations, position: i32 in Wrapping,
                   prior: i32 in Wrapping, distinct: i32 in Wrapping, seen_dose: bool) -> bool {
         transition prior >= 0 && prior < 32 && prior < position {
             true -> pair(observations, position, prior, distinct, seen_dose)
             _ -> unique(observations, position, distinct, seen_dose)
         }
     }
-    state pair(observations: &Observations, position: i32 in Wrapping,
+    machine pair(observations: &Observations, position: i32 in Wrapping,
                prior: i32 in Wrapping, distinct: i32 in Wrapping, seen_dose: bool) -> bool {
         let same: bool = observations.dose[position] == observations.dose[prior]
             && observations.role[position] == observations.role[prior];
@@ -260,7 +260,7 @@ machine validate_design(observations: &Observations) -> bool {
             _ -> compare(observations, position, prior + 1, distinct, seen_dose || same)
         }
     }
-    state unique(observations: &Observations, position: i32 in Wrapping,
+    machine unique(observations: &Observations, position: i32 in Wrapping,
                  distinct: i32 in Wrapping, seen_dose: bool) -> bool {
         transition observations.role[position] == 0 && !seen_dose {
             true -> scan(observations, position + 1, distinct + 1)

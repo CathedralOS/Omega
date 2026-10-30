@@ -18,6 +18,10 @@ pub(crate) fn lower_reference_completion_regions(
     parameters: &[StructuralParameterDeclaration],
     evaluation: &Evaluation,
     operations: &OperationBuffer,
+    mut owner_regions: impl FnMut(
+        &mut terminal_psi::TerminalIdentityTableBuilder,
+        &checked_trees::CheckedReferenceOwnerCleanup,
+    ) -> Result<Vec<CleanupRegion>, LoweringError>,
     mut result_storage: impl FnMut(u32) -> Result<StructuralValueStorage, LoweringError>,
 ) -> Result<Vec<CleanupRegion>, LoweringError> {
     let mut carriers = Vec::new();
@@ -29,12 +33,13 @@ pub(crate) fn lower_reference_completion_regions(
             path,
             case_conditions,
             defer_to_exit: true,
+            owner_cleanups,
             ..
         } = operation
         else {
             continue;
         };
-        let storage = evaluation.value_storage(source, parameters, &mut result_storage)?;
+        let storage = evaluation.cleanup_value_storage(source, parameters, &mut result_storage)?;
         let suffix =
             crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
                 identities,
@@ -78,30 +83,43 @@ pub(crate) fn lower_reference_completion_regions(
         };
         if !carriers
             .iter()
-            .any(|region: &CleanupRegion| region.action == action)
+            .any(|(region, _): &(CleanupRegion, Vec<CleanupRegion>)| region.action == action)
         {
-            carriers.push(CleanupRegion {
-                declaration_order: None,
-                // Capture completion operands first, then retire only storage
-                // still resident on that selected exit. An owned state/return
-                // transfer continues the descriptor rather than destroying it.
-                selected_region: Some({
-                    terminal_psi::StructuralArgument {
-                        place,
-                        path,
-                        access: terminal_psi::StructuralAccess::Owned,
-                    }
-                }),
-                conditions,
-                action,
-            });
+            let mut owners = Vec::new();
+            for owner in checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .cleanup_control
+                .reference_owner_cleanups
+                .span_or_empty(*owner_cleanups)
+            {
+                owners.extend(owner_regions(identities, owner)?);
+            }
+            carriers.push((
+                CleanupRegion {
+                    declaration_order: None,
+                    // Capture completion operands before selecting the still-resident
+                    // region. A transfer preserves its descriptor on the edge.
+                    selected_region: Some({
+                        terminal_psi::StructuralArgument {
+                            place,
+                            path,
+                            access: terminal_psi::StructuralAccess::Owned,
+                        }
+                    }),
+                    conditions,
+                    action,
+                },
+                owners,
+            ));
         }
     }
     // Authored disposition owns the same region, not a second death. Splice
     // it at the checked descriptor's dependency position before reconciling
     // production cleanup; this also keeps ordinary scalar returns from
     // automatically discarding a descriptor already disposed by this exit.
-    for carrier in &mut carriers {
+    for (carrier, _) in &mut carriers {
         if let Some(position) = authored_regions.iter().position(|region| {
             region.action.place() == carrier.action.place()
                 && region.action.path() == carrier.action.path()
@@ -109,6 +127,11 @@ pub(crate) fn lower_reference_completion_regions(
             *carrier = authored_regions.remove(position);
         }
     }
-    carriers.extend(authored_regions);
-    Ok(carriers)
+    let mut regions = Vec::new();
+    for (carrier, owners) in carriers {
+        regions.push(carrier);
+        regions.extend(owners);
+    }
+    regions.extend(authored_regions);
+    Ok(regions)
 }

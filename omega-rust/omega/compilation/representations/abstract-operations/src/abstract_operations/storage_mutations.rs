@@ -44,18 +44,8 @@ impl AbstractOperation {
                 .location()
                 .map(|location| region(location.root, &location.path, Some(location.field)))
                 .unwrap_or_default(),
-            Self::CallStructural {
-                structural_arguments,
-                ..
-            }
-            | Self::BoundaryCall {
-                structural_arguments,
-                ..
-            }
-            | Self::ExternalCompletion {
-                structural_arguments,
-                ..
-            } => exclusive(structural_arguments),
+            // Every invocation form hands its structural arguments over, and a
+            // non-invocation carries none, so one delegation covers the roster.
             Self::EstablishReference { source, .. }
             | Self::EstablishPlacedReference { source, .. }
             | Self::EstablishElementView { source, .. } => exclusive(std::slice::from_ref(source)),
@@ -104,7 +94,7 @@ impl AbstractOperation {
                 field,
                 ..
             } => region(source.place(), path, *field),
-            _ => Vec::new(),
+            _ => exclusive(self.invocation_arguments()),
         }
     }
 }

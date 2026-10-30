@@ -23,10 +23,10 @@ machine Main::main(main: &mut Main) {
         true -> twice(main)
         _ -> done()
     }
-    state twice(main: &mut Main) {
+    machine twice(main: &mut Main) {
         let first: i32 = Stack::pop(&mut main.a);
         let second: i32 = Stack::pop(&mut main.a);
         transition { _ -> done() }
     }
-    state done() {}
+    machine done() {}
 }

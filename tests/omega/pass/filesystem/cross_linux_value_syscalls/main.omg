@@ -28,7 +28,7 @@ machine Main::main(main: &mut Main) reaches Console + DirectoryEnumeration + Fil
     // four-argument openat adapter without leaving a filesystem artifact.
     main.fd = PosixFilesystemHost::open_create("/dev/null", 65, 438);
     transition main.fd >= 0 { true -> write_null(main) _ -> fail_open_create(main) }
-    state write_null(main: &mut Main) {
+    machine write_null(main: &mut Main) {
         main.count = PosixFilesystemHost::write(main.fd, "omega-linux\n");
         main.rc = PosixFilesystemHost::close(main.fd);
         transition main.count == 12 && main.rc == 0 {
@@ -36,15 +36,15 @@ machine Main::main(main: &mut Main) reaches Console + DirectoryEnumeration + Fil
             false -> fail_write(main)
         }
     }
-    state open_hostname(main: &mut Main) {
+    machine open_hostname(main: &mut Main) {
         main.fd = PosixFilesystemHost::open("/etc/hostname", 0);
         transition main.fd >= 0 { true -> stat_hostname(main) _ -> fail_open(main) }
     }
-    state stat_hostname(main: &mut Main) {
+    machine stat_hostname(main: &mut Main) {
         main.rc = PosixFilesystemHost::read_file_metadata(main.fd, &mut main.metadata);
         transition main.rc == 0 { true -> read_hostname(main) _ -> fail_stat(main) }
     }
-    state read_hostname(main: &mut Main) {
+    machine read_hostname(main: &mut Main) {
         main.capacity = 64;
         main.count = PosixFilesystemHost::read(main.fd, &mut main.buffer, main.capacity);
         main.rc = PosixFilesystemHost::close(main.fd);
@@ -53,17 +53,17 @@ machine Main::main(main: &mut Main) reaches Console + DirectoryEnumeration + Fil
             false -> fail_read(main)
         }
     }
-    state open_directory(main: &mut Main) {
+    machine open_directory(main: &mut Main) {
         main.fd = PosixFilesystemHost::open("/tmp", 0);
         main.position = 0;
         transition main.fd >= 0 { true -> read_directory(main) _ -> fail_read_dir(main) }
     }
-    state read_directory(main: &mut Main) {
+    machine read_directory(main: &mut Main) {
         main.count = PosixFilesystemHost::read_dir(main.fd, &mut main.buffer, 512, &mut main.position);
         main.rc = PosixFilesystemHost::close(main.fd);
         transition main.count >= 0 && main.rc == 0 { true -> classify_missing(main) _ -> fail_read_dir(main) }
     }
-    state classify_missing(main: &mut Main) {
+    machine classify_missing(main: &mut Main) {
         let options: OpenOptions = OpenOptions { read: true };
         let result: OpenResult = block Filesystem::open_with(&mut main.semantic_fs, "/omega_definitely_absent_linux", options);
         transition result {
@@ -71,55 +71,55 @@ machine Main::main(main: &mut Main) reaches Console + DirectoryEnumeration + Fil
             _ -> fail_error_kind(main)
         }
     }
-    state check_missing(main: &mut Main, kind: ErrorKind) {
+    machine check_missing(main: &mut Main, kind: ErrorKind) {
         transition kind { ErrorKind::NotFound -> classify_bad_fd(main) _ -> fail_error_kind(main) }
     }
-    state classify_bad_fd(main: &mut Main) {
+    machine classify_bad_fd(main: &mut Main) {
         let result: IoResult = block Filesystem::read(&mut main.semantic_fs, File { handle: 0 }, &mut main.buffer, 1);
         transition result {
             IoResult::Error { kind } -> check_bad_fd(main, kind)
             _ -> fail_error_kind(main)
         }
     }
-    state check_bad_fd(main: &mut Main, kind: ErrorKind) {
+    machine check_bad_fd(main: &mut Main, kind: ErrorKind) {
         transition kind { ErrorKind::BadDescriptor -> remove_missing(main) _ -> fail_error_kind(main) }
     }
-    state remove_missing(main: &mut Main) {
+    machine remove_missing(main: &mut Main) {
         let result: UnitResult = block Filesystem::remove(&mut main.semantic_fs, "/omega_definitely_absent_linux");
         transition result {
             UnitResult::Error { kind } -> check_remove_missing(main, kind)
             _ -> fail_error_kind(main)
         }
     }
-    state check_remove_missing(main: &mut Main, kind: ErrorKind) {
+    machine check_remove_missing(main: &mut Main, kind: ErrorKind) {
         transition kind { ErrorKind::NotFound -> read_missing_directory(main) _ -> fail_error_kind(main) }
     }
-    state read_missing_directory(main: &mut Main) {
+    machine read_missing_directory(main: &mut Main) {
         let result: DirEntryResult = block Filesystem::read_dir_nth(&mut main.semantic_fs, "/omega_definitely_absent_linux", 0);
         transition result {
             DirEntryResult::Error { kind } -> check_directory_missing(main, kind)
             _ -> fail_error_kind(main)
         }
     }
-    state check_directory_missing(main: &mut Main, kind: ErrorKind) {
+    machine check_directory_missing(main: &mut Main, kind: ErrorKind) {
         transition kind { ErrorKind::NotFound -> remove_missing_tree(main) _ -> fail_error_kind(main) }
     }
-    state remove_missing_tree(main: &mut Main) {
+    machine remove_missing_tree(main: &mut Main) {
         let result: UnitResult = block Filesystem::remove_dir_all(&mut main.semantic_fs, "/omega_definitely_absent_linux");
         transition result {
             UnitResult::Error { kind } -> check_tree_missing(main, kind)
             _ -> fail_error_kind(main)
         }
     }
-    state check_tree_missing(main: &mut Main, kind: ErrorKind) {
+    machine check_tree_missing(main: &mut Main, kind: ErrorKind) {
         transition kind { ErrorKind::NotFound -> good(main) _ -> fail_error_kind(main) }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state fail_open_create(main: &mut Main) { Console::exit_process(1); }
-    state fail_write(main: &mut Main) { Console::exit_process(2); }
-    state fail_open(main: &mut Main) { Console::exit_process(3); }
-    state fail_read(main: &mut Main) { Console::exit_process(4); }
-    state fail_stat(main: &mut Main) { Console::exit_process(5); }
-    state fail_read_dir(main: &mut Main) { Console::exit_process(6); }
-    state fail_error_kind(main: &mut Main) { Console::exit_process(7); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine fail_open_create(main: &mut Main) { Console::exit_process(1); }
+    machine fail_write(main: &mut Main) { Console::exit_process(2); }
+    machine fail_open(main: &mut Main) { Console::exit_process(3); }
+    machine fail_read(main: &mut Main) { Console::exit_process(4); }
+    machine fail_stat(main: &mut Main) { Console::exit_process(5); }
+    machine fail_read_dir(main: &mut Main) { Console::exit_process(6); }
+    machine fail_error_kind(main: &mut Main) { Console::exit_process(7); }
 }

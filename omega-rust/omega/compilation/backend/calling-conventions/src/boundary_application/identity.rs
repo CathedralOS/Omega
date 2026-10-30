@@ -12,7 +12,7 @@ impl BoundaryCallingApplication {
             .span(self.signature.native_parameter_rows)
             .ok_or("native telescope has stale row storage")?;
         let mut strong =
-            crate::digest_encoder::DomainDigestEncoder::new(b"omega.boundary-plan-application.v5");
+            crate::digest_encoder::DomainDigestEncoder::new(b"omega.boundary-plan-application.v6");
         strong.string(&self.requirement_identity);
         strong.byte(match self.target.architecture {
             target::Architecture::Aarch64 => 1,
@@ -120,6 +120,43 @@ impl BoundaryCallingApplication {
         for entry in catalog {
             entry.field_offset(self.target)?;
             entry.encode(&mut strong)?;
+        }
+        let bindings = self
+            .signature
+            .callback_bindings
+            .span(self.signature.callback_binding_rows)
+            .ok_or("callback application has stale binder correspondence")?;
+        strong.len(bindings.len());
+        for (position, binding) in bindings.iter().enumerate() {
+            if binding.requirement_identity.is_empty()
+                || crate::callback_requirement_id(&binding.requirement_identity)
+                    != binding.requirement
+                || bindings[..position].iter().any(|prior| {
+                    prior.binder == binding.binder
+                        || prior.static_machine_ordinal >= binding.static_machine_ordinal
+                })
+            {
+                return Err("callback application has invalid exact binder correspondence".into());
+            }
+            strong.raw(&binding.binder.get().to_le_bytes());
+            strong.raw(&binding.requirement.get().to_le_bytes());
+            strong.raw(&binding.static_machine_ordinal.to_le_bytes());
+            strong.string(&binding.requirement_identity);
+            strong.byte(u8::from(binding.invokes_synchronously));
+        }
+        if bindings.len() != self.callback_context.binders.len()
+            || bindings.iter().any(|binding| {
+                self.callback_context
+                    .binders
+                    .iter()
+                    .filter(|row| {
+                        row.binder == binding.binder && row.requirement == binding.requirement
+                    })
+                    .count()
+                    != 1
+            })
+        {
+            return Err("callback application changed its complete binder correspondence".into());
         }
         strong.raw(&self.plan.contract_commitment_digest());
         let commitment: [u8; 32] = strong.finish().into();

@@ -104,6 +104,26 @@ pub(crate) fn scalar_tag_constraint(
         })
 }
 
+/// An entry membership on an explicit scalar subject uses the same exact tag
+/// classification as a qualified type. Generic tag carriers take the subject's
+/// primitive type; their indices need not be integer predicate substitutions.
+pub fn scalar_membership_is_tag(
+    program: &dyn crate::CheckingInput,
+    membership: &typed_trees::domain::ProofMembershipFact,
+    primitive: PrimitiveType,
+) -> bool {
+    let arguments = program
+        .type_reference_table
+        .type_reference_handles(membership.domain_arguments);
+    arguments.len() == membership.domain_arguments.len()
+        && program
+            .domain_definition(membership.domain_symbol)
+            .is_some_and(|declaration| {
+                exact_instance(program, declaration, arguments, membership.semantic_domain)
+                    && vacuous_scalar_tag(program, declaration, primitive, &mut Vec::new())
+            })
+}
+
 /// Declared scalar domains whose complete meaning has a subject-bound
 /// predicate. Membership still needs proof at each arrival; this classification
 /// neither identifies equal theories nor grants a routed qualification.
@@ -133,7 +153,7 @@ fn vacuous_scalar_tag(
     if !declaration.symbol.is_valid()
         || !declaration.semantic_id.is_valid()
         || active.contains(&declaration.symbol)
-        || declaration.predicate_body.is_present()
+        || declaration.predicate_presence.is_present()
         || !declaration.facts.is_empty()
         || !declaration.establishment_routes.is_empty()
         || declaration.semantic_roles.arithmetic_policy.is_some()

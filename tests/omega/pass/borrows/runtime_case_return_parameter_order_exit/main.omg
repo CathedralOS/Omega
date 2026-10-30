@@ -15,13 +15,13 @@ machine choose(present: bool) -> bool {
     let first: Token = make(40);
     let response: Reply = reply(present);
     transition { _ -> inspect(response, 42, first, true, last) }
-    state inspect(response: Reply, expected: i32, first: Token, enabled: bool, last: Token) -> bool {
+    machine inspect(response: Reply, expected: i32, first: Token, enabled: bool, last: Token) -> bool {
         transition response {
             Reply::Present { value } -> observe(last, first, value, expected, enabled)
             _ -> (false)
         }
     }
-    state observe(last: Token, first: Token, value: Token, expected: i32, enabled: bool) -> bool {
+    machine observe(last: Token, first: Token, value: Token, expected: i32, enabled: bool) -> bool {
         enabled && last.value == 44 && first.value == 40 && value.value == expected
     }
 }
@@ -32,6 +32,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

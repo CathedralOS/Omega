@@ -2,7 +2,7 @@
 
 use validation::CanonicalPlace;
 
-use super::{exclusive_storage_chain, place_spelling, resolve_storage_place};
+use super::{StorageWalk, place_spelling};
 
 use super::boundary_checks::*;
 
@@ -12,7 +12,6 @@ use checked_trees::facts::StorageWindowInvocation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
-use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 
 /// One absent place inside exclusive borrowed storage. `root`/`path` name the
@@ -52,10 +51,7 @@ impl<'facts> BorrowedStorageWindows<'facts> {
     /// window state that checks reads, moves, invocations and restoration.
     pub(in crate::checks::multiplicity) fn replacement_death(
         &self,
-        program: &dyn ::validation::CheckingInput,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        statements: &[StatementNode],
+        walk: &StorageWalk<'_>,
         statement_index: usize,
         assignment: &typed_trees::statement::TableAssignment,
     ) -> Option<(
@@ -63,6 +59,9 @@ impl<'facts> BorrowedStorageWindows<'facts> {
         TypeReferenceHandle,
         Vec<Vec<facts::PlaceSegment>>,
     )> {
+        let program = walk.program;
+        let machine = walk.machine;
+        let state = walk.state;
         let target = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,
@@ -85,14 +84,7 @@ impl<'facts> BorrowedStorageWindows<'facts> {
             })
         });
         if !borrowed
-            || !exclusive_storage_chain(
-                program,
-                machine,
-                state,
-                statement_index,
-                target.root,
-                &target.segments,
-            )
+            || !walk.exclusive_storage_chain(statement_index, target.root, &target.segments)
         {
             return None;
         }
@@ -108,15 +100,7 @@ impl<'facts> BorrowedStorageWindows<'facts> {
             return None;
         }
         let symbol = target.root.as_symbol()?;
-        let (root, path) = resolve_storage_place(
-            program,
-            machine,
-            state,
-            statements,
-            statement_index,
-            symbol,
-            &target.segments,
-        );
+        let (root, path) = walk.resolve_storage_place(statement_index, symbol, &target.segments);
         if self.open.iter().any(|absent| {
             absent.root == root
                 && storage_path_contains(program, self.captures, &absent.path, &path)
@@ -149,14 +133,14 @@ impl<'facts> BorrowedStorageWindows<'facts> {
     /// recorded.
     pub(in crate::checks::multiplicity) fn open(
         &mut self,
-        program: &dyn ::validation::CheckingInput,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        statements: &[StatementNode],
+        walk: &StorageWalk<'_>,
         statement_index: usize,
         event: &crate::flow::DiscoveredMoveEvent,
         path: &[facts::PlaceSegment],
     ) -> Option<Diagnostic> {
+        let program = walk.program;
+        let machine = walk.machine;
+        let state = walk.state;
         let Some(root_symbol) = event.root.as_symbol() else {
             return Some(borrowed_transfer_diagnostic(
                 machine,
@@ -168,37 +152,22 @@ impl<'facts> BorrowedStorageWindows<'facts> {
         // `&write` local, a shared intermediate field); the resolved chain
         // exposes the referent's receiver and interior links. Both must be
         // exclusively mutable for an extraction to open a window.
-        if !exclusive_storage_chain(program, machine, state, statement_index, event.root, path) {
+        if !walk.exclusive_storage_chain(statement_index, event.root, path) {
             return Some(borrowed_transfer_diagnostic(
                 machine,
                 state,
                 statement_index,
             ));
         }
-        let (root, storage_path) = resolve_storage_place(
-            program,
-            machine,
-            state,
-            statements,
-            statement_index,
-            root_symbol,
-            path,
-        );
-        if !exclusive_storage_chain(
-            program,
-            machine,
-            state,
-            statement_index,
-            root,
-            &storage_path,
-        ) {
+        let (root, storage_path) = walk.resolve_storage_place(statement_index, root_symbol, path);
+        if !walk.exclusive_storage_chain(statement_index, root, &storage_path) {
             return Some(borrowed_transfer_diagnostic(
                 machine,
                 state,
                 statement_index,
             ));
         }
-        let spelling = place_spelling(program, machine, state, root, &storage_path);
+        let spelling = place_spelling(program, root, &storage_path);
         if let Some(absent) = self.open.iter().find(|absent| {
             absent.root == root
                 && storage_path_compatibility(program, self.captures, &storage_path, &absent.path).0
@@ -243,10 +212,7 @@ impl<'facts> BorrowedStorageWindows<'facts> {
     /// whole-owner moves (empty paths) the borrowed gate never sees.
     pub(in crate::checks::multiplicity) fn refuse_move_over_open(
         &self,
-        program: &dyn ::validation::CheckingInput,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        statements: &[StatementNode],
+        walk: &StorageWalk<'_>,
         statement_index: usize,
         event: &crate::flow::DiscoveredMoveEvent,
         path: &[facts::PlaceSegment],
@@ -255,25 +221,18 @@ impl<'facts> BorrowedStorageWindows<'facts> {
         if self.open.is_empty() {
             return;
         }
+        let program = walk.program;
         let Some(root_symbol) = event.root.as_symbol() else {
             return;
         };
-        let (root, storage_path) = resolve_storage_place(
-            program,
-            machine,
-            state,
-            statements,
-            statement_index,
-            root_symbol,
-            path,
-        );
+        let (root, storage_path) = walk.resolve_storage_place(statement_index, root_symbol, path);
         let Some(absent) = self.open.iter().find(|absent| {
             absent.root == root
                 && storage_path_compatibility(program, self.captures, &storage_path, &absent.path).0
         }) else {
             return;
         };
-        let spelling = place_spelling(program, machine, state, root, &storage_path);
+        let spelling = place_spelling(program, root, &storage_path);
         diagnostics.push(Diagnostic::error(format!(
             "cannot transfer `{spelling}` while `{}` is absent: the value moved out of \
              borrowed storage at statement {} has not been replaced",
@@ -310,10 +269,7 @@ impl<'facts> BorrowedStorageWindows<'facts> {
 
     pub(in crate::checks::multiplicity) fn check_use(
         &self,
-        program: &dyn ::validation::CheckingInput,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        statements: &[StatementNode],
+        walk: &StorageWalk<'_>,
         statement_index: usize,
         use_place: &CanonicalPlace,
         diagnostics: &mut Vec<Diagnostic>,
@@ -321,25 +277,19 @@ impl<'facts> BorrowedStorageWindows<'facts> {
         if self.open.is_empty() {
             return;
         }
+        let program = walk.program;
         let Some(root_symbol) = use_place.root.as_symbol() else {
             return;
         };
-        let (root, storage_path) = resolve_storage_place(
-            program,
-            machine,
-            state,
-            statements,
-            statement_index,
-            root_symbol,
-            &use_place.segments,
-        );
+        let (root, storage_path) =
+            walk.resolve_storage_place(statement_index, root_symbol, &use_place.segments);
         let Some(absent) = self.open.iter().find(|absent| {
             absent.root == root
                 && storage_path_compatibility(program, self.captures, &storage_path, &absent.path).0
         }) else {
             return;
         };
-        let spelling = place_spelling(program, machine, state, root, &storage_path);
+        let spelling = place_spelling(program, root, &storage_path);
         diagnostics.push(Diagnostic::error(format!(
             "cannot use `{spelling}` while `{}` is absent from borrowed storage: the \
                  value moved out at statement {} must be restored first",
@@ -352,10 +302,7 @@ impl<'facts> BorrowedStorageWindows<'facts> {
     /// exact type. Any other overlapping store touches absent storage.
     pub(in crate::checks::multiplicity) fn check_repair(
         &mut self,
-        program: &dyn ::validation::CheckingInput,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        statements: &[StatementNode],
+        walk: &StorageWalk<'_>,
         statement_index: usize,
         assignment: &typed_trees::statement::TableAssignment,
         diagnostics: &mut Vec<Diagnostic>,
@@ -363,6 +310,9 @@ impl<'facts> BorrowedStorageWindows<'facts> {
         if self.open.is_empty() {
             return;
         }
+        let program = walk.program;
+        let machine = walk.machine;
+        let state = walk.state;
         let Some(target) = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,
@@ -374,15 +324,8 @@ impl<'facts> BorrowedStorageWindows<'facts> {
         let Some(root_symbol) = target.root.as_symbol() else {
             return;
         };
-        let (root, target_path) = resolve_storage_place(
-            program,
-            machine,
-            state,
-            statements,
-            statement_index,
-            root_symbol,
-            &target.segments,
-        );
+        let (root, target_path) =
+            walk.resolve_storage_place(statement_index, root_symbol, &target.segments);
         let mut repaired = Vec::new();
         for (index, absent) in self.open.iter().enumerate() {
             if absent.root != root
@@ -394,7 +337,7 @@ impl<'facts> BorrowedStorageWindows<'facts> {
                 repaired.push(index);
                 continue;
             }
-            let spelling = place_spelling(program, machine, state, root, &target_path);
+            let spelling = place_spelling(program, root, &target_path);
             diagnostics.push(Diagnostic::error(format!(
                 "cannot store `{spelling}` while `{}` is absent: the value moved out of \
                  borrowed storage at statement {} must be restored as a whole",

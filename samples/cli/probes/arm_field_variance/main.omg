@@ -82,11 +82,11 @@ machine pack(first: i32, second: i32, swap: bool) -> Pair {
         _ -> right_first(first, second)
     }
 
-    state left_first(a: i32, b: i32) -> Pair {
+    machine left_first(a: i32, b: i32) -> Pair {
         Pair { left: Receipt { code: a }, right: Receipt { code: b } }
     }
 
-    state right_first(a: i32, b: i32) -> Pair {
+    machine right_first(a: i32, b: i32) -> Pair {
         Pair { left: Receipt { code: b }, right: Receipt { code: a } }
     }
 }
@@ -98,8 +98,8 @@ machine verify(correct: bool) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine Main::main(main: &mut Main) reaches Acknowledgement crashes Trap {

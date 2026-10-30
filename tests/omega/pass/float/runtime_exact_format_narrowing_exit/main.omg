@@ -21,6 +21,6 @@ machine main() crashes Trap {
     transition value == 3.75f32 && negative == -3.75f32 && retained == 0.1f32 {
         true -> done() false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

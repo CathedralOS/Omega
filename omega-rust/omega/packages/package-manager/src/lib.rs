@@ -37,10 +37,13 @@ pub use build_session::{PackageBuildSession, PackageSourceBindings};
 
 pub use package_manager::{
     PackageCommand, PackageCommandError, PackageCommandKind, PackageCommandOptions,
-    PackageCommandOutcome, PackageCommandReview, PackageCommandReviewRequest, PackageCommandStatus,
-    PackageCommandTransaction, PreparedPackageCommand, discard_package_review,
+    PackageCommandOutcome, PackageCommandPreparation, PackageCommandReview,
+    PackageCommandReviewRequest, PackageCommandStatus, PackageCommandTransaction,
+    PreparedPackageCommand, discard_package_review,
 };
 
 // The unit tests compile real packages on several threads; mimalloc's
 // per-thread heaps avoid the system allocator's zone locks. Test-only: the
 // product keeps the system allocator.
+
+pub use resolution::source::retain_compiler_source_storage;

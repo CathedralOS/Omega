@@ -26,7 +26,7 @@
 
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedUnitScalarResultBindingPlan,
-    CheckedUnitStructuralPathSegment, PrimitiveType, StatementNode,
+    CheckedUnitStructuralPathSegment, PrimitiveType,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use checked_trees::{
@@ -229,7 +229,13 @@ pub(super) fn once_event(
     )?;
     Some(CheckedAtomicAccessPlan {
         statement_index,
-        resident_range_decision: arena::Handle::invalid(),
+        resident_range_decision: facts.proof.integer_assignment_at(
+            machine.symbol,
+            state.symbol,
+            statement_index as usize,
+            carrier.place,
+            local.initial_value,
+        ),
         receiver: place.receiver,
         receiver_root_type_identity: place.receiver_root_type_identity,
         field_case: place.field_case,
@@ -443,6 +449,7 @@ fn place(
         return None;
     }
     let receiver = CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source: CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
         path,
         type_identity: program.normalized_type_identity(reference),

@@ -1,0 +1,1 @@
+cannot prove ensures contract for exit from stale at statement 1: result > 0

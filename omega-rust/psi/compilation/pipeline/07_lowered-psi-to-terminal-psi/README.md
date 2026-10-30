@@ -25,7 +25,7 @@ source-correspondence audits; ordinary production does not rerun it after the
 emitter has already constructed the call and its policy adapter.
 
 Receipt fields remain private. Source custody cannot replace canonical coverage
-or grant downstream realization authority. The product coordinator in
-[terminal-production](../../../../omega/compilation/driver/terminal-production/README.md) sequences
+or grant downstream realization authority. The Psi production owner in
+[terminal-production](../../driver/terminal-production/README.md) sequences
 optimization, artifact publication and source receipt construction. Its test-only
 dependency here exercises that real sequence; production dependencies stay in Psi.

@@ -41,8 +41,9 @@ use crate::object_artifact::replay::unit::write_only_primitive_store::validate_u
 use crate::object_artifact::{
     ObjectError, ObjectScalarCallStack, ObjectScalarStack, ObjectUnitCallStack, ObjectUnitStack,
 };
+use crate::order::strictly_increasing;
 use machine_code::MachineCodeFunction;
-use machine_code::{MachineCodePlan, SemanticCodeSite};
+use machine_code::{BoundarySettlementRecord, MachineCodePlan, SemanticCodeSite};
 use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
 use target::{Architecture, NativeTarget};
 use target_operations::{BoundaryRealization, CallSiteOwner};
@@ -150,6 +151,33 @@ struct AffineParameterFacts<'a> {
     projected_affine_parameter: bool,
 }
 
+/// The one spelling of the hosted-write custody predicate: a
+/// `HostedWriteByteI32` settlement whose i32 argument spills from the last
+/// preceding scalar home producer. The stack phase reserves the scratch slot
+/// it implies and the settlement phase admits the settlement by it.
+fn hosted_write_is_exact(
+    plan: &MachineCodePlan,
+    function: &MachineCodeFunction,
+    settlement: &BoundarySettlementRecord,
+) -> bool {
+    hosted_write_byte_custody_is_exact(
+        plan.target,
+        settlement,
+        &function.boundary_settlements,
+        &function.unit_integer_constants,
+        &function.unit_scalar_homes,
+        |home, consumer_ordinal, consumer_offset| {
+            crate::object_artifact::replay::unit::scalar_call_custody::exact_preceding_internal_unit_scalar_home_producer_count(
+                &function.internal_unit_scalar_calls,
+                home,
+                consumer_ordinal,
+                consumer_offset,
+            )
+        },
+        Some(&function.bytes),
+    )
+}
+
 /// The function's Unit stack evidence, replayed against its bytes; a hosted
 /// write settlement reserves its scratch slot on top of the frame.
 fn validate_unit_stack(
@@ -168,24 +196,11 @@ fn validate_unit_stack(
             )
         })
         .transpose()?;
-    if function.boundary_settlements.iter().any(|settlement| {
-        hosted_write_byte_custody_is_exact(
-            plan.target,
-            settlement,
-            &function.boundary_settlements,
-            &function.unit_integer_constants,
-            &function.unit_scalar_homes,
-            |home, consumer_ordinal, consumer_offset| {
-                crate::object_artifact::replay::unit::scalar_call_custody::exact_preceding_internal_unit_scalar_home_producer_count(
-                    &function.internal_unit_scalar_calls,
-                    home,
-                    consumer_ordinal,
-                    consumer_offset,
-                )
-            },
-            Some(&function.bytes),
-        )
-    }) {
+    if function
+        .boundary_settlements
+        .iter()
+        .any(|row| hosted_write_is_exact(plan, function, row))
+    {
         let stack = validated_function_stack
             .as_mut()
             .ok_or(ObjectError::UnaccountedTerminalStack(function.machine))?;
@@ -303,7 +318,9 @@ fn validate_call_stacks(
             CallSiteOwner::Operation(operation) => {
                 function.provenance.operations.contains(&operation)
             }
-            CallSiteOwner::ExternalCompletion(edge) | CallSiteOwner::CleanupAction { edge, .. } => {
+            CallSiteOwner::InvokeNoNormal(edge)
+            | CallSiteOwner::ExternalCompletion(edge)
+            | CallSiteOwner::CleanupAction { edge, .. } => {
                 function.provenance.edges.contains(&edge)
             }
         };
@@ -1001,11 +1018,7 @@ fn validate_function_shape(
     if function.bytes.is_empty() {
         return Err(ObjectError::EmptyFunction(function.machine));
     }
-    if function
-        .internal_calls
-        .windows(2)
-        .any(|pair| pair[0].offset >= pair[1].offset)
-    {
+    if !strictly_increasing(&function.internal_calls, |row| row.offset) {
         return Err(ObjectError::NonCanonicalInternalCallOrder(function.machine));
     }
     if (function.unit_affine_cleanup.is_some()
@@ -1018,11 +1031,7 @@ fn validate_function_shape(
             function.machine,
         ));
     }
-    if function
-        .foreign_calls
-        .windows(2)
-        .any(|pair| pair[0].offset >= pair[1].offset)
-    {
+    if !strictly_increasing(&function.foreign_calls, |row| row.offset) {
         return Err(ObjectError::NonCanonicalForeignCallOrder(function.machine));
     }
     Ok(())
@@ -1043,6 +1052,7 @@ fn validate_foreign_calls(
             CallSiteOwner::Operation(operation) => {
                 function.provenance.operations.contains(&operation)
             }
+            CallSiteOwner::InvokeNoNormal(_) => false,
             CallSiteOwner::ExternalCompletion(edge) => function.provenance.edges.contains(&edge),
             CallSiteOwner::CleanupAction { edge, .. } => function.provenance.edges.contains(&edge),
         };
@@ -1134,9 +1144,8 @@ fn validate_foreign_calls(
 /// Semantic code attribution rows are ordered, inside the function, and name
 /// each provenance site once.
 fn validate_semantic_code_attribution(function: &MachineCodeFunction) -> Result<(), ObjectError> {
-    if function.semantic_code_attribution.windows(2).any(|pair| {
-        (pair[0].operation_ordinal, pair[0].code_offset)
-            >= (pair[1].operation_ordinal, pair[1].code_offset)
+    if !strictly_increasing(&function.semantic_code_attribution, |row| {
+        (row.operation_ordinal, row.code_offset)
     }) {
         return Err(ObjectError::NonCanonicalSemanticCodeAttributionOrder(
             function.machine,
@@ -1171,9 +1180,8 @@ fn validate_port_effects(
     plan: &MachineCodePlan,
     function: &MachineCodeFunction,
 ) -> Result<(), ObjectError> {
-    if function.port_effects.windows(2).any(|pair| {
-        (pair[0].code_offset, pair[0].operation_ordinal)
-            >= (pair[1].code_offset, pair[1].operation_ordinal)
+    if !strictly_increasing(&function.port_effects, |row| {
+        (row.code_offset, row.operation_ordinal)
     }) {
         return Err(ObjectError::NonCanonicalPortEffectOrder(function.machine));
     }
@@ -1227,9 +1235,8 @@ fn validate_boundary_settlements(
     plan: &MachineCodePlan,
     function: &MachineCodeFunction,
 ) -> Result<(), ObjectError> {
-    if function.boundary_settlements.windows(2).any(|pair| {
-        (pair[0].code_offset, pair[0].operation_ordinal)
-            >= (pair[1].code_offset, pair[1].operation_ordinal)
+    if !strictly_increasing(&function.boundary_settlements, |row| {
+        (row.code_offset, row.operation_ordinal)
     }) {
         return Err(ObjectError::NonCanonicalBoundarySettlementOrder(
             function.machine,
@@ -1244,10 +1251,11 @@ fn validate_boundary_settlements(
             });
         }
         if !match settlement.invocation_site {
-            semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+            semantic_vocabulary::InvocationSite::InvokeNoNormal(_) => false,
+            semantic_vocabulary::InvocationSite::Operation(operation) => {
                 function.provenance.operations.contains(&operation)
             }
-            semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+            semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
                 function.provenance.edges.contains(&edge)
             }
         } {
@@ -1463,22 +1471,7 @@ fn validate_boundary_settlements(
                 }
             }
             BoundaryRealization::HostedWriteByteI32(_) => {
-                hosted_write_byte_custody_is_exact(
-                    plan.target,
-                    settlement,
-                    &function.boundary_settlements,
-                    &function.unit_integer_constants,
-                    &function.unit_scalar_homes,
-                    |home, consumer_ordinal, consumer_offset| {
-                        crate::object_artifact::replay::unit::scalar_call_custody::exact_preceding_internal_unit_scalar_home_producer_count(
-                            &function.internal_unit_scalar_calls,
-                            home,
-                            consumer_ordinal,
-                            consumer_offset,
-                        )
-                    },
-                    Some(&function.bytes),
-                ) && function.unit_stack.is_some()
+                hosted_write_is_exact(plan, function, settlement) && function.unit_stack.is_some()
                     && function.scalar_stack.is_none()
             }
             BoundaryRealization::HostedReadByte(_) => {

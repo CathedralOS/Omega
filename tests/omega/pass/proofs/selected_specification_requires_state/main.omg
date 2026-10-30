@@ -7,7 +7,8 @@ machine state_identity<machine Choice>(input: Nat)
 where machine Choice(value: Nat) -> Nat;
 requires (saturating_sub(Choice(input), input)) == Nat::Zero
 {
-    state checked(subject: Nat)
+    transition checked(input)
+    machine checked(subject: Nat)
     requires (saturating_sub(Choice(subject), subject)) == Nat::Zero
     requires selected_identity<Choice>(subject) == subject
     {}

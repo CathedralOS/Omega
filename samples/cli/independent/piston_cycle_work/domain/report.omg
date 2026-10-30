@@ -10,11 +10,11 @@ invokes Console;
 crashes Trap
 {
     transition value < 0.0 { true -> negative(value) _ -> positive(value) }
-    state negative(value: f64) {
+    machine negative(value: f64) {
         Console::write("-");
         transition { _ -> positive(0.0 - value) }
     }
-    state positive(value: f64) {
+    machine positive(value: f64) {
         let scaled: i32 in Trapping = I32::from_f64(value * 1000000.0 + 0.5);
         digits(scaled as i32);
     }
@@ -38,7 +38,7 @@ invokes Console;
 {
     let wrapped: i32 in Wrapping = value as i32 in Wrapping;
     transition { _ -> emit(wrapped, 1000000000, false) }
-    state emit(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool)
+    machine emit(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool)
         requires divisor > 0
     {
         let digit: i32 in Wrapping = value / divisor;
@@ -47,13 +47,13 @@ invokes Console;
             _ -> advance(value, divisor, false)
         }
     }
-    state print(value: i32 in Wrapping, divisor: i32 in Wrapping, digit: i32 in Wrapping)
+    machine print(value: i32 in Wrapping, divisor: i32 in Wrapping, digit: i32 in Wrapping)
         requires divisor > 0
     {
         Console::write_byte((digit + 48) as i32);
         transition { _ -> advance(value, divisor, true) }
     }
-    state advance(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool)
+    machine advance(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool)
         requires divisor > 0
     {
         transition divisor >= 10 {
@@ -61,5 +61,5 @@ invokes Console;
             _ -> done()
         }
     }
-    state done() {}
+    machine done() {}
 }

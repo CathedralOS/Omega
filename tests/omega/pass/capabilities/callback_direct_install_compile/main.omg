@@ -15,7 +15,7 @@ machine HookProcedurePolicy::plan(signature: BoundarySignature) -> BoundaryPlanR
         _ -> reject()
     }
 
-    state accept(
+    machine accept(
         signature: BoundarySignature,
         message: u64,
         result: u64
@@ -26,7 +26,7 @@ machine HookProcedurePolicy::plan(signature: BoundarySignature) -> BoundaryPlanR
         }
     }
 
-    state build(
+    machine build(
         signature: BoundarySignature,
         message: u64,
         result: u64
@@ -79,7 +79,7 @@ machine HookProcedurePolicy::plan(signature: BoundarySignature) -> BoundaryPlanR
         BoundaryPlanResult::Accepted { plan: output }
     }
 
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "invalid callback procedure telescope" },
         }
@@ -103,21 +103,21 @@ machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResul
         _ -> reject()
     }
 
-    state select_native_count(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine select_native_count(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.native_parameter_count == 2 {
             true -> build_two(signature)
             _ -> select_closed(signature)
         }
     }
 
-    state select_closed(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine select_closed(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.native_parameter_count == 3 {
             true -> build_three(signature)
             _ -> reject()
         }
     }
 
-    state build_two(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine build_two(signature: BoundarySignature) -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan;
         output.call.convention = CallingConvention::SystemVAMD64;
         output.call.parameter_count = 2;
@@ -165,7 +165,7 @@ machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResul
         BoundaryPlanResult::Accepted { plan: output }
     }
 
-    state build_three(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine build_three(signature: BoundarySignature) -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan;
         output.call.convention = CallingConvention::SystemVAMD64;
         output.call.parameter_count = 3;
@@ -227,7 +227,7 @@ machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResul
         BoundaryPlanResult::Accepted { plan: output }
     }
 
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "invalid direct callback telescope" },
         }

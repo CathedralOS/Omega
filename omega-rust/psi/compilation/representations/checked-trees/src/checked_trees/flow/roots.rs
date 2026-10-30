@@ -10,7 +10,7 @@ use super::{
     FlowStatementFact,
 };
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowContextFacts {
     pub semantic_context_refs: Arena<FlowSemanticContextRef>,
     pub constraint_refs: Arena<FlowConstraintRef>,
@@ -28,7 +28,7 @@ impl FlowContextFacts {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowInvalidationFacts {
     pub segments: Arena<facts::PlaceSegment>,
     pub events: Arena<FlowInvalidationFact>,
@@ -43,7 +43,7 @@ impl FlowInvalidationFacts {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowBorrowLifetimeFacts {
     pub activations: Arena<FlowBorrowActivationFact>,
     pub weakenings: Arena<FlowBorrowWeakeningFact>,
@@ -61,7 +61,7 @@ impl FlowBorrowLifetimeFacts {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOwnershipFacts {
     pub instruction_effect_receipts: Arena<super::FlowInstructionEffectReceiptFact>,
     pub instruction_dispositions: Arena<super::FlowInstructionDispositionFact>,
@@ -77,14 +77,16 @@ pub struct FlowOwnershipFacts {
     pub claim_join_receipts: Arena<super::FlowClaimJoinReceipt>,
     pub claim_join_alternatives: Arena<super::FlowClaimJoinAlternative>,
     pub claim_join_exits: Arena<super::FlowClaimJoinExit>,
+    pub claim_join_captures: Arena<super::FlowClaimJoinCapture>,
     pub owned_selections: Arena<super::FlowOwnedSelectionReceipt>,
     pub selection_sources: Arena<super::FlowOwnedSelectionSource>,
     pub selection_transfers: Arena<super::FlowOwnedSelectionTransfer>,
     pub selection_transfer_claims: Arena<super::FlowOwnedSelectionClaim>,
-    pub selection_result_claims: Arena<super::FlowOwnedSelectionResultClaim>,
     pub selection_place_bindings: Arena<super::FlowSelectionPlaceBinding>,
-    pub selection_produced_claims: Arena<super::FlowOwnedSelectionProducedClaim>,
     pub permissions_by_state: KeyedRows<SymbolHandle, FlowPermissionEventFact>,
+    pub owned_selections_by_state: KeyedRows<SymbolHandle, super::FlowOwnedSelectionReceipt>,
+    pub selection_place_bindings_by_state:
+        KeyedRows<SymbolHandle, super::FlowSelectionPlaceBinding>,
 }
 
 impl FlowOwnershipFacts {
@@ -108,14 +110,15 @@ impl FlowOwnershipFacts {
             claim_join_receipts: Arena::default(),
             claim_join_alternatives: Arena::default(),
             claim_join_exits: Arena::default(),
+            claim_join_captures: Arena::default(),
             owned_selections: Arena::default(),
             selection_sources: Arena::default(),
             selection_transfers: Arena::default(),
             selection_transfer_claims: Arena::default(),
-            selection_result_claims: Arena::default(),
             selection_place_bindings: Arena::default(),
-            selection_produced_claims: Arena::default(),
             permissions_by_state: KeyedRows::default(),
+            owned_selections_by_state: KeyedRows::default(),
+            selection_place_bindings_by_state: KeyedRows::default(),
         }
     }
 
@@ -131,9 +134,44 @@ impl FlowOwnershipFacts {
             run,
         )
     }
+
+    pub fn with_state_owned_selections<R>(
+        &self,
+        state: SymbolHandle,
+        run: impl FnOnce(&[arena::Handle<super::FlowOwnedSelectionReceipt>]) -> R,
+    ) -> R {
+        self.owned_selections_by_state.with_rows(
+            &self.owned_selections,
+            |receipt| receipt.state,
+            &state,
+            run,
+        )
+    }
+
+    pub fn with_state_selection_place_bindings<R>(
+        &self,
+        state: SymbolHandle,
+        run: impl FnOnce(&[arena::Handle<super::FlowSelectionPlaceBinding>]) -> R,
+    ) -> R {
+        self.selection_place_bindings_by_state.with_rows(
+            &self.selection_place_bindings,
+            |binding| binding.state,
+            &state,
+            run,
+        )
+    }
+
+    pub fn seal_indexes(&mut self) {
+        self.permissions_by_state
+            .seal(&self.permissions, |event| event.state_symbol);
+        self.owned_selections_by_state
+            .seal(&self.owned_selections, |receipt| receipt.state);
+        self.selection_place_bindings_by_state
+            .seal(&self.selection_place_bindings, |binding| binding.state);
+    }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowBoundaryFacts {
     pub edges: Arena<FlowBoundaryEdgeFact>,
 }
@@ -144,27 +182,38 @@ impl FlowBoundaryFacts {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowControlFacts {
     pub storage_snapshots: Arena<super::FlowStorageSnapshot>,
     pub storage_predecessors: Arena<arena::Handle<super::FlowStorageSnapshot>>,
     pub value_observations: Arena<super::FlowValueObservationFact>,
+    pub descriptor_context_observations: super::FlowDescriptorObservationTable,
     pub atomic_executions: Arena<super::FlowAtomicExecutionFact>,
     pub case_accesses: Arena<super::FlowCaseAccessFact>,
     pub operator_invocations: Arena<super::FlowOperatorInvocationFact>,
     pub operands: Arena<super::FlowOperandFact>,
+    pub copied_values: Arena<super::FlowCopiedValue>,
+    pub copied_value_uses: Arena<super::FlowCopiedValueUse>,
+    pub captured_reference_leaves: Arena<super::FlowCapturedReferenceLeaf>,
+    /// Captured occurrences grouped by their actual evaluated expression.
+    /// The shared index follows the operand arena's exact mutation revision.
+    pub operands_by_expression:
+        KeyedRows<typed_trees::expression::ExpressionHandle, super::FlowOperandFact>,
     pub operand_children: Arena<super::FlowOperandChild>,
+    pub operand_alternatives: Arena<super::FlowOperandAlternative>,
     pub operand_child_paths: Arena<facts::PlaceSegment>,
     /// Exact storage an operand's evaluated view carrier denotes, one row per
     /// resolvable referent; segment payloads live in `operand_referent_segments`
     /// in the semantic `Place` vocabulary.
     pub operand_origin_writes: Arena<super::FlowOperandReferent>,
     pub operand_referents: Arena<super::FlowOperandReferent>,
+    pub referent_formations: Arena<super::FlowReferentFormation>,
     pub operand_referent_segments: Arena<facts::PlaceSegment>,
     pub operand_retentions: Arena<super::FlowOperandRetention>,
     pub operand_retained_roots: Arena<facts::PlaceRoot>,
     pub operand_retained_leaves: Arena<super::FlowOperandRetainedLeaf>,
     pub operand_retained_suppliers: Arena<super::FlowOperandRetainedSupplier>,
+    pub output_lifetime_sources: Arena<super::FlowOutputLifetimeSources>,
     pub operand_retained_regions: Arena<super::FlowOperandRetainedRegion>,
     pub operand_retained_paths: Arena<facts::PlaceSegment>,
     pub statements: Arena<FlowStatementFact>,
@@ -183,6 +232,24 @@ pub struct FlowControlFacts {
 }
 
 impl FlowControlFacts {
+    pub fn with_expression_operands<R>(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+        run: impl FnOnce(&[arena::Handle<super::FlowOperandFact>]) -> R,
+    ) -> R {
+        self.operands_by_expression.with_rows(
+            &self.operands,
+            |operand| operand.expression,
+            &expression,
+            run,
+        )
+    }
+
+    pub fn seal_indexes(&mut self) {
+        self.operands_by_expression
+            .seal(&self.operands, |operand| operand.expression);
+    }
+
     /// Complete captured lifetime dependencies, never exact address evidence.
     pub fn retained_roots(
         &self,
@@ -211,19 +278,27 @@ impl FlowControlFacts {
             storage_predecessors: Arena::default(),
             statements,
             value_observations: Arena::default(),
+            descriptor_context_observations: super::FlowDescriptorObservationTable::default(),
             atomic_executions: Arena::default(),
             case_accesses: Arena::default(),
             operator_invocations: Arena::default(),
             operands: Arena::default(),
+            copied_values: Arena::default(),
+            copied_value_uses: Arena::default(),
+            captured_reference_leaves: Arena::default(),
+            operands_by_expression: KeyedRows::default(),
             operand_children: Arena::default(),
+            operand_alternatives: Arena::default(),
             operand_child_paths: Arena::default(),
             operand_origin_writes: Arena::default(),
             operand_referents: Arena::default(),
+            referent_formations: Arena::default(),
             operand_referent_segments: Arena::default(),
             operand_retentions: Arena::default(),
             operand_retained_roots: Arena::default(),
             operand_retained_leaves: Arena::default(),
             operand_retained_suppliers: Arena::default(),
+            output_lifetime_sources: Arena::default(),
             operand_retained_regions: Arena::default(),
             operand_retained_paths: Arena::default(),
             calls,
@@ -315,7 +390,7 @@ impl FlowControlFacts {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowFacts {
     pub contexts: FlowContextFacts,
     pub invalidations: FlowInvalidationFacts,
@@ -459,15 +534,18 @@ paged_flow_roots!(FlowOwnershipFacts {
         claim_join_receipts,
         claim_join_alternatives,
         claim_join_exits,
+        claim_join_captures,
         owned_selections,
         selection_sources,
         selection_transfers,
         selection_transfer_claims,
-        selection_result_claims,
         selection_place_bindings,
-        selection_produced_claims,
     ],
-    indexes: [permissions_by_state],
+    indexes: [
+        permissions_by_state,
+        owned_selections_by_state,
+        selection_place_bindings_by_state,
+    ],
     lists: [],
 });
 paged_flow_roots!(FlowBoundaryFacts {
@@ -480,19 +558,26 @@ paged_flow_roots!(FlowControlFacts {
         storage_snapshots,
         storage_predecessors,
         value_observations,
+        descriptor_context_observations,
         atomic_executions,
         case_accesses,
         operator_invocations,
         operands,
+        copied_values,
+        copied_value_uses,
+        captured_reference_leaves,
         operand_children,
+        operand_alternatives,
         operand_child_paths,
         operand_origin_writes,
         operand_referents,
+        referent_formations,
         operand_referent_segments,
         operand_retentions,
         operand_retained_roots,
         operand_retained_leaves,
         operand_retained_suppliers,
+        output_lifetime_sources,
         operand_retained_regions,
         operand_retained_paths,
         statements,
@@ -503,6 +588,6 @@ paged_flow_roots!(FlowControlFacts {
         exit_parameter_origins,
         states,
     ],
-    indexes: [],
+    indexes: [operands_by_expression],
     lists: [retired_calls],
 });

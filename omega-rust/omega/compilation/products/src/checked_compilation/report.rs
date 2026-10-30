@@ -107,6 +107,7 @@ impl ProductReportPlan {
 /// One-use report construction retained independently of artifact production.
 /// This grants no proof, package acceptance or receiver authority.
 pub struct CompileReportSettlement {
+    source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     expected_kind: CompileOutputKind,
     root_path: PathBuf,
     source_file_count: usize,
@@ -145,7 +146,15 @@ impl ProductReportPlan {
                 .admit_build_requirements(checked.build_admission().artifact_only(), &rollback)?;
             // A check never acquires completed output files.
             return CompileReport::check_only(root_path, source_file_count)
-                .map(|report| CheckedProductReport::Complete(report.with_timings(timings)))
+                .map(|report| {
+                    CheckedProductReport::Complete(
+                        report
+                            .with_source_completion_accounting(
+                                checked.source_completion_accounting().clone(),
+                            )
+                            .with_timings(timings),
+                    )
+                })
                 .map_err(diagnostics);
         }
         // Preserve the checked route's refusal order: completed-file custody
@@ -157,11 +166,20 @@ impl ProductReportPlan {
             let outputs = build_outputs
                 .ok_or_else(|| diagnostics("artifact-only build completed no files"))?;
             return CompileReport::from_build_outputs(root_path, source_file_count, outputs)
-                .map(|report| CheckedProductReport::Complete(report.with_timings(timings)))
+                .map(|report| {
+                    CheckedProductReport::Complete(
+                        report
+                            .with_source_completion_accounting(
+                                checked.source_completion_accounting().clone(),
+                            )
+                            .with_timings(timings),
+                    )
+                })
                 .map_err(diagnostics);
         }
         let terminal = requested == RequestedCompileProduct::TerminalArtifact;
         let settlement = CompileReportSettlement {
+            source_completion_accounting: checked.source_completion_accounting().clone(),
             expected_kind: if terminal {
                 CompileOutputKind::TerminalArtifact
             } else {
@@ -195,6 +213,14 @@ impl ProductReportPlan {
 }
 
 impl CompileReportSettlement {
+    /// Completion attempts append their actual charges directly to the report
+    /// owner, including partial evaluation before a refusal.
+    pub fn source_completion_accounting_mut(
+        &mut self,
+    ) -> &mut build_time_evaluation::SourceCompletionAccounting {
+        &mut self.source_completion_accounting
+    }
+
     /// Production legs that extend the checked record's ladder after this
     /// settlement's snapshot replace it, so the finished report carries the
     /// post-production row set.
@@ -256,7 +282,9 @@ impl CompileReportSettlement {
                 } else {
                     report.timings().to_vec()
                 };
-                report.with_timings(timings)
+                report
+                    .with_source_completion_accounting(self.source_completion_accounting)
+                    .with_timings(timings)
             })
             .map_err(diagnostics)
     }

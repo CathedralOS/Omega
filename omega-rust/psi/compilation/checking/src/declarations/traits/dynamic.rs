@@ -516,7 +516,14 @@ pub fn qualified_trait_scope<'program>(
 ) -> Option<typed_trees::trait_definition::AppliedTraitScope<'program>> {
     program
         .trait_definition_by_symbol(namespace)
-        .map(typed_trees::trait_definition::AppliedTraitScope::abstract_scope)
+        .map(|declaration| {
+            program
+                .lexical_conformance_scope(lexical_owner)
+                .and_then(|(_, scope)| scope.declaring_scope(program, namespace))
+                .unwrap_or_else(|| {
+                    typed_trees::trait_definition::AppliedTraitScope::abstract_scope(declaration)
+                })
+        })
         .or_else(|| {
             value_type.and_then(|reference| {
                 typed_trees::trait_definition::AppliedTraitScope::from_type_reference(
@@ -690,12 +697,8 @@ fn collect_dynamic_expression_call_updates(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            visit!(dispatch.subject);
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
-                    visit!(pattern);
-                }
-                visit!(arm.value);
+            for child in crate::expression_traversal::match_children(program, *dispatch) {
+                visit!(child);
             }
         }
         ExpressionNode::ArrayLiteral(elements) => {
@@ -785,7 +788,9 @@ fn collect_dynamic_expression_call_updates(
             }
         }
         ExpressionNode::Unary(unary) => visit!(unary.operand),
-        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
+        ExpressionNode::TypeExpression(_)
+        | ExpressionNode::SavedSubject(_)
+        | typed_trees::literal_expression_pattern!() => {}
     }
 }
 
@@ -807,34 +812,58 @@ fn resolved_dynamic_requirement_symbol(
     if static_namespace {
         matches.retain(|(scope, _)| scope.declaration.symbol == trait_definition.symbol);
     }
+    let retained_application = program.closed_requirement_application(retained_target);
     // Resolution routes a member's calls to its own implementation rows.
     // The authored trait qualifier still names the public requirement; it must
     // not erase that exact lexical selection or mistake it for another trait.
     // Only an owned row in the caller's selecting declaration supplies this
     // relation, never an ambient machine with the same spelling.
     if static_namespace
-        && retained_target.is_valid()
-        && let Some(selecting) =
-            program.conformance_by_symbol(program.declaration_scope_parent(lexical_owner))
-        && selecting.rows.iter().any(|row| {
-            row.source.owns_realization()
-                && row.realization_machine == program.lifetime_declaration_owner(lexical_owner)
-        })
+        && let Some((selecting, selecting_scope)) = program.lexical_conformance_scope(lexical_owner)
     {
+        let capture = program.implementation_capture(
+            lexical_owner,
+            program.lifetime_declaration_owner(lexical_owner),
+            selecting.symbol,
+        );
+        let retained_entry = capture.and_then(|capture| {
+            program.realization_entry_template(retained_target, &capture.conformance_application)
+        });
+        let retained_requirement = program
+            .closed_requirement_application(retained_target)
+            .map_or(retained_target, |application| application.template);
         let mut routes = selecting.rows.iter().filter(|row| {
-            row.realization_state == retained_target
+            (row.realization_state == retained_target
+                || retained_entry.is_some_and(|(machine, state)| {
+                    machine == row.realization_machine && state == row.realization_state
+                })
+                || row.requirement == retained_requirement)
                 && matches.iter().any(|(scope, requirement)| {
                     row.declaring_trait == scope.declaration.symbol
                         && row.requirement == requirement.symbol
+                        && retained_application.is_none_or(|application| {
+                            program.requirement_application_matches_scope(
+                                application.signature.symbol,
+                                scope,
+                            )
+                        })
+                        && selecting_scope
+                            .declaring_scope(program, row.declaring_trait)
+                            .is_some_and(|selected| selected.same_application(program, scope))
                 })
         });
-        if routes.next().is_some() && routes.next().is_none() {
-            return Some(retained_target);
+        if let Some(row) = routes.next()
+            && routes.next().is_none()
+        {
+            return Some(if retained_entry.is_some() {
+                retained_target
+            } else {
+                row.realization_state
+            });
         }
     }
     // A retained requirement may select an overload in this exact family,
     // but cannot be silently overwritten by an unrelated requirement member.
-    let retained_application = program.closed_requirement_application(retained_target);
     let template = retained_application.map_or(retained_target, |application| application.template);
     let retained_matches = matches.iter().any(|(scope, requirement)| {
         requirement.symbol == template
@@ -843,8 +872,22 @@ fn resolved_dynamic_requirement_symbol(
             })
     });
     if retained_target.is_valid() && !retained_matches {
+        let expected_application = receiver_scope
+            .portable_application_identity(program.typed_program())
+            .and_then(|identity| program.type_identity_text(identity))
+            .unwrap_or_else(|| "<unavailable application>".into());
+        let retained_application = retained_application
+            .and_then(|application| {
+                program.type_identity_text(application.portable_trait_application_identity)
+            })
+            .unwrap_or_else(|| "<unapplied target>".into());
         diagnostics.push(
-            Diagnostic::error("qualified call target belongs to a different requirement")
+            Diagnostic::error(format!(
+                "qualified call `{}::{target}` in `{}` retains target `{}` from a different requirement application: expected {expected_application}, retained {retained_application}",
+                trait_definition.name,
+                program.symbols.name(lexical_owner),
+                program.symbols.name(retained_target),
+            ))
                 .with_source_span(span),
         );
         return None;

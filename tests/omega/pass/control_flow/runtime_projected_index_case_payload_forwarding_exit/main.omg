@@ -14,7 +14,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Choice::Both { a, b } -> total(main, a, b)
         Choice::Empty -> bad(main)
     }
-    state total(main: &mut Main, first: u64 in Wrapping, second: u64 in Wrapping) {
+    machine total(main: &mut Main, first: u64 in Wrapping, second: u64 in Wrapping) {
         // Snapshots survive changing both the selector and selected storage.
         main.selected = 0;
         main.items[1] = Choice::Empty;
@@ -23,8 +23,8 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(1); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

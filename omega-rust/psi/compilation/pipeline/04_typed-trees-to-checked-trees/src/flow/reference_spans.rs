@@ -11,6 +11,133 @@ use facts::{FactPlan, ProgramPoint};
 #[cfg(test)]
 mod tests;
 
+/// Keep exact incoming reference membership in the skipped path's order.
+/// Scratch keys never become published identities: they include the complete
+/// generational handle and retain the reference kind for heterogeneous debts.
+/// Duplicate skipped references survive, just as with a per-row `contains`.
+fn intersect_references_in_order<Reference: Copy, Identity: Ord>(
+    skipped: &[Reference],
+    evaluated: &[Reference],
+    identity: impl Fn(&Reference) -> Identity,
+) -> Vec<Reference> {
+    let incoming = sorted_reference_identities(evaluated, &identity);
+    skipped
+        .iter()
+        .filter(|reference| incoming.binary_search(&identity(reference)).is_ok())
+        .copied()
+        .collect()
+}
+
+fn sorted_reference_identities<Reference, Identity: Ord>(
+    references: &[Reference],
+    identity: impl Fn(&Reference) -> Identity,
+) -> Vec<Identity> {
+    let mut identities: Vec<_> = references.iter().map(identity).collect();
+    identities.sort_unstable();
+    identities.dedup();
+    identities
+}
+
+fn semantic_context_identity(context: facts::FactContextHandle) -> (u32, u32) {
+    (context.arena_index(), context.generation())
+}
+
+/// An immutable scratch index of exact live context handles, not evidence.
+/// Repeated qualification queries share this index for one completed frontier;
+/// it never survives a write, a new flow snapshot or a statement boundary.
+pub(crate) struct SemanticContextMembership {
+    identities: Vec<(u32, u32)>,
+}
+
+impl SemanticContextMembership {
+    pub(crate) fn new(references: &[FlowSemanticContextRef]) -> Self {
+        Self {
+            identities: sorted_reference_identities(references, |reference| {
+                semantic_context_identity(reference.context)
+            }),
+        }
+    }
+
+    pub(crate) fn contains(&self, context: facts::FactContextHandle) -> bool {
+        self.identities
+            .binary_search(&semantic_context_identity(context))
+            .is_ok()
+    }
+}
+
+pub(crate) fn intersect_semantic_contexts_in_order(
+    skipped: &[FlowSemanticContextRef],
+    evaluated: &[FlowSemanticContextRef],
+) -> Vec<FlowSemanticContextRef> {
+    let incoming = SemanticContextMembership::new(evaluated);
+    skipped
+        .iter()
+        .filter(|reference| incoming.contains(reference.context))
+        .copied()
+        .collect()
+}
+
+fn constraint_reference_identity(reference: &FlowConstraintRef) -> (u8, u32, u32) {
+    // Handles have exactly arena_index and generation; page identity is carried
+    // by the generation. The closed variant tag prevents different typed arenas
+    // with the same handle bits from naming the same constraint.
+    fn identity<T>(kind: u8, handle: arena::Handle<T>) -> (u8, u32, u32) {
+        (kind, handle.arena_index(), handle.generation())
+    }
+    match reference.kind {
+        FlowConstraintKind::Unknown => (0, 0, 0),
+        FlowConstraintKind::SemanticContext { context } => identity(1, context),
+        FlowConstraintKind::BorrowState { state } => identity(2, state),
+        FlowConstraintKind::BorrowCall { call } => identity(3, call),
+        FlowConstraintKind::BorrowWritableRoot { root } => identity(4, root),
+        FlowConstraintKind::BorrowAccess { access } => identity(5, access),
+        FlowConstraintKind::BorrowLoan { loan } => identity(6, loan),
+        FlowConstraintKind::BorrowIncomingReference { identity: incoming } => identity(7, incoming),
+    }
+}
+
+/// Semantic constraints meet; loan and incoming-reference debts join.
+/// Existing intersection duplicates and order remain unchanged. Additional
+/// debts appear once, in first encounter order over skipped then evaluated.
+/// Sorted scratch membership avoids scanning either growing output per debt.
+pub(crate) fn meet_constraint_references_in_order(
+    skipped: &[FlowConstraintRef],
+    evaluated: &[FlowConstraintRef],
+) -> Vec<FlowConstraintRef> {
+    let mut retained =
+        intersect_references_in_order(skipped, evaluated, constraint_reference_identity);
+    let mut retained_identities: Vec<_> =
+        retained.iter().map(constraint_reference_identity).collect();
+    retained_identities.sort_unstable();
+    retained_identities.dedup();
+    let mut additions: Vec<_> = skipped
+        .iter()
+        .chain(evaluated)
+        .enumerate()
+        .filter(|(_, reference)| {
+            matches!(
+                reference.kind,
+                FlowConstraintKind::BorrowLoan { .. }
+                    | FlowConstraintKind::BorrowIncomingReference { .. }
+            )
+        })
+        .filter_map(|(order, reference)| {
+            let identity = constraint_reference_identity(reference);
+            retained_identities
+                .binary_search(&identity)
+                .is_err()
+                .then_some((identity, order, *reference))
+        })
+        .collect();
+    // Include encounter order in the sort so the earliest occurrence survives
+    // deduplication even though the scratch sort itself is unstable.
+    additions.sort_unstable_by_key(|(identity, order, _)| (*identity, *order));
+    additions.dedup_by_key(|(identity, _, _)| *identity);
+    additions.sort_unstable_by_key(|(_, order, _)| *order);
+    retained.extend(additions.into_iter().map(|(_, _, reference)| reference));
+    retained
+}
+
 pub(crate) fn retained_flow_contexts(
     semantic_context_refs: &arena::PagedArenaSet<FlowSemanticContextRef>,
     source: arena::HandleSpan<FlowSemanticContextRef>,
@@ -169,7 +296,7 @@ pub(crate) fn project_constraint_refs_to_active_contexts(
                 .get(&context.generation())
                 .and_then(|page| page.get(context.arena_index() as usize))
                 .is_some_and(|known| *known == context),
-            FlowConstraintKind::Unknown | checked_trees::borrow_set_quint_pattern!(..) => true,
+            FlowConstraintKind::Unknown | checked_trees::borrow_resource_pattern!(..) => true,
         },
     )
 }

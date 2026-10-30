@@ -18,10 +18,10 @@ machine main() crashes Trap {
         Choice::First -> bad()
         Choice::Second -> verify(copied, observed)
     }
-    state verify(value: Choice, observed: i32) {
+    machine verify(value: Choice, observed: i32) {
         transition value { Choice::First -> bad() Choice::Second -> check(observed) }
     }
-    state check(observed: i32) { transition observed == 17 { true -> done() false -> bad() } }
-    state done() {}
-    state bad() { crash Trap; }
+    machine check(observed: i32) { transition observed == 17 { true -> done() false -> bad() } }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

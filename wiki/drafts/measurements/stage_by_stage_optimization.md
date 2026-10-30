@@ -1,5 +1,74 @@
 # Stage-by-Stage Compiler Optimization Ledger (`omega-rust`)
 
+## Repeated integer premise preparation: attribution - 2026-10-29
+
+No optimization retained. A fresh instrumented update took 127.65 s; inclusive
+premise projection/installation totals were 91.28/42.80 s, versus 0.087 s copying
+comparisons. The scopes nest, so these are not disjoint wall-time savings.
+787,550 projection input visits contained no exact duplicate pairs within a list;
+list deduplication is rejected. Cross-query reuse remains unmeasured and the
+existing prepared-premise route is not interchangeable with guard preparation.
+Actual native/Terminal execution passes, and the image matches prior evidence.
+Next: measure completed projection reuse under full context and active-chain
+identity before implementing a cache. [Evidence and limits](integer_premise_preparation_2026_10_29/README.md).
+
+## Body unfolding: scalar guard preparation - 2026-10-29
+
+The unfolding timer is dominated by integer proof preparation for scalar guards;
+body setup and term construction are small. Reusing exact operand resolutions
+within one immutable integer query measured A 116.64/117.01 s versus B
+105.23/106.77 s for fresh preparation, 9.26% lower mean with separated ranges.
+Rejected below the predefined 10% threshold and removed from production source.
+Four native images match; five actual host comparisons and one focused refusal
+pass. Broader tests were skipped after the failed screen. Next: measure repeated
+integer premise preparation under exact guard contexts.
+[Evidence and limits](body_unfolding_2026_10_29/README.md).
+
+## Remaining first-time checking: empty-equation query - 2026-10-30
+
+Rejected on fixed `0ac181bf065`: skip unproductive non-Boolean specification
+guarantee queries without expression ensures. Fresh A-B-B-A updates measured
+133.18/141.95 s for A and 130.57/122.30 s for B, an 8.09% lower mean below the
+predeclared 10% threshold. Four native images match and actual host comparisons
+pass; both producers preserve the focused specification-formation refusal.
+The candidate is removed. Broader quality tests were skipped after the failed
+screen. Body unfolding is the next diagnostic lead; its inclusive time overlaps
+nested work. [Evidence and harness correction](remaining_first_checking_2026_10_30/README.md).
+
+## First-time checking: batch-local operand resolution - 2026-10-29
+
+Retained on fixed 2a087aa3ec3: share completed full-payload operand resolution
+only across goals of one immutable proof batch, discarding answers before
+scratch reuse. A-B-B-A fresh package updates fall from 217.33/187.05 s to
+139.79/143.99 s (29.82% lower mean); all four native images are identical.
+Eight actual host comparisons, six authored refusals and the payload/context
+isolation unit test pass. No warm-compile or other-host speedup is claimed.
+Raw review also caught the old --both plus --target compile-only harness mistake;
+explicit host replays now establish runtime agreement and PR #822 records the
+correction. [Evidence and limits](first_checking_2026_10_29/README.md).
+
+## First-time preparation convergence - 2026-10-29
+
+Retained locally on fixed `cb087c46476`: normalize realized invocation-set order
+before fixed-point comparison. Main's unchanged operand-order update hit 180 s
+and an extended diagnostic was stopped at 438 s in invocation inference; the
+candidate finishes first updates in 161-167 s and both original controls execute
+with native/Terminal agreement. Nine compile/native observations, nine separate
+Terminal comparisons and twelve expected rejects pass, including paired applied
+provider/cycle controls. No percentage speedup is claimed against an unfinished
+baseline. [Evidence, finite-set model and limits](preparation_convergence_2026_10_29/README.md).
+
+## Operand-order checker stack overflow - 2026-10-29
+
+The fixed-workbench repair and reduced regression establish that selected-contract
+queries must share the exact-context application recursion guard. Main already
+received the equivalent guard in #784, with a broader boundary around carrier
+selection. This publication retains that implementation and adds the regression
+pair and historical evidence, not duplicate compiler code. The historical
+baseline overflowed; five repaired positives and six reject controls passed.
+Mixed overlapping timing ranges establish no general speedup.
+[Evidence and source identities](operand_order_overflow_2026_10_29/README.md).
+
 Host: Windows `x86_64` (`windows_x86_64`), release profile (`target/release/omega.exe`, `target/release/deps/corpus_runner-*.exe`).
 Base commit: `e44ed43aefa9` (`HEAD`).
 
@@ -584,4 +653,24 @@ Base `ceea19358b30` on Windows x86_64. Retained:
 - **Backend (`selected-instructions`, `04_selected-instructions-to-selected-instructions`, `05_selected-instructions-to-register-homes`):** Added `compute_function_bitmask` (`placement.rs`), bitset `referenced_in_relations` (`physical_requirement.rs`), and `u64` bitmask candidate intersections (`domain.rs`, `view_candidates.rs`, `live_points.rs`), cutting `j_probe_all` by `47.2%` (`1,004.5 -> 530.4 ms`); split `BlockSlotSummary` into its own lazy `OnceLock` on `BlockEntry` and added `materialize_definition_bits` (`blocks.rs`, `runtime_rematerialization/admission.rs`); added `O(1)` dense-register-ID and `use_blocks`-only `span_closes` fast paths (`runtime_spill.rs`); streamed `CachedBlockEncoding` byte pages directly into `DomainDigestEncoder` (`plan_identity.rs`); and added `O(1)` `root_by_id` in `SameHomeComponents` (`same_home.rs`), zero-sort singleton `FailedDomain::in_function_indexed` and `visit_overlapping_registers_with_direct_relief` (`recovery.rs`), and stamp-dedup in `PreparedConflicts` and `fragments::interference`.
 
 In interleaved A/B benchmarks across all 5 workloads, `thirtytwo_arg_stack_calling_plan/other_machine` falls from `3,619.3 ms` to `2,906.5 ms` `total elapsed` (`-712.8 ms`, `-19.7%`; backend `2,661.7 -> 1,830.3 ms`, `-31.2%`; `06.1.d.05_stage_register_allocation` `1,392.4 ms`), `sixteen_arg_stack_calling_plan/other_machine` falls from `1,353.6 ms` to `1,140.9 ms` `total elapsed` (`-15.7%`; backend `603.3 -> 443.0 ms`, `-26.6%`), and `length/local` (`992.4 ms`), `dyn_dispatch/local` (`991.1 ms`), and `nested_record/local` (`908.4 ms`) all complete in `< 1,000 ms` wall time. All five emitted native images are SHA-256 identical and exit 0.
+[Details and tables](stage_five_2026_10_24/README.md).
+
+### Stage 05 range-transfer pruning, shared `SharedFlowTables` across Rayon flow groups, and short-circuiting prefix entailment walks - 2026-10-26
+
+Base `685d805e366` on Windows x86_64. Retained:
+- **Range-transfer and internal-edge pruning (`04_typed-trees-to-checked-trees/src/checks/ranges`):** Added `ExpressionTransferSink::checks_indexed(&self) -> bool`, `expression_has_transfer_effect`, `expression_has_sink_effect`, `StatementTransferSink::needs_transition_target`, and `state_has_internal_edge` to skip `ExpressionTransfer::transfer` on expressions without transfer effects, skip cloning/seeding `RangeFacts` on `Match` arms, `Binary(And | Or)` right operands, and `StatementNode::Transition` targets that have no sink effect, and skip `collect_state_argument_facts` state replays on states without internal transitions/calls to `states[1..]`.
+- **Shared `SharedFlowTables` and unpaged unused arenas (`04_typed-trees-to-checked-trees/src/flow`):** Factored `SharedFlowTables` out of `FlowBuildContext` so `dynamic_conformances`, `symbol_index`, `scalar_bindings_by_site`, `scalar_expressions_by_site`, and `integer_literal_thresholds` are constructed once per `build` call and shared via `Arc<SharedFlowTables>` across all Rayon `map_init` workers; removed unused `first_page` capacity pre-allocations and unused `ownership: FlowOwnershipFacts` paging.
+- **Short-circuiting `StructuralPrefixVisitor` and deduplicated entry-prefix walks (`checking/src/proof_contracts/contract_entailment`):** Added `StructuralPrefixVisitor::is_complete(&self) -> bool` to stop prefix/case-arm/state-leaf walks immediately once any path refutes `CallRequirement::proven`, and skipped redundant `recognize_structural_case_arms` (`2d_recognize`) in `structural_requirement_at_prefix` when `observe_runtime_state_prefix` (`2b_local_prefix`) already walked the same entry-state prefix.
+
+On Cathedral's `source/distribution/libraries/omega-ui/examples/gallery/main.omg`, unmodified Stage 01–05 checking falls from `55,000 ms` (`42,800 ms` Stage 05) to `24,443–26,464 ms` (`2.08–2.25x`), and full end-to-end native `.exe` compilation (`total elapsed`) falls from `116,900 ms` (`395,100 ms` before Iteration 11) to `60,362.5 ms` (`1.94x` from `685d805e366`, `6.55x` overall; `Stage 05` `40,170.0 -> 20,389.9 ms`, `05.d.7.9.check_indexed_accesses` `15,431.0 -> 2,154.9 ms` / `7.16x`, `05.d.7.3b.check_flow_call_contracts` `3,551.0 -> 1,297.6 ms` / `2.74x`, `05.d.3.b.flow_fixed_point.build_flow_facts` `14,724.0 -> 10,179.6 ms` / `-30.9%`).
+[Details and tables](stage_five_2026_10_24/README.md).
+
+### Backend `BlockLookup` virtual-transfer & constraint memoization, bitwise edge liveness propagation, `O(1)` register-validity bitsets, and `PreparedConflicts` affinity CSR - 2026-10-26
+
+Base `438b25f06ba4` on Windows x86_64. Retained:
+- **Lowering (`05_checked-trees-to-lowered-psi`):** Added an $O(1)$ `validation::nominal_cleanup_owner(&checked.typed, source).is_none()` early return in `nominal_cleanup_subject` (`machine_lowering.rs`) before rendering `type_ids` into `String`s.
+- **Backend Liveness & Live Ranges (`selected-instructions`, `04_selected-instructions-to-selected-instructions`):** Memoized per-block `upward_virtual_uses_bits`, `virtual_kills_bits`, and `has_constraint_operands` in `BlockLookup` (`blocks.rs`); skipped constraint-free blocks in `reject_unsupported_constraints` (`liveness/compute.rs`); replaced per-register binary searches in `FunctionFlow` (`liveness/compute/flow.rs`) with `valid_register_bits: Vec<u64>` and bitwise `param_bits` edge propagation inside the fixed-point worklist loop; fast-pathed substitution-free successor `virtual_live` in `materialize_block`; used `std::mem::take` on `edge_rows` in `live_ranges/compute/function.rs`; and replaced `BTreeMap<SelectedBlockId, Vec<...>>` in `fragments::interference` with a dense `Vec<Vec<...>>`.
+- **Backend Register Home Assignment (`05_selected-instructions-to-register-homes`):** Checked `Arc::ptr_eq` before dereferencing `legality.machine != ranges.machine` in `FunctionHomeReuse::probe_all` (`home_assignment/compute/mod.rs`); filtered self-edges, fast-pathed strictly sorted rows, exposed $O(1)$ `conflicts.degree(domain)`, and built an `affinity_offsets`/`affinity_entries` CSR in `PreparedConflicts::new` (`prepared_conflicts.rs`); and maintained `assigned_partner_mask: Vec<u64>` in `compute_function_bitmask` (`placement.rs`).
+
+On `thirtytwo_arg_stack_calling_plan/other_machine`, unprofiled `total elapsed` reaches `2,383.3 ms` (`-18.0%` from Iter 12's `2,906.5 ms`; profiled `i_batch_reanalyze` `379.5 -> 300.8 ms` / `-20.7%`, `j_probe_all` `530.4 -> 457.9 ms` / `-13.7%`, native `.exe` exits `0`). On Cathedral's `examples/gallery/main.omg`, unmodified `--check --verify` reaches `21,884.1 ms` (`2.51x` faster than `685d805e366`), and `06.1.d.05_stage_register_allocation` falls from `10,205.2 ms` to `8,945.2 ms` (`-12.3%`; `i_batch_reanalyze` `3,625.5 -> 2,890.8 ms` / `-20.3%`, `h_bounded_spill` `1,755.1 -> 1,565.0 ms` / `-10.8%`).
 [Details and tables](stage_five_2026_10_24/README.md).

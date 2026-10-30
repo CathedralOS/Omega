@@ -10,20 +10,20 @@ machine land64(record: &mut Record, value: f64) {
         true -> bounded(record, value)
         false -> rejected(record)
     }
-    state bounded(record: &mut Record, value: f64)
+    machine bounded(record: &mut Record, value: f64)
     requires value == value && value >= 0.0 && 0.0 <= value && 1000.0 > value && value < 1000.0
     { record.observed = I32::from_f64(value); }
-    state rejected(record: &mut Record) { record.observed = -1; }
+    machine rejected(record: &mut Record) { record.observed = -1; }
 }
 machine land32(value: f32) -> bool {
     transition value != 0.0f32 && value <= 2.0f32 && 2.0f32 >= value && value > 0.0f32 {
         true -> bounded(value)
         false -> rejected()
     }
-    state bounded(value: f32) -> bool
+    machine bounded(value: f32) -> bool
     requires value != 0.0f32 && value <= 2.0f32 && 2.0f32 >= value && value > 0.0f32
     { true }
-    state rejected() -> bool { false }
+    machine rejected() -> bool { false }
 }
 machine Main::main(main: &mut Main) reaches Console {
     main.value = 123.75;
@@ -34,13 +34,13 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> unordered(main)
         false -> failed(main)
     }
-    state unordered(main: &mut Main) {
+    machine unordered(main: &mut Main) {
         main.smaller = 0.0f32 / 0.0f32;
         let rejected: bool = land32(main.smaller);
         transition !rejected { true -> done(main) false -> failed(main) }
     }
-    state done(main: &mut Main) { Console::exit_process(70); }
-    state failed(main: &mut Main) { Console::exit_process(71); }
+    machine done(main: &mut Main) { Console::exit_process(70); }
+    machine failed(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

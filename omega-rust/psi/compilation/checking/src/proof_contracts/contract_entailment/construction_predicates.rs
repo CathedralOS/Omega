@@ -14,6 +14,7 @@
 //! omission and nested-construction admission still runs in the caller.
 
 use super::refuted_requires::instantiated_selected_fact_judgment;
+use super::structural_judgment::normal_returns::OperationOperandDemand;
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use super::structural_prefix::{
     PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor,
@@ -59,6 +60,33 @@ pub(crate) fn construction_predicate_judgments(
     }) {
         return vec![StructuralJudgment::Proven; predicates.len()];
     }
+    let predicate_subject =
+        match construction_predicate_subject(program, expression, literal, predicates) {
+            Ok(subject) => subject,
+            Err(()) => return vec![StructuralJudgment::Unknown; predicates.len()],
+        };
+    let mut demanded_fields = Vec::new();
+    for &predicate in predicates {
+        collect_predicate_fields(program, parameters, predicate, &mut demanded_fields);
+    }
+    // A source field selector can name its template while this construction
+    // owns an applied declaration. Demand and substitution must consume the
+    // same exact receiving-field correspondence.
+    let selected_fields = program
+        .expression_table
+        .struct_fields(literal.fields)
+        .iter()
+        .map(|field| {
+            crate::value_custody::struct_literals::selected_construction_field(
+                program,
+                expression,
+                literal,
+                field.field_symbol,
+            )
+            .map(|selected| selected.symbol)
+            .unwrap_or_default()
+        })
+        .collect::<Vec<_>>();
     let mut visitor = ConstructionPredicates {
         site: StructuralPrefixSite {
             state: state.symbol,
@@ -69,6 +97,9 @@ pub(crate) fn construction_predicate_judgments(
         literal,
         parameters,
         predicates,
+        demanded_fields: &demanded_fields,
+        selected_fields: &selected_fields,
+        predicate_subject,
         observed: false,
         judgments: vec![StructuralJudgment::Proven; predicates.len()],
     };
@@ -122,6 +153,83 @@ pub(crate) fn construction_predicate_judgments(
     incoming.judgments
 }
 
+/// Only the predicate's exact declared field subjects need value snapshots.
+/// Other constructor operands still execute and establish their own validity;
+/// their aggregate contents do not become premises of this query.
+fn collect_predicate_fields(
+    program: &dyn crate::CheckingInput,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+    fields: &mut Vec<symbols::SymbolHandle>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    if let typed_trees::expression::ExpressionNode::Name(path) =
+        program.expression_table.expression(expression)
+        && parameters
+            .iter()
+            .any(|parameter| parameter.symbol == path.symbol)
+        && !fields.contains(&path.symbol)
+    {
+        fields.push(path.symbol);
+    }
+    crate::expression_traversal::children(
+        program,
+        program.expression_table.expression(expression),
+        |child| collect_predicate_fields(program, parameters, child, fields),
+    );
+}
+
+/// The full subject is needed only for predicates reading that exact binder.
+/// Common-field predicates keep their existing selective observation demand.
+fn construction_predicate_subject(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    literal: &TableStructLiteral,
+    predicates: &[ExpressionHandle],
+) -> Result<Option<StateParameter>, ()> {
+    let application = crate::value_custody::struct_literals::selected_construction_definition(
+        program, expression, literal,
+    )
+    .ok_or(())?;
+    // The judged facts are the receiving application's; its predicate subject
+    // is the binder `self` resolves to inside them. The literal's declared
+    // type names the generic template, whose own subject symbol differs on a
+    // synthesized closed instance.
+    let symbol = application.predicate_subject_symbol;
+    if !symbol.is_valid() {
+        return Ok(None);
+    }
+    let mut pending = predicates.to_vec();
+    let mut visited = Vec::new();
+    let mut demanded = false;
+    while let Some(expression) = pending.pop() {
+        if !expression.is_valid() || visited.contains(&expression) {
+            continue;
+        }
+        visited.push(expression);
+        let node = program.expression_table.expression(expression);
+        if matches!(node, ExpressionNode::Name(path) if path.symbol == symbol) {
+            demanded = true;
+            break;
+        }
+        crate::expression_traversal::children(program, node, |child| pending.push(child));
+    }
+    if !demanded {
+        return Ok(None);
+    }
+    if !application.predicate_subject_type.is_valid() {
+        return Err(());
+    }
+    Ok(Some(StateParameter {
+        symbol,
+        name: "self".into(),
+        type_reference: application.predicate_subject_type,
+        ..Default::default()
+    }))
+}
+
 #[derive(Clone)]
 struct ConstructionPredicates<'query> {
     site: StructuralPrefixSite,
@@ -129,6 +237,9 @@ struct ConstructionPredicates<'query> {
     literal: &'query TableStructLiteral,
     parameters: &'query [StateParameter],
     predicates: &'query [ExpressionHandle],
+    demanded_fields: &'query [symbols::SymbolHandle],
+    selected_fields: &'query [symbols::SymbolHandle],
+    predicate_subject: Option<StateParameter>,
     observed: bool,
     judgments: Vec<StructuralJudgment>,
 }
@@ -173,7 +284,6 @@ impl ConstructionPredicates<'_> {
         judge: &StructuralJudge,
         mut supplied_value: impl FnMut(usize) -> Option<StructuralTerm>,
     ) -> Vec<StructuralJudgment> {
-        let supplied = program.expression_table.struct_fields(self.literal.fields);
         let mut parameters = Vec::new();
         let mut bindings = Vec::new();
         let reference = crate::value_custody::struct_literals::construction_application(
@@ -184,21 +294,57 @@ impl ConstructionPredicates<'_> {
             bindings.push((parameter.name.to_string(), value));
             parameters.push(parameter);
         }
+        // These callbacks read completed operand captures. They never execute
+        // source expressions or observe the constructor's own result.
+        let completed_fields = self.predicate_subject.as_ref().map(|_| {
+            (0..program
+                .expression_table
+                .struct_fields(self.literal.fields)
+                .len())
+                .map(&mut supplied_value)
+                .collect::<Vec<_>>()
+        });
+        let mut observed_value = |position| {
+            if let Some(values) = &completed_fields {
+                values.get(position).cloned().flatten()
+            } else {
+                supplied_value(position)
+            }
+        };
+        if let Some(subject) = &self.predicate_subject {
+            let supplied_fields = program.expression_table.struct_fields(self.literal.fields);
+            let value = super::structural_terms::constructor_literal_term(
+                program,
+                self.expression,
+                self.literal,
+                |_, supplied| {
+                    let supplied = supplied?;
+                    let position = supplied_fields
+                        .iter()
+                        .position(|candidate| candidate.field_symbol == supplied.field_symbol)?;
+                    observed_value(position)
+                },
+            );
+            let Some(value) = value else {
+                return vec![StructuralJudgment::Unknown; self.predicates.len()];
+            };
+            parameters.push(subject.clone());
+            bindings.push((subject.name.to_string(), value));
+        }
         for parameter in self.parameters {
-            let mut matches = supplied.iter().enumerate().filter(|(_, field)| {
-                crate::value_custody::struct_literals::selected_construction_field(
-                    program,
-                    self.expression,
-                    self.literal,
-                    field.field_symbol,
-                )
-                .is_some_and(|selected| selected.symbol == parameter.symbol)
-            });
+            if !self.demanded_fields.contains(&parameter.symbol) {
+                continue;
+            }
+            let mut matches = self
+                .selected_fields
+                .iter()
+                .enumerate()
+                .filter(|(_, selected)| **selected == parameter.symbol);
             let value = if let Some((position, _)) = matches.next() {
                 if matches.next().is_some() {
                     None
                 } else {
-                    supplied_value(position)
+                    observed_value(position)
                 }
             } else {
                 // Independent omission checking still owns establishment.
@@ -225,6 +371,7 @@ impl ConstructionPredicates<'_> {
                     &parameters,
                     predicate,
                     &bindings,
+                    &[],
                     &[],
                     Some((machine, state)),
                 )
@@ -264,12 +411,24 @@ impl StructuralPrefixVisitor for ConstructionPredicates<'_> {
 
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
         let (program, machine, state, judge, environment) = observation;
+        let supplied = program.expression_table.struct_fields(self.literal.fields);
+        let demanded_values = supplied
+            .iter()
+            .zip(self.selected_fields)
+            .filter(|(_, selected)| self.demanded_fields.contains(selected))
+            .map(|(field, _)| field.value)
+            .collect::<Vec<_>>();
         let reference =
             crate::expression_result_type_reference(program, machine, state, self.expression)
                 .unwrap_or_default();
         let entries = judge.normal_operation_entries(
             self.site.statement_index,
             self.expression,
+            if self.predicate_subject.is_some() {
+                OperationOperandDemand::All
+            } else {
+                OperationOperandDemand::Selected(&demanded_values)
+            },
             environment,
             (machine, state, reference),
         );
@@ -285,7 +444,6 @@ impl StructuralPrefixVisitor for ConstructionPredicates<'_> {
             }
             return;
         };
-        let supplied = program.expression_table.struct_fields(self.literal.fields);
         for entry in entries {
             self.observed = true;
             if entry.arguments.len() != supplied.len() {
@@ -294,14 +452,12 @@ impl StructuralPrefixVisitor for ConstructionPredicates<'_> {
                 }
                 continue;
             }
-            if let Some(state) = program.state_in_machine(machine, self.site.state) {
-                let judgments =
-                    self.judge_operands(program, machine, state, &entry.judge, |position| {
-                        entry.arguments.get(position).cloned()
-                    });
-                for (predicate_index, judgment) in judgments.into_iter().enumerate() {
-                    self.retain(predicate_index, judgment);
-                }
+            let judgments =
+                self.judge_operands(program, machine, state, &entry.judge, |position| {
+                    entry.arguments.get(position).cloned().flatten()
+                });
+            for (predicate_index, judgment) in judgments.into_iter().enumerate() {
+                self.retain(predicate_index, judgment);
             }
         }
     }

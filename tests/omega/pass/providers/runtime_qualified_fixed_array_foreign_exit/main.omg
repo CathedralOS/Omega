@@ -3,8 +3,8 @@
 // Expected exit: 0
 use omega::language::core::external_binding;
 
-domain [u8; 4]::TerminatedBytes(bytes) requires bytes[3] == 0;
-domain [u16; 4]::TerminatedWords(words) requires words[3] == 0;
+domain [u8; 4]::TerminatedBytes requires self[3] == 0;
+domain [u16; 4]::TerminatedWords requires self[3] == 0;
 
 boundary trait CompareArrays {
     machine bytes(left: &[u8; 4] in TerminatedBytes, right: &[u8; 4] in TerminatedBytes, count: u64) -> i32
@@ -74,6 +74,6 @@ machine main() reaches CompareArrays crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() { }
-    state bad() { crash Trap; }
+    machine done() { }
+    machine bad() { crash Trap; }
 }

@@ -1,7 +1,7 @@
 // Same-sign unsigned narrowing through the public numeric_conversion surface:
 // every u16/u32/u64 source to every narrower unsigned target under Exact,
 // Wrapping, Saturating and Trapping, at 0, the target maximum, the first
-// value past it, and u64 sources above i64::MAX. Wrapping reduces modulo
+// value past it, and u64 sources above i64 maximum. Wrapping reduces modulo
 // the target width, Saturating clamps to the target maximum, and an
 // in-range Trapping conversion returns its value. `literal_checks` passes
 // constants, `runtime_checks` reads the boundaries through a borrowed
@@ -157,6 +157,6 @@ machine main() crashes Trap {
         _ -> failed()
     }
 
-    state passed() {}
-    state failed() { crash Trap; }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }

@@ -48,6 +48,30 @@ effects — and `close` releases the instance's runtime state once the activatio
 settles. `TerminalImportAdapter` is the contract a host object declares;
 `TerminalScalarImport` and `TerminalUnitImport` wrap the common leaf signatures.
 
+`TerminalProgram::defer_component` reserves an exact component route in the
+pre-entry supply plan. It supplies neither executable code nor a host adapter;
+a premature call fails. `bind_component` can complete that reservation while
+the original receiver is parked at a checked host-readiness crossing, using the
+same sealed import/export admission and fully prepared component closure as
+pre-entry installation. Receiving code may remain invocation-private: both the
+selection and execution plan retain its full code-owner identity. Equal semantic
+bytes from another private owner cannot reuse either, and native consumers
+require portable receiver identity. Fuel pauses and failed activations cannot authorize the
+change; an established slot cannot be rebound. The source-produced
+`terminal_effect_readiness` test covers retained and loaded code, actual guest
+provider execution, no prefix replay and premature-call/adapter/rebinding
+refusals. Build dependency acquisition and exact backing preparation are still
+application-coordinator work, not interpreter responsibilities.
+
+`poll_host_computation` yields `HostComputationPending` when a synchronous host
+operation needs executor work before returning. The full invocation, prepared
+arguments and borrowed storage remain live; polling neither replays effects nor
+charges the guest operation again. This is an executor pause like a fuel slice,
+not a source-language suspension. It cannot authorize component installation.
+External provider readiness continues through `poll_effect_readiness` and
+requires a checked suspension crossing. Product-query scheduling belongs to
+the Build application, not to either interpreter hook.
+
 After normal return, `TerminalInstance::observe_borrowed_entry` reads a semantic
 leaf of an original host-lent structural argument by dense argument index and
 canonical declaration path. The original home survives retired helper/entry

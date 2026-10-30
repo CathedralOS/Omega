@@ -48,7 +48,7 @@ reaches ResourceProfileSupply crashes Trap
         PlacementOutcome::Ready { view } -> extract(view)
         PlacementOutcome::Rejected { returned, reason } -> unexpected(returned)
     }
-    state extract(storage: Extent in Granted & Resident<WordPlacement, Word>)
+    machine extract(storage: Extent in Granted & Resident<WordPlacement, Word>)
         -> PlacementReturn<Extent in Granted & Vacant, Word> {
         let mut retained: Extent in Granted & Resident<WordPlacement, Word> = carry(storage);
         overwrite(Placed::view_resident_mut<WordPlacement, Word>(&mut retained));
@@ -56,18 +56,18 @@ reaches ResourceProfileSupply crashes Trap
             PlacementExtraction::Moved { storage, value } -> check_value(storage, value)
         }
     }
-    state check_value(storage: Extent in Granted & Vacant, value: Word)
+    machine check_value(storage: Extent in Granted & Vacant, value: Word)
         -> PlacementReturn<Extent in Granted & Vacant, Word> {
         transition value.value == 29 {
             true -> done(storage, value)
             false -> unexpected(PlacementReturn { source: storage, custody: value })
         }
     }
-    state done(storage: Extent in Granted & Vacant, value: Word)
+    machine done(storage: Extent in Granted & Vacant, value: Word)
         -> PlacementReturn<Extent in Granted & Vacant, Word> {
         PlacementReturn { source: storage, custody: value }
     }
-    state unexpected(returned: PlacementReturn<Extent in Granted & Vacant, Word>)
+    machine unexpected(returned: PlacementReturn<Extent in Granted & Vacant, Word>)
         -> PlacementReturn<Extent in Granted & Vacant, Word> { crash Trap; }
 }
 
@@ -80,6 +80,6 @@ machine overwrite(view: &Placed<WordPlacement, Word>) crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

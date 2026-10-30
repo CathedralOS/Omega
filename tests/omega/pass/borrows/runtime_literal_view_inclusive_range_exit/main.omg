@@ -2,6 +2,6 @@
 machine main() crashes Trap {
     let selected: &[u8] = &"123456789"[1..=7];
     transition selected.len == 7 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

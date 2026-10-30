@@ -18,11 +18,10 @@
 use super::{Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint};
 use register_model::{RegisterConstraintKey, RegisterViewId};
 use selected_instructions::{
-    AtomicForm, AtomicOperation, MachineAlternative, MachineAlternativeApplicability,
-    MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
-    MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedEffects,
-    MachineEncodedMemoryEffect, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
-    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    AtomicForm, AtomicOperation, MachineAlternativeFamily, MachineBarrier,
+    MachineEffectDeclaration, MachineEncodedEffects, MachineEncodedMemoryEffect,
+    MachineEncodedTrapBehavior, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
+    MachineTrapBehavior,
 };
 
 pub(crate) fn effects(form: AtomicForm) -> MachineEncodedEffects {
@@ -43,25 +42,16 @@ pub(crate) fn declaration(
     form: AtomicForm,
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
-        semantic: MachineSemanticKind::AtomicAccess(form),
+    MachineEffectDeclaration::single(
+        MachineSemanticKind::AtomicAccess(form),
         constraint,
-        memory: MachineMemoryEffect::AtomicPointerV1,
-        trap: MachineTrapBehavior::MayArchitecturalFaultV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::AtomicAccess(form),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(if has_prefix(form.operation) { 8 } else { 4 }),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(form),
-        }],
-    }
+        MachineMemoryEffect::AtomicPointerV1,
+        MachineTrapBehavior::MayArchitecturalFaultV1,
+        MachineBarrier::ExternalEffect,
+        MachineAlternativeFamily::AtomicAccess(form),
+        MachineSizeKnowledge::ExactBytes(if has_prefix(form.operation) { 8 } else { 4 }),
+        effects(form),
+    )
 }
 
 pub(crate) fn footprint(
@@ -223,7 +213,8 @@ pub(crate) fn validate(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use selected_instructions::{AtomicWidth, SelectedInstructionKind};
+    use crate::test_support::reject_every_bit_flip;
+    use selected_instructions::{AtomicWidth, MachineAlternativeKey, SelectedInstructionKind};
 
     #[test]
     fn atomic_catalog_requires_an_lse_target_and_binds_exact_effects() {
@@ -267,14 +258,9 @@ mod tests {
             let registers = &registers[..usize::from(form.operand_count())];
             let bytes = encode(form, registers).unwrap();
             validate(form, registers, &bytes).unwrap();
-            for bit in 0..bytes.len() * 8 {
-                let mut changed = bytes.clone();
-                changed[bit / 8] ^= 1 << (bit % 8);
-                assert!(
-                    validate(form, registers, &changed).is_err(),
-                    "{form:?}, bit {bit}"
-                );
-            }
+            reject_every_bit_flip(&bytes, &format!("{form:?}"), |changed| {
+                validate(form, registers, &changed).is_err()
+            });
             assert!(validate(form, registers, &bytes[..bytes.len() - 1]).is_err());
         }
         // LLVM assembler vectors: ldeoral x0,x1,[x2]; swpal x0,x1,[x2].

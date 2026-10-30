@@ -3,7 +3,7 @@ use omega::language::core::option;
 data Counter { value: u64; }
 machine tick(counter: &mut Counter) -> u64 {
  transition counter.value < 100 { true -> increment(counter) false -> 100 }
- state increment(counter: &mut Counter) -> u64 requires counter.value < 100 {
+ machine increment(counter: &mut Counter) -> u64 requires counter.value < 100 {
   counter.value = counter.value + 1;
   counter.value
  }
@@ -22,6 +22,6 @@ machine main() crashes Trap {
  let first: bool = ascending(stamped("abc", &mut counter), tick(&mut counter));
  let second: bool = ascending(stamped("def", &mut counter), tick(&mut counter));
  transition first && second && counter.value == 4 { true -> done() false -> wrong() }
- state done() {}
- state wrong() { crash Trap; }
+ machine done() {}
+ machine wrong() { crash Trap; }
 }

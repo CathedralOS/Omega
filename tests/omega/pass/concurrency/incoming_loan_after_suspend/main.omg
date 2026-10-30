@@ -1,0 +1,47 @@
+// Expected exit: 0
+// The incomplete invocation retains its incoming mutable loan across suspension.
+public boundary trait Scheduler { machine park() reaches suspends; }
+public Immediate satisfies Scheduler { machine park() {} }
+data Envelope<T> { payload: T; }
+
+machine inspect(value: &mut u32) reaches Scheduler suspends; {
+    suspend Scheduler::park();
+    value = 7;
+}
+machine main() reaches Scheduler crashes Trap {
+    let mut value: u32 = 1;
+    suspend inspect(&mut value);
+    transition value == 7 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+
+machine inspect_shared(value: &u32) -> u32 reaches Scheduler suspends; {
+    suspend Scheduler::park();
+    value
+}
+
+machine inspect_carrier(carrier: Envelope<&u32>) -> u32 reaches Scheduler suspends; {
+    suspend Scheduler::park();
+    carrier.payload
+}
+
+machine initialize(value: &write u32) reaches Scheduler suspends; {
+    suspend Scheduler::park();
+    value = 9;
+}
+
+machine entry_start() reaches Scheduler crashes Trap {
+    suspend main();
+    let value: u32 = 17;
+    let shared: u32 = suspend inspect_shared(&value);
+    let carried: u32 = suspend inspect_carrier(Envelope { payload: &value });
+    let mut written: u32 = 0;
+    suspend initialize(&write written);
+    transition shared == 17 && carried == 17 && written == 9 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

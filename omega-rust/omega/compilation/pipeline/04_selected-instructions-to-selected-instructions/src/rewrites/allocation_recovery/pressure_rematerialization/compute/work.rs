@@ -66,12 +66,7 @@ pub(crate) fn ensure_budget(
     usage: OptimizationWorkUsage,
     budget: OptimizationWorkBudget,
 ) -> Result<(), PressureRematerializationError> {
-    if usage.within(budget) {
-        Ok(())
-    } else {
-        Err(PressureRematerializationError::BudgetExceeded {
-            required: usage,
-            budget,
-        })
-    }
+    crate::work_accounting::admit(usage, budget, |required, budget| {
+        PressureRematerializationError::BudgetExceeded { required, budget }
+    })
 }

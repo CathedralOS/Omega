@@ -24,7 +24,7 @@ requires index < items.len;
 machine main() crashes Trap {
     let bytes: [u8; 4] = [9, 8, 7, 6];
     transition { _ -> check(bytes) }
-    state check(bytes: [u8; 4]) {
+    machine check(bytes: [u8; 4]) {
         let view: &[u8] = &bytes[..];
         let count: u32 = 1;
         let from_local: u8 = read_at<count>(view);
@@ -37,6 +37,6 @@ machine main() crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

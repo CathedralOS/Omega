@@ -1,6 +1,6 @@
 machine finish(output: &mut u32) {
  transition { _ -> tail(output) }
- state tail(output: &mut u32) {
+ machine tail(output: &mut u32) {
   output = 7;
   transition { _ -> {} }
  }
@@ -9,6 +9,6 @@ machine main() crashes Trap {
  let mut output: u32 = 99;
  finish(&mut output);
  transition output == 7 { true -> done() false -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }

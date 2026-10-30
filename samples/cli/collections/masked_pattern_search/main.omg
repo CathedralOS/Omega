@@ -8,14 +8,14 @@ data Found<'input> { position: u64; bytes: &'input [u8]; }
 machine matches(bytes: &[u8], pattern: &[PatternByte]) -> bool
 requires bytes.len == pattern.len {
     transition { _ -> next(bytes, pattern, 0) }
-    state next(bytes: &[u8], pattern: &[PatternByte], cursor: u64) -> bool
+    machine next(bytes: &[u8], pattern: &[PatternByte], cursor: u64) -> bool
     requires bytes.len == pattern.len && cursor <= pattern.len {
         transition cursor < pattern.len {
             true -> compare(bytes, pattern, cursor)
             false -> true
         }
     }
-    state compare(bytes: &[u8], pattern: &[PatternByte], cursor: u64) -> bool
+    machine compare(bytes: &[u8], pattern: &[PatternByte], cursor: u64) -> bool
     requires bytes.len == pattern.len && cursor < pattern.len {
         let actual: u8 = bytes[cursor] & pattern[cursor].mask;
         let expected: u8 = pattern[cursor].expected & pattern[cursor].mask;
@@ -32,7 +32,7 @@ machine find<'input>(bytes: &'input [u8], pattern: &[PatternByte], start: u64)
         true -> next(bytes, pattern, start)
         false -> Optional::None
     }
-    state next(bytes: &'input [u8], pattern: &[PatternByte], cursor: u64)
+    machine next(bytes: &'input [u8], pattern: &[PatternByte], cursor: u64)
         -> Optional<Found<'input>>
     requires cursor <= bytes.len && pattern.len > 0 {
         transition pattern.len <= bytes.len - cursor {
@@ -40,7 +40,7 @@ machine find<'input>(bytes: &'input [u8], pattern: &[PatternByte], start: u64)
             false -> Optional::None
         }
     }
-    state compare(bytes: &'input [u8], pattern: &[PatternByte], cursor: u64)
+    machine compare(bytes: &'input [u8], pattern: &[PatternByte], cursor: u64)
         -> Optional<Found<'input>>
     requires cursor <= bytes.len && pattern.len > 0 && pattern.len <= bytes.len - cursor {
         let window: &[u8] = &bytes[cursor..cursor + pattern.len];
@@ -56,13 +56,13 @@ machine observed(found: Optional<Found>, position: u64, middle: u8) -> bool {
         Optional::Some { value } -> inspect(value, position, middle)
         Optional::None -> false
     }
-    state inspect(found: Found, position: u64, middle: u8) -> bool {
+    machine inspect(found: Found, position: u64, middle: u8) -> bool {
         transition found.bytes.len == 3 {
             true -> contents(found, position, middle)
             false -> false
         }
     }
-    state contents(found: Found, position: u64, middle: u8) -> bool
+    machine contents(found: Found, position: u64, middle: u8) -> bool
     requires found.bytes.len == 3 {
         found.position == position && found.bytes[0] == 170
             && found.bytes[1] == middle && found.bytes[2] == 170
@@ -100,6 +100,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

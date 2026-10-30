@@ -9,7 +9,7 @@ data Main { source: Source; array: ArraySource; }
 
 machine Header::write(header: &mut Header) {
     transition true { _ -> update(header) }
-    state update(header: &mut Header) {
+    machine update(header: &mut Header) {
         header.left = 61u64;
         header.right = 19u64;
     }
@@ -17,7 +17,7 @@ machine Header::write(header: &mut Header) {
 
 machine Header::read(header: &Header) -> u64 {
     transition true { _ -> observe(header) }
-    state observe(header: &Header) { header.left }
+    machine observe(header: &Header) -> u64 { header.left }
 }
 
 machine AliasHeader::read(header: &AliasHeader) -> u64 { header.first }
@@ -42,7 +42,7 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> array(main)
         _ -> bad()
     }
-    state array(main: &mut Main) {
+    machine array(main: &mut Main) {
         main.array.cells[0] = 7u64;
         main.array.cells[1] = 37u64;
         main.array.cells[2] = 9u64;
@@ -57,8 +57,8 @@ machine Main::main(main: &mut Main) crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

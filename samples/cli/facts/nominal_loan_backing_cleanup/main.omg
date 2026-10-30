@@ -4,7 +4,7 @@ machine Room::drop(room: &mut Room) { room.count = 99; }
 machine main() crashes Trap {
  let room: Room = Room { count: 10 };
  transition { _ -> observe(&mut room) }
- state observe(room: &mut Room) { transition room.count == 10 { true -> done() false -> bad() } }
- state done() {}
- state bad() { crash Trap; }
+ machine observe(room: &mut Room) { transition room.count == 10 { true -> done() false -> bad() } }
+ machine done() {}
+ machine bad() { crash Trap; }
 }

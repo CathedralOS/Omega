@@ -8,17 +8,26 @@
 //! replay both ask this one question, so a newly lowered instruction family
 //! cannot be counted as a use in one and missed in the other.
 use legalized_operations::{
-    LegalizedScalarArgument, LegalizedScalarFunction, LegalizedScalarInstructionKind,
+    LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction,
+    LegalizedScalarInstructionKind,
 };
 use semantic_vocabulary::PlaceId;
+
+fn call_uses_referent(call: &LegalizedScalarCall, place: PlaceId) -> bool {
+    call.arguments.iter().any(|argument| {
+        matches!(argument, LegalizedScalarArgument::Structural { semantic, .. } if semantic.place == place)
+    })
+}
 
 pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) -> bool {
     super::established_view_input::transferred(source, place)
         || source.blocks.iter().any(|block| block.terminator.cleanup_calls().any(|(_, call)|
-            call.arguments.iter().any(|argument|
-                matches!(argument, LegalizedScalarArgument::Structural { semantic, .. } if semantic.place == place))))
+            call_uses_referent(call, place)))
         || source.blocks.iter().any(|block| {
             match &block.terminator {
+                // A suspended ordinary invocation still reads its actuals;
+                // a zero-byte referent keeps its existing incoming pointer.
+                legalized_operations::LegalizedScalarTerminator::InvokeNoNormal { call, .. } => call_uses_referent(call, place),
                 legalized_operations::LegalizedScalarTerminator::StructuralCase { source, .. } => source.place() == place,
                 // Returning the referent's value reads its incoming storage,
                 // even when no body instruction otherwise observes it.
@@ -95,9 +104,7 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
                 | LegalizedScalarInstructionKind::ElementViewLength { source, .. } => {
                     source.place == place
                 }
-                LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(
-                    |argument| matches!(argument, LegalizedScalarArgument::Structural { semantic, .. } if semantic.place == place),
-                ),
+                LegalizedScalarInstructionKind::Call(call) => call_uses_referent(call, place),
                 LegalizedScalarInstructionKind::NormalizedForeignCall(call) => call
                     .structural_arguments
                     .iter()

@@ -1,0 +1,15 @@
+corpus_runner: 19714 prior timings loaded
+corpus_runner: 9/9 done, 0 compile(s) in flight
+corpus_gate: tests/omega/corpus_outcomes.txt carries 1 of 19714 rows asserting an expected/unexpected outcome with no stored diagnostic line — their outcome is an observation, their reason is unsupported, and LOST cannot see them because the key is present. Reason-level verdicts drawn from them are unsupported; --record refuses to write new rows of that shape
+~ fail/facts/dyn_dispatch_selector_payload_bound_through_match_join_rejected: diagnostics moved
+    - exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or na
+    + exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` cl
+~ fail/facts/dyn_dispatch_selector_payload_bound_through_other_state_rejected: diagnostics moved
+    - exact arithmetic in machine `main` state `evaluate` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or
+    + exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, o
+corpus_gate: 2 structural move(s), 0 perf move(s) — 9 fixtures ({'rejected': 9}), 0 rejected without their expected fragment, 0 fail fixtures did not reject; verdicts {'moved': 2}
+corpus_gate: of those — 2 diagnostics or facts moved
+corpus_gate: golden provenance: 9 rows stamped, 0 legacy (unstamped), oldest stamped row 668 commits behind HEAD (@a92f16431042)
+corpus_gate: measured at jobs=runner default, golden jobs=2
+corpus_gate: 311 pass/run row(s) pinned without a success and 35 fail row(s) pinned as a success (293 carry regressed-from)
+corpus_gate:   list them with --list-pinned-regressions

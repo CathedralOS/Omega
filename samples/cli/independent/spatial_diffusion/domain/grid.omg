@@ -67,36 +67,36 @@ machine boundary(grid: &mut Grid, row: u64, side: u64, horizontal: f64, vertical
   true -> dirichlet(grid, row, horizontal, vertical, coefficient)
   false -> neumann(grid, row, side)
  }
- state dirichlet(grid: &mut Grid, row: u64, horizontal: f64, vertical: f64, coefficient: f64) -> f64 {
+ machine dirichlet(grid: &mut Grid, row: u64, horizontal: f64, vertical: f64, coefficient: f64) -> f64 {
   grid.right[row % 144] = grid.right[row % 144] + 2.0*coefficient*exact(grid.linear,horizontal,vertical);
   2.0*coefficient
  }
- state neumann(grid: &mut Grid, row: u64, side: u64) -> f64 {
+ machine neumann(grid: &mut Grid, row: u64, side: u64) -> f64 {
   transition grid.linear { true -> flux(grid,row,side) false -> quadratic_flux(grid,row,side) }
  }
- state flux(grid: &mut Grid, row: u64, side: u64) -> f64 {
+ machine flux(grid: &mut Grid, row: u64, side: u64) -> f64 {
   transition side { 0 -> west(grid,row) 1 -> east(grid,row) 2 -> south(grid,row) _ -> north(grid,row) }
  }
- state quadratic_flux(grid: &mut Grid, row: u64, side: u64) -> f64 {
+ machine quadratic_flux(grid: &mut Grid, row: u64, side: u64) -> f64 {
   transition side { 1 -> north(grid,row) 3 -> north(grid,row) _ -> 0.0 }
  }
- state west(grid: &mut Grid,row:u64) -> f64 { grid.right[row%144]=grid.right[row%144]-grid.diffusion*F64::from_u64(grid.n as u64); 0.0 }
- state east(grid: &mut Grid,row:u64) -> f64 { grid.right[row%144]=grid.right[row%144]+grid.diffusion*F64::from_u64(grid.n as u64); 0.0 }
- state south(grid: &mut Grid,row:u64) -> f64 { grid.right[row%144]=grid.right[row%144]-2.0*grid.diffusion*F64::from_u64(grid.n as u64); 0.0 }
- state north(grid: &mut Grid,row:u64) -> f64 { grid.right[row%144]=grid.right[row%144]+2.0*grid.diffusion*F64::from_u64(grid.n as u64); 0.0 }
+ machine west(grid: &mut Grid,row:u64) -> f64 { grid.right[row%144]=grid.right[row%144]-grid.diffusion*F64::from_u64(grid.n as u64); 0.0 }
+ machine east(grid: &mut Grid,row:u64) -> f64 { grid.right[row%144]=grid.right[row%144]+grid.diffusion*F64::from_u64(grid.n as u64); 0.0 }
+ machine south(grid: &mut Grid,row:u64) -> f64 { grid.right[row%144]=grid.right[row%144]-2.0*grid.diffusion*F64::from_u64(grid.n as u64); 0.0 }
+ machine north(grid: &mut Grid,row:u64) -> f64 { grid.right[row%144]=grid.right[row%144]+2.0*grid.diffusion*F64::from_u64(grid.n as u64); 0.0 }
 }
 public machine assemble(grid: &mut Grid) {
  transition valid(grid) { true -> start(grid) false -> invalid(grid) }
- state invalid(grid:&mut Grid) { grid.count=0; grid.nonzeros=0; }
- state start(grid:&mut Grid) {
+ machine invalid(grid:&mut Grid) { grid.count=0; grid.nonzeros=0; }
+ machine start(grid:&mut Grid) {
  grid.count=grid.n*grid.n;
  grid.nonzeros=0;
  transition { _ -> row(grid,0) }
  }
- state row(grid: &mut Grid, index:u64 in Saturating) {
+ machine row(grid: &mut Grid, index:u64 in Saturating) {
   transition index < grid.count && grid.n > 0 { true -> initialize(grid,index) false -> finish(grid) }
  }
- state initialize(grid: &mut Grid,index:u64 in Saturating) requires grid.n > 0 {
+ machine initialize(grid: &mut Grid,index:u64 in Saturating) requires grid.n > 0 {
   let horizontal:u64 in Saturating=index%grid.n;
   let vertical:u64 in Saturating=index/grid.n;
   let x:f64=(F64::from_u64(horizontal as u64)+0.5)/F64::from_u64(grid.n as u64);
@@ -106,61 +106,61 @@ public machine assemble(grid: &mut Grid) {
   let reaction:f64=grid.reaction;
   transition grid.linear { true -> west(grid,index,horizontal,vertical,x,y,reaction) false -> forcing(grid,index,horizontal,vertical,x,y) }
  }
- state forcing(grid:&mut Grid,index:u64 in Saturating,horizontal:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64) {
+ machine forcing(grid:&mut Grid,index:u64 in Saturating,horizontal:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64) {
   grid.right[index%144]=grid.right[index%144]-4.0*grid.diffusion;
   let reaction:f64=grid.reaction;
   transition { _ -> west(grid,index,horizontal,vertical,x,y,reaction) }
  }
- state west(grid:&mut Grid,index:u64 in Saturating,horizontal:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64) {
+ machine west(grid:&mut Grid,index:u64 in Saturating,horizontal:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64) {
   let coefficient:f64=grid.diffusion*F64::from_u64(grid.n as u64)*F64::from_u64(grid.n as u64);
   transition horizontal > 0 { true -> west_inside(grid,index,horizontal,vertical,x,y,diagonal,coefficient) false -> west_face(grid,index,horizontal,vertical,x,y,diagonal,coefficient) }
  }
- state west_inside(grid:&mut Grid,index:u64 in Saturating,horizontal:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
+ machine west_inside(grid:&mut Grid,index:u64 in Saturating,horizontal:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
   append(grid,(index-1) as u64,0.0-coefficient);
   transition { _ -> east(grid,index,horizontal,vertical,x,y,diagonal+coefficient,coefficient) }
  }
- state west_face(grid:&mut Grid,index:u64 in Saturating,horizontal:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
+ machine west_face(grid:&mut Grid,index:u64 in Saturating,horizontal:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
   let addition:f64=boundary(grid,index as u64,0,0.0,y,coefficient);
   transition { _ -> east(grid,index,horizontal,vertical,x,y,diagonal+addition,coefficient) }
  }
- state east(grid:&mut Grid,index:u64 in Saturating,horizontal:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
+ machine east(grid:&mut Grid,index:u64 in Saturating,horizontal:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
   transition horizontal+1 < grid.n { true -> east_inside(grid,index,vertical,x,y,diagonal,coefficient) false -> east_face(grid,index,vertical,x,y,diagonal,coefficient) }
  }
- state east_inside(grid:&mut Grid,index:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
+ machine east_inside(grid:&mut Grid,index:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
   append(grid,(index+1) as u64,0.0-coefficient);
   transition { _ -> south(grid,index,vertical,x,y,diagonal+coefficient,coefficient) }
  }
- state east_face(grid:&mut Grid,index:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
+ machine east_face(grid:&mut Grid,index:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
   let addition:f64=boundary(grid,index as u64,1,1.0,y,coefficient);
   transition { _ -> south(grid,index,vertical,x,y,diagonal+addition,coefficient) }
  }
- state south(grid:&mut Grid,index:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
+ machine south(grid:&mut Grid,index:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
   transition vertical > 0 { true -> south_inside(grid,index,vertical,x,y,diagonal,coefficient) false -> south_face(grid,index,vertical,x,y,diagonal,coefficient) }
  }
- state south_inside(grid:&mut Grid,index:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
+ machine south_inside(grid:&mut Grid,index:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
   let column:u64=(index-grid.n) as u64;
   append(grid,column,0.0-coefficient);
   transition { _ -> north(grid,index,vertical,x,y,diagonal+coefficient,coefficient) }
  }
- state south_face(grid:&mut Grid,index:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
+ machine south_face(grid:&mut Grid,index:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
   let addition:f64=boundary(grid,index as u64,2,x,0.0,coefficient);
   transition { _ -> north(grid,index,vertical,x,y,diagonal+addition,coefficient) }
  }
- state north(grid:&mut Grid,index:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
+ machine north(grid:&mut Grid,index:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
   transition vertical+1 < grid.n { true -> north_inside(grid,index,diagonal,coefficient) false -> north_face(grid,index,x,diagonal,coefficient) }
  }
- state north_inside(grid:&mut Grid,index:u64 in Saturating,diagonal:f64,coefficient:f64) {
+ machine north_inside(grid:&mut Grid,index:u64 in Saturating,diagonal:f64,coefficient:f64) {
   let column:u64=(index+grid.n) as u64;
   append(grid,column,0.0-coefficient);
   transition { _ -> diagonal_entry(grid,index,diagonal+coefficient) }
  }
- state north_face(grid:&mut Grid,index:u64 in Saturating,x:f64,diagonal:f64,coefficient:f64) {
+ machine north_face(grid:&mut Grid,index:u64 in Saturating,x:f64,diagonal:f64,coefficient:f64) {
   let addition:f64=boundary(grid,index as u64,3,x,1.0,coefficient);
   transition { _ -> diagonal_entry(grid,index,diagonal+addition) }
  }
- state diagonal_entry(grid:&mut Grid,index:u64 in Saturating,diagonal:f64) {
+ machine diagonal_entry(grid:&mut Grid,index:u64 in Saturating,diagonal:f64) {
   append(grid,index as u64,diagonal);
   transition { _ -> row(grid,index+1) }
  }
- state finish(grid:&mut Grid) { grid.offsets[grid.count%145]=grid.nonzeros as u64; }
+ machine finish(grid:&mut Grid) { grid.offsets[grid.count%145]=grid.nonzeros as u64; }
 }

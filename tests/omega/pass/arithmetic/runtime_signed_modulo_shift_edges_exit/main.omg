@@ -11,7 +11,7 @@ data Main {
 machine Main::main(context: &mut Main) reaches Console {
     transition { _ -> modulo(context, 0 - 7, 3) }
 
-    state modulo(context: &mut Main, negative: i32 in Wrapping,
+    machine modulo(context: &mut Main, negative: i32 in Wrapping,
                  divisor: i32 in Wrapping) {
         let first_remainder: i32 in Wrapping = negative % divisor;
         let positive: i32 in Wrapping = 0 - negative;
@@ -23,10 +23,10 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
 
-    state mod2(context: &mut Main, remainder: i32 in Wrapping) {
+    machine mod2(context: &mut Main, remainder: i32 in Wrapping) {
         transition remainder == 1 { true -> shifts(context, 0 - 16, 16) _ -> bad(context) }
     }
-    state shifts(context: &mut Main, signed_value: i32 in Wrapping,
+    machine shifts(context: &mut Main, signed_value: i32 in Wrapping,
                  unsigned_value: u32 in Wrapping) {
         let signed_shift: i32 in Wrapping = signed_value >> 2;
         let unsigned_shift: u32 in Wrapping = unsigned_value >> 2;
@@ -35,19 +35,19 @@ machine Main::main(context: &mut Main) reaches Console {
             _ -> bad(context)
         }
     }
-    state ushift(context: &mut Main, shifted: u32 in Wrapping) {
+    machine ushift(context: &mut Main, shifted: u32 in Wrapping) {
         transition shifted == 4 {
             true -> runtime_shift(context, 5)
             _ -> bad(context)
         }
     }
-    state runtime_shift(context: &mut Main, shift_count: i32 in Wrapping) {
+    machine runtime_shift(context: &mut Main, shift_count: i32 in Wrapping) {
         let base: i32 in Wrapping = 1;
         let shifted: i32 in Wrapping = base << shift_count;
         transition shifted == 32 { true -> ok(context) _ -> bad(context) }
     }
-    state ok(context: &mut Main) { Console::exit_process(70); }
-    state bad(context: &mut Main) { Console::exit_process(71); }
+    machine ok(context: &mut Main) { Console::exit_process(70); }
+    machine bad(context: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

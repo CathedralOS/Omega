@@ -8,7 +8,7 @@ requires narrow >= 40u8 && narrow <= 161u8
     transition {
         _ -> step(narrow as u32)
     }
-    state step(wide: u32) -> i32
+    machine step(wide: u32) -> i32
     requires wide >= 40u32 && wide <= 161u32
     {
         let headroom: u32 = 160u32 - wide;
@@ -26,6 +26,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

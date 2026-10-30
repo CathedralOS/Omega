@@ -23,6 +23,7 @@ pub(super) fn append(
     premises: &mut Vec<StatedOrderingPremise>,
 ) {
     let mut visited = Vec::new();
+    let mut observations = None;
     for fact in contexts.iter().flat_map(|context| {
         facts
             .semantic
@@ -63,14 +64,19 @@ pub(super) fn append(
                 segments: place.segments.clone(),
             }
         };
-        let Some(ScalarValue::Integer(value)) = crate::values::scalar_value_at_place(
-            program,
-            &facts.semantic,
-            contexts
-                .iter()
-                .map(|context| facts.semantic.contexts.get(*context)),
-            &place,
-        ) else {
+        // This invocation borrows one immutable selected-context batch. Prepare
+        // its places and completed-call snapshots once, after finding a usable
+        // subject; each query still consumes all matching payloads and blockers.
+        let observations = observations.get_or_insert_with(|| {
+            crate::values::AssignmentObservationBatch::prepare(
+                program,
+                &facts.semantic,
+                contexts
+                    .iter()
+                    .map(|context| facts.semantic.contexts.get(*context)),
+            )
+        });
+        let Some(ScalarValue::Integer(value)) = observations.scalar_value(&place) else {
             continue;
         };
         let Some(value) = value.to_i64() else {

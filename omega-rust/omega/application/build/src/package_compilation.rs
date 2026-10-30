@@ -7,43 +7,47 @@
 use crate::build_execution::{PackagePlan, PreparedPackageRoot, prepare_packages};
 use compiler::{
     CheckedCompileRequest, CompilationOutput, CompilationSession, PackageBuild,
-    PackageCompilationRequest, PackageCompileFailure, PreparedPackageProduct,
+    PackageCompilationRequest, PackageCompileFailure, PackageSourceRequest, PreparedPackageProduct,
 };
 use diagnostics::Diagnostic;
 
-/// Execute a dependency-ordered roster and finish each requested product.
+/// Prepare dependency-ordered fresh or settled sources and finish each product.
+/// Settled occurrences require matching custody in `completed`; absence never
+/// falls back to executing Build again.
 /// The whole invocation uses one compiler-stack worker; compiler operations
 /// reuse that worker rather than spawning one per dependency occurrence.
 pub fn compile_packages(
     compiler: &mut CompilationSession,
     requests: Vec<PackageCompilationRequest>,
+    completed: &mut [compiler::CompletedBuild],
 ) -> Vec<Result<CompilationOutput, PackageCompileFailure>> {
-    let count = requests.len();
-    compiler::checked::run_on_compile_thread(|| {
-        let mut plans = Vec::with_capacity(count);
-        for (position, mut request) in requests.into_iter().enumerate() {
-            let root = request.occurrences.len().saturating_sub(1);
-            for occurrence in &mut request.occurrences {
-                occurrence.optimization_rollback = request.product.optimization_rollback();
-            }
-            let owner = (
-                position,
-                root,
-                request.product,
-                request.terminal_permissions,
-            );
-            plans.push((
-                owner,
-                PackagePlan {
-                    occurrences: request.occurrences,
-                    join_root: false,
-                },
-            ));
+    let mut plans = Vec::with_capacity(requests.len());
+    for (position, mut request) in requests.into_iter().enumerate() {
+        let root = request.occurrences.len().saturating_sub(1);
+        for occurrence in &mut request.occurrences {
+            occurrence.set_optimization_rollback(request.product.optimization_rollback());
         }
+        let owner = (
+            position,
+            root,
+            request.product,
+            request.terminal_permissions,
+        );
+        plans.push((
+            owner,
+            PackagePlan {
+                occurrences: request.occurrences,
+                join_root: false,
+            },
+        ));
+    }
 
+    let count = plans.len();
+    compiler::checked::run_on_compile_thread(|| {
         let mut outcomes = Vec::with_capacity(count);
         let mut products = Vec::new();
-        for ((position, root, product, permissions), prepared) in prepare_packages(compiler, plans)
+        for ((position, root, product, permissions), prepared) in
+            prepare_packages(compiler, plans, completed)
         {
             match prepared {
                 Ok(PreparedPackageRoot::Build(build)) => products.push((
@@ -68,7 +72,8 @@ pub fn compile_packages(
             }
         }
 
-        for ((position, root), product) in compiler.complete_package_products(products)? {
+        let products = compiler.complete_package_products(products)?;
+        for ((position, root), product) in crate::native_completion::complete_products(products) {
             outcomes.push((
                 position,
                 product.map_err(|error| PackageCompileFailure {
@@ -92,12 +97,13 @@ pub fn compile_packages(
     })
 }
 
-/// Execute a package's dependency Builds and root Build, without checking its
-/// Product source. The returned continuation is opaque compiler custody, not
+/// Prepare a package's dependency and root sources from fresh execution requests
+/// or settled Builds, without checking its Product. The result is opaque custody, not
 /// an application-accessible source representation or permission to publish.
 pub fn prepare_package(
     compiler: &mut CompilationSession,
-    occurrences: Vec<CheckedCompileRequest>,
+    occurrences: Vec<PackageSourceRequest>,
+    completed: &mut [compiler::CompletedBuild],
 ) -> Result<PackageBuild, PackageCompileFailure> {
     let root = occurrences.len().saturating_sub(1);
     compiler::checked::run_on_compile_thread(|| {
@@ -110,6 +116,7 @@ pub fn prepare_package(
                     join_root: false,
                 },
             )],
+            completed,
         )
         .pop();
         Ok::<_, Vec<Diagnostic>>(match prepared {
@@ -143,10 +150,14 @@ pub fn join_dependency_builds(
             vec![(
                 (),
                 PackagePlan {
-                    occurrences,
+                    occurrences: occurrences
+                        .into_iter()
+                        .map(PackageSourceRequest::Execute)
+                        .collect(),
                     join_root: true,
                 },
             )],
+            &mut [],
         )
         .pop();
         Ok::<_, Vec<Diagnostic>>(match prepared {

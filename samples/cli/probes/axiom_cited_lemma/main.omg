@@ -11,7 +11,7 @@ ensures
     transition {
         _ -> body(a, b)
     }
-    state body(a: Nat, b: Nat) -> Nat {
+    machine body(a: Nat, b: Nat) -> Nat {
         mul_comm_axiom(a, b);
         transition { _ -> Nat::Zero }
     }

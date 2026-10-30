@@ -13,12 +13,12 @@ pub mod predicates;
 
 pub use predicates::{
     BooleanPredicate, BooleanPredicateBinding, BooleanPredicateRole, CheckedBooleanExpression,
-    CheckedByteSequenceOperand, CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind,
-    CheckedIntegerComparisonKind, CheckedIntegerMathExpression, CheckedIntegerMathTerm,
-    CheckedRuntimeIndex, CheckedScalarExpression, CheckedScalarReadProjection,
-    CheckedScalarSelector, CheckedStorageRoot, CheckedStructuralCaseRoot,
-    CheckedStructuralCaseSubject, CheckedStructuralParameterField,
-    CheckedStructuralPredicatePathSegment, u64_integer_literal,
+    CheckedByteSequenceOperand, CheckedEntryIndexBound, CheckedEntryIndexSelector,
+    CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
+    CheckedIntegerMathExpression, CheckedIntegerMathTerm, CheckedRuntimeIndex,
+    CheckedScalarExpression, CheckedScalarReadProjection, CheckedScalarSelector,
+    CheckedStorageRoot, CheckedStructuralCaseRoot, CheckedStructuralCaseSubject,
+    CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment, u64_integer_literal,
 };
 
 pub use fact_plan::contexts::view::FactContextView;
@@ -27,10 +27,10 @@ pub use fact_plan::contexts::{
     ProgramPoint, SymbolFactSet, TypeConstraintFact, view,
 };
 pub use fact_plan::evidence::{
-    ContractFactKind, DataDefinitionFactDependency, DataDefinitionFactRecord,
-    DomainDefinitionFactDependency, DomainDefinitionFactRecord, Fact, FactOrigin, FactPayload,
-    FloatPredicate, InstantiatedExpression, InstructionEffectOperation, IntegerRange,
-    ProofObligationKind, QualificationCorrespondence, QualificationEvidence,
+    BoundaryQualificationIssuerRecord, ContractFactKind, DataDefinitionFactDependency,
+    DataDefinitionFactRecord, DomainDefinitionFactDependency, DomainDefinitionFactRecord, Fact,
+    FactOrigin, FactPayload, FloatPredicate, InstantiatedExpression, InstructionEffectOperation,
+    IntegerRange, ProofObligationKind, QualificationCorrespondence, QualificationEvidence,
     QualificationPayloadIdentity, ScalarValue,
 };
 pub use fact_plan::places::resolution::{
@@ -39,8 +39,8 @@ pub use fact_plan::places::resolution::{
 };
 pub use fact_plan::places::write_frame::{NormalizedWriteFrame, WriteFrameCompleteness};
 pub use fact_plan::places::{
-    FactPlace, Place, PlaceRoot, PlaceSegment, compose_captured_view_segments,
-    project_captured_view_segments, resolution, write_frame,
+    FactPlace, InvocationOutputIdentity, Place, PlaceRoot, PlaceSegment,
+    compose_captured_view_segments, project_captured_view_segments, resolution, write_frame,
 };
 pub use fact_plan::{
     FactContextHandle, FactHandle, FactPlan, PlaceHandle, QualificationCorrespondenceHandle,

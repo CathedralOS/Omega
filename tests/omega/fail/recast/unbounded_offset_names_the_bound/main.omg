@@ -10,9 +10,9 @@ data Desc { a: u32; b: u32; }
 data Main { buf: [u8; 16]; }
 machine Main::main(main: &mut Main, offset: u32) {
     transition { _ -> read(main, offset) }
-    state read(main: &mut Main, off: u32) {
+    machine read(main: &mut Main, off: u32) {
         let d: &Desc = &main.buf[off] as &Desc;
         transition { _ -> yes(main) }
     }
-    state yes(main: &mut Main) { Console::exit_process(70); }
+    machine yes(main: &mut Main) { Console::exit_process(70); }
 }

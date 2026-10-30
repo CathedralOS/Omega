@@ -15,6 +15,6 @@ machine main() crashes Trap {
     let mut value: u64 = 11;
     let observed: u64 = invalid(&mut value);
     transition observed == 99 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

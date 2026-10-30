@@ -1,0 +1,83 @@
+[
+  {
+    "variant": "B",
+    "fixture": "fail/calls/specification_result_without_guarantees_requires_formation",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\candidate\\omega.exe",
+      "--check",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\formation-replay-B-fail\\input\\main.omg"
+    ],
+    "exit": 1,
+    "seconds": 0.8987218999973265,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\formation-replay-B-fail\\00.txt",
+    "producer_sha256": "36c34d2b0d2dfa870cb829dcc54777ebf1fef5cd645679b72d79f065ac2b7082",
+    "source_sha256": "f5bf02f922f42b330629429e4ccffa7a2c443b29b7c55cfc472c2d4c3650ee3f",
+    "expected": "cannot prove requires contract for specification call `restricted`",
+    "matched": true
+  },
+  {
+    "variant": "A",
+    "fixture": "pass/calls/specification_result_without_guarantees_requires_formation",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\candidate\\omega.exe",
+      "update",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\formation-replay-A-pass\\input",
+      "--target",
+      "windows_x86_64"
+    ],
+    "exit": 0,
+    "seconds": 2.7326697000098648,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\formation-replay-A-pass\\01.txt",
+    "producer_sha256": "1c7645a93c087116c69bb5951cc940709cdadecfeae847d38f9de957d3ad4d60",
+    "source_sha256": "1edacffded3d14befa8c39c477054b16558468c6f9037b2a7e768ec04cb19b44"
+  },
+  {
+    "variant": "A",
+    "fixture": "pass/calls/specification_result_without_guarantees_requires_formation",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\candidate\\omega.exe",
+      "update",
+      "--resume",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\formation-replay-A-pass\\input"
+    ],
+    "exit": 1,
+    "seconds": 0.255643800002872,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\formation-replay-A-pass\\02.txt",
+    "producer_sha256": "1c7645a93c087116c69bb5951cc940709cdadecfeae847d38f9de957d3ad4d60",
+    "source_sha256": "1edacffded3d14befa8c39c477054b16558468c6f9037b2a7e768ec04cb19b44"
+  },
+  {
+    "variant": "A",
+    "fixture": "pass/calls/specification_result_without_guarantees_requires_formation",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\formation-replay-A-pass\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 2.8013925999985076,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\formation-replay-A-pass\\03.txt",
+    "producer_sha256": "1c7645a93c087116c69bb5951cc940709cdadecfeae847d38f9de957d3ad4d60",
+    "source_sha256": "1edacffded3d14befa8c39c477054b16558468c6f9037b2a7e768ec04cb19b44"
+  },
+  {
+    "variant": "A",
+    "fixture": "fail/calls/specification_result_without_guarantees_requires_formation",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\candidate\\omega.exe",
+      "--check",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\formation-replay-A-fail\\input\\main.omg"
+    ],
+    "exit": 1,
+    "seconds": 0.896864900001674,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\formation-replay-A-fail\\04.txt",
+    "producer_sha256": "1c7645a93c087116c69bb5951cc940709cdadecfeae847d38f9de957d3ad4d60",
+    "source_sha256": "f5bf02f922f42b330629429e4ccffa7a2c443b29b7c55cfc472c2d4c3650ee3f",
+    "expected": "cannot prove requires contract for specification call `restricted`",
+    "matched": true
+  }
+]

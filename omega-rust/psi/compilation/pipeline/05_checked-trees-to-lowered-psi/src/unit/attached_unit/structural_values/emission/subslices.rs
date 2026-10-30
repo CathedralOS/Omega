@@ -2,9 +2,10 @@
 //! source value completes before endpoints; no source symbol or fake storage
 //! loan replaces the descriptor's exact contents and backing.
 use super::{
-    Emission, LoweringError, PlaceId, StructuralTypeShape, ValueContinuation, allocate_dense,
-    lookup_type_id, place_id, unsupported,
+    CompletionOccurrence, Emission, LoweringError, PlaceId, StructuralTypeShape, ValueContinuation,
+    allocate_dense, lookup_type_id, place_id, unsupported,
 };
+use crate::unit::attached_unit::structural_values::ValueOutcome;
 use crate::unit::attached_unit::view_ranges;
 use checked_trees::{CheckedCallScalarArgument, CheckedStructuralValueHandle, CheckedSubsliceSite};
 
@@ -18,8 +19,9 @@ impl Emission<'_, '_, '_> {
         end: &Option<CheckedCallScalarArgument>,
         end_inclusive: bool,
         site: CheckedSubsliceSite,
+        completion: CompletionOccurrence,
         continuation: Option<&mut ValueContinuation>,
-    ) -> Result<PlaceId, LoweringError> {
+    ) -> Result<ValueOutcome<PlaceId>, LoweringError> {
         let node = self.structural_value_node(source);
         let source_type = lookup_type_id(
             self.type_ids,
@@ -42,8 +44,14 @@ impl Emission<'_, '_, '_> {
                 }
                 _ => return unsupported("subslice value has no view descriptor carrier"),
             };
-        let completed =
-            self.establish_computed_operand(identities, source, source_type, node.type_reference)?;
+        // The shared child owner completes this exact source before endpoints,
+        // retaining its actual producer/custody and any normal-death receipt.
+        // No ambient establishment roster is installed around a child value.
+        let ValueOutcome::Normal(completed) =
+            self.child_constructor_operand(identities, source_type, source, node.type_reference)?
+        else {
+            return Ok(ValueOutcome::NoNormal);
+        };
         crate::expression_preparation::bindings::retain_completed_structural_homes(
             &mut self.evaluation.structural_locals,
             &[
@@ -109,6 +117,7 @@ impl Emission<'_, '_, '_> {
             self.environment,
         )?;
         self.environment.private_places.push(declaration);
-        self.completed(place, continuation)
+        self.completed(identities, place, completion, continuation)
+            .map(ValueOutcome::Normal)
     }
 }

@@ -14,12 +14,12 @@ requires model_specific_written(2059, 0);
 ensures model_specific_written(2059, 0);
 {
     transition enabled { true -> written() false -> skipped() }
-    state written() {
+    machine written() {
         let index: u32 = 2059;
         let value: u64 = 0;
         asm { wrmsr index, value }
     }
-    state skipped() {}
+    machine skipped() {}
 }
 machine finish(token: Token, enabled: bool)
 satisfies Finish::finish

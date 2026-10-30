@@ -819,7 +819,7 @@ fn direct_service_reach_for_call(
     // rows; never consult the lowercase/u64 compatibility catalog here. Each
     // builtin slot names one function, so the target's own slot selects it.
     if let Some(function) = program.symbols.builtin_function_for_symbol(target)
-        && symbols::BuiltinFunction::asm_intrinsics().contains(&function)
+        && function.is_asm_intrinsic()
     {
         if let Some(service_name) = function.asm_intrinsic_service_name()
             && let Some(service) = program.service_reaches.id_for_name(service_name)

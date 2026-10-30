@@ -23,6 +23,6 @@ machine observe_branch(branch: bool) crashes Trap {
  let joined: u64 = match branch { true -> left, false -> right ^ 64u64 };
  asm { observed requires (joined & 64u64) == 64u64: nop }
  transition (joined & 64u64) == 64u64 { true -> done() false -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }

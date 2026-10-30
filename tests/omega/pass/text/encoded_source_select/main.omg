@@ -72,6 +72,6 @@ machine Main::main(main: &mut Main) {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() {}
+    machine done() {}
+    machine bad() {}
 }

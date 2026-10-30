@@ -5,7 +5,7 @@ use crate::proposition::{PropositionError, ScalarTerm};
 
 /// Exact namespace of a proof formal. Invocation inputs remain immutable for
 /// the activation; block inputs are rebound by explicit control-flow edges.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ProofFormalScope {
     Invocation,
     Block,
@@ -14,7 +14,7 @@ pub enum ProofFormalScope {
 /// An exact input to a closed mathematical function. Scalar observations keep
 /// their independently formed source carrier identity and ordinary SSA term;
 /// they do not become signature assumptions or executable proof values.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum MathematicalArgument {
     Formal {
         position: u32,
@@ -33,7 +33,7 @@ pub enum MathematicalArgument {
 /// nested call unchanged; an `Array` retains ordered elements and its exact
 /// type; a `Scalar` is a primitive payload leaf, expressed over the caller's scalar namespace
 /// like any erased scalar actual.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ProofTerm {
     /// A checked mathematical judgment in the canonical certificate wire form.
     /// The complete signature retains assumptions even after runtime erasure.
@@ -81,6 +81,37 @@ pub enum ProofTerm {
 }
 
 impl ProofTerm {
+    /// Visit caller-side scalar identities retained by this erased term.
+    /// Closed certificates and proof formals introduce no runtime value uses.
+    pub fn visit_value_ids(&self, mut visit: impl FnMut(crate::ValueId) -> bool) -> bool {
+        let mut pending = vec![self];
+        while let Some(term) = pending.pop() {
+            match term {
+                Self::Scalar(term) => {
+                    if !term.visit_value_ids(&mut visit) {
+                        return false;
+                    }
+                }
+                Self::Construction { fields, .. } => {
+                    pending.extend(fields.iter().rev().map(|field| &field.term))
+                }
+                Self::Array { elements, .. } => pending.extend(elements.iter().rev()),
+                Self::MathematicalApplication { arguments, .. } => {
+                    for argument in arguments {
+                        if let MathematicalArgument::Scalar { term, .. } = argument
+                            && !term.visit_value_ids(&mut visit)
+                        {
+                            return false;
+                        }
+                    }
+                }
+                Self::Mathematical { .. } | Self::Formal { .. } | Self::InvocationFormal { .. } => {
+                }
+            }
+        }
+        true
+    }
+
     /// Structural validity: construction identities are populated, fields
     /// validate, and the term carries no runtime reference.
     pub fn validate(&self) -> Result<(), PropositionError> {
@@ -164,7 +195,7 @@ impl ProofTerm {
 
 /// One named payload field of a proof-term construction. Field order is the
 /// authored order; the verifier replays it verbatim.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct ProofTermField {
     /// Canonical field identity inside the selected case.
     pub field_identity: String,

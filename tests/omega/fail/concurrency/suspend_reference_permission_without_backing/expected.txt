@@ -1,6 +1,2 @@
-`loan` may retain borrowed storage
-`carrier` may retain borrowed storage
-`view` may retain borrowed storage
-`argument` may retain borrowed storage
 `unknown` may retain borrowed storage
 carry permission on the descriptor does not establish loan preservation

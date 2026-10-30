@@ -6,31 +6,79 @@ machine verify(diff: u64) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
-linux_x86_64 machine exercise(truncated: u64) requires truncated <= 31u64 crashes Trap {
-    let diff: u64 = 31u64 - truncated;
-    verify(diff);
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine exercise(truncated: u64) requires truncated <= 31u64 crashes Trap {
-    let diff: u64 = 31u64 - truncated;
-    verify(diff);
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine exercise(truncated: u64) requires truncated <= 31u64 crashes Trap {
-    let diff: u64 = 31u64 - truncated;
-    verify(diff);
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine exercise(truncated: u64) requires truncated <= 31u64 crashes Trap {
-    let diff: u64 = 31u64 - truncated;
-    verify(diff);
+boundary trait SelectedProbe {
+    machine exercise(truncated: u64)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        requires truncated <= 31u64 crashes Trap;
 }
 
-machine main() crashes Trap {
+X86Probe satisfies SelectedProbe {
+    machine exercise(truncated: u64)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        requires truncated <= 31u64 crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let diff: u64 = 31u64 - truncated;
+        verify(diff);
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine exercise(truncated: u64)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        requires truncated <= 31u64 crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let diff: u64 = 31u64 - truncated;
+        verify(diff);
+    }
+}
+
+
+
+
+
+
+
+
+
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
     let x: u64 = 466u64;
-    exercise((x & 31u64) as u8 as u64);
+    SelectedProbe::exercise((x & 31u64) as u8 as u64);
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

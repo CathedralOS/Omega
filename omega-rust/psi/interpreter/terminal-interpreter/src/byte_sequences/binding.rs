@@ -538,7 +538,17 @@ impl TerminalExecution<'_> {
             .get(&crate::values::StructuralRuntimePlace::from(selected))
         {
             return Ok(ByteSequenceBinding::Immutable(
-                bytes.clone().with_descriptor_home(selected.clone()),
+                bytes
+                    .copy_snapshot()?
+                    .with_descriptor_home(selected.clone()),
+            ));
+        }
+        let home = crate::values::StructuralRuntimePlace::from(selected);
+        if self.initialized_empty_byte_array(&home)? {
+            let storage = crate::structural_inputs::byte_arrays::storage::ArrayStorage::from(home);
+            let bytes = self.stored_byte_array_snapshot(&storage, 0, 0)?;
+            return Ok(ByteSequenceBinding::Immutable(
+                bytes.with_descriptor_home(selected.clone()),
             ));
         }
         self.byte_sequence_values
@@ -743,6 +753,19 @@ impl TerminalExecution<'_> {
         argument: &StructuralArgument,
     ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
     {
+        if terminal_semantics::borrowed_storage_parameter(
+            parameter,
+            self.program.structural_types().values(),
+        ) && terminal_semantics::borrowed_storage_reference_ceiling(
+            parameter,
+            self.program.structural_types().values(),
+        )
+        .is_none()
+        {
+            // Forwarding descriptor storage is allowed without granting any
+            // readable view of a write-only contained reference.
+            return Ok(None);
+        }
         if parameter.access == StructuralAccess::Owned {
             // Ownership transfer is admitted from the actual producer, not a
             // borrowed descriptor's geometry or the access of its backing.
@@ -774,37 +797,51 @@ impl TerminalExecution<'_> {
         // establishment instead loses canonical-to-stored view presentation on
         // a return-state edge. The shared arrival contract admits both carrier
         // lifetimes without granting ownership or widening the source loan.
-        if !terminal_semantics::view_descriptor_parameter(
+        let storage_ceiling = terminal_semantics::borrowed_storage_reference_ceiling(
             parameter,
             self.program.structural_types().values(),
-        ) || argument.access != parameter.access
+        );
+        if !(terminal_semantics::view_descriptor_parameter(
+            parameter,
+            self.program.structural_types().values(),
+        ) || storage_ceiling.is_some())
+            || argument.access != parameter.access
             || !parameter.projected_qualifications.is_empty()
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(argument.place))
+            || crate::custody::place_is_claimed(&self.live_claims, argument.place)
         {
             return Err(malformed());
         }
         self.validate_descriptor_borrow(argument, parameter.access)?;
         let binding = self.byte_descriptor_binding(argument, &value)?;
+        let requested_access = storage_ceiling.unwrap_or(parameter.access);
         if !terminal_semantics::descriptor_reborrow_matches(
             self.program.structural_types().values(),
             value.structural_type,
             parameter.access,
             Some(binding.access()),
             parameter.structural_type,
-            parameter.access,
+            requested_access,
         ) {
             return Err(malformed());
         }
-        let binding = self.reborrow_byte_sequence_binding(&binding, &value, parameter.access)?;
+        let binding = if requested_access == StructuralAccess::WriteOnlyBorrow {
+            // An outer readable storage loan can expose a write-only inner
+            // descriptor. Keep its existing mutable backing without reading
+            // bytes or manufacturing a readable snapshot. Compatibility above
+            // authenticated the exact resident descriptor and its ceiling.
+            binding.clone()
+        } else {
+            self.reborrow_byte_sequence_binding(&binding, &value, requested_access)?
+        };
         // A lent descriptor must satisfy every domain the formal names
         // (structural access, shared view fields). The checked call proved
         // that implication; execution fails closed on the actual bytes
         // rather than trusting whichever domains the source value spells,
         // and the formal then holds the descriptor under those domains.
-        if parameter.access == StructuralAccess::MutableBorrow {
+        if matches!(
+            requested_access,
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+        ) {
             if !parameter.qualifications.is_empty() || !value.qualifications.is_empty() {
                 return Err(malformed());
             }
@@ -850,15 +887,23 @@ impl TerminalExecution<'_> {
         let snapshot = match binding {
             ByteSequenceBinding::MutableArray {
                 array,
+                array_type,
                 offset,
                 length,
                 ..
-            } => self.stored_byte_array_snapshot(
-                array,
-                usize::try_from(*offset).map_err(|_| malformed())?,
-                usize::try_from(offset.checked_add(*length).ok_or_else(malformed)?)
-                    .map_err(|_| malformed())?,
-            )?,
+            } => self
+                .stored_byte_array_snapshot(
+                    array,
+                    usize::try_from(*offset).map_err(|_| malformed())?,
+                    usize::try_from(offset.checked_add(*length).ok_or_else(malformed)?)
+                        .map_err(|_| malformed())?,
+                )?
+                .with_original_array(crate::byte_sequences::OriginalByteArrayWindow {
+                    array: array.clone(),
+                    array_type: *array_type,
+                    offset: usize::try_from(*offset).map_err(|_| malformed())?,
+                    length: usize::try_from(*length).map_err(|_| malformed())?,
+                }),
             ByteSequenceBinding::MutableField { field, .. } => self
                 .structural_byte_sequence_fields
                 .get(field)
@@ -915,7 +960,13 @@ impl TerminalExecution<'_> {
                 place,
             } => (depth, machine, place),
             ByteOwnerHome::Storage(home) => {
-                return self.structural_byte_storage.get(home).ok_or_else(malformed);
+                return self
+                    .structural_byte_storage
+                    .get(home)
+                    .and_then(|owner| owner.local_view())
+                    .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "bounded byte owner requires its byte-sequence storage representation",
+                    ));
             }
         };
         let (machine, values) = if *depth == self.call_stack.len() {
@@ -946,10 +997,8 @@ impl TerminalExecution<'_> {
                     return Err(malformed());
                 }
                 self.invalidate_stored_provenance(home);
-                return self
-                    .structural_byte_storage
-                    .get_mut(home)
-                    .ok_or_else(malformed);
+                return self.structural_byte_storage.get_mut(home).and_then(|owner| owner.local_view_mut())
+                    .ok_or(TerminalInterpretError::UnsupportedSemanticVariant("bounded byte owner requires its mutable byte-sequence storage representation"));
             }
         };
         let (machine, values, structural_values) = if *depth == self.call_stack.len() {

@@ -20,7 +20,7 @@ machine quotient(numerator: u64 in Wrapping, denominator: u64 in Wrapping) -> u6
         true -> divide(numerator, denominator)
         false -> (0)
     }
-    state divide(numerator: u64 in Wrapping, denominator: u64 in Wrapping) -> u64 in Wrapping
+    machine divide(numerator: u64 in Wrapping, denominator: u64 in Wrapping) -> u64 in Wrapping
     requires denominator > 0 { numerator / denominator }
 }
 public machine table_weight(table: &Table, total: u64 in Wrapping) -> u64 in Wrapping {

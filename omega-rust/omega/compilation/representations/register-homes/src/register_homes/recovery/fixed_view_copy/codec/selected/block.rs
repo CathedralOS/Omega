@@ -15,7 +15,7 @@ use super::{
     provenance::{decode_fuel, encode_fuel},
 };
 use crate::register_homes::recovery::fixed_view_copy::codec::{
-    primitives::{Cursor, decode_id, length},
+    primitives::{Cursor, decode_id, decode_list, length},
     values::{decode_scalar, encode_scalar},
 };
 
@@ -49,98 +49,14 @@ pub(super) fn encode_block(bytes: &mut Vec<u8>, block: &SelectedBlock) {
     for instruction in &block.instructions {
         encode_instruction(bytes, instruction);
     }
-    match &block.terminator {
-        SelectedTerminator::OperationTrap {
-            instruction,
-            operation,
-        } => {
-            bytes.push(7);
-            encode_instruction(bytes, instruction);
-            crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
-        }
-        SelectedTerminator::Crash {
-            instruction,
-            psi_edge,
-            cause,
-            site_guard,
-            frontier_lower_bound,
-        } => {
-            bytes.push(6);
-            encode_instruction(bytes, instruction);
-            crate::codec_bytes::push_encoded(bytes, psi_edge.get().to_le_bytes());
-            bytes.push(match cause {
-                terminal_psi::CrashCause::Trap => 1,
-                terminal_psi::CrashCause::Abort => 2,
-            });
-            length(bytes, site_guard.len());
-            for predicate in site_guard {
-                let encoded =
-                    terminal_codec::canonical_proposition_order_key(predicate.proposition())
-                        .expect("validated crash predicate");
-                length(bytes, encoded.len());
-                bytes.extend_from_slice(&encoded);
-            }
-            length(bytes, frontier_lower_bound.len());
-            for claim in frontier_lower_bound {
-                crate::codec_bytes::push_encoded(bytes, claim.get().to_le_bytes());
-            }
-        }
-
-        SelectedTerminator::HostedExitProcess {
-            instruction,
-            completion_edge,
-        } => {
-            bytes.push(5);
-            encode_instruction(bytes, instruction);
-            crate::codec_bytes::push_encoded(bytes, completion_edge.get().to_le_bytes());
-        }
-        SelectedTerminator::Jump {
-            instruction,
-            successor,
-        } => {
-            bytes.push(4);
-            encode_instruction(bytes, instruction);
-            encode_successor(bytes, successor);
-        }
-        SelectedTerminator::ConditionalBranch {
-            instruction,
-            when_nonzero,
-            when_zero,
-        } => {
-            bytes.push(0);
-            encode_instruction(bytes, instruction);
-            encode_successor(bytes, when_nonzero);
-            encode_successor(bytes, when_zero);
-        }
-        SelectedTerminator::Return {
-            instruction,
-            psi_return_edge,
-        } => {
-            bytes.push(1);
-            encode_instruction(bytes, instruction);
-            crate::codec_bytes::push_encoded(bytes, psi_return_edge.get().to_le_bytes());
-        }
-        SelectedTerminator::ConditionalBranchU64LessThan {
-            instruction,
-            when_less,
-            when_not_less,
-        } => {
-            bytes.push(2);
-            encode_instruction(bytes, instruction);
-            encode_successor(bytes, when_less);
-            encode_successor(bytes, when_not_less);
-        }
-        SelectedTerminator::ConditionalBranchI64LessThan {
-            instruction,
-            when_less,
-            when_not_less,
-        } => {
-            bytes.push(3);
-            encode_instruction(bytes, instruction);
-            encode_successor(bytes, when_less);
-            encode_successor(bytes, when_not_less);
-        }
-    }
+    // The row is stated once, in the crate that owns `SelectedTerminator`;
+    // this artifact supplies its own instruction and successor encodings.
+    selected_instructions::terminator_encoding::encode_terminator(
+        bytes,
+        &block.terminator,
+        encode_instruction,
+        encode_successor,
+    );
 }
 
 pub(super) fn decode_block(
@@ -163,11 +79,7 @@ pub(super) fn decode_block(
         },
         tag => return Err(FixedViewCopyDecodeError::UnknownBlockOrigin(tag)),
     };
-    let instruction_count = cursor.length()?;
-    let mut instructions = Vec::with_capacity(instruction_count.min(cursor.remaining()));
-    for _ in 0..instruction_count {
-        instructions.push(decode_instruction(cursor)?);
-    }
+    let instructions = decode_list(cursor, decode_instruction)?;
     let terminator = match cursor.byte()? {
         7 => SelectedTerminator::OperationTrap {
             instruction: decode_instruction(cursor)?,
@@ -181,20 +93,16 @@ pub(super) fn decode_block(
                 2 => terminal_psi::CrashCause::Abort,
                 tag => return Err(FixedViewCopyDecodeError::UnknownCrashCause(tag)),
             };
-            let count = cursor.length()?;
-            let mut site_guard = Vec::with_capacity(count.min(cursor.remaining()));
-            for _ in 0..count {
+            let site_guard = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
                 let length = cursor.length()?;
                 let proposition =
                     terminal_codec::decode_canonical_proposition(cursor.take(length)?)
                         .map_err(|_| FixedViewCopyDecodeError::InvalidCrashPredicate)?;
-                site_guard.push(terminal_psi::CrashPredicateTerm::new(proposition));
-            }
-            let count = cursor.length()?;
-            let mut frontier_lower_bound = Vec::with_capacity(count.min(cursor.remaining()));
-            for _ in 0..count {
-                frontier_lower_bound.push(decode_id(cursor, semantic_vocabulary::ClaimId::new)?);
-            }
+                Ok(terminal_psi::CrashPredicateTerm::new(proposition))
+            })?;
+            let frontier_lower_bound = decode_list(cursor, |cursor| {
+                decode_id(cursor, semantic_vocabulary::ClaimId::new)
+            })?;
             SelectedTerminator::Crash {
                 instruction,
                 psi_edge,
@@ -203,6 +111,10 @@ pub(super) fn decode_block(
                 frontier_lower_bound,
             }
         }
+        8 => SelectedTerminator::InvokeNoNormal {
+            instruction: decode_instruction(cursor)?,
+            psi_edge: decode_id(cursor, EdgeId::new)?,
+        },
         5 => SelectedTerminator::HostedExitProcess {
             instruction: decode_instruction(cursor)?,
             completion_edge: decode_id(cursor, EdgeId::new)?,
@@ -377,9 +289,7 @@ fn decode_successor(
     }
     let block = SelectedBlockId(cursor.u32()?);
     let source_target = decode_id(cursor, BlockId::new)?;
-    let count = cursor.length()?;
-    let mut bindings = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
+    let bindings = decode_list(cursor, |cursor| {
         let semantic = ValueBinding {
             parameter: decode_id(cursor, ValueId::new)?,
             argument: decode_id(cursor, ValueId::new)?,
@@ -393,15 +303,13 @@ fn decode_successor(
             },
             tag => return Err(FixedViewCopyDecodeError::UnknownValueTransport(tag)),
         };
-        bindings.push(SelectedValueBinding {
+        Ok(SelectedValueBinding {
             semantic,
             transport,
-        });
-    }
+        })
+    })?;
     let structural_case = decode_case(cursor)?;
-    let count = cursor.length()?;
-    let mut structural_bindings = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
+    let structural_bindings = decode_list(cursor, |cursor| {
         let source_indices = super::structural::decode_runtime_indices(cursor)?;
         let semantic = abstract_operations::AbstractStructuralBinding {
             parameter: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
@@ -503,12 +411,12 @@ fn decode_successor(
             }
             tag => return Err(FixedViewCopyDecodeError::UnknownValueTransport(tag)),
         };
-        structural_bindings.push(selected_instructions::SelectedStructuralBinding {
+        Ok(selected_instructions::SelectedStructuralBinding {
             semantic,
             transport,
             source_indices,
-        });
-    }
+        })
+    })?;
     Ok(SelectedSuccessor {
         role,
         psi_edge,
@@ -542,9 +450,7 @@ fn decode_case(
     };
     let case = decode_id(cursor, semantic_vocabulary::StructuralCaseId::new)?;
     let case_tag = cursor.i32()?;
-    let count = cursor.length()?;
-    let mut payloads = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
+    let payloads = decode_list(cursor, |cursor| {
         let field = decode_id(cursor, semantic_vocabulary::StructuralFieldId::new)?;
         let field_byte_offset = cursor.u32()?;
         let parameter = legalized_operations::LegalizedValueDefinition {
@@ -563,20 +469,16 @@ fn decode_case(
             },
             tag => return Err(FixedViewCopyDecodeError::UnknownValueTransport(tag)),
         };
-        payloads.push(selected_instructions::SelectedCasePayloadBinding {
+        Ok(selected_instructions::SelectedCasePayloadBinding {
             semantic: legalized_operations::LegalizedStructuralCasePayload {
                 field,
                 field_byte_offset,
                 parameter,
             },
             transport,
-        });
-    }
-    let count = cursor.length()?;
-    let mut cleanup_actions = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
-        cleanup_actions.push(super::structural::decode_cleanup(cursor)?);
-    }
+        })
+    })?;
+    let cleanup_actions = decode_list(cursor, super::structural::decode_cleanup)?;
     Ok(Some(selected_instructions::SelectedStructuralCaseEdge {
         source,
         case,

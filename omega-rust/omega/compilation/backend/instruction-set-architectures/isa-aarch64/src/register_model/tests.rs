@@ -16,66 +16,37 @@ use super::{
 };
 use crate::register_model::physical_model::GPR64;
 use calling_conventions::MachineRegister;
-use register_model::{
-    RegisterConstraintCatalog, RegisterConstraintId, RegisterConstraintKey,
-    RegisterInstructionConstraint, RegisterOperandAccess, RegisterUnit, RegisterUnitId,
-    RegisterUnitKind,
+use register_model::test_support::{
+    AggregateFragmentRoster, ForeignTemplateRoster, assert_aggregate_fragments_are_definitions,
+    assert_templates_reject_changed_effects, assert_templates_retain_call_effects, row, row_mut,
 };
 use register_model::{
     RegisterConstraintCatalogValidationError, RegisterModelValidationError,
     validate_physical_register_model,
 };
+use register_model::{
+    RegisterConstraintId, RegisterOperandAccess, RegisterUnit, RegisterUnitId, RegisterUnitKind,
+};
 use target::NativeTarget;
-
-fn row(
-    catalog: &RegisterConstraintCatalog,
-    key: RegisterConstraintKey,
-) -> &RegisterInstructionConstraint {
-    catalog.constraint(key).unwrap()
-}
-
-fn row_mut(
-    catalog: &mut RegisterConstraintCatalog,
-    key: RegisterConstraintKey,
-) -> &mut RegisterInstructionConstraint {
-    register_model::find_register_constraint_mut(&mut catalog.constraints, key).unwrap()
-}
 
 #[test]
 fn aggregate_result_fragments_are_definitions_not_unknown_clobbers() {
     let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
     let catalog = aarch64_register_constraint_catalog(&model);
-    let second = model.model().view_named("x1").unwrap();
-    let scratch = model.model().view_named("x2").unwrap();
-    for (ordinal, key) in [false, true]
-        .into_iter()
-        .flat_map(aarch64_register_aggregate_call_keys)
-        .enumerate()
-    {
-        let fragments = ordinal % 18 / 9 + 1;
-        let call = row(&catalog, key);
-        assert_eq!(
-            call.operands
-                .iter()
-                .filter(|operand| operand.access == RegisterOperandAccess::Def)
-                .count(),
-            fragments
-        );
-        for unit in &second.write_units {
-            assert_eq!(call.clobbers.contains(unit), fragments == 1, "{key:?}");
-        }
-        assert!(
-            scratch
-                .write_units
-                .iter()
-                .all(|unit| call.clobbers.contains(unit))
-        );
-        let mut altered = catalog.clone();
-        row_mut(&mut altered, key)
-            .clobbers
-            .retain(|unit| !scratch.write_units.contains(unit));
-        assert!(validate_aarch64_register_constraint_catalog(altered, &model).is_err());
-    }
+    assert_aggregate_fragments_are_definitions(
+        &model,
+        &catalog,
+        &AggregateFragmentRoster {
+            keys: [false, true]
+                .into_iter()
+                .flat_map(aarch64_register_aggregate_call_keys)
+                .collect(),
+            keys_per_group: 9,
+            second_view: "x1",
+            scratch_view: "x2",
+        },
+        |catalog, model| validate_aarch64_register_constraint_catalog(catalog, model).is_ok(),
+    );
 }
 
 #[test]
@@ -482,85 +453,38 @@ fn unknown_and_omitted_units_reject() {
     );
 }
 
+fn aarch64_foreign_template_roster() -> ForeignTemplateRoster {
+    ForeignTemplateRoster {
+        templates: vec![
+            (
+                super::aarch64_aapcs64_register_unit_call_keys()[0],
+                super::aarch64_aapcs64_normalized_foreign_call_keys(),
+            ),
+            (
+                super::aarch64_darwin_register_unit_call_keys()[0],
+                super::aarch64_darwin_normalized_foreign_call_keys(),
+            ),
+        ],
+        signature_views: ["x0", "d0"],
+        effect_view: "x2",
+    }
+}
+
 #[test]
 fn normalized_foreign_templates_retain_complete_target_call_effects() {
-    let model =
-        register_model::validate_physical_register_model(super::aarch64_physical_register_model())
-            .unwrap();
-    let catalog = super::aarch64_register_constraint_catalog(&model);
-    for (base, keys) in [
-        (
-            super::aarch64_aapcs64_register_unit_call_keys()[0],
-            super::aarch64_aapcs64_normalized_foreign_call_keys(),
-        ),
-        (
-            super::aarch64_darwin_register_unit_call_keys()[0],
-            super::aarch64_darwin_normalized_foreign_call_keys(),
-        ),
-    ] {
-        let [key] = keys.as_slice() else {
-            panic!("one import template per ABI");
-        };
-        let row = catalog.constraint(*key).unwrap();
-        let base = catalog.constraint(base).unwrap();
-        assert!(row.operands.is_empty());
-        assert_eq!(row.implicit_uses, base.implicit_uses);
-        assert_eq!(row.implicit_defs, base.implicit_defs);
-        assert_eq!(row.clobbers, base.clobbers);
-    }
-    super::validate_aarch64_register_constraint_catalog(catalog, &model).unwrap();
+    let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+    let catalog = aarch64_register_constraint_catalog(&model);
+    assert_templates_retain_call_effects(&catalog, &aarch64_foreign_template_roster());
 }
 
 #[test]
 fn normalized_foreign_templates_reject_signature_rows_and_changed_effects() {
-    let model =
-        register_model::validate_physical_register_model(super::aarch64_physical_register_model())
-            .unwrap();
-    let catalog = super::aarch64_register_constraint_catalog(&model);
-    for keys in [
-        super::aarch64_aapcs64_normalized_foreign_call_keys(),
-        super::aarch64_darwin_normalized_foreign_call_keys(),
-    ] {
-        let key = keys[0];
-        for mutation in 0..5 {
-            let mut changed = catalog.clone();
-            let row = register_model::find_register_constraint_mut(&mut changed.constraints, key)
-                .unwrap();
-            match mutation {
-                0..=2 => {
-                    let view = model
-                        .model()
-                        .view_named(if mutation == 2 { "d0" } else { "x0" })
-                        .unwrap();
-                    row.operands
-                        .push(register_model::RegisterOperandConstraint {
-                            operand: 0,
-                            access: if mutation == 0 {
-                                RegisterOperandAccess::Use
-                            } else {
-                                RegisterOperandAccess::Def
-                            },
-                            class: view.class,
-                            fixed_view: Some(view.id),
-                            tied_to: None,
-                            early_clobber: false,
-                        });
-                }
-                3 => row.implicit_defs.clear(),
-                4 => row.clobbers.retain(|unit| {
-                    !model
-                        .model()
-                        .view_named("x2")
-                        .unwrap()
-                        .write_units
-                        .contains(unit)
-                }),
-                _ => unreachable!(),
-            }
-            assert!(
-                super::validate_aarch64_register_constraint_catalog(changed, &model).is_err(),
-                "{key:?}: mutation {mutation}"
-            );
-        }
-    }
+    let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+    let catalog = aarch64_register_constraint_catalog(&model);
+    assert_templates_reject_changed_effects(
+        &model,
+        &catalog,
+        &aarch64_foreign_template_roster(),
+        |catalog, model| validate_aarch64_register_constraint_catalog(catalog, model).is_ok(),
+    );
 }

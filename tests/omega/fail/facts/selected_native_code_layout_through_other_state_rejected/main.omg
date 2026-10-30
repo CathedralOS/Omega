@@ -6,7 +6,7 @@ machine inspect(layout: &CodeLayout) -> bool
 terminates;
 {
     transition layout.regions.len > 0 { true -> region(layout) _ -> false }
-    state region(layout: &CodeLayout) -> bool
+    machine region(layout: &CodeLayout) -> bool
     requires layout.regions.len > 0
     {
         layout.entry != 0 && layout.regions[0].base == layout.entry && layout.regions[0].length > 0
@@ -15,11 +15,11 @@ terminates;
 machine witness() -> bool terminates; {
     let layout: CodeLayout = code_layout<selected<u64, 7>>();
     transition { _ -> later(layout) }
-    state later(layout: CodeLayout) -> bool { inspect(&layout) }
+    machine later(layout: CodeLayout) -> bool { inspect(&layout) }
 }
 const OBSERVED: bool = witness();
 machine main() crashes Trap {
     transition OBSERVED { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

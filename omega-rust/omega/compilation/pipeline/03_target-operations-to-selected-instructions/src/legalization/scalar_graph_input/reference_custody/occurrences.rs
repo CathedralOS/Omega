@@ -173,6 +173,25 @@ pub(super) struct Formation {
 }
 
 impl Leaf {
+    /// An external anchor retains its original borrowed entry slot. Extraction,
+    /// receiving parameters and replacements cannot inherit that scope.
+    pub(super) fn is_external_entry_anchor(
+        &self,
+        function: &PsiOptimizationFunction,
+        carrier: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> bool {
+        let CarrierContract::Parameter(parameter) = &self.contract else {
+            return false;
+        };
+        parameter.access != StructuralAccess::Owned
+            && self.identity.place == parameter.place
+            && self.identity.place == carrier
+            && self.identity.path.as_slice() == path
+            && matches!(self.identity.formation, OccurrenceFormation::Parameter)
+            && function.structural_parameter(parameter.place) == Some(parameter)
+    }
+
     pub(super) fn formed(
         identity: (PlaceId, Vec<StructuralPathSegment>),
         root: Root,
@@ -239,6 +258,7 @@ pub(super) fn merge_arrivals(
     function: &PsiOptimizationFunction,
     target: BlockId,
     types: &[StructuralTypeDeclaration],
+    guarded_absence: &BTreeSet<(PlaceId, Vec<StructuralPathSegment>)>,
     left: &mut BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
     right: &BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
 ) -> Result<Option<()>, LegalizationError> {
@@ -248,6 +268,26 @@ pub(super) fn merge_arrivals(
     for (key, leaf) in left.iter().chain(right) {
         if left.contains_key(key) == right.contains_key(key) {
             continue;
+        }
+        if guarded_absence.contains(key) {
+            let stored = resident_type(function, key.0)
+                .and_then(|root| super::leaf_type(types, root, &key.1))
+                .and_then(|ty| super::find_structural_type(types, ty));
+            let carried =
+                super::leaf_type(types, leaf.contract.structural_type(), &leaf.identity.path)
+                    .and_then(|ty| super::find_structural_type(types, ty));
+            if key.1.contains(&StructuralPathSegment::Referent)
+                && stored.zip(carried).is_some_and(|(stored, carried)| {
+                    stored.shape == carried.shape
+                        && matches!(stored.shape, super::StructuralTypeShape::Reference { referent, .. } if referent == leaf.referent)
+                })
+                && leaf.contract.matches_declaration(function, leaf.identity.place)
+                && !leaf.formations.is_empty()
+                && leaf.formations.iter().all(|formation| formation.contract.matches_declaration(function, formation.identity.place))
+            {
+                continue;
+            }
+            return Err(invalid());
         }
         let parameter = function
             .block(target)

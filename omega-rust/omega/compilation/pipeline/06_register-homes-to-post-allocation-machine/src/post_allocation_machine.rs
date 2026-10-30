@@ -13,7 +13,9 @@ use crate::optimization::{
     PostAllocationMachineOptimizationError, PostAllocationMachineOptimizationRun,
     execute_post_allocation_machine_optimizations,
 };
-use crate::plan::{compute_post_allocation_machine_plan, seal_post_allocation_machine_plan};
+use crate::plan::{
+    PlanSources, compute_post_allocation_machine_plan, seal_post_allocation_machine_plan,
+};
 use optimization_core::OptimizationSelectionIdentity;
 use physical_instructions::PostAllocationMachineIdentity;
 use selected_instructions_to_register_homes::MachineEffectStageError;
@@ -29,17 +31,17 @@ pub fn stage_optimized_post_allocation_machine_plan(
     let environment = allocation.register_environment();
     let effects = analyze_machine_effects(selected, environment)
         .map_err(OptimizedPostAllocationMachinePipelineError::MachineEffects)?;
-    let mut machine = compute_post_allocation_machine_plan(
+    let mut machine = compute_post_allocation_machine_plan(&PlanSources {
         selected,
-        &effects,
-        allocation.ranges(),
-        allocation.legality(),
-        allocation.homes(),
-        allocation.post_allocation_manifest(),
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-    )
+        effects: &effects,
+        ranges: allocation.ranges(),
+        legality: allocation.legality(),
+        homes: allocation.homes(),
+        manifest: allocation.post_allocation_manifest(),
+        register_environment: environment.identity(),
+        physical: environment.physical(),
+        constraints: environment.constraints(),
+    })
     .map_err(OptimizedPostAllocationMachinePipelineError::PostAllocation)?;
     let optimization = execute_post_allocation_machine_optimizations(
         &mut machine,
@@ -106,21 +108,12 @@ pub struct StagedOptimizedPostAllocationMachinePlan {
 }
 
 impl StagedOptimizedPostAllocationMachinePlan {
-    pub const fn effects(&self) -> &ValidatedPreAllocationMachineEffects {
-        &self.effects
-    }
-
-    pub const fn machine(&self) -> &ValidatedPostAllocationMachinePlan {
-        &self.machine
-    }
-
-    /// The post-allocation phase execution whose result `machine` is.
-    pub const fn optimization(&self) -> &PostAllocationMachineOptimizationRun {
-        &self.optimization
-    }
-
-    pub const fn custody(&self) -> &StagedOptimizedPostAllocationMachineCustodyReceipt {
-        &self.custody
+    borrowed_accessors! {
+        effects: ValidatedPreAllocationMachineEffects,
+        machine: ValidatedPostAllocationMachinePlan,
+        /// The post-allocation phase execution whose result `machine` is.
+        optimization: PostAllocationMachineOptimizationRun,
+        custody: StagedOptimizedPostAllocationMachineCustodyReceipt,
     }
 }
 
@@ -139,37 +132,21 @@ pub struct StagedOptimizedPostAllocationMachineCustodyReceipt {
 }
 
 impl StagedOptimizedPostAllocationMachineCustodyReceipt {
-    pub const fn source(&self) -> &AllocationEvidence {
-        &self.source
+    borrowed_accessors! {
+        source: AllocationEvidence,
     }
-    pub const fn effects(&self) -> selected_instructions::PreAllocationMachineEffectIdentity {
-        self.effects
-    }
-    pub const fn machine(&self) -> PostAllocationMachineIdentity {
-        self.machine
-    }
-    /// The post-allocation projection the phase executed.
-    pub const fn phase_selections(&self) -> OptimizationSelectionIdentity {
-        self.phase_selections
-    }
-    /// The baseline plan identity the phase started from.
-    pub const fn optimization_source(&self) -> PostAllocationMachineIdentity {
-        self.optimization_source
-    }
-    pub const fn optimization_action_count(&self) -> usize {
-        self.optimization_action_count
-    }
-    pub const fn function_count(&self) -> usize {
-        self.function_count
-    }
-    pub const fn instruction_count(&self) -> usize {
-        self.instruction_count
-    }
-    pub const fn operand_count(&self) -> usize {
-        self.operand_count
-    }
-    pub const fn unit_action_count(&self) -> usize {
-        self.unit_action_count
+    copied_accessors! {
+        effects: selected_instructions::PreAllocationMachineEffectIdentity,
+        machine: PostAllocationMachineIdentity,
+        /// The post-allocation projection the phase executed.
+        phase_selections: OptimizationSelectionIdentity,
+        /// The baseline plan identity the phase started from.
+        optimization_source: PostAllocationMachineIdentity,
+        optimization_action_count: usize,
+        function_count: usize,
+        instruction_count: usize,
+        operand_count: usize,
+        unit_action_count: usize,
     }
 }
 
@@ -180,13 +157,7 @@ pub enum OptimizedPostAllocationMachinePipelineError {
     Optimization(PostAllocationMachineOptimizationError),
 }
 
-impl std::fmt::Display for OptimizedPostAllocationMachinePipelineError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized post-allocation machine staging failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for OptimizedPostAllocationMachinePipelineError {}
+stage_error_display!(
+    OptimizedPostAllocationMachinePipelineError,
+    "optimized post-allocation machine staging failed"
+);

@@ -25,7 +25,7 @@ machine change(token: Token, increment: bool) -> Choice {
         true -> replace(token)
         _ -> Choice::Failure { token: token }
     }
-    state replace(token: Token) -> Choice {
+    machine replace(token: Token) -> Choice {
         let value: u64 = token.value;
         drop(token);
         Choice::Success { token: Token { value: ((value as u64 in Wrapping) + 1) as u64 } }
@@ -48,7 +48,7 @@ machine consume(choice: Choice) -> u64 {
         Choice::Success { token } -> read_and_drop(token)
         Choice::Failure { token } -> read_and_drop(token)
     }
-    state read_and_drop(token: Token) -> u64 {
+    machine read_and_drop(token: Token) -> u64 {
         let value: u64 = token.value;
         drop(token);
         value
@@ -70,8 +70,8 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

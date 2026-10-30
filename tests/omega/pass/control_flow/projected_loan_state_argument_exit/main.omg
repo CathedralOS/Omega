@@ -15,7 +15,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.pair = Pair { a: 11 };
     transition { _ -> inspect(main, &main.pair) }
 
-    state inspect(main: &mut Main, view: &Pair) {
+    machine inspect(main: &mut Main, view: &Pair) {
         Console::exit_process(view.a);
     }
 }

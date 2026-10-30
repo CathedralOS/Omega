@@ -37,7 +37,7 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad(main)
     }
 
-    state check_bytes(main: &mut Main) {
+    machine check_bytes(main: &mut Main) {
         let ok: bool = main.buffer[0] == 0
             && main.buffer[1] == 0
             && main.buffer[2] == 4
@@ -51,11 +51,11 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

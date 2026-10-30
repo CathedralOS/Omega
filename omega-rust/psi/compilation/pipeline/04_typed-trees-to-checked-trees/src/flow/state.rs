@@ -109,6 +109,13 @@ pub(super) fn build_state_flow_fact<'plans>(
             state: borrow_state_handle,
         },
     );
+    for identity in borrow_state.incoming_references.handles() {
+        append_constraint_ref(
+            &mut build.contexts.constraint_refs,
+            &mut state_constraints,
+            FlowConstraintKind::BorrowIncomingReference { identity },
+        );
+    }
     append_contiguous_borrow_root_constraints(
         &mut build.contexts.constraint_refs,
         &mut state_constraints,
@@ -202,7 +209,7 @@ pub(super) fn build_state_flow_fact<'plans>(
     let execution_order = program
         .statement_table
         .admitted_execution_order(state.statement_nodes);
-    let state_calls = {
+    let state_calls = phase_profile::scope("05.d.3.b.flow.state_statements", || {
         append_state_statement_flow_facts(
             program,
             borrow,
@@ -217,7 +224,7 @@ pub(super) fn build_state_flow_fact<'plans>(
             borrow_state,
             &execution_order,
         )
-    };
+    });
     active_constraints = filter_expired_borrow_loans(
         &mut build.borrow_lifetimes.weakenings,
         &mut build.contexts.constraint_refs,

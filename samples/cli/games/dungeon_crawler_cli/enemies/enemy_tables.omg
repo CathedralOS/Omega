@@ -50,7 +50,7 @@ machine EnemyTables::roll_enemy_kind(
     }
 
 
-    state bat(
+    machine bat(
         enemy_tables: &mut EnemyTables,
         random: &mut RandomState,
         enemy: &mut Enemy
@@ -65,7 +65,7 @@ machine EnemyTables::roll_enemy_kind(
         enemy.xp_reward = 3;
     }
 
-    state spider(
+    machine spider(
         enemy_tables: &mut EnemyTables,
         random: &mut RandomState,
         enemy: &mut Enemy
@@ -80,7 +80,7 @@ machine EnemyTables::roll_enemy_kind(
         enemy.xp_reward = 6;
     }
 
-    state skeleton(
+    machine skeleton(
         enemy_tables: &mut EnemyTables,
         random: &mut RandomState,
         enemy: &mut Enemy
@@ -95,7 +95,7 @@ machine EnemyTables::roll_enemy_kind(
         enemy.xp_reward = 12;
     }
 
-    state cultist(
+    machine cultist(
         enemy_tables: &mut EnemyTables,
         random: &mut RandomState,
         enemy: &mut Enemy
@@ -110,7 +110,7 @@ machine EnemyTables::roll_enemy_kind(
         enemy.xp_reward = 20;
     }
 
-    state hellhound(
+    machine hellhound(
         enemy_tables: &mut EnemyTables,
         random: &mut RandomState,
         enemy: &mut Enemy
@@ -125,7 +125,7 @@ machine EnemyTables::roll_enemy_kind(
         enemy.xp_reward = 36;
     }
 
-    state pit_fiend(
+    machine pit_fiend(
         enemy_tables: &mut EnemyTables,
         random: &mut RandomState,
         enemy: &mut Enemy

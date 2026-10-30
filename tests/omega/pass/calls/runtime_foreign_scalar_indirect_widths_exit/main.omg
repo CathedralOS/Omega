@@ -88,10 +88,10 @@ machine snapshot_plan(signature: BoundarySignature) -> BoundaryPlanResult {
         true -> select_result(signature, signature.result)
         _ -> reject()
     }
-    state select_result(signature: BoundarySignature, result: u64) -> BoundaryPlanResult {
+    machine select_result(signature: BoundarySignature, result: u64) -> BoundaryPlanResult {
         transition result < 256 { true -> accept(signature, result) _ -> reject() }
     }
-    state accept(signature: BoundarySignature, result: u64) -> BoundaryPlanResult {
+    machine accept(signature: BoundarySignature, result: u64) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         plan.call.parameter_count = 2;
         plan.call.parameters[0] = LinuxScalarResultPolicies::word(8, 1);
@@ -110,7 +110,7 @@ machine snapshot_plan(signature: BoundarySignature) -> BoundaryPlanResult {
         };
         BoundaryPlanResult::Accepted { plan: LinuxScalarResultPolicies::finish(plan) }
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "copy expects source and byte count" } }
     }
 }
@@ -121,63 +121,63 @@ linux_x86_64 machine snapshot_binding() -> ForeignBinding<9, 6, 10> {
 }
 machine main() crashes Trap {
     transition { _ -> check_U8() }
-    state check_U8() {
+    machine check_U8() {
         let value: [u8; 1] = [231];
         let observed: u8 = SnapshotU8::copy(&value, 1);
         transition observed == 231 { true -> check_I8() _ -> bad() }
     }
-    state check_I8() {
+    machine check_I8() {
         let value: [u8; 1] = [155];
         let observed: i8 = SnapshotI8::copy(&value, 1);
         transition observed == -101 { true -> check_U16() _ -> bad() }
     }
-    state check_U16() {
+    machine check_U16() {
         let value: [u8; 2] = [71, 238];
         let observed: u16 = SnapshotU16::copy(&value, 2);
         transition observed == 60999 { true -> check_I16() _ -> bad() }
     }
-    state check_I16() {
+    machine check_I16() {
         let value: [u8; 2] = [207, 138];
         let observed: i16 = SnapshotI16::copy(&value, 2);
         transition observed == -30001 { true -> check_U32() _ -> bad() }
     }
-    state check_U32() {
+    machine check_U32() {
         let value: [u8; 4] = [1, 40, 107, 238];
         let observed: u32 = SnapshotU32::copy(&value, 4);
         transition observed == 4000000001 { true -> check_I32() _ -> bad() }
     }
-    state check_I32() {
+    machine check_I32() {
         let value: [u8; 4] = [255, 107, 202, 136];
         let observed: i32 = SnapshotI32::copy(&value, 4);
         transition observed == -2000000001 { true -> check_U64() _ -> bad() }
     }
-    state check_U64() {
+    machine check_U64() {
         let value: [u8; 8] = [121, 223, 13, 134, 72, 112, 0, 0];
         let observed: u64 = SnapshotU64::copy(&value, 8);
         transition observed == 123456789012345 { true -> check_I64() _ -> bad() }
     }
-    state check_I64() {
+    machine check_I64() {
         let value: [u8; 8] = [135, 32, 242, 121, 183, 143, 255, 255];
         let observed: i64 = SnapshotI64::copy(&value, 8);
         transition observed == -123456789012345 { true -> check_F32() _ -> bad() }
     }
-    state check_F32() {
+    machine check_F32() {
         let value: [u8; 4] = [0, 0, 192, 63];
         let observed: f32 = SnapshotF32::copy(&value, 4);
         transition observed == 1.5f32 { true -> check_F64() _ -> bad() }
     }
-    state check_F64() {
+    machine check_F64() {
         let value: [u8; 8] = [0, 0, 0, 0, 0, 0, 10, 192];
         let observed: f64 = SnapshotF64::copy(&value, 8);
         transition observed == -3.25f64 { true -> check_Bool() _ -> bad() }
     }
-    state check_Bool() {
+    machine check_Bool() {
         let value: [bool; 1] = [true];
         let observed: bool = SnapshotBool::copy(&value, 1);
         transition observed { true -> done() _ -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine ScalarResultPolicies::placed_word(bytes: u64, register: MachineRegister) -> ValuePlacement {
     let mut value: ValuePlacement;

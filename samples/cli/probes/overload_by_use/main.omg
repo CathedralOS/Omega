@@ -28,12 +28,12 @@ machine walk(n: i32) {
         true -> descend(n)
         _ -> done()
     }
-    state descend(n: i32) {
+    machine descend(n: i32) {
         transition {
             _ -> walk(n - 1)
         }
     }
-    state done() { }
+    machine done() { }
 }
 
 data Main { hits: i32 in Wrapping; }
@@ -46,8 +46,8 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

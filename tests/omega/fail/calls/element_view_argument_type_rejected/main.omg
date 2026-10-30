@@ -17,21 +17,21 @@ terminates by s -> Slice::Length;
 {
     transition { _ -> scan(s) }
 
-    state scan(s: &[u8]) -> i32 {
+    machine scan(s: &[u8]) -> i32 {
         transition s.len > 0 {
             true -> emit(s[0], s[1..])
             false -> done()
         }
     }
 
-    state emit(b: u8, s: &[u8]) -> i32 {
+    machine emit(b: u8, s: &[u8]) -> i32 {
         transition s.len > 0 {
             true -> emit(s[0], s[1..])
             false -> done()
         }
     }
 
-    state done() -> i32 { (0) }
+    machine done() -> i32 { (0) }
 }
 
 machine main() {
@@ -49,6 +49,6 @@ machine main() {
         _ -> bad()
     }
 
-    state good() {}
-    state bad() {}
+    machine good() {}
+    machine bad() {}
 }

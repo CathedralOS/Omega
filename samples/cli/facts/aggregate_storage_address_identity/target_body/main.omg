@@ -36,6 +36,6 @@ windows_x86_64 machine probe() -> bool {
 }
 machine main() crashes Trap {
     transition probe() { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

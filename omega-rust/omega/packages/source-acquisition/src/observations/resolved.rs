@@ -46,6 +46,24 @@ pub struct GitAcquisitionPin {
     tree: String,
 }
 
+impl GitAcquisitionPin {
+    pub(crate) fn authenticated_revision(
+        request: &crate::GitSourceRequest,
+        commit: String,
+        tree: String,
+    ) -> Self {
+        Self {
+            requested_locator: request.requested_locator().to_owned(),
+            lineage: request.lineage().clone(),
+            locator_identity: request.locator_identity().to_owned(),
+            transport_profile: request.transport_profile(),
+            requested_rev: request.requested_revision().to_owned(),
+            commit,
+            tree,
+        }
+    }
+}
+
 impl ResolvedGitSource {
     pub fn acquisition_pin(&self) -> GitAcquisitionPin {
         GitAcquisitionPin {

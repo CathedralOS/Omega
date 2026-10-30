@@ -1,6 +1,6 @@
 // Expected exit: 0
 // A runtime byte index retains both the receiving restriction and one evaluation.
-domain [u8; 4]::NoNul(bytes) requires no_nul(bytes);
+domain [u8; 4]::NoNul requires no_nul(self);
 data Counter { calls: u64 in Wrapping; }
 machine select(counter: &mut Counter) -> u64
 ensures result < 4 {
@@ -19,6 +19,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

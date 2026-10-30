@@ -1,7 +1,9 @@
 # Provider planning
 
-Omega realization owns provider selection and its calling, component and task
-plans here, beside selected execution settlement. Exact provider-grant resolution
+Omega realization prepares source provider declarations and calling/component
+plans here, beside selected execution settlement. Shared whole-provider choice
+and admission live in [provider-selection](../provider-selection/src/provider_selection.rs).
+Exact provider-grant resolution
 belongs to [backend provider evidence](../../backend/plans/provider-evidence/src/provider_grants.rs),
 not compiler trust-report reconstruction.
 
@@ -32,8 +34,12 @@ only wires the public API.
 [Receipt binding](src/provider_planning/receipt_binding.rs) validates admitted
 receipts against exact granted requirements; [installation reach](src/provider_planning/installation_reach.rs)
 resolves the selected realization's reach. Both return planned results without
-mutating the checked program. [selection_provenance.rs](src/provider_planning/selection_provenance.rs) owns authored
-selection inputs and target defaults.
+mutating the checked program. [selection_provenance.rs](src/provider_planning/selection_provenance.rs)
+adapts source provenance to shared selection policy, preserving invocation-local
+identities for Check/review. [Publication preparation](src/target_machines/provider_publication.rs)
+closes the same choices into nominal declarations, overload identities and deferred
+family refusals. The source-free publication consumer selects against actual
+Terminal demand; it does not retain source symbols or reopen typed declarations.
 
 For selected compile-time execution,
 [adapter conformance](src/provider_planning/provenance_replay/adapter_conformance.rs)
@@ -42,7 +48,7 @@ The compiler forwards that adapter to Psi's build-time evaluator, which owns
 execution admissibility, operands and replay; it does not reconstruct provider
 authority.
 
-[Target declarations](src/target_machines.rs) retain every target's default
+[Legacy target declarations](src/target_machines.rs) retain every target's default
 declaration effects and project them onto one realization for settlement.
 After Psi checks all bodies, execution reach resolves a portable family head
 to its exact selected member before following that member's calls. A concrete
@@ -50,11 +56,16 @@ member reference retains its authored target fence; it never redirects into a
 sibling. Missing members name the authored caller and callee. This selection
 does not prune the portable catalog or grant provider authority.
 Build evaluation and the compiler do not implement these selection rules.
+This family-head/member path is retired architecture, not a second supported
+selection API. `BUILD-OWNED-TARGET-SELECTION` in
+[the task board](../../../../../TASKS.md#pipeline-route) removes it in favor of
+ordinary named implementations selected solely by target-keyed Build provider
+rows; exact requirement contracts and native applicability checks remain.
 [Provider declarations](src/provider_declarations.rs) decode static defaults
 and executed Build choices into the same exact selection identities. Package
 review uses its declaration replay without executing Build again.
 
-The public std canary is:
+The existing migration canary is:
 
 ```text
 omega run --both tests/omega/pass/targets/target_machine_gating_exit/main.omg
@@ -111,3 +122,16 @@ sits below native realization and deployment policy. Routes that supply no
 verified components call `selected_provider_plan_facts`, where every Independent
 selection still rejects; the rejection never becomes a Fused fallback, and
 retaining a mode in provenance is not implementation of that mode.
+
+[Native Build planning](src/native_bindings.rs) consumes those admitted exact
+Product choices. It validates every authored target's locator and derives the
+selected target's complete schema, calling application and evaluated receipt.
+A native row has a Build producer, not a synthetic runtime realization machine.
+Equal repeated bindings retain their source origins; conflicting bindings at
+the same supplier precedence refuse. Package review retains private and unused
+native choices as explicit acceptance/audit rows as well as selected associations.
+The closed static requirement path is exercised by Cathedral's Windows UI and
+`tests/omega/pass/build/runtime_dependency_private_native_binding_exit`.
+Full static/lifetime application support, all-host audio execution and removal
+of the remaining legacy `via`/table/intrinsic paths are still acceptance of
+`BUILD-OWNED-NATIVE-BINDINGS`, not established by this customer witness.

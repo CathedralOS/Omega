@@ -1,0 +1,26 @@
+// Expected exit: 0
+// A selected byte descriptor leaves with its backing intact while the sum's
+// other descriptor is retired. The unselected case owns no payload to dispose.
+data Choice<'storage> {
+    case Pair(first: &'storage [u8], second: &'storage [u8]);
+    case Single(bytes: &'storage [u8]);
+}
+
+machine select<'storage>(choice: Choice<'storage>) -> &'storage [u8] {
+    transition choice {
+        Choice::Pair { first, second as _ } -> first
+        Choice::Single { bytes } -> bytes
+    }
+}
+
+machine main() crashes Trap {
+    let first: &[u8] = select(Choice::Pair { first: "abc", second: "ignored" });
+    let second: &[u8] = select(Choice::Single { bytes: "x" });
+    transition first.len == 3 && second.len == 1 {
+        true -> done()
+        false -> bad()
+    }
+}
+
+machine done() {}
+machine bad() crashes Trap { crash Trap; }

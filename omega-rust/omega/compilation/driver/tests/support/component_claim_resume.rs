@@ -37,10 +37,14 @@ pub(super) fn observe(
     let execute = |allowance, quantum| {
         terminal_runtime::execute_sliced(
             TerminalRuntimeRequest {
+                entry: None,
+                filesystem: Default::default(),
+                native_provider: None,
                 artifact,
                 provisions,
                 provider_proposal: None,
                 target,
+                memory_ordering: None,
                 x86_flags: target
                     .map(terminal_runtime::capture_host_x86_flags)
                     .transpose()

@@ -17,10 +17,10 @@ machine main() crashes Trap {
     let a: u64 = align_of<Pair>();
     let carrier: GeometryCarrier = GeometryCarrier { size: s, align: a };
     let diff: u64 = carrier.size - (carrier.align * 2u64);
-    transition diff == 0 {
+    transition diff == 0 && carrier.size == 16u64 && carrier.align == 8u64 {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

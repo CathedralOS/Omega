@@ -5,8 +5,8 @@ machine set(packet: &mut Packet) { packet.stamp = 70; }
 machine main(context: &mut Context) crashes Trap {
     set(&mut context.packet);
     transition context.packet.empty[0].value == 70 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

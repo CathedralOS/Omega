@@ -1,15 +1,22 @@
 use super::CoreContractDecodeError;
 
-/// Independent validation strength required before a candidate may commit.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[repr(u8)]
-pub enum OptimizationSafetyClass {
-    StructuralIdentity = 1,
-    ExactOperationSemantics = 2,
-    ProofCertified = 3,
-    OwnershipCertified = 4,
-    TranslationValidated = 5,
+crate::tagged_vocabulary! {
+    5;
+    /// Independent validation strength required before a candidate may commit.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum OptimizationSafetyClass {
+        StructuralIdentity = 1,
+        ExactOperationSemantics = 2,
+        ProofCertified = 3,
+        OwnershipCertified = 4,
+        TranslationValidated = 5,
+    }
 }
+
+crate::tag_from_all!(
+    OptimizationSafetyClass,
+    CoreContractDecodeError => CoreContractDecodeError::UnknownSafetyClass
+);
 
 impl OptimizationSafetyClass {
     pub const fn encode(self) -> [u8; 1] {
@@ -23,88 +30,34 @@ impl OptimizationSafetyClass {
                 actual: encoded.len(),
             });
         };
-        match tag {
-            1 => Ok(Self::StructuralIdentity),
-            2 => Ok(Self::ExactOperationSemantics),
-            3 => Ok(Self::ProofCertified),
-            4 => Ok(Self::OwnershipCertified),
-            5 => Ok(Self::TranslationValidated),
-            tag => Err(CoreContractDecodeError::UnknownSafetyClass(*tag)),
-        }
+        Self::from_tag(*tag)
     }
 }
 
-/// Stable, machine-readable explanation for a deterministic pass decision.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[repr(u8)]
-pub enum OptimizationReasonCode {
-    Inapplicable = 1,
-    NotProfitable = 2,
-    MissingAnalysis = 3,
-    UnsupportedVocabulary = 4,
-    ValidationFailed = 5,
-    ProofIncomplete = 6,
-    OwnershipEvidenceIncomplete = 7,
-    WorkBudgetExhausted = 8,
-    CandidateLimitReached = 9,
-    ConvergenceLimitReached = 10,
-    PolicyRejected = 11,
-    Superseded = 12,
-}
-
-impl OptimizationReasonCode {
-    /// The stable name reports and manifests print. Diagnostics name exact
-    /// rules and exact reasons rather than a severity or a level.
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::Inapplicable => "inapplicable",
-            Self::NotProfitable => "not profitable",
-            Self::MissingAnalysis => "missing analysis",
-            Self::UnsupportedVocabulary => "unsupported vocabulary",
-            Self::ValidationFailed => "validation failed",
-            Self::ProofIncomplete => "proof incomplete",
-            Self::OwnershipEvidenceIncomplete => "ownership evidence incomplete",
-            Self::WorkBudgetExhausted => "work budget exhausted",
-            Self::CandidateLimitReached => "candidate limit reached",
-            Self::ConvergenceLimitReached => "convergence limit reached",
-            Self::PolicyRejected => "policy rejected",
-            Self::Superseded => "superseded",
-        }
-    }
-
-    pub const ALL: [Self; 12] = [
-        Self::Inapplicable,
-        Self::NotProfitable,
-        Self::MissingAnalysis,
-        Self::UnsupportedVocabulary,
-        Self::ValidationFailed,
-        Self::ProofIncomplete,
-        Self::OwnershipEvidenceIncomplete,
-        Self::WorkBudgetExhausted,
-        Self::CandidateLimitReached,
-        Self::ConvergenceLimitReached,
-        Self::PolicyRejected,
-        Self::Superseded,
-    ];
-
-    const fn from_tag(tag: u8) -> Result<Self, CoreContractDecodeError> {
-        match tag {
-            1 => Ok(Self::Inapplicable),
-            2 => Ok(Self::NotProfitable),
-            3 => Ok(Self::MissingAnalysis),
-            4 => Ok(Self::UnsupportedVocabulary),
-            5 => Ok(Self::ValidationFailed),
-            6 => Ok(Self::ProofIncomplete),
-            7 => Ok(Self::OwnershipEvidenceIncomplete),
-            8 => Ok(Self::WorkBudgetExhausted),
-            9 => Ok(Self::CandidateLimitReached),
-            10 => Ok(Self::ConvergenceLimitReached),
-            11 => Ok(Self::PolicyRejected),
-            12 => Ok(Self::Superseded),
-            tag => Err(CoreContractDecodeError::UnknownReasonCode(tag)),
-        }
+crate::tagged_vocabulary! {
+    12;
+    /// Stable, machine-readable explanation for a deterministic pass decision.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum OptimizationReasonCode {
+        Inapplicable = 1 => "inapplicable",
+        NotProfitable = 2 => "not profitable",
+        MissingAnalysis = 3 => "missing analysis",
+        UnsupportedVocabulary = 4 => "unsupported vocabulary",
+        ValidationFailed = 5 => "validation failed",
+        ProofIncomplete = 6 => "proof incomplete",
+        OwnershipEvidenceIncomplete = 7 => "ownership evidence incomplete",
+        WorkBudgetExhausted = 8 => "work budget exhausted",
+        CandidateLimitReached = 9 => "candidate limit reached",
+        ConvergenceLimitReached = 10 => "convergence limit reached",
+        PolicyRejected = 11 => "policy rejected",
+        Superseded = 12 => "superseded",
     }
 }
+
+crate::tag_from_all!(
+    OptimizationReasonCode,
+    CoreContractDecodeError => CoreContractDecodeError::UnknownReasonCode
+);
 
 /// Final independent disposition of one proposed rewrite candidate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

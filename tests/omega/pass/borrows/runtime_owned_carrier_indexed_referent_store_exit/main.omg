@@ -7,7 +7,7 @@ machine update<'storage>(rows: Rows<'storage>, index: u64) -> bool
 requires index <= 1
 {
     transition { _ -> write(rows, index) }
-    state write(rows: Rows<'storage>, index: u64) -> bool
+    machine write(rows: Rows<'storage>, index: u64) -> bool
     requires index <= 1
     {
         rows.slots[index].target.value = 31;
@@ -27,6 +27,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

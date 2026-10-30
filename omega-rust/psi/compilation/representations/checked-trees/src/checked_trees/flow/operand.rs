@@ -5,11 +5,17 @@ use super::FlowConstraintRef;
 
 /// A payload access at its actual evaluation epoch. Geometry names a case;
 /// these live constraints must separately establish that case before access.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowCaseAccessFact {
+    pub machine_symbol: symbols::SymbolHandle,
+    pub state_symbol: symbols::SymbolHandle,
     pub expression: ExpressionHandle,
+    pub evaluation: super::FlowPermissionEvaluation,
     pub statement_index: usize,
     pub constraints: HandleSpan<FlowConstraintRef>,
+    /// Exact subjects at this access. An empty produced roster is unresolved,
+    /// never permission to recover a newer address from source syntax.
+    pub places: HandleSpan<FlowOperandReferent>,
 }
 
 /// One storage place an evaluated operand exactly denotes: a canonical root
@@ -17,8 +23,30 @@ pub struct FlowCaseAccessFact {
 /// vocabulary. Produced only when the reference resolver can name the
 /// referent precisely; an empty span keeps the operand on context-identity
 /// transport.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandReferent {
+    /// Descriptor-formation obligations for this exact namespace, independently
+    /// of cases and contents reached below the saved pointer. Zero has no
+    /// historical evidence and requires ordinary current case checking.
+    pub formation: Handle<FlowReferentFormation>,
+    pub root: facts::PlaceRoot,
+    pub segments: HandleSpan<facts::PlaceSegment>,
+}
+
+/// Provenance of a completed reference descriptor, never a pointee snapshot.
+/// `source_access` names an earlier actual payload read. A nonzero `owner`
+/// names an owned inventory whose conditional leaf has not been loaded yet:
+/// its `path` must be selected on that completed value at the actual load.
+/// The saved namespace ends at this descriptor; every later suffix remains
+/// subject to current case evidence. Inventory presence proves no case.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct FlowReferentFormation {
+    /// Actual source coordinates paired with source_access. The owned path is
+    /// relative to the value, not a suffix to trim from physical geometry.
+    pub source: Handle<FlowOperandReferent>,
+    pub source_access: Handle<FlowCaseAccessFact>,
+    pub owner: Handle<FlowOperandFact>,
+    pub path: HandleSpan<facts::PlaceSegment>,
     pub root: facts::PlaceRoot,
     pub segments: HandleSpan<facts::PlaceSegment>,
 }
@@ -29,8 +57,13 @@ pub struct FlowOperandReferent {
 /// A valid view row with no roots is known empty. An aggregate has no own
 /// view dependency; its declared leaves still require independent coverage.
 /// An invalid retention handle means that dependency was unavailable.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandRetention {
+    /// Complete nonempty possible contents footprint captured by the producing
+    /// operation. Unknown element selectors retain structural dimensions only.
+    /// This permits interference checks, never address equality, membership,
+    /// permission ancestry or value transfer. Empty means unavailable.
+    pub possible_storage: HandleSpan<FlowOperandReferent>,
     /// Checked pre-interpretation storage enclosing this pointer. Recasts and
     /// ordinary placed views retain the completed source capture, not its later
     /// descriptor home. This is a conservative compatibility footprint only:
@@ -56,6 +89,11 @@ pub struct FlowOperandRetention {
     /// scope; borrowing a holder does not inherit its pointee's scope.
     pub immutable_image: bool,
     pub roots: HandleSpan<facts::PlaceRoot>,
+    /// Actual completed inputs selected by the applied declared lifetime
+    /// relation. This preserves typed return obligations through opaque owned
+    /// carriers. It supplies neither descriptor geometry nor new permission;
+    /// those remain with the captured input and its checked loans.
+    pub lifetime_sources: Option<HandleSpan<FlowOperandRetainedSupplier>>,
     /// Exact completed inputs retaining the permission carried by a call store.
     /// These are supplier associations, not value equality or pointee snapshots.
     pub suppliers: HandleSpan<FlowOperandRetainedSupplier>,
@@ -77,19 +115,74 @@ pub struct FlowOperandRetention {
 
 /// One completed input region enclosing a returned footprint. Projection
 /// selects its captured descriptor, not that descriptor's former storage home.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandRetainedRegion {
     pub operand: Handle<FlowOperandFact>,
     pub projection: HandleSpan<facts::PlaceSegment>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+/// One declared input relationship: lending the referent and transferring a
+/// stored descriptor have different contracts even when their paths are empty.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum ViewReturnInputSource {
+    Referent,
+    Stored,
+}
+
+/// The original applied call contract bound on a lifetime supplier. This is
+/// not a promise inferred from the older actual capture reached through it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub struct FlowOperandLifetimeContract {
+    pub state_symbol: symbols::SymbolHandle,
+    pub statement_index: usize,
+    pub invocation: ExpressionHandle,
+    pub call_ordinal: usize,
+    /// None names the returned value; Some names an overwritten parameter
+    /// leaf. Both retain the original declaration's output path below.
+    pub output_parameter: Option<usize>,
+    pub input: Handle<FlowOperandFact>,
+    pub parameter_index: usize,
+    pub source: ViewReturnInputSource,
+    pub source_type: typed_trees::types::TypeReferenceHandle,
+    pub source_path: HandleSpan<facts::PlaceSegment>,
+    pub owner_path: HandleSpan<facts::PlaceSegment>,
+}
+
+/// Nonspatial input obligations of one admitted parameter-output generation.
+/// Descriptor invalidation cannot turn this into a pointer association. The
+/// borrowing ledger must independently select this exact generation at release.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub struct FlowOutputLifetimeSources {
+    pub output: facts::InvocationOutputIdentity,
+    pub owner_path: HandleSpan<facts::PlaceSegment>,
+    pub sources: Option<HandleSpan<FlowOperandRetainedSupplier>>,
+}
+
+impl Default for FlowOutputLifetimeSources {
+    fn default() -> Self {
+        Self {
+            output: facts::InvocationOutputIdentity {
+                state_symbol: Handle::invalid(),
+                statement_index: 0,
+                call_ordinal: 0,
+                parameter_symbol: Handle::invalid(),
+            },
+            owner_path: HandleSpan::empty(),
+            sources: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandRetainedSupplier {
     pub operand: Handle<FlowOperandFact>,
     pub projection: HandleSpan<facts::PlaceSegment>,
+    /// Present on a declared lifetime edge, independently of permission and
+    /// descriptor suppliers, whose selected field contract stays with its owner.
+    pub contract: Option<FlowOperandLifetimeContract>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandRetainedLeaf {
     pub path: HandleSpan<facts::PlaceSegment>,
     pub retention: Handle<FlowOperandRetention>,
@@ -102,7 +195,7 @@ pub struct FlowOperandRetainedLeaf {
 /// denote storage they read at invocation, so `referents` records the exact
 /// referent custody: the clause's evidence is the facts live on that storage
 /// at invocation, including ones a later operand established.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandFact {
     pub expression: ExpressionHandle,
     /// The state and statement whose evaluation produced this observation.
@@ -112,25 +205,31 @@ pub struct FlowOperandFact {
     /// Bound destination carrier for this evaluation, including a first
     /// store whose local is not yet in the preceding statement's scope.
     pub type_reference: typed_trees::types::TypeReferenceHandle,
-    /// Constructed children, attached to this exact evaluation occurrence.
-    /// Each child retains its own completion facts before later child effects.
-    pub children: HandleSpan<FlowOperandChild>,
-    /// Complete mutually exclusive result captures at a value join. Each
-    /// alternative retains its own completion epoch and must establish every
-    /// requested reference leaf; one resolved arm cannot cover another arm.
-    /// These are alternatives, never simultaneously installed product children.
-    pub alternatives: HandleSpan<FlowOperandFact>,
-    /// Earlier completed whole value supplying an identity-preserving read,
-    /// independently of physical backing and pointee contents. This is not
-    /// an owned completion or a new custody/cleanup alternative.
-    pub value_source: arena::Handle<FlowOperandFact>,
+    /// Value formation at this exact evaluation occurrence.
+    pub completion: FlowOperandCompletion,
+    /// Actual receiver or source descriptor dependency, independently of value identity.
+    pub backing: Handle<FlowOperandFact>,
+    /// Captured computation operands in evaluation order, including a selected
+    /// short-circuit route. Presence alone does not guarantee execution on every
+    /// completion. These are neither stored children nor extra backing loans.
+    pub evaluated_inputs: HandleSpan<FlowOperandFact>,
+    /// Start of the inputs whose execution depends on a selected route. None
+    /// guarantees the whole roster; Some(prefix) guarantees only that prefix.
+    /// This is an evaluation fact, independent of scalar predicates that later
+    /// writes may invalidate. A consumer must check the prefix fits the roster.
+    pub conditional_inputs_from: Option<usize>,
+    /// Earlier whole value supplying an identity-preserving read; not custody.
+    pub value_source: Handle<FlowOperandFact>,
     /// Writes already evaluated in this statement when the operand completed.
     /// Later writes cannot change this prefix or its invocation-entry origin.
     pub entry_origin_writes: HandleSpan<FlowOperandReferent>,
     pub entry_origin_unknown_write: bool,
-    /// Exact storage history at this completed observation. Later writes or
-    /// sibling branches cannot change the predecessor this handle names.
-    pub storage_snapshot: arena::Handle<super::FlowStorageSnapshot>,
+    /// Exact immutable storage history at this completed observation.
+    pub storage_snapshot: Handle<super::FlowStorageSnapshot>,
+    /// Descriptor binding writes are separate from pointee content writes.
+    pub entry_binding_writes: HandleSpan<FlowOperandReferent>,
+    pub entry_binding_unknown_write: bool,
+    pub case_access: Handle<FlowCaseAccessFact>,
     pub constraints: HandleSpan<FlowConstraintRef>,
     /// Exact referent storage when the operand is a view carrier. Empty for
     /// detached carriers and for referents the resolver cannot place exactly.
@@ -138,12 +237,56 @@ pub struct FlowOperandFact {
     /// Complete backing lifetime frontier, independently of exact geometry.
     /// Aggregate reference leaves retain this relation in their child captures.
     pub retention: Handle<FlowOperandRetention>,
+    /// Descriptor values copied or moved with this owned carrier at completion.
+    /// Each declared leaf retains exact referents independently of lifetime roots;
+    /// later writes to the carrier cannot retarget this completed operand.
+    pub reference_leaves: HandleSpan<FlowCapturedReferenceLeaf>,
+}
+
+/// Retain the evaluated value graph without enumerating combinations of fields
+/// and choices. A selected arm refers to its actual completion, so projections
+/// of one saved selection share its identity and observation epoch.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum FlowOperandCompletion {
+    #[default]
+    Observation,
+    Constructed(HandleSpan<FlowOperandChild>),
+    Selected(HandleSpan<FlowOperandAlternative>),
+    /// A projection of one already completed owned copy. The value's contents
+    /// belong to the copy epoch; reference leaves keep their captured descriptors
+    /// and separately read live referent contents.
+    Copied {
+        copy: Handle<FlowCopiedValue>,
+        path: HandleSpan<facts::PlaceSegment>,
+    },
+}
+
+impl FlowOperandFact {
+    /// Only construction supplies simultaneous destination children. Selection
+    /// consumers must use the alternative join, never treat its arms as fields.
+    pub fn constructed_children(&self) -> HandleSpan<FlowOperandChild> {
+        match self.completion {
+            FlowOperandCompletion::Constructed(children) => children,
+            FlowOperandCompletion::Observation
+            | FlowOperandCompletion::Selected(_)
+            | FlowOperandCompletion::Copied { .. } => HandleSpan::empty(),
+        }
+    }
+}
+
+/// One reachable arm of a completed selection, in first-match order. The
+/// parent operand supplies the evaluation identity; source syntax alone does
+/// not distinguish repeated evaluations of that choice.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct FlowOperandAlternative {
+    pub source_arm: Handle<typed_trees::expression::TableMatchArm>,
+    pub value: Handle<FlowOperandFact>,
 }
 
 /// One authored child installed at its resolved destination in a completed
 /// record, case, or array. Rows are in evaluation order; paths name declaration
 /// identities and are stored in `FlowControlFacts::operand_child_paths`.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandChild {
     /// The actual constructing occurrence, retained even when a later place
     /// projection or reference keeps only its selected storage. Together with
@@ -159,7 +302,7 @@ pub struct FlowOperandChild {
 /// One completed storage observation and the receiver actually evaluated for
 /// it. A scalar result retains no loan, but its read still needs the receiver's
 /// backing until completion. These contexts exclude later statement effects.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowValueObservationFact {
     pub expression: ExpressionHandle,
     pub evaluation: super::FlowPermissionEvaluation,
@@ -168,17 +311,60 @@ pub struct FlowValueObservationFact {
     /// lifetime frontier determines whether the observed home may die here.
     /// Zero is unavailable evidence, not a reference-free result.
     pub result: Handle<FlowOperandFact>,
+    /// Selected storage at the actual read, after its receiver and selectors
+    /// completed. Later effects cannot replace these coordinates.
+    pub places: HandleSpan<FlowOperandReferent>,
+    /// Content-write prefix at completion of this read, independent of the
+    /// earlier receiver's epoch. Address equality alone is not value equality.
+    pub origin_writes: HandleSpan<FlowOperandReferent>,
+    pub origin_unknown_write: bool,
     pub semantic_contexts: HandleSpan<super::FlowSemanticContextRef>,
     pub constraints: HandleSpan<FlowConstraintRef>,
+}
+
+/// A current guard context about one completed descriptor read, rather than
+/// every possible pointee. Consumers must rejoin its actual receiver, binding epoch,
+/// backing lifetime and content-write frontier before using that namespace.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct FlowDescriptorContextObservation {
+    pub context: facts::FactContextHandle,
+    pub observation: Handle<FlowValueObservationFact>,
 }
 
 /// Actual source operands of one performed atomic expression. The generated
 /// update formula and result placeholder are not executed inputs. Each source
 /// operand retains its completion before later inputs or the final store.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowAtomicExecutionFact {
     pub state_symbol: symbols::SymbolHandle,
     pub statement_index: usize,
     pub expression: ExpressionHandle,
     pub operands: HandleSpan<FlowOperandFact>,
+}
+
+/// One copy completed before selected target operands. `source` is the actual
+/// entry-time value observation; the reference inventory retains descriptors,
+/// never a snapshot of their referee contents.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct FlowCopiedValue {
+    pub source: Handle<FlowOperandFact>,
+    pub references: HandleSpan<FlowCapturedReferenceLeaf>,
+    pub uses: HandleSpan<FlowCopiedValueUse>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct FlowCapturedReferenceLeaf {
+    pub path: HandleSpan<facts::PlaceSegment>,
+    pub type_reference: typed_trees::types::TypeReferenceHandle,
+    pub referents: HandleSpan<FlowOperandReferent>,
+    pub retention: Handle<FlowOperandRetention>,
+    pub constraints: HandleSpan<FlowConstraintRef>,
+}
+
+/// An actual read tied to its selected copy, retained by the evaluator rather
+/// than rediscovered by scanning unrelated operands or matching source paths.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct FlowCopiedValueUse {
+    pub expression: ExpressionHandle,
+    pub evaluation: super::FlowPermissionEvaluation,
 }

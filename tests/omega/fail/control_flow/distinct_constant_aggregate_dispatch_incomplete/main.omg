@@ -10,5 +10,5 @@ machine main() {
         (Interval::Empty, Interval::Empty) -> done()
         (Interval::Point { lo as _, hi as _ }, Interval::Point { lo as _, hi as _ }) -> done()
     }
-    state done() {}
+    machine done() {}
 }

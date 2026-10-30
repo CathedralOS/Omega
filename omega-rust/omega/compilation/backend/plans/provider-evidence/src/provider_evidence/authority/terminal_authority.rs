@@ -1,4 +1,4 @@
-//! The 14 authority classes, the mechanism identities that carry them, and the
+//! Mechanism identities carrying the shared authority classes, and the
 //! closure review over both - the one file here that encodes big-endian.
 
 use std::collections::BTreeSet;
@@ -73,7 +73,49 @@ pub enum CompilerPlacedScalarOperation {
     Write,
 }
 
+impl From<language_semantics::numeric_intrinsics::NumericIntrinsic>
+    for CompilerIntrinsicExecutionIdentity
+{
+    fn from(meaning: language_semantics::numeric_intrinsics::NumericIntrinsic) -> Self {
+        use language_semantics::numeric_intrinsics::NumericIntrinsic as Meaning;
+        match meaning {
+            Meaning::Builtin { function, .. } => Self::BuiltinFunction(function),
+            Meaning::FloatBinary { operation, format } => {
+                Self::PrimitiveFloatBinary { operation, format }
+            }
+            Meaning::IntegerComparison {
+                operation,
+                integer_type,
+            } => Self::PrimitiveIntegerComparison {
+                operation,
+                integer_type,
+            },
+            Meaning::Negation(format) => Self::NamedFloatNegation(format),
+            Meaning::Conversion {
+                source,
+                target,
+                domain,
+            } => Self::NamedFloatConversion {
+                source,
+                target,
+                domain,
+            },
+        }
+    }
+}
+
 impl CompilerIntrinsicExecutionIdentity {
+    /// Numeric semantics are carried by Terminal, not by a native custody row.
+    pub fn is_numeric(self) -> bool {
+        matches!(
+            self,
+            Self::PrimitiveFloatBinary { .. }
+                | Self::PrimitiveIntegerComparison { .. }
+                | Self::NamedFloatNegation(_)
+                | Self::NamedFloatConversion { .. }
+        ) || matches!(self, Self::BuiltinFunction(function) if function.is_float_family())
+    }
+
     /// Fixed-register instructions already have exact compiler-owned builtin
     /// coordinates. Normalize to those closed identities, retaining both the
     /// register and direction rather than creating a foreign/physical alias.
@@ -83,6 +125,14 @@ impl CompilerIntrinsicExecutionIdentity {
         use terminal_psi::{RegisterOperation as O, SystemRegister as R};
         let function = match operation {
             O::ProcessorHalt => B::AsmHlt,
+            O::MemoryFence(kind) => match kind {
+                terminal_psi::MemoryFenceKind::Load => B::AsmLoadFence,
+                terminal_psi::MemoryFenceKind::Store => B::AsmStoreFence,
+                terminal_psi::MemoryFenceKind::Full => B::AsmFullFence,
+                terminal_psi::MemoryFenceKind::Aarch64Load => B::AsmAarch64LoadFence,
+                terminal_psi::MemoryFenceKind::Aarch64Store => B::AsmAarch64StoreFence,
+                terminal_psi::MemoryFenceKind::Aarch64Full => B::AsmAarch64FullFence,
+            },
             O::InterruptControl(
                 language_core::inline_assembly::AsmInterruptControlKind::Disable,
             ) => B::AsmDisableInterrupts,
@@ -539,62 +589,7 @@ pub fn terminal_mechanism_identity_bytes(identity: TerminalMechanismIdentity) ->
     }
 }
 
-/// Mints a closed compiler vocabulary from one table.
-///
-/// Each of these vocabularies exists in several spellings at once: the `enum`,
-/// its `ALL` roster, the authored spelling of every variant and the tag its
-/// encoded form uses. The rows in each invocation are the one place those are
-/// written; the enum, its canonical-order roster and its tags are generated
-/// from them, so a tag can no longer drift from the declaration it belongs to.
-macro_rules! tagged_vocabulary {
-    // Vocabulary whose tag callers read through its own method.
-    ($documentation:literal, $name:ident, $tag_method:ident { $($variant:ident = $tag:literal),+ $(,)? }) => {
-        #[doc = $documentation]
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub enum $name {
-            $($variant,)+
-        }
-
-        impl $name {
-            /// Every variant, in canonical (declaration) order.
-            pub const ALL: [Self; [$(Self::$variant),+].len()] = [$(Self::$variant),+];
-
-            /// This variant's canonical tag.
-            pub const fn $tag_method(self) -> u8 {
-                match self {
-                    $(Self::$variant => $tag,)+
-                }
-            }
-        }
-    };
-    // Vocabulary whose tag is published as the free function of the same table.
-    ($documentation:literal, $tag_documentation:literal, $name:ident, $tag_fn:ident { $($variant:ident => $spelling:literal = $tag:literal),+ $(,)? }) => {
-        #[doc = $documentation]
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub enum $name {
-            $($variant,)+
-        }
-
-        impl $name {
-            /// Every variant, in canonical (declaration) order.
-            pub const ALL: [Self; [$(Self::$variant),+].len()] = [$(Self::$variant),+];
-
-            /// The authored spelling of this variant.
-            pub const fn name(self) -> &'static str {
-                match self {
-                    $(Self::$variant => $spelling,)+
-                }
-            }
-        }
-
-        #[doc = $tag_documentation]
-        pub const fn $tag_fn(value: $name) -> u8 {
-            match value {
-                $($name::$variant => $tag,)+
-            }
-        }
-    };
-}
+pub use semantic_vocabulary::TerminalAuthorityClass;
 
 const fn float_format_tag(format: numerics::literals::FloatFormat) -> u8 {
     match format {
@@ -612,86 +607,12 @@ const fn arithmetic_domain_tag(domain: numerics::arithmetic::ArithmeticDomain) -
     }
 }
 
-tagged_vocabulary!(
-    "Closed numeric vocabulary: declaration order is the canonical encoded order.",
-    "Canonical tag of a numeric type.",
-    CompilerNumericType,
-    numeric_type_tag
-    {
-        I8 => "i8" = 0,
-        I16 => "i16" = 1,
-        I32 => "i32" = 2,
-        I64 => "i64" = 3,
-        U8 => "u8" = 4,
-        U16 => "u16" = 5,
-        U32 => "u32" = 6,
-        U64 => "u64" = 7,
-        F32 => "f32" = 8,
-        F64 => "f64" = 9,
-    }
-);
-
-impl CompilerNumericType {
-    pub const fn is_float(self) -> bool {
-        matches!(self, Self::F32 | Self::F64)
-    }
-}
-
-tagged_vocabulary!(
-    "Closed primitive-float binary operation vocabulary: declaration order is the canonical encoded order.",
-    "Canonical tag of a primitive float binary operation.",
-    CompilerPrimitiveFloatBinaryOperation,
-    primitive_float_operation_tag
-    {
-        Add => "add" = 0,
-        Subtract => "subtract" = 1,
-        Multiply => "multiply" = 2,
-        Divide => "divide" = 3,
-        Equal => "equal" = 4,
-        NotEqual => "not_equal" = 5,
-        Less => "less" = 6,
-        LessOrEqual => "less_or_equal" = 7,
-        Greater => "greater" = 8,
-        GreaterOrEqual => "greater_or_equal" = 9,
-    }
-);
-
-tagged_vocabulary!(
-    "The authored integer comparison spellings, before any emission mapping. `>`/`>=`/`!=` keep their authored identity here even though Terminal emission normalizes them onto the swapped/negated three-operation roster; the recorded emitted shape is what the proposal replays, while this value is what the selected provider plan commits to.",
-    "Wire tag for a primitive integer-comparison operation — the six-row encoding every authority table and its checker spells identically.",
-    CompilerPrimitiveIntegerComparisonOperation,
-    primitive_integer_comparison_operation_tag
-    {
-        Equal => "equal" = 0,
-        NotEqual => "not_equal" = 1,
-        Less => "less" = 2,
-        LessOrEqual => "less_or_equal" = 3,
-        Greater => "greater" = 4,
-        GreaterOrEqual => "greater_or_equal" = 5,
-    }
-);
-
-tagged_vocabulary!(
-    "D45's closed physical terminal-authority vocabulary. Declaration order is the canonical encoded order; additions require a target-policy migration.",
-    TerminalAuthorityClass,
-    canonical_tag
-    {
-        FilesystemContentRead = 0,
-        FilesystemContentWrite = 1,
-        FilesystemMetadataQuery = 2,
-        DirectoryEnumeration = 3,
-        FilesystemNamespaceMutation = 4,
-        FilesystemMetadataMutation = 5,
-        ProcessOutput = 6,
-        ProcessTermination = 7,
-        MachineControl = 8,
-        PortIo = 9,
-        InterruptControl = 10,
-        InterruptEntry = 11,
-        RootMemoryAccess = 12,
-        ProcessInput = 13,
-    }
-);
+pub use language_semantics::numeric_intrinsics::{
+    NumericType as CompilerNumericType,
+    PrimitiveFloatBinaryOperation as CompilerPrimitiveFloatBinaryOperation,
+    PrimitiveIntegerComparisonOperation as CompilerPrimitiveIntegerComparisonOperation,
+    numeric_type_tag, primitive_float_operation_tag, primitive_integer_comparison_operation_tag,
+};
 
 /// Portable filesystem authority facets accepted by D45 service policy.
 ///
@@ -741,7 +662,7 @@ impl From<PortableFilesystemAuthorityFacet> for TerminalAuthorityClass {
 /// Classes are always stored in canonical order without duplicates. An empty
 /// set means only that the mechanism exercises none of D45's classes; it does
 /// not claim purity, trustworthiness, or absence of general side effects.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalAuthorityDisposition {
     classes: Vec<TerminalAuthorityClass>,
 }

@@ -35,12 +35,12 @@ terminates;
 terminates by bindings -> Slice::Length;
 requires Actors >= 1 && Rooms >= 1 {
     transition bindings.len > 0 { true -> head(bindings, actors, intents, clock) _ -> done() }
-    state head(bindings: &[ControllerBinding<Actors>], actors: &ActorSet<Actors, Rooms>, intents: &mut IntentSet<Actors>, clock: FrameClock)
+    machine head(bindings: &[ControllerBinding<Actors>], actors: &ActorSet<Actors, Rooms>, intents: &mut IntentSet<Actors>, clock: FrameClock)
     requires Actors >= 1 && Rooms >= 1 && bindings.len > 0 {
         route_autonomous_binding<Actors, Rooms>(bindings[0], actors, intents, clock);
         transition { _ -> route_autonomous_bindings(bindings[1..], actors, intents, clock) }
     }
-    state done() {}
+    machine done() {}
 }
 
 machine route_autonomous_binding<const Actors: u64, const Rooms: u64>(binding: ControllerBinding<Actors>, actors: &ActorSet<Actors, Rooms>, intents: &mut IntentSet<Actors>, clock: FrameClock)
@@ -50,15 +50,15 @@ requires Actors >= 1 && Rooms >= 1 {
         ControlSource::Input { device } -> done()
         ControlSource::Pursuit { target } -> pursuit(binding.actor, target, actors, intents, clock)
     }
-    state pursuit(actor: u64, target: u64, actors: &ActorSet<Actors, Rooms>, intents: &mut IntentSet<Actors>, clock: FrameClock)
+    machine pursuit(actor: u64, target: u64, actors: &ActorSet<Actors, Rooms>, intents: &mut IntentSet<Actors>, clock: FrameClock)
     requires Actors >= 1 && Rooms >= 1 {
         transition actor < Actors && target < Actors { true -> write(actor, target, actors, intents, clock) _ -> done() }
     }
-    state write(actor: u64, target: u64, actors: &ActorSet<Actors, Rooms>, intents: &mut IntentSet<Actors>, clock: FrameClock)
+    machine write(actor: u64, target: u64, actors: &ActorSet<Actors, Rooms>, intents: &mut IntentSet<Actors>, clock: FrameClock)
     requires Actors >= 1 && Rooms >= 1 && actor < Actors && target < Actors {
         intents.items[actor] = pursue<Rooms>(actors.items[actor], actors.items[target], clock.ticks);
     }
-    state done() {}
+    machine done() {}
 }
 
 public machine route_input<const Bindings: u64, const Actors: u64>(controls: &ControllerSet<Bindings, Actors>, intents: &mut IntentSet<Actors>, device: u32, command: Command)
@@ -71,13 +71,13 @@ machine route_bindings<const Actors: u64>(bindings: &[ControllerBinding<Actors>]
 terminates by bindings -> Slice::Length;
 requires Actors >= 1 {
     transition bindings.len > 0 { true -> head(bindings, intents, device, command) _ -> done() }
-    state head(bindings: &[ControllerBinding<Actors>], intents: &mut IntentSet<Actors>, device: u32, command: Command)
+    machine head(bindings: &[ControllerBinding<Actors>], intents: &mut IntentSet<Actors>, device: u32, command: Command)
     requires Actors >= 1 && bindings.len > 0 {
         let binding: ControllerBinding<Actors> = bindings[0];
         route_binding<Actors>(binding, intents, device, command);
         transition { _ -> route_bindings(bindings[1..], intents, device, command) }
     }
-    state done() {}
+    machine done() {}
 }
 
 machine route_binding<const Actors: u64>(binding: ControllerBinding<Actors>, intents: &mut IntentSet<Actors>, device: u32, command: Command)
@@ -88,13 +88,13 @@ requires Actors >= 1 {
         ControlSource::Input { device as selected } -> manual(binding.actor, intents, device, command, selected)
         ControlSource::Pursuit { target } -> done()
     }
-    state manual(actor: u64, intents: &mut IntentSet<Actors>, device: u32, command: Command, selected: u32)
+    machine manual(actor: u64, intents: &mut IntentSet<Actors>, device: u32, command: Command, selected: u32)
     requires Actors >= 1 {
         transition selected == device && actor < Actors { true -> write(actor, intents, command) _ -> done() }
     }
-    state write(actor: u64, intents: &mut IntentSet<Actors>, command: Command)
+    machine write(actor: u64, intents: &mut IntentSet<Actors>, command: Command)
     requires Actors >= 1 && actor < Actors {
         intents.items[actor] = command;
     }
-    state done() {}
+    machine done() {}
 }

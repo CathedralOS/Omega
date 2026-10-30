@@ -10,7 +10,7 @@ machine inspect(words: &[u16]) -> i32 {
         _ -> 71
     }
 
-    state read(words: &[u16]) -> i32 {
+    machine read(words: &[u16]) -> i32 {
         transition words[0] == 0x0201 && words[1] == 0x0403 {
             true -> 70
             _ -> 72

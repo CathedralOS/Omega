@@ -24,6 +24,13 @@ pub(super) fn normal_return_interval(
     declared: Interval,
     actuals: &ArgumentBounds,
 ) -> Interval {
+    if !callee
+        .contracts
+        .iter()
+        .any(|contract| contract.kind == SignatureContractKind::Ensures)
+    {
+        return declared;
+    }
     // Only gated builtin preconditions may refine a formal used in a result
     // relation. The ordinary source guard environment is not selection evidence.
     let mut environment = ValueEnvironment::new();
@@ -98,6 +105,9 @@ fn project_possible(
     expression: ExpressionHandle,
     formal: Option<&typed_trees::signature::StateParameter>,
 ) -> Option<Interval> {
+    if let Some(value) = program.static_boolean_value(expression) {
+        return value.then_some(Interval::UNBOUNDED);
+    }
     if program
         .prepared_mathematics()
         .is_some_and(|view| view.application(expression).is_some())
@@ -109,21 +119,57 @@ fn project_possible(
     };
     if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
         // These two selective connectives have no declared operator spelling.
-        let left = project_possible(program, callee, environment, lengths, binary.left, formal);
         if binary.operator == BinaryOperator::And {
-            let left = left?;
-            let continuing = condition_environment(program, callee, environment, binary.left);
-            if continuing.intervals.values().any(|interval| {
-                interval
-                    .low
-                    .zip(interval.high)
-                    .is_some_and(|(low, high)| low > high)
-            }) {
-                return None;
+            let mut remaining_right_operands = vec![binary.right];
+            let mut current_operand = binary.left;
+            // Folded and prepared predicates retain their existing projection owner.
+            while program.static_boolean_value(current_operand).is_none()
+                && !program
+                    .prepared_mathematics()
+                    .is_some_and(|view| view.application(current_operand).is_some())
+            {
+                let Some(prefix) = program.expression_table.binary_node(current_operand) else {
+                    break;
+                };
+                if prefix.operator != BinaryOperator::And {
+                    break;
+                }
+                remaining_right_operands.push(prefix.right);
+                current_operand = prefix.left;
             }
-            return project_possible(program, callee, &continuing, lengths, binary.right, formal)
-                .map(|right| left.intersect(right));
+            let mut interval = project_possible(
+                program,
+                callee,
+                environment,
+                lengths,
+                current_operand,
+                formal,
+            )?;
+            let mut continuing = environment.clone();
+            // Carry each completed prefix forward instead of evaluating it again.
+            while let Some(right) = remaining_right_operands.pop() {
+                continuing = condition_environment(program, callee, &continuing, current_operand);
+                if continuing.intervals.values().any(|interval| {
+                    interval
+                        .low
+                        .zip(interval.high)
+                        .is_some_and(|(low, high)| low > high)
+                }) {
+                    return None;
+                }
+                interval = interval.intersect(project_possible(
+                    program,
+                    callee,
+                    &continuing,
+                    lengths,
+                    right,
+                    formal,
+                )?);
+                current_operand = right;
+            }
+            return Some(interval);
         }
+        let left = project_possible(program, callee, environment, lengths, binary.left, formal);
         let right = project_possible(program, callee, environment, lengths, binary.right, formal);
         return match (left, right) {
             (Some(left), Some(right)) => Some(left.union(right)),
@@ -411,6 +457,7 @@ fn operand_interval(
             super::ArithmeticDomain::Exact,
             "normal-return contract",
             false,
+            false,
             &mut diagnostics,
         );
         return diagnostics
@@ -516,4 +563,83 @@ pub(super) fn builtin(
         spelling,
         operand_types,
     )
+}
+
+/// Selected constant bounds use the same normal-return contract projection as
+/// literal intervals. The resulting recipe travels with the captured value;
+/// target closure reads the exact retained invocation, never the caller's home.
+pub(super) fn normal_return_recipe(
+    program: &dyn crate::CheckingInput,
+    callee: &CalleeContract<'_>,
+) -> Option<checked_trees::IntegerRangeRecipe> {
+    use checked_trees::IntegerRangeRecipe;
+    if program.constant_recipes.is_empty() {
+        return None;
+    }
+    let primitive = program.primitive_type_reference(callee.return_type)?;
+    let mut pending = program
+        .contract_expressions(callee.contracts.iter(), SignatureContractKind::Ensures)
+        .collect::<Vec<_>>();
+    let mut result: Option<IntegerRangeRecipe> = None;
+    while let Some(expression) = pending.pop() {
+        let Some(binary) = program.expression_table.binary_node(expression) else {
+            continue;
+        };
+        if binary.operator == BinaryOperator::And {
+            pending.extend([binary.left, binary.right]);
+            continue;
+        }
+        let is_result = |expression| {
+            crate::reserved_result_owner(program, expression).is_some_and(|(owner, reference)| {
+                owner == callee.callable && reference == callee.return_type
+            })
+        };
+        let (bound, operator) = if is_result(binary.left) {
+            (binary.right, binary.operator)
+        } else if is_result(binary.right) {
+            (binary.left, binary.operator.mirrored())
+        } else {
+            continue;
+        };
+        if !program
+            .constant_recipe_for_contract_expression(bound)
+            .is_valid()
+        {
+            continue;
+        }
+        let bound_type = crate::parameter_expression_result_type_reference(
+            program,
+            callee.callable,
+            callee.parameters,
+            bound,
+        );
+        let operand_types = if is_result(binary.left) {
+            [Some(callee.return_type), bound_type]
+        } else {
+            [bound_type, Some(callee.return_type)]
+        };
+        if !builtin(
+            program,
+            callee.callable,
+            expression,
+            binary.operator,
+            &operand_types,
+        ) {
+            continue;
+        }
+        let Some(bound_recipe) = super::deferred_bounds::comparison_recipe(
+            program,
+            callee.callable,
+            primitive,
+            bound,
+            operator,
+        ) else {
+            continue;
+        };
+        result = Some(result.map_or_else(
+            || bound_recipe.clone(),
+            |previous| previous.intersect(&bound_recipe),
+        ));
+    }
+    result
 }

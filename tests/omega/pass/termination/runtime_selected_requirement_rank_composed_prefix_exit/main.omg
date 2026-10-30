@@ -19,7 +19,7 @@ requires remaining <= 9;
 terminates by remaining in 0..=9;
 {
     transition { _ -> scan(selected, remaining) }
-    state scan(selected: dyn RankReader, remaining: u32) -> u32
+    machine scan(selected: dyn RankReader, remaining: u32) -> u32
     requires remaining <= 9;
     {
         let observed: u32 = RankReader::read(selected, &remaining);
@@ -37,7 +37,7 @@ requires remaining <= 9;
 terminates by remaining in 0..=9;
 {
     transition { _ -> scan(selected, remaining) }
-    state scan(selected: dyn RankReader, remaining: u32) -> u32
+    machine scan(selected: dyn RankReader, remaining: u32) -> u32
     requires remaining <= 9;
     {
         let observed: u32 = RankReader::read(selected, &remaining);
@@ -58,6 +58,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -13,17 +13,31 @@ use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 use crate::unit::attached_unit::signatures::{self, MachineSignature};
 use std::borrow::Cow;
 
-pub(in crate::unit::attached_unit) type CallableBody<'a> = state_graph::AdmittedGraph<'a>;
+pub(in crate::unit::attached_unit) struct CallableBody<'a> {
+    plan: checked_trees::CheckedComposedUnitControlMachinePlan,
+    graph: state_graph::AdmittedGraph<'a>,
+}
+
+pub(in crate::unit::attached_unit) fn admit<'a>(
+    checked: &'a CheckedTrees,
+    source: &checked_trees::CheckedComposedUnitControlMachinePlan,
+) -> Result<CallableBody<'a>, LoweringError> {
+    let plan = state_graph::prepare(source, &checked.facts.values.structural_values)?;
+    let graph = state_graph::admit(checked, &plan)?;
+    Ok(CallableBody { plan, graph })
+}
 
 impl<'a> CallableBody<'a> {
     pub(in crate::unit::attached_unit) fn boundaries(
         &self,
     ) -> &[(&'a CheckedBoundaryMachinePlan, BoundaryIdentity)] {
-        &self.boundaries
+        &self.graph.boundaries
     }
 }
 
 pub(in crate::unit::attached_unit) struct SharedCatalog<'a> {
+    pub scalar_applications:
+        &'a std::sync::Arc<super::super::scalar_applications::SourceScalarApplications>,
     pub structural_types: &'a [StructuralTypeDeclaration],
     pub type_ids: &'a [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     pub domain_ids: &'a [StructuralDomainBinding],
@@ -40,6 +54,7 @@ pub(in crate::unit::attached_unit) struct SharedCatalog<'a> {
     /// result republishes the callee's qualified result through it.
     pub prepared_scalar_qualifications:
         &'a crate::expression_preparation::qualifications::PreparedScalarQualifications,
+    pub dynamic_dispatch: &'a std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
 }
 
 pub(in crate::unit::attached_unit) struct EmissionCounters<'a> {
@@ -70,7 +85,13 @@ pub(in crate::unit::attached_unit) fn emit(
     LoweringError,
 > {
     let identity = lookup_machine_id(shared.machine_ids, plan.machine)?;
+    let CallableBody {
+        plan,
+        graph: admitted,
+    } = admitted;
+    let plan = &plan;
     let mut catalogs = catalogs::ComposedCatalogs {
+        scalar_applications: shared.scalar_applications,
         cleanup_control: &checked.facts.flow.terminal_unit_effects.cleanup_control,
         temporary_places: Vec::new(),
         result_places: Vec::new(),
@@ -83,16 +104,19 @@ pub(in crate::unit::attached_unit) fn emit(
         signatures: Cow::Borrowed(shared.signatures),
         closure: shared.closure,
         prepared_scalar_qualifications: Some(shared.prepared_scalar_qualifications),
+        dynamic_dispatch: Some(std::sync::Arc::clone(shared.dynamic_dispatch)),
         service_ids: Cow::Borrowed(shared.service_ids),
         scalar_calls: scalar_calls::ComposedScalarCalls::from_shared(
             identity,
             shared.machine_ids.to_vec(),
             shared.scalar_requirement_counts.to_vec(),
             *counters.call_obligation,
+            shared.prepared_scalar_qualifications.catalog(),
         )
         .with_callable_namespace(
             shared.boundary_parameters,
             shared.domain_ids,
+            shared.domain_declarations,
             shared
                 .signatures
                 .iter()
@@ -142,10 +166,6 @@ pub(in crate::unit::attached_unit) fn emit(
         .zip(machine.structural_parameters.iter())
         .map(|(source, parameter)| (source.position, parameter.clone()))
         .collect();
-    let element_views = crate::expression_preparation::bindings::element_views(
-        &view_roster,
-        &catalogs.structural_types,
-    );
     let entry = plan
         .states
         .first()
@@ -158,10 +178,11 @@ pub(in crate::unit::attached_unit) fn emit(
         &machine.result,
         &signature.erased_scalar_parameters,
         &crate::scalar_lowering::contracts::ContractViewNamespace {
+            scalar_applications: shared.scalar_applications,
+            constant_values: &checked.typed.constant_recipe_closure.values,
             parameters: &view_roster,
             result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
             structural_types: &catalogs.structural_types,
-            element_views: &element_views,
         },
         &mut catalogs.scalar_calls.next_call_obligation,
     )?;

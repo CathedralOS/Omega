@@ -21,6 +21,6 @@ machine main() crashes Trap {
     transition value == 73 && observed == 41 && from_call == 53 && singleton == 61 {
         true -> done() false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

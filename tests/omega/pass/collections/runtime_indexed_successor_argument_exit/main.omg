@@ -24,14 +24,14 @@ machine Main::main(main: &mut Main) reaches Console {
     main.flat = [10, 20, 5];
     main.rows = [[0, 0, 0], [1, 2, 32]];
     transition { _ -> dot(main, 0, 0) }
-    state dot(main: &mut Main, k: u64, acc: i32 in Wrapping) requires k <= 2 {
+    machine dot(main: &mut Main, k: u64, acc: i32 in Wrapping) requires k <= 2 {
         let next_k: u64 = k + 1;
         transition next_k <= 2 {
             true -> dot(main, next_k, acc + main.flat[k] + main.rows[1][k])
             false -> done(main, acc + main.flat[k] + main.rows[1][k])
         }
     }
-    state done(main: &mut Main, acc: i32 in Wrapping) {
+    machine done(main: &mut Main, acc: i32 in Wrapping) {
         Console::exit_process(acc as i32);
     }
 }

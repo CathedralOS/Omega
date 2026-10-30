@@ -72,7 +72,7 @@ Copy this into every worker prompt:
 > Compiler advancement witnesses are fact folders
 > under `samples/cli/facts`. One fact is one folder. The nine places are one
 > row, not a matrix: local, field, parameter, call result, match join, const
-> name, another state, another machine, and another target body. Do not select
+> name, another state, another machine, and another selected target implementation. Do not select
 > a program from the rest of `samples/`. `samples/cli/facts/length/` is the
 > filled row that met this bar. A fact folder is done only when the same fact
 > survives all nine places. One sentence names the fact and the operation, and
@@ -169,11 +169,11 @@ count a witness landing as full capability closure. Switch only under the
 canonical selection rules and user scope. Send updated selection instructions
 explicitly to existing workers at safe checkpoints without discarding their work.
 
-Publish owned branches as PRs through the native queue in tools/landing.md,
-never direct main pushes. GitHub integrates current main; authors resolve actual
-conflicts/failures, not every base movement. Existing
-unrelated failures do not require another repair assignment. Reconcile board
-requirements; never union-merge accumulated notes. Two advisories order that
+Publish candidate HEAD directly to remote refs (`git push origin HEAD:refs/heads/work/<name>`)
+as PRs through the native queue in tools/landing.md, never direct main pushes.
+GitHub integrates current main; authors resolve actual conflicts/failures, not
+every base movement. Existing unrelated failures do not require another repair
+assignment. Reconcile board requirements; never union-merge accumulated notes. Two advisories order that
 verification: `tools/jev_attribute.py` ranks a commit window for a failing
 signature before a bisect, and `corpus_gate.py --jev` gives the record-safety
 verdict before any `--record` (tools/testing.md).
@@ -197,8 +197,9 @@ helper actions before executing them.
   `field`, `parameter`, `call_result`, `match_join`, `const_name`,
   `other_state`, `other_machine`, `target_body` + nine `<place>/invalid/` reject
   twins + 18 `tests/omega/{pass,fail}/facts/<fact>_through_<place>_{exit,rejected}`
-  corpus fixtures). Always verify baseline failures against a fresh current-main
-  compiler build (`build/gate-cli`) rather than a stale cached binary
+  corpus fixtures). Verify baseline failures with a warm optimized exact-source
+  producer for the fixed recorded base (`build/gate-cli`), building only for
+  changed producer inputs or a missing valid producer, never an unverified binary
   (`omega-latest.exe`). Transporting a `TASKS.md` construct across all nine
   places surfaces the real `omega-rust/` checking, proof, and lowering bugs that
   single-witness fixes miss. If a proposed row only increases the count of an
@@ -245,5 +246,5 @@ helper actions before executing them.
 
 At the stopping condition stop refilling, request safe checkpoints and drain
 reports. Preserve dirty/unpublished work and remaining acceptance; release owned
-claims and remove only verified-landed worktrees/branches. Report outcome closure
+claims and remove only verified-landed worktrees. Report outcome closure
 and observed behavior, not helper-test, commit or occupied-slot counts.

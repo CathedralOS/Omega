@@ -208,8 +208,10 @@ fn lower_trait_machine_signatures(
                 owner: crate::resolution::lowerer::PendingSignatureOwner::Trait(
                     crate::lowering::name::lower_name(syntax_trees, trait_name),
                 ),
-                keyword_source_spans: lowered.service_reach_keyword_source_spans,
-                authored: lowered.service_reaches,
+                reaches: crate::selection::service_reaches::PendingAuthoredServiceReach::Authored {
+                    keyword_source_spans: lowered.service_reach_keyword_source_spans,
+                    authored: lowered.service_reaches,
+                },
             },
         );
     }

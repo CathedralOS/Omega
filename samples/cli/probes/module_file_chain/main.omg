@@ -25,5 +25,5 @@ machine module_file_chain() {
         _ -> done(71)
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

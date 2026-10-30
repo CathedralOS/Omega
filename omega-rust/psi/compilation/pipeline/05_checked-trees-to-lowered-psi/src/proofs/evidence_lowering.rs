@@ -107,7 +107,9 @@ pub(crate) fn lower_and_install_evidence_artifacts(
             &evidence_terms.declarations,
         )?;
         evidence_contract_lanes.extend(lower_evidence_contract_lanes(
+            identities,
             checked,
+            &lowered.semantic_module,
             machine,
             terminal_machine,
             &evidence_terms.term_ids,
@@ -115,6 +117,7 @@ pub(crate) fn lower_and_install_evidence_artifacts(
         proof_output_calls.extend(lower_proof_output_calls(
             identities,
             checked,
+            source_machine_ids,
             machine,
             terminal_machine,
             &lowered.semantic_module,
@@ -151,15 +154,6 @@ pub(crate) fn lower_and_install_evidence_artifacts(
     lowered.semantic_module.evidence_contract_lanes = evidence_contract_lanes;
     lowered.semantic_module.proof_output_calls = proof_output_calls;
     Ok(())
-}
-
-fn hex_bytes(bytes: &[u8]) -> String {
-    let mut rendered = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        use std::fmt::Write;
-        write!(&mut rendered, "{byte:02x}").expect("writing to a String cannot fail");
-    }
-    rendered
 }
 
 /// Lowered kind of one proposition binder argument.
@@ -292,6 +286,16 @@ pub(crate) fn checked_requirement_schema(
         None
     };
     Ok(terminal_psi::ClosedConformanceSchema {
+        requirement_declaration: terminal_psi::NominalDeclarationIdentity::new(
+            crate::machine_lowering::declarations::semantic_identity(
+                identities,
+                checked,
+                requirement,
+            )
+            .map_err(|_| {
+                LoweringError::Unsupported("conformance requirement lost its declaration owner")
+            })?,
+        ),
         declaring_trait_identity: identities
             .intern(&checked.symbols.display_path(declaring_trait, "::")),
         public_requirement_identity: identities.intern(&checked_evidence_requirement_identity(
@@ -455,25 +459,16 @@ fn exact_trait_requirement<'a>(
     declaring_trait: symbols::SymbolHandle,
     requirement: symbols::SymbolHandle,
 ) -> Result<ExactTraitRequirement<'a>, LoweringError> {
-    let mut matches = checked
+    // The typed owner retains closed requirement applications as well as
+    // authored signatures. Scanning only declaration rosters loses the exact
+    // applied signature when a generic provider row reaches evidence lowering.
+    let (definition, signature) = checked
         .typed
-        .traits()
-        .iter()
-        .filter(|definition| definition.symbol == declaring_trait)
-        .flat_map(|definition| {
-            checked
-                .typed
-                .trait_machine_signatures(definition)
-                .iter()
-                .filter(move |signature| signature.symbol == requirement)
-                .map(move |signature| (definition, signature))
-        });
-    let (definition, signature) = matches.next().ok_or(LoweringError::Unsupported(
-        "evidence producer row has no exact trait requirement",
-    ))?;
-    if matches.next().is_some() {
-        return unsupported("evidence producer row has an ambiguous trait requirement");
-    }
+        .trait_machine_signature(requirement)
+        .filter(|(definition, _)| definition.symbol == declaring_trait)
+        .ok_or(LoweringError::Unsupported(
+            "evidence producer row has no exact trait requirement",
+        ))?;
     let overload_identity = checked
         .typed
         .trait_requirement_callable_identity(definition, signature);
@@ -522,11 +517,9 @@ pub(crate) fn checked_evidence_machine_identity(
             .ok_or(LoweringError::Unsupported(
                 "evidence machine lost its checked executable application identity",
             ))?;
-        identity = format!(
-            "specialized-machine|callable={}:{}|application={}",
-            identity.len(),
-            identity,
-            hex_bytes(&checked_identity.commitment.as_bytes())
+        identity = terminal_psi::CheckedMachineDeclaration::callable_evidence_identity(
+            &identity,
+            Some(&checked_identity.commitment.as_bytes()),
         );
     }
     Ok(identity)

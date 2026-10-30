@@ -4,11 +4,11 @@ public machine number(value: i32 in Saturating) reaches Console
 invokes Console;
 {
     transition value < 0 { true -> negative(value) false -> positive(value) }
-    state negative(value: i32 in Saturating) {
+    machine negative(value: i32 in Saturating) {
         Console::write("-");
         transition { _ -> positive(0 - value) }
     }
-    state positive(value: i32 in Saturating) {
+    machine positive(value: i32 in Saturating) {
         Console::write_byte(((value / 1000000 % 10) + 48) as i32);
         Console::write_byte(((value / 100000 % 10) + 48) as i32);
         Console::write_byte(((value / 10000 % 10) + 48) as i32);

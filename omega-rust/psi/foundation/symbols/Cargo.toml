@@ -9,6 +9,7 @@ name = "symbols"
 path = "src/lib.rs"
 
 [dependencies]
+compiler-storage = { path = "../compiler-storage" }
 arena = { path = "../arena" }
 semantic-vocabulary = { path = "../semantic-vocabulary" }
 source = { path = "../source" }

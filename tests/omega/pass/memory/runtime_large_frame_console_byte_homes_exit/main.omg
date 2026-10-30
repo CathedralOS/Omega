@@ -32,11 +32,11 @@ crashes Trap
         _ -> missing(main)
     }
 
-    state echoed(main: &mut Main, value: i32) {
+    machine echoed(main: &mut Main, value: i32) {
         Console::exit_process(value);
     }
 
-    state missing(main: &mut Main) {
+    machine missing(main: &mut Main) {
         Console::exit_process(71);
     }
 }

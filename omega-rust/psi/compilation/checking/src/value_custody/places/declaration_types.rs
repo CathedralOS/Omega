@@ -1,6 +1,58 @@
 //! Parent links select the current declaration's type, never its template's.
 
 use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+/// Exact static assumptions of this declaration and its lexical ancestors.
+/// Neither runtime inputs nor a template's current callers supply equations.
+pub(crate) fn declaration_type_equations(
+    program: &dyn crate::CheckingInput,
+    mut owner: SymbolHandle,
+) -> Vec<(SymbolHandle, TypeReferenceHandle)> {
+    let mut substitutions = Vec::new();
+    let mut visited = Vec::new();
+    while owner.is_valid() && !visited.contains(&owner) {
+        visited.push(owner);
+        if let Some(machine) = program.machine_by_symbol(owner) {
+            for equation in program
+                .declared_type_equations
+                .span_or_empty(machine.declared_type_equations)
+            {
+                let TypeReferenceNode::Named { symbol, .. } = program
+                    .type_reference_table
+                    .type_reference(equation.parameter)
+                else {
+                    continue;
+                };
+                if symbol.is_valid()
+                    && program.symbols.get(*symbol).kind == SymbolKind::TypeParameter
+                {
+                    substitutions.push((*symbol, equation.definition));
+                }
+            }
+        }
+        owner = program.declaration_scope_parent(owner);
+    }
+    substitutions
+}
+
+/// The declared type of one current-state root: a state parameter, else the
+/// `let` local of the same state. A rendered name, a template's caller, or
+/// another declaration kind supplies no state coordinate's type here.
+pub fn state_root_type(
+    program: &dyn crate::CheckingInput,
+    state: &typed_trees::state::State,
+    root: SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    program
+        .state_parameter_by_symbol(state, root)
+        .map(|parameter| parameter.type_reference)
+        .or_else(|| {
+            program
+                .state_local_declaration(state, root)
+                .map(|(_, local)| local.type_reference)
+        })
+}
 
 pub fn declaration_type_reference(
     program: &dyn crate::CheckingInput,
@@ -15,6 +67,13 @@ pub fn declaration_type_reference(
     if declaration.kind == SymbolKind::Parameter && owner.kind == SymbolKind::Domain {
         let domain = typed_trees::domain::domain_by_symbol(program, parent)?;
         return (domain.subject_symbol == symbol).then_some(domain.target_type);
+    }
+    if owner.kind == SymbolKind::Data
+        && let Some(definition) = program.data_definition_by_symbol(parent)
+        && definition.predicate_subject_symbol == symbol
+        && definition.predicate_subject_type.is_valid()
+    {
+        return Some(definition.predicate_subject_type);
     }
     if declaration.kind == SymbolKind::Const {
         return program.const_declarations().iter().find_map(|declaration| {
@@ -78,18 +137,8 @@ pub fn declaration_type_reference(
             .iter()
             .filter(|state| state.symbol == parent)
         {
-            if let Some(type_reference) =
-                program
-                    .state_parameters(state)
-                    .iter()
-                    .find_map(|parameter| {
-                        (parameter.symbol == symbol).then_some(parameter.type_reference)
-                    })
-            {
+            if let Some(type_reference) = state_root_type(program, state, symbol) {
                 return Some(type_reference);
-            }
-            if let Some((_, local)) = program.state_local_declaration(state, symbol) {
-                return Some(local.type_reference);
             }
         }
     }

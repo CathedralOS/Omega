@@ -1,12 +1,11 @@
-use register_model::ValidatedRegisterConstraintCatalog;
+use register_model::{TargetRegisterEnvironmentConstraintKeys, ValidatedRegisterConstraintCatalog};
 use selected_instructions::{
-    IsaCatalogValidation, MachineAlternative, MachineAlternativeApplicability,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectCatalog, MachineEffectCatalogValidationError, MachineEffectDeclaration,
+    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey, MachineBarrier,
+    MachineCallEffect, MachineCleanupEffect, MachineEffectCatalog, MachineEffectDeclaration,
     MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
     MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
-    SaturatingOperation, SelectedConstraintKeys, ValidatedMachineEffectCatalog,
+    SaturatingOperation, SelectedConstraintKeys, isa_machine_effect_catalog_plumbing,
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -26,21 +25,13 @@ use crate::{
     AARCH64_SUBTRACT_I64_IMMEDIATE, aarch64_aapcs64_register_call_keys,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Aarch64MachineEffectCatalogValidationError {
-    TargetArchitectureMismatch,
-    UnsupportedTargetAbi,
-    Structural(MachineEffectCatalogValidationError),
-    TargetSemanticMismatch,
-}
-
-impl std::fmt::Display for Aarch64MachineEffectCatalogValidationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid AArch64 machine effects: {self:?}")
-    }
-}
-
-impl std::error::Error for Aarch64MachineEffectCatalogValidationError {}
+isa_machine_effect_catalog_plumbing!(
+    Aarch64MachineEffectCatalogValidationError,
+    validate_aarch64_machine_effect_catalog,
+    Architecture::Aarch64,
+    "AArch64",
+    aarch64_machine_effect_catalog
+);
 
 pub fn aarch64_machine_effect_catalog(
     target: NativeTarget,
@@ -61,6 +52,11 @@ pub fn aarch64_machine_effect_catalog(
             .declaration_keys()
             .into_iter()
             .map(|(semantic, constraint)| {
+                if semantic == MachineSemanticKind::MemoryFence {
+                    return Ok(crate::selected_form_encoding::memory_fence::declaration(
+                        constraint,
+                    ));
+                }
                 if matches!(
                     semantic,
                     MachineSemanticKind::SystemRegisterRead
@@ -154,44 +150,18 @@ pub fn aarch64_machine_effect_catalog(
                     } else if matches!(
                         semantic,
                         MachineSemanticKind::CallScalar
+                            | MachineSemanticKind::InvokeNoNormal
                             | MachineSemanticKind::CallUnit
                             | MachineSemanticKind::CallAggregate
+                            | MachineSemanticKind::NormalizedForeignCall
                     ) {
                         scalar_call_declaration(semantic, constraint, constraints)
-                    } else if semantic == MachineSemanticKind::NormalizedForeignCall {
-                        scalar_call::normalized_foreign_declaration(constraint, constraints)
                     } else {
                         declaration(semantic, &selected_keys)
                     },
                 )
             })
             .collect::<Result<Vec<_>, _>>()?,
-    })
-}
-
-pub fn validate_aarch64_machine_effect_catalog(
-    target: NativeTarget,
-    constraints: &ValidatedRegisterConstraintCatalog,
-    catalog: MachineEffectCatalog,
-) -> Result<ValidatedMachineEffectCatalog, Aarch64MachineEffectCatalogValidationError> {
-    selected_instructions::validate_isa_machine_effect_catalog(
-        Architecture::Aarch64,
-        target,
-        constraints,
-        catalog,
-        aarch64_machine_effect_catalog,
-    )
-    .map_err(|failure| match failure {
-        IsaCatalogValidation::ArchitectureMismatch => {
-            Aarch64MachineEffectCatalogValidationError::TargetArchitectureMismatch
-        }
-        IsaCatalogValidation::Structural(error) => {
-            Aarch64MachineEffectCatalogValidationError::Structural(error)
-        }
-        IsaCatalogValidation::SemanticMismatch => {
-            Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch
-        }
-        IsaCatalogValidation::Builder(error) => error,
     })
 }
 
@@ -245,152 +215,183 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
         Aarch64SelectedAbi::Aapcs64 => AARCH64_AAPCS64_RETURN_UNIT,
         Aarch64SelectedAbi::Darwin => AARCH64_DARWIN_RETURN_UNIT,
     };
-    Some(SelectedConstraintKeys {
-        port_write: None,
-        system_register_read: Some(crate::AARCH64_SYSTEM_REGISTER_READ),
-        system_register_write: Some(crate::AARCH64_SYSTEM_REGISTER_WRITE),
-        control_register_read: None,
-        control_register_write: None,
-        port_register_read: None,
-        port_register_write: None,
-        model_specific_read: None,
-        model_specific_write: None,
-        processor_halt: None,
-        interrupt_control: None,
-        atomic_fence: Some(crate::AARCH64_ATOMIC_FENCE),
-        // Apple's arm64 macOS baseline is Apple Silicon (M1 or later),
-        // which includes FEAT_LSE. Generic AArch64/ELF does not promise it.
-        placed_read: Some(crate::AARCH64_PLACED_READ),
-        placed_write: Some(crate::AARCH64_PLACED_WRITE),
-        atomic_load: (target == NativeTarget::macos_arm64()).then_some(crate::AARCH64_ATOMIC_LOAD),
-        atomic_store: (target == NativeTarget::macos_arm64())
-            .then_some(crate::AARCH64_ATOMIC_STORE),
-        atomic_update: (target == NativeTarget::macos_arm64())
-            .then_some(crate::AARCH64_ATOMIC_UPDATE),
-        atomic_bitwise_update: (target == NativeTarget::macos_arm64())
-            .then_some(crate::AARCH64_ATOMIC_UPDATE),
-        atomic_compare_exchange: (target == NativeTarget::macos_arm64())
-            .then_some(crate::AARCH64_ATOMIC_COMPARE_EXCHANGE),
-        crash: crate::AARCH64_CRASH,
-        copy_bytes: Some(crate::AARCH64_COPY_BYTES),
-        zero_bytes: Some(crate::AARCH64_ZERO_BYTES),
-        scan_byte_sequence: Some(crate::AARCH64_SCAN_BYTE_SEQUENCE),
-        load_encoded_scalar: Some(crate::AARCH64_LOAD_ENCODED_SCALAR),
-        store_encoded_scalar: Some(crate::AARCH64_STORE_ENCODED_SCALAR),
-        compare_byte_sequences: Some(crate::AARCH64_COMPARE_BYTE_SEQUENCES),
-        save_floating_control: Some(crate::AARCH64_SAVE_FLOATING_CONTROL),
-        restore_floating_control: Some(crate::AARCH64_RESTORE_FLOATING_CONTROL),
-        load_packed: Some(crate::AARCH64_LOAD_PACKED),
-        store_packed: Some(crate::AARCH64_STORE_PACKED),
-        hosted_read_byte: if target == NativeTarget::linux_arm64() {
-            Some(crate::AARCH64_HOSTED_READ_BYTE)
-        } else if target == NativeTarget::macos_arm64() {
-            Some(crate::AARCH64_DARWIN_HOSTED_READ_BYTE)
-        } else {
-            None
-        },
-        hosted_exit_process_i32: if target == NativeTarget::linux_arm64() {
-            Some(crate::AARCH64_HOSTED_EXIT_PROCESS_I32)
-        } else if target == NativeTarget::macos_arm64() {
-            Some(crate::AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32)
-        } else {
-            None
-        },
-        hosted_write_byte_i32: if target == NativeTarget::linux_arm64() {
-            Some(crate::AARCH64_HOSTED_WRITE_BYTE_I32)
-        } else if target == NativeTarget::macos_arm64() {
-            Some(crate::AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32)
-        } else {
-            None
-        },
-        load64: Some(crate::AARCH64_LOAD64),
-        load8: Some(crate::AARCH64_LOAD8),
-        load16: Some(crate::AARCH64_LOAD16),
-        load32: Some(crate::AARCH64_LOAD32),
-        load8_indexed: Some(crate::AARCH64_LOAD8_INDEXED),
-        store: Some(crate::AARCH64_STORE),
-        address_offset: Some(crate::AARCH64_ADDRESS_OFFSET),
-        store64: Some(crate::AARCH64_STORE64),
-        frame_address: Some(crate::AARCH64_FRAME_ADDRESS),
-        byte_literal_image_address: Some(crate::AARCH64_BYTE_LITERAL_IMAGE_ADDRESS),
-        call_unit_mixed: match abi {
-            Aarch64SelectedAbi::Aapcs64 => crate::aarch64_aapcs64_mixed_unit_call_keys(),
-            Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_mixed_unit_call_keys(),
-        },
-        call_unit: match abi {
-            Aarch64SelectedAbi::Aapcs64 => crate::aarch64_aapcs64_register_unit_call_keys(),
-            Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_register_unit_call_keys(),
-        },
-        call_scalar: (match abi {
-            Aarch64SelectedAbi::Aapcs64 => aarch64_aapcs64_register_call_keys(),
-            Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_register_call_keys(),
-        })
-        .into_iter()
-        .chain(crate::aarch64_float_scalar_call_keys(darwin))
-        .collect(),
-        call_normalized_foreign: (match abi {
-            Aarch64SelectedAbi::Aapcs64 => crate::aarch64_aapcs64_normalized_foreign_call_keys(),
-            Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_normalized_foreign_call_keys(),
-        })
-        .into_iter()
-        .chain(
-            (target.object_format == ObjectFormat::Elf)
-                .then(crate::aarch64_linux_system_call_keys)
-                .into_iter()
-                .flatten(),
-        )
-        .collect(),
-        materialize_i64: AARCH64_MATERIALIZE_I64,
-        materialize_boolean: crate::AARCH64_MATERIALIZE_BOOLEAN,
-        call_aggregate: crate::aarch64_register_aggregate_call_keys(darwin)
+    Some({
+        let rows = TargetRegisterEnvironmentConstraintKeys {
+            port_write: None,
+            system_register_read: Some(crate::AARCH64_SYSTEM_REGISTER_READ),
+            system_register_write: Some(crate::AARCH64_SYSTEM_REGISTER_WRITE),
+            control_register_read: None,
+            control_register_write: None,
+            port_register_read: None,
+            port_register_write: None,
+            model_specific_read: None,
+            model_specific_write: None,
+            processor_halt: None,
+            interrupt_control: None,
+            memory_fence: Some(crate::AARCH64_MEMORY_FENCE),
+            atomic_fence: Some(crate::AARCH64_ATOMIC_FENCE),
+            // Apple's arm64 macOS baseline is Apple Silicon (M1 or later),
+            // which includes FEAT_LSE. Generic AArch64/ELF does not promise it.
+            placed_read: Some(crate::AARCH64_PLACED_READ),
+            placed_write: Some(crate::AARCH64_PLACED_WRITE),
+            atomic_load: (target == NativeTarget::macos_arm64())
+                .then_some(crate::AARCH64_ATOMIC_LOAD),
+            atomic_store: (target == NativeTarget::macos_arm64())
+                .then_some(crate::AARCH64_ATOMIC_STORE),
+            atomic_update: (target == NativeTarget::macos_arm64())
+                .then_some(crate::AARCH64_ATOMIC_UPDATE),
+            atomic_bitwise_update: (target == NativeTarget::macos_arm64())
+                .then_some(crate::AARCH64_ATOMIC_UPDATE),
+            atomic_compare_exchange: (target == NativeTarget::macos_arm64())
+                .then_some(crate::AARCH64_ATOMIC_COMPARE_EXCHANGE),
+            crash: crate::AARCH64_CRASH,
+            copy_bytes: Some(crate::AARCH64_COPY_BYTES),
+            zero_bytes: Some(crate::AARCH64_ZERO_BYTES),
+            scan_byte_sequence: Some(crate::AARCH64_SCAN_BYTE_SEQUENCE),
+            load_encoded_scalar: Some(crate::AARCH64_LOAD_ENCODED_SCALAR),
+            store_encoded_scalar: Some(crate::AARCH64_STORE_ENCODED_SCALAR),
+            compare_byte_sequences: Some(crate::AARCH64_COMPARE_BYTE_SEQUENCES),
+            save_floating_control: Some(crate::AARCH64_SAVE_FLOATING_CONTROL),
+            restore_floating_control: Some(crate::AARCH64_RESTORE_FLOATING_CONTROL),
+            load_packed: Some(crate::AARCH64_LOAD_PACKED),
+            store_packed: Some(crate::AARCH64_STORE_PACKED),
+            hosted_read_byte: if target == NativeTarget::linux_arm64() {
+                Some(crate::AARCH64_HOSTED_READ_BYTE)
+            } else if target == NativeTarget::macos_arm64() {
+                Some(crate::AARCH64_DARWIN_HOSTED_READ_BYTE)
+            } else {
+                None
+            },
+            hosted_exit_process_i32: if target == NativeTarget::linux_arm64() {
+                Some(crate::AARCH64_HOSTED_EXIT_PROCESS_I32)
+            } else if target == NativeTarget::macos_arm64() {
+                Some(crate::AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32)
+            } else {
+                None
+            },
+            hosted_write_byte_i32: if target == NativeTarget::linux_arm64() {
+                Some(crate::AARCH64_HOSTED_WRITE_BYTE_I32)
+            } else if target == NativeTarget::macos_arm64() {
+                Some(crate::AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32)
+            } else {
+                None
+            },
+            load64: Some(crate::AARCH64_LOAD64),
+            load8: Some(crate::AARCH64_LOAD8),
+            load16: Some(crate::AARCH64_LOAD16),
+            load32: Some(crate::AARCH64_LOAD32),
+            load8_indexed: Some(crate::AARCH64_LOAD8_INDEXED),
+            store: Some(crate::AARCH64_STORE),
+            address_offset: Some(crate::AARCH64_ADDRESS_OFFSET),
+            store64: Some(crate::AARCH64_STORE64),
+            frame_address: Some(crate::AARCH64_FRAME_ADDRESS),
+            byte_literal_image_address: Some(crate::AARCH64_BYTE_LITERAL_IMAGE_ADDRESS),
+            call_unit_mixed: match abi {
+                Aarch64SelectedAbi::Aapcs64 => crate::aarch64_aapcs64_mixed_unit_call_keys(),
+                Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_mixed_unit_call_keys(),
+            },
+            call_unit: match abi {
+                Aarch64SelectedAbi::Aapcs64 => crate::aarch64_aapcs64_register_unit_call_keys(),
+                Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_register_unit_call_keys(),
+            },
+            call_scalar: (match abi {
+                Aarch64SelectedAbi::Aapcs64 => aarch64_aapcs64_register_call_keys(),
+                Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_register_call_keys(),
+            })
             .into_iter()
-            .chain(crate::aarch64_mixed_aggregate_call_keys(darwin))
-            .chain(crate::aarch64_indirect_aggregate_call_keys(darwin))
+            .chain(crate::aarch64_float_scalar_call_keys(darwin))
             .collect(),
-        return_aggregate: crate::aarch64_register_aggregate_return_keys(darwin),
-        copy_i64: AARCH64_COPY_I64,
-        float32_to_bits: Some(crate::AARCH64_FLOAT32_TO_BITS),
-        float64_to_bits: Some(crate::AARCH64_FLOAT64_TO_BITS),
-        ieee_float_arithmetic: Some(crate::AARCH64_IEEE_FLOAT_ARITHMETIC),
-        ieee_float_directed_binary: Some(crate::AARCH64_IEEE_FLOAT_ARITHMETIC),
-        ieee_float_directed_unary: Some(crate::AARCH64_IEEE_FLOAT_UNARY),
-        ieee_float_unary: Some(crate::AARCH64_IEEE_FLOAT_UNARY),
-        ieee_float_conversion_control: Some(crate::AARCH64_IEEE_FLOAT_UNARY),
-        ieee_float_ternary: Some(crate::AARCH64_IEEE_FLOAT_TERNARY),
-        float_result_trapping: Some(crate::AARCH64_FLOAT_RESULT_TRAPPING),
-        float_result_saturating: Some(crate::AARCH64_FLOAT_RESULT_SATURATING),
-        bits_to_float32: Some(crate::AARCH64_BITS_TO_FLOAT32),
-        bits_to_float64: Some(crate::AARCH64_BITS_TO_FLOAT64),
-        add_i64: AARCH64_ADD_I64,
-        subtract_i64: AARCH64_SUBTRACT_I64,
-        multiply_i64: crate::AARCH64_MULTIPLY_I64,
-        saturating_subtract_unsigned: crate::register_model::AARCH64_SATURATING_SUBTRACT_UNSIGNED,
-        saturating_add_u64: crate::register_model::AARCH64_SATURATING_ADD_U64,
-        divide_u64: crate::register_model::AARCH64_DIVIDE_U64,
-        remainder_u64: crate::register_model::AARCH64_REMAINDER_U64,
-        remainder_i64: crate::register_model::AARCH64_REMAINDER_I64,
-        divide_i64: crate::register_model::AARCH64_DIVIDE_I64,
-        shift_i64: crate::register_model::AARCH64_SHIFT_I64,
-        saturating_add_clamped: crate::register_model::AARCH64_SATURATING_ADD_CLAMPED,
-        saturating_subtract_clamped: crate::register_model::AARCH64_SATURATING_SUBTRACT_CLAMPED,
-        saturating_divide_signed: crate::register_model::AARCH64_SATURATING_DIVIDE_SIGNED,
-        saturating_multiply_clamped: crate::register_model::AARCH64_SATURATING_MULTIPLY_CLAMPED,
-        saturating_multiply_u64: crate::register_model::AARCH64_SATURATING_MULTIPLY_U64,
-        trapping_binary: crate::register_model::AARCH64_TRAPPING_BINARY,
-        trapping_fixed_pair: crate::register_model::AARCH64_TRAPPING_FIXED_PAIR,
-        trapping_shift: crate::register_model::AARCH64_TRAPPING_SHIFT,
-        trapping_convert: crate::register_model::AARCH64_TRAPPING_CONVERT,
-        add_i64_immediate: AARCH64_ADD_I64_IMMEDIATE,
-        subtract_i64_immediate: AARCH64_SUBTRACT_I64_IMMEDIATE,
-        compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
-        compare_i64: AARCH64_COMPARE_I64,
-        compare_i64_immediate: AARCH64_COMPARE_I64_IMMEDIATE,
-        conditional_branch: AARCH64_CONDITIONAL_BRANCH,
-        jump: crate::AARCH64_JUMP,
-        return_float: crate::aarch64_float_scalar_return_keys(darwin),
-        return_i64,
-        return_unit,
+            call_normalized_foreign: (match abi {
+                Aarch64SelectedAbi::Aapcs64 => {
+                    crate::aarch64_aapcs64_normalized_foreign_call_keys()
+                }
+                Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_normalized_foreign_call_keys(),
+            })
+            .into_iter()
+            .chain(
+                (target.object_format == ObjectFormat::Elf)
+                    .then(crate::aarch64_linux_system_call_keys)
+                    .into_iter()
+                    .flatten(),
+            )
+            .collect(),
+            materialize_i64: AARCH64_MATERIALIZE_I64,
+            materialize_boolean: crate::AARCH64_MATERIALIZE_BOOLEAN,
+            call_aggregate: crate::aarch64_register_aggregate_call_keys(darwin)
+                .into_iter()
+                .chain(crate::aarch64_mixed_aggregate_call_keys(darwin))
+                .chain(crate::aarch64_indirect_aggregate_call_keys(darwin))
+                .collect(),
+            return_aggregate: crate::aarch64_register_aggregate_return_keys(darwin),
+            copy_i64: AARCH64_COPY_I64,
+            float32_to_bits: Some(crate::AARCH64_FLOAT32_TO_BITS),
+            float64_to_bits: Some(crate::AARCH64_FLOAT64_TO_BITS),
+            ieee_float_arithmetic: Some(crate::AARCH64_IEEE_FLOAT_ARITHMETIC),
+            ieee_float_directed_binary: Some(crate::AARCH64_IEEE_FLOAT_ARITHMETIC),
+            ieee_float_directed_unary: Some(crate::AARCH64_IEEE_FLOAT_UNARY),
+            ieee_float_unary: Some(crate::AARCH64_IEEE_FLOAT_UNARY),
+            ieee_float_conversion_control: Some(crate::AARCH64_IEEE_FLOAT_UNARY),
+            ieee_float_ternary: Some(crate::AARCH64_IEEE_FLOAT_TERNARY),
+            float_result_trapping: Some(crate::AARCH64_FLOAT_RESULT_TRAPPING),
+            float_result_saturating: Some(crate::AARCH64_FLOAT_RESULT_SATURATING),
+            bits_to_float32: Some(crate::AARCH64_BITS_TO_FLOAT32),
+            bits_to_float64: Some(crate::AARCH64_BITS_TO_FLOAT64),
+            add_i64: AARCH64_ADD_I64,
+            subtract_i64: AARCH64_SUBTRACT_I64,
+            multiply_i64: crate::AARCH64_MULTIPLY_I64,
+            saturating_subtract_unsigned:
+                crate::register_model::AARCH64_SATURATING_SUBTRACT_UNSIGNED,
+            saturating_add_u64: crate::register_model::AARCH64_SATURATING_ADD_U64,
+            divide_u64: crate::register_model::AARCH64_DIVIDE_U64,
+            remainder_u64: crate::register_model::AARCH64_REMAINDER_U64,
+            remainder_i64: crate::register_model::AARCH64_REMAINDER_I64,
+            divide_i64: crate::register_model::AARCH64_DIVIDE_I64,
+            shift_i64: crate::register_model::AARCH64_SHIFT_I64,
+            saturating_add_clamped: crate::register_model::AARCH64_SATURATING_ADD_CLAMPED,
+            saturating_subtract_clamped: crate::register_model::AARCH64_SATURATING_SUBTRACT_CLAMPED,
+            saturating_divide_signed: crate::register_model::AARCH64_SATURATING_DIVIDE_SIGNED,
+            saturating_multiply_clamped: crate::register_model::AARCH64_SATURATING_MULTIPLY_CLAMPED,
+            saturating_multiply_u64: crate::register_model::AARCH64_SATURATING_MULTIPLY_U64,
+            trapping_binary: crate::register_model::AARCH64_TRAPPING_BINARY,
+            trapping_fixed_pair: crate::register_model::AARCH64_TRAPPING_FIXED_PAIR,
+            trapping_shift: crate::register_model::AARCH64_TRAPPING_SHIFT,
+            trapping_convert: crate::register_model::AARCH64_TRAPPING_CONVERT,
+            add_i64_immediate: AARCH64_ADD_I64_IMMEDIATE,
+            subtract_i64_immediate: AARCH64_SUBTRACT_I64_IMMEDIATE,
+            compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
+            compare_i64: AARCH64_COMPARE_I64,
+            compare_i64_immediate: AARCH64_COMPARE_I64_IMMEDIATE,
+            conditional_branch: AARCH64_CONDITIONAL_BRANCH,
+            jump: crate::AARCH64_JUMP,
+            return_float: crate::aarch64_float_scalar_return_keys(darwin),
+            return_i64,
+            return_unit,
+        };
+        let mut completed = SelectedConstraintKeys {
+            rows,
+            invoke_no_normal: Vec::new(),
+        };
+        completed.invoke_no_normal = completed.ordinary_call_constraints();
+        completed
     })
+}
+
+/// The single alternative every AArch64 form admits: one always-applicable
+/// encoding, named by its family, its byte size and its encoded effects row.
+/// Forms that admit more than one variant name the key themselves.
+macro_rules! form_alternative {
+    ($family:expr, $size:expr, $encoded:expr) => {
+        vec![MachineAlternative {
+            key: MachineAlternativeKey {
+                family: $family,
+                variant: 0,
+            },
+            applicability: MachineAlternativeApplicability::Always,
+            size: $size,
+            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+            encoded: $encoded,
+        }]
+    };
 }
 
 fn declaration(
@@ -483,16 +484,7 @@ fn declaration(
         },
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: semantic.into(),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: size(semantic),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: encoded_effects(semantic),
-        }],
+        alternatives: form_alternative!(semantic.into(), size(semantic), encoded_effects(semantic)),
     }
 }
 
@@ -537,6 +529,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::SystemRegisterWrite => {
             return crate::selected_form_encoding::register_access::effects(false);
         }
+        MachineSemanticKind::MemoryFence => return MachineEncodedEffects::catalog_fence_v1(),
         MachineSemanticKind::AtomicFence => return MachineEncodedEffects::atomic_fence_v1(),
         MachineSemanticKind::LoadEncodedScalar => (vec![0, 1], vec![2, 3, 4, 5]),
         MachineSemanticKind::StoreEncodedScalar => (vec![0, 1, 2], vec![3, 4, 5]),
@@ -642,6 +635,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             panic!("memory and Unit call forms are not admitted on this target")
         }
         MachineSemanticKind::CallScalar
+        | MachineSemanticKind::InvokeNoNormal
         | MachineSemanticKind::CallAggregate
         | MachineSemanticKind::NormalizedForeignCall => {
             panic!("scalar calls use their dedicated declaration")
@@ -929,6 +923,7 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             panic!("memory and Unit call forms are not admitted on this target")
         }
         MachineSemanticKind::CallScalar
+        | MachineSemanticKind::InvokeNoNormal
         | MachineSemanticKind::CallAggregate
         | MachineSemanticKind::NormalizedForeignCall => {
             panic!("scalar calls use their dedicated declaration")

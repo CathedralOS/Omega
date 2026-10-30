@@ -1,6 +1,4 @@
-use crate::borrow::accesses::{
-    collect_call_argument_accesses, collect_transition_target_argument_accesses,
-};
+use crate::borrow::accesses::{ArgumentAccessSchedule, collect_argument_accesses};
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{BorrowArgumentAccessFact, BorrowCallFact};
 use symbols::SymbolHandle;
@@ -44,12 +42,13 @@ impl<'a> BorrowCallCollection<'a> {
         }
     }
 
-    pub(super) fn collect_call_argument_accesses(
+    pub(super) fn collect_argument_accesses(
         &mut self,
         arguments: &[ExpressionHandle],
         target_symbol: SymbolHandle,
+        schedule: ArgumentAccessSchedule,
     ) -> arena::HandleSpan<BorrowArgumentAccessFact> {
-        collect_call_argument_accesses(
+        collect_argument_accesses(
             self.program,
             self.access_segments,
             self.argument_accesses,
@@ -58,28 +57,13 @@ impl<'a> BorrowCallCollection<'a> {
             self.statement_index,
             self.machine.symbol,
             target_symbol,
-        )
-    }
-
-    pub(super) fn collect_transition_target_argument_accesses(
-        &mut self,
-        arguments: &[ExpressionHandle],
-        target_symbol: SymbolHandle,
-    ) -> arena::HandleSpan<BorrowArgumentAccessFact> {
-        collect_transition_target_argument_accesses(
-            self.program,
-            self.access_segments,
-            self.argument_accesses,
-            arguments,
-            self.state.symbol,
-            self.statement_index,
-            self.machine.symbol,
-            target_symbol,
+            schedule,
         )
     }
 
     pub(super) fn append_borrow_call(
         &mut self,
+        authored_expression: ExpressionHandle,
         receiver_symbol: SymbolHandle,
         target_symbol: SymbolHandle,
         has_receiver: bool,
@@ -90,6 +74,10 @@ impl<'a> BorrowCallCollection<'a> {
             BorrowCallFact {
                 statement_index: self.statement_index,
                 call_ordinal: *self.call_ordinal,
+                authored_expression,
+                input_reference_loans: None,
+                reference_slot_effects: Default::default(),
+                completed_reference_loans: Default::default(),
                 receiver_symbol,
                 target_symbol,
                 has_receiver,

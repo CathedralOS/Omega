@@ -263,7 +263,7 @@ fn stable_permits(
     emission.equal(builder, supplied, required)
 }
 
-fn atomic_bits(operations: AtomicPermissions) -> [bool; 12] {
+pub(super) fn atomic_bits(operations: AtomicPermissions) -> [bool; 12] {
     [
         operations.load,
         operations.store,

@@ -5,6 +5,7 @@
 //! both copy one resolved extent of a root into a fresh home, and differ only
 //! in the custody the abstract operation already verified.
 use super::RowSite;
+use super::aggregate_results::established_home;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::AbstractOperation;
@@ -202,15 +203,8 @@ pub(super) fn copy_extent(
         function,
         &super::scalar_sources::ScalarSources::from(&*live),
     )?;
-    let result_home = super::aggregate_results::home(psi_operation, result, types)?;
+    let result_home = established_home(live, psi_operation, result, types, function.machine)?;
     if result_home.layout.shape() != shape {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
-    if live
-        .structural_homes
-        .insert(result.place, result_home.clone())
-        .is_some()
-    {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     operations.push(TargetUnitOperation::StructuralLeafCopy {
@@ -248,7 +242,11 @@ fn byte_carrier_leaf_copy(
     let Some(declaration) = types.get(&parent) else {
         return false;
     };
-    let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
+    let StructuralTypeShape::FixedArray {
+        element,
+        length: terminal_psi::ArrayExtent::Literal(length),
+    } = &declaration.shape
+    else {
         return false;
     };
     let byte_type =

@@ -156,6 +156,9 @@ pub struct OptimizationNode {
     pub effect: EffectLink,
     pub definitions: Vec<ValueDefinition>,
     pub uses: Vec<ValueUse>,
+    /// The node's outgoing edges. Construction derives this roster once from
+    /// `operation`, and replay/specialization successors keep it consistent
+    /// with the rewritten node; consumers read it instead of re-deriving edges.
     pub successors: Vec<OptimizationEdge>,
     pub ownership: Vec<OwnershipEvent>,
 }
@@ -290,6 +293,24 @@ impl PsiOptimizationFunction {
     /// The structural place keyed `place`, when the function declares it.
     pub fn structural_place(&self, place: PlaceId) -> Option<&StructuralPlaceDeclaration> {
         self.structural_places.iter().find(|row| row.id == place)
+    }
+
+    /// Whether the accepted caller/root claim signature declares an entry
+    /// claim on exactly `input`. Content projection authority over the same
+    /// place is a separate signature, asked for by
+    /// [`Self::content_entry_claim_declared`].
+    pub fn entry_claim_declared(&self, input: PlaceId) -> bool {
+        self.entry_claim_declarations
+            .iter()
+            .any(|claim| claim.input == input)
+    }
+
+    /// Whether the accepted content-claim signature carries a content-entry
+    /// claim rooted at exactly `root`.
+    pub fn content_entry_claim_declared(&self, root: PlaceId) -> bool {
+        self.content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == root)
     }
 
     /// The position of the block keyed `id`, when the function declares it.

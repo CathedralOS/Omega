@@ -1,4 +1,6 @@
 //! Rejoin owned aggregate actuals to exact incoming, produced or block-owned backing.
+use crate::selection::place_declaration::declares_block_parameter;
+
 use super::{
     LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction, StructuralAccess,
     evaluate_call_plan,
@@ -8,11 +10,15 @@ use legalized_operations::LegalizedScalarInstructionKind;
 pub(super) fn validate_owned_arguments(
     source: &LegalizedScalarFunction,
     call: &LegalizedScalarCall,
-    operation: semantic_vocabulary::OperationId,
+    site: semantic_vocabulary::InvocationSite,
 ) -> Option<()> {
+    super::input_site::use_cut(source, site)?;
     for argument in &call.arguments {
         let LegalizedScalarArgument::Structural {
-            semantic, target, ..
+            semantic,
+            target,
+            indices,
+            ..
         } = argument
         else {
             continue;
@@ -22,7 +28,7 @@ pub(super) fn validate_owned_arguments(
         }
         let shape = super::owned_value_shape(source, target.structural_type)?;
         let types = &source.structural.as_ref()?.structural_types;
-        let (selected, offset, indices) =
+        let (selected, offset, elements) =
             crate::structural_inputs::structural_reference_input::runtime_projection(
                 target.root_structural_type,
                 &semantic.path,
@@ -36,8 +42,19 @@ pub(super) fn validate_owned_arguments(
             || target.shape != shape
             || target.destination.shape != shape
             || target.source_byte_offset != offset
-            || !indices.is_empty()
-            || !target.indices.is_empty()
+            || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
+                indices, &elements,
+            )
+            || target.indices.len() != indices.len()
+            || target
+                .indices
+                .iter()
+                .zip(indices)
+                .any(|(target, selected)| {
+                    target.operand.source_value() != selected.operand.value
+                        || target.operand.scalar_type() != selected.operand.scalar_type
+                        || target.stride != selected.stride
+                })
             || target.fixed_array_length.is_some()
             || target.element_stride.is_some()
             || !crate::selection::aggregate_result_input::owned_argument_placement(
@@ -48,16 +65,8 @@ pub(super) fn validate_owned_arguments(
         }
         match target.source {
             target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
-                if psi_operation == operation {
-                    return None;
-                }
-                let mut producers = source
-                    .instructions()
-                    .filter(|row| row.operation == psi_operation);
-                let producer = producers.next()?;
-                if producers.next().is_some() {
-                    return None;
-                }
+                let (_, _, producer) =
+                    super::input_site::producer_before_use(source, psi_operation, site)?;
                 // An empty-record local transports no bytes: its
                 // establishment must mint exactly this place of exactly this
                 // empty type.
@@ -112,19 +121,12 @@ pub(super) fn validate_owned_arguments(
                     || parameter.access != StructuralAccess::Owned
                     || parameter.structural_type != target.root_structural_type
                     || (!semantic.path.is_empty() && !parameter.qualifications.is_empty())
-                    || !source
-                        .structural
-                        .as_ref()?
-                        .structural_places
-                        .iter()
-                        .any(|declaration| {
-                            declaration.id == place
-                                && declaration.kind
-                                    == semantic_vocabulary::StructuralPlaceKind::BlockParameter {
-                                        block,
-                                        position: parameter.position,
-                                    }
-                        })
+                    || !declares_block_parameter(
+                        source.structural.as_ref()?,
+                        place,
+                        block,
+                        parameter.position,
+                    )
                 {
                     return None;
                 }

@@ -14,7 +14,7 @@ machine build(builder: &mut Build) {
         true -> correct(builder, obligation, &bytes)
         _ -> incorrect(builder, obligation)
     }
-    state correct(builder: &mut Build, obligation: RequiredOutput, bytes: &[u8; 6]) {
+    machine correct(builder: &mut Build, obligation: RequiredOutput, bytes: &[u8; 6]) {
         let output: BuildPath = BuildOutput::resolve(&builder.output, "named.txt");
         let writer: i32 = BuildOutput::create(&mut builder.output, output, 0);
         _ = BuildOutput::write(&mut builder.output, writer, bytes);
@@ -22,7 +22,7 @@ machine build(builder: &mut Build) {
         let completion: OutputCompletion = BuildOutput::complete(&mut builder.output, obligation, output);
         settle(builder, completion);
     }
-    state incorrect(builder: &mut Build, obligation: RequiredOutput) {
+    machine incorrect(builder: &mut Build, obligation: RequiredOutput) {
         BuildOutput::fail(&mut builder.output, obligation, "named input read did not retain slot bytes");
     }
 }
@@ -32,8 +32,8 @@ machine settle(builder: &mut Build, completion: OutputCompletion) {
         OutputCompletion::Sealed { receipt } -> sealed(builder)
         OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
     }
-    state sealed(builder: &mut Build) {}
-    state failed(builder: &mut Build, obligation: RequiredOutput) {
+    machine sealed(builder: &mut Build) {}
+    machine failed(builder: &mut Build, obligation: RequiredOutput) {
         BuildOutput::fail(&mut builder.output, obligation, "named output did not seal");
     }
 }

@@ -5,8 +5,7 @@ use super::super::{
 };
 use crate::preparation::generic_data::uses::{
     ConstructorFrontier, collect_expression_handles, collect_statement_expression_handles,
-    concrete_machine_expression_handles, visit_expression_type_inputs,
-    visit_static_argument_type_inputs,
+    visit_expression_type_inputs, visit_static_argument_type_inputs,
 };
 
 use crate::preparation::generic_data::EvaluatedConst;
@@ -818,15 +817,6 @@ fn collect_owned_type_reference_positions(
             }
         }
     }
-    let concrete_expressions =
-        super::super::uses::selected_machine_expression_handles(syntax, declarations);
-    for (handle, expression) in syntax.expressions.iter_expressions() {
-        if concrete_expressions.contains(handle)
-            && let ExpressionNode::Cast(cast) = expression
-        {
-            visit_type_positions(syntax, cast.target_type, &mut positions, false, traversal);
-        }
-    }
     positions
 }
 
@@ -865,14 +855,6 @@ pub(in crate::preparation::generic_data) fn collect_machine_type_reference_posit
                     collect_type_positions(syntax, reference, &mut positions, true);
                 }
             }
-        }
-    }
-    let concrete_expressions = concrete_machine_expression_handles(syntax);
-    for (handle, _) in syntax.expressions.iter_expressions() {
-        if concrete_expressions.contains(handle) {
-            visit_expression_type_inputs(syntax, handle, &mut |reference| {
-                collect_type_positions(syntax, reference, &mut positions, true);
-            });
         }
     }
     (positions, public_positions)

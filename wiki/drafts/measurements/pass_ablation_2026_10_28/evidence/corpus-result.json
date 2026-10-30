@@ -1,0 +1,202 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "c3e8a3559d5e718716eb62824df23bf759fecbe5",
+  "dirty": true,
+  "leg": "both",
+  "target": "windows_x86_64",
+  "golden": "tests/omega/corpus_both_windows_x86_64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 8612
+  },
+  "subset": true,
+  "filter": "dyn_dispatch_selector_payload_bound_through",
+  "shard": null,
+  "verdict": "clean",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 9,
+    "by_status": {
+      "built": 9
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 9,
+    "legacy": 0,
+    "unknown_revisions": 0,
+    "oldest": {
+      "revision": "5f668826adf3",
+      "commits_behind": 671
+    }
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 32,
+      "jobs": "8",
+      "load1_end": null,
+      "load1_start": null,
+      "machine": "amd64",
+      "platform": "windows",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": null,
+      "cpus": 32,
+      "platform": "windows",
+      "machine": "amd64",
+      "load1_start": null,
+      "load1_end": null
+    },
+    "warnings": []
+  },
+  "observations": [
+    {
+      "fixture": "pass/facts/dyn_dispatch_selector_payload_bound_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3731,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/dyn_dispatch_selector_payload_bound_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3442,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/dyn_dispatch_selector_payload_bound_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3347,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/dyn_dispatch_selector_payload_bound_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3700,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/dyn_dispatch_selector_payload_bound_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3582,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/dyn_dispatch_selector_payload_bound_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3646,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/dyn_dispatch_selector_payload_bound_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3417,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/dyn_dispatch_selector_payload_bound_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3611,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/dyn_dispatch_selector_payload_bound_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3545,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": []
+}

@@ -7,7 +7,7 @@ machine inspect(values: &[Cell]) -> bool {
         true -> read(values)
         false -> false
     }
-    state read(values: &[Cell]) -> bool requires values.len == 2 {
+    machine read(values: &[Cell]) -> bool requires values.len == 2 {
         values[0].value == 42 && values[1].value == 19
     }
 }
@@ -30,6 +30,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

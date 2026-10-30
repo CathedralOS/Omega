@@ -16,10 +16,10 @@ machine choose(flag: bool) -> Token {
         true -> left()
         false -> right()
     }
-    state left() -> Token {
+    machine left() -> Token {
         Token { value: 42 }
     }
-    state right() -> Token {
+    machine right() -> Token {
         Token { value: 42 }
     }
 }
@@ -35,6 +35,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -15,105 +15,105 @@ machine cells_valid(cells: &[i32; 16]) -> bool {
         _ -> (false)
     }
 
-    state at_1(cells: &[i32; 16]) -> bool {
+    machine at_1(cells: &[i32; 16]) -> bool {
         transition cells[1] == 0 || cells[1] == 1 {
             true -> at_2(cells)
             _ -> (false)
         }
     }
 
-    state at_2(cells: &[i32; 16]) -> bool {
+    machine at_2(cells: &[i32; 16]) -> bool {
         transition cells[2] == 0 || cells[2] == 1 {
             true -> at_3(cells)
             _ -> (false)
         }
     }
 
-    state at_3(cells: &[i32; 16]) -> bool {
+    machine at_3(cells: &[i32; 16]) -> bool {
         transition cells[3] == 0 || cells[3] == 1 {
             true -> at_4(cells)
             _ -> (false)
         }
     }
 
-    state at_4(cells: &[i32; 16]) -> bool {
+    machine at_4(cells: &[i32; 16]) -> bool {
         transition cells[4] == 0 || cells[4] == 1 {
             true -> at_5(cells)
             _ -> (false)
         }
     }
 
-    state at_5(cells: &[i32; 16]) -> bool {
+    machine at_5(cells: &[i32; 16]) -> bool {
         transition cells[5] == 0 || cells[5] == 1 {
             true -> at_6(cells)
             _ -> (false)
         }
     }
 
-    state at_6(cells: &[i32; 16]) -> bool {
+    machine at_6(cells: &[i32; 16]) -> bool {
         transition cells[6] == 0 || cells[6] == 1 {
             true -> at_7(cells)
             _ -> (false)
         }
     }
 
-    state at_7(cells: &[i32; 16]) -> bool {
+    machine at_7(cells: &[i32; 16]) -> bool {
         transition cells[7] == 0 || cells[7] == 1 {
             true -> at_8(cells)
             _ -> (false)
         }
     }
 
-    state at_8(cells: &[i32; 16]) -> bool {
+    machine at_8(cells: &[i32; 16]) -> bool {
         transition cells[8] == 0 || cells[8] == 1 {
             true -> at_9(cells)
             _ -> (false)
         }
     }
 
-    state at_9(cells: &[i32; 16]) -> bool {
+    machine at_9(cells: &[i32; 16]) -> bool {
         transition cells[9] == 0 || cells[9] == 1 {
             true -> at_10(cells)
             _ -> (false)
         }
     }
 
-    state at_10(cells: &[i32; 16]) -> bool {
+    machine at_10(cells: &[i32; 16]) -> bool {
         transition cells[10] == 0 || cells[10] == 1 {
             true -> at_11(cells)
             _ -> (false)
         }
     }
 
-    state at_11(cells: &[i32; 16]) -> bool {
+    machine at_11(cells: &[i32; 16]) -> bool {
         transition cells[11] == 0 || cells[11] == 1 {
             true -> at_12(cells)
             _ -> (false)
         }
     }
 
-    state at_12(cells: &[i32; 16]) -> bool {
+    machine at_12(cells: &[i32; 16]) -> bool {
         transition cells[12] == 0 || cells[12] == 1 {
             true -> at_13(cells)
             _ -> (false)
         }
     }
 
-    state at_13(cells: &[i32; 16]) -> bool {
+    machine at_13(cells: &[i32; 16]) -> bool {
         transition cells[13] == 0 || cells[13] == 1 {
             true -> at_14(cells)
             _ -> (false)
         }
     }
 
-    state at_14(cells: &[i32; 16]) -> bool {
+    machine at_14(cells: &[i32; 16]) -> bool {
         transition cells[14] == 0 || cells[14] == 1 {
             true -> at_15(cells)
             _ -> (false)
         }
     }
 
-    state at_15(cells: &[i32; 16]) -> bool {
+    machine at_15(cells: &[i32; 16]) -> bool {
         transition cells[15] == 0 || cells[15] == 1 {
             true -> (true)
             _ -> (false)

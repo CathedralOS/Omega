@@ -1,0 +1,7 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "requires `narrow_pair(first, second) == true`, which the requirement does not imply"
+  ]
+}

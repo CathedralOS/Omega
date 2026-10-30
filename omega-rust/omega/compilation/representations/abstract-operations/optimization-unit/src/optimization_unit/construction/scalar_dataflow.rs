@@ -158,6 +158,7 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
             .collect(),
         O::Call { arguments, .. }
         | O::BoundaryCall { arguments, .. }
+        | O::InvokeNoNormal { arguments, .. }
         | O::ExternalCompletion { arguments, .. } => arguments.clone(),
         abstract_operations::primitive_local_triple_pattern!(value, ..)
         | O::StructuralScalarFieldStore { value, .. } => {

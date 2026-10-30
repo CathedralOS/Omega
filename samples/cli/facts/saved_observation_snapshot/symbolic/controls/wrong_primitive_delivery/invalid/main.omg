@@ -1,0 +1,6 @@
+// Expected exit: 0
+machine forward<'storage>(value: &'storage bool) -> &'storage bool { value }
+machine invalid(value: &bool, select: bool) -> u64 {
+    match select { true -> forward(value) false -> forward(value) }
+}
+machine main() {}

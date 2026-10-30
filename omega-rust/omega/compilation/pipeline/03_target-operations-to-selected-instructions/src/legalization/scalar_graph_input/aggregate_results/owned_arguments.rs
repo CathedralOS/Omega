@@ -19,7 +19,7 @@ use crate::legalization::scalar_graph_input::structural_parameters;
 pub(super) fn reconstruct(
     argument: &terminal_psi::StructuralArgument,
     position: usize,
-    call_operation: semantic_vocabulary::OperationId,
+    call_operation: semantic_vocabulary::InvocationSite,
     caller: &PsiOptimizationFunction,
     callee: abstract_operations::AbstractCallSignature<'_>,
     call: &CallPlan,
@@ -64,7 +64,7 @@ pub(super) fn reconstruct(
     if block_parameters.next().is_some() {
         return Err(LegalizationError::custody());
     }
-    let (source, root_structural_type, source_byte_offset) = if let Some(parameter) =
+    let (source, root_structural_type, projection) = if let Some(parameter) =
         caller.structural_parameter(argument.place)
     {
         if parameter.access != destination.access
@@ -116,14 +116,7 @@ pub(super) fn reconstruct(
             || argument.access != parameter.access
             || (argument.path.is_empty() && parameter.multiplicity != destination.multiplicity)
             || !target::control_flow::sources::dominates(caller, block, call_site.0)
-            || !caller.structural_places.iter().any(|place| {
-                place.id == parameter.place
-                    && place.kind
-                        == StructuralPlaceKind::BlockParameter {
-                            block,
-                            position: parameter.position,
-                        }
-            })
+            || !structural_case::block_parameter_declared(caller, block, parameter)
         {
             return Err(LegalizationError::custody());
         }
@@ -160,7 +153,7 @@ pub(super) fn reconstruct(
                 psi_operation: producer,
             },
             structural_type,
-            0,
+            (0, Vec::new()),
         )
     } else {
         let (producer, result) = structural_case::source_result(caller, argument.place)?;
@@ -187,14 +180,7 @@ pub(super) fn reconstruct(
         })
         .ok_or(LegalizationError::custody())?;
         if !precedes(caller, producer_site, call_operation, argument)?
-            || !caller.structural_places.iter().any(|place| {
-                place.id == result.place
-                    && place.kind
-                        == StructuralPlaceKind::OperationResult {
-                            producer,
-                            structural_type: result.structural_type,
-                        }
-            })
+            || !structural_case::records_operation_result(caller, producer, result)
         {
             return Err(LegalizationError::custody());
         }
@@ -206,6 +192,17 @@ pub(super) fn reconstruct(
             offset,
         )
     };
+    // Replay the actual selector sources at this invocation's CFG position.
+    // The producer's target roster is compared against this independent
+    // reconstruction; neither an equal byte offset nor an unavailable SSA
+    // value can supply the operand's custody.
+    let (source_byte_offset, elements) = projection;
+    let indices = target::control_flow::sources::call_indices(
+        native,
+        caller,
+        target_operations::CallSiteOwner::from(call_operation),
+        &elements,
+    )?;
     let placement = call
         .parameters
         .get(callee.scalar_parameter_count() + position)
@@ -223,7 +220,7 @@ pub(super) fn reconstruct(
         source_byte_offset,
         fixed_array_length: None,
         element_stride: None,
-        indices: Vec::new(),
+        indices,
         source,
         destination: placement.clone(),
     })
@@ -237,10 +234,16 @@ fn owned_projection(
     destination: semantic_vocabulary::StructuralTypeId,
     argument: &terminal_psi::StructuralArgument,
     plan: &AbstractOperationPlan,
-) -> Result<u32, LegalizationError> {
+) -> Result<
+    (
+        u32,
+        Vec<crate::structural_inputs::structural_reference_input::RuntimeElement>,
+    ),
+    LegalizationError,
+> {
     if argument.path.is_empty() {
         return (root == destination)
-            .then_some(0)
+            .then_some((0, Vec::new()))
             .ok_or(LegalizationError::custody());
     }
     let (selected, offset, indices) =
@@ -250,10 +253,10 @@ fn owned_projection(
             &plan.structural_types,
         )
         .ok_or(LegalizationError::custody())?;
-    if selected != destination || !indices.is_empty() {
+    if selected != destination {
         return Err(LegalizationError::custody());
     }
-    Ok(offset)
+    Ok((offset, indices))
 }
 
 /// The block and position of the one node `matches` selects.
@@ -277,7 +280,7 @@ pub(in crate::legalization::scalar_graph_input) fn node_site(
 pub(in crate::legalization::scalar_graph_input) fn precedes(
     caller: &PsiOptimizationFunction,
     producer_site: (semantic_vocabulary::BlockId, usize),
-    call_operation: semantic_vocabulary::OperationId,
+    call_operation: semantic_vocabulary::InvocationSite,
     argument: &terminal_psi::StructuralArgument,
 ) -> Result<bool, LegalizationError> {
     let call_site = call_site(caller, call_operation, argument)?;
@@ -290,18 +293,11 @@ pub(in crate::legalization::scalar_graph_input) fn precedes(
 
 fn call_site(
     caller: &PsiOptimizationFunction,
-    call_operation: semantic_vocabulary::OperationId,
+    call_operation: semantic_vocabulary::InvocationSite,
     argument: &terminal_psi::StructuralArgument,
 ) -> Result<(semantic_vocabulary::BlockId, usize), LegalizationError> {
-    node_site(caller, |operation| match operation {
-        abstract_operations::boundary_or_structural_call_pair_pattern!(
-            psi_operation,
-            structural_arguments,
-            ..
-        ) => *psi_operation == call_operation && structural_arguments.contains(argument),
-        _ => false,
-    })
-    .ok_or(LegalizationError::custody())
+    super::super::invocations::position(caller, call_operation, Some(argument))
+        .ok_or(LegalizationError::custody())
 }
 
 /// The one `EstablishTrivialAffineLocal` minting `place`: its operation,

@@ -11,7 +11,7 @@ data Main { }
 machine select(first: Bundle) -> i32 {
     let second: Pair = Pair { left: Leaf { value: 9 }, right: Leaf { value: 23 } };
     transition { _ -> finish(first.pairs[1].left, second.right) }
-    state finish(left: Leaf, right: Leaf) -> i32 {
+    machine finish(left: Leaf, right: Leaf) -> i32 {
         left.value + right.value
     }
 }
@@ -26,7 +26,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 0)
         _ -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -51,7 +51,7 @@ mod projection;
 
 use crate::NativeSelectedProviderPlanDigest;
 use boundary_applications::OperatorApplicationCoverageRef;
-pub(crate) use derivation::hashing::{canonical_usize, hash_bytes};
+pub(crate) use derivation::hashing::{canonical_usize, hash_bytes, hash_call_site_owner};
 pub(crate) use derivation::{NativePhysicalEvidenceDerivation, derive_physical_evidence};
 pub(crate) use fragment_publication::derive_scope as derive_fragment_publication_scope;
 use optimization_core::{
@@ -96,7 +96,7 @@ pub(crate) enum NativeCompilerBuiltinCatalogIdentity {
 pub struct OptimizedBoundaryOccurrence {
     terminal: TerminalPsiIdentity,
     machine: MachineId,
-    invocation_site: semantic_vocabulary::BoundaryInvocationSite,
+    invocation_site: semantic_vocabulary::InvocationSite,
     boundary: BoundaryMachineId,
     operation_ordinal: usize,
     identity: OptimizedBoundaryOccurrenceIdentity,
@@ -115,7 +115,7 @@ impl OptimizedBoundaryOccurrence {
         self.invocation_site.operation()
     }
 
-    pub const fn invocation_site(&self) -> semantic_vocabulary::BoundaryInvocationSite {
+    pub const fn invocation_site(&self) -> semantic_vocabulary::InvocationSite {
         self.invocation_site
     }
 
@@ -490,29 +490,27 @@ pub struct NormalizedForeignCallbackRelocation {
     kind: object_file::RelocationKind,
 }
 
+/// `pub const fn field(&self) -> T { self.field }` for every carried `Copy`
+/// field. The relocation columns are one custody shape, so each record that
+/// carries them names them once here instead of spelling the getters out.
+macro_rules! copied_accessors {
+    ($($name:ident : $ty:ty),* $(,)?) => {
+        $(
+            pub const fn $name(&self) -> $ty {
+                self.$name
+            }
+        )*
+    };
+}
+
 impl NormalizedForeignCallbackRelocation {
-    pub const fn object_symbol(&self) -> object_file::ObjectSymbolHandle {
-        self.object_symbol
-    }
-
-    pub const fn origin(&self) -> object_file::RelocationOrigin {
-        self.origin
-    }
-
-    pub const fn offset(&self) -> usize {
-        self.offset
-    }
-
-    pub const fn byte_width(&self) -> usize {
-        self.byte_width
-    }
-
-    pub const fn addend(&self) -> i64 {
-        self.addend
-    }
-
-    pub const fn kind(&self) -> object_file::RelocationKind {
-        self.kind
+    copied_accessors! {
+        object_symbol: object_file::ObjectSymbolHandle,
+        origin: object_file::RelocationOrigin,
+        offset: usize,
+        byte_width: usize,
+        addend: i64,
+        kind: object_file::RelocationKind,
     }
 }
 
@@ -529,7 +527,7 @@ pub struct NormalizedForeignCallImportField {
     locator_identity: [u8; 32],
     boundary_plan_identity: [u8; 32],
     caller: MachineId,
-    invocation_site: semantic_vocabulary::BoundaryInvocationSite,
+    invocation_site: semantic_vocabulary::InvocationSite,
     boundary: BoundaryMachineId,
     ordinal: u32,
     object_symbol: object_file::ObjectLocalSymbolId,
@@ -553,7 +551,7 @@ impl NormalizedForeignCallImportField {
         self.caller
     }
 
-    pub const fn invocation_site(&self) -> semantic_vocabulary::BoundaryInvocationSite {
+    pub const fn invocation_site(&self) -> semantic_vocabulary::InvocationSite {
         self.invocation_site
     }
 
@@ -599,28 +597,13 @@ impl NormalizedForeignCallRelocation {
         &self.boundary_plan_identity
     }
 
-    pub const fn object_symbol(&self) -> object_file::ObjectSymbolHandle {
-        self.object_symbol
-    }
-
-    pub const fn origin(&self) -> object_file::RelocationOrigin {
-        self.origin
-    }
-
-    pub const fn offset(&self) -> usize {
-        self.offset
-    }
-
-    pub const fn byte_width(&self) -> usize {
-        self.byte_width
-    }
-
-    pub const fn addend(&self) -> i64 {
-        self.addend
-    }
-
-    pub const fn kind(&self) -> object_file::RelocationKind {
-        self.kind
+    copied_accessors! {
+        object_symbol: object_file::ObjectSymbolHandle,
+        origin: object_file::RelocationOrigin,
+        offset: usize,
+        byte_width: usize,
+        addend: i64,
+        kind: object_file::RelocationKind,
     }
 
     pub fn callbacks(&self) -> &[NormalizedForeignCallbackRelocations] {
@@ -901,6 +884,10 @@ impl std::fmt::Display for NativePhysicalEvidenceGap {
                         formatter,
                         "normalized foreign call on machine {machine} is owned by operation {operation}"
                     ),
+                    CallSiteOwner::InvokeNoNormal(edge) => write!(
+                        formatter,
+                        "normalized foreign call on machine {machine} incorrectly names module invocation edge {edge}"
+                    ),
                     CallSiteOwner::ExternalCompletion(edge) => write!(
                         formatter,
                         "normalized foreign call on machine {machine} is owned by completion edge {edge}"
@@ -982,6 +969,24 @@ pub(crate) fn native_byte_span(offset: usize, byte_count: usize) -> NativeByteSp
     NativeByteSpan::from_replayed_parts(offset, byte_count)
 }
 
+/// The one Terminal operation `machine` declares at `operation`: every
+/// physical derivation that rejoins an occurrence to its emitted operation
+/// reads that join here instead of re-walking both rosters per arm.
+pub(crate) fn sole_terminal_operation(
+    module: &terminal_psi::TerminalModule,
+    machine: MachineId,
+    operation: OperationId,
+) -> Option<&terminal_psi::Operation> {
+    let mut matching = module
+        .machine(machine)?
+        .operations()
+        .filter(|row| row.id == operation);
+    let (Some(operation), None) = (matching.next(), matching.next()) else {
+        return None;
+    };
+    Some(operation)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn normalized_foreign_call_relocation(
     locator_identity: [u8; 32],
@@ -1014,7 +1019,7 @@ pub(crate) fn normalized_foreign_call_import_field(
     locator_identity: [u8; 32],
     boundary_plan_identity: [u8; 32],
     caller: MachineId,
-    invocation_site: semantic_vocabulary::BoundaryInvocationSite,
+    invocation_site: semantic_vocabulary::InvocationSite,
     boundary: BoundaryMachineId,
     ordinal: u32,
     object_symbol: object_file::ObjectLocalSymbolId,
@@ -1061,7 +1066,7 @@ fn normalized_foreign_callback_relocation(
 fn optimized_boundary_occurrence(
     terminal: TerminalPsiIdentity,
     machine: MachineId,
-    invocation_site: impl Into<semantic_vocabulary::BoundaryInvocationSite>,
+    invocation_site: impl Into<semantic_vocabulary::InvocationSite>,
     boundary: BoundaryMachineId,
     operation_ordinal: usize,
     identity: OptimizedBoundaryOccurrenceIdentity,

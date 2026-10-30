@@ -37,7 +37,7 @@ terminates by remaining -> Nat::Descending;
         true -> spin(held, remaining - 1)
         _ -> finish(held)
     }
-    state finish(last: Receipt) -> i32 {
+    machine finish(last: Receipt) -> i32 {
         consume(last)
     }
 }
@@ -45,7 +45,7 @@ terminates by remaining -> Nat::Descending;
 machine issue(code: i32) -> Receipt {
     let issued: Receipt = Receipt { code: code };
     transition { _ -> returning(issued) }
-    state returning(held: Receipt) -> Receipt {
+    machine returning(held: Receipt) -> Receipt {
         held
     }
 }
@@ -55,7 +55,7 @@ machine exchange(swap: bool, left: Receipt, right: Receipt) crashes Trap {
         true -> received(right, left, 2, 1)
         _ -> received(left, right, 1, 2)
     }
-    state received(first: Receipt, second: Receipt, expected_first: i32, expected_second: i32) {
+    machine received(first: Receipt, second: Receipt, expected_first: i32, expected_second: i32) {
         let first_code: i32 = consume(first);
         let second_code: i32 = consume(second);
         transition first_code == expected_first && second_code == expected_second {
@@ -63,8 +63,8 @@ machine exchange(swap: bool, left: Receipt, right: Receipt) crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine rotate(first: Receipt, second: Receipt, remaining: u32) -> i32
@@ -74,7 +74,7 @@ terminates by remaining -> Nat::Descending;
         true -> rotate(second, first, remaining - 1)
         _ -> finish(first, second)
     }
-    state finish(left: Receipt, right: Receipt) -> i32 {
+    machine finish(left: Receipt, right: Receipt) -> i32 {
         let observed: i32 = consume(left);
         let discarded: i32 = consume(right);
         observed
@@ -86,7 +86,7 @@ machine exchange_members(swap: bool, pair: Pair) crashes Trap {
         true -> received(pair.right, pair.left, 2, 1)
         _ -> received(pair.left, pair.right, 1, 2)
     }
-    state received(first: Receipt, second: Receipt, expected_first: i32, expected_second: i32) {
+    machine received(first: Receipt, second: Receipt, expected_first: i32, expected_second: i32) {
         let first_code: i32 = consume(first);
         let second_code: i32 = consume(second);
         transition first_code == expected_first && second_code == expected_second {
@@ -94,8 +94,8 @@ machine exchange_members(swap: bool, pair: Pair) crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // A retained local can be a path under its original home, not a fresh place.
@@ -104,7 +104,7 @@ machine forward_local(package: Package) -> i64 {
     let pair: Pair = package.pair;
     let spare: i32 = consume(package.spare);
     transition { _ -> holding(pair) }
-    state holding(held: Pair) -> i64 {
+    machine holding(held: Pair) -> i64 {
         let first: i32 = consume(held.left);
         let second: i32 = consume(held.right);
         (first as i64) + (second as i64)
@@ -116,7 +116,7 @@ machine exchange_pairs(swap: bool, left: Pair, right: Pair) crashes Trap {
         true -> received(right, left, 3, 1)
         _ -> received(left, right, 1, 3)
     }
-    state received(first: Pair, second: Pair, expected_first: i32, expected_second: i32) {
+    machine received(first: Pair, second: Pair, expected_first: i32, expected_second: i32) {
         let first_code: i32 = consume(first.left);
         let first_sibling: i32 = consume(first.right);
         let second_code: i32 = consume(second.left);
@@ -126,8 +126,8 @@ machine exchange_pairs(swap: bool, left: Pair, right: Pair) crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -151,19 +151,19 @@ machine main() crashes Trap {
         _ -> refusing(made)
     }
 
-    state holding(held: Receipt) {
+    machine holding(held: Receipt) {
         let back: Receipt = pass(held);
         let observed: i32 = consume(back);
         let fresh: Receipt = make(observed);
         transition { _ -> last(fresh) }
     }
 
-    state refusing(held: Receipt) {
+    machine refusing(held: Receipt) {
         let observed: i32 = consume(held);
         transition { _ -> bad() }
     }
 
-    state last(final: Receipt) {
+    machine last(final: Receipt) {
         let seen: i32 = consume(final);
         transition seen == 6 {
             true -> done()
@@ -171,6 +171,6 @@ machine main() crashes Trap {
         }
     }
 
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

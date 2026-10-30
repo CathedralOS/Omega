@@ -17,7 +17,7 @@ terminates by remaining in 0..=15;
         true -> inspect(values, remaining)
         false -> (true)
     }
-    state inspect(values: &[i32; 16], remaining: u64) -> bool
+    machine inspect(values: &[i32; 16], remaining: u64) -> bool
         requires remaining >= 1
         requires remaining <= 15
     {
@@ -53,7 +53,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         _ -> good(main)
     }
-    state good(main: &mut Main) { Console::exit_process(0); }
+    machine good(main: &mut Main) { Console::exit_process(0); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -3,6 +3,30 @@
 
 use semantic_vocabulary::{IeeeFloatFormat, IntegerCarrier, IntegerSign, ScalarType};
 
+/// The two independent lanes of a native scalar-reference descriptor. A C
+/// pointer output writes the address lane only; its retained storage codec is
+/// unchanged. Consumers must authenticate that codec against the new endpoint.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScalarReferenceLayout {
+    pub address_byte_offset: u32,
+    pub address_byte_size: u32,
+    pub codec_byte_offset: u32,
+    pub codec_byte_size: u32,
+    pub byte_size: u32,
+    pub alignment: u16,
+}
+
+impl ScalarReferenceLayout {
+    pub const NATIVE: Self = Self {
+        address_byte_offset: 0,
+        address_byte_size: 8,
+        codec_byte_offset: 8,
+        codec_byte_size: 8,
+        byte_size: 16,
+        alignment: 8,
+    };
+}
+
 /// Closed native interpretation of one contiguous scalar storage region.
 /// Integer byte widths include packed, byte-aligned widths such as 24 bits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

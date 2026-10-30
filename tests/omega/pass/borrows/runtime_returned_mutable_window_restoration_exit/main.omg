@@ -9,6 +9,6 @@ machine main() crashes Trap {
     transition items[0] == 7 && items[1] == 41 && items[2] == 9 && items[3] == 10 {
         true -> done() false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

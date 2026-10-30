@@ -7,7 +7,7 @@ terminates by remaining in 0..=4;
         true -> forward(remaining)
         false -> 0
     }
-    state forward(count: u64) -> u64
+    machine forward(count: u64) -> u64
     requires count > 0 && count <= 4;
     {
         transition { _ -> walk(count) }

@@ -1,3 +1,6 @@
+// Expected exit: 70.
+use omega_language_std::console;
+
 machine choose(flag: bool) -> u64 {
     (match flag {
         true -> 18446744073709551616 / 18446744073709551616
@@ -38,4 +41,13 @@ machine refined(flag: bool) -> u64 {
         true -> 1 as u64 in Wrapping,
         false -> 18446744073709551616 / 18446744073709551616
     }) as u64
+}
+
+// The reusable calculations above retain their original inputs and shapes.
+machine entry_start() reaches Console {
+    let outcome: i32 = match main() == 31u64 && direct() == 9u64 && bounded(10u64) == 10u64 && refined(false) == 1u64 {
+        true -> 70,
+        false -> 71
+    };
+    Console::exit_process(outcome);
 }

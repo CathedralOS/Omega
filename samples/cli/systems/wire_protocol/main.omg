@@ -84,7 +84,7 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad_sizes(main)
     }
 
-    state check_fields(main: &mut Main, decoded: SensorPacketValue) {
+    machine check_fields(main: &mut Main, decoded: SensorPacketValue) {
         let fields_ok: bool = decoded.header.room_id == 300
             && decoded.samples.length == 2
             && decoded.samples.items[0] == 150
@@ -96,21 +96,21 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::write_line("PASS: 13 bytes round-tripped with every field intact (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(70);
     }
 
-    state bad_sizes(main: &mut Main) {
+    machine bad_sizes(main: &mut Main) {
         Console::write_line("FAIL: encode/decode sizes were not both 13 bytes (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(71);
     }
 
-    state bad_fields(main: &mut Main) {
+    machine bad_fields(main: &mut Main) {
         Console::write_line("FAIL: a decoded field did not match the original packet (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
@@ -161,7 +161,7 @@ terminates by fuel;
 {
     transition { _ -> fill(compact_binary, schema, fuel, 0) }
 
-    state fill(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64, index: i64 in Wrapping)
+    machine fill(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64, index: i64 in Wrapping) -> Plan
     requires 1 <= fuel
     requires fuel <= 128 {
         transition fuel > 1 && index >= 0 && index < 32 && index < schema.field_count {
@@ -169,14 +169,14 @@ terminates by fuel;
             _ -> done(compact_binary, schema)
         }
     }
-    state place(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64, index: i64 in Wrapping)
+    machine place(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64, index: i64 in Wrapping) -> Plan
     requires 1 <= fuel
     requires fuel <= 128 {
         compact_binary.tag = schema.fields[index].number;
         compact_binary.plans[index] = field_plan(&schema.fields[index].kind, compact_binary.tag);
         transition fuel > 1 { true -> fill(compact_binary, schema, fuel - 1, index + 1) _ -> done(compact_binary, schema) }
     }
-    state done(compact_binary: &mut CompactBinary, schema: Schema) -> Plan {
+    machine done(compact_binary: &mut CompactBinary, schema: Schema) -> Plan {
         Plan {
             fields: compact_binary.plans,
             entry_count: schema.field_count as i64,
@@ -194,8 +194,8 @@ machine field_plan(kind: &FieldKind, tag: i64) -> FieldPlan {
         FieldKind::Nested -> blob(tag)
         FieldKind::Repeated -> blob(tag)
     }
-    state varint(tag: i64) -> FieldPlan { FieldPlan::Varint { tag: tag } }
-    state blob(tag: i64) -> FieldPlan { FieldPlan::LengthPrefixed { tag: tag } }
+    machine varint(tag: i64) -> FieldPlan { FieldPlan::Varint { tag: tag } }
+    machine blob(tag: i64) -> FieldPlan { FieldPlan::LengthPrefixed { tag: tag } }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

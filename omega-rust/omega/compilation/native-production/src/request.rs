@@ -8,7 +8,10 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 /// Stage 00 owns admission vocabulary and checks; this request supplies policy
 /// and retains the exact image custody if realization fails.
 pub(crate) struct NativeRealizationRequest<'request> {
-    pub calling_applications: &'request [calling_conventions::BoundaryCallingApplication],
+    pub proposal: &'request terminal_psi_to_abstract_operations::TerminalNativeRealizationProposal,
+    pub execution: &'request terminal_psi_to_abstract_operations::PreparedNativeExecution,
+    pub scalar_applications:
+        Option<terminal_psi_to_abstract_operations::NativeScalarApplications<'request>>,
     /// Application-entry custody is consumed only by receiver/image production,
     /// not by ordinary provider admission of private canonical bodies.
     pub program_entry: terminal_psi_to_abstract_operations::NativeProgramEntrySettlement<'request>,
@@ -78,6 +81,10 @@ pub struct NativeCompileRequest<'request> {
     /// exactly once. Empty means derive from the selected plans, not fill holes
     /// in supplied custody. Private bodies borrow their own demand projection.
     pub imports: &'request [SourceEvaluatedImportSettlement<'request>],
+    /// Compile these independently selected components before the root, retaining
+    /// their exact image/call evidence through receiver admission and publication.
+    /// An empty roster uses the same compilation route without component calls.
+    pub components: &'request [crate::ComponentCompilation<'request>],
 }
 
 impl NativeCompileRequest<'_> {
@@ -87,18 +94,17 @@ impl NativeCompileRequest<'_> {
     /// The retained product never left this process, so its proposal is not
     /// replayed against the artifact again.
     /// The caller retains its original image request for failure recovery.
-    pub(crate) fn prepare_terminal(
+    pub(crate) fn prepare_terminal<'input>(
         &mut self,
-        retained: terminal_psi_to_abstract_operations::RetainedTerminalArtifact,
+        retained: &'input terminal_psi_to_abstract_operations::RetainedTerminalArtifact,
     ) -> Result<
         (
-            std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-            terminal_psi_to_abstract_operations::TerminalNativeRealizationProposal,
+            &'input std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
+            &'input terminal_psi_to_abstract_operations::TerminalNativeRealizationProposal,
         ),
         Vec<Diagnostic>,
     > {
-        let (artifact, proposal) = retained.into_parts();
-        let proposal = proposal.ok_or_else(|| {
+        let proposal = retained.native_realization_proposal().ok_or_else(|| {
             diagnostics::error_in_context(
                 "retained Terminal product",
                 "source-evaluated import realization requires one native proposal",
@@ -125,6 +131,6 @@ impl NativeCompileRequest<'_> {
                     },
                 )
             })?;
-        Ok((artifact, proposal))
+        Ok((retained.shared_artifact(), proposal))
     }
 }

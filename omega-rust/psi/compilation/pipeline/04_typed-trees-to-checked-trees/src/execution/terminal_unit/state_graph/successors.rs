@@ -146,6 +146,9 @@ pub(in crate::execution::terminal_unit) fn successor(
         shapes,
         trace,
     )?;
+    if !successor.has_normal_continuation() {
+        return Some(successor);
+    }
     trace.phase(edge.phase(SuccessorGuard::EdgeCleanup));
     trace.statement(Some(ordinal));
     let &(machine, source) = fused.get(source_index)?;
@@ -247,7 +250,9 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
     let mut transfers = target_structural
         .iter()
         .enumerate()
-        .map(|(target_index, target)| {
+        .scan(false, |stopped, (target_index, target)| {
+            if *stopped { return None; }
+            let transfer = (|| {
             mark(SuccessorGuard::StructuralArgument);
             let expression = argument_at(target.position)?;
             // Forward a whole parameter before planning any new loan. This
@@ -258,9 +263,9 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 .and_then(|position| source_structural.iter().enumerate()
                     .find(|(_, parameter)| parameter.position as usize == position))
                 && source_parameter.type_identity == target.type_identity
-                && (source_parameter.access == target.access
-                    || (source_parameter.access == CheckedStructuralAccess::MutableBorrow
-                        && target.access == CheckedStructuralAccess::SharedBorrow))
+                // Narrowing access forms a new reborrow, with its own parent
+                // lifetime. Only unchanged access forwards the same descriptor.
+                && source_parameter.access == target.access
                 // Operand preparation retains a new value when the receiving
                 // declared type changes. Inferred arrival facts do not change
                 // that storage operation: the existing value carries them.
@@ -279,6 +284,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,
                     retained_loan_backing: None,
+                    incoming_loan_resources: Vec::new(),
                     retained_loan_parents: Vec::new(),
                     retained_operand_parents: Vec::new(),
                 });
@@ -303,6 +309,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     source: subslice.transfer(),
                     target_parameter_index: u32::try_from(target_index).ok()?,
                     retained_loan_backing: None,
+                    incoming_loan_resources: Vec::new(),
                     retained_loan_parents: Vec::new(),
                     retained_operand_parents: Vec::new(),
                 });
@@ -344,6 +351,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     source,
                     target_parameter_index: u32::try_from(target_index).ok()?,
                     retained_loan_backing: None,
+                    incoming_loan_resources: Vec::new(),
                     retained_loan_parents: Vec::new(),
                     retained_operand_parents: Vec::new(),
                 });
@@ -436,6 +444,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                             source: checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal: result.binding_ordinal },
                             target_parameter_index: u32::try_from(target_index).ok()?,
                             retained_loan_backing: None,
+                            incoming_loan_resources: Vec::new(),
                             retained_loan_parents: Vec::new(),
                     retained_operand_parents: Vec::new(),
                         });
@@ -463,6 +472,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         source,
                         target_parameter_index: u32::try_from(target_index).ok()?,
                         retained_loan_backing: None,
+                        incoming_loan_resources: Vec::new(),
                         retained_loan_parents: Vec::new(),
                     retained_operand_parents: Vec::new(),
                     });
@@ -492,6 +502,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,
                     retained_loan_backing: None,
+                    incoming_loan_resources: Vec::new(),
                     retained_loan_parents: Vec::new(),
                     retained_operand_parents: Vec::new(),
                 });
@@ -510,15 +521,18 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 target_parameters.get(target.position as usize)?,
             )
             .filter(|root| {
-                // Established edge values currently transport a whole home,
-                // not an owner plus a selected loan path. Keep projected
-                // borrows out of that route: copying the child would lose
-                // the complete owner's cleanup obligation.
+                // Established edge values transport a whole completed home.
+                // A copied projection establishes its own carrier, including
+                // a shared descriptor's captured backing. A borrowed subtree
+                // still needs its containing owner's separate cleanup path.
                 target.access == CheckedStructuralAccess::Owned
                     || validation::slice_view_shell(program, root.type_reference, &[]).is_some()
                     || !matches!(
                         facts.values.structural_values.nodes.get(root.root).kind,
-                        checked_trees::CheckedStructuralValueKind::Projection { .. }
+                        checked_trees::CheckedStructuralValueKind::Projection {
+                            copies_selected_value: false,
+                            ..
+                        }
                     )
             });
             mark(SuccessorGuard::LoanTransfer);
@@ -664,25 +678,29 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                 target_parameters.get(target.position as usize)?,
                                 target.type_identity,
                                 trace,
+                                Some(&|expression| transition_selector(
+                                    facts, machine.symbol, source.symbol, ordinal, target.position, expression,
+                                )),
                             )?;
                             if matches!(subject.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }) {
                                 subject.source = super::super::local_storage::source(
                                     program, source, operations, root_symbol,
                                 )?;
                             }
-                            if subject.access != expected_access
-                                || !subject.path.iter().all(|segment| {
-                                    matches!(
-                                        segment,
-                                        CheckedUnitStructuralPathSegment::Field(_)
-                                            | CheckedUnitStructuralPathSegment::Case(_)
-                                            | CheckedUnitStructuralPathSegment::FixedIndex(_)
-                                            | CheckedUnitStructuralPathSegment::Referent
-                                    )
-                                })
-                            {
+                            // The common argument planner has already proved
+                            // the complete projection, including captured runtime
+                            // selectors. Arrival access remains independent of
+                            // that geometry; a fixed-path whitelist would drop
+                            // the operand's retained selector computation.
+                            trace.phase("stored reference arrival: access");
+                            trace.statement(Some(ordinal));
+                            if subject.access != expected_access {
                                 return None;
                             }
+                            let carrier_type_identity = shapes.add_reference_type(
+                                target_parameters.get(target.position as usize)?.type_reference,
+                                &super::super::types::machine_binders(program, machine),
+                            )?;
                             return Some(CheckedStructuralControlTransferPlan {
                                 source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
                                     retired_carrier_backing: super::loan_backing::retired_carrier_backing(
@@ -692,10 +710,11 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                     ),
                                     subject,
                                     formation_expression: expression,
-                                    carrier_type_identity: Default::default(),
+                                    carrier_type_identity,
                                 },
                                 target_parameter_index: u32::try_from(target_index).ok()?,
                                 retained_loan_backing: None,
+                                incoming_loan_resources: Vec::new(),
                                 retained_loan_parents: Vec::new(),
                     retained_operand_parents: Vec::new(),
                             });
@@ -855,7 +874,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 // selected-edge cleanup owns those predecessor moves.
                 let mut operand_calls = operations.to_vec();
                 let mut result_count = super::returns::next_result_ordinal(operations)?;
-                let calls = control::structural_operands::value_calls(
+                let (calls, completion) = control::structural_operands::value_calls(
                     program,
                     facts,
                     edge_calls.scalar_callees,
@@ -872,6 +891,27 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     trace,
                     &mut crate::execution::terminal_unit::borrowed_windows::OpenWindows::default(),
                 )?;
+                if completion == checked_trees::CheckedValueCompletion::NoNormal {
+                    let evaluation = CheckedUnitEffectOperationPlan::EvaluateStructuralValue {
+                        statement_index: ordinal,
+                        value: root.root,
+                        calls,
+                        operand_source: None,
+                    };
+                    operand_calls.push(evaluation);
+                    return Some(CheckedStructuralControlTransferPlan {
+                        source: checked_trees::CheckedStructuralControlTransferSourcePlan::EvaluateNoNormal {
+                            operations: checked_trees::CheckedOperandSequence::new(
+                                operand_calls.split_off(operations.len()),
+                            ),
+                        },
+                        target_parameter_index: u32::try_from(target_index).ok()?,
+                        retained_loan_backing: None,
+                        incoming_loan_resources: Vec::new(),
+                        retained_loan_parents: Vec::new(),
+                        retained_operand_parents: Vec::new(),
+                    });
+                }
                 mark(SuccessorGuard::EstablishedArgument);
                 let result = checked_trees::CheckedUnitStructuralResultBindingPlan {
                     statement_index: ordinal,
@@ -889,10 +929,11 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         &validation::CanonicalPlace { root: owner, segments: Vec::new() },
                         owner, root.type_reference, &result,
                         target_parameters.get(target.position as usize)?, target.type_identity,
-                        trace,
+                        trace, None,
                     )?
                 } else {
                     CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
                         source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                             binding_ordinal: result.binding_ordinal,
                         },
@@ -913,14 +954,26 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,
                     retained_loan_backing: None,
+                    incoming_loan_resources: Vec::new(),
                     retained_loan_parents: Vec::new(),
                     retained_operand_parents: Vec::new(),
                 });
             }
             None
+            })();
+            *stopped = transfer.as_ref().is_some_and(|transfer| matches!(transfer.source,
+                checked_trees::CheckedStructuralControlTransferSourcePlan::EvaluateNoNormal { .. }));
+            Some(transfer)
         })
         .collect::<Option<Vec<_>>>()?;
     for (transfer, parameter) in transfers.iter_mut().zip(target_structural) {
+        if matches!(
+            transfer.source,
+            checked_trees::CheckedStructuralControlTransferSourcePlan::EvaluateNoNormal { .. }
+        ) {
+            break;
+        }
+
         trace.phase("state loan: captured backing");
         trace.statement(Some(ordinal));
         let storage = super::loan_backing::retained_storage(
@@ -933,6 +986,13 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
             arguments,
             parameter.position as usize,
             operations,
+            match &transfer.source {
+                checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                    subject,
+                    ..
+                } => Some(subject.source.clone()),
+                _ => None,
+            },
         )
         .map_err(|reason| {
             trace.phase(reason);
@@ -941,15 +1001,31 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
         .ok()?;
         if parameter.access != CheckedStructuralAccess::Owned {
             transfer.retained_loan_backing = storage.backing;
+            transfer.incoming_loan_resources = storage.incoming;
         }
         transfer.retained_loan_parents = storage.parents;
         transfer.retained_operand_parents = storage.operand_parents;
     }
+    let stopped_position = transfers.last().and_then(|transfer| {
+        matches!(
+            transfer.source,
+            checked_trees::CheckedStructuralControlTransferSourcePlan::EvaluateNoNormal { .. }
+        )
+        .then(|| {
+            target_structural
+                .get(transfer.target_parameter_index as usize)
+                .map(|target| target.position)
+        })
+        .flatten()
+    });
     mark(SuccessorGuard::ScalarArguments);
     let scalar_arguments = target_scalar
         .iter()
         .enumerate()
         .filter(|(index, _)| !payload_parameters.contains(&(*index as u32)))
+        .filter(|(_, target)| {
+            stopped_position.is_none_or(|position| target.source_position < position)
+        })
         .map(|(target_index, target)| {
             let argument = argument_at(target.source_position)?;
             let role = CheckedScalarExpressionRole::TransitionArgument {
@@ -1092,6 +1168,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
     Some(CheckedStructuralControlSuccessorPlan::new(
         ordinal,
         target.symbol,
+        crate::execution::successor_completion::classify(program, machine, arrival.target),
         false,
         transfers,
         scalar_arguments,
@@ -1215,6 +1292,7 @@ fn projected_value_subject(
     let access =
         super::super::types::structural_access_for_type_reference(program, projected_type)?;
     Some(CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source: argument_source,
         path,
         type_identity: target.type_identity.clone(),
@@ -1223,6 +1301,33 @@ fn projected_value_subject(
 }
 
 /// A projected-loan edge transfer against an already-admitted place:
+/// Resolve one occurrence-owned selector shared by every successor loan route.
+fn transition_selector(
+    facts: &CheckFacts,
+    machine: symbols::SymbolHandle,
+    source: symbols::SymbolHandle,
+    ordinal: u32,
+    argument_ordinal: u32,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<CheckedUnitStructuralPathSegment> {
+    let computations = &facts.values.scalar_computations;
+    let root = computations.root_at(
+        source,
+        ordinal,
+        CheckedScalarExpressionRole::TransitionSelector {
+            argument_ordinal,
+            expression,
+        },
+    )?;
+    if !computations.nodes.is_valid(root.root) {
+        return None;
+    }
+    let primitive = computations.nodes.get(root.root).primitive_type;
+    (primitive.is_fixed_integer()
+        && computations.is_authored_root(root, machine, expression, primitive))
+    .then_some(CheckedUnitStructuralPathSegment::ComputedIndex(root.root))
+}
+
 /// `subject_source` is the parameter or earlier result the loan rides on.
 ///
 /// A projected loan keeps its original storage root and exact path across
@@ -1252,23 +1357,8 @@ fn projected_loan_transfer(
     target_parameters: &[typed_trees::signature::StateParameter],
     target_index: usize,
 ) -> Option<CheckedStructuralControlTransferPlan> {
-    let computations = &facts.values.scalar_computations;
     let selector = |expression| {
-        let root = computations.root_at(
-            source,
-            ordinal,
-            CheckedScalarExpressionRole::TransitionSelector {
-                argument_ordinal: target.position,
-                expression,
-            },
-        )?;
-        if !computations.nodes.is_valid(root.root) {
-            return None;
-        }
-        let primitive = computations.nodes.get(root.root).primitive_type;
-        (primitive.is_fixed_integer()
-            && computations.is_authored_root(root, machine, expression, primitive))
-        .then_some(CheckedUnitStructuralPathSegment::ComputedIndex(root.root))
+        transition_selector(facts, machine, source, ordinal, target.position, expression)
     };
     let (projected_type, path) = calls::projected_evaluated_path(
         program,
@@ -1344,6 +1434,7 @@ fn projected_loan_transfer(
             formation_expression,
             carrier_type_identity,
             subject: CheckedUnitStructuralArgumentPlan {
+                projection_evaluations: Default::default(),
                 source: subject_source,
                 path,
                 type_identity: target.type_identity.clone(),
@@ -1352,6 +1443,7 @@ fn projected_loan_transfer(
         },
         target_parameter_index: u32::try_from(target_index).ok()?,
         retained_loan_backing: None,
+        incoming_loan_resources: Vec::new(),
         retained_loan_parents: Vec::new(),
         retained_operand_parents: Vec::new(),
     })
@@ -1550,6 +1642,7 @@ fn case_payload_transfer(
     Some(
         checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
             subject: CheckedUnitStructuralArgumentPlan {
+                projection_evaluations: Default::default(),
                 source: subject_source,
                 path,
                 type_identity: subject_identity,

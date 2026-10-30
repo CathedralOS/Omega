@@ -28,7 +28,24 @@ pub(crate) fn validate_package_type_identity_input_inner(
     allow_const_value: bool,
     extent_exposure: Option<AuthoredDeclarationSelectionExposure>,
 ) -> Result<(), Vec<Diagnostic>> {
+    use typed_trees::data::{TypeParameter, TypeParameterKind};
     use typed_trees::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
+
+    // A declared type argument carries a value only in the const slot of its
+    // own telescope; domain rosters index their arguments past the carrier.
+    let validate_argument = |argument, parameters: Option<&[TypeParameter]>, index: usize| {
+        let is_const = parameters
+            .and_then(|parameters| parameters.get(index))
+            .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Const { .. }));
+        validate_package_type_identity_input_inner(
+            compilation,
+            program,
+            argument,
+            binders,
+            is_const,
+            extent_exposure,
+        )
+    };
 
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => validate_package_type_identity_input_inner(
@@ -113,22 +130,7 @@ pub(crate) fn validate_package_type_identity_input_inner(
                             .flatten()
                             .map(|definition| program.domain_type_parameters(definition));
                         for (index, argument) in domain.arguments.iter().enumerate() {
-                            let is_const = declared_parameters
-                                .and_then(|parameters| parameters.get(index + 1))
-                                .is_some_and(|parameter| {
-                                    matches!(
-                                        parameter.kind,
-                                        typed_trees::data::TypeParameterKind::Const { .. }
-                                    )
-                                });
-                            validate_package_type_identity_input_inner(
-                                compilation,
-                                program,
-                                *argument,
-                                binders,
-                                is_const,
-                                extent_exposure,
-                            )?;
+                            validate_argument(*argument, declared_parameters, index + 1)?;
                         }
                     }
                     TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
@@ -195,28 +197,11 @@ pub(crate) fn validate_package_type_identity_input_inner(
                         .conformance_by_symbol(*base_symbol)
                         .map(|declaration| program.conformance_type_parameters(declaration))
                 });
-            for (index, argument) in program
+            let arguments = program
                 .type_reference_table
-                .type_reference_handles(*arguments)
-                .iter()
-                .enumerate()
-            {
-                let is_const = parameters
-                    .and_then(|parameters| parameters.get(index))
-                    .is_some_and(|parameter| {
-                        matches!(
-                            parameter.kind,
-                            typed_trees::data::TypeParameterKind::Const { .. }
-                        )
-                    });
-                validate_package_type_identity_input_inner(
-                    compilation,
-                    program,
-                    *argument,
-                    binders,
-                    is_const,
-                    extent_exposure,
-                )?;
+                .type_reference_handles(*arguments);
+            for (index, argument) in arguments.iter().enumerate() {
+                validate_argument(*argument, parameters, index)?;
             }
             Ok(())
         }
@@ -498,6 +483,7 @@ fn validate_package_index_expression(
         | ExpressionNode::Range(_)
         | ExpressionNode::String(_)
         | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => Err(vec![Diagnostic::error(
             "package review rejects an unsupported structural index expression",
         )]),

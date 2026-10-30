@@ -9,21 +9,21 @@ machine Main::main(main: &mut Main) {
         true -> and32(main)
         false -> bad(main)
     }
-    state and32(main: &mut Main) {
+    machine and32(main: &mut Main) {
         let prior: u32 = main.cell32.fetch_and(4294967287, ReceivePublish);
         transition prior == 2147483663 {
             true -> xor32(main)
             false -> bad(main)
         }
     }
-    state xor32(main: &mut Main) {
+    machine xor32(main: &mut Main) {
         let prior: u32 = main.cell32.fetch_xor(15, ReceivePublish);
         transition prior == 2147483658 {
             true -> wide(main)
             false -> bad(main)
         }
     }
-    state wide(main: &mut Main) {
+    machine wide(main: &mut Main) {
         main.cell64.store(18446744073709551615, GlobalOrder);
         let prior: u64 = main.cell64.fetch_and(18446744073709551608, NoOrdering);
         transition prior == 18446744073709551615 {
@@ -31,8 +31,8 @@ machine Main::main(main: &mut Main) {
             false -> bad(main)
         }
     }
-    state done(main: &mut Main) { }
-    state bad(main: &mut Main) { }
+    machine done(main: &mut Main) { }
+    machine bad(main: &mut Main) { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

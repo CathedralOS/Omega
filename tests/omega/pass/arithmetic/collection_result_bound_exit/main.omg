@@ -17,12 +17,12 @@ machine main() crashes Trap {
     let window: &mut [u8] = &mut buffer.values[2..5];
     let local: u64 = 1 + forwarded(window);
     transition { _ -> verify(copy.value + 1, direct, empty, local) }
-    state verify(copied: u64, direct: u64, empty: u64, local: u64) {
+    machine verify(copied: u64, direct: u64, empty: u64, local: u64) {
         transition copied == 7 && direct == 7 && empty == 1 && local == 4 {
             true -> done()
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -16,7 +16,7 @@ machine main() crashes Trap {
     let counter: Counter = Counter { slot: &mut other };
     Packet::encode(&sample, &mut buffer, counter.slot);
     transition { _ -> read(items, other, chosen) }
-    state read(items: [u8; 4], index: u64, chosen: u64)
+    machine read(items: [u8; 4], index: u64, chosen: u64)
     requires index < 4
     {
         transition chosen == 4 && items[index] == 7 {
@@ -24,6 +24,6 @@ machine main() crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

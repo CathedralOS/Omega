@@ -38,6 +38,7 @@ pub fn evaluate_const_generic_calls(
     mut syntax: SyntaxTrees,
     context: crate::BuildTimeSources<'_>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+    let _profile = phase_profile::guard("pre_resolution.constant_calls");
     loop {
         // Readiness precedes admission: a provisional carrier can reveal exact
         // dependencies but must not supply an executable layout. Every layer
@@ -56,20 +57,30 @@ fn evaluate_application_group(
     context: crate::BuildTimeSources<'_>,
 ) -> Result<(SyntaxTrees, bool), Vec<Diagnostic>> {
     let mut progress = false;
-    let crate::BuildTimeSources {
-        sources,
-        source_scoped_top_level_bindings,
-        selection_authority,
-    } = context;
+    let sources = context.sources.clone();
+    let source_scoped_top_level_bindings = context.source_scoped_top_level_bindings;
+    let selection_authority = context.selection_authority.clone();
+    let mut endpoint_leaves = Vec::new();
+    collect_generic_range_endpoint_call_leaves(&syntax, &mut endpoint_leaves);
+    let has_call_const_expression = syntax
+        .type_references
+        .const_expression_nodes()
+        .into_iter()
+        .any(|(_, expression)| contains_call(&syntax, expression));
+    if endpoint_leaves.is_empty() && !has_call_const_expression {
+        return Ok((syntax, false));
+    }
     let mut const_arguments =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
-            &syntax, sources.clone(), source_scoped_top_level_bindings.to_vec(),
+            &mut syntax, sources.clone(), source_scoped_top_level_bindings.to_vec(), context.retained_base(), context.declaration_syntax,
         )?;
     const_arguments.extend(
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
-            &syntax,
+            &mut syntax,
             sources.clone(),
             source_scoped_top_level_bindings.to_vec(),
+            context.retained_base(),
+            context.declaration_syntax,
         )?,
     );
     let extent_arguments =
@@ -95,11 +106,6 @@ fn evaluate_application_group(
             applications.push((*type_reference, *expression));
         }
     }
-    // Range endpoints nested in generic arguments also feed synthesis. Only
-    // their call leaves are collected here; the probe's shared endpoint fold
-    // decides which of them can actually close.
-    let mut endpoint_leaves = Vec::new();
-    collect_generic_range_endpoint_call_leaves(&syntax, &mut endpoint_leaves);
     if endpoint_leaves.is_empty() && applications.is_empty() {
         return Ok((syntax, false));
     }
@@ -110,11 +116,7 @@ fn evaluate_application_group(
     let mut lexical_selections = Vec::new();
     if !applications.is_empty() {
         let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_const_argument_selection(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: syntax.clone(),
-                sources: sources.clone(),
-                top_level_bindings: source_scoped_top_level_bindings.to_vec(),
-            },
+            context.resolution_request(syntax.clone()),
         )?;
         for (argument, expression) in &applications {
             let failure = |reason| {
@@ -193,7 +195,7 @@ fn evaluate_application_group(
         probe,
         sources.clone(),
         source_scoped_top_level_bindings,
-        None,
+        context.retained_base(),
         &declarations,
     )?;
     let endpoint_references = endpoint_leaves
@@ -202,11 +204,7 @@ fn evaluate_application_group(
         .collect::<Vec<_>>();
     let frontier =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_initializer_probe(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: probe,
-                sources,
-                top_level_bindings: source_scoped_top_level_bindings.to_vec(),
-            },
+            context.resolution_request(probe),
         )?;
     let owner_symbols = owners
         .iter()
@@ -216,6 +214,7 @@ fn evaluate_application_group(
         frontier,
         &owner_symbols,
         &endpoint_references,
+        context.predecessor.clone(),
     )?;
     // Every call-bearing extent belongs to the length continuation. Callee
     // types may themselves depend on other extents: scalar application checks
@@ -264,7 +263,7 @@ fn evaluate_application_group(
             .iter()
             .copied()
             .filter(|symbol| {
-                !admission.closure_needs_operator_selection(execution, *symbol, &operators)
+                !admission.closure_needs_execution_preparation(execution, *symbol, &operators)
             })
             .collect::<Vec<_>>();
         // Deferred provider uses are not part of this layer's checking domain.
@@ -296,7 +295,8 @@ fn evaluate_application_group(
             // exact provider rows Omega settles, as deferred fixed-array
             // lengths do. This is explicit external readiness, not a failed
             // admission interpreted as a dependency signal.
-            if admission.closure_needs_operator_selection(execution, machine.symbol, &operators) {
+            if admission.closure_needs_execution_preparation(execution, machine.symbol, &operators)
+            {
                 continue;
             }
             let checked = match checked_program {
@@ -306,6 +306,8 @@ fn evaluate_application_group(
                         &independent_program,
                         selection_authority.clone(),
                         &independent,
+                        &independent_domain.accounting,
+                        &[],
                     )?,
                 ),
             };

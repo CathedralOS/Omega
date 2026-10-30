@@ -23,23 +23,23 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         LineReadResult::EndOfInput { count } -> end(main, count)
         _ -> invalid(main)
     }
-    state line(main: &mut Main, count: u64) {
+    machine line(main: &mut Main, count: u64) {
         transition {
             count == 5 && main.input[4] == 10 -> parse(main)
             count == 6 && main.input[4] == 13 && main.input[5] == 10 -> parse(main)
             _ -> invalid(main)
         }
     }
-    state end(main: &mut Main, count: u64) {
+    machine end(main: &mut Main, count: u64) {
         transition count == 4 { true -> parse(main) false -> invalid(main) }
     }
-    state parse(main: &mut Main) {
+    machine parse(main: &mut Main) {
         transition {
             main.input[0] >= 49 && main.input[0] <= 54 && main.input[1] == 32 && main.input[2] == 48 && main.input[3] >= 49 && main.input[3] <= 56 -> initialize(main)
             _ -> invalid(main)
         }
     }
-    state initialize(main: &mut Main) {
+    machine initialize(main: &mut Main) {
         main.mode = (main.input[0] as i32) - 48;
         let density: i32 = (main.input[3] as i32) - 48;
         main.particle.density = F64::from_i32(density);
@@ -53,7 +53,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         Console::write(" "); number(density); Console::write_line("");
         transition { _ -> balances(main, 0) }
     }
-    state balances(main: &mut Main, index: i32) {
+    machine balances(main: &mut Main, index: i32) {
         let fluid: Layer = layer(index);
         let speed: f64 = terminal_velocity(main.particle.density, fluid);
         let residual: f64 = force(main.particle.density, fluid, speed);
@@ -62,22 +62,22 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
             false -> failure(main)
         }
     }
-    state balance_report(main: &mut Main, index: i32, speed: f64, residual: f64) {
+    machine balance_report(main: &mut Main, index: i32, speed: f64, residual: f64) {
         Console::write("BALANCE "); number(index);
         Console::write(" "); micro(speed);
         Console::write(" "); micro(residual); Console::write_line("");
         transition index < 2 { true -> balances(main, index + 1) false -> start(main) }
     }
-    state start(main: &mut Main) {
+    machine start(main: &mut Main) {
         let index: i32 = selected_layer(main.mode, main.particle.depth);
         regime(index, main.particle.density);
         trace(0, index, main.particle, 0.0, 0.0);
         transition { _ -> iterate(main, main.steps, 1) }
     }
-    state iterate(main: &mut Main, remaining: u64, step: i32) {
+    machine iterate(main: &mut Main, remaining: u64, step: i32) {
         transition remaining > 0 { true -> integrate(main, remaining, step) false -> done(main) }
     }
-    state integrate(main: &mut Main, remaining: u64, step: i32) {
+    machine integrate(main: &mut Main, remaining: u64, step: i32) {
         let before: i32 = selected_layer(main.mode, main.particle.depth);
         let fluid: Layer = layer(before);
         let result: Step = advance(&mut main.particle, fluid, main.timestep);
@@ -86,34 +86,34 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
             false -> failure(main)
         }
     }
-    state bounded(main: &mut Main, remaining: u64, step: i32, before: i32, result: Step) {
+    machine bounded(main: &mut Main, remaining: u64, step: i32, before: i32, result: Step) {
         transition {
             main.particle.depth >= 8.0 -> bottom(main, step, before, result)
             main.particle.depth <= -8.0 -> top(main, step, before, result)
             _ -> report(main, remaining, step, before, result)
         }
     }
-    state report(main: &mut Main, remaining: u64, step: i32, before: i32, result: Step) {
+    machine report(main: &mut Main, remaining: u64, step: i32, before: i32, result: Step) {
         let after: i32 = selected_layer(main.mode, main.particle.depth);
         crossing(step, before, after, main.particle.density);
         trace(step, before, main.particle, result.force, result.residual);
         transition { _ -> iterate(main, remaining - 1, ((step as i32 in Wrapping) + 1) as i32) }
     }
-    state bottom(main: &mut Main, step: i32, before: i32, result: Step) {
+    machine bottom(main: &mut Main, step: i32, before: i32, result: Step) {
         main.particle.depth = 8.0;
         trace(step, before, main.particle, result.force, result.residual);
         Console::write_line("BOUND bottom");
         transition { _ -> done(main) }
     }
-    state top(main: &mut Main, step: i32, before: i32, result: Step) {
+    machine top(main: &mut Main, step: i32, before: i32, result: Step) {
         main.particle.depth = -8.0;
         trace(step, before, main.particle, result.force, result.residual);
         Console::write_line("BOUND top");
         transition { _ -> done(main) }
     }
-    state done(main: &mut Main) { Console::write_line("DONE"); Console::exit_process(0); }
-    state invalid(main: &mut Main) { Console::write_line("INVALID expected M 0D with M=1..6 density=1..8"); Console::exit_process(64); }
-    state failure(main: &mut Main) { Console::write_line("FAIL force residual or finite envelope"); Console::exit_process(70); }
+    machine done(main: &mut Main) { Console::write_line("DONE"); Console::exit_process(0); }
+    machine invalid(main: &mut Main) { Console::write_line("INVALID expected M 0D with M=1..6 density=1..8"); Console::exit_process(64); }
+    machine failure(main: &mut Main) { Console::write_line("FAIL force residual or finite envelope"); Console::exit_process(70); }
 }
 
 machine configure(main: &mut Main) {
@@ -124,38 +124,38 @@ machine configure(main: &mut Main) {
         6 -> boundary(main)
         _ -> unchanged()
     }
-    state rise(main: &mut Main) { main.particle.depth = 3.0; main.timestep = 0.25; main.steps = 16; }
-    state relaxation(main: &mut Main) { main.particle.velocity = 1.0; }
-    state refined(main: &mut Main) { main.timestep = 0.25; main.steps = 16; }
-    state boundary(main: &mut Main) { main.particle.depth = 7.75; main.particle.velocity = 2.0; }
-    state unchanged() {}
+    machine rise(main: &mut Main) { main.particle.depth = 3.0; main.timestep = 0.25; main.steps = 16; }
+    machine relaxation(main: &mut Main) { main.particle.velocity = 1.0; }
+    machine refined(main: &mut Main) { main.timestep = 0.25; main.steps = 16; }
+    machine boundary(main: &mut Main) { main.particle.depth = 7.75; main.particle.velocity = 2.0; }
+    machine unchanged() {}
 }
 
 machine selected_layer(mode: i32, depth: f64) -> i32 {
     transition mode == 1 || mode == 4 { true -> homogeneous() false -> layered(depth) }
-    state homogeneous() -> i32 { 0 }
-    state layered(depth: f64) -> i32 { layer_at(depth) }
+    machine homogeneous() -> i32 { 0 }
+    machine layered(depth: f64) -> i32 { layer_at(depth) }
 }
 
 machine regime(index: i32, density: f64) reaches Console invokes Console; {
     Console::write("REGIME "); number(index);
     transition index == 1 { true -> quadratic(index, density) false -> linear(index, density) }
-    state quadratic(index: i32, density: f64) { Console::write_line(" quadratic"); neutral(index, density); }
-    state linear(index: i32, density: f64) { Console::write_line(" linear"); neutral(index, density); }
+    machine quadratic(index: i32, density: f64) { Console::write_line(" quadratic"); neutral(index, density); }
+    machine linear(index: i32, density: f64) { Console::write_line(" linear"); neutral(index, density); }
 }
 machine neutral(index: i32, density: f64) reaches Console invokes Console; {
     let fluid: Layer = layer(index);
     transition density == fluid.density { true -> report(index) false -> quiet() }
-    state report(index: i32) { Console::write("NEUTRAL "); number(index); Console::write_line(""); }
-    state quiet() {}
+    machine report(index: i32) { Console::write("NEUTRAL "); number(index); Console::write_line(""); }
+    machine quiet() {}
 }
 machine crossing(step: i32, before: i32, after: i32, density: f64) reaches Console invokes Console; {
     transition before != after { true -> report(step, before, after, density) false -> quiet() }
-    state report(step: i32, before: i32, after: i32, density: f64) {
+    machine report(step: i32, before: i32, after: i32, density: f64) {
         Console::write("CROSS "); number(step); Console::write(" "); number(before); Console::write(" "); number(after); Console::write_line("");
         regime(after, density);
     }
-    state quiet() {}
+    machine quiet() {}
 }
 machine trace(step: i32, index: i32, particle: Particle, net: f64, residual: f64) reaches Console invokes Console; crashes Trap {
     Console::write("TRACE "); number(step); Console::write(" "); number(index);

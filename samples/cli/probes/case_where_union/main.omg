@@ -27,19 +27,19 @@ machine case_where_union() {
         _ -> done(71)
     }
 
-    state check_flag(flag: Value<bool>, num: i32) {
+    machine check_flag(flag: Value<bool>, num: i32) {
         transition flag {
             Value::Boolean { value } -> judge(num, value)
             _ -> done(72)
         }
     }
 
-    state judge(num: i32, truth: bool) {
+    machine judge(num: i32, truth: bool) {
         transition num == 7 && truth {
             true -> done(70)
             _ -> done(73)
         }
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

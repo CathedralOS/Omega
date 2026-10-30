@@ -227,7 +227,8 @@ impl EntryOperands<'_> {
             }
             checked_trees::integer_widen_triple_pattern!(operand, ..) => self.scalar(operand)?,
             CheckedScalarExpression::Boolean(expression) => self.boolean(expression)?,
-            CheckedScalarExpression::Parameter { .. }
+            CheckedScalarExpression::ConstantApplication { .. }
+            | CheckedScalarExpression::Parameter { .. }
             | CheckedScalarExpression::ErasedParameter { .. }
             | CheckedScalarExpression::StructuralParameterField { .. }
             | CheckedScalarExpression::IntegerLiteral { .. }

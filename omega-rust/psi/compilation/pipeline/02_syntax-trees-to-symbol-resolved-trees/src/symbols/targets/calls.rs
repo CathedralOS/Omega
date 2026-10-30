@@ -290,10 +290,18 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
         return proposition_parameter;
     }
 
-    if let Some(entry) = lexical_machine_entry(symbols, machine.symbol, target.as_str()) {
-        return entry;
+    match crate::symbols::lookup::lexical_declaration_lookup(
+        symbols,
+        machine.symbol,
+        target.as_str(),
+        &[SymbolKind::Machine],
+    ) {
+        SymbolLookup::Unique(declaration) => {
+            machine_entry_symbol(symbols, declaration, target.as_str())
+        }
+        SymbolLookup::Ambiguous { .. } => SymbolHandle::invalid(),
+        SymbolLookup::NotFound => resolve_free_call_target_symbol(symbols, target),
     }
-    resolve_free_call_target_symbol(symbols, target)
 }
 
 /// A visible authored callable shadows the outermost builtin. Ambiguity and
@@ -424,10 +432,18 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
         if concrete_type.is_valid() {
             return concrete_type;
         }
-        if let Some(entry) = lexical_machine_entry(symbols, machine_symbol, target.as_str()) {
-            return entry;
-        }
-        return resolve_free_machine_entry_state_symbol(symbols, target);
+        return match crate::symbols::lookup::lexical_declaration_lookup(
+            symbols,
+            machine_symbol,
+            target.as_str(),
+            &[SymbolKind::Machine],
+        ) {
+            SymbolLookup::Unique(declaration) => {
+                machine_entry_symbol(symbols, declaration, target.as_str())
+            }
+            SymbolLookup::Ambiguous { .. } => SymbolHandle::invalid(),
+            SymbolLookup::NotFound => resolve_free_machine_entry_state_symbol(symbols, target),
+        };
     }
 
     let owner = owner.joined_path();
@@ -518,6 +534,90 @@ pub(in crate::symbols) fn assign_runtime_subject_argument_symbol(
     );
 }
 
+/// Whether a call target names a proof-position declaration: propositions,
+/// their binders, and mathematical definitions take proof-static operands
+/// rather than executable static-machine arguments.
+pub(in crate::symbols) fn proof_static_call_target(
+    symbols: &SymbolTable,
+    target_symbol: SymbolHandle,
+) -> bool {
+    target_symbol.is_valid()
+        && matches!(
+            symbols.get(target_symbol).kind,
+            SymbolKind::Proposition
+                | SymbolKind::PropositionParameter
+                | SymbolKind::MathematicalDefinition
+        )
+}
+
+/// Route every machine argument of one call through the operand route its
+/// already-selected target implies: build-operation operands take their own
+/// exact declaration resolvers, ordinary operands of a proof-position target
+/// take the proof-static resolver, and the rest take the static-machine
+/// resolver with the state-scope subject fallback. Body expression calls and
+/// statement calls share this one owner.
+pub(in crate::symbols) fn assign_call_machine_argument_symbols(
+    symbols: &SymbolTable,
+    machine: &super::super::scope::MachineScope<'_>,
+    state_symbol: SymbolHandle,
+    target: &symbol_resolved_trees::name::DiagnosticName,
+    target_symbol: SymbolHandle,
+    machine_arguments: &mut [symbol_resolved_trees::expression::StaticMachineArgument],
+) {
+    let operand_route = build_operand_route(target.as_str(), target_symbol);
+    let proof_static = proof_static_call_target(symbols, target_symbol);
+    for (index, argument) in machine_arguments.iter_mut().enumerate() {
+        match operand_route {
+            Some(BuildOperation::ProviderReadiness) if index == 0 => {
+                // Only the backing is deferred. Resolve the requirement head
+                // and its ordinary static operands under the caller's scope.
+                let mut application = argument.application.take();
+                assign_provider_selection_argument_symbol(symbols, argument, true);
+                if let Some(application) = &mut application {
+                    for operand in &mut application.arguments {
+                        assign_static_argument_symbols(
+                            symbols,
+                            machine.symbol,
+                            machine.type_parameters,
+                            operand,
+                            true,
+                        );
+                    }
+                }
+                argument.application = application;
+            }
+            Some(BuildOperation::AssumedBindingContract) => {
+                assign_assumed_binding_argument_symbol(symbols, argument);
+            }
+            Some(BuildOperation::RepresentationSelection) => {
+                assign_representation_selection_argument_symbol(symbols, argument, index == 0);
+            }
+            Some(operation) => assign_provider_selection_argument_symbol(
+                symbols,
+                argument,
+                matches!(
+                    operation,
+                    BuildOperation::ProviderSelection
+                        | BuildOperation::ProviderReadiness
+                        | BuildOperation::BoundaryAcceptance
+                ) && index == 0,
+            ),
+            None => {
+                assign_static_argument_symbols(
+                    symbols,
+                    machine.symbol,
+                    machine.type_parameters,
+                    argument,
+                    proof_static,
+                );
+                if !proof_static {
+                    assign_runtime_subject_argument_symbol(symbols, state_symbol, argument);
+                }
+            }
+        }
+    }
+}
+
 /// The build operation whose static operands name declarations rather than
 /// executable static machines, or `None` when a call's operands resolve as
 /// ordinary static machine arguments.
@@ -540,7 +640,7 @@ pub(in crate::symbols) fn build_operand_route(
     target_symbol: SymbolHandle,
 ) -> Option<BuildOperation> {
     let operation = BuildOperation::from_call_target(target)?;
-    (!target_symbol.is_valid() && operation.selects_product_declarations()).then_some(operation)
+    (!target_symbol.is_valid() && operation.has_designated_operands()).then_some(operation)
 }
 
 /// A bound selection argument (already carrying a type reference, evidence,
@@ -737,36 +837,4 @@ pub(in crate::symbols) fn resolve_proposition_binder_argument_symbol(
         return concrete_type;
     }
     resolve_static_machine_argument_symbol(symbols, scope_symbol, path)
-}
-
-/// Independent nested declarations live in the source symbol tree. Search
-/// lexical Machine scopes only: enclosing entry parameters and locals belong
-/// to State scopes and cannot become captured operands of another invocation.
-fn lexical_machine_entry(
-    symbols: &SymbolTable,
-    mut scope: SymbolHandle,
-    target: &str,
-) -> Option<SymbolHandle> {
-    while scope.is_valid() && symbols.get(scope).kind != SymbolKind::Root {
-        if symbols.get(scope).kind == SymbolKind::Machine {
-            let candidates = symbols
-                .child_handles(scope)
-                .into_iter()
-                .flatten()
-                .filter(|symbol| {
-                    symbols.get(*symbol).kind == SymbolKind::Machine
-                        && symbols.name(*symbol) == target
-                })
-                .collect::<Vec<_>>();
-            if !candidates.is_empty() {
-                return Some(if let [machine] = candidates.as_slice() {
-                    machine_entry_symbol(symbols, *machine, target)
-                } else {
-                    SymbolHandle::invalid()
-                });
-            }
-        }
-        scope = symbols.get(scope).parent;
-    }
-    None
 }

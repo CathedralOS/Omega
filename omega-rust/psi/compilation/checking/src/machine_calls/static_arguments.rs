@@ -16,6 +16,7 @@ use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 mod invocation_parameters;
+mod product_operands;
 mod requirement_predicates;
 pub(crate) use invocation_parameters::invocation_parameters;
 
@@ -24,6 +25,7 @@ pub(crate) use invocation_parameters::invocation_parameters;
 /// executable authority and never uses the called machine's ensures.
 pub fn validate_source_const_recipes(
     program: &dyn crate::CheckingInput,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let scopes = requirement_predicates::CallScopes::build(program);
@@ -51,6 +53,7 @@ pub fn validate_source_const_recipes(
             parameters,
             &arguments,
             &mut diagnostics,
+            formation_obligations,
         );
     };
     for (handle, expression) in program.expression_table.iter_expressions() {
@@ -70,18 +73,33 @@ pub fn validate_source_const_recipes(
             }
         }
     }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    product_operands::validate_source_recipes(program, &mut diagnostics, formation_obligations);
+    crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
 pub fn validate_authored_static_arguments(
     program: &dyn crate::CheckingInput,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let symbols = crate::TopLevelSymbols::build(program, &mut diagnostics);
+    for argument in program.typed_program().designated_static_type_arguments() {
+        let Some(owner) = program.machine(argument.owner) else {
+            diagnostics.push(
+                Diagnostic::error("designated static argument lost its exact source owner")
+                    .with_source_span(argument.source_span),
+            );
+            continue;
+        };
+        crate::validate_static_type_argument(
+            program,
+            crate::StaticTypeArgumentOwner::Machine(owner),
+            argument.reference,
+            &symbols,
+            &mut diagnostics,
+            formation_obligations,
+        );
+    }
     let scopes = requirement_predicates::CallScopes::build(program);
     let expression_states = expression_call_states(program);
     for (handle, expression) in program.expression_table.iter_expressions() {
@@ -93,6 +111,7 @@ pub fn validate_authored_static_arguments(
                 &expression_states,
                 &symbols,
                 &mut diagnostics,
+                formation_obligations,
             );
         }
     }
@@ -107,11 +126,13 @@ pub fn validate_authored_static_arguments(
                         &expression_states,
                         &symbols,
                         &mut diagnostics,
+                        formation_obligations,
                     );
                 }
             }
         }
     }
+    product_operands::validate_parameter_correspondence(program, &mut diagnostics);
     // The declaration owns a complete family, including tuples no source call
     // uses. Preparation can derive these rows but cannot admit their operands
     // or substituted predicates on the checker's behalf.
@@ -164,11 +185,7 @@ pub fn validate_authored_static_arguments(
             &mut diagnostics,
         );
     }
-    if diagnostics.iter().any(Diagnostic::is_error) {
-        Err(diagnostics)
-    } else {
-        Ok(())
-    }
+    crate::program_validation::finish_diagnostics(diagnostics)
 }
 
 /// A static application names the authored callable telescope, whether its
@@ -363,6 +380,7 @@ fn validate_call(
     expression_states: &[(typed_trees::expression::ExpressionHandle, &State)],
     symbols: &crate::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     if let Err(diagnostic) =
         crate::compiler_operations::validate_declaration_operands(program, call)
@@ -371,6 +389,34 @@ fn validate_call(
         return;
     }
     let arguments = call.arguments(program);
+    if let StaticArgumentCall::Expression(_, expression) = call
+        && let Some(typed_trees::expression::BuildSelectionRequest::ProviderReadiness(request)) =
+            program
+                .expression_table
+                .build_selection_request(expression.build_selection)
+    {
+        match context {
+            Some((machine, _)) => {
+                crate::validate_static_type_argument(
+                    program,
+                    crate::StaticTypeArgumentOwner::Machine(machine),
+                    request.requirement,
+                    symbols,
+                    diagnostics,
+                    formation_obligations,
+                );
+                if let Err(reason) =
+                    program.build_provider_requirement_scope(request.requirement, machine.symbol)
+                {
+                    diagnostics
+                        .push(Diagnostic::error(reason).with_source_span(request.source_span));
+                }
+            }
+            None => diagnostics.push(Diagnostic::error(
+                "provider readiness has no retained caller machine",
+            )),
+        }
+    }
     requirement_predicates::validate(program, call, context, arguments, diagnostics);
     // `Requirement<Arguments>::operation(...)` forms a trait application at
     // the call site. It owes the same argument kinds, const ranges and
@@ -385,6 +431,7 @@ fn validate_call(
                 applied.requirement_application,
                 symbols,
                 diagnostics,
+                formation_obligations,
             ),
             None => diagnostics.push(Diagnostic::error(
                 "applied requirement call has no retained caller machine",
@@ -419,27 +466,31 @@ fn validate_call(
                 parameters,
                 &ordinary,
                 diagnostics,
+                formation_obligations,
             );
         }
     }
     let owner = call.lexical_owner(program);
-    let caller = program
-        .machine_by_symbol(owner)
-        .map(crate::StaticTypeArgumentOwner::Machine)
-        .or_else(|| {
-            program
-                .data_definition_by_symbol(owner)
-                .map(crate::StaticTypeArgumentOwner::Data)
-        });
-    validate_types(program, caller, arguments, symbols, diagnostics);
+    let caller = crate::StaticTypeArgumentOwner::from_lexical_owner(program, owner);
+    validate_types(
+        program,
+        caller,
+        call,
+        arguments,
+        symbols,
+        diagnostics,
+        formation_obligations,
+    );
 }
 
 fn validate_types(
     program: &dyn crate::CheckingInput,
     caller: Option<crate::StaticTypeArgumentOwner<'_>>,
+    source_call: StaticArgumentCall<'_>,
     arguments: &[StaticMachineArgument],
     symbols: &crate::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     for argument in arguments {
         // ConstExpression is a retained value recipe, not a type application.
@@ -456,20 +507,55 @@ fn validate_types(
                     argument.type_reference,
                     symbols,
                     diagnostics,
+                    formation_obligations,
                 );
             } else {
-                diagnostics.push(Diagnostic::error(
-                    "structural static type argument has no retained caller type/lifetime context",
+                let owner = source_call.lexical_owner(program);
+                let owner_label = if owner.is_valid() {
+                    format!(
+                        "{:?} `{}`",
+                        program.symbols.get(owner).kind,
+                        program.symbols.name(owner)
+                    )
+                } else {
+                    "<missing>".to_owned()
+                };
+                let retained_headers = program
+                    .tables
+                    .machines
+                    .iter()
+                    .filter(|(_, machine)| machine.symbol == owner)
+                    .map(|(_, machine)| machine)
+                    .collect::<Vec<_>>();
+                let retained_headers_agree = retained_headers
+                    .windows(2)
+                    .all(|headers| headers[0] == headers[1]);
+                let target = source_call.registration_operation(program);
+                let target = if target.is_valid() {
+                    program.symbols.name(target)
+                } else {
+                    "<unresolved>"
+                };
+                let mut diagnostic = Diagnostic::error(format!(
+                    "structural static type argument has no retained caller type/lifetime context for `{target}`; lexical owner {owner_label}; retained machine headers: {}, identical: {retained_headers_agree}",
+                    retained_headers.len(),
                 ));
+                if let StaticArgumentCall::Expression(handle, _) = source_call {
+                    diagnostic =
+                        diagnostic.with_source_span(program.expression_table.source_span(handle));
+                }
+                diagnostics.push(diagnostic);
             }
         }
         if let Some(application) = &argument.application {
             validate_types(
                 program,
                 caller,
+                source_call,
                 &application.arguments,
                 symbols,
                 diagnostics,
+                formation_obligations,
             );
         }
     }

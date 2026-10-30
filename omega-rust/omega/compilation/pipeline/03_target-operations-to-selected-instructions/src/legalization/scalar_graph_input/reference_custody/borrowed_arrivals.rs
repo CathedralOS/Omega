@@ -4,10 +4,18 @@
 //! rereading a dead descriptor. Its source retains normalized storage and the
 //! exact immediate occurrence obligations. Retired occurrences supply ancestry
 //! only; any later inner descriptor read still rejoins current resident storage.
+//! After explicit edge cleanup, `restoration` closes completed temporary grants
+//! only against independently retained entry authority; live/dependent grants
+//! continue to retain their exact ancestry.
 use super::*;
 use abstract_operations::AbstractStructuralBinding;
 use optimization_unit_semantics::StructuralStorageProjection;
 use terminal_psi::StructuralParameterDeclaration;
+
+mod liveness;
+mod restoration;
+pub(super) use liveness::{expire_coordinates, live_coordinates};
+pub(super) use restoration::complete_cleanup;
 
 // Fixed-point propagation retains unknown predecessors explicitly. Consuming
 // an unknown arrival refuses; it never becomes an activation-local owning root.
@@ -19,6 +27,7 @@ pub(super) struct Source {
     projection: StructuralStorageProjection,
     access: StructuralAccess,
     pub(super) parents: Vec<OccurrenceIdentity>,
+    pub(super) placed: Option<target_operations::TargetPlacedInterpretation>,
 }
 
 fn canonicalize(sources: &mut Vec<Source>) {
@@ -28,16 +37,25 @@ fn canonicalize(sources: &mut Vec<Source>) {
     sources.dedup();
 }
 
-/// Resolve current typed storage only when a consumer actually needs to read
-/// an inner descriptor. Captured byte geometry cannot manufacture such a slot.
-pub(super) fn flatten(
+/// Resolved storage keeps the exact grant that authorized its captured address.
+/// Re-rooting selectors cannot turn that delegated access into a fresh use of
+/// its suspended ancestor. Byte geometry alone supplies neither part.
+pub(super) struct CapturedStorage {
+    pub(super) argument: StructuralArgument,
+    pub(super) grants: Vec<OccurrenceIdentity>,
+}
+
+pub(super) fn captured_storage(
     function: &PsiOptimizationFunction,
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
-) -> Option<Vec<StructuralArgument>> {
+) -> Option<Vec<CapturedStorage>> {
     let Some(origins) = custody.borrowed_sources.get(&source.place) else {
-        return Some(vec![source.clone()]);
+        return Some(vec![CapturedStorage {
+            argument: source.clone(),
+            grants: Vec::new(),
+        }]);
     };
     let mut resolved = Vec::new();
     for origin in origins.as_ref()? {
@@ -50,10 +68,13 @@ pub(super) fn flatten(
         for storage in storage_origins(function, custody, types, &origin.root, referent).ok()? {
             let mut path = storage.exact_path()?;
             path.extend_from_slice(&source.path);
-            resolved.push(StructuralArgument {
-                place: storage.base.root_place()?,
-                path,
-                access: source.access,
+            resolved.push(CapturedStorage {
+                argument: StructuralArgument {
+                    place: storage.base.root_place()?,
+                    path,
+                    access: source.access,
+                },
+                grants: origin.parents.clone(),
             });
         }
     }
@@ -74,13 +95,7 @@ pub(super) fn normalize(
         .filter(|origins| !origins.is_empty())
         .ok_or_else(|| invalid())?;
     if source.path.contains(&StructuralPathSegment::Referent) {
-        return combine_candidate_origins(
-            flatten(function, custody, types, source)
-                .ok_or_else(|| invalid())?
-                .iter()
-                .map(|actual| normalized_direct_source(function, custody, types, actual))
-                .collect::<Result<Vec<_>, _>>()?,
-        );
+        return normalized_direct_source(function, custody, types, source);
     }
     // Presentation is checked at the receiving coordinate. It is not a demand
     // to reinterpret the original byte storage as a newly declared value.
@@ -183,6 +198,7 @@ pub(super) fn bind(
                 projection: StructuralStorageProjection::Endpoint(parameter.structural_type),
                 access: parameter.access,
                 parents,
+                placed: placed_source(function, before, types, &binding.argument),
             }])
         })();
         sources.insert(parameter.place, captured);
@@ -195,8 +211,9 @@ pub(super) fn bind(
 /// A borrowed arrival carries authority from its exact captured occurrences,
 /// not from equal storage geometry. Every possible incoming source must grant
 /// this access through the same parent; missing predecessors stay unknown.
-/// This exempts only that parent from ordinary backing interference, never a
-/// descendant or a separate loan, and does not discharge lifetime debts.
+/// The granting chain may contain live or retired intermediate descriptors.
+/// This exempts its exact ancestors from ordinary backing interference, never
+/// a descendant or a separate loan, and does not discharge lifetime debts.
 pub(super) fn lends_from(
     custody: &Custody,
     place: PlaceId,
@@ -210,9 +227,41 @@ pub(super) fn lends_from(
         .is_some_and(|sources| {
             !sources.is_empty()
                 && sources.iter().all(|source| {
-                    requested.admits(source.access) && source.parents.contains(parent)
+                    requested.admits(source.access)
+                        && source
+                            .parents
+                            .iter()
+                            .any(|grant| granting_ancestor(custody, grant, parent))
                 })
         })
+}
+
+/// Follow each retained immediate link; equal backing is never lineage.
+/// Retired occurrences contribute ancestry, not renewed access to storage.
+pub(super) fn granting_ancestor(
+    custody: &Custody,
+    grant: &OccurrenceIdentity,
+    ancestor: &OccurrenceIdentity,
+) -> bool {
+    let mut pending = vec![grant];
+    let mut visited = BTreeSet::new();
+    while let Some(identity) = pending.pop() {
+        if identity == ancestor {
+            return true;
+        }
+        if !visited.insert(identity) {
+            continue;
+        }
+        let leaf = custody
+            .leaves
+            .values()
+            .find(|leaf| leaf.identity == *identity)
+            .or_else(|| custody.retired.get(identity).map(|retired| &retired.leaf));
+        if let Some(leaf) = leaf {
+            pending.extend(&leaf.parents);
+        }
+    }
+    false
 }
 
 pub(super) fn obligations(custody: &Custody) -> impl Iterator<Item = &OccurrenceIdentity> {
@@ -295,7 +344,86 @@ mod tests {
             projection: StructuralStorageProjection::Endpoint(StructuralTypeId::new(1).unwrap()),
             access,
             parents: vec![parent],
+            placed: None,
         }
+    }
+
+    #[test]
+    fn dead_lookup_expires_without_disposing_or_restoring_a_live_grant() {
+        let target = BlockId::new(2).unwrap();
+        let dead = PlaceId::new(3).unwrap();
+        let live = PlaceId::new(4).unwrap();
+        let parent = occurrence(5);
+        let mut observations = descriptor_backing::Observations::default();
+        observations.borrowed_live = Some(BTreeMap::from([(target, BTreeSet::from([live]))]));
+        let mut custody = Custody {
+            descriptor_backing: std::sync::Arc::new(observations),
+            borrowed_sources: std::sync::Arc::new(BTreeMap::from([
+                (
+                    dead,
+                    Some(vec![source(parent.clone(), StructuralAccess::SharedBorrow)]),
+                ),
+                (
+                    live,
+                    Some(vec![source(parent, StructuralAccess::SharedBorrow)]),
+                ),
+            ])),
+            ..Custody::default()
+        };
+        expire_coordinates(&mut custody, target);
+        assert_eq!(custody.borrowed_sources.get(&dead), Some(&None));
+        assert!(custody.borrowed_sources[&live].is_some());
+        assert!(matches!(
+            custody.validate_occurrences(),
+            Err(LegalizationError::ReferenceCompletion {
+                reason: terminal_semantics::ReferenceCompletionError::MissingParent,
+            })
+        ));
+        assert!(custody.retired.is_empty());
+        std::sync::Arc::make_mut(&mut custody.borrowed_sources).insert(live, None);
+        assert!(custody.validate_occurrences().is_ok());
+        let result = StructuralOperationResult {
+            place: PlaceId::new(6).unwrap(),
+            structural_type: StructuralTypeId::new(1).unwrap(),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            claims: Vec::new(),
+        };
+        let child = Leaf::formed(
+            (result.place, Vec::new()),
+            Root::Place(dead),
+            vec![occurrence(5)],
+            OperationId::new(7).unwrap(),
+            &result,
+            result.structural_type,
+        );
+        custody.leaves.insert((result.place, Vec::new()), child);
+        expire_coordinates(&mut custody, target);
+        assert!(matches!(
+            custody.validate_occurrences(),
+            Err(LegalizationError::ReferenceCompletion {
+                reason: terminal_semantics::ReferenceCompletionError::MissingParent,
+            })
+        ));
+        assert!(custody.retired.is_empty());
+        // Only the address lookup ended. No disposal event was invented to
+        // excuse the still-live coordinate's missing immediate parent.
+    }
+
+    #[test]
+    fn unavailable_lookup_liveness_never_proves_a_coordinate_dead() {
+        let target = BlockId::new(2).unwrap();
+        let place = PlaceId::new(3).unwrap();
+        let mut custody = Custody::default();
+        std::sync::Arc::make_mut(&mut custody.borrowed_sources).insert(
+            place,
+            Some(vec![source(occurrence(4), StructuralAccess::SharedBorrow)]),
+        );
+        let before = custody.borrowed_sources.clone();
+        expire_coordinates(&mut custody, target);
+        assert_eq!(custody.borrowed_sources, before);
     }
 
     #[test]

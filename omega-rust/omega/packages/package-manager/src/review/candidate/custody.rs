@@ -27,17 +27,23 @@ pub(super) fn verify_selected_source_custody(
         let custody = closure
             .custody(source_package)
             .expect("validated source closure retains every reachable custody");
-        verify_package_source_snapshot(
-            custody.snapshot_root(),
-            custody.materialization().content(),
-            custody.source_limits(),
-        )
-        .map_err(|error| CompileResolvedPackageReviewsError::SourceCustody {
-            compiling_package: compiling_package.clone(),
-            source_package: source_package.clone(),
-            phase,
-            error,
-        })?;
+        // A retained capture owns the exact bytes consumed by compilation; its
+        // routing path need not be a sealed on-disk cache directory. Persistent
+        // snapshots still require physical verification. Publication separately
+        // compares live local sources with the reviewed immutable content.
+        if custody.captured_source().is_none() {
+            verify_package_source_snapshot(
+                custody.snapshot_root(),
+                custody.materialization().content(),
+                custody.source_limits(),
+            )
+            .map_err(|error| CompileResolvedPackageReviewsError::SourceCustody {
+                compiling_package: compiling_package.clone(),
+                source_package: source_package.clone(),
+                phase,
+                error,
+            })?;
+        }
         custody.selection_evidence().revalidate().map_err(|error| {
             CompileResolvedPackageReviewsError::SourceSelectionCustody {
                 compiling_package: compiling_package.clone(),

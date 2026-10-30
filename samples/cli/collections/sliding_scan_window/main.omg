@@ -8,7 +8,7 @@ machine advance(window: &mut Window, consumed: u64) -> bool {
         true -> valid(window, consumed)
         false -> false
     }
-    state valid(window: &mut Window, consumed: u64) -> bool
+    machine valid(window: &mut Window, consumed: u64) -> bool
     requires consumed <= window.values.len {
         window.values = &mut window.values[consumed..];
         true
@@ -20,7 +20,7 @@ machine verify(values: &[Reading]) -> bool {
         true -> inspect(values)
         false -> false
     }
-    state inspect(values: &[Reading]) -> bool requires values.len == 2 {
+    machine inspect(values: &[Reading]) -> bool requires values.len == 2 {
         values[0].address == 20 && values[0].value == 22
             && values[1].address == 30 && values[1].value == 33
     }
@@ -46,6 +46,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -14,6 +14,7 @@ pub(crate) fn validate_owned_data(
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     for owned_data in program.machine_owned_data(machine) {
         validate_type_reference_handle(
@@ -32,6 +33,7 @@ pub(crate) fn validate_owned_data(
                 type_parameters: program.machine_type_parameters(machine),
                 lifetime_parameters: &machine.lifetime_parameters,
             },
+            formation_obligations,
         );
 
         if owned_data.initial_value.is_valid() {

@@ -1,7 +1,7 @@
 // An interval-domained payload member: `case Lit(amount: i32 in Ten)` — the
 // construction proves the member's range obligation, and the dispatched
 // payload discharges `scale`'s requires through its domain alone.
-domain i32::Ten(value) requires 0 <= value && value <= 10;
+domain i32::Ten requires 0 <= self && self <= 10;
 data Command {
     case Off;
     case Lit(amount: i32 in Ten);
@@ -16,10 +16,10 @@ machine Main::main(main: &mut Main) {
         Command::Lit { amount } -> apply(main, amount)
         Command::Off -> bad(main)
     }
-    state apply(main: &mut Main, amount: i32 in Ten) {
+    machine apply(main: &mut Main, amount: i32 in Ten) {
         main.hits = main.hits + (scale(amount) as i32 in Wrapping);
     }
-    state bad(main: &mut Main) { }
+    machine bad(main: &mut Main) { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

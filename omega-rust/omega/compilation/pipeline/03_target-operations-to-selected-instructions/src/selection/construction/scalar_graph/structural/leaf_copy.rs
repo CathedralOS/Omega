@@ -2,13 +2,13 @@
 //! and reseat a borrowed window's vacated field with the inverse copy.
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    SelectedInstructionKind,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::local_storage;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
+use crate::selection::scalar_call_abi::load_transfer;
 use selected_instructions::VirtualRegisterId;
 use semantic_vocabulary::PlaceId;
 
@@ -35,12 +35,17 @@ pub(super) fn copy(
     else {
         return Err(invalid());
     };
+    let slot = builder.transport.push_structural_local_slot(
+        row.operation,
+        result.place,
+        shape.byte_size.max(1),
+        shape.alignment,
+    );
+    let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size.max(1), true)?;
+    // A zero-byte copy still produces a borrowable owned value. Its private
+    // address anchor carries no payload and performs no source memory access.
     if shape.byte_size == 0 {
-        builder.pending_provenance.operations.push(row.operation);
-        builder
-            .pending_provenance
-            .fuel
-            .extend(row.fuel.iter().cloned());
+        builder.transport.pointers.push((result.place, pointer));
         return Ok(());
     }
     let input = builder
@@ -49,13 +54,6 @@ pub(super) fn copy(
         .iter()
         .find(|(place, _)| *place == *source)
         .map(|(_, pointer)| *pointer);
-    let slot = builder.transport.push_structural_local_slot(
-        row.operation,
-        result.place,
-        shape.byte_size,
-        shape.alignment,
-    );
-    let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size, true)?;
     let geometry = match path {
         abstract_operations::StructuralCopyPath::Ordinary(path) if !path.is_empty() => {
             let signature = function.structural.as_ref().ok_or(invalid())?;
@@ -69,6 +67,19 @@ pub(super) fn copy(
                     &signature.structural_types,
                 )
                 .filter(|geometry| geometry.readable)
+                .ok_or(invalid())?,
+            )
+        }
+        abstract_operations::StructuralCopyPath::Case(path) => {
+            let signature = function.structural.as_ref().ok_or(invalid())?;
+            let root =
+                crate::selection::reference_input::root_type(function, *source).ok_or(invalid())?;
+            Some(
+                crate::structural_inputs::structural_reference_input::case_projection(
+                    root,
+                    path,
+                    &signature.structural_types,
+                )
                 .ok_or(invalid())?,
             )
         }
@@ -470,32 +481,12 @@ fn copy_bytes(
             from.elements,
             super::runtime_address::Written::None,
         )?;
-        let (kind, key) = match width {
-            8 => (
-                SelectedInstructionKind::Load64 {
-                    byte_offset: load_displacement,
-                },
-                builder.constraints.keys.load64,
-            ),
-            4 => (
-                SelectedInstructionKind::Load32 {
-                    byte_offset: load_displacement,
-                },
-                builder.constraints.keys.load32,
-            ),
-            2 => (
-                SelectedInstructionKind::Load16 {
-                    byte_offset: load_displacement,
-                },
-                builder.constraints.keys.load16,
-            ),
-            _ => (
-                SelectedInstructionKind::Load8 {
-                    byte_offset: load_displacement,
-                },
-                builder.constraints.keys.load8,
-            ),
-        };
+        let (kind, key) = load_transfer(
+            &builder.constraints.keys,
+            u32::from(width),
+            load_displacement,
+        )
+        .ok_or_else(|| invalid())?;
         builder.emit(
             kind,
             key.ok_or_else(|| invalid())?,

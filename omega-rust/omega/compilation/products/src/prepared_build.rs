@@ -9,10 +9,59 @@ use artifacts::compile_timings::CompileTimings;
 use package_compilation::BuildSourceCustody;
 use std::sync::Arc;
 
+/// Settled Build output before any deferred Product context is prepared.
+/// The parse prefix supplies fresh contexts; the typed frontier is reusable
+/// only for its own assembly inputs or its still-deferred Product source.
+pub struct SettledBuildSource {
+    pub execution_contract: package_compilation::build_execution::BuildExecutionContract,
+    pub parsed: crate::PreparedCheckedSource,
+    pub frontier: crate::TypedCompilationFrontier,
+    pub evaluated: crate::EvaluatedBuild,
+    pub package_inputs: Option<package_compilation::PackageCompilationInputs>,
+    pub original_assembly: package_compilation::SourceAssemblyInputs,
+    pub build_execution_profile: Option<target::TargetProfile>,
+    pub timings: CompileTimings,
+    pub build_elapsed_micros: u128,
+}
+
+/// The invocation's fixed source and execution custody beside Product defaults.
+pub struct SettledPackageBuild {
+    pub root: std::path::PathBuf,
+    pub target: target::TargetProfile,
+    pub inputs: package_compilation::PackageCompilationInputs,
+    pub rollback: optimization_core::OptimizationRollback,
+    pub source: SettledBuildSource,
+}
+
+impl SettledPackageBuild {
+    /// Fork only for a real sibling Product. The final consumer can move the
+    /// original source/storage instead; no execution custody is duplicated.
+    pub fn fork(&mut self) -> Self {
+        Self {
+            root: self.root.clone(),
+            target: self.target,
+            inputs: self.inputs.clone(),
+            rollback: self.rollback.clone(),
+            source: SettledBuildSource {
+                execution_contract: self.source.execution_contract.clone(),
+                parsed: self.source.parsed.fork(),
+                frontier: self.source.frontier.clone(),
+                evaluated: self.source.evaluated.clone(),
+                package_inputs: self.source.package_inputs.clone(),
+                original_assembly: self.source.original_assembly.clone(),
+                build_execution_profile: self.source.build_execution_profile,
+                timings: self.source.timings.clone(),
+                build_elapsed_micros: self.source.build_elapsed_micros,
+            },
+        }
+    }
+}
+
 /// Evaluated Build and the retained frontend that an actual Product demand
 /// completes. Pending authored bodies and generated sources grant no execution.
 #[derive(Clone)]
 pub struct BuiltTypedProgram {
+    pub preparation: crate::SourcePreparation,
     pub source: psi_compiler::SourceContinuation,
     pub base_sources: Arc<source::SourceMap>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
@@ -33,8 +82,10 @@ pub struct PreparedBuild {
 /// Complete authored and generated Product source, consumed once by Psi checking.
 /// Realization never receives a mutable copy of this source continuation.
 pub struct PreparedProductSource {
+    /// Real logical charges for authored completion, retained on both cold and
+    /// reused paths. Generated admission and Build charges remain independent.
+    pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub typed: typed_trees::TypedTrees,
-    pub pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
     pub admission: BuildAdmission,
     pub build_sources: BuildSourceCustody,
@@ -46,7 +97,19 @@ pub struct PreparedProductSource {
 /// The source checker produces this before any target provider is selected.
 #[derive(Clone)]
 pub struct CheckedProductSource {
+    pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub program: Arc<checked_trees::CheckedTrees>,
+    /// One lazy declaration product for this immutable checked owner. Delaying
+    /// preparation preserves provider-failure order and avoids unused work for
+    /// consumers that do not request external declarations.
+    pub external_declarations: Arc<
+        std::sync::OnceLock<
+            Result<
+                Arc<psi_compiler::PreparedExternalProviderDeclarations>,
+                Vec<diagnostics::Diagnostic>,
+            >,
+        >,
+    >,
     /// All authored Product defaults, shared unchanged across target settlement.
     pub provider_defaults:
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
@@ -57,11 +120,4 @@ pub struct CheckedProductSource {
     pub accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
     pub retained_checks: crate::RetainedCompilationChecks,
     pub product_selection: Option<psi_compiler::CheckedTreeProductSelection>,
-    /// The deferred constant evaluation each target closure resumes under its
-    /// selected rows. Empty when the program retains no constant recipe.
-    pub constant_recipe_continuations: Vec<build_time_evaluation::PreCheckEvaluation>,
-    /// The typed program those continuations fold on: the authored source
-    /// before executable preparation, where boundary token uses are still
-    /// their authored occurrences. Present only beside continuations.
-    pub constant_recipe_source: Option<Arc<typed_trees::TypedTrees>>,
 }

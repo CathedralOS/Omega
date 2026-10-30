@@ -14,10 +14,10 @@ use typed_trees::expression::{
 };
 use typed_trees::signature::{SignatureContractKind, StateSignature};
 
-use super::{
+use super::scoped_arithmetic_implication_for_declaration;
+use crate::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
-    scoped_arithmetic_implication_for_declaration,
 };
 
 /// Judge every expression fact on an exact applied callable signature.

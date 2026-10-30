@@ -4,13 +4,103 @@
 //! direct use in the module mentions, so a pass that judges liveness or
 //! equivalence from uses alone would delete or renumber them. `proof_values`
 //! answers which values those sidecars name; `ranked_coverage` answers which
-//! coordinates one machine's retained ranking evidence covers. The three
-//! rewrites that can drop or merge a value — `copy_propagation`,
-//! `global_value_numbering` and `dead_scalar_elimination` — consult both
-//! before acting; nothing here rewrites anything itself.
+//! coordinates one machine's retained ranking evidence covers; `record_named_rows`
+//! reads the carriers every low-level rewrite and the cleanup's evidence
+//! inventory share. The three rewrites that can drop or merge a value —
+//! `copy_propagation`, `global_value_numbering` and `dead_scalar_elimination`
+//! — consult these before acting; nothing here rewrites anything itself.
 
 pub(crate) mod proof_values;
 pub(crate) mod ranked_coverage;
+
+use semantic_vocabulary::{BlockId, OperationId, ValueId};
+use std::collections::BTreeSet;
+
+/// Rows a module's semantic record names by identity rather than through an
+/// executable use: the block, operation and value rows a rewrite may not drop
+/// or renumber. Every Terminal identity is module-unique, so a carrier that
+/// names a row pins it wherever the row lives.
+#[derive(Debug, Default)]
+pub(crate) struct RecordNamedRows {
+    pub(crate) blocks: BTreeSet<BlockId>,
+    pub(crate) operations: BTreeSet<OperationId>,
+    pub(crate) values: BTreeSet<ValueId>,
+}
+
+/// Read the record carriers the low-level rewrites and the cleanup's evidence
+/// inventory share: quotient rows and their adaptations, boundary application
+/// demands, suspension call sites, suspension plans with their loan
+/// formations, and float-meaning projections. The cleanup keeps every named
+/// row; each rewrite keeps the named value identities exact. One read serves
+/// all of them, so a carrier added here reaches every consumer at once.
+pub(crate) fn record_named_rows(module: &terminal_psi::TerminalModule) -> RecordNamedRows {
+    let mut rows = RecordNamedRows::default();
+    for observation in module.scalar_applications.conditions.observations() {
+        if let terminal_psi::ScalarRangeObservation::EntryResult { result, .. } = observation {
+            rows.values.insert(*result);
+        }
+    }
+    for machine in &module.machines {
+        for invocation in machine.module_invocations() {
+            proof_values::retain_invocation_inputs(invocation.inputs, &mut rows.values);
+        }
+    }
+    rows.operations
+        .extend(module.quotients.operations.iter().map(|row| row.call));
+    rows.operations
+        .extend(module.quotients.adaptations.iter().map(|row| row.copy));
+    rows.values.extend(quotient_call_results(module));
+    rows.operations.extend(
+        module
+            .boundary_application_demands
+            .iter()
+            .map(|demand| demand.terminal_operation()),
+    );
+    for site in &module.suspension_call_sites {
+        rows.operations.insert(site.operation);
+    }
+    for plan in &module.suspension_call_plans {
+        rows.operations.insert(plan.operation);
+        plan.visit_value_ids(|value| {
+            rows.values.insert(value);
+        });
+        for (_, loan) in plan.loans.occurrences.iter() {
+            if let terminal_psi::TerminalSuspensionLoanCapture::Reference { formation, .. } =
+                loan.capture
+            {
+                rows.operations.insert(formation);
+            }
+        }
+    }
+    for projection in &module.float_meaning_projections {
+        match &projection.source {
+            terminal_psi::FloatMeaningSource::DirectMachineParameter(row) => {
+                rows.values.insert(row.parameter);
+            }
+            terminal_psi::FloatMeaningSource::DirectMachineResult(row) => {
+                rows.values.insert(row.result);
+            }
+            terminal_psi::FloatMeaningSource::DirectBlockParameter(row) => {
+                rows.blocks.insert(row.block);
+                rows.values.insert(row.parameter);
+            }
+            terminal_psi::FloatMeaningSource::DirectOperationResult(row) => {
+                rows.operations.insert(row.producer);
+                rows.values.insert(row.result);
+            }
+            terminal_psi::FloatMeaningSource::DirectCallResult(row) => {
+                rows.operations.insert(row.producer);
+                rows.values.insert(row.result);
+            }
+            terminal_psi::FloatMeaningSource::TransitionalInput(_)
+            | terminal_psi::FloatMeaningSource::DirectStructuralLeaf(_)
+            | terminal_psi::FloatMeaningSource::ExactBinary32Literal(_)
+            | terminal_psi::FloatMeaningSource::ExactBinary64Literal(_)
+            | terminal_psi::FloatMeaningSource::SemanticApplication(_) => {}
+        }
+    }
+    rows
+}
 
 /// Selected boundary operations retain their meaning until Omega supplies
 /// the realization. The sorted portable demand roster is the authority here,
@@ -42,11 +132,17 @@ pub(crate) fn contains_source_call(
     occurrence: &lowered_psi::LoweredSourceCallOccurrence,
 ) -> bool {
     match occurrence.terminal_site {
-        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => machine
+        semantic_vocabulary::InvocationSite::Operation(operation) => machine
             .blocks
             .iter()
             .any(|block| block.operations.iter().any(|row| row.id == operation)),
-        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+        semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+            machine.blocks.iter().any(|block| {
+                matches!(block.terminator,
+                    terminal_psi::Terminator::InvokeNoNormal { edge: actual, .. } if actual == edge)
+            })
+        }
+        semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
             machine.blocks.iter().any(|block| {
                 matches!(block.terminator,
                 terminal_psi::Terminator::ExternalCompletion { edge: actual, .. } if actual == edge)

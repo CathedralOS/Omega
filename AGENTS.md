@@ -96,10 +96,12 @@ continuation; it does not turn unfinished work into completion.
 Capability outcomes determine priority; samples provide executable evidence.
 Compiler advancement runs `samples/cli/facts` only. One fact is one folder.
 The nine places are local, field, parameter, call result, match join, const
-name, a nested machine, another machine, and another target body. Those places
+name, a nested machine, another machine, and another selected target implementation. Those places
 are one row. Do not expand them into a combinatorial matrix.
 The nested-machine place retains the existing `other_state/` path during the
 source migration; it is distinct from the non-nested `other_machine/` place.
+The other-target place uses an ordinary named implementation selected by Build;
+existing target-prefixed witnesses are migration inputs, not supported syntax.
 `samples/cli/facts/length/` is a reference row. Inspect each folder's current
 coverage and applicable evidence to distinguish filled rows from missing places.
 The next advance fills a missing place of the selected fact, or takes the next
@@ -199,13 +201,37 @@ whose header documents `Expected exit` or `Expected output contains`. A
 passing witness completes that repair, not every requirement of its parent
 capability.
 
-1. **Choose the outcome, then its witness.** Repair known main regressions
-   first, honor explicit user scope, and otherwise retain the current capability
-   assignment. For new automatic work, choose an actionable `TASKS.md` outcome
-   by its stated priority and release dependencies, then discharge it inside
-   `samples/cli/facts`. Read its full acceptance
-   and verify its remaining gap against a fresh current-main compiler build
-   (`build/gate-cli`), never a stale cached binary (`omega-latest.exe`). Name
+1. **Choose the outcome, then its witness.** Honor explicit user scope and
+   retain the current capability assignment first; sessions with an active
+   capability or user assignment never pivot to unrelated `main` regressions.
+   For new automatic work without a current assignment, repair an unclaimed
+   active `main` regression (where the newest completed `Post-merge smoke` run
+   on `main` failed and no live claim already covers it) before choosing an
+   actionable `TASKS.md` outcome in this priority order:
+   - First, take the first unassigned actionable item in `TASKS.md`'s
+     `## Priority (human-set only)` section (in top-down order; only humans add,
+     reorder, or move items into or out of that section).
+   - Within and immediately after that section, prioritize ratified
+     language-design and surface-syntax migrations that affect wide swaths of
+     authored `.omg` files (such as `NESTED-MACHINE-UNIFICATION` replacing
+     `state` with nested `machine` across 100% of `.omg` files,
+     `CANONICALIZE-SCALAR-RANGE-CONTRACTS` removing `T [lo..hi]` suffixes across
+     ~25% of `.omg` files, `DOMAIN-DEFAULT-PREDICATE-UNIFICATION`,
+     `STATIC-MACHINE-MIGRATION`, `BUILD-OWNED-TARGET-SELECTION`,
+     `BUILD-OWNED-NATIVE-BINDINGS`, and
+     `TOP-LEVEL-BOUNDARY-REQUIREMENTS`), ordered by `.omg` blast radius so new
+     witnesses and samples are not continually authored in deprecated syntax.
+   - Then take remaining `TASKS.md` outcomes in top-down board order and release
+     dependencies.
+   Discharge compiler capability gaps inside `samples/cli/facts`; for a ratified
+   language-design or surface-syntax migration outcome, carry both its nine-place
+   `samples/cli/facts` witnesses and its repository-wide `.omg`
+   source/library/sample/fixture migration and retired-syntax deletion bullets
+   to completion. Read its full acceptance
+   and verify its remaining gap with an optimized exact-source producer
+   for the recorded fixed base. Reuse a warm `build/gate-cli` or retained
+   producer with verified inputs; build only when those inputs changed or no
+   valid producer exists. Never use an unverified cached binary. Name
    the exact requirement the next witness will discharge. Never filter discovery
    solely to folders that already have all nine `<place>/main.omg` files and
    already pass on current main (which produces coverage-only commits without
@@ -237,15 +263,23 @@ capability.
    then return to the fact. The smaller witness keeps the same fact, bound,
    and operation. Facts advance as a ladder of those places,
    never as stage tasks.
-4. **Return to the remaining acceptance.** After a witness lands or already
-   passes, subtract only the requirement its evidence establishes and take the
-   next required place of the same fact, or the next uncovered fact under
-   `samples/cli/facts`. Write a new witness when an
+4. **Return to the remaining acceptance.** `tests/omega/` (`corpus_results.txt`)
+   and `samples/cli/facts/` own regression retention of landed witnesses;
+   `TASKS.md` owns only the unbuilt or failing gap. Each outcome in `TASKS.md`
+   lists its remaining work as discrete, one-per-line bullets (one unfinished
+   witness or missing mechanism gap per bullet). After a witness lands or already
+   passes, delete its bullet or requirement from `TASKS.md` outright so the
+   board shrinks monotonically (never move a landed witness into a
+   `"preserving / retaining / keeping / now passes"` clause or append milestone
+   history), and take the next required place of the same fact, or the next
+   uncovered fact under `samples/cli/facts`. Write a new witness when an
    uncovered requirement needs one, not to manufacture a failure or fill a slot.
-   Close the task only when its full acceptance passes. Switch capabilities on
+   Delete the `TASKS.md` item when its full `Acceptance:` passes. Switch capabilities on
    closure, explicit reprioritization, or a genuine external prerequisite after
-   exhausting feasible work on that outcome. Regressions may interrupt this
-   chain; return afterward. Respect user stops, budgets and explicitly bounded
+   exhausting feasible work on that outcome. Never interrupt an active
+   capability chain for an unrelated `main` regression, and keep chaining next
+   witnesses directly on the worktree's warm local commit rather than resetting
+   to `origin/main` between witnesses. Respect user stops, budgets and explicitly bounded
    assignments, preserving the parent outcome and next requirement for resumption.
    A green facts queue does not establish capability closure. Open-ended
    advancement stays inside `samples/cli/facts` and takes the next uncovered
@@ -325,7 +359,7 @@ task's full acceptance. Prove out and list these obligations in the sample fact:
   state transitions, crash routes, and strongly connected ranking/scalar-block-invariant
   edges, separating explicit `dyn` selector vs. data lanes, and retaining
   boundary-application demands, placed/atomic observations, integer arithmetic
-  modes/certificates, and checked target-scoped body candidates
+  modes/certificates, and checked named implementation candidates
   ([product](wiki/spec/terminal-psi/product.md),
   [encoding](wiki/spec/terminal-psi/encoding.md),
   [calls and outcomes](wiki/spec/terminal-psi/calls_and_outcomes.md),
@@ -339,7 +373,7 @@ task's full acceptance. Prove out and list these obligations in the sample fact:
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):**
   target realization joins Build companion rows (`ProgramEntry`, `ProviderPlan`,
   `CompilerBuiltinExecution`, `BoundaryExecutionBinding`, assumed binding
-  contracts, and target-scoped body selection) to the Terminal catalog without
+  contracts, and target-keyed provider selections) to the Terminal catalog without
   reopening source, evaluates and validates target layout plans (`size_of`/`align_of`,
   field/bit offsets, variant tags/payloads, `IntegerAt` stored widths,
   element/byte view descriptors, explicit recasts/codecs, and erased zero-byte
@@ -380,6 +414,30 @@ task's full acceptance. Prove out and list these obligations in the sample fact:
   ([machine-state evidence](wiki/spec/build/machine_state_evidence.md),
   [executable installation](wiki/spec/build/executable_installation.md),
   [calling plans](wiki/spec/build/calling_plans.md)).
+- **Runtime falsifiability (`Psi 05–07` and `Omega 00–09`):** just as
+  `<place>/invalid/main.omg` is the static falsifier that proves `Psi 01–04`
+  rejects when the static obligation is removed, `main()` in `<place>/main.omg`
+  must be a runtime falsifier that traps (`crash Trap`) if `Psi 05–07` or
+  `Omega 00–09` mis-lowers the construct at runtime:
+  - **Branch and pattern discrimination:** every arm of a `match`, `transition`,
+    or conditional guard under test must yield a distinct runtime outcome, and
+    `main()` must invoke the construct with inputs exercising both the matching
+    path and the fallback path. Never test only a boundary input where the
+    matched branch and the `_` fallback evaluate to the same number (for example,
+    testing only `value == 73` when `_ -> 73` so `selected - 73 == 0` passes on
+    either branch).
+  - **Observable cleanup and restoration:** when the fact's sentence names affine
+    cleanup (`DiscardRoot`, `DiscardResidual`, `InvokeNominal`, `RetireHome`) or
+    borrowed-window restoration, the discarded or retired carrier must produce an
+    observable runtime side effect (such as a `drop` / `dropped by` hook
+    updating caller-visible state or a restored borrow window read back after the
+    call) that `main()` verifies ran for the discarded value and did not run for
+    the surviving projection. Mutating only the dying temporary or dropping a
+    plain scalar record is a runtime no-op and does not prove cleanup lowering.
+  - **Storage and ABI neighbor canaries:** when the fact's sentence names an
+    indexed store, field projection, recast, or multi-slot ABI placement,
+    surround the target slot with non-zero canary fields and assert both the
+    updated target value and the untouched neighbors in `main()`.
 
 These are requirement categories, not a new test matrix or a claim that they
 exhaust the accepted language. Keep the concrete remaining requirements and
@@ -425,7 +483,14 @@ profiles bound to the actual binary digests. See
 - Use `mbx` in place of Cargo for compile and test commands: `cargo check`
   becomes `mbx check`, `cargo test` becomes `mbx nextest run` (needs
   cargo-nextest 0.9.140 or newer). If `mbx` is unavailable, use Cargo without
-  asking. Nextest does not run doctests; use `mbx test --doc`.
+  asking. Nextest does not run doctests; use `mbx test --doc`. `mbx` manages a
+  shared cross-workspace compilation cache (under `AppData/Local/mbx` on Windows or
+  `~/.cache/mbx` on Unix), hardlinking pre-compiled objects across worktrees.
+  Update it via `cargo install mbx`. Running `mbx setup` configures plain Cargo
+  commands to leverage mbx caching automatically.
+- Keep each worktree's Cargo target directory separate, including baseline
+  comparisons. Share objects through `mbx`, never by pointing two worktrees at
+  one `CARGO_TARGET_DIR`; a baseline can replace dependencies later reused as fresh.
 - Wrap a lane's local build/test chain in one `tools/build_slot.py`
   hold; release it before waiting on GitHub. Nested holds short-circuit
   ([build slots](tools/build_slot.md#one-hold-for-a-whole-chain)).
@@ -465,8 +530,12 @@ place:
   not model page tables, schedulers, or drivers as compiler-owned types.
 
 Terminal Psi is the only portable boundary. Targets are data, not control
-flow: Psi checks every target-scoped machine body in every compilation, and
-`--target` narrows what Omega realizes, never what Psi checks. The full
+flow: Psi checks every supplied ordinary implementation in every compilation,
+and Build records exact provider selections per target. Target-prefixed machine
+declarations and implicit same-path target-body families are retired; remove
+their remaining machinery under `BUILD-OWNED-TARGET-SELECTION` rather than
+adding compatibility paths. `--target` narrows what Omega realizes, never what
+Psi checks. The full
 architecture contract — deferred Psi audit policy, crate placement,
 discoverability, compositional lowering — lives in
 [omega-rust/pipeline.md](omega-rust/pipeline.md).
@@ -494,13 +563,48 @@ The rules that touch every edit:
 - Data and code are independent: named implementations satisfy traits; data
   does not. Trait data types are ordinary explicit parameters. There is no
   conformance subject, `Self` type binding, or machine `self` receiver.
-  Predicate-only `self` names the subject in data default-domain `where` and
+  Predicate-only `self` names the subject in data default-domain `requires` and
   domain `requires`; it is not a receiver or runtime parameter. `dyn`
   selects an implementation at runtime; data arguments stay separate. Authored
   implementations declare member machines inline; reuse is an ordinary call,
   not a `Trait::member = Existing::machine;` reference row. Follow
   [named implementations](wiki/spec/language/conformances.md#data-and-code-are-independent)
   and remove legacy support rather than preserving it for old tests.
+- Inline cases follow all common fields as a consecutive tail. Destructure data
+  by named fields plus `case as binding`, or positionally by authored common-field
+  order then one case-only view. Case patterns bind payload fields only; common
+  fields in case patterns are retired. Preserve normal nested-match, subject,
+  borrow, ownership and cleanup rules; source order is not physical layout.
+  Irrefutable `let` bindings use the same named/positional patterns and evaluate
+  their initializer once; they add no hidden branch, trap, copying permission or
+  special match-as header. Keep the ordinary match forms valid.
+  Follow [data decomposition](wiki/spec/language/patterns.md#data-and-case-decomposition);
+  `DATA-DECOMPOSITION` owns compiler/source/tooling migration.
+- Source `where` is retired. Use `requires` for data/default-domain and generic
+  predicates and static callable requirements; assembly carries `requires`,
+  `ensures` and `clobbers` directly after `asm`. Keep nested callable contracts
+  and their terminators scoped, and preserve each declaration's checking boundary.
+  Follow [requirement clauses](wiki/spec/language/state_contracts.md#requirement-clauses);
+  `REQUIRES-UNIFICATION` owns compiler/source/tooling migration.
+- Source `via` binding clauses and one-to-one bodyless native forwarding
+  declarations are retired. The owning package records
+  `Build::bind<Requirement>(builder, target, locator)` intent; literal locator
+  byte lengths are inferred, not manually counted in helpers or Build generics.
+  The compiler derives plans and preserves exact contracts, ABI, provenance,
+  admission, and authority. Product rows never install Build-host backing;
+  application roots do not repeat dependency-private imports. Follow
+  [native bindings](wiki/spec/build/foreign_bindings.md#build-owned-native-binding);
+  `BUILD-OWNED-NATIVE-BINDINGS` owns compiler/source/review migration.
+- Core numeric carrier/property APIs live in ordinary `integer` and `float`
+  modules, not primitive-member `MAX`/`Maximum` aliases or a catch-all limits
+  module. Implement them through checked library bodies, exact type refinement
+  and authoritative semantic metadata, never spelling-based proof rules or
+  per-API intrinsics. Float extrema are finite; exact bit/classification APIs
+  preserve their promised sign/payload/kind without strengthening arithmetic
+  NaN guarantees. Payload constructors are conveniences, not permanent compiler
+  mechanisms. Follow [numeric APIs](wiki/spec/language/numeric_values.md#core-integer-and-float-apis);
+  `CORE-INTEGER-FLOAT-APIS` owns implementation and migration, without admitting
+  arbitrary-width integer families or general owned aggregate casts.
 - Source `state` declarations are retired in favor of arbitrarily nested
   machines. Nesting scopes names, never runtime data or implicit authority.
   All runtime arguments are explicit; ordinary calls resume, terminal calls
@@ -602,26 +706,30 @@ are byte-sensitive.
   signal: two sessions are changing one decision point, so reconcile them into
   one implementation at rebase. Conflicts only show textual overlap; semantic
   breakage can still land without one; post-merge checks detect those regressions.
-- Keep regressions visible and repair or revert them. Required merge admission is
-  the small GitHub `compiler-check`, not the entire corpus or customer matrix.
-  The hosted Compiler regression workflow runs Linux native/Terminal smoke after
-  merge and nightly. The regressing PR's author owns repair/revert; until
-  attributed, the first observer records the failure and takes triage ownership.
-  No machine runs all three OSes, so each host with
-  a native golden runs `python tools/native_watch.py` on a
-  schedule ([testing](tools/testing.md#corpus-outcome-gate)). The watch runs
-  the corpus only, and admission checks compilation only, so the Windows
-  x86-64 development host also runs the full
+- Keep regressions visible without dogpiling or thrashing `main`. Required merge
+  admission is the small GitHub `compiler-check`, not the entire corpus or
+  customer matrix. The hosted `Post-merge smoke` workflow
+  (`.github/workflows/compiler-regression.yml`) runs Linux native/Terminal smoke
+  after merge and nightly. `pending`, `in_progress`, or `cancelled` runs are
+  never regressions, and an older failed run is already resolved once a newer
+  `main` commit succeeds. Only when the **newest completed** run on `main`
+  failed is `main` red. Sessions working on an assigned capability or sample
+  ignore unrelated `main` regressions and keep their warm base. The regressing
+  PR's author owns repair/revert; otherwise at most **one** unassigned session
+  claims the regression (`python tools/claims.py claim --item REGRESSION-<sha>`)
+  and drives a focused repair or revert through the queue. Once a live claim
+  exists for a regression, every other session skips it and takes normal
+  unassigned work. Never `git bisect` or check out historical `main` commits in
+  a warm worktree to attribute a regression (inspect the diff or CI log instead
+  so the compiler build cache stays warm). No machine runs all three OSes, so
+  each host with a native golden runs `python tools/native_watch.py` on a
+  schedule ([testing](tools/testing.md#corpus-outcome-gate)), and the Windows
+  x86-64 development host runs the full
   `python tools/sample_native_gate.py --programs-only` once a day from Task
-  Scheduler ([testing](tools/testing.md#corpus-outcome-gate)); a sample that
-  passed in the previous full record in `build/sample-gate-runs/` and fails
-  now is a regression. Agent sessions, local or cloud, never start a full
-  programs-only run for this check. Between 1483ea14d01 and 50ace165363, at
-  least 10 passing samples, including `basics/print_number`, stopped
-  building and no check saw it. Whoever sees a
-  regression attributes it to its first bad commit and drives a focused repair
-  or revert through the queue. Record it in `TASKS.md` only when it cannot be
-  repaired in that session, and say exactly what prevents the repair.
+  Scheduler ([testing](tools/testing.md#corpus-outcome-gate)). Agent sessions,
+  local or cloud, never start a full programs-only run for this check. Record a
+  regression in `TASKS.md` only when it cannot be repaired in that session, and
+  say exactly what prevents the repair.
 - After landing a sample, an agent may take a bounded
   iteration-performance or test-environment outcome based on an experienced
   obstruction. Record the workflow and adequate target before repair; return
@@ -643,17 +751,50 @@ are byte-sensitive.
 
 ## Sessions and subagents
 
+**The primary repository checkout is strictly an anchor pinned to `main`.**
+Never edit files, switch branches, commit, build, or run gates in the primary checkout.
+Other agents and background processes rely on the primary checkout remaining cleanly
+on `main` to pull from or use as a shared reference. All active development,
+repairs, experiments, and validations must take place in an isolated worktree under
+`<repository>/.agents/worktree/<short-name>`.
+
+**Local branches are banned.** Do not create local branches (`git branch <name>`,
+`git checkout -b <name>`, or `git worktree add -b <name>`). Local branches drift,
+accumulate clutter, and collide across sessions. Always create worktrees in
+detached HEAD mode directly from the fetched `origin/main` commit:
+`git worktree add --detach .agents/worktree/<short-name> origin/main`.
+That directory is gitignored local state. An existing checkout stays where it is.
+To publish a PR, push HEAD directly to origin:
+`git push origin HEAD:refs/heads/work/<short-name>`.
+
+**Retain and reuse warm worktrees as workbenches.** Teardown is never mandatory.
+Reusing an existing worktree preserves its pre-compiled `target/` directory and
+incremental build state, saving significant build time on subsequent tasks.
+To reuse a worktree for a new task, simply reset its detached HEAD to the latest
+`origin/main` commit:
+`git checkout --detach origin/main` (and `git clean -fd` to remove untracked scratch).
+Only remove worktrees (`git worktree remove .agents/worktree/<short-name>`) when
+explicitly requested or when reclaiming disk space.
+
 Before launching a new swarm or creating a new worker, successfully fetch remote
-`main` and record its exact commit. Fast-forward a clean checkout on `main`;
-preserve dirty or non-main checkouts and create new worktrees from the fetched
-commit. New worktrees go in `<repository>/.agents/worktree/<short-name>`.
-That directory is gitignored local state. An existing checkout stays where it is. Read `AGENTS.md` and the matching skills from that updated source before
-selecting or dispatching work. A failed fetch stops the new launch; a cached
-`origin/main` is never a fallback. Each independent cloud executor repeats this
-preflight before implementation. Existing outcomes retain their worktrees and
-unpublished work, integrating fetched main at a safe checkpoint outside an
-active qualification capture. Offline plans and dry runs are previews, not a
-completed launch preflight.
+`main` (`git fetch origin main`) and record its exact commit. Do not modify, pull into,
+or fast-forward the primary checkout; preserve it intact as a stable reference.
+Create new worktrees directly from the fetched `origin/main` commit.
+Read `AGENTS.md` and the matching skills from that updated source before selecting or
+dispatching work. A failed fetch stops the new launch; a cached `origin/main` is never
+a fallback. Each independent cloud executor repeats this preflight before implementation.
+Existing outcomes retain their worktrees, unpublished work, and recorded fixed base,
+including after resumption or compaction.
+
+**Never chase main with gates or rebuilds.** Main or queue SHA movement alone never
+triggers pull, rebase, build, requalification, gate re-runs, or review. Once a PR is
+submitted, GitHub's native merge queue and Actions CI perform the integration build
+and admission check against current `main`. Authors only perform focused validation on
+their own change on their recorded worktree base. Only a demonstrated actual merge conflict,
+a concrete prerequisite or changed affected source justifies targeted local integration
+and affected checks. Postlanding verification reads the merged PR, published commit and
+CI results; it does not rebuild or rerun acceptance. Offline plans and dry runs are previews,
+not a completed launch preflight.
 
 - Give a session or subagent a complete piece of work, never a stage: the
   parent capability and remaining acceptance, its next sample and oracle,
@@ -761,29 +902,44 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
 
 ## Hard rules
 
+- **No work in primary checkout, no local branches, worktrees only.**
+  Never edit, switch branches, commit, build, or test in the primary repository checkout.
+  The primary checkout stays pinned to `main` as a pristine reference anchor. Other agents
+  and background processes rely on it remaining on `main` to pull into their worktrees.
+  All development, testing, and tool runs must take place in an isolated worktree under
+  `<repository>/.agents/worktree/<short-name>`.
+  Local branches are banned: do not create local branches (`git branch <name>`,
+  `git checkout -b <name>`, `git worktree add -b <name>`). Always create worktrees in
+  detached HEAD mode directly from the fetched `origin/main` commit:
+  `git worktree add --detach .agents/worktree/<short-name> origin/main`.
+  Submit PRs by pushing HEAD directly to origin:
+  `git push origin HEAD:refs/heads/work/<short-name>`.
+  Worktrees may be retained and reused as warm build workbenches (`git checkout --detach origin/main`)
+  to accelerate future builds, or removed (`git worktree remove <path>`) when explicitly requested
+  or reclaiming disk.
 - **Do not add required feature-combination special cases. Clean as you go.**
   Generalize the touched operation or representation and remove its superseded
   path in the same change; do not land another source-shape recognizer, fallback
   or mode with cleanup deferred to a task. Preserve genuine semantic and ABI
   distinctions. Optional optimization specialization requires a correct general
   path. See [compositional lowering](omega-rust/pipeline.md#compositional-lowering).
-  A repair counts only when the same proved fact (a length, a bound, or a loan) works through a local, a field, a parameter, a call result, a match join, a const name, a nested machine, another machine, and another target body, as pinned by the fact-place fixtures under [`tests/omega/pass/facts`](tests/omega/pass/facts) and [`tests/omega/fail/facts`](tests/omega/fail/facts). When the fact is a requirement the producing layer dropped, the sentence names the requirements recorded on the emitted value, the consuming operation uses that list, and another production that drops the same requirements stays in that fact folder.
+  A repair counts only when the same proved fact (a length, a bound, or a loan) works through a local, a field, a parameter, a call result, a match join, a const name, a nested machine, another machine, and another selected target implementation, as pinned by the fact-place fixtures under [`tests/omega/pass/facts`](tests/omega/pass/facts) and [`tests/omega/fail/facts`](tests/omega/fail/facts). When the fact is a requirement the producing layer dropped, the sentence names the requirements recorded on the emitted value, the consuming operation uses that list, and another production that drops the same requirements stays in that fact folder.
 - **Verify at trust boundaries, not after every stage.** Foreign package review
   and untrusted build-script execution verify; a stage never re-validates,
   replays or rebuilds output the same compile just produced. Verifiers stay
   exercised by the corpus runner and tests, off the default compile path. See
   [verification placement](omega-rust/pipeline.md#verification-placement).
-- **Never push to `main` directly.** Publish a finished branch as a PR and use
-  GitHub's native merge queue ([tools/landing.md](tools/landing.md)). The queue
-  checks the integrated candidate and squash-merges one PR into one main commit.
-  Do focused validation and any required review on the submitted change; do not
-  repeat author rebase/build/review merely because main or the integration SHA
-  moved. Resolve actual conflicts, failures and changed semantic premises.
-  `tools/landing.py` only observes/enqueues the native queue: no local lease,
+- **Never push to `main` directly and never chase `main` with gates.** Push candidate commits
+  directly from HEAD to a remote work branch ref (`git push origin HEAD:refs/heads/work/<name>`)
+  and open a PR using GitHub's native merge queue ([tools/landing.md](tools/landing.md)). The queue
+  integrates the candidate with latest `main`, and GitHub Actions CI performs the build and checks.
+  Do focused validation only on the author's own changes against the recorded worktree base;
+  never chase main by rebasing, rebuilding, or re-running gates merely because main or the integration
+  SHA advanced. `tools/landing.py` only observes/enqueues the native queue: no local lease,
   exact-SHA build receipt or direct-publication path remains. An open PR is not
   completion. Verify MERGED, its exact submitted head and published main commit,
-  then remove only task-owned clean worktrees/branches without later unpublished
-  edits. Preserve run identities; CI admission is not full runtime qualification.
+  then retain the worktree as a warm workbench or remove clean task-owned worktrees
+  if teardown is explicitly requested. Preserve run identities; CI admission is not full runtime qualification.
 - Before editing shared paths, check `python tools/claims.py status` and
   record a claim for your work ([tools/claims](tools/claims.md)) so other
   sessions can see it. Claims never grant or block work. If coordination is

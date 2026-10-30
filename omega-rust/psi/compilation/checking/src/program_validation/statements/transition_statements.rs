@@ -19,17 +19,8 @@ pub(super) fn validate(
     let Some(transition) = statement.as_transition() else {
         unreachable!("dispatched transition_statements")
     };
-    let StatementScope {
-        program,
-        machine,
-        state_name,
-        current_state,
-        machine_symbols,
-        symbols,
-        writable_roots,
-        transition_values,
-        ..
-    } = *scope;
+    let (program, machine, state_name, current_state, _symbols, writable_roots) = scope.reads();
+    let transition_values = scope.transition_values;
     let value_environment = &mut *outputs.value_environment;
     let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
     let diagnostics = &mut *outputs.diagnostics;
@@ -62,10 +53,9 @@ pub(super) fn validate(
         value_environment,
         transition_values.for_target(transition.target),
         transition.target,
-        machine_symbols,
-        symbols,
         writable_roots,
         diagnostics,
+        &mut arithmetic_decisions.integer_range_obligations,
     );
 
     if transition.continuation.is_valid() {
@@ -76,10 +66,9 @@ pub(super) fn validate(
             value_environment,
             transition_values.for_target(transition.continuation),
             transition.continuation,
-            machine_symbols,
-            symbols,
             writable_roots,
             diagnostics,
+            &mut arithmetic_decisions.integer_range_obligations,
         );
     }
 
@@ -87,19 +76,25 @@ pub(super) fn validate(
     // premises: the primary arm assumes the guard, the continuation
     // assumes its complement, and each crosses only its own effects.
     // Keep the ordinary guard environment for targets without values.
-    let narrowed = arithmetic_domains::guard_narrowed_environment(
-        program,
-        machine,
-        current_state,
-        &transition.guard,
-        value_environment,
+    let guard_is_always = matches!(
+        transition.guard,
+        typed_trees::statement::TransitionGuardNode::Always
     );
+    let narrowed_owned = (!guard_is_always).then(|| {
+        arithmetic_domains::guard_narrowed_environment(
+            program,
+            machine,
+            current_state,
+            &transition.guard,
+            value_environment,
+        )
+    });
 
     // Fall-through complement: an exit-if-true transition (valid
     // target, no `_` arm) leaves the guard REFUTED for every later
     // statement in this state -- the MR2 terminal-tail shape's
     // `n - 1` after `transition n == 0 { true -> exit }`.
-    if transition.target.is_valid() && !transition.continuation.is_valid() {
+    if transition.target.is_valid() && !transition.continuation.is_valid() && !guard_is_always {
         *value_environment = arithmetic_domains::fall_through_narrowed_environment(
             program,
             machine,
@@ -108,22 +103,52 @@ pub(super) fn validate(
             value_environment,
         );
     }
+    let narrowed = narrowed_owned.as_ref().unwrap_or(&*value_environment);
 
-    // A transition VALUE target (`_ -> (expr)`) is a return value. A state
-    // without a result (its own arrow absent and the machine's too) has
-    // nothing to deliver it into: the terminal arm is spelled `_ -> {}`, and
-    // lowering has no row that returns a value from a unit state.
+    // A terminal call forwards the same logical result as an ordinary call.
+    // A Unit call can complete a Unit state; a scalar/structural value still
+    // cannot escape through a state that declares no such result.
     if let Some(state) = current_state
         && !state.return_type.is_valid()
     {
         for target in transition.targets() {
-            if let TransitionTargetNode::Value(_) =
+            if let TransitionTargetNode::Value(expression) =
                 program.statement_table.transition_target(target)
             {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` state `{state_name}` transition returns a value, but the state declares no result; a terminal arm is `_ -> {{}}`",
-                    machine.name
-                )));
+                if !crate::machine_calls::calls::unit_statement_call_is_admitted(
+                    program,
+                    machine,
+                    state,
+                    *expression,
+                ) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}` state `{state_name}` transition returns a value, but the state declares no result; a terminal arm is `_ -> {{}}`",
+                        machine.name
+                    )));
+                    continue;
+                }
+                // Forwarding Unit still evaluates every call operand. Retain
+                // their formation decisions under this exact arm's facts, as
+                // for an ordinary Unit expression call or a typed return.
+                let environment = transition_values
+                    .for_target(target)
+                    .first()
+                    .unwrap_or(&narrowed);
+                arithmetic_domains::validate_value_range_retaining_decisions(
+                    program,
+                    machine,
+                    Some(state),
+                    *expression,
+                    environment,
+                    None,
+                    numerics::arithmetic::ArithmeticDomain::Exact,
+                    &format!(
+                        "machine `{}` state `{state_name}` terminal call operands",
+                        machine.name
+                    ),
+                    diagnostics,
+                    arithmetic_decisions,
+                );
             }
         }
     }
@@ -168,6 +193,7 @@ pub(super) fn validate(
                     *return_expression,
                     state.return_type,
                     diagnostics,
+                    &mut arithmetic_decisions.integer_range_obligations,
                 );
                 let return_environment = transition_values
                     .for_target(target)
@@ -199,30 +225,11 @@ pub(super) fn validate(
                     return_owner,
                     diagnostics,
                 );
-                // Nominal guard: `-> Foo { transition { _ -> (self.bar) } }`
-                // returns a `Bar` as a `Foo`.
-                expression_types::report_data_type_conflict(
-                    program,
-                    machine,
-                    Some(state),
-                    *return_expression,
-                    state.return_type,
-                    slot_context,
-                    "return value",
-                    diagnostics,
-                );
-                // Shape guard: an array returned as a scalar (or vice versa).
-                expression_types::report_array_scalar_shape_mismatch(
-                    program,
-                    machine,
-                    Some(state),
-                    *return_expression,
-                    state.return_type,
-                    slot_context,
-                    "return value",
-                    diagnostics,
-                );
-                expression_types::report_scalar_data_shape_mismatch(
+                // Nominal guard (`-> Foo { transition { _ -> (self.bar) } }` returns
+                // a `Bar` as a `Foo`), then the array/scalar shape guard (an
+                // array returned as a scalar, or vice versa) and the scalar/data
+                // one.
+                expression_types::report_place_value_mismatches(
                     program,
                     machine,
                     Some(state),

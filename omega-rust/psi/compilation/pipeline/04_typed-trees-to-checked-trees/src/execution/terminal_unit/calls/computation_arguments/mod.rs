@@ -10,7 +10,7 @@ use crate::execution::terminal_unit::ExpressionNode;
 use crate::execution::terminal_unit::Multiplicity;
 use crate::execution::terminal_unit::PrimitiveType;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, base_type_identity, borrowed_slice_view_element, dense_scalar_parameter_index,
+    base_type_identity, borrowed_slice_view_element, dense_scalar_parameter_index,
     dense_structural_parameter_index, parameter_qualifications,
     structural_access_for_type_reference,
 };
@@ -26,7 +26,8 @@ use crate::execution::terminal_unit::calls::view_subslice::{ViewKind, view_ident
 
 pub(crate) fn structural_computation_argument(
     program: &dyn ::validation::CheckingInput,
-    borrow: &checked_trees::BorrowFacts,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
+    facts: crate::flow::CapturedSubjectFacts<'_>,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     call: &checked_trees::FlowCallFact,
@@ -38,6 +39,7 @@ pub(crate) fn structural_computation_argument(
         ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
     >,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
+    let borrow = facts.borrow;
     if target.is_const {
         return None;
     }
@@ -62,7 +64,7 @@ pub(crate) fn structural_computation_argument(
         expression,
     )?;
 
-    rejoin_computation_accesses(program, borrow, machine, state.symbol, call)?;
+    rejoin_computation_accesses(program, facts, machine, state.symbol, call)?;
     exact_actual(program, call, expression, target)?;
     // Primitive loans retain the declaration's original home. Binding
     // replacement mutability selects its existing value/storage carrier,
@@ -93,7 +95,7 @@ pub(crate) fn structural_computation_argument(
             | CheckedStructuralAccess::MutableBorrow
             | CheckedStructuralAccess::WriteOnlyBorrow
     ) && let Some(argument) = borrowed_storage_argument(
-        program, borrow, machine, state, call, &place, target, selectors,
+        program, shapes, borrow, machine, state, call, &place, target, selectors,
     ) {
         return Some(argument);
     }
@@ -111,6 +113,7 @@ pub(crate) fn structural_computation_argument(
         // subtree; ownership events separately supply its live claims.
         return owned_argument(
             program,
+            shapes,
             machine,
             state,
             call.statement_index,
@@ -120,13 +123,7 @@ pub(crate) fn structural_computation_argument(
         );
     }
     let name = program.expression_table.name_path_node(named)?;
-    if !name.symbol.is_valid()
-        || name.head_symbol != name.symbol
-        || program
-            .expression_table
-            .name_path_members(name.members)
-            .len()
-            != 1
+    if !program.expression_table.name_path_is_single_member(name)
         || place.root != facts::PlaceRoot::Symbol(name.symbol)
         || !place.segments.is_empty()
     {
@@ -175,6 +172,7 @@ pub(crate) fn structural_computation_argument(
     }
     let parameter_index = dense_structural_parameter_index(program, parameters, source_position)?;
     Some(CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source: CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
         path: Vec::new(),
         type_identity: base_type_identity(program, target.type_reference, &[], &[])?,
@@ -187,10 +185,11 @@ pub(crate) fn structural_computation_argument(
 /// ordinals, which exclude the implicit receiver.
 pub(crate) fn subslice_computation_argument(
     program: &dyn ::validation::CheckingInput,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     operators: &checked_trees::CheckedOperatorFacts,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
-    borrow: &checked_trees::BorrowFacts,
+    facts: crate::flow::CapturedSubjectFacts<'_>,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     call: &checked_trees::FlowCallFact,
@@ -198,11 +197,12 @@ pub(crate) fn subslice_computation_argument(
     target: &StateParameter,
     argument_ordinal: u32,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
+    let borrow = facts.borrow;
     if target.is_const {
         return None;
     }
     exact_actual(program, call, expression, target)?;
-    rejoin_computation_accesses(program, borrow, machine, state.symbol, call)?;
+    rejoin_computation_accesses(program, facts, machine, state.symbol, call)?;
     let owner = program.machine(machine)?;
     let place = validation::canonical_place_from_expression_in_state(
         program,
@@ -227,13 +227,7 @@ pub(crate) fn subslice_computation_argument(
     } else if owner.attached_data.is_some() {
         super::ambient_self_scalar_signature(program, state)?.0
     } else {
-        super::free_structural_scalar_signature(
-            program,
-            &mut ShapeCollector::new(program),
-            state,
-            &[],
-        )?
-        .0
+        super::free_structural_scalar_signature(program, shapes, state, &[])?.0
     };
     let subslice = super::view_subslice::admit_resolved(
         program,
@@ -289,7 +283,12 @@ fn exact_actual(
         .expression_handles(authored.arguments)
         .get(target_position)
         == Some(&expression);
-    if authored.target_symbol != call.target_symbol || !exact_actual {
+    if validation::call_target_entry_symbol(
+        program,
+        validation::call_target_symbol(program, authored),
+    ) != call.target_symbol
+        || !exact_actual
+    {
         return None;
     }
     Some(())
@@ -300,6 +299,7 @@ fn exact_actual(
 /// rejoins this symbol to its dominating structural establishment.
 pub(crate) fn borrowed_storage_argument(
     program: &dyn ::validation::CheckingInput,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     borrow: &checked_trees::BorrowFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -419,18 +419,17 @@ pub(crate) fn borrowed_storage_argument(
             source,
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
         );
+    let whole_storage_type = reference;
+    let whole_storage_identity = if whole_storage {
+        shapes.add_stored_type(reference, &[], &[])?
+    } else {
+        Default::default()
+    };
     if whole_storage
-        && (!matches!(
-            program
-                .type_reference_table
-                .type_reference(validation::peel_declared_constraints(program, reference)),
-            TypeReferenceNode::Named { .. }
-                | TypeReferenceNode::Generic { .. }
-                | TypeReferenceNode::FixedArray { .. }
-        ) || !matches!(
+        && !matches!(
             program.type_multiplicity(reference),
             Multiplicity::Affine | Multiplicity::Unrestricted
-        ))
+        )
     {
         return None;
     }
@@ -438,11 +437,17 @@ pub(crate) fn borrowed_storage_argument(
     // known after the dominating operation publishes storage. Keep the root
     // with every local loan; initializer spelling cannot decide whether that
     // carrier needs a pointer crossing (ordinary call results need it too).
-    let mut shapes = ShapeCollector::new(program);
     if let CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } = source {
         source = CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
             symbol,
-            root_type_identity: shapes.add_type(reference, &[], &[])?,
+            root_type_identity: if place.segments.is_empty() {
+                // The final endpoint below replaces this whole-root identity.
+                // Do not eagerly demand an obsolete all-shell backing shape.
+                whole_storage_identity
+            } else {
+                shapes.add_logical_type(reference, &[], &[])?
+            },
+            root_reference_hops: 0,
         };
     }
     let (reference, path) = if place.segments.is_empty() {
@@ -463,6 +468,34 @@ pub(crate) fn borrowed_storage_argument(
         path,
         target.type_reference,
     )?;
+    let identity = if reference == whole_storage_type && whole_storage_identity.is_valid() {
+        whole_storage_identity
+    } else {
+        shapes.add_stored_type(reference, &[], &[])?
+    };
+    if place.segments.is_empty()
+        && let CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
+            root_type_identity,
+            root_reference_hops,
+            ..
+        } = &mut source
+    {
+        // Only borrowed_argument_endpoint appended these whole-root crossings;
+        // projected field/element suffixes never contribute to this prefix.
+        if !path.iter().all(|step| {
+            matches!(
+                step,
+                checked_trees::CheckedUnitStructuralPathSegment::Referent
+            )
+        }) {
+            return None;
+        }
+        // Whole-root forwarding may stop at an inner descriptor. Normalize
+        // only to that exact stored endpoint, not through it to the final
+        // backing. The retained path count consumes only producer-spelled hops.
+        *root_type_identity = identity;
+        *root_reference_hops = u32::try_from(path.len()).ok()?;
+    }
     // Access belongs to the exact checked loan below, not just the root's
     // mutability. An immutable aggregate can own a mutable descriptor whose
     // backing is loaned by this call; borrowing that descriptor's storage or
@@ -470,7 +503,6 @@ pub(crate) fn borrowed_storage_argument(
     // Eligibility belongs to the borrowed endpoint, not its unrelated siblings.
     // Root membership/access and the exact authored receiver loan are retained
     // independently; this never constructs or copies the enclosing record.
-    let identity = shapes.add_type(reference, &[], &[])?;
     // Borrow the established endpoint in place, including its shared view and
     // provider members. Contents are classified recursively from authored types:
     // the old shape whitelist erased slice access and made valid loans depend
@@ -504,12 +536,12 @@ pub(crate) fn borrowed_storage_argument(
         presentation_identity,
         &[],
     )?;
-    // BorrowedStorage already classifies the complete qualified endpoint.
-    // Requiring RepresentedOwned only when qualifications were present made
-    // an ordinary loan of a routed linear payload depend on owned-value
-    // eligibility. Lending it neither copies nor transfers that obligation.
-    // The evaluated path, receiving memberships and exact loan retain their
-    // independent active-case, qualification and access checks.
+    // BorrowedStorage classifies the complete qualified endpoint. Lending
+    // a routed linear payload does not require owned-value eligibility and
+    // neither copies nor transfers its obligation. Register its receiving
+    // qualification theories independently of backing and exact loan access;
+    // this shapes their carriers without introducing any membership evidence.
+    parameter_qualifications(program, shapes, reference, &[])?;
     if !borrowed_referent {
         return None;
     }
@@ -531,6 +563,7 @@ pub(crate) fn borrowed_storage_argument(
     // do: a fixed byte array loan uses a bounded byte view, while its owned
     // backing remains a fixed array.
     Some(CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source,
         path,
         type_identity: presentation_identity,
@@ -663,6 +696,7 @@ pub(in crate::execution) fn borrowed_view_argument(
         return None;
     }
     Some(CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source,
         path,
         type_identity: identity,
@@ -675,6 +709,7 @@ pub(in crate::execution) fn borrowed_view_argument(
 /// Neither operation acquires disposal authority from its storage classification.
 fn owned_argument(
     program: &dyn ::validation::CheckingInput,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -743,14 +778,13 @@ fn owned_argument(
     }) {
         return None;
     }
-    let mut shapes = ShapeCollector::new(program);
     for reference in [selected_type, target.type_reference] {
         // Calls transport established values, including linear obligations and
         // nominal cleanup. Plain-content classifications grant different
         // operations and reject those carriers. Collect their stored shape and
         // qualifications here; the checked call and exact transfer roster own
         // membership, loans and consumption, just as for statement calls.
-        parameter_qualifications(program, &mut shapes, reference, &[])?;
+        parameter_qualifications(program, shapes, reference, &[])?;
         shapes.add_stored_type(reference, &[], &[])?;
         let storage = validation::peel_declared_constraints(program, reference);
         if program.primitive_type_reference(storage).is_some()
@@ -770,6 +804,7 @@ fn owned_argument(
         return None;
     }
     Some(CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source,
         path,
         type_identity,
@@ -781,13 +816,15 @@ fn owned_argument(
 /// with the existing collector so scalar reads occupy their actual positions.
 fn rejoin_computation_accesses(
     program: &dyn ::validation::CheckingInput,
-    borrow: &checked_trees::BorrowFacts,
+    facts: crate::flow::CapturedSubjectFacts<'_>,
     machine: SymbolHandle,
     state: SymbolHandle,
     source: &checked_trees::FlowCallFact,
 ) -> Option<()> {
     if !matches!(
-        crate::borrow::accesses::rejoin_call_accesses(program, borrow, machine, state, source,)?,
+        crate::borrow::accesses::rejoin_expression_call_accesses(
+            program, facts, machine, state, source,
+        )?,
         validation::CallSite::Expression { .. }
     ) {
         return None;
@@ -859,6 +896,7 @@ pub(super) fn primitive_local_argument(
         return None;
     }
     Some(CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source: if local.is_mutable {
             CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol }
         } else {

@@ -26,6 +26,22 @@ pub struct OptimizationDecisionRecord {
     validator: Option<OptimizationValidatorIdentity>,
 }
 
+crate::record_views! {
+    record OptimizationDecisionRecord;
+    shared {
+        identity: OptimizationDecisionIdentity,
+        input: OptimizationUnitIdentity,
+        candidate: OptimizationCandidateIdentity,
+        rule: OptimizationRuleIdentity,
+        verdict: OptimizationCandidateVerdict,
+        consumed_analyses: AnalysisSet,
+        validator: Option<OptimizationValidatorIdentity>,
+    }
+    slice {
+        consumed_facts: OptimizationFactReference,
+    }
+}
+
 impl OptimizationDecisionRecord {
     pub fn new(
         input: OptimizationUnitIdentity,
@@ -91,38 +107,6 @@ impl OptimizationDecisionRecord {
         encoded
     }
 
-    pub const fn identity(&self) -> OptimizationDecisionIdentity {
-        self.identity
-    }
-
-    pub const fn input(&self) -> OptimizationUnitIdentity {
-        self.input
-    }
-
-    pub const fn candidate(&self) -> OptimizationCandidateIdentity {
-        self.candidate
-    }
-
-    pub const fn rule(&self) -> OptimizationRuleIdentity {
-        self.rule
-    }
-
-    pub const fn verdict(&self) -> OptimizationCandidateVerdict {
-        self.verdict
-    }
-
-    pub const fn consumed_analyses(&self) -> AnalysisSet {
-        self.consumed_analyses
-    }
-
-    pub fn consumed_facts(&self) -> &[OptimizationFactReference] {
-        &self.consumed_facts
-    }
-
-    pub const fn validator(&self) -> Option<OptimizationValidatorIdentity> {
-        self.validator
-    }
-
     pub fn decode(encoded: &[u8]) -> Result<Self, OptimizationManifestDecodeError> {
         let mut cursor = Cursor::new(encoded);
         if cursor.take(8)? != DECISION_WIRE_FORMAT.magic {
@@ -140,10 +124,7 @@ impl OptimizationDecisionRecord {
             .map_err(OptimizationManifestDecodeError::CoreContract)?;
         let consumed_analyses = AnalysisSet::decode(cursor.take(8)?)
             .map_err(OptimizationManifestDecodeError::CoreContract)?;
-        let fact_count = cursor.u32()? as usize;
-        if fact_count > cursor.remaining().saturating_sub(1) / 33 {
-            return Err(OptimizationManifestDecodeError::Truncated);
-        }
+        let fact_count = cursor.counted(OptimizationFactReference::ENCODED_LENGTH)?;
         let mut consumed_facts = Vec::with_capacity(fact_count);
         for _ in 0..fact_count {
             consumed_facts.push(

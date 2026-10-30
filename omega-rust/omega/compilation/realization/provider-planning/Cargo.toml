@@ -9,8 +9,9 @@ name = "provider_planning"
 path = "src/lib.rs"
 
 [dependencies]
+provider-selection = { path = "../provider-selection" }
+evaluation-accounting = { path = "../../../../psi/foundation/evaluation-accounting" }
 optimization-core = { path = "../../../foundation/optimization-core" }
-typed-trees = { path = "../../../../psi/compilation/representations/typed-trees" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
 component-description = { path = "../../backend/artifacts/component-description" }
@@ -20,7 +21,6 @@ package-compilation = { path = "../../../packages/compilation-inputs" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 representation-planning = { path = "../../../../psi/compilation/checking/representation-planning" }
 target = { path = "../../backend/target" }
-task-plans = { path = "../../backend/runtime/task-plans" }
 arena = { path = "../../../../psi/foundation/arena" }
 build-time-evaluation = { path = "../../../../psi/compilation/compile-time" }
 checked-trees = { path = "../../../../psi/compilation/representations/checked-trees" }

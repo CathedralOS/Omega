@@ -115,6 +115,24 @@ impl Builder<'_, '_> {
             });
         }
 
+        if self.uses_captured_dispatch_value(expression) {
+            let reference = validation::expression_type_reference_in_state(
+                self.program,
+                self.state,
+                self.statement_index,
+                expression,
+            )?;
+            let primitive = self.program.primitive_type_reference(reference)?;
+            if !is_integer(primitive) || expected.is_some_and(|expected| expected != primitive) {
+                return None;
+            }
+            return Some(IntegerOperand {
+                value: parameter(0, primitive),
+                value_source: ExpressionHandle::invalid(),
+                domain: self.program.arithmetic_domain_for_type_reference(reference),
+                computation: self.completed_scalar_observation(expression, primitive)?,
+            });
+        }
         if let Some(observation) = self.primitive_reference_observation_type(expression) {
             if !is_integer(observation.primitive_type) {
                 return None;
@@ -195,6 +213,7 @@ impl Builder<'_, '_> {
         // explicit declaration substitution must reach the graph operands
         // before any whole-expression shortcut can choose a scalar lane.
         if !self.has_declaration_binding(expression)
+            && !self.observes_captured_dispatch_value(expression)
             && !semantic_casts::requires_custody(self.program, self.state, expression)
             && let Some((value, domain)) = lower_scalar_expression(
                 self.program,
@@ -305,6 +324,7 @@ impl Builder<'_, '_> {
                     right.value,
                     right.domain,
                     self.operators.formation_is_decided(expression),
+                    self.operators.is_trap_free(expression),
                 )?;
                 let CheckedScalarExpression::IntegerBinary {
                     kind,
@@ -312,6 +332,7 @@ impl Builder<'_, '_> {
                     left: landed_left,
                     right: landed_right,
                     formation_decided,
+                    trap_free,
                 } = value
                 else {
                     return None;
@@ -332,6 +353,7 @@ impl Builder<'_, '_> {
                         left: Box::new(parameter(0, left_type)),
                         right: Box::new(parameter(1, right_type)),
                         formation_decided,
+                        trap_free,
                     },
                     domain,
                     [left, right],
@@ -503,7 +525,7 @@ impl Builder<'_, '_> {
 
     /// An operand with no carrier of its own, landed at `destination`: an
     /// anonymous scalar tree directly, a match through its selected arms.
-    fn anonymous_operand(
+    pub(super) fn anonymous_operand(
         &mut self,
         expression: ExpressionHandle,
         destination: PrimitiveType,

@@ -1,5 +1,5 @@
 // Fact: querying size_of and align_of on a two-field u64 structural record (Pair { lo: u64, hi: u64 }) establishes its exact layout geometry (size == 16u64 and align == 8u64), discharging exact subtraction size - (align * 2u64) across all nine places.
-// Invalid: Pair has a single field lo: u64 (size == 8u64, align == 8u64), so PAIR_SIZE - (PAIR_ALIGN * 2u64) underflows u64.
+// Place: const name. Named constants evaluate size_of and align_of before subtracting.
 // Expected exit: 0
 
 data Pair {
@@ -11,10 +11,10 @@ const PAIR_ALIGN: u64 = align_of<Pair>();
 
 machine main() crashes Trap {
     let diff: u64 = PAIR_SIZE - (PAIR_ALIGN * 2u64);
-    transition diff == 0 {
+    transition diff == 0 && PAIR_SIZE == 16u64 && PAIR_ALIGN == 8u64 {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

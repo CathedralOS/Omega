@@ -19,51 +19,51 @@ blocks;
 crashes Trap
 {
     transition { _ -> input(application, 0) }
-    state input(application: &mut Spectrometer, index: i32 in Wrapping) {
+    machine input(application: &mut Spectrometer, index: i32 in Wrapping) {
         transition index >= 0 && index < 27 {
             true -> token(application, index)
             false -> trailing(application)
         }
     }
-    state token(application: &mut Spectrometer, index: i32 in Wrapping) {
+    machine token(application: &mut Spectrometer, index: i32 in Wrapping) {
         transition block read_integer(application) {
             IntegerRead::Value { value } -> store(application, index, value)
             _ -> invalid(application)
         }
     }
-    state store(application: &mut Spectrometer, index: i32 in Wrapping,
+    machine store(application: &mut Spectrometer, index: i32 in Wrapping,
                 value: i32 in Wrapping) {
         application.raw[index] = value;
         transition { _ -> input(application, index + 1) }
     }
-    state trailing(application: &mut Spectrometer) {
+    machine trailing(application: &mut Spectrometer) {
         transition block read_integer(application) {
             IntegerRead::End -> validate(application)
             _ -> invalid(application)
         }
     }
-    state validate(application: &mut Spectrometer) {
+    machine validate(application: &mut Spectrometer) {
         transition load_spectrum(application) {
             true -> analyze(application)
             false -> invalid(application)
         }
     }
-    state analyze(application: &mut Spectrometer) {
+    machine analyze(application: &mut Spectrometer) {
         transition find_regions(&application.spectrum, &mut application.regions) {
             true -> report(application)
             false -> capacity(application)
         }
     }
-    state report(application: &mut Spectrometer) {
+    machine report(application: &mut Spectrometer) {
         match_regions(&application.spectrum, &mut application.regions);
         print_report(application);
         Console::exit_process(0);
     }
-    state invalid(application: &mut Spectrometer) {
+    machine invalid(application: &mut Spectrometer) {
         Console::write_line("invalid spectrum input");
         Console::exit_process(2);
     }
-    state capacity(application: &mut Spectrometer) {
+    machine capacity(application: &mut Spectrometer) {
         Console::write_line("region capacity exceeded");
         Console::exit_process(3);
     }

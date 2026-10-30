@@ -6,7 +6,7 @@ machine forward(value: f32, ignored: u64) -> f32
 crashes Trap value != 0.0
 {
     transition value != 0.0 { true -> bad() false -> (value) }
-    state bad() { crash Trap; }
+    machine bad() -> f32 { crash Trap; }
 }
 public machine probe() -> u64 {
     let mut source: f32 = 0.0;

@@ -1,5 +1,5 @@
 // Valid bounds do not authorize breaking the borrowed owner's ASCII domain.
-domain [u8; 2]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 2]::Ascii requires ascii_only(self);
 
 machine main() {
     let mut bytes: [u8; 2] in Ascii = "ab";
@@ -11,7 +11,7 @@ machine corrupt(bytes: &mut [u8; 2] in Ascii) -> bool {
         true -> write(bytes, true)
         _ -> false
     }
-    state write(bytes: &mut [u8; 2] in Ascii, repeat: bool) -> bool {
+    machine write(bytes: &mut [u8; 2] in Ascii, repeat: bool) -> bool {
         bytes[0] = 255;
         transition repeat {
             true -> write(bytes, false)

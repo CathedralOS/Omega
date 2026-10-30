@@ -1,12 +1,12 @@
 //! Optimizer module role: proposal leaf. Direct certificate-owned constant construction.
 
 use super::{
-    BlockId, CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
-    CountdownInvariantConstantRole, CountdownInvariantIntegerConstant, IntegerType, IntegerValue,
-    MachineId, NodeLocation, O, OperationId, OptimizerUnsignedCountdownRankingCertificate,
-    PsiOptimizationFunction, PsiOptimizationUnit, ScalarType, UnsignedCountdownInvariantConstants,
-    ValidatedCountedLoopAnalysis, ValidatedOptimizerCycleComponents, ValueDefinitionSite, ValueId,
-    recompute_psi_optimization_unit_identity, unsupported, validate_locations,
+    AnalysisRoot, CountdownInvariantConstantAnalysisError,
+    CountdownInvariantConstantAnalysisSnapshot, CountdownInvariantConstantRole,
+    CountdownInvariantIntegerConstant, O, OptimizerUnsignedCountdownRankingCertificate,
+    PsiOptimizationFunction, PsiOptimizationUnit, UnsignedCountdownInvariantConstants,
+    ValidatedCountedLoopAnalysis, ValidatedOptimizerCycleComponents, expected_constant,
+    invariant_constant_row, validate_analysis_root, validate_locations,
 };
 pub(super) fn propose(
     unit: &PsiOptimizationUnit,
@@ -54,18 +54,21 @@ pub(super) fn propose(
         });
     }
     Ok(CountdownInvariantConstantAnalysisSnapshot {
-        revision: unit.identity,
-        terminal_psi: unit.psi,
+        root: AnalysisRoot::of(unit),
         loops,
     })
 }
 
+/// The certified occurrence the operation shape admits: exactly one
+/// `IntegerConstant` in the function carries the role's operation. The
+/// acceptance replay reaches the same node through provenance instead, so the
+/// two sides keep independent discoveries of one row.
 fn locate(
     function: &PsiOptimizationFunction,
     certificate: &OptimizerUnsignedCountdownRankingCertificate,
     role: CountdownInvariantConstantRole,
 ) -> Result<CountdownInvariantIntegerConstant, CountdownInvariantConstantAnalysisError> {
-    let (operation, result, value) = expected(certificate, role);
+    let expected = expected_constant(certificate, role);
     let mut matches = function
         .blocks
         .iter()
@@ -76,105 +79,22 @@ fn locate(
                 .enumerate()
                 .map(move |(node, value)| (block.id, node, value))
         })
-        .filter(|(_, _, node)| match node.operation {
-            O::IntegerConstant { psi_operation, .. } => psi_operation == operation,
-            _ => false,
+        .filter(|(_, _, node)| {
+            matches!(
+                node.operation,
+                O::IntegerConstant { psi_operation, .. } if psi_operation == expected.operation
+            )
         });
     let Some((block, node_index, node)) = matches.next() else {
-        return Err(unsupported(function.machine, operation));
+        return Err(unsupported(function.machine, expected.operation));
     };
     if matches.next().is_some() {
-        return Err(unsupported(function.machine, operation));
+        return Err(unsupported(function.machine, expected.operation));
     }
-    row(
-        function.machine,
-        block,
-        node_index,
-        node,
-        role,
-        operation,
-        result,
-        certificate.rank_type,
-        value,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn row(
-    machine: MachineId,
-    block: BlockId,
-    node_index: usize,
-    node: &optimization_unit::OptimizationNode,
-    role: CountdownInvariantConstantRole,
-    expected_operation: OperationId,
-    expected_result: ValueId,
-    expected_type: IntegerType,
-    expected_value: IntegerValue,
-) -> Result<CountdownInvariantIntegerConstant, CountdownInvariantConstantAnalysisError> {
-    let location = NodeLocation {
-        machine,
-        block,
-        node: u32::try_from(node_index).map_err(|_| unsupported(machine, expected_operation))?,
-    };
-    let O::IntegerConstant {
-        psi_operation,
-        result,
-        scalar_type: ScalarType::Integer(scalar_type),
-        value,
-    } = node.operation
-    else {
-        return Err(unsupported(machine, expected_operation));
-    };
-    let [definition] = node.definitions.as_slice() else {
-        return Err(unsupported(machine, psi_operation));
-    };
-    if psi_operation != expected_operation
-        || result != expected_result
-        || scalar_type != expected_type
-        || value != expected_value
-        || definition.value != result
-        || definition.scalar_type != ScalarType::Integer(scalar_type)
-        || definition.site
-            != (ValueDefinitionSite::Node {
-                block,
-                node: location.node,
-            })
-        || !node.uses.is_empty()
-        || !node.successors.is_empty()
-        || !node.ownership.is_empty()
-    {
-        return Err(unsupported(machine, psi_operation));
-    }
-    Ok(CountdownInvariantIntegerConstant {
-        role,
-        location,
-        psi_operation,
-        result,
-        scalar_type,
-        value,
-        definition: *definition,
-        provenance: node.provenance.clone(),
-        fuel: node.fuel.clone(),
-        effect: node.effect,
-    })
-}
-
-fn expected(
-    certificate: &OptimizerUnsignedCountdownRankingCertificate,
-    role: CountdownInvariantConstantRole,
-) -> (OperationId, ValueId, IntegerValue) {
-    match role {
-        CountdownInvariantConstantRole::PositiveGuardZero => (
-            certificate.guard.zero_operation,
-            certificate.guard.zero,
-            IntegerValue::Unsigned(0),
-        ),
-        CountdownInvariantConstantRole::BackedgeDecrementOne => (
-            certificate.descent.one_operation,
-            certificate.descent.one,
-            IntegerValue::Unsigned(1),
-        ),
-    }
+    let node_index =
+        u32::try_from(node_index).map_err(|_| unsupported(function.machine, expected.operation))?;
+    invariant_constant_row(function, block, node_index, node, role, expected)
+        .ok_or_else(|| unsupported(function.machine, expected.operation))
 }
 
 fn validate_roots(
@@ -182,26 +102,19 @@ fn validate_roots(
     custody: &ValidatedOptimizerCycleComponents,
     counted: &ValidatedCountedLoopAnalysis,
 ) -> Result<(), CountdownInvariantConstantAnalysisError> {
-    let recomputed = recompute_psi_optimization_unit_identity(unit);
-    if recomputed != unit.identity {
-        return Err(CountdownInvariantConstantAnalysisError::StaleUnitIdentity {
-            stored: unit.identity,
-            recomputed,
-        });
-    }
-    if unit.psi != custody.terminal_psi()
-        || unit.psi != custody.ranking_certificates().snapshot().terminal_psi
-        || unit.psi != counted.snapshot().terminal_psi
-    {
-        return Err(CountdownInvariantConstantAnalysisError::TerminalIdentityMismatch);
-    }
-    if counted.snapshot().revision != unit.identity {
-        return Err(CountdownInvariantConstantAnalysisError::CountedLoopRevisionMismatch);
-    }
+    validate_analysis_root(unit, custody, &[counted.snapshot().root])
+        .map_err(CountdownInvariantConstantAnalysisError::Root)?;
     // The counted roster covers exactly the certified subset of the validated
     // SCC roster; uncertified components carry no countdown custody.
     if custody.ranking_certificates().certificates().len() != counted.loops().len() {
         return Err(CountdownInvariantConstantAnalysisError::ComponentRosterMismatch);
     }
     Ok(())
+}
+
+fn unsupported(
+    machine: semantic_vocabulary::MachineId,
+    operation: semantic_vocabulary::OperationId,
+) -> CountdownInvariantConstantAnalysisError {
+    CountdownInvariantConstantAnalysisError::UnsupportedInvariantConstant { machine, operation }
 }

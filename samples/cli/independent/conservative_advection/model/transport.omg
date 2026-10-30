@@ -20,11 +20,11 @@ public data Field {
 public machine finite(value:f64) -> bool { value == value && value-value == 0.0 }
 machine integer(coefficient:u64 in Wrapping,power:i32 in Wrapping) -> bool {
  transition power >= 0 || coefficient == 0 { true -> good() false -> fraction(coefficient,power) }
- state fraction(coefficient:u64 in Wrapping,power:i32 in Wrapping) -> bool {
+ machine fraction(coefficient:u64 in Wrapping,power:i32 in Wrapping) -> bool {
   transition coefficient%10 == 0 { true -> integer(coefficient/10,power+1) false -> bad() }
  }
- state good() -> bool { true }
- state bad() -> bool { false }
+ machine good() -> bool { true }
+ machine bad() -> bool { false }
 }
 public machine initialize(input:&io::input::Input,field:&mut Field) -> bool {
  transition input.count >= 9 && input.values[0] == input.values[0] && input.values[1] == input.values[1]
@@ -34,7 +34,7 @@ public machine initialize(input:&io::input::Input,field:&mut Field) -> bool {
   && input.values[3] > 0.0 && input.values[4] > 0.0 {
   true -> dimensions(input,field) false -> bad()
  }
- state dimensions(input:&io::input::Input,field:&mut Field) -> bool
+ machine dimensions(input:&io::input::Input,field:&mut Field) -> bool
  requires input.values[0] == input.values[0] && input.values[1] == input.values[1] && input.values[0] >= 4.0 && input.values[0] <= 64.0 && input.values[1] >= 0.0 && input.values[1] <= 256.0 {
   let count:u32 in Saturating=U32::from_f64(input.values[0]);
   field.count=count;
@@ -43,11 +43,11 @@ public machine initialize(input:&io::input::Input,field:&mut Field) -> bool {
   field.spacing_mantissa=input.mantissas[3]; field.spacing_power=input.powers[3];
   transition input.count == field.count+5 { true -> stability(input,field) false -> bad() }
  }
- state stability(input:&io::input::Input,field:&mut Field) -> bool {
+ machine stability(input:&io::input::Input,field:&mut Field) -> bool {
   let relation:i32 in Wrapping=model::courant::classify(input);
   transition relation <= 0 { true -> fraction(input,field,relation) false -> bad() }
  }
- state fraction(input:&io::input::Input,field:&mut Field,relation:i32 in Wrapping) -> bool {
+ machine fraction(input:&io::input::Input,field:&mut Field,relation:i32 in Wrapping) -> bool {
   let magnitude:f64=match relation == 0 { true -> 1.0 false -> model::scale::courant(input.mantissas[2],input.powers[2],input.mantissas[3],input.powers[3],input.mantissas[4],input.powers[4]) };
   // Exact classification decides admission. A rounded interior quotient may
   // reach an endpoint; clamp only that already-proven stable approximation.
@@ -57,14 +57,14 @@ public machine initialize(input:&io::input::Input,field:&mut Field) -> bool {
   field.exact=field.steps == 0 || input.coefficients[2] == 0 || relation == 0;
   transition finite(field.cfl) && finite(field.local_weight) && field.local_weight >= 0.0 && field.local_weight <= 1.0 { true -> scan(input,field,0) false -> bad() }
  }
- state scan(input:&io::input::Input,field:&mut Field,index:u32 in Saturating) -> bool {
+ machine scan(input:&io::input::Input,field:&mut Field,index:u32 in Saturating) -> bool {
   transition index < field.count { true -> check(input,field,index) false -> good() }
  }
- state check(input:&io::input::Input,field:&mut Field,index:u32 in Saturating) -> bool {
+ machine check(input:&io::input::Input,field:&mut Field,index:u32 in Saturating) -> bool {
   let value:f64=input.values[(index+5)%69];
   transition finite(value) && (!input.negative[(index+5)%69] || input.coefficients[(index+5)%69] == 0) { true -> copy(input,field,index) false -> bad() }
  }
- state copy(input:&io::input::Input,field:&mut Field,index:u32 in Saturating) -> bool {
+ machine copy(input:&io::input::Input,field:&mut Field,index:u32 in Saturating) -> bool {
   let mut parts:scale::Scale;
   model::scale::normalize(input.mantissas[(index+5)%69],&mut parts);
   field.current[index%64]=parts.mantissa;
@@ -73,41 +73,41 @@ public machine initialize(input:&io::input::Input,field:&mut Field) -> bool {
   field.original_powers[index%64]=input.powers[(index+5)%69];
   transition index == 0 { true -> bounds(input,field,index) false -> lower(input,field,index) }
  }
- state bounds(input:&io::input::Input,field:&mut Field,index:u32 in Saturating) -> bool {
+ machine bounds(input:&io::input::Input,field:&mut Field,index:u32 in Saturating) -> bool {
   field.lower_coefficient=input.coefficients[(index+5)%69]; field.lower_power=input.powers[(index+5)%69];
   field.lower_value=field.current[index%64]; field.lower_value_power=field.powers[index%64];
   field.upper_coefficient=field.lower_coefficient; field.upper_power=field.lower_power;
   field.upper_value=field.lower_value; field.upper_value_power=field.lower_value_power;
   transition { _ -> scan(input,field,index+1) }
  }
- state lower(input:&io::input::Input,field:&mut Field,index:u32 in Saturating) -> bool {
+ machine lower(input:&io::input::Input,field:&mut Field,index:u32 in Saturating) -> bool {
   transition model::courant::compare_decimal(input.coefficients[(index+5)%69],input.powers[(index+5)%69],field.lower_coefficient,field.lower_power) < 0 { true -> set_lower(input,field,index) false -> upper(input,field,index) }
  }
- state set_lower(input:&io::input::Input,field:&mut Field,index:u32 in Saturating) -> bool {
+ machine set_lower(input:&io::input::Input,field:&mut Field,index:u32 in Saturating) -> bool {
   field.lower_coefficient=input.coefficients[(index+5)%69]; field.lower_power=input.powers[(index+5)%69];
   field.lower_value=field.current[index%64]; field.lower_value_power=field.powers[index%64];
   transition { _ -> upper(input,field,index) }
  }
- state upper(input:&io::input::Input,field:&mut Field,index:u32 in Saturating) -> bool {
+ machine upper(input:&io::input::Input,field:&mut Field,index:u32 in Saturating) -> bool {
   transition model::courant::compare_decimal(input.coefficients[(index+5)%69],input.powers[(index+5)%69],field.upper_coefficient,field.upper_power) > 0 { true -> set_upper(input,field,index) false -> scan(input,field,index+1) }
  }
- state set_upper(input:&io::input::Input,field:&mut Field,index:u32 in Saturating) -> bool {
+ machine set_upper(input:&io::input::Input,field:&mut Field,index:u32 in Saturating) -> bool {
   field.upper_coefficient=input.coefficients[(index+5)%69]; field.upper_power=input.powers[(index+5)%69];
   field.upper_value=field.current[index%64]; field.upper_value_power=field.powers[index%64];
   transition { _ -> scan(input,field,index+1) }
  }
- state good() -> bool { true }
- state bad() -> bool { false }
+ machine good() -> bool { true }
+ machine bad() -> bool { false }
 }
 public machine evolve(field:&mut Field) {
  transition { _ -> step(field,0) }
- state step(field:&mut Field,iteration:u32 in Saturating) {
+ machine step(field:&mut Field,iteration:u32 in Saturating) {
   transition iteration < field.steps && field.cfl != 0.0 { true -> cells(field,iteration,0) false -> summarize(field) }
  }
- state cells(field:&mut Field,iteration:u32 in Saturating,index:u32 in Saturating) {
+ machine cells(field:&mut Field,iteration:u32 in Saturating,index:u32 in Saturating) {
   transition index < field.count { true -> update(field,iteration,index) false -> commit(field,iteration,0) }
  }
- state update(field:&mut Field,iteration:u32 in Saturating,index:u32 in Saturating) {
+ machine update(field:&mut Field,iteration:u32 in Saturating,index:u32 in Saturating) {
   let left:u32 in Saturating=match index == 0 { true -> field.count-1 false -> index-1 };
   let right:u32 in Saturating=match index+1 == field.count { true -> 0 false -> index+1 };
   let upstream:u32 in Saturating=match field.cfl >= 0.0 { true -> left false -> right };
@@ -116,12 +116,12 @@ public machine evolve(field:&mut Field) {
   // source CFL-one classification may shift the complete representations.
   transition field.exact && fraction == 1.0 { true -> shift(field,iteration,index,upstream) false -> convex(field,iteration,index,upstream,fraction) }
  }
- state shift(field:&mut Field,iteration:u32 in Saturating,index:u32 in Saturating,upstream:u32 in Saturating) {
+ machine shift(field:&mut Field,iteration:u32 in Saturating,index:u32 in Saturating,upstream:u32 in Saturating) {
   field.next[index%64]=field.current[upstream%64]; field.next_powers[index%64]=field.powers[upstream%64];
   field.next_coefficients[index%64]=field.coefficients[upstream%64]; field.next_original_powers[index%64]=field.original_powers[upstream%64];
   transition { _ -> cells(field,iteration,index+1) }
  }
- state convex(field:&mut Field,iteration:u32 in Saturating,index:u32 in Saturating,upstream:u32 in Saturating,fraction:f64) {
+ machine convex(field:&mut Field,iteration:u32 in Saturating,index:u32 in Saturating,upstream:u32 in Saturating,fraction:f64) {
   let power:i32 in Wrapping=match field.current[index%64] == 0.0 { true -> field.powers[upstream%64] false -> match field.current[upstream%64] == 0.0 { true -> field.powers[index%64] false -> match field.powers[index%64] > field.powers[upstream%64] { true -> field.powers[index%64] false -> field.powers[upstream%64] } } };
   let local:f64=model::scale::apply(field.current[index%64],field.powers[index%64]-power);
   let incoming:f64=model::scale::apply(field.current[upstream%64],field.powers[upstream%64]-power);
@@ -130,10 +130,10 @@ public machine evolve(field:&mut Field) {
   field.next[index%64]=parts.mantissa; field.next_powers[index%64]=power+parts.exponent;
   transition { _ -> cells(field,iteration,index+1) }
  }
- state commit(field:&mut Field,iteration:u32 in Saturating,index:u32 in Saturating) {
+ machine commit(field:&mut Field,iteration:u32 in Saturating,index:u32 in Saturating) {
   transition index < field.count { true -> replace(field,iteration,index) false -> step(field,iteration+1) }
  }
- state replace(field:&mut Field,iteration:u32 in Saturating,index:u32 in Saturating) {
+ machine replace(field:&mut Field,iteration:u32 in Saturating,index:u32 in Saturating) {
   field.current[index%64]=field.next[index%64]; field.powers[index%64]=field.next_powers[index%64];
   field.coefficients[index%64]=field.next_coefficients[index%64]; field.original_powers[index%64]=field.next_original_powers[index%64];
   transition { _ -> commit(field,iteration,index+1) }
@@ -144,39 +144,39 @@ machine summarize(field:&mut Field) {
  field.minimum=field.current[0]; field.minimum_exponent=field.powers[0]; field.minimum_index=0;
  field.maximum=field.current[0]; field.maximum_exponent=field.powers[0]; field.maximum_index=0;
  transition { _ -> scan(field,0) }
- state scan(field:&mut Field,index:u32 in Saturating) {
+ machine scan(field:&mut Field,index:u32 in Saturating) {
   transition index < field.count { true -> cell(field,index) false -> mass(field) }
  }
- state cell(field:&mut Field,index:u32 in Saturating) {
+ machine cell(field:&mut Field,index:u32 in Saturating) {
   transition model::scale::less(field.current[index%64],field.powers[index%64],field.minimum,field.minimum_exponent) { true -> minimum(field,index) false -> upper(field,index) }
  }
- state minimum(field:&mut Field,index:u32 in Saturating) {
+ machine minimum(field:&mut Field,index:u32 in Saturating) {
   field.minimum=field.current[index%64]; field.minimum_exponent=field.powers[index%64]; field.minimum_index=index;
   transition { _ -> upper(field,index) }
  }
- state upper(field:&mut Field,index:u32 in Saturating) {
+ machine upper(field:&mut Field,index:u32 in Saturating) {
   transition model::scale::less(field.maximum,field.maximum_exponent,field.current[index%64],field.powers[index%64]) { true -> maximum(field,index) false -> scan(field,index+1) }
  }
- state maximum(field:&mut Field,index:u32 in Saturating) {
+ machine maximum(field:&mut Field,index:u32 in Saturating) {
   field.maximum=field.current[index%64]; field.maximum_exponent=field.powers[index%64]; field.maximum_index=index;
   transition { _ -> scan(field,index+1) }
  }
- state mass(field:&mut Field) {
+ machine mass(field:&mut Field) {
   transition field.maximum > 0.0 { true -> begin_mass(field) false -> done() }
  }
- state begin_mass(field:&mut Field) {
+ machine begin_mass(field:&mut Field) {
   let mut spacing:scale::Scale; model::scale::normalize(field.spacing_mantissa,&mut spacing);
   field.mass_exponent=field.maximum_exponent+spacing.exponent+field.spacing_power;
   let factor:f64=field.maximum*spacing.mantissa;
   transition { _ -> mass_cells(field,0,0.0,factor) }
  }
- state mass_cells(field:&mut Field,index:u32 in Saturating,total:f64,factor:f64) {
+ machine mass_cells(field:&mut Field,index:u32 in Saturating,total:f64,factor:f64) {
   transition index < field.count { true -> mass_cell(field,index,total,factor) false -> finish_mass(field,total,factor) }
  }
- state mass_cell(field:&mut Field,index:u32 in Saturating,total:f64,factor:f64) {
+ machine mass_cell(field:&mut Field,index:u32 in Saturating,total:f64,factor:f64) {
   let relative:f64=model::scale::apply(field.current[index%64],field.powers[index%64]-field.maximum_exponent)/field.maximum;
   transition { _ -> mass_cells(field,index+1,total+relative,factor) }
  }
- state finish_mass(field:&mut Field,total:f64,factor:f64) { field.mass=total*factor; }
- state done() { }
+ machine finish_mass(field:&mut Field,total:f64,factor:f64) { field.mass=total*factor; }
+ machine done() { }
 }

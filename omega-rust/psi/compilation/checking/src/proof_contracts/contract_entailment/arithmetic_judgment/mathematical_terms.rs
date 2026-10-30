@@ -303,8 +303,7 @@ impl Engine<'_> {
                     self.bounds
                         .push((bound.sub(&value), numerics::bignum::BigInt::from_i64(1)));
                 }
-                self.seed_matrix();
-                self.close_matrix();
+                self.refresh_difference_bounds();
                 Some(value)
             }
             _ => None,

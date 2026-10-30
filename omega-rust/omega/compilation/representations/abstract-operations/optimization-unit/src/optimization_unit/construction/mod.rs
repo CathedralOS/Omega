@@ -12,6 +12,7 @@ mod scalar_dataflow;
 mod structural_custody;
 pub use function::reconstruct_psi_optimization_function_seed;
 pub use scalar_dataflow::{operation_definition, operation_uses};
+pub use structural_custody::operation_ownership;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizationUnitBuildError {
@@ -65,6 +66,7 @@ pub fn reconstruct_psi_optimization_unit_seed(
         ownership_frontier_facts: Vec::new(),
         pruned_machines: Vec::new(),
         identities: plan.identities.clone(),
+        runtime_evidence: None,
         functions,
     };
     unit.identity = recompute_psi_optimization_unit_identity(&unit);

@@ -1,0 +1,9 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "readiness_diamond_leaf");
+    let generated: BuildPath = BuildOutput::resolve(&builder.output, "generated.omg");
+    let writer: i32 = BuildOutput::create(&mut builder.output, generated, 0);
+    let bytes: [u8; 42] = "public machine value() -> addr { seed() }\n";
+    _ = BuildOutput::write(&mut builder.output, writer, &bytes);
+    _ = BuildOutput::close(&mut builder.output, writer);
+    BuildOutput::include_source(&mut builder.output, generated);
+}

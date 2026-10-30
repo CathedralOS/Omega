@@ -328,6 +328,7 @@ impl Evaluation {
             qualifications,
             machine,
             operations,
+            environment.next_place,
         )?;
         let mut completion_types = source_types.clone();
         completion_types.push(result_type);

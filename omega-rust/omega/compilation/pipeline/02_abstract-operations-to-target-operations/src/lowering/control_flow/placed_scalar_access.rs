@@ -2,8 +2,9 @@
 //! Catalog geometry, live descriptor custody and scalar operands are independent joins.
 use super::RowSite;
 use crate::LoweringError;
+use crate::lowering::unit::known_integers::insert_scalar_home;
 use abstract_operations::{AbstractBoundaryResult, AbstractOperation};
-use semantic_vocabulary::{BoundaryMachineId, ScalarType};
+use semantic_vocabulary::BoundaryMachineId;
 use std::collections::BTreeMap;
 use target_operations::{
     BoundaryRealization, BoundarySettlementBinding, BoundarySettlementRealization,
@@ -83,20 +84,7 @@ pub(super) fn lower(
                 shape: crate::lowering::scalar_abi::fixed_native_scalar_shape(demand.scalar)
                     .ok_or_else(|| invalid!())?,
             };
-            match demand.scalar {
-                ScalarType::Integer(_) => {
-                    crate::lowering::unit::known_integers::insert_known_unit_integer(
-                        &mut live.integers,
-                        home.source_value,
-                        super::KnownUnitInteger::Home(home),
-                    )?
-                }
-                _ => {
-                    if live.scalar_homes.insert(home.source_value, home).is_some() {
-                        return Err(LoweringError::DuplicateValue(home.source_value));
-                    }
-                }
-            }
+            insert_scalar_home(&mut live.integers, &mut live.scalar_homes, home)?;
             Some(home)
         }
         (TerminalPlacedAccessorKind::Write, AbstractBoundaryResult::Unit) => None,

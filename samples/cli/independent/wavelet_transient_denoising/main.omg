@@ -21,14 +21,14 @@ machine Application::main(application: &mut Application) reaches Console crashes
         true -> options(application, length.value, threshold.value, levels.value)
         _ -> invalid(application)
     }
-    state invalid(application: &mut Application) {
+    machine invalid(application: &mut Application) {
         Console::write_line("ERROR input or options"); Console::exit_process(10);
     }
-    state options(application: &mut Application, length: f64, threshold: f64, levels: f64) {
+    machine options(application: &mut Application, length: f64, threshold: f64, levels: f64) {
         let depth: i32 in Wrapping = match length == 8.0 { true -> 3 _ -> match length == 16.0 { true -> 4 _ -> match length == 32.0 { true -> 5 _ -> 6 } } };
         transition levels <= F64::from_i32(depth as i32) { true -> configure(application, length, threshold, levels, depth) _ -> invalid(application) }
     }
-    state configure(application: &mut Application, length: f64, threshold: f64, levels: f64, depth: i32 in Wrapping) {
+    machine configure(application: &mut Application, length: f64, threshold: f64, levels: f64, depth: i32 in Wrapping) {
         let size: i32 in Saturating = I32::from_f64(length);
         let selected: i32 in Saturating = I32::from_f64(levels);
         application.length = size as i32 in Wrapping; application.levels = selected as i32 in Wrapping;
@@ -36,36 +36,36 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.index = 0; application.input_energy = 0.0;
         transition { _ -> read(application) }
     }
-    state read(application: &mut Application) {
+    machine read(application: &mut Application) {
         transition application.index >= 0 && application.index < application.length && application.index < 64 {
             true -> sample(application) _ -> finish(application)
         }
     }
-    state sample(application: &mut Application) {
+    machine sample(application: &mut Application) {
         let value: Number = block number(&mut application.reader);
         transition value.valid { true -> store(application, value.value) _ -> invalid(application) }
     }
-    state store(application: &mut Application, value: f64) {
+    machine store(application: &mut Application, value: f64) {
         application.original[application.index] = value;
         application.input_energy = application.input_energy + value * value;
         application.index = application.index + 1;
         transition { _ -> read(application) }
     }
-    state finish(application: &mut Application) {
+    machine finish(application: &mut Application) {
         let complete: bool = block ended(&mut application.reader);
         application.width = application.length;
         transition complete { true -> forward_stage(application) _ -> invalid(application) }
     }
     // Layout after all stages: A0, Dcoarsest, ..., Dfinest. Each stage
     // replaces only the approximation prefix; older details remain untouched.
-    state forward_stage(application: &mut Application) {
+    machine forward_stage(application: &mut Application) {
         application.index = 0;
         transition application.width > 1 { true -> forward_pair(application) _ -> shrink_start(application) }
     }
-    state forward_pair(application: &mut Application) {
+    machine forward_pair(application: &mut Application) {
         transition application.index >= 0 && application.index < application.width / 2 && application.index < 32 { true -> forward_bounds(application) _ -> copy_start(application) }
     }
-    state forward_bounds(application: &mut Application)
+    machine forward_bounds(application: &mut Application)
     requires application.index >= 0 && application.index < 32
     {
         let first: i32 in Wrapping = application.index * 2;
@@ -75,7 +75,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
             true -> forward(application, first, second, detail) _ -> invalid(application)
         }
     }
-    state forward(application: &mut Application, first: i32 in Wrapping, second: i32 in Wrapping, detail: i32 in Wrapping)
+    machine forward(application: &mut Application, first: i32 in Wrapping, second: i32 in Wrapping, detail: i32 in Wrapping)
     requires first >= 0 && first < 64 && second >= 0 && second < 64 && detail >= 0 && detail < 64
     requires application.index >= 0 && application.index < 32
     {
@@ -85,17 +85,17 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.index = application.index + 1;
         transition { _ -> forward_pair(application) }
     }
-    state copy_start(application: &mut Application) { application.index = 0; transition { _ -> copy(application) } }
-    state copy(application: &mut Application) {
+    machine copy_start(application: &mut Application) { application.index = 0; transition { _ -> copy(application) } }
+    machine copy(application: &mut Application) {
         transition application.index >= 0 && application.index < application.width / 2 && application.index < 32 { true -> copy_bounds(application) _ -> next_forward(application) }
     }
-    state copy_bounds(application: &mut Application)
+    machine copy_bounds(application: &mut Application)
     requires application.index >= 0 && application.index < 32
     {
         let detail: i32 in Wrapping = application.width / 2 + application.index;
         transition detail >= 0 && detail < 64 { true -> copied(application, detail) _ -> invalid(application) }
     }
-    state copied(application: &mut Application, detail: i32 in Wrapping)
+    machine copied(application: &mut Application, detail: i32 in Wrapping)
     requires detail >= 0 && detail < 64
     requires application.index >= 0 && application.index < 32
     {
@@ -104,26 +104,26 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.original[detail] = packet[1];
         application.index = application.index + 1; transition { _ -> copy(application) }
     }
-    state next_forward(application: &mut Application) { application.width = application.width / 2; transition { _ -> forward_stage(application) } }
-    state shrink_start(application: &mut Application) {
+    machine next_forward(application: &mut Application) { application.width = application.width / 2; transition { _ -> forward_stage(application) } }
+    machine shrink_start(application: &mut Application) {
         application.cutoff = application.length; application.depth = 0;
         transition { _ -> select(application) }
     }
-    state select(application: &mut Application) {
+    machine select(application: &mut Application) {
         transition application.depth < application.levels { true -> finer(application) _ -> energy_start(application) }
     }
-    state finer(application: &mut Application) {
+    machine finer(application: &mut Application) {
         application.cutoff = application.cutoff / 2; application.depth = application.depth + 1;
         transition { _ -> select(application) }
     }
-    state energy_start(application: &mut Application) {
+    machine energy_start(application: &mut Application) {
         application.index = 0; application.coefficient_energy = 0.0; application.retained_energy = 0.0;
         transition { _ -> shrink(application) }
     }
-    state shrink(application: &mut Application) {
+    machine shrink(application: &mut Application) {
         transition application.index >= 0 && application.index < application.length && application.index < 64 { true -> coefficient(application) _ -> inverse_start(application) }
     }
-    state coefficient(application: &mut Application) {
+    machine coefficient(application: &mut Application) {
         let value: f64 = application.original[application.index];
         let retained: f64 = match application.index > 0 && application.index >= application.cutoff {
             true -> soft_threshold(value, application.threshold)
@@ -136,15 +136,15 @@ machine Application::main(application: &mut Application) reaches Console crashes
         field(&mut application.reader, "retained_pico=", retained * 1000000000000.0);
         application.index = application.index + 1; transition { _ -> shrink(application) }
     }
-    state inverse_start(application: &mut Application) { application.width = 2; transition { _ -> inverse_stage(application) } }
-    state inverse_stage(application: &mut Application) {
+    machine inverse_start(application: &mut Application) { application.width = 2; transition { _ -> inverse_stage(application) } }
+    machine inverse_stage(application: &mut Application) {
         application.index = 0;
         transition application.width <= application.length { true -> inverse_pair(application) _ -> report_start(application) }
     }
-    state inverse_pair(application: &mut Application) {
+    machine inverse_pair(application: &mut Application) {
         transition application.index >= 0 && application.index < application.width / 2 && application.index < 32 { true -> inverse_bounds(application) _ -> inverse_copy_start(application) }
     }
-    state inverse_bounds(application: &mut Application)
+    machine inverse_bounds(application: &mut Application)
     requires application.index >= 0 && application.index < 32
     {
         let first: i32 in Wrapping = application.index * 2;
@@ -154,7 +154,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
             true -> inverse(application, first, second, detail) _ -> invalid(application)
         }
     }
-    state inverse(application: &mut Application, first: i32 in Wrapping, second: i32 in Wrapping, detail: i32 in Wrapping)
+    machine inverse(application: &mut Application, first: i32 in Wrapping, second: i32 in Wrapping, detail: i32 in Wrapping)
     requires first >= 0 && first < 64 && second >= 0 && second < 64 && detail >= 0 && detail < 64
     requires application.index >= 0 && application.index < 32
     {
@@ -163,11 +163,11 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.scratch[application.index][1] = (approximation - difference) * 0.7071067811865475244;
         application.index = application.index + 1; transition { _ -> inverse_pair(application) }
     }
-    state inverse_copy_start(application: &mut Application) { application.index = 0; transition { _ -> inverse_copy(application) } }
-    state inverse_copy(application: &mut Application) {
+    machine inverse_copy_start(application: &mut Application) { application.index = 0; transition { _ -> inverse_copy(application) } }
+    machine inverse_copy(application: &mut Application) {
         transition application.index >= 0 && application.index < application.width / 2 && application.index < 32 { true -> inverse_copy_bounds(application) _ -> next_inverse(application) }
     }
-    state inverse_copy_bounds(application: &mut Application)
+    machine inverse_copy_bounds(application: &mut Application)
     requires application.index >= 0 && application.index < 32
     {
         let first: i32 in Wrapping = application.index * 2;
@@ -176,7 +176,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
             true -> inverse_copied(application, first, second) _ -> invalid(application)
         }
     }
-    state inverse_copied(application: &mut Application, first: i32 in Wrapping, second: i32 in Wrapping)
+    machine inverse_copied(application: &mut Application, first: i32 in Wrapping, second: i32 in Wrapping)
     requires first >= 0 && first < 64 && second >= 0 && second < 64
     requires application.index >= 0 && application.index < 32
     {
@@ -185,16 +185,16 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.retained[second] = packet[1];
         application.index = application.index + 1; transition { _ -> inverse_copy(application) }
     }
-    state next_inverse(application: &mut Application) { application.width = application.width * 2; transition { _ -> inverse_stage(application) } }
-    state report_start(application: &mut Application) { application.index = 0; transition { _ -> report(application) } }
-    state report(application: &mut Application) {
+    machine next_inverse(application: &mut Application) { application.width = application.width * 2; transition { _ -> inverse_stage(application) } }
+    machine report_start(application: &mut Application) { application.index = 0; transition { _ -> report(application) } }
+    machine report(application: &mut Application) {
         transition application.index >= 0 && application.index < application.length && application.index < 64 { true -> reconstruction(application) _ -> done(application) }
     }
-    state reconstruction(application: &mut Application) {
+    machine reconstruction(application: &mut Application) {
         field(&mut application.reader, "reconstruction_pico=", application.retained[application.index] * 1000000000000.0);
         application.index = application.index + 1; transition { _ -> report(application) }
     }
-    state done(application: &mut Application) {
+    machine done(application: &mut Application) {
         field(&mut application.reader, "input_energy_nano=", application.input_energy * 1000000000.0);
         field(&mut application.reader, "coefficient_energy_nano=", application.coefficient_energy * 1000000000.0);
         field(&mut application.reader, "removed_energy_nano=", (application.coefficient_energy - application.retained_energy) * 1000000000.0);
@@ -203,7 +203,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
 }
 machine soft_threshold(value: f64, threshold: f64) -> f64 {
     transition value > threshold { true -> (value - threshold) _ -> negative(value, threshold) }
-    state negative(value: f64, threshold: f64) -> f64 {
+    machine negative(value: f64, threshold: f64) -> f64 {
         transition value < 0.0 - threshold { true -> (value + threshold) _ -> 0.0 }
     }
 }

@@ -370,6 +370,8 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             .target()
             .insert(typed::expression::ExpressionNode::Call(
                 typed::expression::TableCallExpression {
+ authored_call_selection: None,
+ authored_call_binding: None,
                     authored_machine_application: Default::default(),
                     requirement_application: Default::default(),
                     exact_coercion_target: typed::types::TypeReferenceHandle::invalid(),
@@ -383,7 +385,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     private_layout_operation: None,
                     layout_query: None,
                     native_code_layout: None,
-                    root_binding: Default::default(),
+                    build_selection: Default::default(),
                     arguments,
                     evidence_arguments: Box::default(),
                     operational_acknowledgement:

@@ -48,8 +48,8 @@ machine check_array() crashes Trap {
     let mut marker: bool = false;
     let values: [u64; 2] = supply_array(&mut marker);
     transition marker && values[0] == 7 && values[1] == 9 { true -> done() _ -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 machine check_case() crashes Trap {
@@ -58,11 +58,11 @@ machine check_case() crashes Trap {
         SelectedCase::Found { value } -> inspect(value)
         _ -> wrong()
     }
-    state inspect(value: u64) {
+    machine inspect(value: u64) {
         transition value == 7 { true -> done() _ -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 machine check_reference() crashes Trap {
@@ -70,16 +70,16 @@ machine check_reference() crashes Trap {
     let mut second: u64 = 9;
     write_selected(&mut first, &mut second);
     transition first == 19 && second == 9 { true -> done() _ -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 machine check_pattern() crashes Trap {
     let mut marker: bool = false;
     let result: Payload = choose_dynamic(&mut marker);
     transition marker && result.value == 7 { true -> done() _ -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 machine main() crashes Trap {

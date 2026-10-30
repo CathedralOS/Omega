@@ -8,7 +8,7 @@ machine inspect(main: &Main, row: u64, column: u64) -> u8 {
         true -> selected(main, row, column)
         _ -> 0
     }
-    state selected(main: &Main, row: u64, column: u64) -> u8 {
+    machine selected(main: &Main, row: u64, column: u64) -> u8 {
         take(&main.rows[row].cells[column].value)
     }
 }
@@ -27,8 +27,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

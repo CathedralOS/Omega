@@ -9,6 +9,11 @@ use selected_instructions::{
     MachineSizeKnowledge, MachineTrapBehavior,
 };
 
+/// The AArch64 call declaration for `semantic`: a direct call's own encoded row
+/// at the encoding's exact byte count, with no memory or stack movement. An
+/// imported callee shares that row and only restates who transfers — an
+/// external normal return, or the 20-byte number materialization plus
+/// supervisor entry for a kernel import.
 pub(super) fn declaration(
     semantic: MachineSemanticKind,
     constraint: RegisterConstraintKey,
@@ -18,73 +23,24 @@ pub(super) fn declaration(
         .catalog()
         .constraint(constraint)
         .expect("canonical AArch64 catalog contains its scalar-call constraint");
-    let arity = row
-        .operands
-        .iter()
-        .take_while(|operand| operand.access == register_model::RegisterOperandAccess::Use)
-        .count();
-    MachineEffectDeclaration {
+    MachineEffectDeclaration::call(
         semantic,
         constraint,
-        memory: MachineMemoryEffect::NoneV1,
-        trap: MachineTrapBehavior::NeverV1,
-        barrier: MachineBarrier::Call,
-        call: MachineCallEffect::InternalNormalReturnV1 {
-            pre_call_stack_alignment: 16,
+        16,
+        4,
+        (semantic == MachineSemanticKind::NormalizedForeignCall).then_some(20),
+        MachineEncodedEffects {
+            external_operand_reads: row.operand_reads(),
+            external_operand_writes: row.operand_writes(),
+            implicit_unit_uses: row.implicit_uses.clone(),
+            implicit_unit_defs: row.implicit_defs.clone(),
+            implicit_unit_clobbers: row.clobbers.clone(),
+            memory: MachineEncodedMemoryEffect::NoneV1,
+            stack: MachineEncodedStackEffect::UnchangedV1,
+            trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+            control: MachineEncodedControlEffect::DirectRelativeCallV1,
         },
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: semantic.into(),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(4),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: MachineEncodedEffects {
-                external_operand_reads: (0..arity as u16).collect(),
-                external_operand_writes: (arity as u16..row.operands.len() as u16).collect(),
-                implicit_unit_uses: row.implicit_uses.clone(),
-                implicit_unit_defs: row.implicit_defs.clone(),
-                implicit_unit_clobbers: row.clobbers.clone(),
-                memory: MachineEncodedMemoryEffect::NoneV1,
-                stack: MachineEncodedStackEffect::UnchangedV1,
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                control: MachineEncodedControlEffect::DirectRelativeCallV1,
-            },
-        }],
-    }
-}
-
-/// An imported foreign call shares the internal-call row effects — operand
-/// views, implicit uses/defs, and clobbers all come from the exact selected
-/// constraint row — but its callee is an external import, so the call effect
-/// declares the external normal-return form.
-pub(super) fn normalized_foreign_declaration(
-    constraint: RegisterConstraintKey,
-    constraints: &ValidatedRegisterConstraintCatalog,
-) -> MachineEffectDeclaration {
-    let mut declaration = declaration(
-        MachineSemanticKind::NormalizedForeignCall,
-        constraint,
-        constraints,
-    );
-    if constraint.family == register_model::RegisterConstraintFamily::SystemCall {
-        declaration.call = MachineCallEffect::SupervisorNormalReturnV1;
-        for alternative in &mut declaration.alternatives {
-            // Fixed-width number materialization followed by supervisor entry.
-            // The number is encoded inside the form, not a source operand.
-            alternative.size = MachineSizeKnowledge::ExactBytes(20);
-            alternative.encoded.memory = MachineEncodedMemoryEffect::NoneV1;
-            alternative.encoded.stack = MachineEncodedStackEffect::UnchangedV1;
-            alternative.encoded.control = MachineEncodedControlEffect::SupervisorCallV1;
-        }
-        return declaration;
-    }
-    declaration.call = MachineCallEffect::ExternalNormalReturnV1 {
-        pre_call_stack_alignment: 16,
-    };
-    declaration
+    )
 }
 
 /// Instantiate the complete AArch64 effects from the retained call contract.
@@ -154,18 +110,8 @@ pub fn aarch64_normalized_foreign_call_declaration(
             size: MachineSizeKnowledge::ExactBytes(byte_count),
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
             encoded: MachineEncodedEffects {
-                external_operand_reads: row
-                    .operands
-                    .iter()
-                    .filter(|operand| operand.access == register_model::RegisterOperandAccess::Use)
-                    .map(|operand| operand.operand)
-                    .collect(),
-                external_operand_writes: row
-                    .operands
-                    .iter()
-                    .filter(|operand| operand.access == register_model::RegisterOperandAccess::Def)
-                    .map(|operand| operand.operand)
-                    .collect(),
+                external_operand_reads: row.operand_reads(),
+                external_operand_writes: row.operand_writes(),
                 implicit_unit_uses: row.implicit_uses.clone(),
                 implicit_unit_defs: row.implicit_defs.clone(),
                 implicit_unit_clobbers: row.clobbers.clone(),

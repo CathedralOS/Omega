@@ -3,5 +3,5 @@
 data Control { value: i32; }
 machine transfer(control: &mut Control) {
     transition { _ -> done(control, control) }
-    state done(first: &mut Control, second: &mut Control) { first.value = 1; second.value = 2; }
+    machine done(first: &mut Control, second: &mut Control) { first.value = 1; second.value = 2; }
 }

@@ -3,10 +3,7 @@
 use super::{PackageFileTransaction, PackagePublicationError, PackagePublicationLimits};
 use crate::lock::{PackageLock, PackageLockRecoveryLimits, PackageLockTarget};
 use crate::resolution::graph::{
-    CanonicalSourceClosureSubjectLimits, GitResolutionOptions, PackageRootSourceRequest,
-    PackageSourceClosureLimits, ResolveExternalLocalPackageClosureError,
-    ResolvedPackageSourceClosure, resolve_external_local_project_closure,
-    resolve_locked_local_project_closure,
+    GitResolutionOptions, PackageRootSourceRequest, ResolvedPackageSourceClosure,
 };
 use package_compilation::PackageCompilationInputError;
 use package_source::PrimaryGitChoices;
@@ -18,14 +15,10 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use target::TargetProfile;
 
-pub const LOCAL_PROJECT_CONTEXT: &[u8] = b"omega-local-project-v1";
+#[cfg(test)]
+mod tests;
 
-/// Invocation-local source acquisition choices; never stored as lock policy.
-#[derive(Debug, Clone, Copy)]
-pub struct LocalProjectPreparationOptions {
-    pub target: TargetProfile,
-    pub offline: bool,
-}
+pub const LOCAL_PROJECT_CONTEXT: &[u8] = b"omega-local-project-v1";
 
 /// The compiler entry and exact package graph prepared from one local project,
 /// covering every requested target at once.
@@ -40,6 +33,20 @@ pub struct PreparedLocalProject {
     targets: Vec<PreparedProjectTarget>,
 }
 
+/// Package-owned recovery and policy state retained while application Build
+/// discovers the source graph. Beginning this operation neither parses Build
+/// declarations nor invokes a compiler or grants restricted execution.
+pub struct LocalProjectPreparation {
+    transaction: Option<PackageFileTransaction>,
+    baseline: Option<(Vec<u8>, Option<Vec<u8>>)>,
+    accepted: Option<PackageLock>,
+    targets: Vec<PreparedProjectTarget>,
+    canonical_root: PathBuf,
+    entry_relative: PathBuf,
+    storage: SourceResolver,
+    offline: bool,
+}
+
 /// One requested target's view of the prepared project: its exact profile and
 /// the accepted lock section prepared for it, or the preparation error that
 /// target alone must report.
@@ -51,6 +58,38 @@ pub(super) struct PreparedProjectTarget {
 }
 
 impl PreparedLocalProject {
+    pub fn entry_path(&self) -> &Path {
+        &self.entry_path
+    }
+
+    pub fn root_package(&self) -> semantic_vocabulary::PackageKeyIdentity {
+        self.source_closure.graph().root().identity()
+    }
+
+    /// Find the acquired identity from an exact canonical local origin, not a
+    /// declared package name or its cache directory. This is observation for
+    /// caller policy; it neither acquires source nor accepts any package rows.
+    pub fn package_at_local_root(
+        &self,
+        canonical_root: &Path,
+    ) -> Option<semantic_vocabulary::PackageKeyIdentity> {
+        self.source_closure
+            .graph()
+            .packages()
+            .iter()
+            .find_map(|package| {
+                let key = package.source().key();
+                match key.source_lineage() {
+                    package_source::SourceLineage::ExternalLocal(local)
+                        if local.canonical_absolute_path() == canonical_root =>
+                    {
+                        Some(key.identity())
+                    }
+                    _ => None,
+                }
+            })
+    }
+
     /// Split for a multi-target route: every requested target's section beside
     /// the shared entry path and source closure.
     pub(super) fn into_target_review_parts(
@@ -66,6 +105,8 @@ impl PreparedLocalProject {
 
 #[derive(Debug)]
 pub enum PrepareLocalProjectError {
+    Acquisition(crate::resolution::source::BuildSourceAcquisitionError),
+    SourceJoin(String),
     NestedBuildActivationRequired {
         package: crate::declarations::PackageKey,
     },
@@ -74,7 +115,6 @@ pub enum PrepareLocalProjectError {
         project_root: PathBuf,
     },
     Storage(SourceResolveError),
-    Closure(ResolveExternalLocalPackageClosureError),
     MissingRootCustody,
     CompilerInputs(Vec<PackageCompilationInputError>),
     Publication(PackagePublicationError),
@@ -84,6 +124,11 @@ pub enum PrepareLocalProjectError {
 impl fmt::Display for PrepareLocalProjectError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Acquisition(error) => error.fmt(formatter),
+            Self::SourceJoin(reason) => write!(
+                formatter,
+                "cannot complete project source preparation: {reason}"
+            ),
             Self::NestedBuildActivationRequired { package } => write!(
                 formatter,
                 "package `{}` requires nested build activation; this direct compiler route does not execute dependency builds (use ordinary --check or compilation)",
@@ -109,12 +154,6 @@ impl fmt::Display for PrepareLocalProjectError {
                     "cannot open private source resolver storage: {error}"
                 )
             }
-            Self::Closure(error) => {
-                write!(
-                    formatter,
-                    "cannot resolve declared package closure: {error}"
-                )
-            }
             Self::MissingRootCustody => {
                 formatter.write_str("resolved package closure lost its root source custody")
             }
@@ -130,23 +169,15 @@ impl fmt::Display for PrepareLocalProjectError {
 
 impl std::error::Error for PrepareLocalProjectError {}
 
-/// Offline preparation permits normal local root edits and cached accepted Git
-/// pins. Unlocked local graphs work, but any unrecorded Git request rejects.
-/// Prepare package-aware compiler inputs when `entry_path` belongs to a local
-/// project with a sibling `build.omg`; `options` selects the exact target
-/// (accepted evidence is chosen for it before any source is acquired) and the
-/// offline policy.
-///
-/// A standalone Omega source returns `Ok(None)`. The workflow owns storage,
-/// source closure resolution, root relocation, and compiler input assembly so
-/// the command-line binary does not reproduce package policy. Local project
-/// source stays editable; accepted dependency content and requests remain
-/// pinned until an explicit package update.
-pub fn prepare_local_project(
+/// Recover transactions and select accepted target policy before acquiring an
+/// anonymous source. The application retains this owner through actual Build
+/// execution and returns its resolved graph to `complete_source_resolution`.
+pub fn begin_local_project_preparation(
     entry_path: &Path,
-    options: LocalProjectPreparationOptions,
-) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
-    prepare_local_project_in_storage(entry_path, options, |root| {
+    targets: &[TargetProfile],
+    offline: bool,
+) -> Result<Option<LocalProjectPreparation>, PrepareLocalProjectError> {
+    begin_local_project_preparation_in_storage(entry_path, targets, offline, |root| {
         SourceResolver::for_current_user(PrimaryGitChoices {
             excluded_controlled_roots: std::slice::from_ref(&root.to_path_buf()),
             ..PrimaryGitChoices::default()
@@ -154,43 +185,12 @@ pub fn prepare_local_project(
     })
 }
 
-fn prepare_local_project_in_storage(
-    entry_path: &Path,
-    options: LocalProjectPreparationOptions,
-    open_storage: impl FnOnce(&Path) -> Result<SourceResolver, SourceResolveError>,
-) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
-    prepare_local_project_for_targets_in_storage(
-        entry_path,
-        &[options.target],
-        options.offline,
-        open_storage,
-    )
-}
-
-/// The same preparation for several requested targets at once: source
-/// resolution, transaction recovery, and custody checks run once, and each
-/// target keeps only its own accepted lock section. A target with no accepted
-/// section carries its error in the returned project so sibling targets still
-/// compile. `targets` must not be empty.
-pub fn prepare_local_project_for_targets(
-    entry_path: &Path,
-    targets: &[TargetProfile],
-    offline: bool,
-) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
-    prepare_local_project_for_targets_in_storage(entry_path, targets, offline, |root| {
-        SourceResolver::for_current_user(PrimaryGitChoices {
-            excluded_controlled_roots: std::slice::from_ref(&root.to_path_buf()),
-            ..PrimaryGitChoices::default()
-        })
-    })
-}
-
-fn prepare_local_project_for_targets_in_storage(
+fn begin_local_project_preparation_in_storage(
     entry_path: &Path,
     targets: &[TargetProfile],
     offline: bool,
     open_storage: impl FnOnce(&Path) -> Result<SourceResolver, SourceResolveError>,
-) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
+) -> Result<Option<LocalProjectPreparation>, PrepareLocalProjectError> {
     if targets.is_empty() {
         return Err(PrepareLocalProjectError::Locked(
             "local project preparation needs at least one requested target".to_owned(),
@@ -297,66 +297,129 @@ fn prepare_local_project_for_targets_in_storage(
     })?;
     let storage =
         open_storage(&canonical_project_root).map_err(PrepareLocalProjectError::Storage)?;
-    let closure = if let Some(accepted) = accepted.as_ref() {
-        resolve_locked_local_project_closure(
-            accepted
-                .targets()
-                .first()
-                .expect("a recovered lock validates a nonempty target roster")
-                .source(),
-            &PackageRootSourceRequest::ExternalLocal {
-                requested_root: canonical_project_root.clone(),
+    Ok(Some(LocalProjectPreparation {
+        transaction,
+        baseline,
+        accepted,
+        targets: prepared_targets,
+        canonical_root: canonical_project_root,
+        entry_relative,
+        storage,
+        offline,
+    }))
+}
+
+impl LocalProjectPreparation {
+    /// The authored entry routed inside the acquired namespace, not permission
+    /// to reopen it. Source compilation must also receive `acquire_root` custody.
+    pub fn entry_path(&self) -> PathBuf {
+        self.canonical_root.join(&self.entry_relative)
+    }
+
+    pub fn acquire_root(
+        &self,
+    ) -> Result<crate::resolution::source::AcquiredBuildSource, PrepareLocalProjectError> {
+        crate::resolution::source::AcquiredBuildSource::capture_local(
+            &self.canonical_root,
+            LocalSourceLimits::default(),
+            ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
+        )
+        .map_err(PrepareLocalProjectError::Acquisition)
+    }
+
+    /// Retain this operation's acquisition policy while the application executes
+    /// anonymous Build sources. Accepted selectors cannot refresh during discovery.
+    pub fn source_acquisitions(
+        &self,
+    ) -> Result<crate::resolution::source::BuildSourceAcquisitions<'_>, PrepareLocalProjectError>
+    {
+        let source = self
+            .accepted
+            .as_ref()
+            .and_then(|lock| lock.targets().first())
+            .map(|target| target.source());
+        if let Some(source) = source {
+            let matches_root = matches!(source.root().request(), crate::resolution::graph::CanonicalRootSourceRequest::ExternalLocal { requested_root, source_context }
+                if requested_root == self.canonical_root.as_os_str().as_encoded_bytes()
+                    && source_context == &ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT));
+            if !matches_root {
+                return Err(PrepareLocalProjectError::Locked(
+                    "accepted Git pins belong to another root request".into(),
+                ));
+            }
+        }
+        let acquisition = if self.offline {
+            GitExactRevisionAcquisition::Offline
+        } else {
+            GitExactRevisionAcquisition::AllowFetch
+        };
+        let pins = source
+            .map(|source| {
+                crate::resolution::graph::GitDependencyPins::new(source, &[], acquisition)
+            })
+            .transpose()
+            .map_err(|error| PrepareLocalProjectError::Locked(error.to_string()))?;
+        Ok(crate::resolution::source::BuildSourceAcquisitions::new(
+            &self.storage,
+            GitResolutionOptions {
+                pins,
+                offline: self.offline,
+            },
+            PackageRootSourceRequest::ExternalLocal {
+                requested_root: self.canonical_root.clone(),
                 source_context: ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
             },
-            if offline {
-                GitExactRevisionAcquisition::Offline
-            } else {
-                GitExactRevisionAcquisition::AllowFetch
-            },
-            &storage,
-            LocalSourceLimits::default(),
-            PackageSourceClosureLimits::default(),
-            CanonicalSourceClosureSubjectLimits::default(),
-        )
-        .map_err(|error| PrepareLocalProjectError::Locked(error.to_string()))?
-    } else {
-        resolve_external_local_project_closure(
-            &canonical_project_root,
-            ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
-            &storage,
-            LocalSourceLimits::default(),
-            PackageSourceClosureLimits::default(),
-            GitResolutionOptions {
-                pins: None,
-                offline,
-            },
-        )
-        .map_err(PrepareLocalProjectError::Closure)?
-    };
-    if let (Some(transaction), Some(baseline)) = (&transaction, &baseline) {
-        let current = transaction
-            .read_pair()
-            .map_err(PrepareLocalProjectError::Publication)?;
-        if current.0 != baseline.0 {
-            return Err(PrepareLocalProjectError::Publication(
-                PackagePublicationError::ConcurrentEdit { file: "build.omg" },
-            ));
-        }
-        if current.1 != baseline.1 {
-            return Err(PrepareLocalProjectError::Publication(
-                PackagePublicationError::ConcurrentEdit { file: "omega.lock" },
-            ));
-        }
+        ))
     }
-    let source_root = closure
-        .source_root(closure.graph().root())
-        .ok_or(PrepareLocalProjectError::MissingRootCustody)?;
-    // The root spelling routes through invocation-owned source inputs. It
-    // names neither a live-read permission nor a persistent snapshot copy.
-    let prepared_entry = source_root.join(entry_relative);
-    Ok(Some(PreparedLocalProject {
-        entry_path: prepared_entry,
-        source_closure: closure,
-        targets: prepared_targets,
-    }))
+
+    /// Only package-manager resolution can supply this graph. Exact input
+    /// acceptance remains the later admission operation; completion grants no
+    /// permissions and never publishes or refreshes a lock.
+    pub fn complete_source_resolution(
+        self,
+        resolved: crate::resolution::source::ResolvedBuildSources,
+    ) -> Result<PreparedLocalProject, PrepareLocalProjectError> {
+        self.complete(resolved.into_source_closure())
+    }
+
+    fn complete(
+        self,
+        closure: ResolvedPackageSourceClosure,
+    ) -> Result<PreparedLocalProject, PrepareLocalProjectError> {
+        let expected = PackageRootSourceRequest::ExternalLocal {
+            requested_root: self.canonical_root.clone(),
+            source_context: ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
+        };
+        if closure.source_requests().root().request() != &expected {
+            return Err(PrepareLocalProjectError::SourceJoin(
+                "resolved graph belongs to another project acquisition".into(),
+            ));
+        }
+        if let (Some(transaction), Some(baseline)) = (&self.transaction, &self.baseline) {
+            let current = transaction
+                .read_pair()
+                .map_err(PrepareLocalProjectError::Publication)?;
+            if current.0 != baseline.0 {
+                return Err(PrepareLocalProjectError::Publication(
+                    PackagePublicationError::ConcurrentEdit { file: "build.omg" },
+                ));
+            }
+            if current.1 != baseline.1 {
+                return Err(PrepareLocalProjectError::Publication(
+                    PackagePublicationError::ConcurrentEdit { file: "omega.lock" },
+                ));
+            }
+        }
+        let source_root = closure
+            .source_root(closure.graph().root())
+            .ok_or(PrepareLocalProjectError::MissingRootCustody)?;
+        // The root spelling routes through invocation-owned source inputs. It
+        // names neither a live-read permission nor a persistent snapshot copy.
+        let prepared_entry = source_root.join(self.entry_relative);
+        Ok(PreparedLocalProject {
+            entry_path: prepared_entry,
+            source_closure: closure,
+            targets: self.targets,
+        })
+    }
 }

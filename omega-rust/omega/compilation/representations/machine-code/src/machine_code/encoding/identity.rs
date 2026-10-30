@@ -204,15 +204,15 @@ fn encode_encoding_row(
                                 selected_instructions::OutgoingArgumentSlotRole::ValueCopy => 3,
                             });
                             match slot.invocation_site {
-                                semantic_vocabulary::BoundaryInvocationSite::Operation(
-                                    operation,
-                                ) => {
+                                semantic_vocabulary::InvocationSite::Operation(operation) => {
                                     hasher.byte(0);
                                     hasher.raw(&operation.get().to_le_bytes());
                                 }
-                                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(
-                                    edge,
-                                ) => {
+                                semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+                                    hasher.byte(2);
+                                    hasher.raw(&edge.get().to_le_bytes());
+                                }
+                                semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
                                     hasher.byte(1);
                                     hasher.raw(&edge.get().to_le_bytes());
                                 }
@@ -281,8 +281,7 @@ fn encode_row_contents(
     bytes: &[u8],
     footprint: Option<&SelectedFormDecodedFootprint>,
 ) {
-    hasher.u64(bytes.len() as u64);
-    hasher.raw(&bytes);
+    hasher.bytes(bytes);
     let Some(footprint) = footprint else {
         return;
     };

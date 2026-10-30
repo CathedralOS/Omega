@@ -11,8 +11,8 @@ use super::builtin::BUILTIN_TYPE_COUNT;
 mod child_batches;
 mod indices;
 use indices::{
-    BindingSourceIndex, BindingSourceIndexCache, ModulePathIndex, ModulePathIndexCache,
-    ModuleScopeIndex, ModuleScopeIndexCache, RootNameIndex, RootNameIndexCache,
+    BindingSourceIndexCache, ModulePathIndex, ModulePathIndexCache, ModuleScopeIndex,
+    ModuleScopeIndexCache, RootNameIndex, RootNameIndexCache,
 };
 mod modules;
 
@@ -26,7 +26,7 @@ use super::{
 };
 use child_batches::{SupplementalChildHandles, SupplementalChildren};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SymbolTable {
     symbols: HierarchyArena<Symbol>,
     names: Arena<SymbolName>,
@@ -40,6 +40,10 @@ pub struct SymbolTable {
     /// a linear scan per lookup would cost `O(#sources)` on every
     /// module-qualified name walk.
     source_module_index: Vec<SymbolHandle>,
+    /// Declaration membership at the last activation frontier. Later allocations
+    /// belong to the new cohort. Selecting a source again does not resurrect
+    /// an older declaration that already left its predecessor's view.
+    inherited_symbols: Vec<bool>,
     root_names: RootNameIndexCache,
     /// `source_scoped_top_level_bindings` bucketed by reference source,
     /// because three lookup paths scanned the whole binding list per query.
@@ -71,12 +75,19 @@ pub struct SymbolTableBuilder {
 /// The authored spelling remains unchanged. Only references originating in
 /// `reference_source` select the same-spelled declaration authored in
 /// `declaration_source`; every other source retains ordinary lookup.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct SourceScopedTopLevelBinding {
     reference_source: SourceId,
     declaration_source: SourceId,
     name: Arc<str>,
     module_import: Option<modules::ModuleImport>,
+    producer: BindingProducer,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+enum BindingProducer {
+    Loader,
+    AuthoredImport,
 }
 
 impl SourceScopedTopLevelBinding {
@@ -90,6 +101,7 @@ impl SourceScopedTopLevelBinding {
             declaration_source,
             name: name.into(),
             module_import: None,
+            producer: BindingProducer::Loader,
         }
     }
 
@@ -195,6 +207,7 @@ impl SymbolTableBuilder {
             supplemental_children: SupplementalChildren::default(),
             module_symbols: Arena::new(),
             source_module_index: Vec::new(),
+            inherited_symbols: Vec::new(),
             root_names: RootNameIndexCache::default(),
             binding_source_index: BindingSourceIndexCache::default(),
             module_path_index: ModulePathIndexCache::default(),
@@ -221,6 +234,7 @@ fn child_symbol(
 ) -> Symbol {
     Symbol {
         parent,
+        declaration_owner: SymbolHandle::invalid(),
         children: HandleSpan::empty(),
         kind,
         name: names.insert(SymbolName::from_ref_with_sources(name, sources)),
@@ -271,6 +285,7 @@ impl SymbolTable {
             supplemental_children,
             module_symbols,
             source_module_index,
+            inherited_symbols,
             root_names: _,
             binding_source_index: _,
             module_path_index: _,
@@ -294,6 +309,7 @@ impl SymbolTable {
             || root != &base.root
             || module_symbols != &base.module_symbols
             || source_module_index != &base.source_module_index
+            || inherited_symbols != &base.inherited_symbols
         {
             return false;
         }
@@ -320,6 +336,7 @@ impl SymbolTable {
             // foreign generations without following an untrusted parent chain.
             let origin = symbol.generated_from;
             if !origin.is_valid()
+                || symbol.declaration_owner.is_valid()
                 || origin.generation() != handle.generation()
                 || origin.arena_index() >= handle.arena_index()
                 || symbols.get(origin).kind == SymbolKind::Unknown
@@ -423,6 +440,7 @@ impl SymbolTable {
                 parent,
                 Symbol {
                     parent,
+                    declaration_owner: SymbolHandle::invalid(),
                     children: HandleSpan::empty(),
                     kind,
                     name,
@@ -446,6 +464,34 @@ impl SymbolTable {
         self.symbols.get(symbol)
     }
 
+    /// Record the inverse of an owning declaration row. Resolution establishes
+    /// uniqueness before publication; a retained frontier may rejoin the same
+    /// relationship, but another owner cannot replace it.
+    pub fn record_declaration_owner(
+        &mut self,
+        declaration: SymbolHandle,
+        owner: SymbolHandle,
+    ) -> Result<(), &'static str> {
+        if !self.symbols.nodes().is_valid(declaration)
+            || !self.symbols.nodes().is_valid(owner)
+            || self.get(declaration).kind != SymbolKind::Machine
+            || self.get(owner).kind != SymbolKind::Conformance
+        {
+            return Err("owned realization lost its declaration or enclosing capture scope");
+        }
+        let previous = self.get(declaration).declaration_owner;
+        if previous.is_valid() && previous != owner {
+            return Err("owned conformance realization has ambiguous enclosing capture scope");
+        }
+        self.symbols.get_mut(declaration).declaration_owner = owner;
+        Ok(())
+    }
+
+    /// A discarded synthesized declaration cannot lend its old capture scope.
+    pub fn clear_declaration_owner(&mut self, declaration: SymbolHandle) {
+        self.symbols.get_mut(declaration).declaration_owner = SymbolHandle::invalid();
+    }
+
     /// Give one symbol a new spelling. Target-family selection promotes the
     /// realized target's body to the family path and demotes the body it
     /// replaces to its `<path>::<target>` spelling; handles are unchanged.
@@ -465,6 +511,8 @@ impl SymbolTable {
                 .insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name))),
         };
         self.symbols.get_mut(symbol).name = name;
+        self.binding_source_index.clear();
+        self.module_path_index.clear();
         self.module_scope_index.clear();
         self.root_names.clear();
     }
@@ -483,6 +531,70 @@ impl SymbolTable {
         self.module_path_index.clear();
         self.module_scope_index.clear();
         SymbolTableExtension { table: self }
+    }
+
+    /// Start a new compilation view over retained declaration coordinates.
+    /// Unlike an extension within one activation, its complete loader-supplied
+    /// loader import roster replaces historical loader bindings, even when both
+    /// endpoints remain selected for unrelated imports. Selected declarations
+    /// retain their own authored imports; backing is not loader authority.
+    pub fn begin_source_activation(
+        mut self,
+        sources: Arc<SourceMap>,
+        source_scoped_top_level_bindings: Vec<SourceScopedTopLevelBinding>,
+    ) -> Result<SymbolTableExtension, String> {
+        if self
+            .sources
+            .as_deref()
+            .is_some_and(|previous| !sources.retains_source_storage(previous))
+        {
+            return Err(String::from(
+                "source activation changed retained source coordinates",
+            ));
+        }
+        let mut inherited = vec![false; self.symbols.len() + 1];
+        for (handle, _) in self.symbols.nodes().iter() {
+            inherited[handle.arena_index() as usize] = self.symbol_source_is_selected(handle)
+                && self
+                    .provenance_source_span(handle)
+                    .is_none_or(|span| sources.source_is_selected(span.source_id));
+        }
+        if let Some(previous) = self.sources.as_deref() {
+            for (position, module) in self.source_module_index.iter_mut().enumerate() {
+                let source = SourceId(position);
+                if sources.source_is_selected(source) && !previous.source_is_selected(source) {
+                    // This file is a new declaration cohort, not a second module
+                    // declaration in the old cohort. Its parsed module will join
+                    // the existing logical namespace without reviving old members.
+                    *module = SymbolHandle::invalid();
+                }
+            }
+        }
+        let authored_imports = self
+            .source_scoped_top_level_bindings
+            .iter()
+            .filter(|binding| {
+                binding.producer == BindingProducer::AuthoredImport
+                    && sources.source_is_selected(binding.reference_source)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        self.inherited_symbols = inherited;
+        self.sources = Some(sources);
+        self.source_scoped_top_level_bindings = source_scoped_top_level_bindings;
+        self.binding_source_index.clear();
+        self.root_names.clear();
+        self.module_path_index.clear();
+        self.module_scope_index.clear();
+        // Syntax imports belong to retained declarations. Loader rows belong
+        // to the current request and were completely replaced above. Reinsert
+        // through their producer so a current certified import takes precedence.
+        for binding in authored_imports {
+            if let Some(import) = &binding.module_import {
+                self.register_source_import(binding.reference_source, &import.path);
+            }
+        }
+        Ok(SymbolTableExtension { table: self })
     }
 
     /// Mint a compiler-generated root declaration after symbol resolution.
@@ -508,6 +620,7 @@ impl SymbolTable {
             .insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name)));
         self.symbols.insert_root(Symbol {
             parent: SymbolHandle::invalid(),
+            declaration_owner: SymbolHandle::invalid(),
             children: HandleSpan::empty(),
             kind,
             name,
@@ -555,6 +668,7 @@ impl SymbolTable {
                 .into_iter()
                 .map(|(generated_from, kind, name)| Symbol {
                     parent,
+                    declaration_owner: SymbolHandle::invalid(),
                     children: HandleSpan::empty(),
                     kind,
                     name: names.insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name))),
@@ -603,6 +717,7 @@ impl SymbolTable {
             .into_iter()
             .flatten()
             .map(|&(_, symbol)| symbol)
+            .filter(|symbol| self.symbol_source_is_selected(*symbol))
     }
 
     pub fn find_child_by_name(&self, parent: SymbolHandle, name: &str) -> Option<SymbolHandle> {
@@ -612,7 +727,7 @@ impl SymbolTable {
 
         let mut candidates = self
             .child_handles(parent)?
-            .filter(|symbol| self.name(*symbol) == name);
+            .filter(|symbol| self.name(*symbol) == name && self.symbol_source_is_selected(*symbol));
         let first = candidates.next()?;
         if self.get(parent).kind == SymbolKind::Module && candidates.next().is_some() {
             return None;
@@ -630,9 +745,11 @@ impl SymbolTable {
             return None;
         }
 
-        let mut candidates = self
-            .child_handles(parent)?
-            .filter(|symbol| self.get(*symbol).kind == kind && self.name(*symbol) == name);
+        let mut candidates = self.child_handles(parent)?.filter(|symbol| {
+            self.get(*symbol).kind == kind
+                && self.name(*symbol) == name
+                && self.symbol_source_is_selected(*symbol)
+        });
         let first = candidates.next()?;
         if self.get(parent).kind == SymbolKind::Module && candidates.next().is_some() {
             return None;
@@ -728,27 +845,18 @@ impl SymbolTable {
     }
 
     /// The bindings visible to `reference_source`, in binding order, via the
-    /// per-source index instead of a whole-list scan per lookup.
+    /// per-source index instead of a whole-list scan per lookup. Activation
+    /// is projected once here: lookup and collision consumers cannot recover
+    /// authority from a historical row by forgetting their own filter.
     pub(super) fn source_scoped_bindings_for(
         &self,
         reference_source: SourceId,
     ) -> &[SourceScopedTopLevelBinding] {
         const EMPTY: &[SourceScopedTopLevelBinding] = &[];
-        let index = self.binding_source_index.0.get_or_init(|| {
-            let mut index = BindingSourceIndex::default();
-            for binding in &self.source_scoped_top_level_bindings {
-                index
-                    .by_source
-                    .entry(binding.reference_source)
-                    .or_default()
-                    .push(binding.clone());
-            }
-            index
-        });
-        index
+        self.source_binding_index()
             .by_source
             .get(&reference_source)
-            .map_or(EMPTY, Vec::as_slice)
+            .map_or(EMPTY, |scope| scope.bindings.as_slice())
     }
 
     fn root_name_index(&self) -> RootNameIndex {
@@ -811,25 +919,69 @@ impl SymbolTable {
         })
     }
 
+    /// Preserve the complete declaration roster after namespace and import
+    /// precedence. Typed call selection consumes this roster; a signature-free
+    /// reference still requires the existing unique/ambiguous lookup verdict.
+    pub fn top_level_candidates_from_source(
+        &self,
+        name: &str,
+        kinds: &[SymbolKind],
+        reference: SourceSpan,
+    ) -> Vec<SymbolHandle> {
+        self.lookup_top_level_candidates(
+            name,
+            kinds,
+            reference,
+            |_| true,
+            TopLevelSelection::SignatureFree,
+        )
+    }
+
     fn lookup_top_level(
+        &self,
+        name: &str,
+        kinds: &[SymbolKind],
+        reference: SourceSpan,
+        matches_candidate: impl FnMut(SymbolHandle) -> bool,
+        selection: TopLevelSelection,
+    ) -> SymbolLookup {
+        SymbolLookup::from_candidates(
+            self.lookup_top_level_candidates(name, kinds, reference, matches_candidate, selection)
+                .into_iter(),
+        )
+    }
+
+    fn lookup_top_level_candidates(
         &self,
         name: &str,
         kinds: &[SymbolKind],
         reference: SourceSpan,
         mut matches_candidate: impl FnMut(SymbolHandle) -> bool,
         selection: TopLevelSelection,
-    ) -> SymbolLookup {
+    ) -> Vec<SymbolHandle> {
         let reference_is_source_backed = reference.span.start != reference.span.end;
+        if reference_is_source_backed
+            && self
+                .sources
+                .as_deref()
+                .is_some_and(|sources| !sources.source_is_selected(reference.source_id))
+        {
+            return Vec::new();
+        }
         // A dummy span may retain a real SourceId, but it has no lexical
         // occurrence. Do not let that id authorize a relative module path.
         if (reference_is_source_backed || selection == TopLevelSelection::Ordinary)
-            && let Some(result) =
-                self.find_module_qualified_reference(name, kinds, reference, &mut matches_candidate)
+            && let Some(result) = self.find_module_qualified_candidates(
+                name,
+                kinds,
+                reference,
+                &mut matches_candidate,
+            )
         {
             return result;
         }
         if self.child_handles(self.root).is_none() {
-            return SymbolLookup::NotFound;
+            return Vec::new();
         }
         let candidates = self
             .top_level_children_matching_name(
@@ -840,19 +992,15 @@ impl SymbolTable {
             .filter(|symbol| {
                 kinds.contains(&self.get(*symbol).kind)
                     && matches_candidate(*symbol)
-                    && (!reference_is_source_backed
-                        || self.source_reference_can_see_symbol(reference, *symbol))
+                    && self.source_reference_can_see_symbol(reference, *symbol)
             })
             .collect::<Vec<_>>();
 
         if !reference_is_source_backed {
             if selection == TopLevelSelection::SignatureFree {
-                return SymbolLookup::from_candidates(candidates.into_iter());
+                return candidates;
             }
-            return candidates
-                .first()
-                .copied()
-                .map_or(SymbolLookup::NotFound, SymbolLookup::Unique);
+            return candidates.into_iter().take(1).collect();
         }
 
         if let Some(binding) = self
@@ -866,22 +1014,22 @@ impl SymbolTable {
                         .symbol_source_span(*symbol)
                         .is_some_and(|span| span.source_id == binding.declaration_source)
             });
-            return SymbolLookup::from_candidates(targets);
+            return targets.collect();
         }
 
         if self.has_namespace_context(reference) {
-            return self.select_namespace_candidate(&candidates, name, reference);
+            return self.select_namespace_candidates(&candidates, name, reference);
         }
         if selection == TopLevelSelection::SignatureFree {
-            let local =
-                SymbolLookup::from_candidates(candidates.iter().copied().filter(|symbol| {
+            let local = candidates
+                .iter()
+                .copied()
+                .filter(|symbol| {
                     self.symbol_provenance_source_span(*symbol)
                         .is_some_and(|declaration| self.same_source_package(reference, declaration))
-                }));
-            return match local {
-                SymbolLookup::NotFound => SymbolLookup::from_candidates(candidates.into_iter()),
-                _ => local,
-            };
+                })
+                .collect::<Vec<_>>();
+            return if local.is_empty() { candidates } else { local };
         }
         candidates
             .iter()
@@ -913,7 +1061,8 @@ impl SymbolTable {
                 })
             })
             .or_else(|| candidates.first().copied())
-            .map_or(SymbolLookup::NotFound, SymbolLookup::Unique)
+            .into_iter()
+            .collect()
     }
 
     /// Resolve either one exact declaration or one source-scoped overloaded
@@ -958,6 +1107,16 @@ impl SymbolTable {
         // namespace. Apply the authored declarations' existing scope rules.
         let left = self.authored_origin(left);
         let right = self.authored_origin(right);
+        let left_parent = self.get(left).parent;
+        let right_parent = self.get(right).parent;
+        if left_parent != right_parent
+            && (self.get(left_parent).kind == SymbolKind::Machine
+                || self.get(right_parent).kind == SymbolKind::Machine)
+        {
+            // Lexical machine scopes stay private even inside the same file.
+            // Package imports never expose another invocation's declarations.
+            return true;
+        }
         let (Some(left_span), Some(right_span)) = (
             self.symbol_source_span(left),
             self.symbol_source_span(right),
@@ -1003,7 +1162,8 @@ impl SymbolTable {
             return false;
         }
         self.source_scoped_top_level_bindings.iter().any(|binding| {
-            binding.module_import.is_none()
+            self.source_binding_is_selected(binding)
+                && binding.module_import.is_none()
                 && binding.name.as_ref() == name
                 && (binding.declaration_source == left_span.source_id
                     || binding.declaration_source == right_span.source_id)
@@ -1020,16 +1180,53 @@ impl SymbolTable {
         reference: SourceSpan,
         symbol: SymbolHandle,
     ) -> bool {
-        if reference.span.start == reference.span.end {
-            return true;
-        }
         let Some(sources) = self.sources.as_deref() else {
             return true;
         };
+        if self.get(symbol).kind != SymbolKind::Module && !self.inherited_symbol_is_selected(symbol)
+        {
+            return false;
+        }
         let Some(declaration) = self.provenance_source_span(symbol) else {
             return true;
         };
+        if self.get(symbol).kind == SymbolKind::Module {
+            // A logical namespace can have active contributors even when its
+            // first declaration belongs to retained, inactive backing.
+            return self.module_source_ids(symbol).any(|source| {
+                sources.reference_can_see_declaration(
+                    reference,
+                    SourceSpan::new(source, source::Span::default()),
+                )
+            });
+        }
         sources.reference_can_see_declaration(reference, declaration)
+    }
+
+    /// Current declaration membership; source-free vocabulary remains present.
+    /// Logical modules are present while any selected source contributes to them.
+    pub fn symbol_source_is_selected(&self, symbol: SymbolHandle) -> bool {
+        let Some(sources) = self.sources.as_deref() else {
+            return true;
+        };
+        if self.get(symbol).kind == SymbolKind::Module {
+            return self.provenance_source_span(symbol).is_none()
+                || self.module_source_ids(symbol).next().is_some();
+        }
+        if !self.inherited_symbol_is_selected(symbol) {
+            return false;
+        }
+        let Some(declaration) = self.provenance_source_span(symbol) else {
+            return true;
+        };
+        sources.source_is_selected(declaration.source_id)
+    }
+
+    fn inherited_symbol_is_selected(&self, symbol: SymbolHandle) -> bool {
+        self.inherited_symbols
+            .get(symbol.arena_index() as usize)
+            .copied()
+            .unwrap_or(true)
     }
 
     /// Whether a source-backed reference may select this declaration as a

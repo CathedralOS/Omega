@@ -5,10 +5,10 @@ machine emit(character: i32, enabled: bool) reaches Console requires character >
         true -> output(character)
         false -> skipped()
     }
-    state output(character: i32) requires character >= 0 && character <= 255 {
+    machine output(character: i32) requires character >= 0 && character <= 255 {
         Console::write_byte(character);
     }
-    state skipped() { }
+    machine skipped() { }
 }
 
 data Main { }

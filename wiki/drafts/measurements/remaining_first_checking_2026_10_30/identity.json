@@ -1,0 +1,40 @@
+{
+  "base": "0ac181bf065e398d6d6ae455c2659416895d6b49",
+  "producers": {
+    "baseline": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\candidate\\omega.exe",
+      "sha256": "1c7645a93c087116c69bb5951cc940709cdadecfeae847d38f9de957d3ad4d60",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "diagnostic": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\diagnostic\\omega.exe",
+      "sha256": "2aa3ed6952fb3bd7cadecfdbde60f2aaea6120558e3e7796422442ddd75bf9ab",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "candidate": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\candidate\\omega.exe",
+      "sha256": "36c34d2b0d2dfa870cb829dcc54777ebf1fef5cd645679b72d79f065ac2b7082",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "controls": {
+    "tests\\omega\\pass\\calls\\specification_result_without_guarantees_requires_formation\\build.omg": "b002e7c034f65624b6b8d2649fea8ace1822320b05cac4c95322aafab71bc1fd",
+    "tests\\omega\\pass\\calls\\specification_result_without_guarantees_requires_formation\\expected_interpreter_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests\\omega\\pass\\calls\\specification_result_without_guarantees_requires_formation\\expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests\\omega\\pass\\calls\\specification_result_without_guarantees_requires_formation\\main.omg": "1edacffded3d14befa8c39c477054b16558468c6f9037b2a7e768ec04cb19b44",
+    "tests\\omega\\fail\\calls\\specification_result_without_guarantees_requires_formation\\build.omg": "b002e7c034f65624b6b8d2649fea8ace1822320b05cac4c95322aafab71bc1fd",
+    "tests\\omega\\fail\\calls\\specification_result_without_guarantees_requires_formation\\expected.txt": "323ce8d239a1c70e06dd1cbb3ff89d73b8329f32376ecda21775b94fc12a4c7f",
+    "tests\\omega\\fail\\calls\\specification_result_without_guarantees_requires_formation\\main.omg": "f5bf02f922f42b330629429e4ccffa7a2c443b29b7c55cfc472c2d4c3650ee3f"
+  },
+  "candidate_patch_sha256": "19360ef51a709a73fb188745d8928f12e485bb1c86cf6e81f477a683b7142ed0",
+  "diagnostic_patch_sha256": "9ec58894c1f587b84e0202ecbe92eded9f2a5a1186f91090836fb5473545c47e"
+}

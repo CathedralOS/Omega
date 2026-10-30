@@ -1,0 +1,34 @@
+// The same helper traversal must not establish a false root guarantee.
+data Branch {
+    case End;
+    case Next(child: Branch);
+}
+
+machine copy_branch(value: Branch) -> Branch
+terminates by value;
+{
+    transition value {
+        Branch::End -> Branch::End
+        Branch::Next { child } -> Branch::Next { child: copy_branch(child) }
+    }
+}
+
+machine copy_identity(value: Branch)
+terminates by value;
+ensures copy_branch(value) == Branch::End
+{
+    transition value {
+        Branch::End -> finish()
+        Branch::Next { child } -> step(child)
+    }
+
+    machine step(child: Branch) {
+        copy_identity(child);
+    }
+
+    machine finish() {}
+}
+
+machine main() {
+    copy_identity(Branch::Next { child: Branch::End });
+}

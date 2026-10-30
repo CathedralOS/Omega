@@ -9,7 +9,10 @@
 
 mod closed_operands;
 mod conformance_scopes;
+mod domain_scopes;
+mod machine_instances;
 mod machine_selections;
+pub use machine_instances::MachineInstantiation;
 mod payloads;
 mod requirement_instances;
 mod selected_operands;
@@ -93,11 +96,41 @@ impl TypedTrees {
         }
     }
 
+    /// Prepared logical views belong to the source applications that demand
+    /// them. Sharing a declaring trait does not keep an unrelated tuple alive
+    /// after its conformance or call occurrence leaves a projection. The rows
+    /// have no inbound handles; executable requirement instances keep their
+    /// separate occurrence ownership and are not removed by this operation.
+    pub fn retain_live_trait_callable_applications(&mut self) {
+        let mut live = Vec::new();
+        for root in self.applied_trait_roots() {
+            root.visit(self, &mut |scope| {
+                if let Some(identity) = scope.application_identity(self) {
+                    live.push((scope.declaration.symbol, identity));
+                }
+            });
+        }
+        let removed = self
+            .applied_callable_signatures
+            .iter()
+            .filter_map(|(handle, prepared)| match prepared.owner {
+                AppliedCallableOwner::Trait {
+                    declaration,
+                    application,
+                } if !live.contains(&(declaration, application)) => Some(handle),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for handle in removed {
+            self.applied_callable_signatures.free(handle);
+        }
+    }
+
     /// Project declaration-owned application rows with the declaration roster.
     /// Backing arenas are not checking roots: a private evaluation projection
     /// cannot retain an instance obligation after removing its known source
-    /// trait. Unknown owners remain obligations, and the original input keeps
-    /// its complete rows. Occurrence-owned machine selections are separate.
+    /// declaration. Unknown owners remain obligations, and the original input
+    /// keeps its complete rows. Occurrence-owned machine selections are separate.
     pub fn remove_trait_declaration_applications(
         &mut self,
         removed: impl Fn(SymbolHandle) -> bool,
@@ -122,7 +155,7 @@ impl TypedTrees {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) struct AppliedCallableSignature {
     owner: AppliedCallableOwner,
     signature: signature::StateSignature,
@@ -146,7 +179,7 @@ impl AppliedCallableSignature {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 enum AppliedCallableOwner {
     #[default]
     Absent,
@@ -185,7 +218,7 @@ enum AppliedCallableOwner {
     },
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CallableSubstitution {
     pub parameter: SymbolHandle,
     pub actual: types::TypeReferenceHandle,

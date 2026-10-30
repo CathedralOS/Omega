@@ -30,18 +30,18 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> missed(main)
     }
 
-    state first(main: &mut Main, right: Sum) {
+    machine first(main: &mut Main, right: Sum) {
         transition Sum::pick(&right) == 29 {
             true -> matched(main)
             _ -> missed(main)
         }
     }
 
-    state matched(main: &mut Main) {
+    machine matched(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state missed(main: &mut Main) {
+    machine missed(main: &mut Main) {
         Console::exit_process(71);
     }
 }

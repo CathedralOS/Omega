@@ -14,7 +14,7 @@ machine Main::main(context: &mut Main) reaches Console
         true -> shift(context, &mut operands)
         _ -> bad(context)
     }
-    state shift(context: &mut Main, operands: &mut Operands)
+    machine shift(context: &mut Main, operands: &mut Operands)
     {
         operands.result = operands.value << operands.count;
         transition operands.result == 32 {
@@ -22,9 +22,9 @@ machine Main::main(context: &mut Main) reaches Console
             _ -> bad(context)
         }
     }
-    state good(context: &mut Main)
+    machine good(context: &mut Main)
     { Console::exit_process(70); }
-    state bad(context: &mut Main)
+    machine bad(context: &mut Main)
     { Console::exit_process(71); }
 }
 

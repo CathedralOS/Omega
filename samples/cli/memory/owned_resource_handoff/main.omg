@@ -2,7 +2,7 @@
 // Issued affine resources retain their qualification when transferred to
 // another state, including a resource extracted from an acquisition result.
 data Resource { identity: u64; }
-domain Resource::Open(resource) requires resource.identity != 0 established by acquire;
+domain Resource::Open requires self.identity != 0 established by acquire;
 data Acquisition {
     case Error;
     case Ok(resource: Resource in Open);
@@ -21,23 +21,23 @@ machine main() crashes Trap {
     let resource: Resource in Open = acquire(41);
     transition { _ -> received(resource) }
 
-    state received(resource: Resource in Open) {
+    machine received(resource: Resource in Open) {
         let identity: u64 = observe(&resource);
         close(resource);
         transition identity == 41 { true -> another() false -> wrong() }
     }
-    state another() {
+    machine another() {
         let acquired: Acquisition = open(73);
         transition acquired {
             Acquisition::Ok { resource } -> received_payload(resource)
             _ -> wrong()
         }
     }
-    state received_payload(resource: Resource in Open) {
+    machine received_payload(resource: Resource in Open) {
         let identity: u64 = observe(&resource);
         close(resource);
         transition identity == 73 { true -> done() false -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

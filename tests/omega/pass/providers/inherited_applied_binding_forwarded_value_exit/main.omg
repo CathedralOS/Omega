@@ -24,8 +24,8 @@ machine Main::main(main: &mut Main) reaches Child + Parent crashes Trap {
     transition chosen == 19 && observed == 37 {
         true -> done() _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

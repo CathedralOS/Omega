@@ -2,7 +2,7 @@ machine first(remaining: u64) -> bool
 terminates by remaining;
 {
     transition remaining > 0 { true -> step(remaining) false -> false }
-    state step(remaining: u64) requires remaining > 0 {
+    machine step(remaining: u64) -> bool requires remaining > 0 {
         transition second(remaining) { true -> second(remaining) false -> false }
     }
 }
@@ -10,7 +10,7 @@ machine second(remaining: u64) -> bool
 terminates by remaining;
 {
     transition remaining > 0 { true -> step(remaining) false -> false }
-    state step(remaining: u64) requires remaining > 0 {
+    machine step(remaining: u64) -> bool requires remaining > 0 {
         transition { _ -> first(remaining - 1) }
     }
 }

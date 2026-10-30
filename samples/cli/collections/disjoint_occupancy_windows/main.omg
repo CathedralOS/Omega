@@ -16,7 +16,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> field_windows(main, &mut occupancy.cells[0..2], &mut occupancy.cells[2..4])
         _ -> bad(main)
     }
-    state field_windows(main: &mut Main, left: &mut [i32 in Wrapping], right: &mut [i32 in Wrapping])
+    machine field_windows(main: &mut Main, left: &mut [i32 in Wrapping], right: &mut [i32 in Wrapping])
     requires left.len >= 1 && right.len >= 1
     {
         left[0] = 3;
@@ -27,11 +27,11 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write(" ");
         transition { _ -> build(main) }
     }
-    state build(main: &mut Main) {
+    machine build(main: &mut Main) {
         let mut row: [i32 in Wrapping; 4] = [0, 0, 0, 0];
         transition { _ -> local_windows(main, &mut row[0..2], &mut row[2..4]) }
     }
-    state local_windows(main: &mut Main, left: &mut [i32 in Wrapping], right: &mut [i32 in Wrapping])
+    machine local_windows(main: &mut Main, left: &mut [i32 in Wrapping], right: &mut [i32 in Wrapping])
     requires left.len >= 1 && right.len >= 1
     {
         left[0] = 5;
@@ -42,7 +42,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("");
         Console::exit_process(0);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::write_line("BAD");
         Console::exit_process(2);
     }

@@ -1,1 +1,1 @@
-unsupported transition target `scan`
+value call to `scan` violates required fact `value == 41`

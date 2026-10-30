@@ -78,7 +78,7 @@ only the active case. Padding and inactive payload are not a serialization API.
 
 ## Default Layout
 
-Ordinary data leaves representation choices to the compiler:
+Data declares semantic structure, not an ambient representation:
 
 ```omega
 data Player {
@@ -88,29 +88,66 @@ data Player {
 ```
 
 Do not infer a foreign record layout from declaration order, total size or a
-particular compiler's current offsets. Internal layout choices may change unless
-the declaration selects a stable representation policy.
+particular compiler's current offsets. Ordinary storage declarations use the
+default representation when no explicit family is selected. That default is a
+rule of the storage use, not a policy attached to the data declaration.
 
 ## Stable Representation
 
-A fully static policy can make a declared layout the value's in-memory form:
+A storage or parameter declaration can select a library representation:
 
 ```omega
-data WinHandle in CLayout {
+data WinHandle {
     value: u64;
+}
+
+machine consume(handle: &CLayout<WinHandle>) {
+    inspect_handle(handle);
 }
 ```
 
-Here `CLayout` denotes a layout policy, not a new modifier or unchecked ABI string.
-The policy receives the schema and returns a plan that must validate. The semantic
-field remains `value: u64`. Platform and wire formats use the same policy mechanism,
-with different applicability requirements.
+`WinHandle` remains layout-neutral. `CLayout<T>` is a
+[transparent generic alias](../spec/language/generics.md#transparent-type-aliases)
+for the general core fixed-storage constructor with a selected library C ABI
+policy. A community package can define another family through the same facility;
+the compiler recognizes neither C nor protobuf by its spelling. Data declarations
+cannot select a layout through `in`, and domain qualification never changes
+geometry. This is the ratified design, with implementation tracked under
+`LIBRARY-REPRESENTATION-FAMILIES` in [TASKS.md](../../TASKS.md).
+
+Policies are ordinary named implementations, not empty data types with attached
+machines. The compiler supplies the authorized schema and explicit target facts,
+evaluates the pure terminating policy, validates its plan and realizes the
+representation. Build declares dependencies and target/configuration; it does
+not register or bless each layout. A foreign call retains its separate selected
+provider, calling plan and authority contract.
+
+For a complete C structure, the reusable policy computes placement and padding.
+A sparse foreign view needs an explicit custom implementation: a record listing
+only Darwin timestamp seconds omits the native nanoseconds fields, so a C policy
+cannot infer the real structure from it. Complete declarations or explicit sparse
+policies belong in the platform library, not a compiler-owned OS catalog.
 
 The [placement vocabulary](../spec/layouts/plans.md#placement-vocabulary) covers
 whole fields, stored integers and fragmented bits. A new format normally needs
 a policy; a new primitive needs compiler support. Programmable union and
 runtime-stride source forms remain unspecified; conventional sum reports do not
 define them.
+
+## Representation Conversions
+
+Standard fallible `TryFrom` contracts connect selected complete representations
+through semantic T. Libraries author reusable conversion rules; typed reflection
+and specialization supply each supported type's field and active-case work.
+Conversions are explicit, not silent coercions or bitcasts. Output buffers,
+allocators and custody remain explicit inputs. An infallible convenience may
+delegate to the same implementation only after totality is established.
+
+`ProtoLayout<T>` may be a community library's encoded-storage family. Its
+variable-length bytes do not promise C-style field addresses or fixed size.
+Unknown-field handling and historical migration are explicit codec contracts,
+not an automatic consequence of sharing T. Geometry-only and one-way views do
+not falsely promise complete conversion. See [representation conversions](../spec/layouts/codecs.md#representation-conversions).
 
 ## Alignment And Padding
 
@@ -167,6 +204,23 @@ These names are not keywords or casts. No `usize` or alignment carrier is needed
 Interpretation uses the selected target layout, not the size of an interpreter
 object. A proof-only type without a runtime layout does not receive a fake zero
 size. See [layout queries](../spec/layouts/plans.md#size-and-alignment-queries).
+
+The value form asks about an actual location instead:
+
+```omega
+machine header_is_aligned(packet: &[u8]) -> bool
+requires packet.len >= 16
+{
+    align_of(packet) >= 16
+}
+```
+
+For a borrowed slice this measures its first element's location, not the
+descriptor, and requires a nonempty slice. It can establish stronger alignment
+than `align_of<u8>()`; it still supplies no bounds or access authority. The
+observation may need runtime computation. An offset view must establish its own
+alignment, and interpreted address IDs are not physical alignment evidence.
+See [location alignment](../spec/language/counts_and_addresses.md#location-alignment).
 
 ## Exposing Addresses
 
@@ -309,21 +363,19 @@ Keep three questions separate:
 - `AccessPlan`: which primitive operations does this view request?
 - `ResourceProfile`: what can the admitted backing actually support?
 
-A nominal placement policy combines layout, access and required reach. This
-schematic policy assumes the named layout and access machines are in scope:
+A selected placement implementation combines layout, access and required reach.
+This schematic example assumes its ordinary package helpers are in scope:
 
 ```omega
-boundary data UartMmio;
-
-machine UartMmio::plan(schema: Schema) -> PlacementPlan
-    satisfies Placement::plan
-{
-    let layout: UartLayout = UartLayout::plan(schema);
-    let access: UartAccess = UartAccess::plan(schema, layout);
-    PlacementPlan {
-        layout: layout,
-        access: access,
-        reach: DeviceIo::reach()
+UartMmio satisfies Placement {
+    machine plan(schema: Schema) -> PlacementPlan {
+        let layout: Plan = uart_layout_plan(schema);
+        let access: AccessPlan = uart_access_plan(schema, layout);
+        PlacementPlan {
+            layout: layout,
+            access: access,
+            reach: device_io_reach()
+        }
     }
 }
 
@@ -334,7 +386,9 @@ data UartRegisters {
 ```
 
 `Placed<UartMmio, UartRegisters>` interprets qualified backing; it is not a newly
-allocated record. Projection is pure and returns an accessor:
+allocated record. Constructing the plan values above supplies no backing or
+access authority; placement still checks the exact policy and admitted supply.
+Projection is pure and returns an accessor:
 
 ```omega
 let status: u32 = uart.status.read();
@@ -595,20 +649,24 @@ let words: &mut [u16] = &mut storage.bytes as &mut [u16];
 ```
 
 These require compatible representations, not just equal byte counts. Shared
-views may forget facts; mutable views need equivalence in both directions so
-writes cannot invalidate the source when the loan ends. Recasting performs no
-validation or executable conversion.
+views may forget facts; immediately established mutable views need equivalence in
+both directions. An exclusive cast may instead open an establishment window as
+described below. Source validity and custody must still hold at handback.
+Recasting itself performs no validation or executable conversion.
 
 For example, `bool` has representations `{0,1}`. A shared unconstrained byte view
-forgets a fact. A mutable unconstrained byte view would permit writing `2`, so
-it rejects. Raw bytes cannot establish Boolean validity merely by receiving a type.
+forgets a fact. An unrestricted mutable byte view would permit writing `2`, so
+it cannot be admitted as an immediately established two-way view. A window cannot
+return such bytes as a `bool` without proving restored Boolean validity. Raw bytes
+cannot establish Boolean validity merely by receiving a type.
 
 Recasts must also preserve access authority. Atomic operations can mutate through
 a shared reference, so `&u32` to `&Atomic<u32>` cannot manufacture permission to
 write. The reverse cannot turn concurrent atomic storage into an ordinary stable
 read: non-atomic observation requires exclusion over the actual backing.
 With genuine exclusive access, ordinary/atomic recasts remain eligible when
-layout, two-way validity, and outstanding obligations permit them. Casting
+layout, established validity or the deferred-establishment rules, and outstanding
+obligations permit them. Casting
 through bytes does not bypass these checks.
 
 The same rule applies to domain `read by` / `written by` policies. Omitting the
@@ -631,6 +689,36 @@ field denied by the access plan. Recast a detached ordinary snapshot, or request
 another placement through the underlying qualified extent. See the
 [recast judgment](../spec/layouts/recasts.md) and
 [implementation limits](../../omega-rust/psi/compilation/checking/recasts.md).
+
+### Initializing a stricter shape in byte backing
+
+An exclusive cast may name a target-shaped place before its content is established.
+For example, an IPC header might require `version == 1` and `used <= capacity`.
+Zeroed backing fails the first predicate. The permitted sequence is:
+
+```text
+exclusive, aligned backing of sufficient size
+    -> cast to Header storage: establishment pending
+    -> initialize version, capacity and used with valid values
+    -> prove the complete Header domain through its authorized routes
+    -> ordinary typed use, then publish under the IPC custody protocol
+```
+
+This uses ordinary `as`, not a new initialization keyword. The pending place is
+not a valid `Header`: you cannot pass it to an ordinary header-taking machine or
+read its fields using unproved representation/domain facts. Invalid enum tags and
+reference bits cannot be read first and validated afterward. Geometry and exclusive
+access must be proved before the cast, not repaired inside the window.
+
+No unrestricted byte alias remains usable beside the pending typed view. Failed
+initial establishment creates no whole header and invokes no whole-header cleanup,
+but any initialized resource fields and original source obligations must be settled
+before returning the backing. Restricted domain minting and atomic/access policies
+still apply. Existing `Placed` view-to-view prohibitions are unchanged.
+
+See [deferred establishment](../spec/layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts)
+and [invariant windows](chapter_11_invariant_windows.md). This is accepted semantics,
+not a claim that the current compiler executes the complete initialization path.
 
 ## Endianness
 

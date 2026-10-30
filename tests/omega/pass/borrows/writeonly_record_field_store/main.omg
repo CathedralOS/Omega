@@ -16,11 +16,11 @@ machine Main::main(main: &mut Main) reaches Console {
     r.tag = 3;
     transition main.node.value == 7 { true -> done(main) _ -> bad(main) }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(181);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

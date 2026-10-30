@@ -10,6 +10,6 @@ machine main() crashes Trap {
     let cells: [i32; 4] = [3, 5, 7, 9];
     let observed: i32 = read_last(&cells[..], 3);
     transition observed == 7 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

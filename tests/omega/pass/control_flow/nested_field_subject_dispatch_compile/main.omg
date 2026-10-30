@@ -17,6 +17,6 @@ machine Main::main(main: &mut Main) {
         _ -> plain(main)
     }
 
-    state lucky(main: &mut Main) { main.answer = 70; }
-    state plain(main: &mut Main) { main.answer = 71; }
+    machine lucky(main: &mut Main) { main.answer = 70; }
+    machine plain(main: &mut Main) { main.answer = 71; }
 }

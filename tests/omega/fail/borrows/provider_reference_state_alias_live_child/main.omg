@@ -9,7 +9,7 @@ machine exercise(owner: &mut Token) -> u8 reaches Acquire {
     let reference: &mut Cell = Acquire::view(owner);
     let child: &u8 = &reference.value;
     transition { _ -> mutate(reference, child) }
-    state mutate(reference: &mut Cell, child: &u8) -> u8 {
+    machine mutate(reference: &mut Cell, child: &u8) -> u8 {
         reference.value = 4;
         child
     }

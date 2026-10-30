@@ -1,0 +1,13 @@
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/refuted_requires.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/refuted_requires.rs
+@@ -25,0 +26,4 @@
++    let requirements = requires_expressions(program, callee_machine, callee_state);
++    if requirements.is_empty() {
++        return;
++    }
+@@ -46,4 +50 @@
+-    for (position, expression) in requires_expressions(program, callee_machine, callee_state)
+-        .into_iter()
+-        .enumerate()
+-    {
++    for (position, expression) in requirements.into_iter().enumerate() {

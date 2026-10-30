@@ -1,12 +1,14 @@
 //! Establish and access the original primitive referent in the activation frame.
 use super::{
     Builder, IntegerSign, LegalizedScalarFunction, LegalizedScalarInstruction,
-    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory,
+    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionProvenance,
+    SelectedMemoryAccessRole, VirtualRegisterId, memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::local_storage;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
+use crate::selection::scalar_call_abi::load_transfer;
 use selected_instructions::LocalStorageSlotId;
 
 pub(super) fn write(
@@ -78,12 +80,7 @@ pub(super) fn write(
         byte_size,
         pointer,
         value_register,
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![value.value],
-            fuel: row.fuel.clone(),
-            ..Default::default()
-        },
+        operation_provenance(row, vec![value.value]),
     )?;
     Ok(())
 }
@@ -191,33 +188,9 @@ pub(in crate::selection) fn read(
         definition.definition_site,
         definition.scalar_type,
     )?;
-    let (instruction, constraint) = match shape.byte_size {
-        1 => (
-            SelectedInstructionKind::Load8 {
-                byte_offset: displacement,
-            },
-            builder.constraints.keys.load8,
-        ),
-        2 => (
-            SelectedInstructionKind::Load16 {
-                byte_offset: displacement,
-            },
-            builder.constraints.keys.load16,
-        ),
-        4 => (
-            SelectedInstructionKind::Load32 {
-                byte_offset: displacement,
-            },
-            builder.constraints.keys.load32,
-        ),
-        8 => (
-            SelectedInstructionKind::Load64 {
-                byte_offset: displacement,
-            },
-            builder.constraints.keys.load64,
-        ),
-        _ => return Err(invalid()),
-    };
+    let (instruction, constraint) =
+        load_transfer(&builder.constraints.keys, shape.byte_size, displacement)
+            .ok_or_else(invalid)?;
     super::runtime_address::footprint(
         builder,
         row,
@@ -231,16 +204,14 @@ pub(in crate::selection) fn read(
         instruction,
         constraint.ok_or_else(|| invalid())?,
         &[pointer, output],
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: indices
+        operation_provenance(
+            row,
+            indices
                 .iter()
                 .map(|index| index.operand.value)
                 .chain([definition.value])
                 .collect(),
-            fuel: row.fuel.clone(),
-            ..Default::default()
-        },
+        ),
     )?;
     normalize_signed_load(builder, definition, output)
 }

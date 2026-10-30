@@ -16,12 +16,11 @@ use register_model::RegisterConstraintKey;
 use register_model::RegisterViewId;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
-    LocalStorageSlotId, MachineAlternative, MachineAlternativeApplicability,
-    MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
-    MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
-    MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
+    LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    SelectedInstructionKind,
 };
 use target::NativeTarget;
 
@@ -66,35 +65,26 @@ pub(crate) fn declaration(
     target: NativeTarget,
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
-        semantic: MachineSemanticKind::HostedWriteByteI32,
+    MachineEffectDeclaration::single(
+        MachineSemanticKind::HostedWriteByteI32,
         constraint,
-        memory: MachineMemoryEffect::HostedWriteByteV1,
-        trap: MachineTrapBehavior::HostedWriteFailureV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::HostedWriteByteI32,
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: {
-                let short = if target == NativeTarget::macos_arm64() {
-                    40
-                } else {
-                    36
-                };
-                MachineSizeKnowledge::EncoderResolved {
-                    minimum_bytes: short,
-                    maximum_bytes: Some(short + MAX_ADDRESS_BYTES),
-                }
-            },
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(target),
-        }],
-    }
+        MachineMemoryEffect::HostedWriteByteV1,
+        MachineTrapBehavior::HostedWriteFailureV1,
+        MachineBarrier::ExternalEffect,
+        MachineAlternativeFamily::HostedWriteByteI32,
+        {
+            let short = if target == NativeTarget::macos_arm64() {
+                40
+            } else {
+                36
+            };
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: short,
+                maximum_bytes: Some(short + MAX_ADDRESS_BYTES),
+            }
+        },
+        effects(target),
+    )
 }
 
 fn request(
@@ -247,14 +237,7 @@ pub fn aarch64_hosted_write_byte_i32_byte_count(
 
 fn decode(target: NativeTarget, bytes: &[u8]) -> Option<(u8, u32)> {
     let system_call = system_call_words(target)?;
-    let (chunks, tail) = bytes.as_chunks::<4>();
-    if !tail.is_empty() {
-        return None;
-    }
-    let words = chunks
-        .iter()
-        .map(|word| u32::from_le_bytes(*word))
-        .collect::<Vec<_>>();
+    let words = super::word_stream(bytes)?;
     let first = *words.first()?;
     let (register, displacement) = if first & 0xffc0_03e0 == 0x3900_03e0 {
         (first & 31, (first >> 10) & 4095)
@@ -296,6 +279,7 @@ mod tests {
         NativeTarget, decode, effects, encode_aarch64_selected_hosted_write_byte_form,
         validate_aarch64_selected_hosted_write_byte_form,
     };
+    use crate::test_support::reject_every_bit_flip;
     use selected_instructions::{
         LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
         MachineEncodedStackEffect, SelectedInstructionKind,
@@ -356,23 +340,18 @@ mod tests {
                         encoded.footprint().encoded.stack,
                         MachineEncodedStackEffect::UnchangedV1
                     );
-                    for bit in 0..encoded.bytes().len() * 8 {
-                        let mut changed = encoded.bytes().to_vec();
-                        changed[bit / 8] ^= 1 << (bit % 8);
-                        assert!(
-                            validate_aarch64_selected_hosted_write_byte_form(
-                                target,
-                                &physical,
-                                kind,
-                                alternative,
-                                &operands,
-                                displacement,
-                                &changed
-                            )
-                            .is_err(),
-                            "encoded bit {bit}"
-                        );
-                    }
+                    reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |changed| {
+                        validate_aarch64_selected_hosted_write_byte_form(
+                            target,
+                            &physical,
+                            kind,
+                            alternative,
+                            &operands,
+                            displacement,
+                            &changed,
+                        )
+                        .is_err()
+                    });
                     assert!(
                         validate_aarch64_selected_hosted_write_byte_form(
                             target,

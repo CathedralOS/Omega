@@ -16,13 +16,13 @@ public machine distance_squared(x: i32 in Wrapping, y: i32 in Wrapping,
 
 public machine feasible(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping) -> bool {
     transition { _ -> observation(problem, x, y, 0) }
-    state observation(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64) -> bool {
+    machine observation(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64) -> bool {
         transition index < 3 {
             true -> inspect(problem, x, y, index)
             false -> (true)
         }
     }
-    state inspect(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64) -> bool
+    machine inspect(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64) -> bool
     requires index < 3
     {
         let offset: u64 = 5 + index * 4;

@@ -30,7 +30,7 @@ pub(crate) enum ReconciledPackageImport {
 ///
 /// Physical source lookup is target-independent. Generated-source selection
 /// and physical/generated collision rejection remain exact-child work.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) struct ReconciledPackageImportRequest {
     pub(super) package: semantic_vocabulary::PackageKeyIdentity,
     pub(super) expected_root: PathBuf,
@@ -49,7 +49,7 @@ pub(crate) struct ReconciledPackageImportRequest {
 /// This is diagnostic metadata only. It never adds the edge or resolves the
 /// import; the compile still rejects, but by naming the declaration that would
 /// close the gap instead of an unresolvable requester-relative source path.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) struct MissingDependencyEdge {
     authored_path: String,
     alias: String,
@@ -83,11 +83,12 @@ impl MissingDependencyEdge {
 impl ReconciledPackageImportRequest {
     pub fn physical_source(
         &self,
-        filesystem: &source::SourceFileSystem,
+        packages: &PackageCompilationInputs,
     ) -> Result<Option<PathBuf>, Vec<Diagnostic>> {
+        let filesystem = packages.source_filesystem();
         if !source_import_candidates(&self.relative_path)
             .into_iter()
-            .any(|candidate| filesystem.exists(&self.expected_root.join(candidate)))
+            .any(|candidate| filesystem.is_file(&self.expected_root.join(candidate)))
         {
             return Ok(None);
         }
@@ -97,6 +98,7 @@ impl ReconciledPackageImportRequest {
             "package",
             filesystem,
         )?;
+        self.reject_foreign_source_owner(&resolved, packages)?;
         self.reject_dependency_build_import(&resolved)?;
         Ok(Some(resolved))
     }
@@ -126,7 +128,7 @@ impl ReconciledPackageImportRequest {
         let physical = relative_candidates
             .into_iter()
             .map(|candidate| self.expected_root.join(candidate))
-            .find(|candidate| filesystem.exists(candidate));
+            .find(|candidate| filesystem.is_file(candidate));
         let resolved = match (generated, physical) {
             (Some(generated), Some(physical)) => {
                 return Err(vec![Diagnostic::error(format!(
@@ -145,16 +147,32 @@ impl ReconciledPackageImportRequest {
                 {
                     return Err(vec![missing_edge.diagnostic(&self.requesting_source)]);
                 }
-                resolve_reconciled_relative_import(
+                let resolved = resolve_reconciled_relative_import(
                     self.expected_root.clone(),
                     &self.relative_path,
                     "package",
                     filesystem,
-                )?
+                )?;
+                self.reject_foreign_source_owner(&resolved, packages)?;
+                resolved
             }
         };
         self.reject_dependency_build_import(&resolved)?;
         Ok(resolved)
+    }
+
+    fn reject_foreign_source_owner(
+        &self,
+        resolved: &Path,
+        packages: &PackageCompilationInputs,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if packages.package_for_source(resolved) != Some(self.package) {
+            return Err(vec![Diagnostic::error(format!(
+                "package source {} belongs to a different reconciled package than the import requested",
+                resolved.display(),
+            ))]);
+        }
+        Ok(())
     }
 
     fn reject_dependency_build_import(&self, resolved: &Path) -> Result<(), Vec<Diagnostic>> {

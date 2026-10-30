@@ -8,7 +8,7 @@ data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("force_plate_balance positions_mm=(-200,-100),(200,-100),(200,100),(-200,100) support_mm=150,75");
     transition { _ -> next() }
-    state next() {
+    machine next() {
         let mut buffer: [u8; 256];
         let observed: LineReadResult = block Console::read_line(&mut buffer);
         transition observed {
@@ -18,13 +18,13 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> failed()
         }
     }
-    state line(buffer: &[u8; 256], count: u64, final: bool) {
+    machine line(buffer: &[u8; 256], count: u64, final: bool) {
         transition count <= buffer.len {
             true -> bounded_line(buffer, count, final)
             _ -> failed()
         }
     }
-    state bounded_line(buffer: &[u8; 256], count: u64, final: bool)
+    machine bounded_line(buffer: &[u8; 256], count: u64, final: bool)
     requires count <= buffer.len
     {
         transition final {
@@ -32,51 +32,51 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> parse(&buffer[..count])
         }
     }
-    state parse(text: &[u8]) {
+    machine parse(text: &[u8]) {
         let parsed: Parsed = parse_frame(text);
         transition parsed {
             Parsed::Valid { frame } -> balance(frame)
             _ -> malformed()
         }
     }
-    state balance(frame: Frame) {
+    machine balance(frame: Frame) {
         let result: Balance = reconcile(&frame);
         report(&frame, &result);
         transition { _ -> next() }
     }
-    state malformed() {
+    machine malformed() {
         Console::write_line("INVALID_SYNTAX expected seven signed integers <=1000000");
         transition { _ -> next() }
     }
-    state oversized() {
+    machine oversized() {
         Console::write_line("INVALID_LINE_TOO_LONG");
         transition { _ -> drain() }
     }
-    state drain() {
+    machine drain() {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Byte { value } -> drain_byte(value)
             _ -> done()
         }
     }
-    state drain_byte(value: i32) {
+    machine drain_byte(value: i32) {
         transition value == 10 { true -> next() _ -> drain() }
     }
-    state end(text: &[u8], count: u64) {
+    machine end(text: &[u8], count: u64) {
         transition count == 0 { true -> done() _ -> final_frame(text) }
     }
-    state final_frame(text: &[u8]) {
+    machine final_frame(text: &[u8]) {
         let parsed: Parsed = parse_frame(text);
         transition parsed { Parsed::Valid { frame } -> final_balance(frame) _ -> final_invalid() }
     }
-    state final_balance(frame: Frame) {
+    machine final_balance(frame: Frame) {
         let result: Balance = reconcile(&frame);
         report(&frame, &result);
         transition { _ -> done() }
     }
-    state final_invalid() { Console::write_line("INVALID_SYNTAX expected seven signed integers <=1000000"); Console::exit_process(0); }
-    state done() { Console::exit_process(0); }
-    state failed() { Console::exit_process(1); }
+    machine final_invalid() { Console::write_line("INVALID_SYNTAX expected seven signed integers <=1000000"); Console::exit_process(0); }
+    machine done() { Console::exit_process(0); }
+    machine failed() { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -3,19 +3,19 @@ machine shift(count: u32, choose: bool) -> u64 {
         true -> guarded(count)
         false -> unguarded(count)
     }
-    state guarded(count: u32) -> u64 {
+    machine guarded(count: u32) -> u64 {
         let valid: bool = count < 64u32;
         transition { _ -> decide(valid, count) }
     }
-    state unguarded(count: u32) -> u64 {
+    machine unguarded(count: u32) -> u64 {
         transition { _ -> decide(true, count) }
     }
-    state decide(valid: bool, count: u32) -> u64 {
+    machine decide(valid: bool, count: u32) -> u64 {
         transition valid {
             true -> calculate(count)
             false -> empty()
         }
     }
-    state calculate(count: u32) -> u64 { 8u64 >> count }
-    state empty() -> u64 { 0 }
+    machine calculate(count: u32) -> u64 { 8u64 >> count }
+    machine empty() -> u64 { 0 }
 }

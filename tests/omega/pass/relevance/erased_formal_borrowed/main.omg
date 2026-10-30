@@ -28,6 +28,6 @@ machine Main::main(main: &mut Main) {
         true -> good()
         _ -> bad()
     }
-    state good() {}
-    state bad() {}
+    machine good() {}
+    machine bad() {}
 }

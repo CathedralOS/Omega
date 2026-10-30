@@ -1,0 +1,6 @@
+data Cell { value: u64; }
+data View<'a> { cell: &'a Cell; }
+data Other<'a> { cell: &'a Cell; }
+machine make<'a>(value: &'a Cell) -> View<'a> { View { cell: value } }
+machine invalid<'a>(value: &'a Cell) -> Other<'a> { transition { _ -> make(value) } }
+machine main() {}

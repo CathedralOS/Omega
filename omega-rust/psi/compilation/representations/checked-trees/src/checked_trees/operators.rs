@@ -27,30 +27,18 @@ use typed_trees::types::TypeReferenceHandle;
 
 pub use numerics::arithmetic::ArithmeticPolicyAdapter as CheckedArithmeticPolicyAdapter;
 
-/// Collision-resistant commitment to the exact selected ProviderPlan.
-///
-/// Psi owns this opaque byte carrier so checked operator evidence can retain
-/// Omega's plan digest without introducing an upward dependency on
-/// `effects`. The provider-planning boundary is responsible for copying
-/// the digest from the exact selected plan.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CheckedProviderPlanCommitment([u8; 32]);
-
-impl CheckedProviderPlanCommitment {
-    pub const fn from_digest(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
-
-    pub const fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
-    }
-
-    pub fn is_empty(self) -> bool {
-        self.0 == [0; 32]
-    }
+typed_trees::digest_commitment! {
+    /// Collision-resistant commitment to the exact selected ProviderPlan.
+    ///
+    /// Psi owns this opaque byte carrier so checked operator evidence can retain
+    /// Omega's plan digest without introducing an upward dependency on
+    /// `effects`. The provider-planning boundary is responsible for copying
+    /// the digest from the exact selected plan.
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    CheckedProviderPlanCommitment
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedOperatorResolutionStatus {
     #[default]
     Missing,
@@ -73,10 +61,13 @@ pub enum CheckedOperatorResolutionStatus {
     Inadmissible,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedOperatorUseFact {
     pub expression: ExpressionHandle,
     pub origin: CheckedValueOrigin,
+    /// Checked publication records the enclosing machine's type telescope.
+    /// A concrete operator inside a generic machine is still a template use.
+    pub is_generic_template: bool,
     pub occurrence: CheckedOperatorOccurrence,
     pub spelling: OperatorSpelling,
     pub policy_adapter: CheckedArithmeticPolicyAdapter,
@@ -88,7 +79,7 @@ pub struct CheckedOperatorUseFact {
 
 /// An implicit comparison belongs to its authored arm, not to an invented
 /// binary expression or to the operator inside that arm's pattern value.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedOperatorOccurrence {
     #[default]
     Expression,
@@ -183,10 +174,11 @@ impl CheckedOperatorUseFact {
 /// Named calls have no spelling-resolution candidate set, but they still need
 /// the selected semantic identity and any arithmetic-policy result adapter to
 /// survive past typed trees.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedNamedOperatorUseFact {
     pub expression: ExpressionHandle,
     pub origin: CheckedValueOrigin,
+    pub is_generic_template: bool,
     pub selected_operator_symbol: SymbolHandle,
     pub policy_adapter: CheckedArithmeticPolicyAdapter,
 }
@@ -198,7 +190,7 @@ pub struct CheckedNamedOperatorUseFact {
 /// its selected ProviderPlan by requirement identity, so the
 /// compiler-intrinsic execution bridge resolves both use kinds through one
 /// requirement view.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedNamedRequirementUseFact {
     pub expression: ExpressionHandle,
     pub origin: CheckedValueOrigin,
@@ -206,6 +198,38 @@ pub struct CheckedNamedRequirementUseFact {
     /// state, which is what the typed call targets).
     pub requirement_symbol: SymbolHandle,
     pub policy_adapter: CheckedArithmeticPolicyAdapter,
+}
+
+/// Requirement-side coordinates exist independently of satisfaction or use.
+/// The two classifications remain distinct: a token-bearing requirement can
+/// be used both as an operator and as a direct call to the same declaration.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedProviderRequirementKind {
+    Operator {
+        /// Dormant selected declarations require Product boundary membership.
+        /// Occurrence admission intentionally does not repeat that filter.
+        is_product_boundary: bool,
+    },
+    DirectCall {
+        diagnostic_name: String,
+    },
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedProviderRequirement {
+    pub symbol: SymbolHandle,
+    pub kind: CheckedProviderRequirementKind,
+    /// Export coordinate of the provider slot, never a source spelling lookup.
+    pub schema_identity: String,
+    pub package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
+}
+
+impl Default for CheckedProviderRequirementKind {
+    fn default() -> Self {
+        Self::Operator {
+            is_product_boundary: false,
+        }
+    }
 }
 
 /// One crash-qualified selected use, identified by the exact `uses` or
@@ -220,7 +244,7 @@ pub enum CheckedCrashQualifiedUse {
 
 /// One checked boundary-operator application at one exact use. The empty
 /// argument vector is the canonical monomorphic application.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedBoundaryOperatorApplicationDemand {
     pub site: CheckedBoundaryOperatorApplicationUseSite,
     pub requirement_symbol: SymbolHandle,
@@ -238,8 +262,11 @@ pub struct CheckedBoundaryOperatorApplicationDemand {
 
 /// Checked conformance and specialization facts, before Terminal gives source
 /// declarations their portable identities. This is a candidate, not selection.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedBoundaryBodyCandidate {
+    /// Declaration eligibility is retained independently of executable demand.
+    pub declaration: Handle<CheckedBoundaryOperatorDeclaration>,
+    pub is_product: bool,
     pub selection: SymbolHandle,
     pub selection_identity: CallableIdentityId,
     pub target: Option<String>,
@@ -249,10 +276,19 @@ pub struct CheckedBoundaryBodyCandidate {
     pub specialization: Option<(SymbolHandle, [u8; 32])>,
 }
 
+/// A checked operator satisfaction, including open declarations which are not
+/// executable candidates. Its presence never establishes a closed application.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedBoundaryOperatorDeclaration {
+    pub requirement: SymbolHandle,
+    pub machine: SymbolHandle,
+    pub selection: language_semantics::BoundaryBodySelection,
+}
+
 /// One checked open application exported by a generic machine. This is
 /// symbolic demand only; it cannot satisfy a closed application or authorize
 /// a realization before final substitution.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedSymbolicBoundaryOperatorApplicationDemand {
     pub site: CheckedBoundaryOperatorApplicationUseSite,
     pub requirement_symbol: SymbolHandle,
@@ -260,7 +296,7 @@ pub struct CheckedSymbolicBoundaryOperatorApplicationDemand {
     pub arguments: Vec<CheckedSymbolicBoundaryOperatorApplicationArgument>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedSymbolicBoundaryOperatorApplicationArgument {
     TypeBinder {
         binder_owner: SymbolHandle,
@@ -271,7 +307,7 @@ pub enum CheckedSymbolicBoundaryOperatorApplicationArgument {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedBoundaryOperatorApplicationUseSite {
     Expression {
         expression: ExpressionHandle,
@@ -291,7 +327,7 @@ pub enum CheckedBoundaryOperatorApplicationUseSite {
 /// Checking admits a `Const` value against its `declared_carrier`
 /// (`validation::validate_closed_operator_application`) before it records the
 /// application, so consumers read the value without admitting it again.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedBoundaryOperatorApplicationArgument {
     Type {
         binder_owner: SymbolHandle,
@@ -313,6 +349,7 @@ impl Default for CheckedOperatorUseFact {
         Self {
             expression: ExpressionHandle::invalid(),
             origin: CheckedValueOrigin::default(),
+            is_generic_template: false,
             occurrence: CheckedOperatorOccurrence::Expression,
             spelling: OperatorSpelling::Index,
             policy_adapter: CheckedArithmeticPolicyAdapter::None,
@@ -324,7 +361,7 @@ impl Default for CheckedOperatorUseFact {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedOperatorCandidateFact {
     pub operator_symbol: SymbolHandle,
     pub domain_symbol: SymbolHandle,
@@ -502,7 +539,7 @@ impl CheckedOperatorContractUse<'_> {
 /// One checked, cause-normalized crash bucket on an operator declaration.
 /// Fact handles are compiler-private joins back into typed Psi; package review
 /// projects their exact structural identity only after checking succeeds.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedOperatorCrashBucket {
     cause: CrashCause,
     unconditional: bool,
@@ -534,7 +571,7 @@ impl CheckedOperatorCrashBucket {
 /// Complete checked crash surface for one exact operator declaration. One row
 /// exists even when the operator publishes no crash routes, so absence cannot
 /// be confused with an empty ceiling.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedOperatorCrashContract {
     operator_symbol: SymbolHandle,
     buckets: Vec<CheckedOperatorCrashBucket>,
@@ -560,7 +597,7 @@ impl CheckedOperatorCrashContract {
 /// The range validation proved for one exact (`as T`) integer conversion of a
 /// runtime value. Checked scalar lowering spells the conversion as
 /// `IntegerExactCast` carrying this range; without the row it declines.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ExactIntegerCastFact {
     pub expression: ExpressionHandle,
     pub source_type: typed_trees::types::PrimitiveType,
@@ -569,9 +606,13 @@ pub struct ExactIntegerCastFact {
     pub maximum: numerics::bignum::BigInt,
 }
 
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedOperatorFacts {
     pub uses: Arena<CheckedOperatorUseFact>,
+    /// Complete requirement-side classification, including unused declarations
+    /// and declarations with no implementation. Candidate absence is not evidence
+    /// that a requirement belongs to another admission category.
+    pub provider_requirements: Arena<CheckedProviderRequirement>,
     /// Every exact integer conversion validation proved, so a later lowering
     /// of the same authored expression spells it as the retained one did.
     pub exact_integer_casts: Vec<ExactIntegerCastFact>,
@@ -581,6 +622,7 @@ pub struct CheckedOperatorFacts {
     /// operation it emits for each one, so the proof pass consumes the
     /// decision instead of searching for a certificate.
     pub decided_formations: Vec<ExpressionHandle>,
+    pub trap_free_expressions: Vec<ExpressionHandle>,
     /// Executions admitted for the separate Build evaluation program.
     /// Product provider associations belong to selected execution, not these
     /// immutable source facts. Source classification never populates this roster.
@@ -596,6 +638,7 @@ pub struct CheckedOperatorFacts {
     /// coverage; later authority-bearing consumers must fail closed.
     pub boundary_applications: Vec<CheckedBoundaryOperatorApplicationDemand>,
     pub boundary_body_candidates: Arena<CheckedBoundaryBodyCandidate>,
+    pub boundary_declarations: Arena<CheckedBoundaryOperatorDeclaration>,
     /// D29 open demands retained separately from closed applications so no
     /// downstream consumer can accidentally interpret them as coverage.
     pub symbolic_boundary_applications: Vec<CheckedSymbolicBoundaryOperatorApplicationDemand>,
@@ -658,8 +701,10 @@ impl std::fmt::Debug for CheckedOperatorFacts {
         formatter
             .debug_struct("CheckedOperatorFacts")
             .field("uses", &self.uses)
+            .field("provider_requirements", &self.provider_requirements)
             .field("exact_integer_casts", &self.exact_integer_casts)
             .field("decided_formations", &self.decided_formations)
+            .field("trap_free_expressions", &self.trap_free_expressions)
             .field(
                 "selected_float_comparisons",
                 &self.selected_float_comparisons,
@@ -685,7 +730,7 @@ impl std::fmt::Debug for CheckedOperatorFacts {
 /// Package review can rederive the association from the final typed graph and
 /// require exact equality without relying on mutable proof-fact handles or a
 /// collision-prone digest. Trusted compiler components remain inside the TCB.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedOperatorRealizationContract {
     machine_symbol: SymbolHandle,
     operator_symbol: SymbolHandle,
@@ -709,12 +754,54 @@ impl CheckedOperatorRealizationContract {
 }
 
 impl CheckedOperatorFacts {
+    /// Borrow one exact application's checked eligibility. The caller selects
+    /// only its payload; requirement/declaration correspondence stays here.
+    pub fn project_body_candidates<'facts, Body>(
+        &'facts self,
+        application: &CheckedBoundaryOperatorApplicationDemand,
+        payload: impl Fn(&'facts CheckedBoundaryBodyCandidate) -> Body,
+    ) -> Result<
+        Vec<language_semantics::CheckedBodyCandidate<'facts, Body>>,
+        language_semantics::boundary_provider_review::BoundaryApplicationEvidenceError,
+    > {
+        use language_semantics::boundary_provider_review::BoundaryApplicationEvidenceError as Error;
+        let bodies = self
+            .boundary_body_candidates
+            .span(application.body_candidates)
+            .ok_or(Error::MissingBodySpan)?;
+        let mut candidates = Vec::with_capacity(bodies.len());
+        for body in bodies {
+            if !self.boundary_declarations.is_valid(body.declaration) {
+                return Err(Error::MissingDeclaration);
+            }
+            let declaration = self.boundary_declarations.get(body.declaration);
+            if declaration.requirement != application.requirement_symbol {
+                return Err(Error::DifferentRequirement);
+            }
+            candidates.push(language_semantics::CheckedBodyCandidate {
+                body: payload(body),
+                declaration: &declaration.selection,
+                target: body.target.as_deref(),
+                is_product: body.is_product,
+            });
+        }
+        Ok(candidates)
+    }
+
     /// Whether checking decided every formation condition of this integer
     /// operation occurrence.
     pub fn formation_is_decided(&self, expression: ExpressionHandle) -> bool {
         self.decided_formations
             .binary_search_by_key(&handle_position(expression), |defined| {
                 handle_position(*defined)
+            })
+            .is_ok()
+    }
+
+    pub fn is_trap_free(&self, expression: ExpressionHandle) -> bool {
+        self.trap_free_expressions
+            .binary_search_by_key(&handle_position(expression), |source| {
+                handle_position(*source)
             })
             .is_ok()
     }
@@ -768,8 +855,10 @@ impl CheckedOperatorFacts {
     ) -> Self {
         Self {
             uses,
+            provider_requirements: Arena::new(),
             exact_integer_casts: Vec::new(),
             decided_formations: Vec::new(),
+            trap_free_expressions: Vec::new(),
             selected_float_comparisons: Arena::new(),
             named_uses,
             named_requirement_uses: Arena::new(),
@@ -778,6 +867,7 @@ impl CheckedOperatorFacts {
             operator_realization_contracts: Vec::new(),
             boundary_applications: Vec::new(),
             boundary_body_candidates: Arena::new(),
+            boundary_declarations: Arena::new(),
             symbolic_boundary_applications: Vec::new(),
             expression_uses: arena::OwnedIndex::default(),
         }

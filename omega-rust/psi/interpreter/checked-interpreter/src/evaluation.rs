@@ -1,17 +1,12 @@
 //! Evaluator work, observed effects, and returned-result custody.
 
-use language_semantics::declaration_selection::ExecutedRootBinding;
-
-use crate::{
-    FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION, FilesystemGrantRootIdentity,
-    FilesystemOperationAttempt,
-};
+use crate::FilesystemGrantRootIdentity;
 
 /// Versioned identity of the checked interpreter semantics used for
 /// build-time result evaluation. This is independent of work accounting: a
 /// semantic change must advance this marker even when the step schedule and
 /// usage-record shape stay unchanged.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct EvaluationSemanticsIdentity(u32);
 
 impl EvaluationSemanticsIdentity {
@@ -21,7 +16,7 @@ impl EvaluationSemanticsIdentity {
 }
 
 pub const CURRENT_EVALUATION_SEMANTICS: EvaluationSemanticsIdentity =
-    EvaluationSemanticsIdentity(4);
+    EvaluationSemanticsIdentity(5);
 
 /// Identity of the deterministic evaluator-step schedule used before the
 /// canonical portable IR exists.
@@ -29,7 +24,7 @@ pub const CURRENT_EVALUATION_SEMANTICS: EvaluationSemanticsIdentity =
 /// This is deliberately distinct from canonical-IR `FuelScheduleIdentity`.
 /// Its marker names the current TypedTrees interpreter's accounting precursor and
 /// must not be used as an IR-derived fixed-work certificate.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct EvaluationStepScheduleIdentity(u32);
 
 impl EvaluationStepScheduleIdentity {
@@ -46,7 +41,7 @@ pub const CURRENT_EVALUATION_STEP_SCHEDULE: EvaluationStepScheduleIdentity =
 /// Version of the canonical evaluator usage-record schema. This is distinct
 /// from the step schedule: adding an attributed count changes the record shape
 /// without changing the meaning or weight of an evaluator step.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct EvaluationUsageSchemaIdentity(u32);
 
 impl EvaluationUsageSchemaIdentity {
@@ -63,7 +58,7 @@ pub const CURRENT_EVALUATION_USAGE_SCHEMA: EvaluationUsageSchemaIdentity =
 /// The fields are private so future attributed telemetry can extend this
 /// record without allowing callers to fabricate usage. The evaluated program
 /// cannot observe this record or its remaining sponsor allowance.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct EvaluationUsage {
     pub(crate) schema: EvaluationUsageSchemaIdentity,
     pub(crate) schedule: EvaluationStepScheduleIdentity,
@@ -77,202 +72,10 @@ pub struct EvaluationUsage {
     pub(crate) result_text_bytes: u64,
 }
 
-/// Host observations made while evaluating one machine.
-///
-/// This is deliberately separate from [`EvaluationUsage`]: deterministic
-/// evaluator work and build-host observations are different policy
-/// axes. Ordinary semantic evaluation must always return an empty row. The
-/// granted build-machine entry may report a filesystem observation, which the
-/// compiler classifies according to the exact provider it selected.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EvaluationObservations {
-    pub(crate) filesystem_operation_schema_version: u32,
-    pub(crate) filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,
-    pub(crate) build_included_sources: Vec<BuildIncludedSource>,
-    pub(crate) build_log: Vec<u8>,
-    pub(crate) build_output_obligations: Vec<BuildOutputObligation>,
-    pub(crate) build_output_receipts: Vec<BuildOutputReceipt>,
-}
-
-impl Default for EvaluationObservations {
-    fn default() -> Self {
-        Self {
-            filesystem_operation_schema_version: FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
-            filesystem_operation_attempts: Vec::new(),
-            build_included_sources: Vec::new(),
-            build_log: Vec::new(),
-            build_output_obligations: Vec::new(),
-            build_output_receipts: Vec::new(),
-        }
-    }
-}
-
-impl EvaluationObservations {
-    pub(crate) fn from_build_run(
-        filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,
-        build_included_sources: Vec<BuildIncludedSource>,
-        build_log: Vec<u8>,
-        build_output_obligations: Vec<BuildOutputObligation>,
-        build_output_receipts: Vec<BuildOutputReceipt>,
-    ) -> Self {
-        Self {
-            filesystem_operation_schema_version: FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
-            filesystem_operation_attempts,
-            build_included_sources,
-            build_log,
-            build_output_obligations,
-            build_output_receipts,
-        }
-    }
-
-    pub fn filesystem_host_observed(&self) -> bool {
-        !self.filesystem_operation_attempts.is_empty()
-    }
-
-    pub const fn filesystem_operation_schema_version(&self) -> u32 {
-        self.filesystem_operation_schema_version
-    }
-
-    pub fn filesystem_operation_attempts(&self) -> &[FilesystemOperationAttempt] {
-        &self.filesystem_operation_attempts
-    }
-
-    pub fn build_included_sources(&self) -> &[BuildIncludedSource] {
-        &self.build_included_sources
-    }
-
-    /// Exact bytes emitted by the compiler-owned `Build.log` facet.
-    pub fn build_log(&self) -> &[u8] {
-        &self.build_log
-    }
-
-    /// Required-output obligations issued by the exact toolchain
-    /// `BuildOutput::require` machine, in issue order. Each carries its
-    /// declared name, the filesystem-attempt ordinal it was issued at, its
-    /// settlement state, and any completed-output mutations observed after a
-    /// successful completion. The compiler reads settlement from these rows;
-    /// evaluated code only ever holds the opaque marker index.
-    pub fn build_output_obligations(&self) -> &[BuildOutputObligation] {
-        &self.build_output_obligations
-    }
-
-    /// Completion receipts issued by the exact toolchain
-    /// `BuildOutput::complete` machine, in issue order. A receipt rejoins one
-    /// obligation index to the sealed output path it completed and the
-    /// attempt ordinals that sealed and completed it.
-    pub fn build_output_receipts(&self) -> &[BuildOutputReceipt] {
-        &self.build_output_receipts
-    }
-}
-
-/// Maximum `BuildOutput::require` obligations one build activation may issue.
-/// This is an evaluator evidence ceiling, not a language limit; it matches the
-/// compiler's declared required-output roster bound.
-pub const MAX_BUILD_OUTPUT_OBLIGATIONS: usize = 4_096;
-
-/// Settlement state of one compiler-issued required-output obligation.
-///
-/// Obligations are linear at the custody boundary: `Pending` is the only
-/// state `complete`/`fail` accept, a completed obligation cannot complete
-/// again, and a failed obligation is sticky for the rest of the activation.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum BuildOutputObligationState {
-    /// Reserved by `require`; not yet completed or failed.
-    Pending,
-    /// `complete` accepted the sealed file at `completed_at` (the count of
-    /// completed filesystem attempts at that point) and issued receipt
-    /// `receipt` (an index into the run's `build_output_receipts`).
-    Completed { completed_at: usize, receipt: usize },
-    /// `fail` consumed the obligation with the authored diagnostic. The
-    /// activation can never publish a successful product set.
-    Failed {
-        failed_at: usize,
-        diagnostic: Vec<u8>,
-    },
-}
-
-/// One compiler-issued required-output obligation created by
-/// `BuildOutput::require`. The `RequiredOutput` value evaluated code holds
-/// carries only this row's index, so the declared name and state are
-/// compiler-owned evidence that authored code cannot fabricate or reset.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BuildOutputObligation {
-    /// The grant-root identity of the issuing `builder.output` facet.
-    pub(crate) root: FilesystemGrantRootIdentity,
-    /// Declared canonical relative output name.
-    pub(crate) relative_path: Vec<u8>,
-    /// Count of completed filesystem attempts when `require` issued the
-    /// obligation.
-    pub(crate) issued_at: usize,
-    pub(crate) state: BuildOutputObligationState,
-    /// Completed filesystem-attempt ordinals that mutated this obligation's
-    /// output path after it was completed. Publication requires this to be
-    /// empty.
-    pub(crate) post_completion_mutations: Vec<usize>,
-}
-
-impl BuildOutputObligation {
-    pub const fn root(&self) -> FilesystemGrantRootIdentity {
-        self.root
-    }
-
-    pub fn relative_path(&self) -> &[u8] {
-        &self.relative_path
-    }
-
-    pub const fn issued_at(&self) -> usize {
-        self.issued_at
-    }
-
-    pub const fn state(&self) -> &BuildOutputObligationState {
-        &self.state
-    }
-
-    pub fn post_completion_mutations(&self) -> &[usize] {
-        &self.post_completion_mutations
-    }
-}
-
-/// One completion receipt issued by `BuildOutput::complete`. Receipts are
-/// activation-local custody: the `OutputReceipt` value evaluated code holds
-/// carries only this row's index, so a receipt cannot satisfy an obligation
-/// from another occurrence or be reused against a different output name.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BuildOutputReceipt {
-    /// Index into the run's `build_output_obligations` identifying the
-    /// obligation this receipt completed.
-    pub(crate) obligation: usize,
-    /// The grant-root identity and sealed relative path the completion bound.
-    pub(crate) root: FilesystemGrantRootIdentity,
-    pub(crate) relative_path: Vec<u8>,
-    /// Filesystem-attempt ordinal that retired the file's last writer.
-    pub(crate) sealed_at: usize,
-    /// Count of completed filesystem attempts when `complete` issued the
-    /// receipt.
-    pub(crate) completed_at: usize,
-}
-
-impl BuildOutputReceipt {
-    pub const fn obligation(&self) -> usize {
-        self.obligation
-    }
-
-    pub const fn root(&self) -> FilesystemGrantRootIdentity {
-        self.root
-    }
-
-    pub fn relative_path(&self) -> &[u8] {
-        &self.relative_path
-    }
-
-    pub const fn sealed_at(&self) -> usize {
-        self.sealed_at
-    }
-
-    pub const fn completed_at(&self) -> usize {
-        self.completed_at
-    }
-}
+pub use filesystem_authority::{
+    BuildOutputObligation, BuildOutputObligationState, BuildOutputReceipt,
+    MAX_BUILD_OUTPUT_OBLIGATIONS,
+};
 
 /// One explicit generated-source handoff emitted by the exact toolchain
 /// `BuildOutput::include_source` machine during a successful granted build.
@@ -370,81 +173,6 @@ pub enum ExecutedBehaviorExclusionKind {
     /// validates.
     Service,
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuildMachineEvaluationFailureKind {
-    InvalidFilesystemGrant,
-    Exit,
-    Unsupported,
-    Trap,
-    ResourceExhausted,
-    ResultAccountingOverflow,
-    WorkerUnavailable,
-    WorkerPanicked,
-}
-
-/// A failed granted build evaluation keeps partial work and host observations
-/// when the evaluator returned normally. Worker creation/panic failures mark
-/// both as unavailable rather than fabricating empty evidence.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BuildMachineEvaluationFailure {
-    pub(crate) kind: BuildMachineEvaluationFailureKind,
-    pub(crate) diagnostic: String,
-    pub(crate) usage: Option<EvaluationUsage>,
-    pub(crate) observations: Option<EvaluationObservations>,
-}
-
-impl BuildMachineEvaluationFailure {
-    pub(crate) fn with_evidence(
-        kind: BuildMachineEvaluationFailureKind,
-        diagnostic: String,
-        usage: EvaluationUsage,
-        observations: EvaluationObservations,
-    ) -> Self {
-        Self {
-            kind,
-            diagnostic,
-            usage: Some(usage),
-            observations: Some(observations),
-        }
-    }
-
-    pub(crate) fn without_evidence(
-        kind: BuildMachineEvaluationFailureKind,
-        diagnostic: String,
-    ) -> Self {
-        Self {
-            kind,
-            diagnostic,
-            usage: None,
-            observations: None,
-        }
-    }
-
-    pub const fn kind(&self) -> BuildMachineEvaluationFailureKind {
-        self.kind
-    }
-
-    pub fn diagnostic(&self) -> &str {
-        &self.diagnostic
-    }
-
-    pub const fn usage(&self) -> Option<EvaluationUsage> {
-        self.usage
-    }
-
-    pub const fn observations(&self) -> Option<&EvaluationObservations> {
-        self.observations.as_ref()
-    }
-}
-
-impl std::fmt::Display for BuildMachineEvaluationFailure {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(&self.diagnostic)
-    }
-}
-
-impl std::error::Error for BuildMachineEvaluationFailure {}
 
 impl EvaluationUsage {
     pub(crate) const fn empty(fuel_ceiling: u64) -> Self {
@@ -629,124 +357,6 @@ impl<T> BuildTimeOperationEvaluation<T> {
 
     pub fn into_value(self) -> T {
         self.measured.into_value()
-    }
-}
-
-/// A granted build-machine result keeps host observations beside, but
-/// distinct from, deterministic evaluator work.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MeasuredBuildMachineEvaluation<T> {
-    pub(crate) measured: MeasuredEvaluation<T>,
-    pub(crate) observations: EvaluationObservations,
-    pub(crate) executed_root_bindings: Vec<ExecutedRootBinding>,
-    pub(crate) executed_behavior_exclusions: Vec<ExecutedBehaviorExclusion>,
-    pub(crate) executed_build_selections: Vec<ExecutedBuildSelection>,
-    pub(crate) executed_wire_demands: Vec<typed_trees::expression::ExpressionHandle>,
-}
-
-impl<T> MeasuredBuildMachineEvaluation<T> {
-    pub(crate) fn new(
-        value: T,
-        usage: EvaluationUsage,
-        observations: EvaluationObservations,
-        executed_root_bindings: Vec<ExecutedRootBinding>,
-        executed_behavior_exclusions: Vec<ExecutedBehaviorExclusion>,
-        executed_build_selections: Vec<ExecutedBuildSelection>,
-        executed_wire_demands: Vec<typed_trees::expression::ExpressionHandle>,
-    ) -> Self {
-        Self {
-            measured: MeasuredEvaluation::new(value, usage),
-            observations,
-            executed_root_bindings,
-            executed_behavior_exclusions,
-            executed_build_selections,
-            executed_wire_demands,
-        }
-    }
-
-    /// Lift a statically pure build-machine evaluation into the common build
-    /// result without inventing a host observation.
-    pub fn hermetic(measured: MeasuredEvaluation<T>) -> Self {
-        Self {
-            measured,
-            observations: EvaluationObservations::default(),
-            executed_root_bindings: Vec::new(),
-            executed_behavior_exclusions: Vec::new(),
-            executed_build_selections: Vec::new(),
-            executed_wire_demands: Vec::new(),
-        }
-    }
-
-    pub const fn value(&self) -> &T {
-        self.measured.value()
-    }
-
-    pub const fn usage(&self) -> EvaluationUsage {
-        self.measured.usage()
-    }
-
-    pub const fn observations(&self) -> &EvaluationObservations {
-        &self.observations
-    }
-
-    /// Executed declaration coordinates in the exact evaluated program.
-    /// These are selection requests, not proof of target admission. Callers
-    /// must rejoin them to that program and check lexical/product authority.
-    /// A described binding additionally carries the exact compiler-issued
-    /// `ProductEntryRef` payload it bound.
-    pub fn executed_root_bindings(&self) -> &[ExecutedRootBinding] {
-        &self.executed_root_bindings
-    }
-
-    /// Executed exclusion selections in the exact evaluated program: each
-    /// `exclude_crash`/`exclude_service` call that ran against the
-    /// activation's original Build. Callers rejoin the coordinates and
-    /// validate the retained argument identities — an unexecuted call left
-    /// no selection.
-    pub fn executed_behavior_exclusions(&self) -> &[ExecutedBehaviorExclusion] {
-        &self.executed_behavior_exclusions
-    }
-
-    pub fn executed_build_selections(&self) -> &[ExecutedBuildSelection] {
-        &self.executed_build_selections
-    }
-
-    /// Wire demand calls executed against this activation's original Build.
-    /// Coordinates refer to the exact evaluated program, including helpers.
-    pub fn executed_wire_demands(&self) -> &[typed_trees::expression::ExpressionHandle] {
-        &self.executed_wire_demands
-    }
-
-    pub fn into_value(self) -> T {
-        self.measured.into_value()
-    }
-
-    /// The value and its usage, dropping the observations and root bindings.
-    pub fn into_measured(self) -> MeasuredEvaluation<T> {
-        self.measured
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        T,
-        EvaluationUsage,
-        EvaluationObservations,
-        Vec<ExecutedRootBinding>,
-        Vec<ExecutedBehaviorExclusion>,
-        Vec<ExecutedBuildSelection>,
-        Vec<typed_trees::expression::ExpressionHandle>,
-    ) {
-        let (value, usage) = self.measured.into_parts();
-        (
-            value,
-            usage,
-            self.observations,
-            self.executed_root_bindings,
-            self.executed_behavior_exclusions,
-            self.executed_build_selections,
-            self.executed_wire_demands,
-        )
     }
 }
 

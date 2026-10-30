@@ -7,8 +7,8 @@ data Main { cell: Cell; }
 
 machine inspect(cell: &Cell) -> i32 {
     transition cell.ready { true -> good(cell) _ -> bad(cell) }
-    state good(cell: &Cell) -> i32 { cell.value }
-    state bad(cell: &Cell) -> i32 { 71 }
+    machine good(cell: &Cell) -> i32 { cell.value }
+    machine bad(cell: &Cell) -> i32 { 71 }
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -22,8 +22,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

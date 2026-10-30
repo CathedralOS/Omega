@@ -6,9 +6,9 @@ data Player [copy] {
     health: i32;
 }
 
-domain Player::Alive(player)
+domain Player::Alive
 requires
-    player.health > 0;
+    self.health > 0;
 
 data Main {
     player: Player;
@@ -52,8 +52,8 @@ machine entry() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() {
+    machine done() {}
+    machine bad() {
         crash Trap;
     }
 }

@@ -18,10 +18,10 @@ machine treatment(treatments: i32 in Wrapping, sequence: i32 in Wrapping, period
         true -> two(sequence, period)
         false -> three(sequence, period)
     }
-    state two(sequence: i32 in Wrapping, period: i32 in Wrapping) -> i32 in Wrapping {
+    machine two(sequence: i32 in Wrapping, period: i32 in Wrapping) -> i32 in Wrapping {
         transition sequence == 0 { true -> period false -> (1 - period) }
     }
-    state three(sequence: i32 in Wrapping, period: i32 in Wrapping) -> i32 in Wrapping {
+    machine three(sequence: i32 in Wrapping, period: i32 in Wrapping) -> i32 in Wrapping {
         transition sequence {
             0 -> first(period, 0, 1, 2)
             1 -> first(period, 0, 2, 1)
@@ -31,7 +31,7 @@ machine treatment(treatments: i32 in Wrapping, sequence: i32 in Wrapping, period
             _ -> first(period, 2, 1, 0)
         }
     }
-    state first(period: i32 in Wrapping, a: i32 in Wrapping, b: i32 in Wrapping, c: i32 in Wrapping) -> i32 in Wrapping {
+    machine first(period: i32 in Wrapping, a: i32 in Wrapping, b: i32 in Wrapping, c: i32 in Wrapping) -> i32 in Wrapping {
         transition period { 0 -> a 1 -> b _ -> c }
     }
 }

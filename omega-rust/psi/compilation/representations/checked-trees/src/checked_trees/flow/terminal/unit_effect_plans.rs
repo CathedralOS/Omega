@@ -6,11 +6,12 @@ use crate::checked_trees::flow::terminal::{
     CheckedBoundaryMachinePlan, CheckedCallScalarArgument, CheckedComposedUnitControlMachinePlan,
     CheckedProviderAttachmentRequirementPlan, CheckedScalarStateTerminator,
     CheckedStructuralScalarParameterPlan, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitCallCoordinate, CheckedUnitCallPlan, CheckedUnitEntryClaimPlan,
-    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralDomainPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralResultBindingPlan, CheckedUnitStructuralTypePlan,
+    CheckedUnitCallCoordinate, CheckedUnitCallPlan, CheckedUnitCallResult,
+    CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
+    CheckedUnitStructuralTypePlan,
 };
 use crate::checked_trees::values::CheckedErasedProofParameterPlan;
 use diagnostics::{CoverageForm, Diagnostic};
@@ -23,7 +24,7 @@ use typed_trees::types::PrimitiveType;
 /// Cleanup follows an evaluated call, retires an assignment's old value after
 /// its operands complete and before its store, or precedes an authored statement
 /// whose entry ends captured loans. Replacement is not a fabricated call.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitCleanupBoundary {
     Call(CheckedUnitCallCoordinate),
     Replacement {
@@ -46,12 +47,14 @@ pub enum CheckedUnitCleanupBoundary {
 /// Source-handle-free plans for the first general structural/Unit terminal
 /// slice. These rows are assembled only after ownership and carry checking
 /// have recorded their authoritative facts.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitEffectPlans {
     /// One condition/path namespace for statement, computed-call and normal
     /// exit cleanup. Action spans never refer to a temporary collector's arena.
     pub cleanup_control: crate::CheckedCleanupControlPlans,
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
+    /// Query subjects retain the same lexical normalization as their shapes.
+    pub layout_observations: Vec<CheckedLayoutObservation>,
     pub structural_domains: Vec<CheckedUnitStructuralDomainPlan>,
     pub boundary_machines: Vec<CheckedBoundaryMachinePlan>,
     /// The call shape of every instantiated selector-call slot.
@@ -68,9 +71,19 @@ pub struct CheckedUnitEffectPlans {
     pub gaps: Vec<CheckedUnitPlanGap>,
 }
 
+/// Exact checked source-to-structural identity join for a retained query.
+/// This records a subject, not selected geometry or a completed value.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedLayoutObservation {
+    pub owner: SymbolHandle,
+    pub expression: typed_trees::expression::ExpressionHandle,
+    pub subject: TypeIdentityId,
+    pub measurement: language_core::data_layout_queries::DataLayoutQueryKind,
+}
+
 /// Why one checked-body machine has no executable Unit plan. `machine` never
 /// appears in `machines` or `composed_machines` of the same record.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitPlanGap {
     pub machine: SymbolHandle,
     /// Exact construction site; the zero state handle means the machine header.
@@ -85,11 +98,11 @@ pub struct CheckedUnitPlanGap {
     pub coverage: CoverageForm,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitPlanGapReason {
     /// Plan construction has no lowering for this construct yet; the text
     /// names the construct, outermost first.
-    Unsupported(&'static str),
+    Unsupported(std::borrow::Cow<'static, str>),
     /// The body calls `target`, which has no executable body of its own.
     Callee(SymbolHandle),
     /// The body calls boundary `target`, which has no boundary plan.
@@ -200,7 +213,7 @@ impl CheckedUnitEffectPlans {
             CoverageForm::TransitionForm => "a transition",
         };
         let reason = match gap.reason {
-            CheckedUnitPlanGapReason::Unsupported(detail) => format!(
+            CheckedUnitPlanGapReason::Unsupported(ref detail) => format!(
                 "`{}` has no executable body: this compiler does not lower {construct} of it yet ({detail})",
                 name(gap.machine)
             ),
@@ -265,7 +278,7 @@ impl CheckedUnitEffectPlans {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitEffectOperationPlan {
     /// Evaluate the assignment's destination before any replacement producer.
     /// Cleanup and stores retain this occurrence, including selector values;
@@ -309,12 +322,24 @@ pub enum CheckedUnitEffectOperationPlan {
         /// Anonymous selected complements close with the complete receiving
         /// leaf cohort, independently of their scalar/root exit disposition.
         selection_complements: Vec<CheckedUnitSelectedReferenceRetirementPlan>,
+        /// Exact owned backing deaths after this complete holder/cohort ends.
+        /// A borrowed descriptor supplies no disposal authority of its own.
+        owner_cleanups: arena::HandleSpan<super::CheckedReferenceOwnerCleanup>,
     },
     /// One local data binding: its declared home or result coordinate and
     /// its initializer payload, keyed by the bound value's representation.
     /// What used to be a family of per-shape variants is one operation; the
     /// payload's representation selects the lowering.
     EstablishLocal(CheckedUnitLocalBindingPlan),
+    /// Evaluate an exact structural DAG whose required operand cannot return.
+    /// It owns the executed prefix and call catalog, but no receiving home,
+    /// whole-value transfer, normal arrival or result cleanup transaction.
+    EvaluateStructuralValue {
+        statement_index: u32,
+        value: crate::CheckedStructuralValueHandle,
+        calls: Vec<CheckedStructuralValueCall>,
+        operand_source: Option<crate::CheckedArrayConstructionSource>,
+    },
     /// Bind the statement's immutable view local to an exclusive range of an
     /// established view. `source` is the same `ByteSequenceSubslice` or
     /// `ElementViewSubslice` argument plan a call argument carries, with its
@@ -395,7 +420,7 @@ pub enum CheckedUnitEffectOperationPlan {
 /// local data binding keyed by the bound value's representation. The variant
 /// selects the lowering; every field keeps the name and meaning it carried
 /// on the former per-shape operation variants.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitLocalBindingPlan {
     /// Establish initialized mutable storage at its authored declaration.
     /// Later reads and borrows name the symbol, never the initializer value.
@@ -525,7 +550,7 @@ impl CheckedUnitLocalBindingPlan {
 
 /// One exact selected leaf and its anonymous complement slots. The receipt
 /// names the control join; the loan group authenticates the leaf lineage.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitSelectedReferenceRetirementPlan {
     pub selection: arena::Handle<crate::FlowOwnedSelectionReceipt>,
     pub path: Vec<CheckedUnitStructuralPathSegment>,
@@ -535,7 +560,7 @@ pub struct CheckedUnitSelectedReferenceRetirementPlan {
 /// Operand preparation belongs to its consuming call and runs when that call
 /// is evaluated. Operation slots use an arena span; scratch vectors are consumed
 /// at publication.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedOperandSequence {
     operations: arena::Arena<OperandOperation>,
     order: arena::HandleSpan<OperandOperation>,
@@ -543,7 +568,7 @@ pub struct CheckedOperandSequence {
 
 // The arena's zero slot denotes absence. Published spans contain only occupied
 // operations, and the private fields keep that construction invariant local.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 struct OperandOperation(Option<crate::CheckedUnitEffectOperationPlan>);
 
 impl CheckedOperandSequence {
@@ -599,28 +624,31 @@ impl CheckedOperandSequence {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralValueCall {
     pub value: crate::CheckedStructuralValueHandle,
     operands: CheckedOperandSequence,
-    operation: CheckedUnitEffectOperationPlan,
-    /// Normal-return descriptor release and checked backing-owner disposition.
-    completions: CheckedOperandSequence,
+    outcome: CheckedValueInvocationOutcome,
 }
 
-// Only the arena's absent slot uses this value. Published rows still enter
-// through `with_operands`, which requires a structural invocation result.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+enum CheckedValueInvocationOutcome {
+    Absent,
+    Prepared {
+        operation: CheckedUnitEffectOperationPlan,
+        completions: CheckedOperandSequence,
+    },
+    /// A child invocation ended evaluation before the enclosing call entered.
+    /// The exact last invocation lives in operands; no parent call is invented.
+    Stopped,
+}
+
 impl Default for CheckedStructuralValueCall {
     fn default() -> Self {
         Self {
             value: crate::CheckedStructuralValueHandle::invalid(),
             operands: CheckedOperandSequence::default(),
-            completions: CheckedOperandSequence::default(),
-            operation: CheckedUnitEffectOperationPlan::Complete {
-                statement_index: 0,
-                trivial_affine_local_discard_ordinals: Vec::new(),
-                trivial_affine_discards: Vec::new(),
-            },
+            outcome: CheckedValueInvocationOutcome::Absent,
         }
     }
 }
@@ -630,12 +658,7 @@ impl CheckedStructuralValueCall {
         value: crate::CheckedStructuralValueHandle,
         operation: CheckedUnitEffectOperationPlan,
     ) -> Option<Self> {
-        Self::with_operands(
-            value,
-            CheckedOperandSequence::default(),
-            operation,
-            CheckedOperandSequence::default(),
-        )
+        Self::with_operands(value, Default::default(), operation, Default::default())
     }
 
     pub fn with_operands(
@@ -644,51 +667,122 @@ impl CheckedStructuralValueCall {
         operation: CheckedUnitEffectOperationPlan,
         completions: CheckedOperandSequence,
     ) -> Option<Self> {
-        // The call's admitted result owns its value, independently of where
-        // executable supply comes from or which expression consumes it. The
-        // operation retains that route and its exact completion custody.
-        operation
-            .call()
-            .is_some_and(|call| call.structural_result().is_some())
-            .then_some(Self {
-                value,
-                operands,
+        if operands
+            .iter()
+            .any(|operation| !operation.has_normal_continuation())
+        {
+            return None;
+        }
+        let call = operation.call()?;
+        let admitted = call.structural_result().is_some()
+            || (*call.result() == CheckedUnitCallResult::NoNormal
+                && completions.iter().next().is_none());
+        admitted.then_some(Self {
+            value,
+            operands,
+            outcome: CheckedValueInvocationOutcome::Prepared {
                 operation,
                 completions,
-            })
+            },
+        })
+    }
+
+    pub fn stopped(
+        value: crate::CheckedStructuralValueHandle,
+        operands: CheckedOperandSequence,
+    ) -> Option<Self> {
+        if operands.iter().last()?.has_normal_continuation() {
+            return None;
+        }
+        Some(Self {
+            value,
+            operands,
+            outcome: CheckedValueInvocationOutcome::Stopped,
+        })
+    }
+
+    pub fn has_normal_continuation(&self) -> bool {
+        match &self.outcome {
+            CheckedValueInvocationOutcome::Prepared { operation, .. } => {
+                operation.has_normal_continuation()
+            }
+            CheckedValueInvocationOutcome::Stopped => false,
+            CheckedValueInvocationOutcome::Absent => true,
+        }
     }
 
     pub fn operands(&self) -> &CheckedOperandSequence {
         &self.operands
     }
-
     pub fn operands_mut(&mut self) -> &mut CheckedOperandSequence {
         &mut self.operands
     }
-
-    pub fn operation(&self) -> &CheckedUnitEffectOperationPlan {
-        &self.operation
+    pub fn operation(&self) -> Option<&CheckedUnitEffectOperationPlan> {
+        match &self.outcome {
+            CheckedValueInvocationOutcome::Prepared { operation, .. } => Some(operation),
+            CheckedValueInvocationOutcome::Stopped | CheckedValueInvocationOutcome::Absent => None,
+        }
     }
-
-    pub fn completions(&self) -> &CheckedOperandSequence {
-        &self.completions
+    pub fn operation_mut(&mut self) -> Option<&mut CheckedUnitEffectOperationPlan> {
+        match &mut self.outcome {
+            CheckedValueInvocationOutcome::Prepared { operation, .. } => Some(operation),
+            CheckedValueInvocationOutcome::Stopped | CheckedValueInvocationOutcome::Absent => None,
+        }
     }
-
-    pub fn completions_mut(&mut self) -> &mut CheckedOperandSequence {
-        &mut self.completions
+    pub fn completions(&self) -> Option<&CheckedOperandSequence> {
+        match &self.outcome {
+            CheckedValueInvocationOutcome::Prepared { completions, .. } => Some(completions),
+            CheckedValueInvocationOutcome::Stopped | CheckedValueInvocationOutcome::Absent => None,
+        }
     }
-
-    /// The value's result binding. `with_operands` admits only a call that
-    /// produces one, so every published row answers.
-    pub fn structural_result(&self) -> &CheckedUnitStructuralResultBindingPlan {
-        self.operation
-            .call()
-            .and_then(CheckedUnitCallPlan::structural_result)
-            .expect("a published structural value call produces a structural result")
+    pub fn completions_mut(&mut self) -> Option<&mut CheckedOperandSequence> {
+        match &mut self.outcome {
+            CheckedValueInvocationOutcome::Prepared { completions, .. } => Some(completions),
+            CheckedValueInvocationOutcome::Stopped | CheckedValueInvocationOutcome::Absent => None,
+        }
+    }
+    pub fn operation_dependencies(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = &CheckedUnitEffectOperationPlan> {
+        self.operands.iter().chain(self.operation()).chain(
+            self.completions()
+                .into_iter()
+                .flat_map(CheckedOperandSequence::iter),
+        )
+    }
+    pub fn structural_result(&self) -> Option<&CheckedUnitStructuralResultBindingPlan> {
+        self.operation()?.call()?.structural_result()
     }
 }
 
 impl CheckedUnitEffectOperationPlan {
+    /// Whether this operation permits the next sequential operation to execute.
+    /// The value DAG and its invocation catalog, independently of whether
+    /// evaluation publishes a receiving binding or leaves its caller suspended.
+    pub fn structural_value_evaluation(
+        &self,
+    ) -> Option<(
+        crate::CheckedStructuralValueHandle,
+        &[CheckedStructuralValueCall],
+    )> {
+        match self {
+            Self::EstablishLocal(CheckedUnitLocalBindingPlan::StructuralValue {
+                value,
+                calls,
+                ..
+            })
+            | Self::EvaluateStructuralValue { value, calls, .. } => Some((*value, calls)),
+            _ => None,
+        }
+    }
+
+    pub fn has_normal_continuation(&self) -> bool {
+        match self {
+            Self::EvaluateStructuralValue { .. } => false,
+            Self::Call(call) => call.has_normal_continuation(),
+            _ => true,
+        }
+    }
     /// The exact source of an established reference carrier. Direct completion
     /// and structural value construction name the same semantic establishment;
     /// its expression position does not choose another custody interface.
@@ -804,6 +898,9 @@ impl CheckedUnitEffectOperationPlan {
             | Self::EstablishViewSubslice { result, .. }
             | Self::MoveStructuralField { result, .. } => Some(result.statement_index),
             Self::EstablishLocal(binding) => binding.source_statement_index(),
+            Self::EvaluateStructuralValue {
+                statement_index, ..
+            } => Some(*statement_index),
             Self::Call(call) => Some(
                 call.structural_result()
                     .map_or(call.coordinate.statement_index, |result| {
@@ -914,9 +1011,12 @@ impl CheckedUnitEffectOperationPlan {
         {
             return self.discardable_structural_result_mut();
         }
-        let Self::EstablishLocal(CheckedUnitLocalBindingPlan::StructuralValue { calls, .. }) = self
-        else {
-            return None;
+        let calls = match self {
+            Self::EstablishLocal(CheckedUnitLocalBindingPlan::StructuralValue {
+                calls, ..
+            })
+            | Self::EvaluateStructuralValue { calls, .. } => calls,
+            _ => return None,
         };
         for call in calls {
             for operand in call
@@ -933,17 +1033,17 @@ impl CheckedUnitEffectOperationPlan {
                     return Some(result);
                 }
             }
-            if let Some(result) = call
-                .operation
-                .discardable_structural_result_by_ordinal_mut(binding_ordinal)
-            {
+            if let Some(result) = call.operation_mut().and_then(|operation| {
+                operation.discardable_structural_result_by_ordinal_mut(binding_ordinal)
+            }) {
                 return Some(result);
             }
         }
         None
     }
 
-    /// Enumerate retained operation dependencies for signature/catalog readers.
+    /// Enumerate retained operation dependencies, including already scheduled
+    /// normal completions, for signature/catalog and lifetime readers.
     /// This is not execution order: structural expressions evaluate their call
     /// operands in their own authored field and selected-arm order.
     pub fn with_value_calls(&self) -> impl Iterator<Item = &Self> {
@@ -953,12 +1053,11 @@ impl CheckedUnitEffectOperationPlan {
             if let Self::EstablishLocal(CheckedUnitLocalBindingPlan::StructuralValue {
                 calls,
                 ..
-            }) = operation
+            })
+            | Self::EvaluateStructuralValue { calls, .. } = operation
             {
                 for call in calls.iter().rev() {
-                    pending.extend(call.completions().iter().rev());
-                    pending.push(call.operation());
-                    pending.extend(call.operands().iter().rev());
+                    pending.extend(call.operation_dependencies().rev());
                 }
             }
             Some(operation)
@@ -966,7 +1065,7 @@ impl CheckedUnitEffectOperationPlan {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitScalarControlPlan {
     pub primitive_type: PrimitiveType,
     /// Exact authored conditional and return coordinates after the ordered body.
@@ -979,7 +1078,7 @@ pub struct CheckedUnitScalarControlPlan {
 /// `StorageRead` of `symbol`, assignments store through
 /// `CheckedStoreRoot::Local { symbol }`, and borrows lend this storage, never
 /// the immutable incoming value.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitParameterStoragePlan {
     /// The authored parameter position; one `scalar_parameters` row names it.
     pub source_position: u32,
@@ -988,10 +1087,13 @@ pub struct CheckedUnitParameterStoragePlan {
     pub primitive_type: PrimitiveType,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitEffectMachinePlan {
+    /// Declared callable result, independent of normal-return receiving homes.
+    /// A body with no normal completion still retains its complete signature.
+    pub result: super::CheckedControlResultPlan,
     /// Source-owned normal exits, selected individually by scalar control completion.
-    pub normal_exit_cleanups: arena::HandleSpan<super::CheckedNormalExitCleanupPlan>,
+    pub normal_exit_cleanups: super::CheckedNormalExitCleanups,
     /// Final ordinary scalar binding, mutually exclusive with the other completions.
     pub scalar_result: Option<CheckedUnitScalarResultBindingPlan>,
     /// Scalar control completion, mutually exclusive with either result binding.
@@ -1061,9 +1163,7 @@ impl CheckedUnitEffectMachinePlan {
         CheckedUnitCallableEntry {
             machine: self.machine,
             state: self.state,
-            returns_unit: self.scalar_result.is_none()
-                && self.scalar_control.is_none()
-                && self.structural_result.is_none(),
+            returns_unit: self.result == super::CheckedControlResultPlan::Unit,
             attachment_type_identity: self.attachment_type_identity,
             structural_parameters: &self.structural_parameters,
             scalar_parameters: &self.scalar_parameters,

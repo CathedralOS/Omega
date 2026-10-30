@@ -11,16 +11,16 @@ data Main { handle: u64; bytes: [u8; 8]; }
 machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     main.handle = block WindowsFilesystemHost::create_file("omega_wsft_probe.txt", 1073741824, 7, 2, 128);
     transition main.handle != 0 { true -> seed(main) _ -> bad(main, 71) }
-    state seed(main: &mut Main) {
+    machine seed(main: &mut Main) {
         let written: i64 = block WindowsFilesystemHost::write_file(main.handle, "stamp");
         let closed: i32 = block WindowsFilesystemHost::close_handle(main.handle);
         transition written == 5 && closed == 0 { true -> reopen(main) _ -> bad(main, 71) }
     }
-    state reopen(main: &mut Main) {
+    machine reopen(main: &mut Main) {
         main.handle = block WindowsFilesystemHost::create_file("omega_wsft_probe.txt", 3221225472, 7, 3, 128);
         transition main.handle != 0 { true -> stamp(main) _ -> bad(main, 72) }
     }
-    state stamp(main: &mut Main) {
+    machine stamp(main: &mut Main) {
         // 131_444_736_000_000_000 ticks = 0x01D2FC4A7CE00000.
         main.bytes[0] = 0; main.bytes[1] = 0;
         main.bytes[2] = 224; main.bytes[3] = 124;
@@ -38,11 +38,11 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + Fi
         let closed: i32 = block WindowsFilesystemHost::close_handle(main.handle);
         transition status == 0 && closed == 0 { true -> reopen_metadata(main) _ -> bad(main, 73) }
     }
-    state reopen_metadata(main: &mut Main) {
+    machine reopen_metadata(main: &mut Main) {
         main.handle = block WindowsFilesystemHost::create_file("omega_wsft_probe.txt", 2147483648, 7, 3, 128);
         transition main.handle != 0 { true -> metadata(main) _ -> bad(main, 74) }
     }
-    state metadata(main: &mut Main) {
+    machine metadata(main: &mut Main) {
         let result: WindowsFileTimeResult = block WindowsFilesystemHost::get_file_time(main.handle);
         let closed: i32 = block WindowsFilesystemHost::close_handle(main.handle);
         let removed: i32 = block WindowsFilesystemHost::delete_file("omega_wsft_probe.txt");
@@ -51,18 +51,18 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + Fi
             WindowsFileTimeResult::Error { code } -> bad(main, 74)
         }
     }
-    state decode(main: &mut Main, ticks: u64) {
+    machine decode(main: &mut Main, ticks: u64) {
         transition ticks >= 116444736000000000 {
             true -> unix(main, ticks)
             _ -> bad(main, 75)
         }
     }
-    state unix(main: &mut Main, ticks: u64) requires ticks >= 116444736000000000 {
+    machine unix(main: &mut Main, ticks: u64) requires ticks >= 116444736000000000 {
         let seconds: u64 = (ticks - 116444736000000000) / 10000000;
         transition seconds == 1500000000 { true -> good(main) _ -> bad(main, 75) }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

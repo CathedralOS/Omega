@@ -25,7 +25,7 @@ machine main() crashes Trap {
     let zero: u64 in Wrapping = 0;
     let marker: u64 in Wrapping = add(overwrite(choose(&mut chosen, &mut other, false)), zero);
     transition { _ -> read(items, other, chosen, marker) }
-    state read(items: [u8; 4], index: u64, chosen: u64, marker: u64 in Wrapping)
+    machine read(items: [u8; 4], index: u64, chosen: u64, marker: u64 in Wrapping)
     requires index < 4
     {
         transition (marker as u64) == 1 && chosen == 9 && items[index] == 7 {
@@ -33,6 +33,6 @@ machine main() crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

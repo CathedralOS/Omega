@@ -1,7 +1,7 @@
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender};
 
-use super::super::names::symbol_seed;
+use super::super::names::{symbol_seed, type_parameter_seeds};
 
 /// Children of a mathematical `let`/`boundary let`: its generic binders in
 /// authored order, then its ordinary telescope parameters. Universe-shaped
@@ -17,31 +17,23 @@ pub(in crate::symbols) fn insert_mathematical_symbol_children(
 ) {
     builder.insert_children(
         definition_symbol,
-        program
-            .tables
-            .declarations
-            .data_type_parameters
-            .span_or_empty(definition.binders)
-            .iter()
-            .map(|binder| {
-                let kind = match binder.kind {
-                    symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
-                        SymbolKind::MachineParameter
-                    }
-                    _ => SymbolKind::TypeParameter,
-                };
-                symbol_seed(kind, &binder.name, has_sources)
-            })
-            .chain(
-                program
-                    .tables
-                    .declarations
-                    .mathematical_parameters
-                    .span_or_empty(definition.parameters)
-                    .iter()
-                    .map(|parameter| {
-                        symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)
-                    }),
-            ),
+        type_parameter_seeds(
+            program
+                .tables
+                .declarations
+                .data_type_parameters
+                .span_or_empty(definition.binders),
+            false,
+            has_sources,
+        )
+        .chain(
+            program
+                .tables
+                .declarations
+                .mathematical_parameters
+                .span_or_empty(definition.parameters)
+                .iter()
+                .map(|parameter| symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)),
+        ),
     );
 }

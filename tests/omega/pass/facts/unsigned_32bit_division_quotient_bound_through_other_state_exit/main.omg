@@ -10,7 +10,7 @@ machine divide_other_state(dividend: u32, divisor: u32) -> i32
     transition {
         _ -> check_state(quotient)
     }
-    state check_state(q: u32) -> i32
+    machine check_state(q: u32) -> i32
         requires q >= 50u32 && q <= 50u32;
     {
         let check: u32 = q - 50u32;
@@ -19,8 +19,8 @@ machine divide_other_state(dividend: u32, divisor: u32) -> i32
             _ -> fail()
         }
     }
-    state pass() -> i32 { 0 }
-    state fail() -> i32 { 1 }
+    machine pass() -> i32 { 0 }
+    machine fail() -> i32 { 1 }
 }
 
 machine main() crashes Trap {
@@ -29,6 +29,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

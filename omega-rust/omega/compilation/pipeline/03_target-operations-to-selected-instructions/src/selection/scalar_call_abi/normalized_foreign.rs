@@ -12,7 +12,7 @@ use calling_conventions::validate_boundary_entry_plan;
 use legalized_operations::{LegalizedNormalizedForeignCall, LegalizedValueDefinition};
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterConstraintKey, RegisterInstructionConstraint};
-use semantic_vocabulary::BoundaryInvocationSite;
+use semantic_vocabulary::InvocationSite;
 use target_operations::{
     TargetBoundaryResult, TargetStructuralArgumentSource, TargetUnitScalarArgumentSource,
 };
@@ -111,6 +111,7 @@ pub(crate) fn call_key(
     let family = entry_family(call);
     environment
         .selected_keys()
+        .rows
         .call_normalized_foreign
         .into_iter()
         .find(|key| {
@@ -143,8 +144,9 @@ pub(crate) fn call_constraint(
 pub(crate) fn validate(
     function: usize,
     source: &LegalizedScalarFunction,
+    backings: &crate::selection::foreign_scalar_backings::ForeignScalarBackings<'_>,
     call: &LegalizedNormalizedForeignCall,
-    invocation_site: BoundaryInvocationSite,
+    invocation_site: InvocationSite,
     result: Option<LegalizedValueDefinition>,
     key: RegisterConstraintKey,
     constraint: &RegisterInstructionConstraint,
@@ -380,6 +382,7 @@ pub(crate) fn validate(
                         .ok_or_else(|| invalid!())?;
                     crate::selection::reference_input::validate_scalar_foreign_export(
                         source,
+                        backings,
                         &semantic,
                         scalar,
                         argument.shape.byte_size,
@@ -492,9 +495,10 @@ pub(crate) fn validate(
             && argument.path.iter().any(|segment| match segment {
                 terminal_psi::StructuralPathSegment::Field(_)
                 | terminal_psi::StructuralPathSegment::FixedIndex(_) => false,
-                terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => {
-                    argument.access == terminal_psi::StructuralAccess::Owned
-                }
+                // Owned children use the same completed selector coordinates.
+                // Exact type, geometry, operand roster and ABI replay below
+                // remain independent of the argument's custody mode.
+                terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => false,
                 terminal_psi::StructuralPathSegment::Referent => {
                     argument.access == terminal_psi::StructuralAccess::Owned
                 }

@@ -18,9 +18,12 @@
 //! Unit computations.
 
 pub(crate) mod citation_erasure;
+pub(crate) mod content_consumption;
 pub(crate) mod finalize_execution;
 pub(crate) mod guard_complement;
 pub(crate) mod scalar_computations;
+pub(super) mod selected_transitions;
+pub(crate) mod successor_completion;
 pub(crate) mod terminal_cleanup;
 pub(crate) mod terminal_debug;
 pub(crate) mod terminal_scalar;

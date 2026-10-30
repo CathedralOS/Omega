@@ -40,11 +40,11 @@ trait Marker { machine mark(value: i32) -> i32; }
 boundary machine before_constant() -> i32 ensures result == 0;
 const LIMIT: i32 = 42;
 boundary machine before_domain() -> i32 ensures result == 0;
-domain i32::Positive(value) requires value > 0;
+domain i32::Positive requires self > 0;
 boundary machine before_slice_domain() -> i32 ensures result == 0;
-domain [u8]::Nonempty(bytes) requires bytes.len > 0;
+domain [u8]::Nonempty requires self.len > 0;
 boundary machine before_array_domain() -> i32 ensures result == 0;
-domain<const N: u64> [u8; 2]::NonemptyArray<N>(bytes) requires N > 0;
+domain<const N: u64> [u8; 2]::NonemptyArray<N> requires N > 0;
 boundary machine before_operator() -> i32 ensures result == 0;
 operator identity<T>(value: T) -> T;
 boundary machine before_fixed_operator() -> i32 ensures result == 0;

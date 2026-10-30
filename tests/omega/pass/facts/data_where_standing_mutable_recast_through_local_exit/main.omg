@@ -1,0 +1,33 @@
+// Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
+// Expected exit: 0
+machine bounded(value: i32) -> bool { value <= 60 }
+data Storage [copy] where bounded(self.value) == true { before: i32; value: i32; after: i32; }
+data Counter [copy] where self.value <= 60 { before: i32; value: i32; after: i32; }
+
+machine replace(slot: &mut i32, replacement: i32)
+requires replacement <= 60
+ensures slot <= 60
+{ slot = replacement; }
+machine produce(replacement: i32) -> Storage
+requires replacement <= 60
+{
+    let mut storage: Storage = Storage { before: 17, value: 0, after: 53 };
+    replace(&mut storage.value, replacement);
+    storage
+}
+machine compute(storage: &mut Storage) -> i32 {
+    let counter: &mut Counter = storage as &mut Counter;
+    let total: i32 = 70 + counter.value;
+    let neighbors: bool = counter.before == 17 && counter.after == 53;
+    counter.before = 23;
+    transition neighbors { true -> total false -> -99 }
+}
+machine main() crashes Trap {
+    let mut high: Storage = produce(60);
+    let mut low: Storage = produce(-2147483648);
+    let upper: i32 = compute(&mut high);
+    let lower: i32 = compute(&mut low);
+    transition upper == 130 && lower == -2147483578 && high.before == 23 && low.before == 23 && high.after == 53 && low.after == 53 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

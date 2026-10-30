@@ -32,13 +32,13 @@ public machine inside(segment: Segment, temperature: f64) -> bool {
 machine bisect(segment: Segment, target: f64, low: f64, high: f64) -> f64 {
     let increasing: bool = voltage(segment, high) > voltage(segment, low);
     transition { _ -> step(segment, target, low, high, increasing, 0) }
-    state step(segment: Segment, target: f64, low: f64, high: f64, increasing: bool, iteration: i32) -> f64 {
+    machine step(segment: Segment, target: f64, low: f64, high: f64, increasing: bool, iteration: i32) -> f64 {
         transition iteration >= 0 && iteration < 40 {
             true -> halve(segment, target, low, high, increasing, iteration)
             _ -> ((low + high) * 0.5)
         }
     }
-    state halve(segment: Segment, target: f64, low: f64, high: f64, increasing: bool, iteration: i32) -> f64
+    machine halve(segment: Segment, target: f64, low: f64, high: f64, increasing: bool, iteration: i32) -> f64
     requires iteration >= 0 && iteration < 40
     {
         let middle: f64 = (low + high) * 0.5;
@@ -56,7 +56,7 @@ public machine candidate(segment: Segment, target: f64, requested_low: f64, requ
         true -> enclosure(segment, target, low, high)
         _ -> Estimate { count: 0, temperature: 0.0, residual: 0.0 }
     }
-    state enclosure(segment: Segment, target: f64, low: f64, high: f64) -> Estimate {
+    machine enclosure(segment: Segment, target: f64, low: f64, high: f64) -> Estimate {
         let left: f64 = voltage(segment, low);
         // Endpoint snapping absorbs only 1e-12 mV of evaluation roundoff.
         transition magnitude(left - target) <= 0.000000000001 {
@@ -64,20 +64,20 @@ public machine candidate(segment: Segment, target: f64, requested_low: f64, requ
             _ -> high_endpoint(segment, target, low, high, left)
         }
     }
-    state high_endpoint(segment: Segment, target: f64, low: f64, high: f64, left: f64) -> Estimate {
+    machine high_endpoint(segment: Segment, target: f64, low: f64, high: f64, left: f64) -> Estimate {
         let right: f64 = voltage(segment, high);
         transition magnitude(right - target) <= 0.000000000001 {
             true -> Estimate { count: 1, temperature: high, residual: right - target }
             _ -> interior(segment, target, low, high, left, right)
         }
     }
-    state interior(segment: Segment, target: f64, low: f64, high: f64, left: f64, right: f64) -> Estimate {
+    machine interior(segment: Segment, target: f64, low: f64, high: f64, left: f64, right: f64) -> Estimate {
         transition target >= minimum(left, right) && target <= maximum(left, right) {
             true -> solve(segment, target, low, high)
             _ -> Estimate { count: 0, temperature: 0.0, residual: 0.0 }
         }
     }
-    state solve(segment: Segment, target: f64, low: f64, high: f64) -> Estimate {
+    machine solve(segment: Segment, target: f64, low: f64, high: f64) -> Estimate {
         let temperature: f64 = bisect(segment, target, low, high);
         transition { _ -> Estimate { count: 1, temperature: temperature,
             residual: voltage(segment, temperature) - target } }
@@ -90,7 +90,7 @@ public machine enumerate(first: Segment, second: Segment, target: f64, low: f64,
         true -> right
         _ -> join(left, right)
     }
-    state join(left: Estimate, right: Estimate) -> Estimate {
+    machine join(left: Estimate, right: Estimate) -> Estimate {
         transition right.count == 0 || magnitude(left.temperature - right.temperature) < 0.00000001 {
             true -> left
             _ -> Estimate { count: 2, temperature: 0.0, residual: 0.0 }

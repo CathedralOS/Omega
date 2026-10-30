@@ -20,7 +20,7 @@ crashes Trap
 {
     transition { _ -> level(syntax, typing, handle, 0) }
 
-    state level(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> DataMultiplicity {
+    machine level(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> DataMultiplicity {
         let row: TypeRow = TypeTable::row(&typing.types, handle);
         transition row.kind {
             TypeKind::Data -> data(syntax, typing, row)
@@ -30,19 +30,19 @@ crashes Trap
         }
     }
 
-    state array(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow, depth: u64 in Trapping) -> DataMultiplicity {
+    machine array(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow, depth: u64 in Trapping) -> DataMultiplicity {
         transition depth < 16 {
             true -> level(syntax, typing, row.inner, depth + 1)
             _ -> answer(DataMultiplicity::Affine)
         }
     }
 
-    state generic(syntax: &SyntaxTrees, row: TypeRow) -> DataMultiplicity {
+    machine generic(syntax: &SyntaxTrees, row: TypeRow) -> DataMultiplicity {
         let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, row.item);
         transition { _ -> answer(parameter.bounds) }
     }
 
-    state data(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow) -> DataMultiplicity {
+    machine data(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow) -> DataMultiplicity {
         let item: DataItem = SyntaxTrees::data_item(syntax, row.item);
         let linear: bool = Checker::linear_argument(syntax, typing, row, 0);
         transition linear {
@@ -51,7 +51,7 @@ crashes Trap
         }
     }
 
-    state answer(multiplicity: DataMultiplicity) -> DataMultiplicity {
+    machine answer(multiplicity: DataMultiplicity) -> DataMultiplicity {
         multiplicity
     }
 }
@@ -63,14 +63,14 @@ crashes Trap
 {
     transition { _ -> next(syntax, typing, row, offset) }
 
-    state next(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow, offset: u64 in Trapping) -> bool {
+    machine next(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow, offset: u64 in Trapping) -> bool {
         transition offset < row.argument_count {
             true -> argument(syntax, typing, row, offset)
             _ -> answer(false)
         }
     }
 
-    state argument(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow, offset: u64 in Trapping) -> bool {
+    machine argument(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow, offset: u64 in Trapping) -> bool {
         let handle: u64 in Trapping = TypeTable::argument(&typing.types, row.first_argument + offset);
         let declared: bool = Checker::declared_linear(syntax, typing, handle);
         transition declared {
@@ -79,7 +79,7 @@ crashes Trap
         }
     }
 
-    state answer(linear: bool) -> bool {
+    machine answer(linear: bool) -> bool {
         linear
     }
 }
@@ -91,7 +91,7 @@ crashes Trap
 {
     transition { _ -> level(syntax, typing, handle, 0) }
 
-    state level(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> bool {
+    machine level(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> bool {
         let row: TypeRow = TypeTable::row(&typing.types, handle);
         transition row.kind {
             TypeKind::Data -> data(syntax, row)
@@ -101,26 +101,26 @@ crashes Trap
         }
     }
 
-    state array(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow, depth: u64 in Trapping) -> bool {
+    machine array(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow, depth: u64 in Trapping) -> bool {
         transition depth < 16 {
             true -> level(syntax, typing, row.inner, depth + 1)
             _ -> answer(false)
         }
     }
 
-    state data(syntax: &SyntaxTrees, row: TypeRow) -> bool {
+    machine data(syntax: &SyntaxTrees, row: TypeRow) -> bool {
         let item: DataItem = SyntaxTrees::data_item(syntax, row.item);
         let linear: bool = item.multiplicity == DataMultiplicity::Linear;
         transition { _ -> answer(linear) }
     }
 
-    state generic(syntax: &SyntaxTrees, row: TypeRow) -> bool {
+    machine generic(syntax: &SyntaxTrees, row: TypeRow) -> bool {
         let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, row.item);
         let linear: bool = parameter.bounds == DataMultiplicity::Linear;
         transition { _ -> answer(linear) }
     }
 
-    state answer(linear: bool) -> bool {
+    machine answer(linear: bool) -> bool {
         linear
     }
 }
@@ -142,7 +142,7 @@ crashes Trap
 {
     transition { _ -> step(syntax, resolution, typing, handle, through, 0) }
 
-    state step(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, through: bool, depth: u64 in Trapping) -> u64 in Trapping {
+    machine step(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, through: bool, depth: u64 in Trapping) -> u64 in Trapping {
         let expression: Expression = SyntaxTrees::expression(syntax, node);
         let field: bool = Checker::field_place(typing, node, expression);
         transition expression.kind {
@@ -156,7 +156,7 @@ crashes Trap
 
     // A recast views its operand's storage: `&place as &T` roots at the
     // place, and a recast reference value at the reference's place.
-    state recast(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, through: bool, depth: u64 in Trapping) -> u64 in Trapping {
+    machine recast(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, through: bool, depth: u64 in Trapping) -> u64 in Trapping {
         let operand: Expression = SyntaxTrees::expression(syntax, expression.left);
         let borrow: bool = operand.kind == ExpressionKind::Unary
             && (operand.operator == OperatorKind::Borrow || operand.operator == OperatorKind::BorrowMutable
@@ -167,14 +167,14 @@ crashes Trap
         }
     }
 
-    state recast_reference(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, operand: u64 in Trapping, through: bool, depth: u64 in Trapping) -> u64 in Trapping {
+    machine recast_reference(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, operand: u64 in Trapping, through: bool, depth: u64 in Trapping) -> u64 in Trapping {
         transition depth < 64 {
             true -> step(syntax, resolution, typing, operand, through, depth + 1)
             _ -> answer(0)
         }
     }
 
-    state field_step(
+    machine field_step(
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
         typing: &Typing,
@@ -189,7 +189,7 @@ crashes Trap
         }
     }
 
-    state base(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, base: u64 in Trapping, through: bool, depth: u64 in Trapping) -> u64 in Trapping {
+    machine base(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, base: u64 in Trapping, through: bool, depth: u64 in Trapping) -> u64 in Trapping {
         let base_type: u64 in Trapping = Typing::expression_type(typing, base);
         let row: TypeRow = TypeTable::row(&typing.types, base_type);
         let stops: bool = (row.kind == TypeKind::Reference && !through) || depth >= 64;
@@ -199,7 +199,7 @@ crashes Trap
         }
     }
 
-    state named(resolution: &NameResolution, node: u64 in Trapping) -> u64 in Trapping {
+    machine named(resolution: &NameResolution, node: u64 in Trapping) -> u64 in Trapping {
         let binding: ValueBinding = NameResolution::value_binding(resolution, node);
         transition binding {
             ValueBinding::Local { statement } -> answer(statement * 4 + 1)
@@ -209,7 +209,7 @@ crashes Trap
         }
     }
 
-    state answer(key: u64 in Trapping) -> u64 in Trapping {
+    machine answer(key: u64 in Trapping) -> u64 in Trapping {
         key
     }
 }
@@ -225,7 +225,7 @@ crashes Trap
         _ -> answer(false)
     }
 
-    state answer(field: bool) -> bool {
+    machine answer(field: bool) -> bool {
         field
     }
 }
@@ -236,7 +236,7 @@ crashes Trap
 {
     transition { _ -> step(syntax, handle, 0, 0) }
 
-    state step(syntax: &SyntaxTrees, node: u64 in Trapping, steps: u64 in Trapping, walked: u64 in Trapping) -> u64 in Trapping {
+    machine step(syntax: &SyntaxTrees, node: u64 in Trapping, steps: u64 in Trapping, walked: u64 in Trapping) -> u64 in Trapping {
         let expression: Expression = SyntaxTrees::expression(syntax, node);
         transition walked < 64 && (expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index) {
             true -> inner(syntax, expression, steps, walked)
@@ -244,14 +244,14 @@ crashes Trap
         }
     }
 
-    state inner(syntax: &SyntaxTrees, expression: Expression, steps: u64 in Trapping, walked: u64 in Trapping) -> u64 in Trapping {
+    machine inner(syntax: &SyntaxTrees, expression: Expression, steps: u64 in Trapping, walked: u64 in Trapping) -> u64 in Trapping {
         transition expression.kind == ExpressionKind::Index {
             true -> step(syntax, expression.left, steps + 1, walked + 1)
             _ -> step(syntax, expression.left, steps, walked + 1)
         }
     }
 
-    state answer(steps: u64 in Trapping) -> u64 in Trapping {
+    machine answer(steps: u64 in Trapping) -> u64 in Trapping {
         steps
     }
 }
@@ -263,7 +263,7 @@ crashes Trap
 {
     transition { _ -> step(syntax, handle, 0, 0) }
 
-    state step(syntax: &SyntaxTrees, node: u64 in Trapping, depth: u64 in Trapping, walked: u64 in Trapping) -> u64 in Trapping {
+    machine step(syntax: &SyntaxTrees, node: u64 in Trapping, depth: u64 in Trapping, walked: u64 in Trapping) -> u64 in Trapping {
         let expression: Expression = SyntaxTrees::expression(syntax, node);
         transition walked < 64 && (expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index) {
             true -> inner(syntax, expression, depth, walked)
@@ -271,14 +271,14 @@ crashes Trap
         }
     }
 
-    state inner(syntax: &SyntaxTrees, expression: Expression, depth: u64 in Trapping, walked: u64 in Trapping) -> u64 in Trapping {
+    machine inner(syntax: &SyntaxTrees, expression: Expression, depth: u64 in Trapping, walked: u64 in Trapping) -> u64 in Trapping {
         transition expression.kind == ExpressionKind::Field {
             true -> step(syntax, expression.left, depth + 1, walked + 1)
             _ -> step(syntax, expression.left, depth, walked + 1)
         }
     }
 
-    state answer(depth: u64 in Trapping) -> u64 in Trapping {
+    machine answer(depth: u64 in Trapping) -> u64 in Trapping {
         depth
     }
 }
@@ -290,7 +290,7 @@ crashes Trap
 {
     transition { _ -> step(syntax, handle, steps, 0) }
 
-    state step(syntax: &SyntaxTrees, node: u64 in Trapping, remaining: u64 in Trapping, walked: u64 in Trapping) -> u64 in Trapping {
+    machine step(syntax: &SyntaxTrees, node: u64 in Trapping, remaining: u64 in Trapping, walked: u64 in Trapping) -> u64 in Trapping {
         let expression: Expression = SyntaxTrees::expression(syntax, node);
         transition remaining > 0 && walked < 64 {
             true -> inner(syntax, node, expression, remaining, walked)
@@ -298,7 +298,7 @@ crashes Trap
         }
     }
 
-    state inner(syntax: &SyntaxTrees, node: u64 in Trapping, expression: Expression, remaining: u64 in Trapping, walked: u64 in Trapping) -> u64 in Trapping {
+    machine inner(syntax: &SyntaxTrees, node: u64 in Trapping, expression: Expression, remaining: u64 in Trapping, walked: u64 in Trapping) -> u64 in Trapping {
         transition expression.kind {
             ExpressionKind::Field -> step(syntax, expression.left, remaining - 1, walked + 1)
             ExpressionKind::Index -> step(syntax, expression.left, remaining, walked + 1)
@@ -306,7 +306,7 @@ crashes Trap
         }
     }
 
-    state answer(node: u64 in Trapping) -> u64 in Trapping {
+    machine answer(node: u64 in Trapping) -> u64 in Trapping {
         node
     }
 }
@@ -320,7 +320,7 @@ crashes Trap
 {
     transition { _ -> step(syntax, resolution, typing, left, right, through, 0) }
 
-    state step(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, left: u64 in Trapping, right: u64 in Trapping, through: bool, walked: u64 in Trapping) -> bool {
+    machine step(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, left: u64 in Trapping, right: u64 in Trapping, through: bool, walked: u64 in Trapping) -> bool {
         let left_expression: Expression = SyntaxTrees::expression(syntax, left);
         let right_expression: Expression = SyntaxTrees::expression(syntax, right);
         let both_indexes: bool = left_expression.kind == ExpressionKind::Index && right_expression.kind == ExpressionKind::Index;
@@ -330,7 +330,7 @@ crashes Trap
         }
     }
 
-    state indexes(
+    machine indexes(
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
         typing: &Typing,
@@ -346,7 +346,7 @@ crashes Trap
         }
     }
 
-    state unindexed(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, left: u64 in Trapping, right: u64 in Trapping, through: bool, walked: u64 in Trapping) -> bool {
+    machine unindexed(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, left: u64 in Trapping, right: u64 in Trapping, through: bool, walked: u64 in Trapping) -> bool {
         let left_node: u64 in Trapping = Checker::skip_indexes(syntax, left);
         let right_node: u64 in Trapping = Checker::skip_indexes(syntax, right);
         let left_expression: Expression = SyntaxTrees::expression(syntax, left_node);
@@ -358,7 +358,7 @@ crashes Trap
         }
     }
 
-    state fields(
+    machine fields(
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
         typing: &Typing,
@@ -377,7 +377,7 @@ crashes Trap
         }
     }
 
-    state roots(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, left_node: u64 in Trapping, right_node: u64 in Trapping, through: bool) -> bool {
+    machine roots(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, left_node: u64 in Trapping, right_node: u64 in Trapping, through: bool) -> bool {
         let left_root: u64 in Trapping = Checker::path_root(syntax, resolution, typing, left_node, through);
         let right_root: u64 in Trapping = Checker::path_root(syntax, resolution, typing, right_node, through);
         let left_expression: Expression = SyntaxTrees::expression(syntax, left_node);
@@ -387,7 +387,7 @@ crashes Trap
         transition { _ -> answer(same) }
     }
 
-    state answer(same: bool) -> bool {
+    machine answer(same: bool) -> bool {
         same
     }
 }
@@ -404,7 +404,7 @@ crashes Trap
         _ -> answer(false)
     }
 
-    state compared(typing: &Typing, left: u64 in Trapping, right: u64 in Trapping) -> bool {
+    machine compared(typing: &Typing, left: u64 in Trapping, right: u64 in Trapping) -> bool {
         let left_value: ExactInteger = Typing::value(typing, left);
         let right_value: ExactInteger = Typing::value(typing, right);
         let below: bool = ExactInteger::at_most(left_value, right_value);
@@ -413,7 +413,7 @@ crashes Trap
         transition { _ -> answer(distinct) }
     }
 
-    state answer(distinct: bool) -> bool {
+    machine answer(distinct: bool) -> bool {
         distinct
     }
 }
@@ -424,7 +424,7 @@ crashes Trap
 {
     transition { _ -> step(syntax, handle, 0) }
 
-    state step(syntax: &SyntaxTrees, node: u64 in Trapping, walked: u64 in Trapping) -> u64 in Trapping {
+    machine step(syntax: &SyntaxTrees, node: u64 in Trapping, walked: u64 in Trapping) -> u64 in Trapping {
         let expression: Expression = SyntaxTrees::expression(syntax, node);
         transition expression.kind == ExpressionKind::Index && walked < 64 {
             true -> step(syntax, expression.left, walked + 1)
@@ -432,7 +432,7 @@ crashes Trap
         }
     }
 
-    state answer(node: u64 in Trapping) -> u64 in Trapping {
+    machine answer(node: u64 in Trapping) -> u64 in Trapping {
         node
     }
 }
@@ -447,7 +447,7 @@ crashes Trap
         _ -> answer(0)
     }
 
-    state answer(field: u64 in Trapping) -> u64 in Trapping {
+    machine answer(field: u64 in Trapping) -> u64 in Trapping {
         field
     }
 }
@@ -488,7 +488,7 @@ crashes Trap
         _ -> answer(PlaceRelation::Apart)
     }
 
-    state rooted(
+    machine rooted(
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
         typing: &Typing,
@@ -504,7 +504,7 @@ crashes Trap
         }
     }
 
-    state within(
+    machine within(
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
         typing: &Typing,
@@ -521,7 +521,7 @@ crashes Trap
         }
     }
 
-    state around(
+    machine around(
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
         typing: &Typing,
@@ -538,7 +538,7 @@ crashes Trap
         }
     }
 
-    state answer(relation: PlaceRelation) -> PlaceRelation {
+    machine answer(relation: PlaceRelation) -> PlaceRelation {
         relation
     }
 }
@@ -553,7 +553,7 @@ crashes Trap
 {
     transition { _ -> step(syntax, typing, handle, 0) }
 
-    state step(syntax: &SyntaxTrees, typing: &Typing, node: u64 in Trapping, walked: u64 in Trapping) -> bool {
+    machine step(syntax: &SyntaxTrees, typing: &Typing, node: u64 in Trapping, walked: u64 in Trapping) -> bool {
         let expression: Expression = SyntaxTrees::expression(syntax, node);
         let node_type: u64 in Trapping = Typing::expression_type(typing, node);
         let row: TypeRow = TypeTable::row(&typing.types, node_type);
@@ -566,14 +566,14 @@ crashes Trap
         }
     }
 
-    state deeper(syntax: &SyntaxTrees, typing: &Typing, base: u64 in Trapping, walked: u64 in Trapping, projected: bool) -> bool {
+    machine deeper(syntax: &SyntaxTrees, typing: &Typing, base: u64 in Trapping, walked: u64 in Trapping, projected: bool) -> bool {
         transition projected && walked < 64 {
             true -> step(syntax, typing, base, walked + 1)
             _ -> answer(false)
         }
     }
 
-    state answer(through: bool) -> bool {
+    machine answer(through: bool) -> bool {
         through
     }
 }
@@ -583,7 +583,7 @@ crashes Trap
 {
     transition { _ -> step(syntax, typing, handle, 0) }
 
-    state step(syntax: &SyntaxTrees, typing: &Typing, node: u64 in Trapping, walked: u64 in Trapping) -> bool {
+    machine step(syntax: &SyntaxTrees, typing: &Typing, node: u64 in Trapping, walked: u64 in Trapping) -> bool {
         let expression: Expression = SyntaxTrees::expression(syntax, node);
         let projected: bool = expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index;
         transition projected && walked < 64 {
@@ -592,7 +592,7 @@ crashes Trap
         }
     }
 
-    state base(syntax: &SyntaxTrees, typing: &Typing, base: u64 in Trapping, walked: u64 in Trapping) -> bool {
+    machine base(syntax: &SyntaxTrees, typing: &Typing, base: u64 in Trapping, walked: u64 in Trapping) -> bool {
         let base_type: u64 in Trapping = Typing::expression_type(typing, base);
         let row: TypeRow = TypeTable::row(&typing.types, base_type);
         transition row.kind == TypeKind::Reference {
@@ -601,7 +601,7 @@ crashes Trap
         }
     }
 
-    state answer(borrowed: bool) -> bool {
+    machine answer(borrowed: bool) -> bool {
         borrowed
     }
 }
@@ -616,7 +616,7 @@ crashes Trap
         _ -> compared(syntax, resolution, typing, left, right)
     }
 
-    state compared(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, left: u64 in Trapping, right: u64 in Trapping) -> bool {
+    machine compared(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, left: u64 in Trapping, right: u64 in Trapping) -> bool {
         let relation: PlaceRelation = Checker::place_relation(syntax, resolution, typing, left, right);
         let left_depth: u64 in Trapping = Checker::place_depth(syntax, left);
         let right_depth: u64 in Trapping = Checker::place_depth(syntax, right);
@@ -624,7 +624,7 @@ crashes Trap
         transition { _ -> answer(same) }
     }
 
-    state answer(same: bool) -> bool {
+    machine answer(same: bool) -> bool {
         same
     }
 }

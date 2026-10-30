@@ -18,18 +18,18 @@ machine Main::main(main: &mut Main) reaches Console {
 
     transition { _ -> choose(main, tail, 1) }
 
-    state choose(main: &Main, entries: &[Entry], index: u64) {
+    machine choose(main: &Main, entries: &[Entry], index: u64) {
         transition entries[index].value == 37 {
             true -> good(main)
             false -> bad(main)
         }
     }
 
-    state good(main: &Main) {
+    machine good(main: &Main) {
         Console::exit_process(207);
     }
 
-    state bad(main: &Main) {
+    machine bad(main: &Main) {
         Console::exit_process(208);
     }
 }

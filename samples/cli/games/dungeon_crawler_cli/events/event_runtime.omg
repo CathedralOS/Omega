@@ -29,24 +29,24 @@ machine EventRuntime::describe(room: Room,
     }
 
 
-    state describe_fountain(out_line: &mut TextBuffer) {
+    machine describe_fountain(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "A fountain of life glows here. Type use to drink.");
     }
 
-    state describe_treasure(out_line: &mut TextBuffer) {
+    machine describe_treasure(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "A treasure cache rests against the wall. Type use to claim it.");
     }
 
-    state describe_gold(out_line: &mut TextBuffer) {
+    machine describe_gold(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "Loose gold glitters in the dust. Type use to collect it.");
     }
 
-    state describe_enemy(enemy: Enemy,
+    machine describe_enemy(enemy: Enemy,
         out_line: &mut TextBuffer) {
         TextBuffer::join(out_line, EnemyName::live(&enemy.name), " blocks the way. Type fight.");
     }
 
-    state quiet_room(out_line: &mut TextBuffer) {
+    machine quiet_room(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "The room is quiet.");
     }
 }
@@ -66,7 +66,7 @@ machine EventRuntime::use_event(
     }
 
 
-    state use_fountain(
+    machine use_fountain(
         event_runtime: &mut EventRuntime,
         player: &mut Player,
         event: &mut RoomEvent,
@@ -77,7 +77,7 @@ machine EventRuntime::use_event(
         TextBuffer::set(out_line, "The fountain heals your wounds.");
     }
 
-    state use_reward(
+    machine use_reward(
         event_runtime: &mut EventRuntime,
         player: &mut Player,
         event: &mut RoomEvent,
@@ -88,7 +88,7 @@ machine EventRuntime::use_event(
         TextBuffer::set(out_line, "You take the treasure.");
     }
 
-    state no_usable_event(out_line: &mut TextBuffer) {
+    machine no_usable_event(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "There is nothing here to use.");
     }
 }
@@ -108,7 +108,7 @@ machine EventRuntime::fight_event(
     }
 
 
-    state fight_enemy_event(
+    machine fight_enemy_event(
         event_runtime: &mut EventRuntime,
         player: &mut Player,
         room: &mut Room,
@@ -126,15 +126,15 @@ machine EventRuntime::fight_event(
         }
     }
 
-    state no_enemy(out_line: &mut TextBuffer) {
+    machine no_enemy(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "There is no enemy here.");
     }
 
-    state player_died(out_line: &mut TextBuffer) {
+    machine player_died(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "You fall in the dark.");
     }
 
-    state enemy_died(reward: Reward,
+    machine enemy_died(reward: Reward,
         out_line: &mut TextBuffer) {
         transition {
             reward.gold >= 20 -> rich_reward(out_line)
@@ -143,19 +143,19 @@ machine EventRuntime::fight_event(
         }
     }
 
-    state rich_reward(out_line: &mut TextBuffer) {
+    machine rich_reward(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "The enemy collapses. You scoop up a serious pile of gold.");
     }
 
-    state small_reward(out_line: &mut TextBuffer) {
+    machine small_reward(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "The enemy collapses. You find a little gold.");
     }
 
-    state empty_reward(out_line: &mut TextBuffer) {
+    machine empty_reward(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "The enemy collapses. Nothing useful remains.");
     }
 
-    state exchange_blows(round: &CombatRound,
+    machine exchange_blows(round: &CombatRound,
         out_line: &mut TextBuffer) {
         transition {
             round.player_damage > 10 -> heavy_exchange(out_line)
@@ -165,19 +165,19 @@ machine EventRuntime::fight_event(
         }
     }
 
-    state heavy_exchange(out_line: &mut TextBuffer) {
+    machine heavy_exchange(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "You deal more than 10 damage, but the enemy keeps moving.");
     }
 
-    state clean_hit(out_line: &mut TextBuffer) {
+    machine clean_hit(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "You hit cleanly and avoid the counterattack.");
     }
 
-    state painful_exchange(out_line: &mut TextBuffer) {
+    machine painful_exchange(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "You trade blows and take 5 or more damage.");
     }
 
-    state glancing_exchange(out_line: &mut TextBuffer) {
+    machine glancing_exchange(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "Steel scrapes in the dark as you exchange blows.");
     }
 }

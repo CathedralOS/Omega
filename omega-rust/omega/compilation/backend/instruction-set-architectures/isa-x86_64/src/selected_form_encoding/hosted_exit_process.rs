@@ -8,7 +8,7 @@ use super::{
 use crate::selected_form_encoding::request_validation::resolve_registers;
 use register_model::RegisterConstraintKey;
 use selected_instructions::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEffectDeclaration,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineEffectDeclaration,
     MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
     MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
@@ -47,11 +47,12 @@ pub(crate) fn declaration(
     target: NativeTarget,
     constraint: RegisterConstraintKey,
 ) -> Result<MachineEffectDeclaration, X86_64SelectedFormEncodingError> {
-    Ok(super::hosted_alternative_declaration(
-        constraint,
+    Ok(MachineEffectDeclaration::single(
         MachineSemanticKind::HostedExitProcessI32,
+        constraint,
         MachineMemoryEffect::NoneV1,
         MachineTrapBehavior::HostedExitReturnedV1,
+        MachineBarrier::ExternalEffect,
         MachineAlternativeFamily::HostedExitProcessI32,
         MachineSizeKnowledge::ExactBytes(12),
         effects(target)?,
@@ -201,22 +202,20 @@ mod tests {
                 )
                 .unwrap();
                 assert_eq!(encoded.footprint().encoded, effects(target).unwrap());
-                for bit in 0..encoded.bytes().len() * 8 {
-                    let mut corrupted = encoded.bytes().to_vec();
-                    corrupted[bit / 8] ^= 1 << (bit % 8);
-                    assert!(
+                crate::selected_form_encoding::assert_every_bit_flip_rejected(
+                    encoded.bytes(),
+                    |corrupted| {
                         validate_x86_64_selected_hosted_exit_process_form(
                             target,
                             &physical,
                             kind,
                             alternative,
                             &operands,
-                            &corrupted
+                            corrupted,
                         )
-                        .is_err(),
-                        "bit {bit}"
-                    );
-                }
+                        .is_err()
+                    },
+                );
                 let different = [physical
                     .model()
                     .view_named(if name == "rax" { "rdi" } else { "rax" })

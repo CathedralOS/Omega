@@ -14,17 +14,17 @@ crashes Trap
         true -> negative(&mut digits, value)
         false -> fill(&mut digits, 0, value)
     }
-    state negative(digits: &mut [i32 in Wrapping; 19], value: i64 in Wrapping) {
+    machine negative(digits: &mut [i32 in Wrapping; 19], value: i64 in Wrapping) {
         Console::write_byte(45);
         transition { _ -> fill(digits, 0, 0 - value) }
     }
-    state fill(digits: &mut [i32 in Wrapping; 19], count: i64 in Wrapping, value: i64 in Wrapping) {
+    machine fill(digits: &mut [i32 in Wrapping; 19], count: i64 in Wrapping, value: i64 in Wrapping) {
         transition count >= 0 && count < 19 {
             true -> append(digits, count, value)
             false -> invalid()
         }
     }
-    state append(digits: &mut [i32 in Wrapping; 19], count: i64 in Wrapping, value: i64 in Wrapping)
+    machine append(digits: &mut [i32 in Wrapping; 19], count: i64 in Wrapping, value: i64 in Wrapping)
     requires count >= 0 && count < 19
     {
         let digit: i64 in Wrapping = value % 10 + 48;
@@ -34,33 +34,33 @@ crashes Trap
             false -> drain(digits, count + 1)
         }
     }
-    state drain(digits: &[i32 in Wrapping; 19], count: i64 in Wrapping) {
+    machine drain(digits: &[i32 in Wrapping; 19], count: i64 in Wrapping) {
         transition count > 0 && count <= 19 {
             true -> emit(digits, count - 1)
             false -> done()
         }
     }
-    state emit(digits: &[i32 in Wrapping; 19], index: i64 in Wrapping)
+    machine emit(digits: &[i32 in Wrapping; 19], index: i64 in Wrapping)
     requires index >= 0 && index < 19
     {
         Console::write_byte(digits[index] as i32);
         transition { _ -> drain(digits, index) }
     }
-    state done() { }
-    state invalid() { crash Trap; }
+    machine done() { }
+    machine invalid() { crash Trap; }
 }
 
 machine report(acquisition: &Acquisition) reaches Console
 crashes Trap
 {
     transition { _ -> row(acquisition, 0) }
-    state row(acquisition: &Acquisition, index: i64 in Wrapping) {
+    machine row(acquisition: &Acquisition, index: i64 in Wrapping) {
         transition index >= 0 && index < 16 && index < acquisition.count {
             true -> emit(acquisition, index)
             false -> summary(acquisition)
         }
     }
-    state emit(acquisition: &Acquisition, index: i64 in Wrapping)
+    machine emit(acquisition: &Acquisition, index: i64 in Wrapping)
     requires index >= 0 && index < 16
     {
         Console::write("row "); number(acquisition.sequence[index]);
@@ -71,7 +71,7 @@ crashes Trap
         Console::write_line("");
         transition { _ -> row(acquisition, index + 1) }
     }
-    state summary(acquisition: &Acquisition) {
+    machine summary(acquisition: &Acquisition) {
         Console::write("wraps "); number(acquisition.wraps);
         Console::write(" dropped "); number(acquisition.dropped);
         Console::write_line("");

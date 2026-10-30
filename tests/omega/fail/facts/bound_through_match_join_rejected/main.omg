@@ -8,6 +8,6 @@ requires low < 3
 }
 machine main() crashes Trap {
     transition read_join(true, 1, 2) == 8 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

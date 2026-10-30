@@ -46,7 +46,7 @@ machine receive(words: &mut [u16; 3]) -> i64 reaches DescriptorIo blocks; {
 
 machine retained_tail(words: &mut [u16; 3]) -> u16 {
     transition { _ -> observe(words) }
-    state observe(words: &mut [u16; 3]) {
+    machine observe(words: &mut [u16; 3]) -> u16 {
         words[2] = 11442;
         words[2]
     }
@@ -63,8 +63,8 @@ machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

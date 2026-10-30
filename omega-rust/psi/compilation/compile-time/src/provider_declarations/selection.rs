@@ -2,22 +2,17 @@ use super::ProviderPlanningContext;
 use checked_trees::typed_trees::TypedTrees;
 use symbols::SymbolHandle;
 
-/// Whether one build-owned provider edge is fused into its consumer or kept
-/// as an independently selected component boundary.
-///
-/// Omission at the source surface is deliberately [`Self::Fused`]. Provider
-/// declarations never infer or widen this mode for themselves.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum CompositionMode {
-    #[default]
-    Fused,
-    Independent,
-}
+pub use language_semantics::declaration_selection::CompositionMode;
 
 /// One exact declaration identity participating in a provider selection.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSelectionIdentity {
     pub symbol: SymbolHandle,
+    /// Arena-local prepared source application. Zero is an unapplied declaration.
+    pub application: arena::Handle<typed_trees::product_operand::ProductOperandApplication>,
+    /// Canonical complete application projected by its typing owner. None is a
+    /// declaration choice with no Type/Const telescope, never an erased tuple.
+    pub application_identity: Option<String>,
     pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub canonical_path: String,
     pub authored_path: String,
@@ -279,10 +274,19 @@ impl ProviderSelectionSubject {
         }
     }
 
-    pub fn selects_schema(&self, schema_symbol: SymbolHandle, requirement_identity: &str) -> bool {
+    pub fn selects_schema(
+        &self,
+        schema_symbol: SymbolHandle,
+        requirement_identity: &str,
+        application: Option<&str>,
+    ) -> bool {
         match self {
             Self::BoundaryTrait(identity) | Self::BoundaryRequirement(identity) => {
                 identity.symbol == schema_symbol
+                    && identity
+                        .application_identity
+                        .as_deref()
+                        .map_or(true, |selected| Some(selected) == application)
             }
             Self::BoundaryOperatorFamily(family) => family.coordinates.iter().any(|coordinate| {
                 coordinate.symbol == schema_symbol
@@ -293,9 +297,13 @@ impl ProviderSelectionSubject {
 
     pub fn same_declaration_as(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::BoundaryTrait(left), Self::BoundaryTrait(right)) => left.symbol == right.symbol,
+            (Self::BoundaryTrait(left), Self::BoundaryTrait(right)) => {
+                left.symbol == right.symbol
+                    && left.application_identity == right.application_identity
+            }
             (Self::BoundaryRequirement(left), Self::BoundaryRequirement(right)) => {
                 left.symbol == right.symbol
+                    && left.application_identity == right.application_identity
             }
             (Self::BoundaryOperatorFamily(left), Self::BoundaryOperatorFamily(right)) => {
                 left.package == right.package && left.canonical_path == right.canonical_path
@@ -310,9 +318,10 @@ impl ProviderSelectionSubject {
 /// family.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSelection {
+    /// None denotes a portable package default, never an evaluated Build override.
+    pub target: Option<language_semantics::declaration_selection::ProductTarget>,
     pub subject: ProviderSelectionSubject,
     pub provider_type: ProviderSelectionIdentity,
     pub composition_mode: CompositionMode,
-    pub selecting_machine: SymbolHandle,
-    pub source_span: source::SourceSpan,
+    pub origin: language_semantics::declaration_selection::BuildSelectionOrigin,
 }

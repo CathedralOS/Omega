@@ -68,7 +68,7 @@ satisfies Finish::finish
 reaches MachineControl
 {
     transition true { true -> work(token) }
-    state work(token: Token) {
+    machine work(token: Token) {
         write_eoi();
         let mut marker: u32 = 0;
         asm where ensures finished(token) { mov marker, marker }
@@ -123,8 +123,8 @@ machine write_eoi_by_choice(enabled: bool) reaches MachineControl
 ensures model_specific_written(2059, 0);
 {
     transition enabled { true -> left() false -> right() }
-    state left() { write_eoi(); }
-    state right() { write_eoi(); }
+    machine left() { write_eoi(); }
+    machine right() { write_eoi(); }
 }
 boundary trait FinishByChoice {
     machine finish(token: Token, enabled: bool) reaches MachineControl;

@@ -10,12 +10,16 @@
 //! provider candidates in `declaration_foundations`, and each machine in
 //! `machine_foundations`, whose `validate_operation_foundation` dispatches
 //! each operation kind to its `validate_*` function in `value_foundations`,
-//! `storage_foundations` or `call_foundations`.
+//! `storage_foundations` or `call_foundations`. Only after every machine's
+//! foundations and activation relationships pass does `storage_foundations`
+//! replay the complete declared reference-membership contracts.
 
 mod call_foundations;
 mod declaration_foundations;
 mod machine_foundations;
+mod proof_scope;
 mod reference_outputs;
+mod scalar_applications;
 mod scalar_boundary_contracts;
 mod scalar_fields;
 mod scalar_observations;
@@ -23,8 +27,10 @@ mod scalar_qualifications;
 mod storage_foundations;
 mod structural_type_foundations;
 mod target_layouts;
+mod task_activation;
 mod value_foundations;
 
+use super::wire::strictly_increasing;
 use crate::codec_error::{CodecError, malformed};
 use terminal_psi::TerminalIdentityIndex;
 
@@ -112,6 +118,8 @@ pub(super) fn values(machine: &TerminalMachine) -> impl Iterator<Item = &ValueDe
 /// carrier relationships, signatures, operation/result shape, and bounded
 /// activation custody. Independent qualification and reach proofs follow.
 pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecError> {
+    scalar_applications::validate(module)?;
+    task_activation::validate(module)?;
     module
         .folded_constants
         .validate(module)
@@ -220,7 +228,7 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     for declaration in &module.structural_types {
         structural_type_foundations::validate_type_shape(module, declaration, &attachment_storage)?;
     }
-    validate_structural_type_graph(module)?;
+    validate_structural_type_graph(&module.structural_types)?;
     for interface in &module.dynamic_dispatch.interfaces {
         for slot in &interface.slots {
             terminal_semantics::validate_dynamic_reference_regions(
@@ -232,6 +240,23 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     }
     declaration_foundations::validate_domains(module)?;
     declaration_foundations::validate_services(module)?;
+    if !strictly_increasing(module.external_providers.iter()) {
+        return malformed("external provider conformances must be canonical and unique");
+    }
+    for candidate in &module.external_providers {
+        candidate
+            .validate(&module.identities)
+            .map_err(CodecError::MalformedStructuralFoundation)?;
+        for boundary in module
+            .boundary_machines
+            .iter()
+            .filter(|boundary| boundary.identity == candidate.requirement_identity)
+        {
+            if boundary.numeric_intrinsic != candidate.numeric_intrinsic {
+                return malformed("external provider disagrees with boundary numeric meaning");
+            }
+        }
+    }
     for boundary in &module.boundary_machines {
         declaration_foundations::validate_boundary_machine(module, boundary)?;
     }
@@ -248,6 +273,9 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         terminal_semantics::activation_storage::validate_machine(module, machine)
             .map_err(CodecError::MalformedStructuralFoundation)?;
     }
+    storage_foundations::validate_reference_memberships(module)?;
+    terminal_semantics::validate_runtime_evidence_inputs(module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     Ok(())
 }
 
@@ -302,8 +330,9 @@ fn validate_target_families(module: &TerminalModule) -> Result<(), CodecError> {
     use terminal_psi::{TargetMachineCallable, TargetMachineSupply};
 
     match module.entry {
-        TargetMachineCallable::Machine(machine) if module.machine(machine).is_some() => {}
-        head @ TargetMachineCallable::Boundary(boundary)
+        None if module.root_service_reach == terminal_psi::TerminalRootServiceReach::default() => {}
+        Some(TargetMachineCallable::Machine(machine)) if module.machine(machine).is_some() => {}
+        Some(head @ TargetMachineCallable::Boundary(boundary))
             if module.target_machine_families.iter().any(|family| {
                 family.canonical == head
                     && !family.members.iter().any(|member| member.callable == head)
@@ -629,7 +658,10 @@ fn validate_reference_origin_path(
                 StructuralPathSegment::FixedIndex(index),
                 StructuralTypeShape::FixedArray { element, length },
             ) => {
-                if index >= length {
+                let Some(length) = length.literal() else {
+                    return malformed("fixed-index validation requires a closed array extent");
+                };
+                if *index >= length {
                     return malformed("structural path fixed index is out of bounds");
                 }
                 *element
@@ -710,11 +742,55 @@ fn validate_structural_parameters(
     Ok(())
 }
 
+/// Preserve the exact operation context for both shape admission and the
+/// later reference-membership replay, without changing the underlying reason.
+pub(super) fn operation_foundation_error(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    block: semantic_vocabulary::BlockId,
+    operation: &Operation,
+    error: CodecError,
+) -> CodecError {
+    let CodecError::MalformedStructuralFoundation(reason) = error else {
+        return error;
+    };
+    let declaration = machine.declaration.as_ref();
+    CodecError::MalformedOperationFoundation {
+        machine: declaration
+            .and_then(|declaration| module.identities.text(declaration.machine.identity()))
+            .map(str::to_owned)
+            .unwrap_or_else(|| format!("{:?}", machine.id)),
+        state: declaration
+            .and_then(|declaration| module.identities.text(declaration.state.identity()))
+            .unwrap_or("synthetic")
+            .to_owned(),
+        block,
+        operation: operation.id,
+        reason,
+    }
+}
+
 fn validate_operation_foundation(
     module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
+    if let OperationKind::ReadScalarApplication { application } = operation.kind {
+        let Some(carrier) = module
+            .scalar_applications
+            .declaration(application)
+            .and_then(|declaration| declaration.scalar_type())
+        else {
+            return malformed("scalar application read has no catalog declaration");
+        };
+        if operation
+            .result
+            .scalar_ref()
+            .is_none_or(|result| result.scalar_type != carrier)
+        {
+            return malformed("scalar application read result differs from its declared carrier");
+        }
+    }
     // Interpretation steps belong to a returned-origin recipe, never an
     // executable operand. Only an actual EstablishReference operation can
     // introduce a view; a path cannot mint its representation authority.
@@ -936,14 +1012,12 @@ fn validate_operation_foundation(
         OperationKind::EstablishByteSequenceLiteral { .. } => {
             value_foundations::validate_establish_byte_sequence_literal(module, machine, operation)?
         }
-        OperationKind::CallUnit { .. } => {
-            call_foundations::validate_call_unit(module, machine, operation)?
-        }
+        OperationKind::CallUnit { .. } => call_foundations::validate_call_unit(module, operation)?,
         OperationKind::CallDynamic { .. } => {
             call_foundations::validate_call_dynamic(module, machine, operation)?
         }
         OperationKind::CallStructuralScalar { .. } => {
-            call_foundations::validate_call_structural_scalar(module, machine, operation)?
+            call_foundations::validate_call_structural_scalar(module, operation)?
         }
         terminal_psi::call_structural_pair_pattern!(..) => {
             call_foundations::validate_call_structural(module, machine, operation)?
@@ -1027,11 +1101,6 @@ fn validate_operation_foundation(
                 declaration.field_type,
                 terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
             );
-            if bounded && event.modifies_resident() && event.replacement().is_none() {
-                return malformed(
-                    "bounded atomic fetch requires universal resident-transition evidence",
-                );
-            }
             if resident_obligation.is_some() != (bounded && event.modifies_resident()) {
                 return malformed(
                     "atomic resident establishment obligation disagrees with its declaration and event",
@@ -1089,9 +1158,7 @@ fn validate_structural_qualifications(
     whole: &[semantic_vocabulary::StructuralDomainId],
     projected: &[terminal_psi::StructuralPathQualification],
 ) -> Result<(), CodecError> {
-    if whole.windows(2).any(|pair| pair[0] >= pair[1])
-        || projected.windows(2).any(|pair| pair[0] >= pair[1])
-    {
+    if !strictly_increasing(whole.iter().copied()) || !strictly_increasing(projected.iter()) {
         return malformed("structural qualifications are noncanonical");
     }
     for (domain, carrier) in whole
@@ -1671,9 +1738,11 @@ fn has_structural_type(module: &TerminalModule, id: StructuralTypeId) -> bool {
     module.structural_type(id).is_some()
 }
 
-fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecError> {
+fn validate_structural_type_graph(
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<(), CodecError> {
     fn visit(
-        module: &TerminalModule,
+        declarations: &[terminal_psi::StructuralTypeDeclaration],
         id: StructuralTypeId,
         active: &mut BTreeSet<StructuralTypeId>,
         complete: &mut BTreeSet<StructuralTypeId>,
@@ -1684,8 +1753,7 @@ fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecEr
         if !active.insert(id) {
             return malformed("structural type graph contains a by-value cycle");
         }
-        let declaration = module
-            .structural_type(id)
+        let declaration = terminal_psi::find_structural_type(declarations, id)
             .expect("structural field targets were validated before graph traversal");
         match &declaration.shape {
             // A reference does not inline its referent storage. The target's
@@ -1698,17 +1766,17 @@ fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecEr
             StructuralTypeShape::Record { fields, .. } => {
                 for field in fields {
                     if let Some(target) = field.field_type.as_structural() {
-                        visit(module, target, active, complete)?;
+                        visit(declarations, target, active, complete)?;
                     }
                 }
             }
             StructuralTypeShape::FixedArray { element, .. } => {
-                visit(module, *element, active, complete)?;
+                visit(declarations, *element, active, complete)?;
             }
             StructuralTypeShape::Sum { cases } => {
                 for field in cases.iter().flat_map(|case| &case.fields) {
                     if let Some(target) = field.field_type.as_structural() {
-                        visit(module, target, active, complete)?;
+                        visit(declarations, target, active, complete)?;
                     }
                 }
             }
@@ -1718,7 +1786,7 @@ fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecEr
                     .chain(cases.iter().flat_map(|case| &case.fields))
                 {
                     if let Some(target) = field.field_type.as_structural() {
-                        visit(module, target, active, complete)?;
+                        visit(declarations, target, active, complete)?;
                     }
                 }
             }
@@ -1730,8 +1798,8 @@ fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecEr
 
     let mut active = BTreeSet::new();
     let mut complete = BTreeSet::new();
-    for declaration in &module.structural_types {
-        visit(module, declaration.id, &mut active, &mut complete)?;
+    for declaration in declarations {
+        visit(declarations, declaration.id, &mut active, &mut complete)?;
     }
     Ok(())
 }

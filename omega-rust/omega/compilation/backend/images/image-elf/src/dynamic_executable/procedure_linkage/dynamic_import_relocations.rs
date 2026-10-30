@@ -16,8 +16,6 @@
 //! [x86-64 psABI]: https://gitlab.com/x86-psABIs/x86-64-ABI
 //! [AArch64 ELF ABI]: https://github.com/ARM-software/abi-aa/blob/main/aaelf64/aaelf64.rst
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
 use crate::dynamic_executable::checked::{checked_u32, require};
 use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ValidatedElfDynamicSectionDescriptorPlan;
@@ -53,6 +51,7 @@ impl ValidatedElfProcedureLinkageRelocationPlan {
         &self.descriptors
     }
 
+    #[cfg(test)]
     pub(crate) fn logical_slot_count(&self) -> usize {
         self.contents.slots.len()
     }
@@ -61,6 +60,7 @@ impl ValidatedElfProcedureLinkageRelocationPlan {
         self.contents.jump_slot_relocations.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn direct_call_site_count(&self) -> usize {
         self.contents
             .slots
@@ -178,25 +178,12 @@ pub(crate) fn plan_elf_procedure_linkage_relocations(
     ValidatedElfProcedureLinkageRelocationPlan,
     Box<ElfProcedureLinkageRelocationPlanningError>,
 > {
-    checked::plan_candidate(
-        descriptors,
-        derive_contents,
-        |descriptors, contents| {
-            non_authoritative_linkage_compatibility_fingerprint(&descriptors, &contents)
-        },
-        |descriptors, contents, fingerprint| Candidate {
-            descriptors: descriptors,
-            contents: contents,
-            non_authoritative_linkage_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.descriptors,
-        |descriptors, diagnostic| {
-            Box::new(ElfProcedureLinkageRelocationPlanningError {
-                descriptors: descriptors,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: descriptors,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_linkage_compatibility_fingerprint,
+        error: ElfProcedureLinkageRelocationPlanningError,
     )
 }
 
@@ -469,27 +456,13 @@ fn site_end(site: &ElfDirectImportCallSite) -> Result<usize, Diagnostic> {
         .ok_or_else(|| Diagnostic::error("ELF import call-site span overflows usize"))
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfProcedureLinkageRelocationPlan, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.descriptors, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_linkage_compatibility_fingerprint
-                == non_authoritative_linkage_compatibility_fingerprint(
-                    &candidate.descriptors,
-                    &candidate.contents,
-                )
-        },
-        "ELF procedure-linkage compatibility fingerprint does not replay",
-        |candidate| ValidatedElfProcedureLinkageRelocationPlan {
-            descriptors: candidate.descriptors,
-            contents: candidate.contents,
-            non_authoritative_linkage_compatibility_fingerprint: candidate
-                .non_authoritative_linkage_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: descriptors,
+    contents: contents,
+    validated: ValidatedElfProcedureLinkageRelocationPlan,
+    validate: validate_contents,
+    fingerprint: non_authoritative_linkage_compatibility_fingerprint,
+    message: "ELF procedure-linkage compatibility fingerprint does not replay",
 }
 
 fn validate_contents(
@@ -581,12 +554,9 @@ fn non_authoritative_linkage_compatibility_fingerprint(
     descriptors: &ValidatedElfDynamicSectionDescriptorPlan,
     contents: &ElfProcedureLinkageRelocationContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-procedure-linkage-relocations.v1");
-    hash.bytes(
-        &descriptors
-            .non_authoritative_descriptor_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf-procedure-linkage-relocations.v1",
+        descriptors.non_authoritative_descriptor_compatibility_fingerprint(),
     );
     hash.bytes(
         descriptors

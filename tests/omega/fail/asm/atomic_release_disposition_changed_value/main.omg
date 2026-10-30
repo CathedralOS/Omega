@@ -20,6 +20,6 @@ machine main() reaches Completion crashes Trap {
  let observed_atomic_observed: u64 = word.value.load(Receive);
  let observed: u64 in Wrapping = observed_atomic_observed as u64 in Wrapping;
  transition observed == 37 { true -> done() false -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }

@@ -1,3 +1,4 @@
+use crate::expressions::proposition::is_proposition_call_target;
 use crate::lowerer::Lowerer;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -8,13 +9,92 @@ use super::arguments::{lower_statement_argument_span, lower_statement_path_membe
 pub(super) fn lower_call_statement(
     lowerer: &mut Lowerer,
     call: &resolved::statement::TableCall,
+) -> Result<typed::statement::StatementNode, Diagnostic> {
+    if let Some(operation) = crate::expressions::product_queries::operation(
+        lowerer.source_trees,
+        call.receiver_symbol,
+        call.target_symbol,
+        call.target.as_str(),
+    ) {
+        if !call.machine_arguments.is_empty() || !call.evidence_arguments.is_empty() {
+            return Err(Diagnostic::error(
+                "Product queries accept only their ordinary value arguments",
+            ));
+        }
+        // Preserve ordinary statement disposition, including explicit discard.
+        // Turning this into an expression would lose that authored obligation.
+        let mut lowered = lower_ordinary_call(lowerer, call)?;
+        let protocol = lowerer
+            .source_trees
+            .traits
+            .iter()
+            .find(|definition| definition.symbol == operation.namespace)
+            .ok_or_else(|| Diagnostic::error("Product query lost its toolchain protocol"))?;
+        lowered.receiver = Default::default();
+        lowerer.typed_trees.statement_table.push_name_path_member(
+            &mut lowered.receiver,
+            crate::lowerer::name::lower_name(&protocol.name),
+        );
+        lowered.receiver_root_symbol = operation.namespace;
+        lowered.receiver_symbol = operation.namespace;
+        lowered.target_symbol = operation.target;
+        let signature = lowerer
+            .source_trees
+            .trait_machine_signatures(protocol.machines)
+            .iter()
+            .find(|signature| signature.symbol == operation.target)
+            .ok_or_else(|| Diagnostic::error("Product query lost its exact operation"))?;
+        lowered.target = crate::lowerer::name::lower_name(&signature.name);
+        return Ok(typed::statement::StatementNode::Call(lowered));
+    }
+    if let Some(request) = crate::expressions::product_selections::request(
+        lowerer.source_trees,
+        &mut lowerer.typed_trees,
+        lowerer.type_reference_exposure,
+        &call.authored_static_argument_selections,
+        call.receiver_symbol,
+        call.target_symbol,
+        call.target.as_str(),
+        &call.machine_arguments,
+        call.arguments.len(),
+        call.evidence_arguments.len(),
+        call.target.source_span(),
+    )? {
+        let mut occurrences = call.authored_call_selection.into_iter().collect::<Vec<_>>();
+        occurrences.extend(call.authored_static_argument_selections.iter().copied());
+        let arguments = lowerer
+            .source_trees
+            .tables
+            .bodies
+            .statements
+            .expression_handles(call.arguments)
+            .to_vec()
+            .into_iter()
+            .map(|argument| super::arguments::lower_statement_expression(lowerer, argument))
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let expression = crate::expressions::build_selections::lower(
+            lowerer.source_trees,
+            &mut lowerer.typed_trees,
+            request,
+            arguments,
+            call.operational_acknowledgement,
+        )?;
+        lowerer
+            .typed_trees
+            .expression_table
+            .attach_authored_selection_occurrences(expression, occurrences);
+        return Ok(typed::statement::StatementNode::Expression(expression));
+    }
+    Ok(typed::statement::StatementNode::Call(lower_ordinary_call(
+        lowerer, call,
+    )?))
+}
+
+fn lower_ordinary_call(
+    lowerer: &mut Lowerer,
+    call: &resolved::statement::TableCall,
 ) -> Result<typed::statement::TableCall, Diagnostic> {
-    if call.target_symbol.is_valid()
-        && matches!(
-            lowerer.source_trees.symbols.get(call.target_symbol).kind,
-            symbols::SymbolKind::Proposition | symbols::SymbolKind::PropositionParameter
-        )
-    {
+    if is_proposition_call_target(&lowerer.source_trees.symbols, call.target_symbol) {
         return Err(Diagnostic::error(
             "a proposition application is proof-only and cannot appear as an executable call statement",
         ));
@@ -30,19 +110,13 @@ pub(super) fn lower_call_statement(
         target: crate::lowerer::name::lower_name(&call.target),
         static_machine_parameter: symbols::SymbolHandle::invalid(),
         static_requirement_dispatch: None,
-        machine_arguments: call
-            .machine_arguments
-            .iter()
-            .map(|argument| {
-                crate::expressions::expression::lower_static_machine_argument(
-                    Some(lowerer.source_trees),
-                    &mut lowerer.typed_trees,
-                    lowerer.type_reference_exposure,
-                    argument,
-                )
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()?
-            .into_boxed_slice(),
+        machine_arguments: crate::signatures::lexical_context::call_arguments(
+            Some(lowerer.source_trees),
+            &mut lowerer.typed_trees,
+            lowerer.type_reference_exposure,
+            call.target_symbol,
+            &call.machine_arguments,
+        )?,
         arguments,
         evidence_arguments: call
             .evidence_arguments

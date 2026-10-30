@@ -1,0 +1,24 @@
+{
+  "status": "timeout",
+  "wall_seconds": 240.0808548000059,
+  "budget_seconds": 240.0,
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\baseline\\omega.exe",
+    "update",
+    "--project",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\samples\\cli\\arithmetic\\prime_counter",
+    "--target",
+    "windows_x86_64"
+  ],
+  "exit_code": 1,
+  "producer": {
+    "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\baseline\\omega.exe",
+    "sha256": "7e8f008562203f0788e1bc276c436493e64ae0e6fde00ec6f46303ae5297a321",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "3"
+    }
+  },
+  "source_revision": "ad7c6890a8971c1609006e1965ba4e4626f30591",
+  "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\probe-1793317245461719200\\update.txt"
+}

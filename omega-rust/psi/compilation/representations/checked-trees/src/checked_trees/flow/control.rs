@@ -15,7 +15,7 @@ use super::{
 /// row; a named `Namespace::requirement(...)` call has no `uses` row, so it
 /// names its `named_use` row instead. Exactly one of the two handles is
 /// valid.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperatorInvocationFact {
     pub operator_use: arena::Handle<crate::CheckedOperatorUseFact>,
     pub named_use: arena::Handle<crate::CheckedNamedOperatorUseFact>,
@@ -23,10 +23,13 @@ pub struct FlowOperatorInvocationFact {
     pub requires_constraints: HandleSpan<FlowConstraintRef>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowCallFact {
     pub statement_index: usize,
     pub call_ordinal: usize,
+    /// Exact storage after every operand completes and before the call runs.
+    /// Borrowed observations use this cut, never an earlier actual's pointee.
+    pub invocation_storage: arena::Handle<super::FlowStorageSnapshot>,
     /// Actuals in authored evaluation order, captured at their own completion.
     pub operands: HandleSpan<super::FlowOperandFact>,
     /// Exact expression occurrence captured by the semantic call traversal.
@@ -113,7 +116,7 @@ impl FlowCallFact {
 
 /// The authored syntax that spells one [`FlowCallFact`]. `Unbound` is the
 /// absence state before the source-custody binding pass joins the row.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum FlowCallSite {
     #[default]
     Unbound,
@@ -126,7 +129,7 @@ pub enum FlowCallSite {
 }
 
 /// What the authored statement does with one call's result.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum FlowCallResult {
     /// The result feeds an enclosing expression, an assignment, a mutable
     /// local or a transition.
@@ -142,7 +145,7 @@ pub enum FlowCallResult {
 /// computed subject. The parser copies the dispatch's call into every arm's
 /// guard and payload read; the language evaluates it once, at the first arm
 /// (wiki/spec/language/expressions.md, "Transition dispatch").
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum FlowCallDispatchRole {
     /// A call outside any copy of a computed dispatch subject, including a
     /// call inside the evaluated subject itself.
@@ -160,18 +163,21 @@ pub enum FlowCallDispatchRole {
 /// Coordinate of a [`FlowCallFact`] whose authored call selected execution
 /// replaced in the typed body: the row is retained for the handles held on
 /// it and skipped by execution planning.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct RetiredFlowCall {
     pub state_symbol: SymbolHandle,
     pub statement_index: usize,
     pub call_ordinal: usize,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowStatementFact {
     pub statement_index: usize,
     pub storage_snapshot: arena::Handle<super::FlowStorageSnapshot>,
     pub value_observations: HandleSpan<super::FlowValueObservationFact>,
+    /// Spelled and named operator consumers at this exact statement. Their
+    /// evaluated operands retain the same occurrence custody as ordinary calls.
+    pub operator_invocations: HandleSpan<FlowOperatorInvocationFact>,
     /// Completed RHS after destination evaluation, before storage. Zero for
     /// statements without a stored value; children retain their own epochs.
     pub stored_value: arena::Handle<super::FlowOperandFact>,
@@ -209,7 +215,7 @@ pub struct FlowStatementFact {
 /// evaluated, before successor admission/arrival or machine-return guarantees.
 /// Unlike `FlowExitFact`, this includes named state transfers and introduces
 /// no machine result or ensures obligation.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowStateOutgoingFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -220,10 +226,16 @@ pub struct FlowStateOutgoingFact {
     /// transfers and valueless completion; reference results retain live
     /// referents captured during evaluation rather than replaying selectors.
     pub returned_value: arena::Handle<super::FlowOperandFact>,
+    /// Selected-arm facts before any target operand executes. Copy payloads
+    /// are values extracted at this boundary, not late storage rereads.
+    pub operand_entry_constraints: HandleSpan<FlowConstraintRef>,
+    /// Exact completed plain-copy payload values of this selected target.
+    /// Their backing is the authenticated saved dispatch receiver.
+    pub copied_payloads: HandleSpan<super::FlowOperandFact>,
     pub constraints: HandleSpan<FlowConstraintRef>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowExitFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -248,7 +260,7 @@ pub struct FlowExitFact {
     pub ensures: HandleSpan<ContractProofFactRef>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowExitParameterOrigin {
     pub contract: arena::Handle<typed_trees::domain::ProofFact>,
     pub entry_parameter: SymbolHandle,
@@ -261,7 +273,7 @@ pub struct FlowExitParameterOrigin {
     pub retained_referent_type: typed_trees::types::TypeReferenceHandle,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowStateFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,

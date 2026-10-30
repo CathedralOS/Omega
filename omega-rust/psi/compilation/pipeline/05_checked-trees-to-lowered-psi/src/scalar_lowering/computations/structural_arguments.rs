@@ -102,7 +102,7 @@ pub(super) fn lower(
             source.clone(
             ), bindings.structural_place_type(
             source.place))?;
-                prepared.path.extend(crate::expression_preparation::bindings::structural_paths::prepare_argument_path(identities, &argument.path, selected_root, structural_types)?);
+                prepared.path.extend(crate::expression_preparation::bindings::structural_paths::prepare_call_argument_path(identities, checked, argument, selected_root, structural_types)?);
                 return Ok(prepared);
             }
             // The callee's plan row names the primitive a borrowed formal

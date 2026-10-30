@@ -3,7 +3,7 @@ requires input <= 255u16
 ensures result == input || result < input
 {
     transition { _ -> finish(input) }
-    state finish(saved: u16) -> u16 { saved }
+    machine finish(saved: u16) -> u16 { saved }
 }
 
 machine value(selected: bool, input: u16) -> bool
@@ -14,5 +14,5 @@ ensures true == true
         true -> finish(selected && ((bounded(!selected, input % 256u16) as u8) == 7u8))
         false -> finish(false)
     }
-    state finish(result: bool) -> bool { result }
+    machine finish(result: bool) -> bool { result }
 }

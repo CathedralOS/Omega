@@ -27,13 +27,13 @@ machine Main::main(main: &mut Main) reaches Console {
     main.sum = 0;
     transition { _ -> step(main) }
 
-    state step(main: &mut Main) {
+    machine step(main: &mut Main) {
         transition main.r >= 0 {
             true -> proc(main)
             false -> check(main)
         }
     }
-    state proc(main: &mut Main) {
+    machine proc(main: &mut Main) {
         main.d = main.digits[main.r] as i32 in Wrapping;
         main.par = (main.r % 2) as i32 in Wrapping;
         transition main.par == 1 {
@@ -41,44 +41,44 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> accumulate(main)
         }
     }
-    state double_it(main: &mut Main) {
+    machine double_it(main: &mut Main) {
         main.d = main.d * 2;
         transition main.d > 9 {
             true -> sub9(main)
             false -> accumulate(main)
         }
     }
-    state sub9(main: &mut Main) {
+    machine sub9(main: &mut Main) {
         main.d = main.d - 9;
         transition { _ -> accumulate(main) }
     }
     // Re-guard so the decrement's direct edge proves `r - 1` cannot overflow
     // -- accumulate is only reachable with r >= 0, so always true.
-    state accumulate(main: &mut Main) {
+    machine accumulate(main: &mut Main) {
         main.sum = main.sum + main.d;
         transition main.r >= 0 {
             true -> dec(main)
             false -> check(main)
         }
     }
-    state dec(main: &mut Main) {
+    machine dec(main: &mut Main) {
         main.r = main.r - 1;
         transition { _ -> step(main) }
     }
-    state check(main: &mut Main) {
+    machine check(main: &mut Main) {
         main.par = main.sum % 10;
         transition main.par == 0 {
             true -> valid(main)
             false -> invalid(main)
         }
     }
-    state valid(main: &mut Main) {
+    machine valid(main: &mut Main) {
         Console::write_line("PASS: Luhn sum 70 is a multiple of 10, number valid (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(70);
     }
-    state invalid(main: &mut Main) {
+    machine invalid(main: &mut Main) {
         Console::write_line("FAIL: Luhn sum not a multiple of 10, number invalid (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

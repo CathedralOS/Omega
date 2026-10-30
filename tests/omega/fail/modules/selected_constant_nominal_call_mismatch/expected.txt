@@ -1,1 +1,1 @@
-constant initializer result does not match its declared carrier
+expects the `Token` data type but got `foreign::Token`

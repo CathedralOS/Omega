@@ -10,6 +10,10 @@ use typed_trees::{machine::Machine, statement::StatementNode};
 
 mod result_candidates;
 
+pub(in crate::flow) use result_candidates::{
+    ReferenceResultSourceKind, call_result_captured_sources, call_result_leaf_sources,
+};
+
 pub(crate) use result_candidates::{
     reference_expression_storage_places_including_shared,
     reference_result_candidates_before_statement,

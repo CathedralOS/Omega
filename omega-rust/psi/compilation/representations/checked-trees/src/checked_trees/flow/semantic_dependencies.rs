@@ -2,7 +2,7 @@ use symbols::SymbolHandle;
 
 /// Whether a compiler-derived semantic dependency contributes only to an
 /// implementation artifact or is exposed by a published signature.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, compiler_storage::Record)]
 pub enum CheckedSemanticDependencyExposure {
     PrivateImplementation,
     PublicInterface,
@@ -13,7 +13,7 @@ pub enum CheckedSemanticDependencyExposure {
 /// These rows grant no source-name authority. Multiple kinds may name the
 /// same declaration because nominal identity, representation, ownership, and
 /// automatic cleanup participate in different compatibility decisions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, compiler_storage::Record)]
 pub enum CheckedSemanticDependencyKind {
     NominalIdentity,
     Layout,
@@ -22,7 +22,7 @@ pub enum CheckedSemanticDependencyKind {
     AutomaticCleanupMachine,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedSemanticDependency {
     pub consumer_machine: SymbolHandle,
     pub dependency: SymbolHandle,
@@ -32,7 +32,7 @@ pub struct CheckedSemanticDependency {
 
 /// Deterministically ordered, package-neutral dependencies derived from
 /// successful checking. Exact package owners are joined by Omega orchestration.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedSemanticDependencies {
     pub rows: Vec<CheckedSemanticDependency>,
 }

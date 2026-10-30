@@ -22,6 +22,6 @@ machine exercise(select: bool) -> bool {
 machine main() crashes Trap {
     let correct: bool = exercise(true) && exercise(false);
     transition correct { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -1,0 +1,10 @@
+// Expected exit: 0
+machine observe<'source>(source: &'source mut u64, value: u64) -> &'source mut u64 ensures source == value { source = value; source }
+machine same(left: u64, right: u64) -> u64 requires left == right { left }
+machine probe(value: u64) -> u64 {
+ let mut items: [u64; 2] = [3, 1];
+ let saved: u64 = observe(&mut items[0], value);
+ items[1] = 4;
+ same(saved, 3)
+}
+machine main() { let result: u64 = probe(7); }

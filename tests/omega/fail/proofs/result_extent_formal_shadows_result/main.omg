@@ -11,6 +11,6 @@ machine main() crashes Trap {
     let selected: &[u8] = wrong(&bytes, 0, 2);
     need_two(selected);
     transition selected.len == 1 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

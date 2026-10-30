@@ -52,7 +52,7 @@ machine main() crashes Trap {
         true -> other(&mut grid)
         _ -> bad()
     }
-    state other(grid: &mut Grid) {
+    machine other(grid: &mut Grid) {
         grid.cells[1].value = 0;
         grid.cursor = 1;
         update(grid, false);
@@ -65,6 +65,6 @@ machine main() crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

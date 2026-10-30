@@ -36,7 +36,7 @@ machine Main::main(main: &mut Main) reaches Console {
     fill(&mut packet);
     transition { _ -> check(main, packet, 1) }
 
-    state check(main: &mut Main, packet: Packet, cursor: u64)
+    machine check(main: &mut Main, packet: Packet, cursor: u64)
     requires cursor < 4 {
         let fields_ok: bool = packet.samples.items[0] == 150
             && packet.samples.items[cursor] == 0 - 2
@@ -49,11 +49,11 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

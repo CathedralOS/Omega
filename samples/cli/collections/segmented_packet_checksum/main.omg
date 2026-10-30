@@ -11,14 +11,14 @@ data Packet<'input> { sequence: u64; segments: [Segment<'input>; 4]; }
 
 machine fold_bytes(values: &[u8], checksum: u32 in Wrapping) -> u32 in Wrapping {
     transition { _ -> scan(values, 0, checksum) }
-    state scan(values: &[u8], cursor: u64, checksum: u32 in Wrapping) -> u32 in Wrapping
+    machine scan(values: &[u8], cursor: u64, checksum: u32 in Wrapping) -> u32 in Wrapping
     requires cursor <= values.len {
         transition cursor < values.len {
             true -> read(values, cursor, checksum)
             false -> checksum
         }
     }
-    state read(values: &[u8], cursor: u64, checksum: u32 in Wrapping) -> u32 in Wrapping
+    machine read(values: &[u8], cursor: u64, checksum: u32 in Wrapping) -> u32 in Wrapping
     requires cursor < values.len {
         let next: u32 in Wrapping = checksum * 31 + (values[cursor] as u32 in Wrapping);
         transition { _ -> scan(values, cursor + 1, next) }
@@ -34,14 +34,14 @@ machine fold_segment(segment: &Segment, checksum: u32 in Wrapping) -> u32 in Wra
 
 machine checksum(packet: &Packet) -> u32 in Wrapping {
     transition { _ -> scan(packet, 0, 0) }
-    state scan(packet: &Packet, cursor: u64, accumulated: u32 in Wrapping) -> u32 in Wrapping
+    machine scan(packet: &Packet, cursor: u64, accumulated: u32 in Wrapping) -> u32 in Wrapping
     requires cursor <= 4 {
         transition cursor < 4 {
             true -> read(packet, cursor, accumulated)
             false -> accumulated
         }
     }
-    state read(packet: &Packet, cursor: u64, accumulated: u32 in Wrapping) -> u32 in Wrapping
+    machine read(packet: &Packet, cursor: u64, accumulated: u32 in Wrapping) -> u32 in Wrapping
     requires cursor < 4 {
         let next: u32 in Wrapping = fold_segment(&packet.segments[cursor], accumulated);
         transition { _ -> scan(packet, cursor + 1, next) }
@@ -69,6 +69,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

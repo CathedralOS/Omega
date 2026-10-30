@@ -15,8 +15,8 @@ machine Main::main(context: &mut Main) {
         true -> finish(context)
         false -> bad(context)
     }
-    state finish(context: &mut Main) { }
-    state bad(context: &mut Main) { }
+    machine finish(context: &mut Main) { }
+    machine bad(context: &mut Main) { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

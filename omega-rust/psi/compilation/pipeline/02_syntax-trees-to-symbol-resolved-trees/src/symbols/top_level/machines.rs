@@ -19,38 +19,34 @@ pub(super) fn assign_machine_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) -> Vec<Diagnostic> {
-    let root_machine_symbols = symbols
-        .child_handles(symbols.root())
-        .into_iter()
-        .flatten()
-        .filter(|symbol| symbols.get(*symbol).kind == SymbolKind::Machine)
-        .collect::<Vec<_>>();
+    // The machine arena includes nested declarations; the symbol root does
+    // not. Positional zipping shifts every later boundary requirement when
+    // an earlier machine has children. Classification belongs to the exact
+    // declaration identity already assigned by the root/lexical traversal.
     let top_level_requirement_symbols = program
         .machines
         .iter()
-        .zip(root_machine_symbols.iter().copied())
-        .filter_map(|(machine, symbol)| {
+        .filter_map(|machine| {
             matches!(
                 machine.supply_mode,
                 language_semantics::MachineSupplyMode::TopLevelRequirement
             )
-            .then_some(symbol)
+            .then_some(machine.symbol)
         })
         .collect::<Vec<_>>();
     let token_requirement_symbols = program
         .machines
         .iter()
-        .zip(root_machine_symbols)
-        .filter_map(|(machine, symbol)| {
-            (machine.spelling.is_some() && top_level_requirement_symbols.contains(&symbol))
-                .then_some(symbol)
+        .filter_map(|machine| {
+            (machine.spelling.is_some() && top_level_requirement_symbols.contains(&machine.symbol))
+                .then_some(machine.symbol)
         })
         .collect::<Vec<_>>();
     let mut diagnostics = Vec::new();
     // A transparent refinement (`trait R = Base`) bounds an existing base
     // conformance; it is never itself a `satisfies` target.
     let (refinement_symbols, trait_proposition_slots, trait_machine_identity_slots) =
-        trait_parameter_tables(symbols, program);
+        trait_parameter_tables(program);
     // Resolve every attachment before visiting bodies: a method may be declared
     // after its caller or outside its carrier's module. Bodies borrow this exact
     // declaration cohort instead of rebuilding attachment identity from a name.
@@ -62,7 +58,39 @@ pub(super) fn assign_machine_symbols(
             .unwrap_or_else(SymbolHandle::invalid);
     });
     let attached_machines = crate::symbols::scope::attached_machines(program);
-    let conformance_scopes = match crate::symbols::scope::ConformanceTypeScopes::of(program) {
+    // Bind the whole declaration cohort before elaborating inherited static
+    // scopes. An ancestor's binder keeps its identity in every descendant.
+    {
+        let parameters = &mut program.tables.declarations.data_type_parameters;
+        program.roots.machines.for_each_mut(|machine| {
+            let mut children = symbols
+                .child_handles(machine.symbol)
+                .into_iter()
+                .flatten()
+                .filter(|symbol| symbols.get(*symbol).kind != SymbolKind::Machine);
+            for parameter in parameters.span_mut_or_empty(machine.type_parameters) {
+                let kind = match parameter.kind {
+                    symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
+                        SymbolKind::MachineParameter
+                    }
+                    _ => SymbolKind::TypeParameter,
+                };
+                let declaration = next_child_of_kind(&mut children, symbols, kind);
+                if parameter.symbol.is_valid() && parameter.symbol != declaration {
+                    diagnostics.push(Diagnostic::error(
+                        "retained machine binder differs from its declaration child",
+                    ));
+                } else {
+                    parameter.symbol = declaration;
+                }
+            }
+            for bound in &mut machine.conformance_bounds {
+                bound.binder =
+                    next_child_of_kind(&mut children, symbols, SymbolKind::ConformanceParameter);
+            }
+        });
+    }
+    let conformance_scopes = match crate::symbols::scope::DeclarationTypeScopes::of(program) {
         Ok(scopes) => scopes,
         Err(errors) => {
             diagnostics.extend(errors);
@@ -89,27 +117,10 @@ pub(super) fn assign_machine_symbols(
 
     machines.for_each_mut(|machine| {
         let machine_symbol = machine.symbol;
-        let mut machine_children = symbols.child_handles(machine_symbol).into_iter().flatten();
+        let mut machine_children = symbols.child_handles(machine_symbol).into_iter().flatten()
+            .filter(|symbol| symbols.get(*symbol).kind != SymbolKind::Machine)
+            .skip(machine.type_parameters.len() + machine.conformance_bounds.len());
 
-        for type_parameter in data_type_parameters.span_mut_or_empty(machine.type_parameters) {
-            let kind = match type_parameter.kind {
-                symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
-                    SymbolKind::MachineParameter
-                }
-                _ => SymbolKind::TypeParameter,
-            };
-            // The iterator is declaration positional even on a seeded revisit.
-            // Retaining an already assigned binder does not remove its child
-            // slot: the following entry state must consume its own declaration.
-            let declaration = next_child_of_kind(&mut machine_children, symbols, kind);
-            if !type_parameter.symbol.is_valid() {
-                type_parameter.symbol = declaration;
-            } else if symbols.get(type_parameter.symbol).kind != kind {
-                diagnostics.push(Diagnostic::error(
-                    "retained machine parameter has a different declaration kind",
-                ));
-            }
-        }
         let mut local_type_parameters = crate::symbols::scope::declaration_type_scope(
             data_type_parameters.span_or_empty(machine.type_parameters),
             conformance_scopes.parameters(machine.symbol),
@@ -178,13 +189,6 @@ pub(super) fn assign_machine_symbols(
             );
         }
 
-        for bound in &mut machine.conformance_bounds {
-            bound.binder = next_child_of_kind(
-                &mut machine_children,
-                symbols,
-                SymbolKind::ConformanceParameter,
-            );
-        }
         // Machine evidence lives in a separate telescope. Retain those exact
         // lexical binders in the local selection context for trait arguments.
         local_type_parameters.extend(crate::symbols::scope::evidence_type_parameters(
@@ -218,7 +222,6 @@ pub(super) fn assign_machine_symbols(
             symbol: machine_symbol,
             lexical_requirements: LexicalRequirements::none(),
             type_parameters: &local_type_parameters,
-            attached_data: machine.attached_data.as_ref(),
             attached_data_symbol: machine.attached_data_symbol,
             owned_data: &[],
             prior_statements: &[],
@@ -229,6 +232,19 @@ pub(super) fn assign_machine_symbols(
             data_payload_fields: &declarations.data_payload_fields,
             type_constraints,
         };
+
+        for predicate in expression_table.expression_handles(machine.declared_type_predicates).to_vec() {
+            assign_expression_table_symbols(symbols, &expression_scope, &[], SymbolHandle::invalid(), expression_table, child_type_references, predicate);
+        }
+
+        for equation in declarations.declared_type_equations.span_mut_or_empty(machine.declared_type_equations) {
+            for reference in [&mut equation.parameter, &mut equation.definition] {
+                assign_type_reference_symbol_with_locals_and_constraints(
+                    symbols, child_type_references, type_constraints,
+                    &local_type_parameters, reference,
+                );
+            }
+        }
 
         for owned_data in machine_owned_data.span_mut_or_empty(machine.owned_data) {
             owned_data.symbol =

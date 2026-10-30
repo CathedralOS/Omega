@@ -6,27 +6,27 @@ data Main { seed: u64; }
 machine carry(value: Record) -> Record { value }
 machine churn(held: Held, value: Record) -> Record {
     transition { _ -> repeat(held, value, 0) }
-    state repeat(held: Held, value: Record, count: u64) -> Record {
+    machine repeat(held: Held, value: Record, count: u64) -> Record {
         transition count < 4096 {
             true -> next(held, value, count)
             false -> (value)
         }
     }
-    state next(held: Held, value: Record, count: u64) -> Record {
+    machine next(held: Held, value: Record, count: u64) -> Record {
         let mut copied: Record = carry(value);
         transition copied.value == held.target.value && copied.stamp == count {
             true -> increment(held, copied, count)
             false -> (Record { value: 1, stamp: 0 })
         }
     }
-    state increment(held: Held, value: Record, count: u64) -> Record {
+    machine increment(held: Held, value: Record, count: u64) -> Record {
         transition count < 4096 { true -> stamp(held, value, count) false -> (value) }
     }
-    state stamp(held: Held, value: Record, count: u64) -> Record {
+    machine stamp(held: Held, value: Record, count: u64) -> Record {
         let mut next: Record = value;
         transition count < 4096 { true -> store(held, next, count + 1) false -> (next) }
     }
-    state store(held: Held, value: Record, count: u64) -> Record {
+    machine store(held: Held, value: Record, count: u64) -> Record {
         let mut next: Record = value; next.stamp = count;
         transition { _ -> repeat(held, next, count) }
     }
@@ -39,8 +39,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

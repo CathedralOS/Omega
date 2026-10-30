@@ -1,0 +1,11 @@
+data Owner { values: [u64; 2]; }
+machine Owner::drop(owner: &mut Owner)
+requires owner.values[1] == 7
+{
+    owner.values[1] = 0;
+}
+// The initial fact cannot survive an overlapping indexed write.
+machine main() {
+    let mut owner: Owner = Owner { values: [7, 7] };
+    owner.values[1] = 8;
+}

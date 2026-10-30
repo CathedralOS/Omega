@@ -370,6 +370,10 @@ fn preserve_parent_home(
                 structural_arguments,
                 ..
             }
+            | Terminator::InvokeNoNormal {
+                structural_arguments,
+                ..
+            }
             | Terminator::ExternalCompletion {
                 structural_arguments,
                 ..

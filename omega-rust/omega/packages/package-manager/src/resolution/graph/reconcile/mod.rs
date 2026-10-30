@@ -14,13 +14,12 @@ pub(crate) use resolved_closure::{ExactTargetPackageSourceClosure, ResolvedPacka
 
 use super::PackageClosureValidationError;
 use crate::declarations::BuildDeclarationKind;
-use crate::declarations::dependencies::read::{
-    DependencyAliasError, DependencyPurpose, DependencySourceRequest,
-};
+#[cfg(test)]
+use crate::declarations::dependencies::read::DependencySourceRequest;
+use crate::declarations::dependencies::read::{DependencyAliasError, DependencyPurpose};
 use crate::declarations::{AliasName, PackageKey};
 use crate::resolution::source::PackageSourceCustody;
-pub(crate) use resolution::resolve_package_source_closure_with_indexed_limits;
-pub(crate) use resolution::resolve_package_source_closure_with_limits;
+pub(crate) use resolution::{PendingSourceResolution, SourceClosureStep, begin_source_closure};
 use std::fmt;
 
 /// One exact requester-local edge in a root-to-dependency path.
@@ -114,6 +113,9 @@ pub(crate) enum PackageSourceClosureResolutionError<E> {
         requester: PackageKey,
         purpose: DependencyPurpose,
         dependency_index: usize,
+        /// The exact outstanding request the adapter refused; retained for the
+        /// test that pins the occurrence, so only that configuration reads it.
+        #[cfg(test)]
         request: DependencySourceRequest,
         error: E,
     },

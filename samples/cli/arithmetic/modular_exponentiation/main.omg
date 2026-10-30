@@ -23,7 +23,7 @@ machine modular_power(base: i32, exponent: i32) -> i32 {
     }
 
     // Process the exponent bit by bit, lowest first; stop once it is exhausted.
-    state step(result: i32, base: i32, exponent: i32) -> i32 {
+    machine step(result: i32, base: i32, exponent: i32) -> i32 {
         transition exponent == 0 {
             true -> (result)
             _ -> classify(result, base, exponent)
@@ -31,7 +31,7 @@ machine modular_power(base: i32, exponent: i32) -> i32 {
     }
 
     // Fold the current squared base into the result only when this bit is set.
-    state classify(result: i32, base: i32, exponent: i32) -> i32 {
+    machine classify(result: i32, base: i32, exponent: i32) -> i32 {
         let bit: i32 = exponent % 2;
         transition bit == 1 {
             true -> accumulate(result, base, exponent)
@@ -39,7 +39,7 @@ machine modular_power(base: i32, exponent: i32) -> i32 {
         }
     }
 
-    state accumulate(result: i32, base: i32, exponent: i32) -> i32 {
+    machine accumulate(result: i32, base: i32, exponent: i32) -> i32 {
         let next_result: i32 = ((result % 100) * (base % 100)) % 100;
         transition {
             _ -> square(next_result, base, exponent)
@@ -47,7 +47,7 @@ machine modular_power(base: i32, exponent: i32) -> i32 {
     }
 
     // Square the base and halve the exponent for the next bit.
-    state square(result: i32, base: i32, exponent: i32) -> i32 {
+    machine square(result: i32, base: i32, exponent: i32) -> i32 {
         let next_base: i32 = ((base % 100) * (base % 100)) % 100;
         let next_exponent: i32 = exponent / 2;
         transition {

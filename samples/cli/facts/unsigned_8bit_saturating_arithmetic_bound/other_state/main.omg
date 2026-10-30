@@ -13,7 +13,7 @@ machine add_other_state(lhs: u8, rhs: u8) -> i32
     transition {
         _ -> check_state(sum)
     }
-    state check_state(s: u8) -> i32
+    machine check_state(s: u8) -> i32
         requires s >= 50u8 && s <= 100u8;
     {
         let headroom: u8 = 100u8 - s;
@@ -23,8 +23,8 @@ machine add_other_state(lhs: u8, rhs: u8) -> i32
             _ -> fail()
         }
     }
-    state pass() -> i32 { 0 }
-    state fail() -> i32 { 1 }
+    machine pass() -> i32 { 0 }
+    machine fail() -> i32 { 1 }
 }
 
 machine main() crashes Trap {
@@ -33,6 +33,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

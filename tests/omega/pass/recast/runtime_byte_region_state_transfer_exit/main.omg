@@ -21,8 +21,8 @@ machine read(host: &Host) -> i64 {
     let view: &RecordView = &host.bytes[0] as &RecordView;
     let number: i64 = view.value.number;
     transition number >= 0 { true -> decode(view) _ -> -1 }
-    state decode(view: &RecordView) -> i64 { transition { _ -> finish(view) } }
-    state finish(view: &RecordView) -> i64 { decode_view(view) }
+    machine decode(view: &RecordView) -> i64 { transition { _ -> finish(view) } }
+    machine finish(view: &RecordView) -> i64 { decode_view(view) }
 }
 
 machine read_owned() -> i64 {
@@ -30,8 +30,8 @@ machine read_owned() -> i64 {
     let view: &RecordView = &host.bytes[0] as &RecordView;
     let copied: &RecordView = view;
     transition copied.value.number >= 0 { true -> decode(copied) _ -> -1 }
-    state decode(view: &RecordView) -> i64 { transition { _ -> finish(view) } }
-    state finish(view: &RecordView) -> i64 { decode_view(view) }
+    machine decode(view: &RecordView) -> i64 { transition { _ -> finish(view) } }
+    machine finish(view: &RecordView) -> i64 { decode_view(view) }
 }
 
 machine read_stored() -> u64 {
@@ -39,7 +39,7 @@ machine read_stored() -> u64 {
     let window: Window = Window { bytes: &bytes };
     let view: &u64 = &window.bytes[0] as &u64;
     transition { _ -> decode(view) }
-    state decode(value: &u64) -> u64 { value }
+    machine decode(value: &u64) -> u64 { value }
 }
 
 machine main() crashes Trap {
@@ -48,6 +48,6 @@ machine main() crashes Trap {
     let owned: i64 = read_owned();
     let stored: u64 = read_stored();
     transition incoming == 17 && owned == 29 && stored == 37 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

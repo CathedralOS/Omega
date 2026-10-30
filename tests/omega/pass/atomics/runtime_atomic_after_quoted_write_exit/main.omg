@@ -18,19 +18,19 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> check_sum(main)
         false -> bad_prior(main)
     }
-    state check_sum(main: &mut Main) {
+    machine check_sum(main: &mut Main) {
         transition main.counter == 15 {
             true -> good(main)
             false -> bad_sum(main)
         }
     }
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
-    state bad_prior(main: &mut Main) {
+    machine bad_prior(main: &mut Main) {
         Console::exit_process(71);
     }
-    state bad_sum(main: &mut Main) {
+    machine bad_sum(main: &mut Main) {
         Console::exit_process(72);
     }
 }

@@ -1,6 +1,5 @@
 use super::super::api::operators::project_operator_coordinate;
 use super::super::semantics::declarations::{nominal_identity, trait_requirement_identity};
-use super::super::semantics::signatures::callable_declaration_scope;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
 use super::boundary_operators::{
     validate_fixed_token_checked_adapter_dispatch_shape,
@@ -23,10 +22,9 @@ pub(super) fn callable_conformance(
     requirement: &typed_trees::signature::StateSignature,
     conformance: &typed_trees::machine::TraitConformance,
     binders: &[(SymbolHandle, String)],
-    machine: &typed_trees::machine::Machine,
+    lifetime_parameters: &[typed_trees::name::Identifier],
     alias: Option<String>,
 ) -> Result<PackagePolicyCallableConformance, Vec<Diagnostic>> {
-    let scope = callable_declaration_scope(compilation, machine)?;
     Ok(PackagePolicyCallableConformance {
         trait_identity: nominal_identity(compilation, trait_definition.symbol)?,
         requirement_identity: trait_requirement_identity(
@@ -48,7 +46,7 @@ pub(super) fn callable_conformance(
                     compilation,
                     *argument,
                     binders,
-                    scope.lifetime_parameters,
+                    lifetime_parameters,
                 )
             })
             .collect::<Result<Vec<_>, _>>()?,
@@ -60,6 +58,7 @@ pub(super) fn project_callable_conformances(
     compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     binders: &[(SymbolHandle, String)],
+    lifetime_parameters: &[typed_trees::name::Identifier],
     require_public_trait: bool,
 ) -> Result<
     (
@@ -154,9 +153,7 @@ pub(super) fn project_callable_conformances(
                         machine.name, conformance.name, requirement_name
                     ))]);
                 }
-                if !operator.lifetime_parameters.is_empty()
-                    || !machine.lifetime_parameters.is_empty()
-                {
+                if !operator.lifetime_parameters.is_empty() || !lifetime_parameters.is_empty() {
                     return Err(vec![Diagnostic::error(format!(
                         "reviewed callable `{}` realizes lifetime-parameterized fixed-token boundary operator `{}::{}` not represented by checked-adapter token dispatch",
                         machine.name, conformance.name, requirement_name
@@ -175,7 +172,7 @@ pub(super) fn project_callable_conformances(
                     operator,
                 )?;
             }
-            if !operator.lifetime_parameters.is_empty() || !machine.lifetime_parameters.is_empty() {
+            if !operator.lifetime_parameters.is_empty() || !lifetime_parameters.is_empty() {
                 return Err(vec![Diagnostic::error(format!(
                     "reviewed callable `{}` realizes lifetime-parameterized operator `{}::{}` not yet represented by package review",
                     machine.name, conformance.name, requirement_name
@@ -271,7 +268,7 @@ pub(super) fn project_callable_conformances(
             requirement,
             conformance,
             binders,
-            machine,
+            lifetime_parameters,
             conformance
                 .alias
                 .as_ref()

@@ -142,7 +142,10 @@ pub fn placed_ram_plan_correspondence(
                     .find(|row| row.id == child)
                     .map(|row| &row.shape)
                 {
-                    Some(StructuralTypeShape::FixedArray { element, length }) if *length != 0 => {
+                    Some(StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                    }) if *length != 0 => {
                         path.push(StructuralPathSegment::FixedIndex(0));
                         child = *element;
                     }

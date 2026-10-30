@@ -1,0 +1,19 @@
+{
+  "command": [
+    "C:\\Program Files\\WindowsApps\\Microsoft.WinDbg_1.2606.22001.0_x64__8wekyb3d8bbwe\\amd64\\cdb.exe",
+    "-y",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug",
+    "-c",
+    "sxe -c \"k 100; q\" sov; g",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+    "update",
+    "--project",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\minimal-debug\\input",
+    "--target",
+    "windows_x86_64"
+  ],
+  "exit": 2147942430,
+  "seconds": 106.45587999999407,
+  "producer_sha256": "f3371bbeb4acdb4915df4cd7e89875732a597c322aa4fb0ad66e0e02e33914ff",
+  "pdb_sha256": "4a7f8f33df8a062086c8111d02056a257e2c7e135a09e390221f642c52e34531"
+}

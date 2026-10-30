@@ -22,6 +22,6 @@ windows_x86_64 machine read_target(index: u64) -> u8
 
 machine main() crashes Trap {
     transition read_target(1) == 8 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

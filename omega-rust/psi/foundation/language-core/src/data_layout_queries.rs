@@ -8,7 +8,7 @@
 //! native layout must not rewrite typed source into host-dependent literals.
 
 /// Which layout extent a `size_of`/`align_of` query asks for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum DataLayoutQueryKind {
     /// `size_of<T>()`: the fixed complete extent in bytes, including padding.
     Size,

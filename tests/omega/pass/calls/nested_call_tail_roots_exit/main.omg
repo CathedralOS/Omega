@@ -47,7 +47,7 @@ machine ItemList::get(item_list: &ItemList, position: u64) -> Item {
         true -> clone_at(item_list, position)
         false -> (Item::default())
     }
-    state clone_at(item_list: &ItemList, position: u64) -> Item {
+    machine clone_at(item_list: &ItemList, position: u64) -> Item {
         Item::clone(&item_list.items[position])
     }
 }
@@ -102,7 +102,7 @@ machine Wrap::get_count(wrap: &Wrap) -> u64 {
         Wrap::Has { list } -> at(list)
         _ -> (0)
     }
-    state at(list: &ItemList) -> u64 {
+    machine at(list: &ItemList) -> u64 {
         ItemList::get_count(list)
     }
 }
@@ -122,7 +122,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> done(main)
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(0);
     }
 }

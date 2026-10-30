@@ -45,7 +45,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> fail(main, 71)
     }
 
-    state grouped(main: &mut Main) {
+    machine grouped(main: &mut Main) {
         let grouped_product: f64 = main.a * (main.b + main.c);
         transition grouped_product == 18.0 {
             true -> field_stores(main)
@@ -53,7 +53,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state field_stores(main: &mut Main) {
+    machine field_stores(main: &mut Main) {
         main.difference = main.c - main.a * main.b;
         main.quotient = main.a / (main.b - main.c);
         transition main.difference == -10.0 {
@@ -62,28 +62,28 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state quotient_check(main: &mut Main) {
+    machine quotient_check(main: &mut Main) {
         transition main.quotient == 1.5 {
             true -> guards(main)
             _ -> fail(main, 74)
         }
     }
 
-    state guards(main: &mut Main) {
+    machine guards(main: &mut Main) {
         transition main.a * main.b + main.c == 14.0 {
             true -> rounding(main)
             _ -> fail(main, 75)
         }
     }
 
-    state rounding(main: &mut Main) {
+    machine rounding(main: &mut Main) {
         transition main.tenth * 3.0 - 0.3 == 0.000000000000000055511151231257827021181583404541015625 {
             true -> conversions(main)
             _ -> fail(main, 76)
         }
     }
 
-    state conversions(main: &mut Main) {
+    machine conversions(main: &mut Main) {
         let converted: f64 = F64::from_i32(main.count) * 0.5 + main.c;
         transition converted == 3.5 {
             true -> extrema(main)
@@ -91,7 +91,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state extrema(main: &mut Main) {
+    machine extrema(main: &mut Main) {
         let bounded: f64 = F64::maximum(main.c - main.a, 0.5);
         main.difference = min_f64(main.a * main.b, 11.5);
         transition main.difference == 11.5 && bounded == 0.5 {
@@ -100,8 +100,8 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state pass(main: &mut Main) { Console::exit_process(70); }
-    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine pass(main: &mut Main) { Console::exit_process(70); }
+    machine fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

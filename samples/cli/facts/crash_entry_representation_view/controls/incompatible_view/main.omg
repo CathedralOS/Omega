@@ -3,5 +3,5 @@ machine read_bits(value: u8) -> bool { let view: &bool = &value as &bool; view }
 machine main() crashes Trap {
  let flag: bool = read_bits(7);
  transition flag { true -> done() false -> bad() }
- state done() {} state bad() { crash Trap; }
+ machine done() {} machine bad() { crash Trap; }
 }

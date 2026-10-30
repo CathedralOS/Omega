@@ -12,7 +12,7 @@ machine insert(slot: &mut Slot, value: u64) -> bool {
         Slot::Empty -> store(slot, value)
         Slot::Held { token } -> false
     }
-    state store(slot: &mut Slot, value: u64) -> bool
+    machine store(slot: &mut Slot, value: u64) -> bool
     requires slot in Slot::Empty
     {
         slot = Slot::Held { token: Token { value: value } };
@@ -43,7 +43,7 @@ machine main() reaches ProcessExit {
         true -> exercise(position)
         _ -> wrong()
     }
-    state exercise(position: u64)
+    machine exercise(position: u64)
     requires position < 4
     {
         let mut inventory: Inventory;
@@ -56,6 +56,6 @@ machine main() reaches ProcessExit {
             _ -> finish(inventory, 1)
         }
     }
-    state wrong() { ProcessExit::exit_process(2); }
-    state finish(inventory: Inventory, status: i32) { ProcessExit::exit_process(status); }
+    machine wrong() { ProcessExit::exit_process(2); }
+    machine finish(inventory: Inventory, status: i32) { ProcessExit::exit_process(status); }
 }

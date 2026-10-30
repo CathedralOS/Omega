@@ -6,6 +6,6 @@ requires within(5, value)
 machine main() crashes Trap {
     let result: u64 = consume(6);
     transition result == 2 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -18,7 +18,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad_length(main)
     }
 
-    state write_words(main: &mut Main, words: &mut [u16]) {
+    machine write_words(main: &mut Main, words: &mut [u16]) {
     words[0] = 0x0201;
     words[1] = 0x0403;
     transition words.len == 2 {
@@ -28,7 +28,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // The edge drops the mutable slice before observing its original backing.
-    state check_backing(main: &mut Main) {
+    machine check_backing(main: &mut Main) {
     transition main.bytes[4] == 1 && main.bytes[5] == 2
         && main.bytes[6] == 3 && main.bytes[7] == 4 {
         true -> good(main)
@@ -36,9 +36,9 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad_length(main: &mut Main) { Console::exit_process(71); }
-    state bad_write(main: &mut Main) { Console::exit_process(72); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad_length(main: &mut Main) { Console::exit_process(71); }
+    machine bad_write(main: &mut Main) { Console::exit_process(72); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

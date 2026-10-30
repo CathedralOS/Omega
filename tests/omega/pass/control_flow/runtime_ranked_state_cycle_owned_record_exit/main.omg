@@ -14,7 +14,7 @@ requires remaining <= 5
         true -> step(token, remaining - 1)
         false -> done(token)
     }
-    state step(held: Token, left: u32)
+    machine step(held: Token, left: u32)
     requires left <= 5
     {
         transition left > 0 {
@@ -22,7 +22,7 @@ requires remaining <= 5
             false -> done(held)
         }
     }
-    state done(finished: Token) {}
+    machine done(finished: Token) {}
 }
 
 machine Main::main(main: &mut Main) reaches Console {

@@ -1,0 +1,9 @@
+{
+  "schema": "omega-performance-suite/1",
+  "plans": [
+    "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\compute-plan.json",
+    "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\memory-plan.json",
+    "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\calls-plan.json",
+    "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\allocations-plan.json"
+  ]
+}

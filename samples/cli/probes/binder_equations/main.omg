@@ -10,7 +10,7 @@
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-domain<const Bound: u64> u64::AtMost<Bound>(value) requires value <= Bound;
+domain<const Bound: u64> u64::AtMost<Bound> requires self <= Bound;
 
 data TinyBytes<Length, const Capacity: u64>
 where
@@ -48,8 +48,8 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -18,7 +18,7 @@ machine sum_from(bytes: &[u8; 8], index: u64, total: u64) -> u64 {
         _ -> (total)
     }
 
-    state add(bytes: &[u8; 8], index: u64, total: u64) -> u64
+    machine add(bytes: &[u8; 8], index: u64, total: u64) -> u64
     requires index < 8 && total < 2048
     {
         let byte: u8 = bytes[index];
@@ -29,21 +29,21 @@ machine sum_from(bytes: &[u8; 8], index: u64, total: u64) -> u64 {
 machine copy_into(bytes: &[u8; 8], out: &mut [u8]) {
     transition { _ -> step(bytes, out, 0) }
 
-    state step(bytes: &[u8; 8], out: &mut [u8], index: u64) {
+    machine step(bytes: &[u8; 8], out: &mut [u8], index: u64) {
         transition {
             index < 7 && index < out.len -> put(bytes, out, index)
             _ -> done()
         }
     }
 
-    state put(bytes: &[u8; 8], out: &mut [u8], index: u64)
+    machine put(bytes: &[u8; 8], out: &mut [u8], index: u64)
     requires index < 7 && index < out.len
     {
         out[index] = bytes[index];
         transition { _ -> step(bytes, out, index + 1) }
     }
 
-    state done() { }
+    machine done() { }
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -62,8 +62,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

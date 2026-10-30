@@ -13,6 +13,7 @@ use crate::scalar_lowering::computations::Expansion;
 pub(crate) struct ValueRequest {
     pub(crate) value: checked_trees::CheckedStructuralValueHandle,
     pub(crate) structural_type: StructuralTypeId,
+    captured: bool,
 }
 
 impl ValueRequest {
@@ -22,13 +23,11 @@ impl ValueRequest {
         value: checked_trees::CheckedStructuralValueHandle,
         types: &[terminal_psi::StructuralTypeDeclaration],
     ) -> Result<Self, LoweringError> {
-        let node = checked.facts.values.structural_values.nodes.get(value);
         let root = checked
             .facts
             .values
             .structural_values
-            .root_for_expression(node.state, node.statement_index, node.expression)
-            .filter(|root| root.root == value)
+            .root_for_value(value)
             .ok_or(LoweringError::Unsupported(
                 "computed value lost its complete checked root",
             ))?;
@@ -48,6 +47,7 @@ impl ValueRequest {
         Ok(Self {
             value,
             structural_type: declaration.id,
+            captured: root.captured_copy.is_valid(),
         })
     }
 
@@ -74,16 +74,28 @@ impl ValueRequest {
         target: usize,
         expansion: &mut Expansion<'_>,
     ) -> usize {
+        let mut effects = Vec::new();
+        if !self.captured && !expansion.has_established_value(self.value) {
+            effects.push(LoweredScalarEffect::ProduceStructuralValue {
+                value: self.value,
+                structural_type: self.structural_type,
+            });
+        }
+        if alias.is_valid() {
+            effects.push(LoweredScalarEffect::BindCompletedValueAlias {
+                value: self.value,
+                alias,
+            });
+        }
+        if effects.is_empty() {
+            return target;
+        }
         expansion.push(LoweredScalarBranchState::jumping(
             target,
             Vec::new(),
             source_types.to_vec(),
             source_types,
-            vec![LoweredScalarEffect::ProduceStructuralValue {
-                value: self.value,
-                structural_type: self.structural_type,
-                alias,
-            }],
+            effects,
         ))
     }
 }

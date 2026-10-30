@@ -66,12 +66,11 @@ fn reconcile_copy_targets(
         (CandidateTarget::Resolved(_), CandidateTarget::LateBound(_)) => Ok(retained),
         (CandidateTarget::LateBound(_), CandidateTarget::Resolved(_)) => Ok(candidate),
         // Const/type specialization copies declaration symbols as well as the
-        // authored expression. Equal source-backed declaration coordinates
-        // and symbol kinds therefore identify one authored declaration even
-        // when the executable copy has a distinct arena handle. Retain the
-        // earliest symbol, which is the unspecialized authored declaration.
+        // authored expression. Compare the authored declaration, including an
+        // implicit entry's exact owning machine, rather than requiring every
+        // executable coordinate to carry a source token of its own.
         (CandidateTarget::Resolved(left), CandidateTarget::Resolved(right))
-            if resolved_symbols_share_authored_declaration(program, left, right) =>
+            if resolved_symbols_share_authored_declaration(program, kind, left, right) =>
         {
             Ok(CandidateTarget::Resolved(earlier_symbol(left, right)))
         }
@@ -98,22 +97,77 @@ fn earlier_symbol(left: SymbolHandle, right: SymbolHandle) -> SymbolHandle {
     }
 }
 
+/// Freeze the original call declaration after this owner has reconciled copied
+/// expressions. A current executable copy need not have the original handle;
+/// consumers receive this correspondence instead of repeating that judgment.
+pub(crate) fn original_call_target(
+    program: &SymbolResolvedTrees,
+    expression: ExpressionHandle,
+) -> Result<Option<SymbolHandle>, Diagnostic> {
+    let table = &program.tables.bodies.expressions;
+    let ExpressionNode::Call(call) = table.expression(expression) else {
+        return Ok(None);
+    };
+    let mut original = None;
+    for occurrence in table.authored_selection_occurrences(expression) {
+        let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
+            return Err(Diagnostic::error(
+                "original call correspondence lost its occurrence",
+            ));
+        };
+        if selection.kind() != Kind::Call || selection.source_span() != call.target.source_span() {
+            continue;
+        }
+        let Some(target) = selection
+            .target()
+            .as_resolved()
+            .map(|selected| selected.selected_symbol())
+        else {
+            continue;
+        };
+        reconcile_copy_targets(
+            program,
+            selection.source_span(),
+            Kind::Call,
+            CandidateTarget::Resolved(target),
+            CandidateTarget::Resolved(call.target_symbol),
+        )?;
+        let binding = (target, selection.exposure(), selection.compiler_partition());
+        if original.is_some_and(|previous| previous != binding) {
+            return Err(Diagnostic::error(
+                "original call correspondence has conflicting occurrence owners",
+            )
+            .with_source_span(selection.source_span()));
+        }
+        original = Some(binding);
+    }
+    Ok(original.map(|(target, _, _)| target))
+}
+
 fn resolved_symbols_share_authored_declaration(
     program: &SymbolResolvedTrees,
+    kind: Kind,
     left: SymbolHandle,
     right: SymbolHandle,
 ) -> bool {
-    program.symbols.get(left).kind == program.symbols.get(right).kind
-        && program.symbols.symbol_source_span(left).is_some()
+    if program.symbols.get(left).kind != program.symbols.get(right).kind {
+        return false;
+    }
+    if kind == Kind::Call {
+        let left = super::call_identity::call_declaration_source(program, left);
+        let right = super::call_identity::call_declaration_source(program, right);
+        return matches!((left, right), (Ok(left), Ok(right)) if left == right);
+    }
+    program.symbols.symbol_source_span(left).is_some()
         && program.symbols.symbol_source_span(left) == program.symbols.symbol_source_span(right)
 }
 
 pub(crate) fn finalize_authored_expression_selections(
     program: &mut SymbolResolvedTrees,
+    work: &[ExpressionHandle],
     pending: &[PendingAuthoredExpression],
     pending_proof_memberships: &[PendingAuthoredProofMembership],
 ) -> Result<(), Diagnostic> {
-    normalize_case_membership_facts(program, pending_proof_memberships)?;
     for pending_expression in pending {
         if program
             .tables
@@ -128,18 +182,13 @@ pub(crate) fn finalize_authored_expression_selections(
         }
     }
 
-    // Compiler rewrites may copy an authored expression before declaration
-    // selections are finalized. The expression table carries that authored
-    // provenance explicitly, so enumerate every retained copy and bind all of
-    // them to the one occurrence minted for the exact source token. This keeps
-    // later lowering free to select whichever semantically equivalent copy it
-    // owns without orphaning the source occurrence.
-    let authored_expressions = program
-        .tables
-        .bodies
-        .expressions
-        .iter_expressions()
-        .filter_map(|(expression, _)| {
+    // The producer includes every expression it allocated, including copied
+    // authored expressions. Retained lookup rows are outside this work list:
+    // a missing occurrence there is not permission to invent new source work.
+    let authored_expressions = work
+        .iter()
+        .copied()
+        .filter_map(|expression| {
             if program
                 .tables
                 .bodies
@@ -228,14 +277,12 @@ pub(crate) fn finalize_authored_expression_selections(
 
     finalize_authored_statement_call_selections(program)?;
 
-    for candidate in statement_candidates(program) {
-        record_unattached_candidate(program, candidate)?;
-    }
+    finalize_statement_static_argument_selections(program)?;
 
     Ok(())
 }
 
-fn normalize_case_membership_facts(
+pub(super) fn normalize_case_membership_facts(
     program: &mut SymbolResolvedTrees,
     pending: &[PendingAuthoredProofMembership],
 ) -> Result<(), Diagnostic> {
@@ -411,11 +458,16 @@ fn finalize_authored_statement_call_selections(
     // (span, exposure, kind, partition) bucket: candidates x selections.
     // Selections record by append, so the index absorbs rows minted by
     // earlier candidates in this loop as well.
-    let mut call_selection_index = statement_call_selection_index(program);
+    let mut call_selection_index = call_selection_index(program);
     for candidate in candidates {
-        let occurrence = if let Some(occurrence) =
-            existing_statement_call_occurrence(program, candidate, &call_selection_index)?
-        {
+        let occurrence = if let Some(occurrence) = existing_call_occurrence(
+            program,
+            candidate.source_span,
+            Exposure::PrivateImplementation,
+            candidate.compiler_partition,
+            candidate.target,
+            &call_selection_index,
+        )? {
             occurrence
         } else {
             let occurrence = match candidate.target {
@@ -452,15 +504,10 @@ type CallSelectionKey = (
     Option<CompilerDerivedSelectionPartition>,
 );
 
-fn statement_call_selection_index(
-    program: &SymbolResolvedTrees,
-) -> HashMap<CallSelectionKey, Vec<usize>> {
-    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
-
+fn call_selection_index(program: &SymbolResolvedTrees) -> HashMap<CallSelectionKey, Vec<usize>> {
     let mut index = HashMap::default();
     for (row, selection) in program.authored_declaration_selections().iter().enumerate() {
-        if selection.exposure() != Exposure::PrivateImplementation || selection.kind() != Kind::Call
-        {
+        if selection.kind() != Kind::Call {
             continue;
         }
         let span = selection.source_span();
@@ -481,12 +528,10 @@ fn index_latest_call_selection(
     program: &SymbolResolvedTrees,
     index: &mut HashMap<CallSelectionKey, Vec<usize>>,
 ) {
-    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
-
     let Some(selection) = program.authored_declaration_selections().as_slice().last() else {
         return;
     };
-    if selection.exposure() != Exposure::PrivateImplementation || selection.kind() != Kind::Call {
+    if selection.kind() != Kind::Call {
         return;
     }
     let span = selection.source_span();
@@ -501,47 +546,46 @@ fn index_latest_call_selection(
         .push(program.authored_declaration_selections().len() - 1);
 }
 
-fn existing_statement_call_occurrence(
+fn existing_call_occurrence(
     program: &SymbolResolvedTrees,
-    candidate: AuthoredStatementCallCandidate,
+    source_span: SourceSpan,
+    exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    compiler_partition: Option<CompilerDerivedSelectionPartition>,
+    target: CandidateTarget,
     index: &HashMap<CallSelectionKey, Vec<usize>>,
 ) -> Result<Option<AuthoredDeclarationSelectionOccurrenceId>, Diagnostic> {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
 
-    let span = candidate.source_span;
     let Some(rows) = index.get(&(
-        span.source_id.0,
-        span.span.start,
-        span.span.end,
-        candidate.compiler_partition,
+        source_span.source_id.0,
+        source_span.span.start,
+        source_span.span.end,
+        compiler_partition,
     )) else {
         return Ok(None);
     };
     let mut retained = None;
     for &row in rows {
         let selection = &program.authored_declaration_selections().as_slice()[row];
+        if selection.exposure() != exposure {
+            continue;
+        }
         let existing_target = match selection.target() {
             Target::Resolved(existing) => CandidateTarget::Resolved(existing.selected_symbol()),
             Target::LateBound(binding) => CandidateTarget::LateBound(binding),
-            Target::Intrinsic(_) => {
-                return Err(Diagnostic::error(
-                    "authored statement call reclassification found an intrinsic selection for the same source token",
-                )
-                .with_source_span(candidate.source_span));
+            Target::Intrinsic(intrinsic) => {
+                return Err(Diagnostic::error(format!(
+                    "authored call reclassification found an intrinsic selection for the same source token: at {source_span:?}, retained {:?} {intrinsic:?}, candidate {target:?}, exposure {exposure:?}, partition {compiler_partition:?}", selection.occurrence_id(),
+                ))
+                .with_source_span(source_span));
             }
         };
-        reconcile_copy_targets(
-            program,
-            candidate.source_span,
-            Kind::Call,
-            existing_target,
-            candidate.target,
-        )?;
+        reconcile_copy_targets(program, source_span, Kind::Call, existing_target, target)?;
         if retained.is_some_and(|occurrence| occurrence != selection.occurrence_id()) {
-            return Err(Diagnostic::error(
-                "authored statement call reclassification found duplicate selections for the same source token",
-            )
-            .with_source_span(candidate.source_span));
+            return Err(Diagnostic::error(format!(
+                "authored call reclassification found duplicate selections for the same source token: at {source_span:?}, earlier {retained:?}, repeated {:?} {:?}, candidate {target:?}, exposure {exposure:?}, partition {compiler_partition:?}", selection.occurrence_id(), selection.target(),
+            ))
+            .with_source_span(source_span));
         }
         retained = Some(selection.occurrence_id());
     }
@@ -806,56 +850,182 @@ fn collect_conformance_bound_candidates(
     }
 }
 
-fn statement_candidates(program: &SymbolResolvedTrees) -> Vec<UnattachedCandidate> {
-    let mut candidates = Vec::new();
+fn finalize_statement_static_argument_selections(
+    program: &mut SymbolResolvedTrees,
+) -> Result<(), Diagnostic> {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
+    use symbol_resolved_trees::statement::Statement;
+    let mut sites = Vec::new();
     for machine in program.machines.iter() {
-        for state_handle in program.machine_state_handles(machine.states) {
-            let state = program.machine_state(*state_handle);
-            for statement in program
-                .tables
-                .declarations
-                .state_statements
-                .span_or_empty(state.statements)
-            {
-                let symbol_resolved_trees::statement::Statement::Call(call) = statement else {
-                    continue;
-                };
+        for state in program.machine_state_handles(machine.states) {
+            let statements = program.machine_state(*state).statements;
+            collect_statement_static_sites(
+                program,
+                statements,
+                machine.compiler_selection_partition,
+                &mut sites,
+            );
+        }
+    }
+    for (statements, offset, partition, candidates) in sites {
+        let mut occurrences = Vec::with_capacity(candidates.len());
+        for candidate in candidates {
+            // Coordinate-only Product capture cannot authenticate compiler-copy
+            // partitions. Preserve ordinary partitioned Source semantics and
+            // let capture fail explicitly until it has a semantic copy owner.
+            let existing = program
+                .authored_declaration_selections()
+                .iter()
+                .filter(|selection| {
+                    selection.source_span() == candidate.source_span
+                        && selection.exposure() == Exposure::PrivateImplementation
+                        && selection.kind() == candidate.kind
+                        && selection.compiler_partition() == partition
+                })
+                .map(|selection| selection.occurrence_id())
+                .collect::<Vec<_>>();
+            let occurrence = match existing.as_slice() {
+                [occurrence] => {
+                    let retained = program
+                        .authored_declaration_selections()
+                        .get(*occurrence)
+                        .expect("indexed existing statement source selection");
+                    let target = match retained.target() {
+                        language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target) => CandidateTarget::Resolved(target.selected_symbol()),
+                        language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::LateBound(binding) => CandidateTarget::LateBound(binding),
+                        _ => return Err(Diagnostic::error("statement static input cannot reuse an intrinsic source selection").with_source_span(candidate.source_span)),
+                    };
+                    reconcile_copy_targets(
+                        program,
+                        candidate.source_span,
+                        candidate.kind,
+                        target,
+                        candidate.target,
+                    )?;
+                    *occurrence
+                }
+                [] => match candidate.target {
+                    CandidateTarget::Resolved(symbol) => program
+                        .record_resolved_authored_declaration_selection_in_partition(
+                            candidate.source_span,
+                            Exposure::PrivateImplementation,
+                            candidate.kind,
+                            partition,
+                            symbol,
+                        ),
+                    CandidateTarget::LateBound(binding) => program
+                        .record_late_bound_authored_declaration_selection_in_partition(
+                            candidate.source_span,
+                            Exposure::PrivateImplementation,
+                            candidate.kind,
+                            partition,
+                            binding,
+                        ),
+                }
+                .map_err(record_diagnostic)?,
+                _ => {
+                    return Err(Diagnostic::error(
+                        "original statement static input has ambiguous source custody",
+                    )
+                    .with_source_span(candidate.source_span));
+                }
+            };
+            if !occurrences.contains(&occurrence) {
+                occurrences.push(occurrence);
+            }
+        }
+        let Some(Statement::Call(call)) = program
+            .tables
+            .declarations
+            .state_statements
+            .span_mut_or_empty(statements)
+            .get_mut(offset)
+        else {
+            return Err(Diagnostic::error(
+                "original static-input site no longer identifies a statement call",
+            ));
+        };
+        call.authored_static_argument_selections = occurrences.into_boxed_slice();
+    }
+    Ok(())
+}
+
+type StatementStaticSite = (
+    arena::HandleSpan<symbol_resolved_trees::statement::Statement>,
+    usize,
+    Option<CompilerDerivedSelectionPartition>,
+    Vec<UnattachedCandidate>,
+);
+fn collect_statement_static_sites(
+    program: &SymbolResolvedTrees,
+    statements: arena::HandleSpan<symbol_resolved_trees::statement::Statement>,
+    partition: Option<CompilerDerivedSelectionPartition>,
+    sites: &mut Vec<StatementStaticSite>,
+) {
+    use symbol_resolved_trees::statement::Statement;
+    for (offset, statement) in program.state_statements(statements).iter().enumerate() {
+        match statement {
+            Statement::Call(call) => {
+                let mut candidates = Vec::new();
                 collect_statement_static_argument_candidates(
                     program,
                     &call.machine_arguments,
                     call.target.source_span(),
+                    BuildOperation::from_call_target(call.target.as_str())
+                        .is_some_and(BuildOperation::selects_product_declarations)
+                        && !call.target_symbol.is_valid(),
                     &mut candidates,
                 );
+                sites.push((statements, offset, partition, candidates));
             }
+            Statement::Assembly(handle) => {
+                let declarations = &program.tables.declarations;
+                for block in declarations
+                    .assembly_blocks
+                    .span_or_empty(declarations.assembly_graphs.get(*handle).blocks)
+                {
+                    collect_statement_static_sites(program, block.instructions, partition, sites);
+                }
+            }
+            _ => {}
         }
     }
-    candidates
-        .retain(|candidate| candidate.source_span.span.start < candidate.source_span.span.end);
-    candidates
 }
 
 fn collect_statement_static_argument_candidates(
     program: &SymbolResolvedTrees,
     arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
     fallback_span: SourceSpan,
+    defer: bool,
     candidates: &mut Vec<UnattachedCandidate>,
 ) {
     for argument in arguments {
         if has_authored_static_declaration(program, argument) {
-            candidates.push(UnattachedCandidate {
-                source_span: path_span(&argument.path, fallback_span),
-                exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-                kind: static_argument_kind(program, argument.symbol),
-                target: resolved_or_late(argument.symbol, LateBinding::CheckedStaticArgument),
-            });
+            candidates.push(UnattachedCandidate { source_span: path_span(&argument.path, fallback_span), exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation, kind: static_argument_kind(program, argument.symbol), target: if defer { CandidateTarget::LateBound(LateBinding::CheckedStaticArgument) } else { resolved_or_late(argument.symbol, LateBinding::CheckedStaticArgument) } });
         }
         if let Some(application) = &argument.application {
             collect_statement_static_argument_candidates(
                 program,
                 &application.arguments,
                 fallback_span,
+                defer,
                 candidates,
             );
+            if application.member.is_valid()
+                && let Some(member) = program
+                    .tables
+                    .bodies
+                    .expressions
+                    .static_member(application.member)
+            {
+                collect_statement_static_argument_candidates(
+                    program,
+                    std::slice::from_ref(member),
+                    fallback_span,
+                    defer,
+                    candidates,
+                );
+            }
         }
     }
 }
@@ -966,6 +1136,7 @@ fn collect_expression_subtree(
         | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::String(_)
+        | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => {}
     }
 }
@@ -973,6 +1144,7 @@ fn collect_expression_subtree(
 fn expression_candidates(
     program: &SymbolResolvedTrees,
     expression: ExpressionHandle,
+    type_operands: &std::collections::HashSet<ExpressionHandle, symbols::BuildSymbolHasher>,
     contract_clause_expressions: &std::collections::HashSet<
         ExpressionHandle,
         symbols::BuildSymbolHasher,
@@ -983,6 +1155,9 @@ fn expression_candidates(
     let mut candidates = Vec::new();
 
     match expressions.expression(expression) {
+        ExpressionNode::Binary(_)
+            if crate::symbols::type_predicates::is_type_predicate(program, expression) => {}
+        ExpressionNode::Indexed(_) if type_operands.contains(&expression) => {}
         ExpressionNode::Binary(_) | ExpressionNode::Indexed(_) | ExpressionNode::Unary(_) => {
             candidates.push(Candidate {
                 expression,
@@ -1250,6 +1425,21 @@ fn collect_static_argument_candidates(
                 defer_call_arguments,
                 candidates,
             );
+            if application.member.is_valid()
+                && let Some(member) = program
+                    .tables
+                    .bodies
+                    .expressions
+                    .static_member(application.member)
+            {
+                collect_static_argument_candidates(
+                    program,
+                    expression,
+                    std::slice::from_ref(member),
+                    defer_call_arguments,
+                    candidates,
+                );
+            }
         }
     }
 }
@@ -1349,6 +1539,25 @@ fn finalize_expression_groups(
     )>,
 ) -> Result<(), Diagnostic> {
     let contract_clause_expressions = contract_clause_expression_handles(program);
+    let mut operand_nodes = Vec::new();
+    for &(expression, _) in &authored_expressions {
+        if crate::symbols::type_predicates::is_type_predicate(program, expression)
+            && let ExpressionNode::Binary(binary) =
+                program.tables.bodies.expressions.expression(expression)
+        {
+            crate::symbols::type_predicates::type_operand_nodes(
+                program,
+                binary.left,
+                &mut operand_nodes,
+            );
+            crate::symbols::type_predicates::type_operand_nodes(
+                program,
+                binary.right,
+                &mut operand_nodes,
+            );
+        }
+    }
+    let type_operands = operand_nodes.into_iter().collect();
     let mut groups: Vec<CandidateGroup> = Vec::new();
     // Groups stay in first-seen order; the index only replaces the linear
     // search for a candidate's group, which made this pass quadratic in the
@@ -1360,7 +1569,12 @@ fn finalize_expression_groups(
             .bodies
             .expressions
             .compiler_selection_partition(expression);
-        for candidate in expression_candidates(program, expression, &contract_clause_expressions)? {
+        for candidate in expression_candidates(
+            program,
+            expression,
+            &type_operands,
+            &contract_clause_expressions,
+        )? {
             let top_level_static_argument_position =
                 if matches!(candidate.kind, Kind::StaticArgument | Kind::Conformance) {
                     match program.tables.bodies.expressions.expression(expression) {
@@ -1409,26 +1623,50 @@ fn finalize_expression_groups(
         }
     }
 
+    let mut call_selection_index = call_selection_index(program);
     for group in groups {
-        let occurrence = match group.target {
-            CandidateTarget::Resolved(symbol) => program
-                .record_resolved_authored_declaration_selection_in_partition(
-                    group.source_span,
-                    group.exposure,
-                    group.kind,
-                    group.compiler_partition,
-                    symbol,
-                ),
-            CandidateTarget::LateBound(binding) => program
-                .record_late_bound_authored_declaration_selection_in_partition(
-                    group.source_span,
-                    group.exposure,
-                    group.kind,
-                    group.compiler_partition,
-                    binding,
-                ),
-        }
-        .map_err(record_diagnostic)?;
+        // Constant custody can retain a call before its expression copies are
+        // classified. A discarded call also has a statement copy: both must
+        // rejoin that one occurrence, rather than minting a second identity
+        // that statement reclassification would rightly reject. Exposure and
+        // compiler partition still separate distinct source owners.
+        let retained = if group.kind == Kind::Call {
+            existing_call_occurrence(
+                program,
+                group.source_span,
+                group.exposure,
+                group.compiler_partition,
+                group.target,
+                &call_selection_index,
+            )?
+        } else {
+            None
+        };
+        let occurrence = if let Some(occurrence) = retained {
+            occurrence
+        } else {
+            let occurrence = match group.target {
+                CandidateTarget::Resolved(symbol) => program
+                    .record_resolved_authored_declaration_selection_in_partition(
+                        group.source_span,
+                        group.exposure,
+                        group.kind,
+                        group.compiler_partition,
+                        symbol,
+                    ),
+                CandidateTarget::LateBound(binding) => program
+                    .record_late_bound_authored_declaration_selection_in_partition(
+                        group.source_span,
+                        group.exposure,
+                        group.kind,
+                        group.compiler_partition,
+                        binding,
+                    ),
+            }
+            .map_err(record_diagnostic)?;
+            index_latest_call_selection(program, &mut call_selection_index);
+            occurrence
+        };
         if let Some(position) = group.top_level_static_argument_position {
             program
                 .retain_top_level_static_argument_position(occurrence, position)
@@ -1445,6 +1683,20 @@ fn finalize_expression_groups(
                 .bodies
                 .expressions
                 .attach_authored_selection_occurrences(expression, [occurrence]);
+            if group.kind == Kind::Call {
+                let original = original_call_target(program, expression)?;
+                if let (Some(original), ExpressionNode::Call(call)) = (
+                    original,
+                    program.tables.bodies.expressions.expression_mut(expression),
+                ) {
+                    call.authored_call_binding = Some(
+                        language_semantics::declaration_selection::ResolvedAuthoredCallBinding {
+                            selected: call.target_symbol,
+                            original,
+                        },
+                    );
+                }
+            }
         }
     }
 

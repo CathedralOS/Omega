@@ -35,6 +35,24 @@ pub struct StructuralTypeDeclaration {
     pub scalar_restriction: Option<StructuralFieldType>,
 }
 
+impl StructuralTypeDeclaration {
+    /// Semantic result of IEEE classification, independent of target layout
+    /// and nominal spelling. This predicate cannot select an implementation.
+    pub fn is_float_class_shape(&self) -> bool {
+        let StructuralTypeShape::Sum { cases } = &self.shape else {
+            return false;
+        };
+        let [nan, infinity, normal, subnormal, zero] = cases.as_slice() else {
+            return false;
+        };
+        nan.fields.is_empty()
+            && [infinity, normal, subnormal, zero].iter().all(|case| {
+                matches!(case.fields.as_slice(), [field] if !field.relevance.is_erased()
+                && field.field_type == StructuralFieldType::Scalar(ScalarType::Boolean))
+            })
+    }
+}
+
 /// A closed referent identity with no demanded storage definition. This is not
 /// a shape: it cannot establish owned storage, fields, or dereference access.
 /// Reference transport needs exact identity, not the transitive storage catalog
@@ -88,7 +106,7 @@ pub enum StructuralTypeShape {
     },
     FixedArray {
         element: StructuralTypeId,
-        length: u64,
+        length: crate::ArrayExtent,
     },
     /// A closed pure sum. Case and payload-field declaration order is semantic;
     /// their IDs are strictly increasing in the canonical encoding.
@@ -174,6 +192,20 @@ impl StructuralTypeDeclaration {
 }
 
 impl StructuralTypeShape {
+    /// A canonical view carries access on its occurrence. A stored view keeps
+    /// Some(access) on its descriptor instead. This storage-role query grants
+    /// neither live backing permission nor ownership of the viewed storage.
+    pub fn is_canonical_view_descriptor(&self) -> bool {
+        matches!(
+            self,
+            StructuralTypeShape::ElementView { access: None, .. }
+                | StructuralTypeShape::ByteSequence(
+                    ByteSequenceCarrier::BorrowedView { access: None }
+                        | ByteSequenceCarrier::BoundedView { access: None, .. }
+                )
+        )
+    }
+
     /// Whether this shape composes other structural types by value: record,
     /// fixed array, sum, or mixed interiors.
     pub fn is_composite_shape(&self) -> bool {
@@ -776,7 +808,7 @@ fn structural_type_contains_by<'types>(
             }
             StructuralTypeShape::FixedArray { element, length } => {
                 // An empty carrier stores no element payload.
-                if *length != 0 {
+                if *length != crate::ArrayExtent::Literal(0) {
                     pending.push(*element);
                 }
             }
@@ -953,7 +985,10 @@ mod tests {
                 scalar_restriction: None,
                 id: array,
                 identity: crate::TerminalIdentityIndex(5),
-                shape: StructuralTypeShape::FixedArray { element, length: 0 },
+                shape: StructuralTypeShape::FixedArray {
+                    element,
+                    length: crate::ArrayExtent::Literal(0),
+                },
             },
         ];
         assert!(structural_type_contains_reference(&types, reference));

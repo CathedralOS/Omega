@@ -33,35 +33,8 @@ pub fn project_build_program(
     // the purpose of the use that demanded the instance. In particular, a
     // Product application of a toolchain generic is not an independent Build
     // declaration. Exact references and concrete carrier ownership admit it.
-    let mut instances = original
-        .data_definitions()
-        .iter()
-        .filter(|data| data.generic_instance.is_some())
-        .map(|data| data.symbol)
-        .collect::<HashSet<_>>();
-    instances.extend(
-        original
-            .machines()
-            .iter()
-            .filter(|machine| machine.generic_data_template.is_valid())
-            .map(|machine| machine.symbol),
-    );
-    instances.extend(
-        original
-            .machine_specializations
-            .iter()
-            .map(|specialization| specialization.instance),
-    );
-    let is_generated = |mut symbol: SymbolHandle| {
-        while symbol.is_valid() {
-            let declaration = original.symbols.get(symbol);
-            if instances.contains(&symbol) || declaration.generated_from.is_valid() {
-                return true;
-            }
-            symbol = declaration.parent;
-        }
-        false
-    };
+    let instances = instantiated_declarations(original);
+    let is_generated = |symbol| is_derived_declaration(original, &instances, symbol);
     let in_build_context = |symbol| {
         original
             .symbols
@@ -126,6 +99,109 @@ pub fn project_build_program(
     );
     program.product_declaration_frontier = Some(Arc::new(original.typed_program().clone()));
     Ok(program)
+}
+
+/// Select a new source activation without compacting the retained declarations.
+/// This is source membership, not executable reachability: every authored root
+/// of a selected source remains an obligation, including uncalled machines.
+/// Derived instances follow their actual uses rather than their template's
+/// diagnostic location. The source/typing owner must project its resolver roots
+/// with this same declaration selection before appending another cohort.
+pub fn project_source_program(original: &TypedTrees, sources: &source::SourceMap) -> TypedTrees {
+    let instances = instantiated_declarations(original);
+    let derived = |symbol| is_derived_declaration(original, &instances, symbol);
+    let generated_methods = original
+        .machines()
+        .iter()
+        .filter(|machine| machine.generic_data_template.is_valid())
+        .map(|machine| (machine.attached_data_symbol, machine.symbol))
+        .collect::<Vec<_>>();
+    let mut program = project_declarations(
+        original,
+        |symbol| {
+            !derived(symbol)
+                && original
+                    .symbols
+                    .symbol_provenance_source_span(symbol)
+                    .is_none_or(|span| sources.source_is_selected(span.source_id))
+        },
+        |symbol| {
+            derived(symbol)
+                || original
+                    .symbols
+                    .symbol_provenance_source_span(symbol)
+                    .is_none()
+        },
+        &generated_methods,
+        None,
+    );
+    let references = typed_trees::references::collect_program_references(&program);
+    let mut excluded =
+        std::mem::take(&mut program.excluded_authored_selection_occurrences).into_occurrences();
+    // Folded expressions can outlive their declaration root. Source ownership
+    // removes those inactive occurrences too, but an unknown/default span is
+    // not evidence of ownership by source zero. Shared live uses stay obligations.
+    excluded.extend(
+        original
+            .authored_declaration_selections()
+            .iter()
+            .filter_map(|selection| {
+                let span = selection.source_span();
+                (span.span.start != span.span.end
+                    && !sources.source_is_selected(span.source_id)
+                    && !references
+                        .authored_selection_occurrences
+                        .contains(&selection.occurrence_id()))
+                .then_some(selection.occurrence_id())
+            }),
+    );
+    let expressions = &original.expression_table;
+    program.expression_table.retain_expression_roots(|handle| {
+        references.expressions.contains(&handle)
+            || expressions
+                .authored_selection_occurrences(handle)
+                .any(|occurrence| !excluded.contains(&occurrence))
+    });
+    program.excluded_authored_selection_occurrences = excluded.into();
+    program
+}
+
+fn instantiated_declarations(program: &dyn crate::CheckingInput) -> HashSet<SymbolHandle> {
+    let mut instances = program
+        .data_definitions()
+        .iter()
+        .filter(|data| data.generic_instance.is_some())
+        .map(|data| data.symbol)
+        .collect::<HashSet<_>>();
+    instances.extend(
+        program
+            .machines()
+            .iter()
+            .filter(|machine| machine.generic_data_template.is_valid())
+            .map(|machine| machine.symbol),
+    );
+    instances.extend(
+        program
+            .machine_specializations
+            .iter()
+            .map(|specialization| specialization.instance),
+    );
+    instances
+}
+
+fn is_derived_declaration(
+    program: &dyn crate::CheckingInput,
+    instances: &HashSet<SymbolHandle>,
+    mut symbol: SymbolHandle,
+) -> bool {
+    while symbol.is_valid() {
+        let declaration = program.symbols.get(symbol);
+        if instances.contains(&symbol) || declaration.generated_from.is_valid() {
+            return true;
+        }
+        symbol = declaration.parent;
+    }
+    false
 }
 
 /// A description can mention an entire carrier/conformance graph. None of that
@@ -273,6 +349,28 @@ fn project_declarations(
                 synthesized.insert(child);
             }
         }
+        // An evaluation entry is owned by one retained constant declaration.
+        // Its generated symbol is not lexically nested, and its owner can have
+        // an authored source location excluded by the ordinary reference rule.
+        // Preserve this exact association from the original live roster rather
+        // than granting arbitrary generated-from provenance executable reach.
+        for declaration in original.const_declarations() {
+            if !original
+                .tables
+                .machines
+                .is_valid(declaration.evaluation_entry)
+            {
+                continue;
+            }
+            let entry = original
+                .tables
+                .machines
+                .get(declaration.evaluation_entry)
+                .symbol;
+            if selected_root(entry) || synthesized.contains(&entry) {
+                synthesized.insert(declaration.symbol);
+            }
+        }
         if synthesized.len() == before {
             break;
         }
@@ -347,12 +445,17 @@ fn project_declarations(
 pub fn descriptor_selection_occurrences(
     program: &dyn crate::CheckingInput,
 ) -> HashSet<typed_trees::AuthoredDeclarationSelectionOccurrenceId> {
-    program
-        .authored_declaration_selections()
-        .iter()
-        .filter(|selection| !program.checks_authored_selection(selection))
-        .map(|selection| selection.occurrence_id())
-        .collect()
+    let mut occurrences = product_request_operand_occurrences(program);
+    occurrences.extend(
+        program
+            .authored_declaration_selections()
+            .iter()
+            .filter(|selection| !program.checks_authored_selection(selection))
+            .map(|selection| selection.occurrence_id()),
+    );
+    let materialized = materialized_product_operand_occurrences(program);
+    occurrences.retain(|occurrence| !materialized.contains(occurrence));
+    occurrences
 }
 
 /// Rebuild machine roots and machine-keyed sidecars. Backing declarations stay
@@ -474,6 +577,7 @@ fn apply_declaration_sidecar_pruning(program: &mut TypedTrees, removed: &HashSet
     program.boundary_completion_declarations = declarations;
     program.remove_trait_declaration_applications(|declaration| removed.contains(&declaration));
     program.retain_live_trait_implementation_applications(removed);
+    program.retain_live_trait_callable_applications();
 }
 
 #[cfg(test)]
@@ -553,4 +657,106 @@ mod lifecycle_projection_tests {
             1
         );
     }
+}
+
+/// Exact designated operand occurrences remain with Product admission. The
+/// checked Build call retains their immutable source request; this does not
+/// exempt ordinary unresolved calls or grant a Product declaration identity.
+pub fn product_request_operand_occurrences(
+    program: &dyn crate::CheckingInput,
+) -> HashSet<typed_trees::AuthoredDeclarationSelectionOccurrenceId> {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
+    let mut occurrences = HashSet::new();
+    for (expression, node) in program.expression_table.iter_expressions() {
+        let typed_trees::expression::ExpressionNode::Call(call) = node else {
+            continue;
+        };
+        let Some(request) = program
+            .expression_table
+            .build_selection_request(call.build_selection)
+        else {
+            continue;
+        };
+        for occurrence in program
+            .expression_table
+            .authored_selection_occurrences(expression)
+        {
+            let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
+                continue;
+            };
+            let span = program
+                .symbols
+                .rejoin_product_occurrence(selection.source_span());
+            if request.designated_operands().iter().any(|operand| {
+                let operand_span = program
+                    .symbols
+                    .rejoin_product_occurrence(operand.source_span);
+                let declaration_path = matches!(
+                    selection.kind(),
+                    Kind::StaticArgument | Kind::StaticPathSegment | Kind::Conformance
+                ) && span.source_id == operand_span.source_id
+                    && span.span.start >= operand_span.span.start
+                    && span.span.end <= operand_span.span.end;
+                let captured_expression = operand.application.as_ref().is_some_and(|graph| {
+                    graph.selections.iter().any(|(_, captured)| {
+                        program
+                            .symbols
+                            .rejoin_product_occurrence(captured.source_span)
+                            == span
+                            && captured.kind == Some(selection.kind())
+                            && captured.exposure == selection.exposure()
+                    })
+                });
+                declaration_path || captured_expression
+            }) {
+                occurrences.insert(occurrence);
+            }
+        }
+    }
+    let materialized = materialized_product_operand_occurrences(program);
+    occurrences.retain(|occurrence| !materialized.contains(occurrence));
+    occurrences
+}
+
+/// Only actual source-input roots remove descriptor deferral. Discarded arena
+/// expressions and an inert graph by themselves establish no materialization.
+fn materialized_product_operand_occurrences(
+    program: &dyn crate::CheckingInput,
+) -> HashSet<typed_trees::AuthoredDeclarationSelectionOccurrenceId> {
+    #[derive(Default)]
+    struct Selections {
+        expressions: HashSet<typed_trees::expression::ExpressionHandle>,
+        occurrences: HashSet<typed_trees::AuthoredDeclarationSelectionOccurrenceId>,
+    }
+    impl Extend<SymbolHandle> for Selections {
+        fn extend<Symbols: IntoIterator<Item = SymbolHandle>>(&mut self, _: Symbols) {}
+    }
+    impl typed_trees::references::TypedReferences for Selections {
+        fn expression(&mut self, handle: typed_trees::expression::ExpressionHandle) -> bool {
+            self.expressions.insert(handle)
+        }
+        fn authored_selection(
+            &mut self,
+            occurrence: typed_trees::AuthoredDeclarationSelectionOccurrenceId,
+        ) {
+            self.occurrences.insert(occurrence);
+        }
+    }
+    let mut selections = Selections::default();
+    let typed = program.typed_program();
+    let mut owners = Vec::new();
+    for handle in typed.live_product_operand_applications() {
+        let application = typed.product_operand_applications.get(handle);
+        let owner = typed
+            .expression_table
+            .static_machine_application(application.supplying_application)
+            .lexical_owner;
+        if !owners.contains(&owner) {
+            owners.push(owner);
+        }
+    }
+    for owner in owners {
+        typed_trees::references::visit_product_operand_inputs(typed, &mut selections, owner);
+    }
+    selections.occurrences
 }

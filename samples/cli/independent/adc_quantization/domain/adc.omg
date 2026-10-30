@@ -14,13 +14,13 @@ public data Conversion {
 }
 public machine quantize(configuration: &Settings, raw: i64 in Wrapping, result: &mut Conversion) {
     transition { _ -> levels(configuration, raw, result, 0, 1) }
-    state levels(configuration: &Settings, raw: i64 in Wrapping, result: &mut Conversion, bit: i64 in Wrapping, extent: i64 in Wrapping) {
+    machine levels(configuration: &Settings, raw: i64 in Wrapping, result: &mut Conversion, bit: i64 in Wrapping, extent: i64 in Wrapping) {
         transition bit < configuration.width {
             true -> levels(configuration, raw, result, bit + 1, extent * 2)
             _ -> calibrate(configuration, raw, result, extent - 1, extent / 2)
         }
     }
-    state calibrate(configuration: &Settings, raw: i64 in Wrapping, result: &mut Conversion, levels: i64 in Wrapping, half: i64 in Wrapping) {
+    machine calibrate(configuration: &Settings, raw: i64 in Wrapping, result: &mut Conversion, levels: i64 in Wrapping, half: i64 in Wrapping) {
         let denominator: i64 in Wrapping = configuration.raw_high - configuration.raw_low;
         let calibrated: i64 in Wrapping = configuration.physical_low * denominator +
             (raw - configuration.raw_low) * (configuration.physical_high - configuration.physical_low);
@@ -32,19 +32,19 @@ public machine quantize(configuration: &Settings, raw: i64 in Wrapping, result: 
             _ -> high(configuration, result, levels, half, calibrated, denominator, coordinate, span)
         }
     }
-    state high(configuration: &Settings, result: &mut Conversion, levels: i64 in Wrapping, half: i64 in Wrapping, calibrated: i64 in Wrapping, denominator: i64 in Wrapping, coordinate: i64 in Wrapping, span: i64 in Wrapping) {
+    machine high(configuration: &Settings, result: &mut Conversion, levels: i64 in Wrapping, half: i64 in Wrapping, calibrated: i64 in Wrapping, denominator: i64 in Wrapping, coordinate: i64 in Wrapping, span: i64 in Wrapping) {
         transition coordinate > span {
             true -> reconstruct(configuration, result, levels, half, calibrated, denominator, levels, 1)
             _ -> divide(configuration, result, levels, half, calibrated, denominator, coordinate, span)
         }
     }
-    state divide(configuration: &Settings, result: &mut Conversion, levels: i64 in Wrapping, half: i64 in Wrapping, calibrated: i64 in Wrapping, denominator: i64 in Wrapping, coordinate: i64 in Wrapping, span: i64 in Wrapping) {
+    machine divide(configuration: &Settings, result: &mut Conversion, levels: i64 in Wrapping, half: i64 in Wrapping, calibrated: i64 in Wrapping, denominator: i64 in Wrapping, coordinate: i64 in Wrapping, span: i64 in Wrapping) {
         transition span > 0 {
             true -> round(configuration, result, levels, half, calibrated, denominator, coordinate, span)
             _ -> invalid()
         }
     }
-    state round(configuration: &Settings, result: &mut Conversion, levels: i64 in Wrapping, half: i64 in Wrapping, calibrated: i64 in Wrapping, denominator: i64 in Wrapping, coordinate: i64 in Wrapping, span: i64 in Wrapping)
+    machine round(configuration: &Settings, result: &mut Conversion, levels: i64 in Wrapping, half: i64 in Wrapping, calibrated: i64 in Wrapping, denominator: i64 in Wrapping, coordinate: i64 in Wrapping, span: i64 in Wrapping)
     requires span > 0
     {
         let scaled: i64 in Wrapping = coordinate * levels;
@@ -55,7 +55,7 @@ public machine quantize(configuration: &Settings, raw: i64 in Wrapping, result: 
             _ -> reconstruct(configuration, result, levels, half, calibrated, denominator, lower, 0)
         }
     }
-    state reconstruct(configuration: &Settings, result: &mut Conversion, levels: i64 in Wrapping, half: i64 in Wrapping, calibrated: i64 in Wrapping, denominator: i64 in Wrapping, rank: i64 in Wrapping, clipped: i64 in Wrapping) {
+    machine reconstruct(configuration: &Settings, result: &mut Conversion, levels: i64 in Wrapping, half: i64 in Wrapping, calibrated: i64 in Wrapping, denominator: i64 in Wrapping, rank: i64 in Wrapping, clipped: i64 in Wrapping) {
         result.code = rank - configuration.signedness * half;
         result.reconstruction_numerator = configuration.reference_low * levels + rank * (configuration.reference_high - configuration.reference_low);
         result.reconstruction_denominator = levels;
@@ -68,16 +68,16 @@ public machine quantize(configuration: &Settings, raw: i64 in Wrapping, result: 
             _ -> magnitude(configuration, result, levels, denominator)
         }
     }
-    state magnitude(configuration: &Settings, result: &mut Conversion, levels: i64 in Wrapping, denominator: i64 in Wrapping) {
+    machine magnitude(configuration: &Settings, result: &mut Conversion, levels: i64 in Wrapping, denominator: i64 in Wrapping) {
         let error: i64 in Wrapping = result.error_numerator;
         transition error < 0 {
             true -> bound(configuration, result, levels, denominator, 0 - error)
             _ -> bound(configuration, result, levels, denominator, error)
         }
     }
-    state bound(configuration: &Settings, result: &mut Conversion, levels: i64 in Wrapping, denominator: i64 in Wrapping, overrange: i64 in Wrapping) {
+    machine bound(configuration: &Settings, result: &mut Conversion, levels: i64 in Wrapping, denominator: i64 in Wrapping, overrange: i64 in Wrapping) {
         result.bound_numerator = (configuration.reference_high - configuration.reference_low) * denominator + 2 * overrange;
         result.bound_denominator = 2 * levels * denominator;
     }
-    state invalid() { }
+    machine invalid() { }
 }

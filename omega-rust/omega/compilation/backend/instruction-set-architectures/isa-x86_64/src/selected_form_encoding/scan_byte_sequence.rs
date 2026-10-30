@@ -15,8 +15,11 @@ use super::{
     ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
     X86_64SelectedFormEncodingError,
 };
-use crate::selected_form_encoding::instruction_bytes::{assemble_labeled_stream, modrm, rex};
-use crate::selected_form_encoding::request_validation::resolve_registers;
+use crate::selected_form_encoding::instruction_bytes::{
+    append_increment, append_indexed_byte_load, append_register_compare, append_self_clear,
+    append_self_test, assemble_labeled_stream, modrm, rex,
+};
+use crate::selected_form_encoding::request_validation::byte_loop_registers;
 use selected_instructions::ByteSequencePredicate;
 
 /// Branch-condition suffix of the near `0F 8x` conditional-jump form.
@@ -43,7 +46,7 @@ enum Label {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Instruction {
+enum Instruction<T> {
     XorSelf(u8),
     Inc(u8),
     AddImmediate(u8, u8),
@@ -70,11 +73,26 @@ enum Instruction {
     },
     JumpConditional {
         condition: u8,
-        target: Label,
+        target: T,
     },
     Jump {
-        target: Label,
+        target: T,
     },
+}
+
+/// A byte compare and the conditional jump that consumes its flags.
+/// Every UTF-8 class test is this pair; the label marks the compare when a
+/// later jump enters at that test.
+fn emit_compare_immediate_branch(
+    emit: &mut (impl FnMut(Option<Label>, Instruction<Label>) + ?Sized),
+    label: Option<Label>,
+    register: u8,
+    immediate: u8,
+    condition: u8,
+    target: Label,
+) {
+    emit(label, Instruction::CompareImmediate8(register, immediate));
+    emit(None, Instruction::JumpConditional { condition, target });
 }
 
 fn layout(
@@ -84,10 +102,10 @@ fn layout(
     cursor: u8,
     byte: u8,
     result: u8,
-) -> Vec<(Option<Label>, Instruction)> {
+) -> Vec<(Option<Label>, Instruction<Label>)> {
     use Instruction::*;
-    let mut stream: Vec<(Option<Label>, Instruction)> = Vec::new();
-    let mut emit = |label: Option<Label>, instruction: Instruction| {
+    let mut stream: Vec<(Option<Label>, Instruction<Label>)> = Vec::new();
+    let mut emit = |label: Option<Label>, instruction: Instruction<Label>| {
         stream.push((label, instruction));
     };
     emit(None, XorSelf(cursor));
@@ -131,85 +149,29 @@ fn layout(
                 offset: 0,
             },
         );
-        emit(None, CompareImmediate8(byte, 0x80));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_B,
-                target: Label::Advance1,
-            },
-        );
+        emit_compare_immediate_branch(&mut emit, None, byte, 0x80, CC_B, Label::Advance1);
         // 0x80..0xC2 are stray continuations or the overlong leads C0/C1.
-        emit(None, CompareImmediate8(byte, 0xC2));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_B,
-                target: Label::Fail,
-            },
-        );
-        emit(None, CompareImmediate8(byte, 0xE0));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_B,
-                target: Label::Cont1,
-            },
-        );
-        emit(None, CompareImmediate8(byte, 0xF0));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_AE,
-                target: Label::Lead3,
-            },
-        );
-        emit(None, CompareImmediate8(byte, 0xE0));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_E,
-                target: Label::E0Path,
-            },
-        );
-        emit(None, CompareImmediate8(byte, 0xED));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_E,
-                target: Label::EdPath,
-            },
-        );
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xC2, CC_B, Label::Fail);
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xE0, CC_B, Label::Cont1);
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xF0, CC_AE, Label::Lead3);
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xE0, CC_E, Label::E0Path);
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xED, CC_E, Label::EdPath);
         emit(
             None,
             Jump {
                 target: Label::Cont2Any,
             },
         );
-        emit(Some(Label::Lead3), CompareImmediate8(byte, 0xF5));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_AE,
-                target: Label::Fail,
-            },
+        emit_compare_immediate_branch(
+            &mut emit,
+            Some(Label::Lead3),
+            byte,
+            0xF5,
+            CC_AE,
+            Label::Fail,
         );
-        emit(None, CompareImmediate8(byte, 0xF0));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_E,
-                target: Label::F0Path,
-            },
-        );
-        emit(None, CompareImmediate8(byte, 0xF4));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_E,
-                target: Label::F4Path,
-            },
-        );
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xF0, CC_E, Label::F0Path);
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xF4, CC_E, Label::F4Path);
         emit(
             None,
             Jump {
@@ -372,7 +334,7 @@ fn layout(
 /// `tail` for a lead byte expecting `continuations` continuation bytes whose
 /// first admits `lower..=upper` and whose rest admit 0x80..=0xBF.
 fn emit_cont_tail(
-    emit: &mut dyn FnMut(Option<Label>, Instruction),
+    emit: &mut dyn FnMut(Option<Label>, Instruction<Label>),
     label: Label,
     continuations: u8,
     lower: u8,
@@ -420,22 +382,8 @@ fn emit_cont_tail(
         } else {
             (0x80, 0xBF)
         };
-        emit(None, CompareImmediate8(byte, cont_lower));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_B,
-                target: Label::Fail,
-            },
-        );
-        emit(None, CompareImmediate8(byte, cont_upper));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_A,
-                target: Label::Fail,
-            },
-        );
+        emit_compare_immediate_branch(emit, None, byte, cont_lower, CC_B, Label::Fail);
+        emit_compare_immediate_branch(emit, None, byte, cont_upper, CC_A, Label::Fail);
     }
     emit(None, AddImmediate(cursor, continuations + 1));
     emit(
@@ -459,26 +407,16 @@ fn rex8_pair(register: u8) -> u8 {
 
 fn emit_instruction(
     bytes: &mut Vec<u8>,
-    instruction: Instruction,
+    instruction: Instruction<Label>,
     patches: &mut Vec<(usize, Label)>,
 ) {
     match instruction {
-        Instruction::XorSelf(register) => bytes.extend([
-            rex(register, 0, register),
-            0x31,
-            modrm(3, register, register),
-        ]),
-        Instruction::Inc(register) => {
-            bytes.extend([rex(0, 0, register), 0xff, modrm(3, 0, register)])
-        }
+        Instruction::XorSelf(register) => append_self_clear(bytes, register),
+        Instruction::Inc(register) => append_increment(bytes, register),
         Instruction::AddImmediate(register, immediate) => {
             bytes.extend([rex(0, 0, register), 0x83, modrm(3, 0, register), immediate])
         }
-        Instruction::TestSelf64(register) => bytes.extend([
-            rex(register, 0, register),
-            0x85,
-            modrm(3, register, register),
-        ]),
+        Instruction::TestSelf64(register) => append_self_test(bytes, register),
         Instruction::TestSelf8(register) => {
             bytes.extend([rex8_pair(register), 0x84, modrm(3, register, register)])
         }
@@ -489,23 +427,14 @@ fn emit_instruction(
             bytes.extend([rex8(register), 0x80, modrm(3, 7, register), immediate])
         }
         Instruction::CompareRegister64 { source, operand } => {
-            bytes.extend([rex(source, 0, operand), 0x39, modrm(3, source, operand)])
+            append_register_compare(bytes, source, operand)
         }
         Instruction::LoadByte {
             value,
             base,
             index,
             offset,
-        } => {
-            bytes.extend([
-                rex(value, index, base),
-                0x0f,
-                0xb6,
-                modrm(2, value, 4),
-                ((index & 7) << 3) | (base & 7),
-            ]);
-            bytes.extend(offset.to_le_bytes());
-        }
+        } => append_indexed_byte_load(bytes, value, base, index, offset),
         Instruction::SetNotEqual8(register) => {
             bytes.extend([rex8(register), 0x0f, 0x95, modrm(3, 0, register)])
         }
@@ -539,39 +468,7 @@ fn emit_instruction(
 /// The decoded form of one emitted instruction, with absolute branch targets
 /// resolved from the rel32 fields — the independent shape `validate`
 /// compares against the construction-side layout.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Decoded {
-    XorSelf(u8),
-    Inc(u8),
-    AddImmediate(u8, u8),
-    TestSelf64(u8),
-    TestSelf8(u8),
-    TestImmediate8(u8, u8),
-    CompareImmediate8(u8, u8),
-    CompareRegister64 {
-        source: u8,
-        operand: u8,
-    },
-    LoadByte {
-        value: u8,
-        base: u8,
-        index: u8,
-        offset: u32,
-    },
-    SetNotEqual8(u8),
-    LoadAddress {
-        value: u8,
-        base: u8,
-        offset: u8,
-    },
-    JumpConditional {
-        condition: u8,
-        target: usize,
-    },
-    Jump {
-        target: usize,
-    },
-}
+type Decoded = Instruction<usize>;
 
 fn decode_one(
     bytes: &[u8],
@@ -759,7 +656,7 @@ fn decode_all_stream(bytes: &[u8]) -> Result<Vec<Decoded>, X86_64SelectedFormEnc
 /// The label targets, resolved to the byte positions `assemble` produces —
 /// the validator names a branch by where it lands, not by the layout label.
 fn expected_stream(
-    stream: &[(Option<Label>, Instruction)],
+    stream: &[(Option<Label>, Instruction<Label>)],
 ) -> Result<Vec<Decoded>, X86_64SelectedFormEncodingError> {
     let mut offsets: Vec<(Label, usize)> = Vec::new();
     let mut position = 0;
@@ -769,6 +666,13 @@ fn expected_stream(
         }
         position += instruction_size(*instruction);
     }
+    let position_of = |label: Label| {
+        offsets
+            .iter()
+            .find(|(candidate, _)| *candidate == label)
+            .map(|(_, position)| *position)
+            .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)
+    };
     stream
         .iter()
         .map(|(_, instruction)| match *instruction {
@@ -803,27 +707,18 @@ fn expected_stream(
                 base,
                 offset,
             }),
-            Instruction::JumpConditional { condition, target } => {
-                let target = offsets
-                    .iter()
-                    .find(|(label, _)| *label == target)
-                    .map(|(_, position)| *position)
-                    .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
-                Ok(Decoded::JumpConditional { condition, target })
-            }
-            Instruction::Jump { target } => {
-                let target = offsets
-                    .iter()
-                    .find(|(label, _)| *label == target)
-                    .map(|(_, position)| *position)
-                    .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
-                Ok(Decoded::Jump { target })
-            }
+            Instruction::JumpConditional { condition, target } => Ok(Decoded::JumpConditional {
+                condition,
+                target: position_of(target)?,
+            }),
+            Instruction::Jump { target } => Ok(Decoded::Jump {
+                target: position_of(target)?,
+            }),
         })
         .collect()
 }
 
-fn instruction_size(instruction: Instruction) -> usize {
+fn instruction_size(instruction: Instruction<Label>) -> usize {
     match instruction {
         Instruction::XorSelf(_)
         | Instruction::Inc(_)
@@ -896,28 +791,17 @@ fn request(
     operands: &[RegisterViewId],
     displacement: u32,
 ) -> Result<[u8; 5], X86_64SelectedFormEncodingError> {
-    super::request_validation::guard_canonical(physical)?;
-    if displacement != 0
-        || alternative
-            != (MachineAlternativeKey {
-                family: MachineAlternativeFamily::ScanByteSequence,
-                variant: 0,
-            })
-    {
-        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
-    }
-    let registers: [u8; 5] = resolve_registers(physical, operands)?
-        .try_into()
-        .map_err(|_| X86_64SelectedFormEncodingError::OperandCountMismatch)?;
-    // `rsp` cannot encode the SIB index or the disp8 LEA base the loop
-    // uses, so the cursor and byte scratch may never land there.
-    if registers[2] == 4 || registers[3] == 4 {
-        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
-    }
-    if registers[..2].contains(&registers[2])
-        || registers[..3].contains(&registers[3])
-        || registers[..4].contains(&registers[4])
-    {
+    let registers = byte_loop_registers::<5>(
+        physical,
+        alternative,
+        MachineAlternativeFamily::ScanByteSequence,
+        operands,
+        2,
+    )?;
+    // `rsp` cannot encode the SIB index or the disp8 LEA base the loop uses,
+    // so the cursor and byte scratch may never land there, and the form holds
+    // one zero displacement.
+    if displacement != 0 || registers[2] == 4 || registers[3] == 4 {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
     Ok(registers)
@@ -925,9 +809,10 @@ fn request(
 
 #[cfg(test)]
 mod tests {
-    use super::super::{
-        SelectedInstructionKind, encode_x86_64_selected_form,
-        validate_x86_64_selected_form_encoding,
+    use super::super::SelectedInstructionKind;
+    use super::super::tests::{
+        assert_byte_loop_catalog_contract,
+        assert_loop_form_round_trips_and_rejects_every_changed_bit,
     };
     use super::{MachineAlternativeFamily, MachineAlternativeKey, encode, validate};
     use selected_instructions::ByteSequencePredicate;
@@ -938,43 +823,14 @@ mod tests {
 
     #[test]
     fn scan_byte_sequence_catalog_requires_early_clobbers_and_memory_effect() {
-        let physical = register_model::validate_physical_register_model(
-            crate::x86_64_physical_register_model(),
-        )
-        .unwrap();
-        let catalog = crate::x86_64_register_constraint_catalog(&physical);
-        let constraints =
-            crate::validate_x86_64_register_constraint_catalog(catalog.clone(), &physical).unwrap();
-        crate::selected_form_encoding::tests::assert_early_clobber_required(
-            &catalog,
-            &physical,
+        assert_byte_loop_catalog_contract(
             crate::X86_64_SCAN_BYTE_SEQUENCE,
             &[2, 3],
+            selected_instructions::MachineSemanticKind::ScanByteSequence,
+            selected_instructions::MachineMemoryEffect::ScanByteSequenceV1,
+            &[0, 1],
+            &[2, 3, 4],
         );
-        for target in [
-            target::NativeTarget::linux_x64(),
-            target::NativeTarget::windows_x64(),
-        ] {
-            let effects = crate::x86_64_machine_effect_catalog(target, &constraints).unwrap();
-            crate::validate_x86_64_machine_effect_catalog(target, &constraints, effects.clone())
-                .unwrap();
-            let row = effects
-                .declarations
-                .iter()
-                .find(|row| {
-                    row.semantic == selected_instructions::MachineSemanticKind::ScanByteSequence
-                })
-                .unwrap();
-            assert_eq!(
-                row.memory,
-                selected_instructions::MachineMemoryEffect::ScanByteSequenceV1
-            );
-            assert_eq!(row.alternatives[0].encoded.external_operand_reads, [0, 1]);
-            assert_eq!(
-                row.alternatives[0].encoded.external_operand_writes,
-                [2, 3, 4]
-            );
-        }
     }
 
     #[test]
@@ -988,39 +844,21 @@ mod tests {
             variant: 0,
         };
         for predicate in ByteSequencePredicate::ALL {
-            for names in [
-                ["r13", "r14", "r15", "r12", "rbp"],
-                ["rax", "rcx", "rdx", "rsi", "rdi"],
-            ] {
-                let operands = names.map(|name| physical.model().view_named(name).unwrap().id);
-                let encoded = encode(&physical, predicate, alternative, &operands, 0).unwrap();
-                assert_eq!(
-                    encode_x86_64_selected_form(&physical, kind(predicate), alternative, &operands)
-                        .unwrap(),
-                    encoded
-                );
-                validate_x86_64_selected_form_encoding(
-                    &physical,
-                    kind(predicate),
-                    alternative,
-                    &operands,
-                    encoded.bytes(),
-                )
-                .unwrap();
-                for bit in 0..encoded.bytes().len() * 8 {
-                    let mut changed = encoded.bytes().to_vec();
-                    changed[bit / 8] ^= 1 << (bit % 8);
-                    assert!(
-                        validate(&physical, predicate, alternative, &operands, 0, &changed)
-                            .is_err(),
-                        "predicate {predicate:?} bit {bit}"
-                    );
-                }
-                super::super::assert_byte_fragility(encoded.bytes(), |bytes| {
-                    validate(&physical, predicate, alternative, &operands, 0, bytes).is_err()
-                });
-                assert!(encode(&physical, predicate, alternative, &operands, 1).is_err());
-            }
+            assert_loop_form_round_trips_and_rejects_every_changed_bit(
+                &physical,
+                kind(predicate),
+                alternative,
+                &[
+                    &["r13", "r14", "r15", "r12", "rbp"],
+                    &["rax", "rcx", "rdx", "rsi", "rdi"],
+                ],
+                |operands, displacement| {
+                    encode(&physical, predicate, alternative, operands, displacement)
+                },
+                |operands, bytes| {
+                    validate(&physical, predicate, alternative, operands, 0, bytes).is_err()
+                },
+            );
         }
     }
 }

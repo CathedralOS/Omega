@@ -8,7 +8,7 @@ data Main { }
 machine Worker::kind() -> Kind { Kind::Missing }
 machine Worker::wrap() -> Outcome {
     transition { _ -> finish() }
-    state finish() -> Outcome {
+    machine finish() -> Outcome {
         let kind: Kind = Worker::kind();
         Outcome::Error { kind: kind }
     }
@@ -20,14 +20,14 @@ machine Main::main(main: &mut Main) reaches Console {
         Outcome::Error { kind } -> inspect(main, kind)
         _ -> failure(main)
     }
-    state inspect(main: &mut Main, kind: Kind) {
+    machine inspect(main: &mut Main, kind: Kind) {
         transition kind {
             Kind::Missing -> success(main)
             _ -> failure(main)
         }
     }
-    state success(main: &mut Main) { Console::exit_process(70); }
-    state failure(main: &mut Main) { Console::exit_process(71); }
+    machine success(main: &mut Main) { Console::exit_process(70); }
+    machine failure(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

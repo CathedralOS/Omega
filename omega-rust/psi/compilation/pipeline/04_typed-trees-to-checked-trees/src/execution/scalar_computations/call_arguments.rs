@@ -138,25 +138,19 @@ impl Builder<'_, '_> {
                 // separate; no source-shape roster decides what a value is.
                 if !parameter.is_const {
                     self.retain_structural_argument(*argument, parameter.type_reference);
-                    if let Some(place) = validation::canonical_place_from_expression_in_state(
-                        self.program,
-                        self.state,
-                        self.statement_index,
-                        *argument,
-                    ) {
-                        for segment in place.segments {
-                            if let facts::PlaceSegment::Index { expression } = segment {
-                                let role = CheckedScalarExpressionRole::CallSelector {
-                                    call_ordinal,
-                                    argument_ordinal: structural_ordinal,
-                                    expression,
-                                };
-                                if self.plans.root_at(self.state, statement, role).is_none()
-                                    && let Some(root) = self.index_selector(expression)
-                                {
-                                    self.push_scalar_root(role, root);
-                                }
-                            }
+                    let Some(selectors) =
+                        self.projection_selector_evaluations(*argument, *argument)
+                    else {
+                        return;
+                    };
+                    for (expression, root) in selectors {
+                        let role = CheckedScalarExpressionRole::CallSelector {
+                            call_ordinal,
+                            argument_ordinal: structural_ordinal,
+                            expression,
+                        };
+                        if self.plans.root_at(self.state, statement, role).is_none() {
+                            self.push_scalar_root(role, root);
                         }
                     }
                     let Some(next) = structural_ordinal.checked_add(1) else {
@@ -261,28 +255,22 @@ impl Builder<'_, '_> {
                         argument_ordinal,
                         &mut temporary_cleanups,
                     )?
+                } else if self.uses_captured_dispatch_value(*argument) {
+                    // A selected saved value cannot fall back to a recipe
+                    // through its source's current storage when retention
+                    // fails. Ordinary place arguments retain their own route.
+                    return None;
                 } else {
                     (|| {
-                        let mut selectors = Vec::new();
-                        if let Some(place) = validation::canonical_place_from_expression_in_state(
+                        let selectors = self.projection_selector_evaluations(*argument, *argument)?;
+                        let mut argument_plan = crate::execution::terminal_unit::structural_computation_argument(
                             self.program,
-                            self.state,
-                            self.statement_index,
-                            *argument,
-                        ) {
-                            for segment in place.segments {
-                                if let facts::PlaceSegment::Index { expression } = segment {
-                                    let value = self.index_selector(expression)?;
-                                    selectors.push((
-                                        expression,
-                                        checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(value),
-                                    ));
-                                }
-                            }
-                        }
-                        crate::execution::terminal_unit::structural_computation_argument(
-                            self.program,
-                            self.borrow,
+                            &mut self.shapes,
+                            crate::flow::CapturedSubjectFacts {
+                                semantic: self.semantic,
+                                flow: self.flow,
+                                borrow: self.borrow,
+                            },
                             self.machine,
                             state,
                             self.flow.control.calls.get(source_call),
@@ -290,19 +278,26 @@ impl Builder<'_, '_> {
                             parameter,
                             Some(&|expression| {
                                 selectors.iter().find_map(|(source, value)| {
-                                    (*source == expression).then(|| value.clone())
+                                    (*source == expression).then_some(checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(*value))
                                 })
                             }),
-                        )
+                        )?;
+                        argument_plan.retain_projection_evaluations(self.projection_selector_span(*argument, &selectors)?, &self.plans.operands)?;
+                        Some(argument_plan)
                     })()
                     .or_else(|| {
                         let argument_ordinal = structural_arguments.len();
                         crate::execution::terminal_unit::calls::subslice_computation_argument(
                             self.program,
+                            &mut self.shapes,
                             self.operators,
                             self.pure,
                             self.plans,
-                            self.borrow,
+                            crate::flow::CapturedSubjectFacts {
+                                semantic: self.semantic,
+                                flow: self.flow,
+                                borrow: self.borrow,
+                            },
                             self.machine,
                             state,
                             self.flow.control.calls.get(source_call),
@@ -336,6 +331,7 @@ impl Builder<'_, '_> {
             crate::execution::terminal_unit::calls::computed_call_claim_transfers(
                 self.program,
                 self.flow,
+                self.plans,
                 self.machine,
                 self.state,
                 self.flow.control.calls.get(source_call),
@@ -436,7 +432,7 @@ impl Builder<'_, '_> {
                 ),
             }
         };
-        let (expression, owner_type, mut path) =
+        let (expression, owner_type, mut path, projection_evaluations) =
             self.retained_argument_owner(value, producer_type)?;
         // The owned-value contract cannot manufacture a
         // reference. A descriptor instead retains the
@@ -460,8 +456,15 @@ impl Builder<'_, '_> {
         } else {
             referent
         };
+        let selected_identity = if stored.is_some() {
+            // The retained descriptor has already supplied its outer crossing.
+            // Its selected referee can itself be stored pointer data.
+            validation::stored_structural_type_identity(self.program, selected, &[], &[])
+        } else {
+            validation::structural_type_identity(self.program, selected, &[], &[])
+        };
         if stored.is_some()
-            && validation::structural_type_identity(self.program, selected, &[], &[])
+            && selected_identity
                 != validation::structural_type_identity(
                     self.program,
                     parameter.type_reference,
@@ -472,11 +475,12 @@ impl Builder<'_, '_> {
             return None;
         }
         let argument_plan = checked_trees::CheckedUnitStructuralArgumentPlan {
+            projection_evaluations,
             source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                 expression,
             },
             path,
-            type_identity: validation::structural_type_identity(self.program, selected, &[], &[]),
+            type_identity: selected_identity,
             access,
         };
         let mut discards = None;

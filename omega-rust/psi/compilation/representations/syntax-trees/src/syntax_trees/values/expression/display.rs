@@ -4,7 +4,7 @@ use crate::expression::{
     BinaryOperator, ExpressionNode, StaticMachineArgument, TableBinaryExpression,
     TableCallExpression, TableCastExpression, TableUnaryExpression, UnaryOperator,
 };
-use crate::identifier::Identifier;
+use crate::identifier::JoinedSyntaxPath;
 
 impl ExpressionNode {
     pub fn display_name(&self, table: &crate::SyntaxTrees) -> String {
@@ -63,11 +63,10 @@ impl ExpressionNode {
                 format!(
                     "{} in {}",
                     table.display_expression_name(membership.value),
-                    display_identifier_path(
-                        table,
-                        table.expressions.identifier_path_members(membership.domain),
-                        "::"
-                    )
+                    table
+                        .expressions
+                        .identifier_path_members(membership.domain)
+                        .joined_path_with_in(table, "::")
                 )
             }
             Self::Member(member) => {
@@ -82,11 +81,10 @@ impl ExpressionNode {
                 expression.access.borrow_prefix(),
                 table.display_expression_name(expression.target)
             ),
-            Self::Name(path) => display_identifier_path(
-                table,
-                table.expressions.identifier_path_members(*path),
-                "::",
-            ),
+            Self::Name(path) => table
+                .expressions
+                .identifier_path_members(*path)
+                .joined_path_with_in(table, "::"),
             Self::Range(range) => {
                 let separator = if range.end_inclusive { "..=" } else { ".." };
                 match (range.start.is_valid(), range.end.is_valid()) {
@@ -198,11 +196,10 @@ impl TableUnaryExpression {
 
 impl TableCastExpression {
     pub fn display_name(&self, table: &crate::SyntaxTrees) -> String {
-        let target_type = display_identifier_path(
-            table,
-            table.expressions.identifier_path_members(self.target_label),
-            "::",
-        );
+        let target_type = table
+            .expressions
+            .identifier_path_members(self.target_label)
+            .joined_path_with_in(table, "::");
         format!(
             "{} as {}",
             table.display_expression_name(self.value),
@@ -225,20 +222,13 @@ impl TableCallExpression {
                     .join(", ")
             )
         };
-        let mut arguments = String::new();
-
-        for (index, argument) in table
+        let arguments = table
             .expressions
             .expression_handles(self.arguments)
             .iter()
-            .enumerate()
-        {
-            if index > 0 {
-                arguments.push_str(", ");
-            }
-
-            arguments.push_str(&table.display_expression_name(*argument));
-        }
+            .map(|argument| table.display_expression_name(*argument))
+            .collect::<Vec<_>>()
+            .join(", ");
 
         if self.receiver.is_valid() {
             format!(
@@ -270,7 +260,7 @@ impl StaticMachineArgument {
                 projection.member.as_str(table)
             );
         }
-        let mut rendered = display_identifier_path(table, &self.path, "::");
+        let mut rendered = self.path.joined_path_with_in(table, "::");
         if let Some(application) = &self.application {
             let mut arguments = application
                 .lifetime_arguments
@@ -286,6 +276,10 @@ impl StaticMachineArgument {
             rendered.push('<');
             rendered.push_str(&arguments.join(", "));
             rendered.push('>');
+            if let Some(member) = table.expressions.static_member(application.member) {
+                rendered.push_str("::");
+                rendered.push_str(&member.display_name(table));
+            }
         }
         rendered
     }
@@ -323,27 +317,4 @@ impl UnaryOperator {
             Self::LogicalNot => "!",
         }
     }
-}
-
-fn display_identifier_path(
-    table: &crate::SyntaxTrees,
-    path: &[Identifier],
-    separator: &str,
-) -> String {
-    let byte_count = path
-        .iter()
-        .map(|identifier| identifier.as_str(table).len())
-        .sum::<usize>()
-        + separator.len().saturating_mul(path.len().saturating_sub(1));
-    let mut display_name = String::with_capacity(byte_count);
-
-    for (index, identifier) in path.iter().enumerate() {
-        if index > 0 {
-            display_name.push_str(separator);
-        }
-
-        display_name.push_str(identifier.as_str(table));
-    }
-
-    display_name
 }

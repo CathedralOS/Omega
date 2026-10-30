@@ -1,0 +1,38 @@
+// The checked provider computes an extent of 8, so slot 8 does not exist.
+// This retains the positive provider-dispatch fixture's store and calling shape.
+use omega_language_std::console;
+
+public data CheckedMath {}
+
+public boundary requirement CheckedMath::offset_zero(value: i32) -> i32
+requires value == value
+ensures result == value + 0 && value == value;
+
+data CheckedMathProvider {}
+
+machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32
+satisfies CheckedMath::offset_zero
+requires input == input
+ensures result == input + 0 && input == input
+{
+    transition { _ -> (input + 0) }
+}
+
+machine length() -> i32 { CheckedMath::offset_zero(8) }
+
+data Main { bytes: [u8; length()]; }
+
+machine Main::main(main: &mut Main)
+reaches Console
+{
+    main.bytes[8] = 1;
+    let selected: i32 = CheckedMath::offset_zero(70);
+    Console::exit_process(selected);
+}
+
+machine entry_start()
+reaches Console
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

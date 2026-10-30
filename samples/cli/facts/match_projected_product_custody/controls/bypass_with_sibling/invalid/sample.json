@@ -1,0 +1,8 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "cannot use `pair.first`",
+    "transferred or consumed"
+  ]
+}

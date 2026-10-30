@@ -1,0 +1,234 @@
+{
+  "cold": [
+    {
+      "round": 0,
+      "original": {
+        "reported_lowering_ms": [
+          3329.922
+        ],
+        "reported_checking_ms": [
+          6262.467
+        ]
+      },
+      "candidate": {
+        "reported_lowering_ms": [
+          3352.756
+        ],
+        "reported_checking_ms": [
+          6595.668
+        ]
+      }
+    },
+    {
+      "round": 1,
+      "original": {
+        "reported_lowering_ms": [
+          7052.475
+        ],
+        "reported_checking_ms": [
+          11135.51
+        ]
+      },
+      "candidate": {
+        "reported_lowering_ms": [
+          6956.317
+        ],
+        "reported_checking_ms": [
+          11033.174
+        ]
+      }
+    },
+    {
+      "round": 2,
+      "original": {
+        "reported_lowering_ms": [
+          5827.695
+        ],
+        "reported_checking_ms": [
+          7161.58
+        ]
+      },
+      "candidate": {
+        "reported_lowering_ms": [
+          6047.283
+        ],
+        "reported_checking_ms": [
+          10301.359
+        ]
+      }
+    },
+    {
+      "round": 3,
+      "original": {
+        "reported_lowering_ms": [
+          5149.894
+        ],
+        "reported_checking_ms": [
+          8036.463
+        ]
+      },
+      "candidate": {
+        "reported_lowering_ms": [
+          3128.904
+        ],
+        "reported_checking_ms": [
+          6758.823
+        ]
+      }
+    },
+    {
+      "round": 4,
+      "original": {
+        "reported_lowering_ms": [
+          4711.031
+        ],
+        "reported_checking_ms": [
+          8451.988
+        ]
+      },
+      "candidate": {
+        "reported_lowering_ms": [
+          3009.045
+        ],
+        "reported_checking_ms": [
+          5893.566
+        ]
+      }
+    },
+    {
+      "round": 5,
+      "original": {
+        "reported_lowering_ms": [
+          3264.269
+        ],
+        "reported_checking_ms": [
+          5892.767
+        ]
+      },
+      "candidate": {
+        "reported_lowering_ms": [
+          2977.753
+        ],
+        "reported_checking_ms": [
+          5746.27
+        ]
+      }
+    }
+  ],
+  "warm": [
+    {
+      "round": 0,
+      "original": {
+        "reported_lowering_ms": [
+          5487.072
+        ],
+        "reported_checking_ms": [
+          24.353
+        ]
+      },
+      "candidate": {
+        "reported_lowering_ms": [
+          3610.05
+        ],
+        "reported_checking_ms": [
+          25.017
+        ]
+      }
+    },
+    {
+      "round": 1,
+      "original": {
+        "reported_lowering_ms": [
+          8145.176
+        ],
+        "reported_checking_ms": [
+          39.165
+        ]
+      },
+      "candidate": {
+        "reported_lowering_ms": [
+          5971.869
+        ],
+        "reported_checking_ms": [
+          39.598
+        ]
+      }
+    },
+    {
+      "round": 2,
+      "original": {
+        "reported_lowering_ms": [
+          7567.179
+        ],
+        "reported_checking_ms": [
+          43.774
+        ]
+      },
+      "candidate": {
+        "reported_lowering_ms": [
+          6145.532
+        ],
+        "reported_checking_ms": [
+          37.829
+        ]
+      }
+    },
+    {
+      "round": 3,
+      "original": {
+        "reported_lowering_ms": [
+          6914.806
+        ],
+        "reported_checking_ms": [
+          39.117
+        ]
+      },
+      "candidate": {
+        "reported_lowering_ms": [
+          5338.213
+        ],
+        "reported_checking_ms": [
+          35.278
+        ]
+      }
+    },
+    {
+      "round": 4,
+      "original": {
+        "reported_lowering_ms": [
+          4116.557
+        ],
+        "reported_checking_ms": [
+          21.513
+        ]
+      },
+      "candidate": {
+        "reported_lowering_ms": [
+          3253.794
+        ],
+        "reported_checking_ms": [
+          21.824
+        ]
+      }
+    },
+    {
+      "round": 5,
+      "original": {
+        "reported_lowering_ms": [
+          3869.2
+        ],
+        "reported_checking_ms": [
+          21.882
+        ]
+      },
+      "candidate": {
+        "reported_lowering_ms": [
+          3167.123
+        ],
+        "reported_checking_ms": [
+          21.646
+        ]
+      }
+    }
+  ]
+}

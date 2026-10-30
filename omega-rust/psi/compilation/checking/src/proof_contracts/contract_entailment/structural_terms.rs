@@ -19,22 +19,37 @@ pub(super) use collection_measures::{
     observed_collection_measure, reference_argument_observation,
 };
 mod constructors;
+pub(crate) use entry_reads::immutable_entry_boolean_projection;
+mod entry_reads;
 mod equality;
+pub use entry_reads::{
+    ImmutableEntryReadIdentity, immutable_entry_indexed_read_identity,
+    immutable_entry_integer_projection, instantiate_immutable_entry_indexed_read_identity,
+};
 mod indexed;
 pub(super) use indexed::indexed_term_in_scope;
 mod owned_observations;
-pub(super) use owned_observations::{owned_observation_type, owned_projection_observation};
+pub(super) use owned_observations::{
+    owned_observation_type, owned_projection_observation, shared_inline_observation,
+    shared_inline_observation_type,
+};
 mod scalar_operands;
+mod scalar_representation;
 pub(super) use binary::{
     binary_term_in_scope, logical_not_term_in_scope, sealed_primitive_float_operator,
 };
 pub(super) use constructors::{
-    case_classifier, case_guard_classifier, case_value_term, constructor_literal_term,
-    is_case_observation, zero_value_structural_term,
+    admitted_const_value_term, captured_constructor_term, case_classifier, case_guard_classifier,
+    case_value_term, constructor_literal_term, is_case_observation, zero_constructor_operands,
+    zero_value_structural_term,
 };
 pub(super) use equality::{has_identity_equality_meaning, identity_equality_terms};
 pub(super) use scalar_operands::{
-    scalar_operand_is_observed, scalar_operand_meaning, term_is_unobserved_descriptor,
+    completed_owned_carrier, scalar_operand_is_observed, scalar_operand_meaning,
+    term_is_unobserved_descriptor,
+};
+pub(super) use scalar_representation::{
+    normalize_scalar_representation, scalar_representation_term,
 };
 
 /// An admitted integer conversion preserves its mathematical value; policy
@@ -43,7 +58,7 @@ pub(super) use scalar_operands::{
 /// result exists. Plain domain qualification on the same owned carrier also
 /// preserves the value. Reference re-views and carrier-changing noninteger
 /// conversions retain their separate authority and denotation rules.
-pub(super) fn denotation_preserving_conversion(
+pub(crate) fn denotation_preserving_conversion(
     program: &dyn crate::CheckingInput,
     cast: &typed_trees::expression::TableCastExpression,
     source: typed_trees::types::TypeReferenceHandle,
@@ -121,30 +136,8 @@ pub(super) fn unfold_constant_applications(
     program: &dyn crate::CheckingInput,
     term: StructuralTerm,
 ) -> StructuralTerm {
+    let unfold = |value: StructuralTerm| unfold_constant_applications(program, value);
     match term {
-        StructuralTerm::IntegerEmbedding { reference, value } => StructuralTerm::IntegerEmbedding {
-            reference,
-            value: Box::new(unfold_constant_applications(program, *value)),
-        },
-        StructuralTerm::MathematicalBinary {
-            operator,
-            left,
-            right,
-        } => StructuralTerm::MathematicalBinary {
-            operator,
-            left: Box::new(unfold_constant_applications(program, *left)),
-            right: Box::new(unfold_constant_applications(program, *right)),
-        },
-        StructuralTerm::ObservedValue {
-            observed_type,
-            value,
-            descriptor,
-        } => StructuralTerm::ObservedValue {
-            observed_type,
-            value: Box::new(unfold_constant_applications(program, *value)),
-            descriptor: descriptor
-                .map(|descriptor| Box::new(unfold_constant_applications(program, *descriptor))),
-        },
         StructuralTerm::Application {
             result_type,
             target,
@@ -173,8 +166,7 @@ pub(super) fn unfold_constant_applications(
             })
         }
         term @ StructuralTerm::CallProjection { .. } => {
-            let term =
-                term.map_argument_terms(|argument| unfold_constant_applications(program, argument));
+            let term = term.map_children(unfold);
             if let StructuralTerm::CallProjection {
                 result_type,
                 target,
@@ -197,52 +189,7 @@ pub(super) fn unfold_constant_applications(
                 unreachable!()
             }
         }
-        StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
-            data,
-            case,
-            fields: fields
-                .into_iter()
-                .map(|(name, value)| (name, unfold_constant_applications(program, value)))
-                .collect(),
-        },
-        StructuralTerm::ScalarBinary {
-            references,
-            operator,
-            meaning,
-            left,
-            right,
-        } => StructuralTerm::ScalarBinary {
-            references,
-            operator,
-            meaning,
-            left: Box::new(unfold_constant_applications(program, *left)),
-            right: Box::new(unfold_constant_applications(program, *right)),
-        },
-        StructuralTerm::IndexedValue {
-            element_type,
-            element_identity,
-            collection,
-            index,
-        } => StructuralTerm::IndexedValue {
-            element_type,
-            element_identity,
-            collection: Box::new(unfold_constant_applications(program, *collection)),
-            index: Box::new(unfold_constant_applications(program, *index)),
-        },
-        StructuralTerm::CollectionMeasure {
-            measure,
-            collection,
-        } => StructuralTerm::CollectionMeasure {
-            measure,
-            collection: Box::new(
-                unfold_constant_applications(program, *collection).into_collection_descriptor(),
-            ),
-        },
-        StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
-            subject: Box::new(unfold_constant_applications(program, *subject)),
-            path,
-        },
-        other => other,
+        other => other.map_children(unfold),
     }
 }
 
@@ -267,6 +214,16 @@ pub(super) fn term_spelling(program: &dyn crate::CheckingInput, term: &Structura
         StructuralTerm::BoundProjection { subject, path } => {
             format!("{}.{path}", program.symbols.name(*subject))
         }
+        StructuralTerm::ScalarRepresentation {
+            source,
+            target,
+            value,
+        } => format!(
+            "representation<{}, {}>({})",
+            source.name(),
+            target.name(),
+            term_spelling(program, value)
+        ),
         StructuralTerm::Integer(value) => value.to_string(),
         StructuralTerm::Float(value) => value.to_string(),
         StructuralTerm::Constructor { data, case, fields } => {
@@ -490,6 +447,48 @@ pub(crate) fn source_operations_have_same_meaning(
     }
 }
 
+/// The same exact type proposition is retained in declaration and applied
+/// contract scopes. Type actuals stay separate from runtime value substitutions.
+pub(super) fn static_type_predicate_term(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    substitutions: &[(
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+    )],
+) -> Option<StructuralTerm> {
+    let (left, right, negate) = program.static_type_predicate_operands(expression)?;
+    let value = if substitutions.is_empty() {
+        program.static_type_predicate_value(expression)
+    } else {
+        program.applied_static_type_predicate_value(expression, substitutions)
+    };
+    if let Some(value) = value {
+        return Some(StructuralTerm::Constructor {
+            data: "bool".to_owned(),
+            case: value.to_string(),
+            fields: Vec::new(),
+        });
+    }
+    let identity = |reference| {
+        program.type_identity_text(program.type_identity_with_simultaneous_substitutions(
+            typed_trees::type_identity::TypeIdentityRequest {
+                substitutions,
+                ..typed_trees::type_identity::TypeIdentityRequest::package_qualified(reference)
+            },
+        ))
+    };
+    let mut operands = [identity(left)?, identity(right)?];
+    operands.sort_unstable();
+    Some(StructuralTerm::Variable(format!(
+        "$static-type-predicate:{}:{}:{}:{}:{negate}",
+        operands[0].len(),
+        operands[0],
+        operands[1].len(),
+        operands[1],
+    )))
+}
+
 pub(super) fn structural_term(
     program: &dyn crate::CheckingInput,
     scope: Option<(
@@ -504,6 +503,9 @@ pub(super) fn structural_term(
     expression: ExpressionHandle,
     bindings: Option<&dyn Fn(ExpressionHandle) -> Option<StructuralTerm>>,
 ) -> Option<StructuralTerm> {
+    if program.static_type_predicate_operands(expression).is_some() {
+        return static_type_predicate_term(program, expression, &[]);
+    }
     if let Some(term) = bindings.and_then(|bindings| bindings(expression)) {
         return Some(term);
     }
@@ -588,7 +590,7 @@ pub(super) fn structural_term(
             }
         }
         ExpressionNode::StructLiteral(literal) => {
-            constructor_literal_term(program, literal, |_, field| {
+            constructor_literal_term(program, expression, literal, |_, field| {
                 let field = field?;
                 structural_term(program, scope, frame, field.value, bindings)
             })
@@ -619,9 +621,12 @@ pub(super) fn structural_term(
                     crate::expression_result_type_reference(program, machine, state, cast.value)
                 })
             }?;
-            denotation_preserving_conversion(program, cast, source)
-                .then(|| structural_term(program, scope, frame, cast.value, bindings))
-                .flatten()
+            let value = structural_term(program, scope, frame, cast.value, bindings)?;
+            if denotation_preserving_conversion(program, cast, source) {
+                Some(value)
+            } else {
+                scalar_representation_term(program, cast, source, value)
+            }
         }
         // A determinate float literal carries its exact decimal spelling; the
         // ordering arm widens it once at judgment. UndeterminedNaN stays
@@ -874,10 +879,11 @@ fn static_call_receiver_for_target(
     // the application and checks every explicit operand.
     if call.target_symbol.is_valid()
         && let Some(receiver) = program.expression_table.name_path_node(call.receiver)
-        && receiver.symbol.is_valid()
-        && program.symbols.get(receiver.symbol).kind == symbols::SymbolKind::ConformanceParameter
-        && program.symbols.get(call.target_symbol).parent == receiver.symbol
-        && crate::selected_requirement_signature(program, call.target_symbol).is_some()
+        && crate::machine_calls::calls::requirement_namespace_member(
+            program,
+            receiver.symbol,
+            call.target_symbol,
+        )
     {
         return true;
     }

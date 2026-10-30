@@ -10,6 +10,7 @@ use super::{
     TrappingOperation, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 
 /// Select one integer arithmetic operation. The dispatcher routes only this
 /// family's kinds here.
@@ -71,12 +72,7 @@ pub(super) fn emit(
             builder.emit_materialize_i64(
                 *value,
                 output,
-                SelectedInstructionProvenance {
-                    operations: vec![operation.operation],
-                    values: vec![result.value],
-                    fuel: operation.fuel.clone(),
-                    ..Default::default()
-                },
+                operation_provenance(operation, vec![result.value]),
             )?;
             output
         }
@@ -108,12 +104,7 @@ pub(super) fn emit(
                 },
                 constraints.keys.subtract_i64,
                 &[left_register, right_register, output],
-                SelectedInstructionProvenance {
-                    operations: vec![operation.operation],
-                    values: vec![*left, *right, result.value],
-                    fuel: operation.fuel.clone(),
-                    ..Default::default()
-                },
+                operation_provenance(operation, vec![*left, *right, result.value]),
             )?;
             output
         }
@@ -131,12 +122,7 @@ pub(super) fn emit(
                 SelectedInstructionKind::BitwiseNotI64,
                 constraints.keys.copy_i64,
                 &[input, raw],
-                SelectedInstructionProvenance {
-                    operations: vec![operation.operation],
-                    values: vec![*operand, result.value],
-                    fuel: operation.fuel.clone(),
-                    ..Default::default()
-                },
+                operation_provenance(operation, vec![*operand, result.value]),
             )?;
             // Complementing a normalized signed carrier stays
             // sign-extended, but a narrow unsigned result exposes
@@ -159,6 +145,11 @@ pub(super) fn emit(
             carrier,
             left,
             right,
+        }
+        | LegalizedScalarInstructionKind::SaturatingMultiply {
+            carrier,
+            left,
+            right,
         } => {
             let (_, left_register, _, left_type) = builder.resolve(*left).ok_or_else(invalid)?;
             let (_, right_register, _, right_type) = builder.resolve(*right).ok_or_else(invalid)?;
@@ -168,15 +159,26 @@ pub(super) fn emit(
             {
                 return Err(invalid());
             }
-            let adds = matches!(
-                operation.kind,
-                LegalizedScalarInstructionKind::SaturatingAdd { .. }
-            );
-            let (kind, constraint, scratch) =
-                saturating_add_or_subtract_selection(adds, *carrier, &constraints.keys);
-            // Normalized narrow carriers combine exactly in 64 bits
-            // and the realization clamps the result to the carrier,
-            // so it is already normalized for later source uses.
+            // Every clamped realization saturates in place, so a normalized
+            // narrow carrier combines exactly in 64 bits and the emitted row
+            // already leaves the result normalized for later source uses. The
+            // only shape difference is the operand-3 bound scratch: the u64
+            // add and the unsigned subtract saturate on the carry flag, while
+            // multiplication always clamps through the bound.
+            let (kind, constraint, scratch) = match operation.kind {
+                LegalizedScalarInstructionKind::SaturatingMultiply { .. } => (
+                    SelectedInstructionKind::SaturatingMultiply { carrier: *carrier },
+                    saturating_multiply_selection(*carrier, &constraints.keys),
+                    SaturatingScratch::Bound,
+                ),
+                _ => {
+                    let adds = matches!(
+                        operation.kind,
+                        LegalizedScalarInstructionKind::SaturatingAdd { .. }
+                    );
+                    saturating_add_or_subtract_selection(adds, *carrier, &constraints.keys)
+                }
+            };
             let output = builder.register(result.value, result.definition_site, scalar_type)?;
             let [left_register, right_register] = binary_operands(
                 builder,
@@ -192,50 +194,7 @@ pub(super) fn emit(
                 kind,
                 constraint,
                 &operands,
-                SelectedInstructionProvenance {
-                    operations: vec![operation.operation],
-                    values: vec![*left, *right, result.value],
-                    fuel: operation.fuel.clone(),
-                    ..Default::default()
-                },
-            )?;
-            output
-        }
-        LegalizedScalarInstructionKind::SaturatingMultiply {
-            carrier,
-            left,
-            right,
-        } => {
-            let (_, left_register, _, left_type) = builder.resolve(*left).ok_or_else(invalid)?;
-            let (_, right_register, _, right_type) = builder.resolve(*right).ok_or_else(invalid)?;
-            if left_type != scalar_type
-                || right_type != scalar_type
-                || !carries(scalar_type, *carrier)
-            {
-                return Err(invalid());
-            }
-            // Every carrier's realization clamps or saturates in
-            // place, so the result is already normalized for later
-            // source uses and needs no carrier normalization.
-            let output = builder.register(result.value, result.definition_site, scalar_type)?;
-            let constraint = saturating_multiply_selection(*carrier, &constraints.keys);
-            let [left_register, right_register] = binary_operands(
-                builder,
-                constraint,
-                (*left, left_register),
-                (*right, right_register),
-            )?;
-            let scratch = instruction_scratch(builder, 3, IntegerSign::Signed)?;
-            builder.emit_integer(
-                SelectedInstructionKind::SaturatingMultiply { carrier: *carrier },
-                constraint,
-                &[left_register, right_register, output, scratch],
-                SelectedInstructionProvenance {
-                    operations: vec![operation.operation],
-                    values: vec![*left, *right, result.value],
-                    fuel: operation.fuel.clone(),
-                    ..Default::default()
-                },
+                operation_provenance(operation, vec![*left, *right, result.value]),
             )?;
             output
         }
@@ -263,12 +222,7 @@ pub(super) fn emit(
                 SelectedInstructionKind::TrappingInteger { form: *form },
                 constraint,
                 &[left_register, right_register, output, scratch],
-                SelectedInstructionProvenance {
-                    operations: vec![operation.operation],
-                    values: vec![*left, *right, result.value],
-                    fuel: operation.fuel.clone(),
-                    ..Default::default()
-                },
+                operation_provenance(operation, vec![*left, *right, result.value]),
             )?;
             output
         }
@@ -293,16 +247,18 @@ pub(super) fn emit(
                 SelectedInstructionKind::TrappingInteger { form: *form },
                 trapping_constraint(*form, &constraints.keys)?,
                 &[input, output, scratch],
-                SelectedInstructionProvenance {
-                    operations: vec![operation.operation],
-                    values: vec![*operand, result.value],
-                    fuel: operation.fuel.clone(),
-                    ..Default::default()
-                },
+                operation_provenance(operation, vec![*operand, result.value]),
             )?;
             output
         }
         LegalizedScalarInstructionKind::SaturatingDivide {
+            carrier,
+            left,
+            right,
+            obligation,
+            accepted_fact,
+        }
+        | LegalizedScalarInstructionKind::SaturatingRemainder {
             carrier,
             left,
             right,
@@ -317,15 +273,23 @@ pub(super) fn emit(
             {
                 return Err(invalid());
             }
-            // The zero divisor stays a proof obligation carried by
-            // the instruction; the realization handles the one
-            // signed overflow quotient (MIN / -1) itself.
-            let output = builder.register(result.value, result.definition_site, scalar_type)?;
-            let (constraint, scratch) = saturating_divide_selection(
+            // The zero divisor stays a proof obligation carried by the
+            // instruction. The divide realization handles the one signed
+            // overflow quotient (MIN / -1) itself; the mathematical remainder
+            // already lies inside its carrier.
+            let divides = matches!(
+                operation.kind,
+                LegalizedScalarInstructionKind::SaturatingDivide { .. }
+            );
+            let (kind, constraint, scratch) = saturating_division_selection(
+                divides,
                 *carrier,
+                *obligation,
+                *accepted_fact,
                 &constraints.keys,
                 environment.target().architecture,
             );
+            let output = builder.register(result.value, result.definition_site, scalar_type)?;
             let [left_register, right_register] = binary_operands(
                 builder,
                 constraint,
@@ -341,77 +305,10 @@ pub(super) fn emit(
                 SaturatingScratch::DivisionHighHalf => operands.push(division_scratch(builder)?),
             }
             builder.emit_integer(
-                SelectedInstructionKind::SaturatingDivide {
-                    carrier: *carrier,
-                    obligation: *obligation,
-                    accepted_fact: *accepted_fact,
-                },
+                kind,
                 constraint,
                 &operands,
-                SelectedInstructionProvenance {
-                    operations: vec![operation.operation],
-                    values: vec![*left, *right, result.value],
-                    obligations: vec![*obligation],
-                    fuel: operation.fuel.clone(),
-                    ..Default::default()
-                },
-            )?;
-            if environment.target().architecture == target::Architecture::X86_64 {
-                builder.copy(output, result.value, result.definition_site, scalar_type)?
-            } else {
-                output
-            }
-        }
-        LegalizedScalarInstructionKind::SaturatingRemainder {
-            carrier,
-            left,
-            right,
-            obligation,
-            accepted_fact,
-        } => {
-            let (_, left_register, _, left_type) = builder.resolve(*left).ok_or_else(invalid)?;
-            let (_, right_register, _, right_type) = builder.resolve(*right).ok_or_else(invalid)?;
-            if left_type != scalar_type
-                || right_type != scalar_type
-                || !carries(scalar_type, *carrier)
-            {
-                return Err(invalid());
-            }
-            // The mathematical remainder already lies inside the
-            // carrier, so the realization is the ordinary signed
-            // or unsigned remainder row; the zero divisor stays a
-            // proof obligation carried by the instruction.
-            let output = builder.register(result.value, result.definition_site, scalar_type)?;
-            let constraint = if carrier.is_signed() {
-                constraints.keys.remainder_i64
-            } else {
-                constraints.keys.remainder_u64
-            };
-            let [left_register, right_register] = binary_operands(
-                builder,
-                constraint,
-                (*left, left_register),
-                (*right, right_register),
-            )?;
-            let mut operands = vec![left_register, right_register, output];
-            if environment.target().architecture == target::Architecture::X86_64 {
-                operands.push(instruction_scratch(builder, 3, IntegerSign::Signed)?);
-            }
-            builder.emit_integer(
-                SelectedInstructionKind::SaturatingRemainder {
-                    carrier: *carrier,
-                    obligation: *obligation,
-                    accepted_fact: *accepted_fact,
-                },
-                constraint,
-                &operands,
-                SelectedInstructionProvenance {
-                    operations: vec![operation.operation],
-                    values: vec![*left, *right, result.value],
-                    obligations: vec![*obligation],
-                    fuel: operation.fuel.clone(),
-                    ..Default::default()
-                },
+                obligated_binary_provenance(operation, *left, *right, result.value, *obligation),
             )?;
             if environment.target().architecture == target::Architecture::X86_64 {
                 builder.copy(output, result.value, result.definition_site, scalar_type)?
@@ -469,13 +366,7 @@ pub(super) fn emit(
                 kind,
                 key,
                 &operands,
-                SelectedInstructionProvenance {
-                    operations: vec![operation.operation],
-                    values: vec![*left, *right, result.value],
-                    obligations: vec![*obligation],
-                    fuel: operation.fuel.clone(),
-                    ..Default::default()
-                },
+                obligated_binary_provenance(operation, *left, *right, result.value, *obligation),
             )?;
             if selection != WrappingDivision::DivideSignedNarrow {
                 if environment.target().architecture == target::Architecture::X86_64 {
@@ -542,12 +433,7 @@ pub(super) fn emit(
                 kind,
                 key,
                 &[left_register, right_register, raw],
-                SelectedInstructionProvenance {
-                    operations: vec![operation.operation],
-                    values: vec![*left, *right, result.value],
-                    fuel: operation.fuel.clone(),
-                    ..Default::default()
-                },
+                operation_provenance(operation, vec![*left, *right, result.value]),
             )?;
             // Machine addition is modulo 64 bits. Only the normalized
             // low-width result becomes available to later source uses;
@@ -840,13 +726,7 @@ pub(super) fn emit(
                 kind,
                 key,
                 &operands,
-                SelectedInstructionProvenance {
-                    operations: vec![operation.operation],
-                    values: vec![*left, *right, result.value],
-                    obligations: vec![*obligation],
-                    fuel: operation.fuel.clone(),
-                    ..Default::default()
-                },
+                obligated_binary_provenance(operation, *left, *right, result.value, *obligation),
             )?;
             if divide_operator && environment.target().architecture == target::Architecture::X86_64
             {
@@ -899,6 +779,25 @@ fn binary_operands(
         }
     }
     Ok(registers)
+}
+
+/// Provenance for a binary row that retains one obligation: the source
+/// operation with its fuel settlement, both source operands followed by the
+/// result, and the obligation the row discharges.
+fn obligated_binary_provenance(
+    operation: &legalized_operations::LegalizedScalarInstruction,
+    left: semantic_vocabulary::ValueId,
+    right: semantic_vocabulary::ValueId,
+    result: semantic_vocabulary::ValueId,
+    obligation: semantic_vocabulary::ObligationId,
+) -> SelectedInstructionProvenance {
+    SelectedInstructionProvenance {
+        operations: vec![operation.operation],
+        values: vec![left, right, result],
+        obligations: vec![obligation],
+        fuel: operation.fuel.clone(),
+        ..Default::default()
+    }
 }
 
 /// Whether the declared result type is exactly this saturating carrier,
@@ -958,29 +857,64 @@ fn saturating_add_or_subtract_selection(
     }
 }
 
-/// Unsigned division never overflows and shares the exact unsigned divide
-/// row; signed division takes the signed row. x86-64 pins both to `rax`
-/// with the explicit zero `rdx` input the divide discards and its clamp or
-/// guard reuses, so the divisor stays out of that register; AArch64 signed
-/// division clamps through the bound scratch and unsigned division needs
-/// no scratch at all.
-fn saturating_divide_selection(
+/// Divide and remainder share one emission shape and differ only in the row
+/// they select. Unsigned division never overflows and shares the exact
+/// unsigned divide row; signed division takes the signed row. x86-64 pins
+/// both to `rax` with the explicit zero `rdx` input the divide discards and
+/// its clamp or guard reuses, so the divisor stays out of that register;
+/// AArch64 signed division clamps through the bound scratch and unsigned
+/// division needs no scratch at all. The remainder takes the plain signed or
+/// unsigned row because the mathematical remainder already lies inside the
+/// carrier; x86-64 still compares it through the operand-3 bound scratch.
+fn saturating_division_selection(
+    divides: bool,
     carrier: SaturatingCarrier,
+    obligation: semantic_vocabulary::ObligationId,
+    accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     keys: &SelectedConstraintKeys,
     architecture: target::Architecture,
-) -> (RegisterConstraintKey, SaturatingScratch) {
+) -> (
+    SelectedInstructionKind,
+    RegisterConstraintKey,
+    SaturatingScratch,
+) {
     let x86 = architecture == target::Architecture::X86_64;
-    let key = if carrier.is_signed() {
-        keys.saturating_divide_signed
+    let signed = carrier.is_signed();
+    if divides {
+        let key = if signed {
+            keys.saturating_divide_signed
+        } else {
+            keys.divide_u64
+        };
+        let scratch = match (x86, signed) {
+            (true, _) => SaturatingScratch::DivisionHighHalf,
+            (false, true) => SaturatingScratch::Bound,
+            (false, false) => SaturatingScratch::None,
+        };
+        let kind = SelectedInstructionKind::SaturatingDivide {
+            carrier,
+            obligation,
+            accepted_fact,
+        };
+        (kind, key, scratch)
     } else {
-        keys.divide_u64
-    };
-    let scratch = match (x86, carrier.is_signed()) {
-        (true, _) => SaturatingScratch::DivisionHighHalf,
-        (false, true) => SaturatingScratch::Bound,
-        (false, false) => SaturatingScratch::None,
-    };
-    (key, scratch)
+        let key = if signed {
+            keys.remainder_i64
+        } else {
+            keys.remainder_u64
+        };
+        let scratch = if x86 {
+            SaturatingScratch::Bound
+        } else {
+            SaturatingScratch::None
+        };
+        let kind = SelectedInstructionKind::SaturatingRemainder {
+            carrier,
+            obligation,
+            accepted_fact,
+        };
+        (kind, key, scratch)
+    }
 }
 
 /// Every saturating multiplication owns an operand-3 scratch: the clamp

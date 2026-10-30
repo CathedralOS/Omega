@@ -1,6 +1,6 @@
 //! Exit admission must retain the indivisible effect verified by the ISA
 //! decoder, not erase it into a generic fall-through instruction.
-use super::validate_non_return;
+use super::assert_non_return_refused;
 use selected_instructions::{
     AtomicForm, AtomicWidth, MachineAlternativeFamily, MachineAlternativeKey,
     MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedTrapBehavior,
@@ -9,10 +9,7 @@ use selected_instructions::{
 
 #[test]
 fn atomic_exit_admission_binds_memory_width_operands_and_control() {
-    let physical = register_model::validate_physical_register_model(
-        isa_aarch64::aarch64_physical_register_model(),
-    )
-    .unwrap();
+    let physical = super::aarch64_physical_register_model();
     let registers =
         ["x2", "x0", "x1", "x3"].map(|name| physical.model().view_named(name).unwrap().id);
     for form in AtomicForm::ALL {
@@ -67,17 +64,13 @@ fn atomic_exit_admission_binds_memory_width_operands_and_control() {
                 }
                 _ => footprint.encoded.control = MachineEncodedControlEffect::DirectRelativeCallV1,
             }
-            assert!(
-                validate_non_return(
-                    target::Architecture::Aarch64,
-                    instruction,
-                    kind,
-                    &encoding,
-                    &layout,
-                    &changed
-                )
-                .is_err(),
-                "{form:?}, mutation {mutation}"
+            assert_non_return_refused(
+                &format!("{form:?}, mutation {mutation}"),
+                instruction,
+                kind,
+                &encoding,
+                &layout,
+                &changed,
             );
         }
     }

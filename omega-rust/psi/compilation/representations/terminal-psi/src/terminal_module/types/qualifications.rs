@@ -7,7 +7,16 @@ use semantic_vocabulary::{
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StructuralDomainDeclaration {
-    /// Complete closed predicate definition with its own declared formal subject.
+    /// Conjunctive same-subject requirements, resolved by semantic identity and
+    /// this exact carrier within the owning module. Unknown is not empty.
+    /// Local dense structural-domain IDs and foreign module coordinates are
+    /// never portable substitutes for these module-owned semantic coordinates.
+    pub required_memberships: Option<Vec<DomainSemanticId>>,
+    /// Source-owned completeness of the retained predicate/issuer theory.
+    /// False keeps unrepresented policies (roles, cleanup, aliases)
+    /// from being mistaken for an interchangeable cross-artifact membership.
+    pub complete_predicate_theory: bool,
+    /// Complete transitive value predicate with its own declared formal subject.
     /// None is opaque; a retained Truth is an explicitly empty predicate theory.
     pub predicate: Option<StructuralDomainPredicate>,
     pub id: StructuralDomainId,
@@ -45,11 +54,16 @@ pub struct StructuralDomainPredicate {
 impl StructuralDomainDeclaration {
     /// Authorization belongs to this exact boundary requirement, not another
     /// conformer or a private issuer whose value the provider merely forwards.
-    pub fn authorizes_boundary_requirement(&self, requirement: TerminalIdentityIndex) -> bool {
+    pub fn authorizes_boundary_requirement(
+        &self,
+        requirement: TerminalIdentityIndex,
+        declaration: Option<TerminalIdentityIndex>,
+    ) -> bool {
         self.establishment_routes.iter().any(|route| {
             matches!(route, StructuralEstablishmentRoute::BoundaryRequirement {
-                requirement: authorized,
-            } if *authorized == requirement)
+                requirement_identity: authorized,
+                declaration: owner,
+            } if *authorized == requirement && Some(owner.identity()) == declaration)
         })
     }
 
@@ -70,18 +84,56 @@ impl StructuralDomainDeclaration {
 /// qualification. The retained identity is the replay authority: naming a
 /// machine is neither trait sealing nor an implicit grant to other machines
 /// in its package.
+/// Every route retains its exact nominal declaration owner independently from
+/// the overload's callable text: shared parameter/result owners do not identify
+/// the issuer. Private invocation owners remain bound to their retained code.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralEstablishmentRoute {
     /// An exact invocation through this requirement under a valid selected
     /// conformance; `requirement` is the requirement's canonical identity.
-    Requirement { requirement: TerminalIdentityIndex },
+    CheckedRequirement {
+        declaration: crate::NominalDeclarationIdentity,
+        requirement_identity: TerminalIdentityIndex,
+    },
     /// That exact machine's invocation — not another conformer of a
     /// requirement it happens to satisfy. `machine` is the machine's
     /// canonical callable identity.
-    ExactMachine { machine: TerminalIdentityIndex },
+    ExactMachine {
+        declaration: crate::NominalDeclarationIdentity,
+        machine_identity: TerminalIdentityIndex,
+    },
     /// An installed external-root invocation admitted under this boundary
     /// requirement; `requirement` is its canonical boundary identity.
-    BoundaryRequirement { requirement: TerminalIdentityIndex },
+    BoundaryRequirement {
+        declaration: crate::NominalDeclarationIdentity,
+        requirement_identity: TerminalIdentityIndex,
+    },
+}
+
+impl StructuralEstablishmentRoute {
+    pub fn identity(&self) -> TerminalIdentityIndex {
+        match self {
+            Self::CheckedRequirement {
+                requirement_identity,
+                ..
+            }
+            | Self::BoundaryRequirement {
+                requirement_identity,
+                ..
+            } => *requirement_identity,
+            Self::ExactMachine {
+                machine_identity, ..
+            } => *machine_identity,
+        }
+    }
+
+    pub fn declaration(&self) -> &crate::NominalDeclarationIdentity {
+        match self {
+            Self::CheckedRequirement { declaration, .. }
+            | Self::BoundaryRequirement { declaration, .. }
+            | Self::ExactMachine { declaration, .. } => declaration,
+        }
+    }
 }
 
 /// Establishment evidence binding one domain membership on an operation
@@ -108,7 +160,7 @@ pub struct StructuralContentProjection {
 /// One exact qualification carried by a nonempty structural path beneath a
 /// parameter root. The path is occurrence-relative, not a type-wide rule: a
 /// qualification on one field never qualifies a sibling, prefix, or root.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct StructuralPathQualification {
     pub path: Vec<StructuralPathSegment>,
     pub domain: StructuralDomainId,

@@ -1,7 +1,7 @@
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::signature::SignatureContractKind;
-use symbols::{SymbolHandle, SymbolKind, SymbolTable};
+use symbols::{SymbolHandle, SymbolTable};
 
 use super::expression_paths::resolve_expression_table_call_target_symbol;
 use super::expressions::{
@@ -36,7 +36,7 @@ pub(super) fn assign_contract_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) -> Result<(), Vec<Diagnostic>> {
-    let conformance_scopes = super::scope::ConformanceTypeScopes::of(program)?;
+    let conformance_scopes = super::scope::DeclarationTypeScopes::of(program)?;
     let attached_machines = super::scope::attached_machines(program);
     let trait_scopes = super::scope::TraitLexicalScopes::of(program);
     let SymbolResolvedTrees { roots, tables, .. } = program;
@@ -83,7 +83,6 @@ pub(super) fn assign_contract_reference_symbols(
             machine.symbol,
             trait_scopes.requirements_of(machine.trait_default_origin.declaring_trait),
             &lexical_scope,
-            machine.attached_data.as_ref(),
             machine.attached_data_symbol,
             data_definition.map(|definition| data_members.span_or_empty(definition.members)),
             machine_owned_data.span_or_empty(machine.owned_data),
@@ -135,7 +134,6 @@ pub(super) fn assign_contract_reference_symbols(
             trait_definition.symbol,
             trait_scopes.requirements_of(trait_definition.symbol),
             data_type_parameters.span_or_empty(trait_definition.type_parameters),
-            None,
             SymbolHandle::invalid(),
             None,
             &[],
@@ -174,7 +172,6 @@ pub(super) fn assign_contract_reference_symbols(
             operator.symbol,
             super::scope::LexicalRequirements::none(),
             data_type_parameters.span_or_empty(operator.type_parameters),
-            None,
             SymbolHandle::invalid(),
             None,
             &[],
@@ -210,7 +207,6 @@ pub(super) fn assign_contract_reference_symbols(
             signature.symbol,
             super::scope::LexicalRequirements::none(),
             data_type_parameters.span_or_empty(signature.type_parameters),
-            None,
             SymbolHandle::invalid(),
             None,
             &[],
@@ -281,17 +277,13 @@ fn assign_callable_value_symbols(
             let expression = match fact {
                 symbol_resolved_trees::domain::ProofFact::Expression(expression) => *expression,
                 symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
-                    for handle in membership.domain_arguments.handles() {
-                        let mut argument = child_type_references.get(handle).clone();
-                        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
-                            symbols,
-                            child_type_references,
-                            machine.type_constraints,
-                            contract_scope.type_parameters,
-                            &mut argument,
-                        );
-                        *child_type_references.get_mut(handle) = argument;
-                    }
+                    crate::symbols::type_references::assign_type_reference_argument_symbols_with_constraints(
+                        symbols,
+                        child_type_references,
+                        machine.type_constraints,
+                        contract_scope.type_parameters,
+                        membership.domain_arguments,
+                    );
                     membership.value
                 }
             };
@@ -418,17 +410,14 @@ fn assign_contract_call_symbols(
                 child_type_references,
                 cast.target_type,
             );
-            crate::symbols::type_references::each_type_reference_handle(
-                cast.semantic_domain_arguments,
-                |handle| {
-                    crate::symbols::type_references::reassign_type_reference_symbols(
-                        symbols,
-                        child_type_references,
-                        machine.type_parameters,
-                        handle,
-                    );
-                },
-            );
+            for handle in cast.semantic_domain_arguments.handles() {
+                crate::symbols::type_references::reassign_type_reference_symbols(
+                    symbols,
+                    child_type_references,
+                    machine.type_parameters,
+                    handle,
+                );
+            }
         }
         ExpressionNode::Call(call) => {
             assign_calls!(
@@ -472,14 +461,11 @@ fn assign_contract_call_symbols(
             );
             if let ExpressionNode::Call(call) = expression_table.expression_mut(expression) {
                 call.target_symbol = target_symbol;
+                // Contract operands carry no executable operand route: their
+                // machine arguments are always static, proof-static only when
+                // the target is a proof-position declaration.
+                let proof_static = super::targets::proof_static_call_target(symbols, target_symbol);
                 for argument in &mut call.machine_arguments {
-                    let proof_static = target_symbol.is_valid()
-                        && matches!(
-                            symbols.get(target_symbol).kind,
-                            SymbolKind::Proposition
-                                | SymbolKind::PropositionParameter
-                                | SymbolKind::MathematicalDefinition
-                        );
                     assign_static_argument_symbols(
                         symbols,
                         machine.symbol,
@@ -581,7 +567,8 @@ fn assign_contract_call_symbols(
             child_type_references,
             unary.operand
         ),
-        ExpressionNode::ZeroValue(type_reference) => {
+        ExpressionNode::TypeExpression(type_reference)
+        | ExpressionNode::ZeroValue(type_reference) => {
             crate::symbols::type_references::reassign_type_reference_symbols_and_values(
                 symbols,
                 machine,

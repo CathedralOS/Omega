@@ -54,6 +54,8 @@ pub(crate) use optimization::digest_encoder;
 mod machine_lowering;
 mod program_roots;
 pub use program_roots::TerminalProgramRoots;
+mod prepared_terminal_roots;
+pub use prepared_terminal_roots::{PreparedTerminalRoots, RetainedTerminalRoot};
 
 // The plan families `machine_dispatch` selects between, in their dependency
 // order: each reaches down this list and never back up it.
@@ -68,6 +70,13 @@ mod retention;
 
 // Beside the route: shared producer vocabulary and diagnostic source attribution.
 mod activation_storage;
+mod external_provider_declarations;
+pub use external_provider_declarations::{
+    ExternalProviderDeclarations, PreparedExternalProviderDeclarations,
+    project_external_provider_declarations,
+};
+mod task_activation;
+pub use task_activation::lower_task_activation_demands;
 mod call_operands;
 mod call_sites;
 mod content_classes;

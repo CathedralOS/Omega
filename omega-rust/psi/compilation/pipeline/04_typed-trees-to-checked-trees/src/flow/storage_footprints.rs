@@ -20,20 +20,19 @@ pub(super) fn assignment(
     }
     let capture = control.operands.get(target);
     if !capture.referents.is_empty() {
-        return control
-            .operand_referents
-            .span(capture.referents)?
-            .iter()
-            .map(|place| {
-                Some(CanonicalPlace {
-                    root: place.root,
-                    segments: control
-                        .operand_referent_segments
-                        .span(place.segments)?
-                        .to_vec(),
-                })
-            })
-            .collect();
+        // The pre-RHS target is an address only in the producer's direct
+        // geometry lane. Deferred reference inventory cannot become physical
+        // write coordinates by discarding its formation/entry namespace.
+        return validation::completed_storage::direct_referent_places(control, capture.referents)
+            .map(|places| {
+                places
+                    .into_iter()
+                    .map(|place| CanonicalPlace {
+                        root: place.root,
+                        segments: place.segments,
+                    })
+                    .collect()
+            });
     }
     let mut owned_frames = None;
     let frames = super::shared_call_frames_or(call_frames, program, &mut owned_frames)?;

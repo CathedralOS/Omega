@@ -141,3 +141,28 @@ gh workflow run compiler-regression.yml --ref BRANCH -f foreign_records=true
 
 Read `build/compiler-foreign-records/{summary,checking,both}.json` and the
 Windows-only `windows-lldiv.json`; failures and absent engine facts remain red.
+
+
+Manual dispatch with `runtime_value_generics=true` selects the runtime Value
+acceptance cohort on the existing Ubuntu x86_64, Windows x86_64, macOS ARM64,
+and Ubuntu ARM64 hosted labels:
+
+```text
+python tools/ci/compiler_runtime_value_generics.py --list
+gh workflow run compiler-regression.yml --ref BRANCH -f runtime_value_generics=true
+```
+
+Pin BRANCH to the reviewed source commit. The checkout SHA must match
+`GITHUB_SHA`; a dirty checkout refuses qualification. The cohort requires all
+nine places and intended-invalid twins for each authored row, plus the named
+runtime witnesses and static-only controls. Checking-only fixtures are reported
+separately and cannot satisfy required execution witnesses. Each runtime fixture
+must build and execute through native and Terminal on that runner with matching
+exit and authored stream observations. Target image generation alone supplies
+no execution evidence.
+
+Read each architecture's uploaded
+`build/compiler-runtime-value-generics/{summary,checking,both}.json` and retained
+producer profile. A missing historical host golden is reported explicitly;
+authored execution and diagnostic oracles remain mandatory. This mode uses the
+existing read-only workflow permissions and adds no runner or service.

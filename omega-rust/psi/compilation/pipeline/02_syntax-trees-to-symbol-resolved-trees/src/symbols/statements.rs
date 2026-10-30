@@ -40,7 +40,7 @@ fn assign_machine_references(
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let attached_machines = super::scope::attached_machines(program);
     let trait_scopes = super::scope::TraitLexicalScopes::of(program);
-    let conformance_scopes = super::scope::ConformanceTypeScopes::of(program)?;
+    let conformance_scopes = super::scope::DeclarationTypeScopes::of(program)?;
     let SymbolResolvedTrees {
         roots:
             symbol_resolved_trees::SymbolResolvedRoots {
@@ -106,7 +106,6 @@ fn assign_machine_references(
             lexical_requirements: trait_scopes
                 .requirements_of(machine.trait_default_origin.declaring_trait),
             type_parameters: &lexical_type_parameters,
-            attached_data: machine.attached_data.as_ref(),
             attached_data_symbol: machine.attached_data_symbol,
             inherited_data_members,
             owned_data: machine_owned_data.span_or_empty(*owned_data),

@@ -2,8 +2,8 @@
 //! runtime selectors keep their own ordered storage regions; this operation
 //! neither extracts a descriptor nor grants an independent payload loan.
 use super::{
-    Builder, LegalizedScalarFunction, LegalizedScalarInstruction, SelectedMemoryAccessRole,
-    VirtualRegisterId, invalid, memory, place_pointer, provenance, transport_register,
+    Builder, LegalizedScalarFunction, SelectedMemoryAccessRole, VirtualRegisterId, invalid, memory,
+    place_pointer, provenance, transport_register,
 };
 use crate::SelectedInstructionError;
 use crate::structural_inputs::structural_reference_input::{
@@ -23,19 +23,52 @@ pub(super) fn source_geometry(
     if !geometry.readable || source.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
         return None;
     }
-    let shape = signature
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == geometry.selected)?
+    let shape = terminal_psi::find_structural_type(&signature.structural_types, geometry.selected)?
         .shape
         .clone();
     Some((geometry, shape))
 }
 
+/// Read the actual words of a whole descriptor carried in SSA. The typed
+/// source keeps its access ceiling, and the transport retains the captured
+/// offset and extent; neither a descriptor slot nor a new backing is inferred.
+pub(super) fn completed_view_words(
+    function: &LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
+    source: &StructuralArgument,
+    indices: &[LegalizedRuntimeIndexOperand],
+) -> Result<Option<[VirtualRegisterId; 2]>, SelectedInstructionError> {
+    if !source.path.is_empty() {
+        return Ok(None);
+    }
+    let (geometry, shape) = source_geometry(function, source).ok_or_else(invalid)?;
+    if !geometry::runtime_indices_match(indices, &geometry.elements) {
+        return Err(invalid());
+    }
+    let length = match shape {
+        StructuralTypeShape::ElementView { .. } => builder
+            .transport
+            .element_view(source.place)
+            .map(|view| view.element_length),
+        shape if shape.is_borrowed_byte_carrier() => builder
+            .transport
+            .view(source.place)
+            .map(|view| view.byte_length),
+        _ => None,
+    };
+    let Some(length) = length else {
+        return Ok(None);
+    };
+    let backing = super::runtime_address::projection_base(function, builder, row, source.place, 0)?
+        .ok_or_else(invalid)?;
+    Ok(Some([backing, length]))
+}
+
 pub(super) fn backing(
     function: &LegalizedScalarFunction,
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     source: &StructuralArgument,
     indices: &[LegalizedRuntimeIndexOperand],
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
@@ -43,21 +76,8 @@ pub(super) fn backing(
     if !geometry::runtime_indices_match(indices, &geometry.elements) {
         return Err(invalid());
     }
-    // A root view can live as backing/offset SSA without a descriptor cell.
-    // The canonical projection base already resolves its actual live backing;
-    // loading a descriptor pointer here would read the first payload bytes.
-    if source.path.is_empty()
-        && ((crate::selection::established_view_input::view_type(function, source.place).is_some()
-            && builder.transport.view(source.place).is_some())
-            || (crate::selection::established_view_input::element_view_type(
-                function,
-                source.place,
-            )
-            .is_some()
-                && builder.transport.element_view(source.place).is_some()))
-    {
-        return super::runtime_address::projection_base(function, builder, row, source.place, 0)?
-            .ok_or_else(invalid);
+    if let Some([backing, _]) = completed_view_words(function, builder, row, source, indices)? {
+        return Ok(backing);
     }
     let (pointer, pointer_slots) = if source.path.is_empty() {
         (

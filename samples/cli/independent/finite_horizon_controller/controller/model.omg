@@ -36,7 +36,7 @@ machine valid_problem(problem: &Problem) -> bool {
 }
 machine power_three(exponent: i32 in Wrapping) -> i32 in Wrapping {
     transition { _ -> multiply(exponent, 1) }
-    state multiply(exponent: i32 in Wrapping, value: i32 in Wrapping) -> i32 in Wrapping {
+    machine multiply(exponent: i32 in Wrapping, value: i32 in Wrapping) -> i32 in Wrapping {
         transition exponent > 0 {
             true -> multiply(exponent - 1, value * 3)
             _ -> (value)

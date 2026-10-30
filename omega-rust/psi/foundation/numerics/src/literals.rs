@@ -18,7 +18,7 @@ use std::sync::Arc;
 /// splice, and table↔tree conversion carries it). Foundation-layer mirror of
 /// the representations' integer `PrimitiveType` subset; the stamping sites map
 /// between them.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum LandedIntegerType {
     I8,
     I16,
@@ -95,7 +95,7 @@ impl LandedIntegerType {
 
 /// A landed constant's riding facts: the integer type it was rendered at and
 /// the arithmetic domain governing further folds (decision 17).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct IntegerLanding {
     pub landed_type: LandedIntegerType,
     pub domain: crate::arithmetic::ArithmeticDomain,
@@ -103,7 +103,7 @@ pub struct IntegerLanding {
 
 /// A float FORMAT a literal has landed at (F2, the float half of the ch5
 /// two-phase law). Names mean formats permanently: `f32` never rebinds.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum FloatFormat {
     F32,
     F64,
@@ -114,6 +114,29 @@ impl FloatFormat {
         match self {
             Self::F32 => "f32",
             Self::F64 => "f64",
+        }
+    }
+
+    /// Store one presented representation in a binary64 scalar without
+    /// quieting binary32 NaNs or losing their sign and payload.
+    pub fn widen_representation(self, bits: u64) -> Option<f64> {
+        match self {
+            Self::F32 => Some(crate::float_representation::binary32_from_bits(
+                u32::try_from(bits).ok()?,
+            )),
+            Self::F64 => Some(f64::from_bits(bits)),
+        }
+    }
+
+    /// Recover only an exact format representation, not a rounded conversion.
+    pub fn capture_wide_representation(self, value: f64) -> Option<u64> {
+        match self {
+            Self::F32 => {
+                let bits = crate::float_representation::binary32_to_bits(value);
+                (crate::float_representation::binary32_from_bits(bits).to_bits() == value.to_bits())
+                    .then_some(u64::from(bits))
+            }
+            Self::F64 => Some(value.to_bits()),
         }
     }
 }
@@ -127,17 +150,19 @@ impl FloatFormat {
 /// FloatSemantics engine, so an f32 read NEVER routes through f64 (the
 /// double-rounding residue this type retires). A width
 /// suffix (`1.5f32`) is a parse-site landing, exactly the integer carrier's
-/// CR4a. Equality is TEXT-ONLY like IntegerLiteral: spelling is identity,
-/// the landing is metadata.
-#[derive(Debug, Clone)]
+/// CR4a. Evaluated values may instead retain explicit representation bits;
+/// their diagnostic decimal spelling never replaces that payload. Authored
+/// equality compares spelling; presented values also compare exact bits.
+#[derive(Debug, Clone, compiler_storage::Record)]
 pub struct FloatLiteral {
     text: Arc<str>,
     landing: Option<FloatFormat>,
+    presented: Option<(FloatFormat, u64)>,
 }
 
 impl PartialEq for FloatLiteral {
     fn eq(&self, other: &Self) -> bool {
-        self.text == other.text
+        self.text == other.text && self.presented == other.presented
     }
 }
 
@@ -175,6 +200,7 @@ impl FloatLiteral {
         Some(Self {
             text: Arc::from(body.as_ref()),
             landing,
+            presented: None,
         })
     }
 
@@ -185,11 +211,36 @@ impl FloatLiteral {
         Self {
             text: Arc::from(format!("{value:?}")),
             landing: None,
+            presented: None,
         }
+    }
+
+    /// Materialize already determined bits. Decimal source spelling retains
+    /// its separate rounding rules; this constructor never invents NaN bits.
+    pub fn from_bits(format: FloatFormat, bits: u64) -> Option<Self> {
+        let value = format.widen_representation(bits)?;
+        let text = match format {
+            FloatFormat::F32 => format!("{:?}", f32::from_bits(bits as u32)),
+            FloatFormat::F64 => format!("{value:?}"),
+        };
+        Some(Self {
+            text: Arc::from(text),
+            landing: Some(format),
+            presented: Some((format, bits)),
+        })
+    }
+
+    pub fn presented_bits(&self) -> Option<(FloatFormat, u64)> {
+        self.presented
     }
 
     /// The spelling, correctly rounded to f64.
     pub fn value_f64(&self) -> f64 {
+        if let Some((format, bits)) = self.presented {
+            return format
+                .widen_representation(bits)
+                .expect("validated floating representation");
+        }
         crate::float_semantics::FloatSemantics::from_decimal(
             crate::float_semantics::FloatFormat::BINARY64,
             &self.text,
@@ -200,6 +251,12 @@ impl FloatLiteral {
 
     /// The spelling, correctly rounded DIRECTLY to f32 (never via f64).
     pub fn value_f32(&self) -> f32 {
+        if let Some((format, bits)) = self.presented {
+            return match format {
+                FloatFormat::F32 => f32::from_bits(bits as u32),
+                FloatFormat::F64 => f64::from_bits(bits) as f32,
+            };
+        }
         crate::float_semantics::FloatSemantics::from_decimal(
             crate::float_semantics::FloatFormat::BINARY32,
             &self.text,
@@ -225,6 +282,11 @@ impl FloatLiteral {
     /// its f32 value widened exactly (f32 -> f64 is lossless), so a suffixed
     /// literal means the same bits everywhere it flows.
     pub fn landed_f64(&self) -> f64 {
+        if let Some((format, bits)) = self.presented {
+            return format
+                .widen_representation(bits)
+                .expect("validated floating representation");
+        }
         match self.landing {
             Some(FloatFormat::F32) => f64::from(self.value_f32()),
             _ => self.value_f64(),
@@ -234,7 +296,8 @@ impl FloatLiteral {
     pub fn with_landing(&self, landing: FloatFormat) -> Self {
         Self {
             text: self.text.clone(),
-            landing: Some(landing),
+            landing: Some(self.presented.map_or(landing, |(format, _)| format)),
+            presented: self.presented,
         }
     }
 
@@ -245,6 +308,14 @@ impl FloatLiteral {
     /// The parse-time negative fold (`-1.5` stays one constant); the landing
     /// rides, mirroring IntegerLiteral::negated.
     pub fn negated(&self) -> Self {
+        if let Some((format, bits)) = self.presented {
+            let sign = match format {
+                FloatFormat::F32 => 1u64 << 31,
+                FloatFormat::F64 => 1u64 << 63,
+            };
+            return Self::from_bits(format, bits ^ sign)
+                .expect("validated floating representation");
+        }
         let text: &str = &self.text;
         let flipped = match text.strip_prefix('-') {
             Some(positive) => Arc::from(positive),
@@ -253,6 +324,7 @@ impl FloatLiteral {
         Self {
             text: flipped,
             landing: self.landing,
+            presented: None,
         }
     }
 
@@ -280,7 +352,7 @@ fn strip_float_literal_suffix(source: &str) -> (&str, Option<FloatFormat>) {
 /// Radix of an integer literal's digits. Deliberately local to `numerics` so
 /// the foundation layer does not depend on the token crate's `NumericBase`
 /// (the parser maps between them).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum IntegerRadix {
     Binary,
     Octal,
@@ -311,12 +383,12 @@ impl IntegerRadix {
 /// Canonical integer spelling compressed by magnitude. Radix and sign remain
 /// part of spelling identity; landing remains site metadata. Arbitrary authored
 /// magnitudes retain canonical text, so this storage choice imposes no width.
-#[derive(Clone)]
+#[derive(Clone, compiler_storage::Record)]
 pub struct IntegerLiteral {
     representation: IntegerRepresentation,
 }
 
-#[derive(Clone)]
+#[derive(Clone, compiler_storage::Record)]
 enum IntegerRepresentation {
     Small {
         magnitude: u64,
@@ -689,6 +761,52 @@ fn split_radix(unsigned: &str) -> (u32, &str) {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn presented_float_bits_survive_wide_storage_and_negation() {
+        use super::{FloatFormat, FloatLiteral};
+        for (format, bits, wide) in [
+            (FloatFormat::F32, 0xff80_0123, 0xfff0_0024_6000_0000),
+            (FloatFormat::F32, 0x8000_0000, 0x8000_0000_0000_0000),
+            (FloatFormat::F32, 0x0000_0001, 0x36a0_0000_0000_0000),
+            (
+                FloatFormat::F64,
+                0xfff0_0000_0000_0123,
+                0xfff0_0000_0000_0123,
+            ),
+        ] {
+            let literal = FloatLiteral::from_bits(format, bits).unwrap();
+            assert_eq!(literal.landed_f64().to_bits(), wide);
+            assert_eq!(
+                format.capture_wide_representation(f64::from_bits(wide)),
+                Some(bits)
+            );
+            assert_eq!(literal.negated().negated(), literal);
+            assert_eq!(literal.presented_bits(), Some((format, bits)));
+        }
+        assert!(FloatLiteral::from_bits(FloatFormat::F32, 0x1_0000_0000).is_none());
+        assert_eq!(
+            FloatLiteral::from_bits(FloatFormat::F32, 0xff80_0123)
+                .unwrap()
+                .negated(),
+            FloatLiteral::from_bits(FloatFormat::F32, 0x7f80_0123).unwrap(),
+        );
+        assert!(
+            FloatFormat::F32
+                .capture_wide_representation(f64::from_bits(0x7ff0_0000_0000_0001))
+                .is_none()
+        );
+        assert_ne!(
+            FloatLiteral::from_bits(FloatFormat::F32, 0x7f80_0001),
+            FloatLiteral::from_bits(FloatFormat::F32, 0x7f80_0002)
+        );
+        assert!(
+            FloatLiteral::parse("NaNf32")
+                .unwrap()
+                .presented_bits()
+                .is_none()
+        );
+    }
     use super::{
         FloatFormat, FloatLiteral, IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType,
     };

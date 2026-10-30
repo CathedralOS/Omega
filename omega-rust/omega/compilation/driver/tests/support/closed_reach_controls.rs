@@ -102,7 +102,7 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
     binding.selected_contract_commitment = [0; 32];
     controls.push(("missing selected public contract", "public contract", bad));
 
-    if let Some(call) = application.calls.first() {
+    if !application.calls.is_empty() {
         let mut bad = module.clone();
         bad.machines[owner]
             .closed_reach_application
@@ -116,17 +116,24 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
             bad,
         ));
 
+        // This control specifically duplicates an operation owner. Retain a
+        // real normal invocation; a terminal edge has no operation identity.
+        let operation_id = application
+            .calls
+            .iter()
+            .find_map(|call| call.site.operation())
+            .ok_or("reach controls need a normal operation-owned call occurrence")?;
         let mut bad = module.clone();
         let operation = bad.machines[owner]
             .blocks
             .iter_mut()
             .flat_map(|block| &mut block.operations)
-            .find(|operation| operation.id == call.operation)
+            .find(|operation| operation.id == operation_id)
             .ok_or("missing marked operation")?;
         operation.static_reach_binding = Some(u32::MAX);
         controls.push((
             "redirected operation binder",
-            "operation binder marker",
+            "invocation binder marker",
             bad,
         ));
 
@@ -138,13 +145,13 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
                 block
                     .operations
                     .iter()
-                    .any(|operation| operation.id == call.operation)
+                    .any(|operation| operation.id == operation_id)
             })
             .ok_or("missing marked block")?;
         let operation = block
             .operations
             .iter()
-            .find(|operation| operation.id == call.operation)
+            .find(|operation| operation.id == operation_id)
             .unwrap()
             .clone();
         block.operations.push(operation);
@@ -177,9 +184,13 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
             }
             let mut bad = module.clone();
             let ClosedReachParameter::Machine(binding) = parameter_mut(
-                bad.machines[position].closed_reach_application.as_mut().unwrap(), binder as u32,
-            ).unwrap()
-            else {
+                bad.machines[position]
+                    .closed_reach_application
+                    .as_mut()
+                    .unwrap(),
+                binder as u32,
+            )
+            .unwrap() else {
                 unreachable!()
             };
             binding.selected_reach.clear();
@@ -203,10 +214,10 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
                 .iter()
                 .enumerate()
                 .find_map(|(call_index, call)| {
-                    let operation = machine
-                        .operations()
-                        .find(|operation| operation.id == call.operation)?;
-                    let callee = module.machine(operation.kind.direct_callee()?)?;
+                    let invocation = machine
+                        .module_invocations()
+                        .find(|invocation| invocation.site == call.site)?;
+                    let callee = module.machine(invocation.inputs.callee)?;
                     let declaration = callee.declaration.as_ref()?;
                     let alternative = module.machines.iter().find(|alternative| {
                         alternative.id != callee.id
@@ -227,7 +238,8 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
         if let Some(expected) = &mut application.calls[call].application {
             expected.callee = alternative;
         } else {
-            let ClosedReachParameter::Machine(binding) = parameter_mut(application, binder).unwrap()
+            let ClosedReachParameter::Machine(binding) =
+                parameter_mut(application, binder).unwrap()
             else {
                 unreachable!()
             };

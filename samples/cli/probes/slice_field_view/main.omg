@@ -27,7 +27,7 @@ machine inspect_values(values: &[i32]) -> bool {
         true -> read(values)
         false -> (false)
     }
-    state read(values: &[i32]) -> bool
+    machine read(values: &[i32]) -> bool
         requires 1 < values.len;
     {
         values.len == 2 && values[0] == 11 && values[1] == 13
@@ -50,8 +50,8 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

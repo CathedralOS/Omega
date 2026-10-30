@@ -4,19 +4,9 @@
 //! and product occurrences share those inputs, not checked output: each has its
 //! own target, generated sources, bindings and review. The same source-roster
 //! contract drives production, lock comparison and independent reconstruction.
-//!
-//! Named input assignments are reconciled across all incoming edges before
-//! running authored code. A shared package/purpose/profile node may reuse equal
-//! complete maps; unioning unequal maps would grant one requester another's
-//! inputs. A separate tool package would still need capture, grant issuance and
-//! checked generated-source handoff. Routing into these existing owners keeps
-//! that enforcement in one execution path without making aliases new instances.
 
-use crate::build_session::{
-    OccurrenceBuildInputs, PackageBuildSession, dependency_first_package_order,
-    reconcile_build_inputs,
-};
-use compilation_products::{CheckedCompileRequest, CompileFailure};
+use crate::build_session::dependency_first_package_order;
+use compilation_products::CompileFailure;
 
 use super::super::semantic_bindings::projection_error;
 use super::super::{
@@ -106,13 +96,6 @@ impl OccurrenceCompile {
         }
     }
 
-    fn tolerated_unsettled_service_fields(&self) -> bool {
-        match self {
-            Self::Live(source) => source.facts().tolerated_unsettled_service_fields,
-            Self::Cached(facts) => facts.tolerated_unsettled_service_fields,
-        }
-    }
-
     /// The source-consumption check a carried compile owes before its review
     /// counts. A persisted occurrence's retained commitment was written by an
     /// earlier invocation, so re-deriving it over the stored consumed units and
@@ -151,7 +134,7 @@ pub(super) enum TargetEntryDiscovery {
 }
 
 /// Application work for one policy-selected review pass. The package owner
-/// admits the roster, bindings and input assignments before any Build runs.
+/// admits the roster, bindings and root snapshot before any Build runs.
 pub struct PackageReviewPass<'pass> {
     closure: &'pass ResolvedPackageSourceClosure,
     packages: Vec<ReviewPackage<'pass>>,
@@ -162,7 +145,6 @@ pub struct PackageReviewPass<'pass> {
     root_build_snapshot: Option<&'pass build_evaluation::BuildSnapshotRequest>,
     discovery: TargetEntryDiscovery,
     prior: Option<&'pass RetainedPackageReviews>,
-    dependency_inputs: Vec<[Option<OccurrenceBuildInputs>; 2]>,
 }
 
 /// The dependency scope is prepared once for all of a package's purposes
@@ -176,12 +158,13 @@ struct ReviewPackage<'pass> {
 
 /// One complete dependency execution service supplied by application Build.
 /// Package management selects policy passes; it does not assemble compiler stages.
-pub type PackageReviewExecutor =
-    for<'pass> fn(
+/// The borrowed executor retains application state across passes without moving
+/// a compiler into package-owned resource accounting.
+pub type PackageReviewExecutor<'execution> = dyn for<'pass> FnMut(
         PackageReviewPass<'pass>,
-        &mut PackageBuildSession,
         &mut PackageSourceBindings,
-    ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError>;
+    ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError>
+    + 'execution;
 
 impl<'pass> PackageReviewPass<'pass> {
     #[allow(clippy::too_many_arguments)]
@@ -211,13 +194,6 @@ impl<'pass> PackageReviewPass<'pass> {
                 },
             );
         }
-        let dependency_inputs = reconcile_build_inputs(target_closure, roster, root_build_snapshot)
-            .map_err(
-                |diagnostics| CompileResolvedPackageReviewsError::Compilation {
-                    package: closure.graph().root().clone(),
-                    diagnostics,
-                },
-            )?;
         let mut packages = Vec::new();
         for key in dependency_first_package_order(closure) {
             let missing = || CompileResolvedPackageReviewsError::IdentityMismatch {
@@ -254,7 +230,6 @@ impl<'pass> PackageReviewPass<'pass> {
             root_build_snapshot,
             discovery,
             prior,
-            dependency_inputs,
         })
     }
 
@@ -301,7 +276,6 @@ impl<'pass> PackageReviewPass<'pass> {
             discovery: self.discovery,
             prior: self.prior,
             source_bindings,
-            dependency_inputs: &self.dependency_inputs,
             fresh_components,
             recovered,
             reviews: Vec::with_capacity(self.roster.occurrence_count()),
@@ -332,9 +306,6 @@ pub struct PackageReviewRound<'pass> {
     discovery: TargetEntryDiscovery,
     prior: Option<&'pass RetainedPackageReviews>,
     source_bindings: &'pass mut PackageSourceBindings,
-    /// Named build inputs reconciled across every incoming edge, by graph
-    /// position and purpose slot.
-    dependency_inputs: &'pass [[Option<OccurrenceBuildInputs>; 2]],
     /// Dependency occurrences a consumer demanded a component description
     /// from that no carried record retained: they compile fresh and their
     /// replacement records carry the published description.
@@ -393,7 +364,6 @@ impl<'pass> PackageReviewRound<'pass> {
     pub fn admit_occurrence<'occurrence>(
         &mut self,
         occurrence: PackageReviewOccurrence<'occurrence>,
-        session: &mut PackageBuildSession,
     ) -> Result<Option<PackageReviewWork<'occurrence>>, CompileResolvedPackageReviewsError>
     where
         'pass: 'occurrence,
@@ -402,19 +372,14 @@ impl<'pass> PackageReviewRound<'pass> {
         if self.carry_prior_compile(&occurrence, &inputs, &assembled)? {
             return Ok(None);
         }
-        let request = CheckedCompileRequest {
-            build_execution_profile: self.execution_profile,
-            package_inputs: Some(inputs),
-            filesystem_sponsor: Some(session.filesystem_sponsor().clone()),
-            evaluation_sponsor: Some(session.evaluation_sponsor().clone()),
-            build_snapshot: Some(assembled.build_snapshot.clone()),
-            collect_timings: self.source_bindings.collect_timings,
-            permit_unsettled_fused_service_fields: self.discovery
-                == TargetEntryDiscovery::Dependencies,
-            ..CheckedCompileRequest::new(
-                &assembled.entry,
-                Some(occurrence.checked_target.target_name()),
-            )
+        let request = PackageReviewRequest {
+            inputs,
+            execution: package_compilation::build_execution::BuildExecutionContract {
+                profile: self.execution_profile,
+                snapshot: Some(assembled.build_snapshot.clone()),
+            },
+            entry: assembled.entry.clone(),
+            target: occurrence.checked_target,
         };
         Ok(Some(PackageReviewWork {
             request,
@@ -447,15 +412,16 @@ impl<'pass> PackageReviewRound<'pass> {
             ..
         } = *occurrence;
         let closure = self.closure;
+        // Every refusal below is this occurrence's: the row it names may be a
+        // dependency's, but the inputs that failed to assemble are the
+        // occurrence's own.
+        let refused = |errors: Vec<PackageCompilationInputError>| {
+            CompileResolvedPackageReviewsError::compilation_inputs(key, errors)
+        };
         let inputs = scope
             .compilation_inputs_reusing(&mut self.source_bindings.root_bindings[position])
             .and_then(|inputs| inputs.with_compilation_purpose(purpose))
-            .map_err(
-                |errors| CompileResolvedPackageReviewsError::CompilationInputs {
-                    package: key.clone(),
-                    errors,
-                },
-            )?;
+            .map_err(refused)?;
         let mut semantic_bindings = self
             .semantic_bindings_by_consumer
             .get(&(key.clone(), purpose))
@@ -493,12 +459,7 @@ impl<'pass> PackageReviewRound<'pass> {
         let inputs = inputs
             .with_semantic_role_discovery(self.discovery == TargetEntryDiscovery::Dependencies)
             .with_accepted_semantic_bindings(semantic_bindings)
-            .map_err(
-                |errors| CompileResolvedPackageReviewsError::CompilationInputs {
-                    package: key.clone(),
-                    errors,
-                },
-            )?;
+            .map_err(refused)?;
         let required_instances = inputs.required_dependency_source_instances();
         let mut dependency_bundles = Vec::with_capacity(required_instances.len());
         for dependency in scope
@@ -517,11 +478,10 @@ impl<'pass> PackageReviewRound<'pass> {
                         self.review_positions[position][purpose_slot(dependency_purpose)]
                     })
                     .and_then(|position| self.reviews.get(position));
-                let review = dependency_review.ok_or(
-                    PackageCompilationInputError::MissingGeneratedSourceBundle {
+                let review =
+                    dependency_review.ok_or(PackageCompilationInputError::MissingBuildHandoff {
                         package: dependency.identity(),
-                    },
-                );
+                    });
                 let review = review.map_err(|error| {
                     CompileResolvedPackageReviewsError::CompilationInputs {
                         package: key.clone(),
@@ -530,7 +490,7 @@ impl<'pass> PackageReviewRound<'pass> {
                 })?;
                 let custody = closure
                     .custody(dependency)
-                    .ok_or(PackageCompilationInputError::ForeignGeneratedSourceBundle {
+                    .ok_or(PackageCompilationInputError::ForeignBuildHandoff {
                         package: dependency.identity(),
                     })
                     .map_err(
@@ -539,7 +499,7 @@ impl<'pass> PackageReviewRound<'pass> {
                             errors: vec![error],
                         },
                     )?;
-                let bundle = review.generated_source_bundle();
+                let bundle = review.build_handoff();
                 if review.resolution() != custody.resolution()
                     || bundle.package() != dependency.identity()
                     || bundle.source_consumption_commitment()
@@ -547,18 +507,16 @@ impl<'pass> PackageReviewRound<'pass> {
                 {
                     return Err(CompileResolvedPackageReviewsError::CompilationInputs {
                         package: key.clone(),
-                        errors: vec![
-                            PackageCompilationInputError::GeneratedSourceBundleCustodyMismatch {
-                                package: dependency.identity(),
-                            },
-                        ],
+                        errors: vec![PackageCompilationInputError::BuildHandoffCustodyMismatch {
+                            package: dependency.identity(),
+                        }],
                     });
                 }
                 dependency_bundles.push(bundle.clone());
             }
         }
         let inputs = inputs
-            .with_complete_dependency_generated_sources(dependency_bundles)
+            .with_complete_dependency_build_handoffs(dependency_bundles)
             .map_err(
                 |errors| CompileResolvedPackageReviewsError::CompilationInputs {
                     package: key.clone(),
@@ -582,7 +540,7 @@ impl<'pass> PackageReviewRound<'pass> {
         // inventory extent in the review's build observation. Only the root
         // may receive a caller-selected source inventory and fixed output
         // roster; dependency source inventories remain their own. Explicit
-        // named inputs are separate grants selected for this occurrence. Otherwise
+        // named inputs belong only to the root invocation. Otherwise
         // the outputs a package build must complete are declared through
         // `builder.output.require`, registered during evaluation, and settled
         // against sealed staged custody before the result publishes; package
@@ -591,13 +549,9 @@ impl<'pass> PackageReviewRound<'pass> {
         // that scoped execution forbids (a conditional branch omitting
         // `require` must not be reinterpreted as having checked the artifact).
         let build_snapshot = if key == closure.graph().root() {
-            self.root_build_snapshot
-                .cloned()
-                .map(build_evaluation::BuildSnapshotRequest::without_dependency_inputs)
+            self.root_build_snapshot.cloned()
         } else {
-            self.dependency_inputs[position][purpose_slot(purpose)]
-                .as_ref()
-                .map(|assignment| assignment.snapshot.clone())
+            None
         }
         .unwrap_or_else(|| {
             build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())
@@ -666,14 +620,10 @@ impl<'pass> PackageReviewRound<'pass> {
         // package identity, purpose, checked context, entry, toolchain,
         // and the complete live inputs, and the decoded record
         // re-verifies its own canonical payloads before it counts.
-        // A compile that used the discovery-only tolerance carries only into
-        // a discovery pass, which permits the same tolerance and so would
-        // compute the same provisional result; a bound pass withholds it and
-        // compiles fresh. Discovery mode is part of the inputs, so a record
+        // Discovery mode remains part of the admitted inputs, so a record
         // a discovery pass stored only answers another discovery pass. The
         // graph root is never persisted: its checked compilation is the
         // invocation's product.
-        let tolerance_permitted = self.discovery == TargetEntryDiscovery::Dependencies;
         let reused = self
             .recovered
             .iter()
@@ -692,8 +642,6 @@ impl<'pass> PackageReviewRound<'pass> {
                             && occurrence.entry == *entry
                             && occurrence.inputs == *unanswered_inputs
                             && occurrence.build_snapshot == *build_snapshot
-                            && (tolerance_permitted
-                                || !occurrence.compilation.tolerated_unsettled_service_fields())
                     })
                     .and_then(|occurrence| {
                         prior
@@ -732,9 +680,6 @@ impl<'pass> PackageReviewRound<'pass> {
                 let policy_canonical_bytes = record.policy_canonical_bytes()?;
                 let (review, facts) = record.into_review_and_facts(key, custody.resolution())?;
                 let occurrence = OccurrenceCompile::Cached(Box::new(facts));
-                if occurrence.tolerated_unsettled_service_fields() && !tolerance_permitted {
-                    return None;
-                }
                 Some((occurrence, review, policy_canonical_bytes, false))
             });
         let Some((compile, review, policy_canonical_bytes, compiled_in_pass)) = carried else {
@@ -870,13 +815,11 @@ impl<'pass> PackageReviewRound<'pass> {
             semantic_bindings,
             service_binding_candidates,
             hosted_exit_binding_candidates,
-            generated_source_bundle,
+            build_handoff,
             policy,
             policy_canonical_bytes,
         } = evidence;
-        if generated_source_bundle.package() != key.identity()
-            || generated_source_bundle.target() != checked_target
-        {
+        if build_handoff.package() != key.identity() || build_handoff.target() != checked_target {
             return Err(CompileResolvedPackageReviewsError::IdentityMismatch {
                 package: key.clone(),
             });
@@ -931,7 +874,7 @@ impl<'pass> PackageReviewRound<'pass> {
             restricted_build_requests,
             semantic_bindings,
             semantic_binding_candidates,
-            generated_source_bundle: generated_source_bundle.clone(),
+            build_handoff: build_handoff.clone(),
             policy,
             policy_rows,
             policy_commitment,
@@ -944,8 +887,6 @@ impl<'pass> PackageReviewRound<'pass> {
         // the same shape the in-session carry takes.
         let mut cache_write = None;
         if key != closure.graph().root()
-            && (self.discovery == TargetEntryDiscovery::Dependencies
-                || !source.facts().tolerated_unsettled_service_fields)
             && let Some(directory) = custody.compiled_review_cache_dir()
             && let Some(cache) = super::super::review_cache::CompiledReviewCache::open(directory)
             && let Some(consumed_units) = source.facts().consumed_units.as_ref()
@@ -955,9 +896,6 @@ impl<'pass> PackageReviewRound<'pass> {
             if let Some(record) = super::super::review_cache::record_compiled_review(
                 &review,
                 super::super::review_cache::CachedOccurrenceFacts {
-                    tolerated_unsettled_service_fields: source
-                        .facts()
-                        .tolerated_unsettled_service_fields,
                     consumed_units: consumed_units.to_vec(),
                     source_consumption_commitment,
                     component_description: None,
@@ -1008,9 +946,7 @@ impl<'pass> PackageReviewRound<'pass> {
         let services = self
             .reviews
             .iter()
-            .find(|review| {
-                &review.key == root && review.generated_source_bundle.purpose().is_product()
-            })
+            .find(|review| &review.key == root && review.build_handoff.purpose().is_product())
             .ok_or_else(|| CompileResolvedPackageReviewsError::IdentityMismatch {
                 package: root.clone(),
             })?
@@ -1072,9 +1008,18 @@ impl<'pass> PackageReviewRound<'pass> {
 /// Whole-occurrence work admitted by package policy, with its completion
 /// context retained alongside the compiler request.
 pub struct PackageReviewWork<'occurrence> {
-    pub request: CheckedCompileRequest,
+    pub request: PackageReviewRequest,
     pub completion: PackageReviewCompletion<'occurrence>,
     pub maximum_policy_canonical_bytes: usize,
+}
+
+/// An admitted Product judgment and the execution obligations it consumes.
+/// No resource grant is issued here: retained Builds must satisfy the contract.
+pub struct PackageReviewRequest {
+    pub inputs: PackageCompilationInputs,
+    pub execution: package_compilation::build_execution::BuildExecutionContract,
+    pub target: target::TargetProfile,
+    pub entry: std::path::PathBuf,
 }
 
 pub struct PackageReviewCompletion<'occurrence> {
@@ -1085,19 +1030,6 @@ pub struct PackageReviewCompletion<'occurrence> {
 }
 
 impl PackageReviewCompletion<'_> {
-    /// Reserve staging only when Build will really execute. A resumed opaque
-    /// continuation keeps its original staging and charges no second grant.
-    pub fn reserve_build_directory(
-        &self,
-        session: &mut PackageBuildSession,
-    ) -> Result<std::path::PathBuf, CompileResolvedPackageReviewsError> {
-        session.create_occurrence_directory(
-            self.occurrence.key,
-            self.occurrence.custody.resolution(),
-            self.occurrence.purpose,
-        )
-    }
-
     pub fn compilation_failure(
         &self,
         failure: CompileFailure,
@@ -1119,10 +1051,7 @@ impl PackageReviewCompletion<'_> {
         &self,
         errors: Vec<PackageCompilationInputError>,
     ) -> CompileResolvedPackageReviewsError {
-        CompileResolvedPackageReviewsError::CompilationInputs {
-            package: self.occurrence.key.clone(),
-            errors,
-        }
+        CompileResolvedPackageReviewsError::compilation_inputs(self.occurrence.key, errors)
     }
 
     pub fn review_failure(

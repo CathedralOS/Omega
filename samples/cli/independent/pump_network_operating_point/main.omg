@@ -12,7 +12,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> model(input)
         false -> invalid()
     }
-    state model(input: Input) {
+    machine model(input: Input) {
         let network: Network = Network {
             a: input.values[0], b: input.values[1], c: input.values[2],
             d: input.values[3], r1: input.values[4], r2: input.values[5],
@@ -23,7 +23,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> invalid()
         }
     }
-    state operating(network: Network) {
+    machine operating(network: Network) {
         let mut solver: Solver;
         solver.network = network;
         solve(&mut solver);
@@ -32,9 +32,9 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> infeasible()
         }
     }
-    state success() { Console::exit_process(0); }
-    state infeasible() { Console::write_line("INFEASIBLE"); Console::exit_process(2); }
-    state invalid() { Console::write_line("INVALID_INPUT"); Console::exit_process(64); }
+    machine success() { Console::exit_process(0); }
+    machine infeasible() { Console::write_line("INFEASIBLE"); Console::exit_process(2); }
+    machine invalid() { Console::write_line("INVALID_INPUT"); Console::exit_process(64); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

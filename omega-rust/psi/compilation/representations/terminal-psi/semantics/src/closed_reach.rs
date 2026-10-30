@@ -27,7 +27,7 @@ fn validate_telescope(
 /// occurrence joins are independently reconstructible without source trees.
 pub fn validate_closed_reach_applications(module: &TerminalModule) -> Result<(), &'static str> {
     use std::collections::{BTreeMap, BTreeSet};
-    use terminal_psi::{ClosedReachArgument, Operation, TerminalIdentityIndex};
+    use terminal_psi::{ClosedReachArgument, TerminalIdentityIndex};
 
     let machines = module
         .machines
@@ -78,16 +78,31 @@ pub fn validate_closed_reach_applications(module: &TerminalModule) -> Result<(),
         if operations.len() != machine.operations().count() {
             return Err("closed reach owner operation identities are ambiguous");
         }
-        let declaration = machine.declaration.as_ref().and_then(|declaration| declaration.specialization.as_ref());
+        if operations.values().any(|operation| {
+            operation.static_reach_binding.is_some() && operation.kind.module_invocation().is_none()
+        }) {
+            return Err("closed reach marker is not an ordinary module invocation");
+        }
+        let invocations = machine
+            .module_invocations()
+            .map(|invocation| (invocation.site, invocation))
+            .collect::<BTreeMap<_, _>>();
+        if invocations.len() != machine.module_invocations().count() {
+            return Err("closed reach invocation identities are ambiguous");
+        }
+        let declaration = machine
+            .declaration
+            .as_ref()
+            .and_then(|declaration| declaration.specialization.as_ref());
         let Some(application) = &machine.closed_reach_application else {
             if declaration.is_some() {
                 return Err("checked specialization has no retained application");
             }
-            if operations
+            if invocations
                 .values()
-                .any(|operation| operation.static_reach_binding.is_some())
+                .any(|invocation| invocation.static_reach_binding.is_some())
             {
-                return Err("closed reach operation marker has no retained application");
+                return Err("closed reach invocation marker has no retained application");
             }
             continue;
         };
@@ -103,20 +118,31 @@ pub fn validate_closed_reach_applications(module: &TerminalModule) -> Result<(),
         {
             return Err("closed reach application differs from its checked declaration commitment");
         }
-        match (declaration.and_then(|declaration| declaration.capture.as_ref()), &application.capture) {
+        match (
+            declaration.and_then(|declaration| declaration.capture.as_ref()),
+            &application.capture,
+        ) {
             (None, None) => {}
-            (Some(expected), Some(capture)) if expected.template_identity == capture.template_identity
-                && expected.template_commitment == capture.template_commitment
-                && expected.specialization_commitment == capture.specialization_commitment => {
-                    identity(expected.template_identity)?;
-                }
-            _ => return Err("closed reach capture differs from its independent checked declaration"),
+            (Some(expected), Some(capture))
+                if expected.template_identity == capture.template_identity
+                    && expected.template_commitment == capture.template_commitment
+                    && expected.specialization_commitment == capture.specialization_commitment =>
+            {
+                identity(expected.template_identity)?;
+            }
+            _ => {
+                return Err(
+                    "closed reach capture differs from its independent checked declaration",
+                );
+            }
         }
         validate_telescope(&application.parameter_kinds, &application.telescope)?;
         if let Some(capture) = &application.capture {
             validate_telescope(&capture.parameter_kinds, &capture.telescope)?;
             identity(capture.template_identity)?;
-            if capture.template_commitment == [0; 32] || capture.specialization_commitment == [0; 32] {
+            if capture.template_commitment == [0; 32]
+                || capture.specialization_commitment == [0; 32]
+            {
                 return Err("closed reach capture lost its checked application commitment");
             }
         }
@@ -141,13 +167,20 @@ pub fn validate_closed_reach_applications(module: &TerminalModule) -> Result<(),
                     {
                         return Err("closed reach machine binder lost its public contract");
                     }
-                    if binding.requirement_parameter_kinds.len() != binding.requirement_arguments.len()
-                        || binding.requirement_parameter_kinds.iter().any(|kind| *kind > 5)
-                        || (binding.nominal_requirement.is_none() && !binding.requirement_arguments.is_empty())
+                    if binding.requirement_parameter_kinds.len()
+                        != binding.requirement_arguments.len()
+                        || binding
+                            .requirement_parameter_kinds
+                            .iter()
+                            .any(|kind| *kind > 5)
+                        || (binding.nominal_requirement.is_none()
+                            && !binding.requirement_arguments.is_empty())
                     {
                         return Err("closed reach requirement lost its full declaration telescope");
                     }
-                    for argument in &binding.requirement_arguments { identity(*argument)?; }
+                    for argument in &binding.requirement_arguments {
+                        identity(*argument)?;
+                    }
                     row(&binding.upper_bound)?;
                     row(&binding.selected_reach)?;
                     if binding
@@ -192,8 +225,7 @@ pub fn validate_closed_reach_applications(module: &TerminalModule) -> Result<(),
         }
         let mut union = application.fixed.iter().copied().collect::<BTreeSet<_>>();
         for dependency in &application.dependencies {
-            let Some(ClosedReachParameter::Machine(binding)) =
-                application.parameter(*dependency)
+            let Some(ClosedReachParameter::Machine(binding)) = application.parameter(*dependency)
             else {
                 return Err("closed reach dependency is outside its machine telescope");
             };
@@ -208,26 +240,22 @@ pub fn validate_closed_reach_applications(module: &TerminalModule) -> Result<(),
         if application
             .calls
             .windows(2)
-            .any(|pair| pair[0].operation >= pair[1].operation)
+            .any(|pair| pair[0].site >= pair[1].site)
         {
             return Err("closed reach call occurrences are not strictly ordered");
         }
         for call in &application.calls {
-            let operation: &&Operation = operations
-                .get(&call.operation)
-                .ok_or("closed reach call has no exact owner operation")?;
-            if operation.static_reach_binding != Some(call.binder) {
-                return Err("closed reach call differs from its operation binder marker");
+            let invocation = invocations
+                .get(&call.site)
+                .ok_or("closed reach call has no exact owner invocation")?;
+            if invocation.static_reach_binding != Some(call.binder) {
+                return Err("closed reach call differs from its invocation binder marker");
             }
-            let Some(ClosedReachParameter::Machine(binding)) =
-                application.parameter(call.binder)
+            let Some(ClosedReachParameter::Machine(binding)) = application.parameter(call.binder)
             else {
                 return Err("closed reach call is outside its machine telescope");
             };
-            let callee = operation
-                .kind
-                .direct_callee()
-                .ok_or("closed reach marked operation is not a direct call")?;
+            let callee = invocation.inputs.callee;
             match (&binding.schema, &call.application) {
                 (None, None) if binding.callee == Some(callee) => {}
                 (Some(schema), Some(expected)) if expected.callee == callee => {
@@ -278,15 +306,15 @@ pub fn validate_closed_reach_applications(module: &TerminalModule) -> Result<(),
                 _ => return Err("closed reach direct call lost its exact selection or schema"),
             }
         }
-        for operation in operations.values() {
-            if let Some(binder) = operation.static_reach_binding {
+        for invocation in invocations.values() {
+            if let Some(binder) = invocation.static_reach_binding {
                 let call = application
                     .calls
-                    .binary_search_by_key(&operation.id, |call| call.operation)
+                    .binary_search_by_key(&invocation.site, |call| call.site)
                     .ok()
                     .and_then(|position| application.calls.get(position));
                 if call.is_none_or(|call| call.binder != binder) {
-                    return Err("closed reach operation marker has no exact call occurrence");
+                    return Err("closed reach invocation marker has no exact call occurrence");
                 }
             }
         }

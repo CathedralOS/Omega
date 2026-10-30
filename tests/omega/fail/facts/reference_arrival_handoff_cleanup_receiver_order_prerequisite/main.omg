@@ -114,8 +114,8 @@ machine exercise(pick: bool) reaches Console crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 data Main {}
 machine Main::main(main: &mut Main) reaches Console crashes Trap {

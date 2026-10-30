@@ -245,6 +245,24 @@ impl<'program> Evaluator<'program> {
         call: &TableCall,
         frame: &mut Frame,
     ) -> EvalResult<Value> {
+        if let Some(dispatch) = &call.static_requirement_dispatch {
+            return self.run_selected_realization(
+                dispatch.realization_state,
+                self.program
+                    .statement_table
+                    .expression_handles(call.arguments),
+                frame,
+            );
+        }
+        if let Some(slot) = self.program.dynamic_slot_by_symbol(call.target_symbol) {
+            return self.run_dynamic_slot(
+                slot,
+                self.program
+                    .statement_table
+                    .expression_handles(call.arguments),
+                frame,
+            );
+        }
         if let Some(value) = self.try_selected_named_call(
             call.receiver_symbol,
             call.target_symbol,
@@ -268,10 +286,33 @@ impl<'program> Evaluator<'program> {
         // steps too.
         // Port I/O (`asm#port_out`) has real device effects the interpreter
         // cannot reproduce and stays unsupported.
-        if call.target.as_str() == "asm#popfq"
-            || language_core::inline_assembly::AsmFenceKind::from_intrinsic_name(
-                call.target.as_str(),
-            )
+        // POPFQ restores arithmetic flag bits into the supplied environment;
+        // without one the restore has no honest meaning.
+        if call.target.as_str() == "asm#popfq" {
+            let arguments = self
+                .program
+                .statement_table
+                .expression_handles(call.arguments);
+            let [image] = arguments else {
+                return Err(Halt::Unsupported(
+                    "popfq requires one image operand".to_owned(),
+                ));
+            };
+            let value = self.eval_expression(*image, frame)?;
+            let Value::Int(image) = value else {
+                return Err(Halt::Trap(
+                    "popfq image operand did not evaluate to an integer".to_owned(),
+                ));
+            };
+            let Some(environment) = self.x86_flags.as_mut() else {
+                return Err(Halt::Unsupported(
+                    "popfq requires an explicitly supplied target flags environment in Terminal execution".to_owned(),
+                ));
+            };
+            environment.restore_arithmetic_bits(image as u64);
+            return Ok(Value::Unit);
+        }
+        if language_core::inline_assembly::AsmFenceKind::from_intrinsic_name(call.target.as_str())
             .is_some()
             || language_core::inline_assembly::AsmInterruptControlKind::from_intrinsic_name(
                 call.target.as_str(),
@@ -292,124 +333,25 @@ impl<'program> Evaluator<'program> {
         {
             return Ok(Value::Unit);
         }
-        if let Some(value) = self.try_component_assumption_acceptance(
-            call.target_symbol,
-            self.program
-                .statement_table
-                .expression_handles(call.arguments),
-            frame,
-        )? {
-            return Ok(value);
+        // The resolved-toolchain facet ladder, shared with the expression
+        // position: a call statement discards whatever a facet query returns.
+        if self
+            .try_build_facet_routes(
+                call.target_symbol,
+                self.program
+                    .statement_table
+                    .expression_handles(call.arguments),
+                call.source_span,
+                frame,
+            )?
+            .is_some()
+        {
+            return Ok(Value::Unit);
         }
         // Exclusions include exact static Build calls: their authority is an
         // explicit argument, so namespace classification cannot bypass them.
         if let Some(value) = self.try_behavior_exclusion_statement(statement, call, frame)? {
             return Ok(value);
-        }
-        // Discarding an entry description still performs the exact query;
-        // its explicit facet cannot be bypassed by namespace classification.
-        if self
-            .try_build_product_entry_call(
-                call.target_symbol,
-                self.program
-                    .statement_table
-                    .expression_handles(call.arguments),
-                call.source_span,
-                frame,
-            )?
-            .is_some()
-        {
-            return Ok(Value::Unit);
-        }
-        if self
-            .try_build_product_schema_call(
-                call.target_symbol,
-                self.program
-                    .statement_table
-                    .expression_handles(call.arguments),
-                call.source_span,
-                frame,
-            )?
-            .is_some()
-        {
-            return Ok(Value::Unit);
-        }
-        if self
-            .try_build_product_provider_call(
-                call.target_symbol,
-                self.program
-                    .statement_table
-                    .expression_handles(call.arguments),
-                call.source_span,
-                frame,
-            )?
-            .is_some()
-        {
-            return Ok(Value::Unit);
-        }
-        if self
-            .try_product_description_path_call(
-                call.target_symbol,
-                self.program
-                    .statement_table
-                    .expression_handles(call.arguments),
-                frame,
-            )?
-            .is_some()
-        {
-            return Ok(Value::Unit);
-        }
-        if let Some(value) = self.try_build_path_call(
-            call.target_symbol,
-            self.program
-                .statement_table
-                .expression_handles(call.arguments),
-            frame,
-        )? {
-            return Ok(value);
-        }
-        // `BuildOutput::require(&mut builder.output, name);` still issues the
-        // obligation when the marker result is dropped, and `complete`/`fail`
-        // still settle their operand obligation. Both take the facet as an
-        // explicit operand, so neither depends on a receiver place.
-        if self
-            .try_build_output_obligation_call(
-                call.target_symbol,
-                self.program
-                    .statement_table
-                    .expression_handles(call.arguments),
-                frame,
-            )?
-            .is_some()
-        {
-            return Ok(Value::Unit);
-        }
-        if self
-            .try_required_output_path_call(
-                call.target_symbol,
-                self.program
-                    .statement_table
-                    .expression_handles(call.arguments),
-                frame,
-            )?
-            .is_some()
-        {
-            return Ok(Value::Unit);
-        }
-        // Build logging takes the activation's log facet as an explicit
-        // operand, so it is selected here by resolved toolchain identity
-        // beside the other facet families rather than by receiver shape.
-        if self
-            .try_build_log_write_line_call(
-                call.target_symbol,
-                self.program
-                    .statement_table
-                    .expression_handles(call.arguments),
-                frame,
-            )?
-            .is_some()
-        {
-            return Ok(Value::Unit);
         }
         // Host boundary call? (e.g. self.console.exit_process(70))
         if let Some(value) = self.try_host_call(call, frame)? {

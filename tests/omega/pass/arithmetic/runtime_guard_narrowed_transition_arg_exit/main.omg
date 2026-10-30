@@ -19,18 +19,18 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> bump(context, counter.count + 1, &mut counter)
         _ -> sat(context)
     }
-    state bump(context: &mut Main, next: i32, counter: &mut Counter)
+    machine bump(context: &mut Main, next: i32, counter: &mut Counter)
         requires 0 <= next && next <= 100
     {
         counter.count = next;
         transition { _ -> check(context, counter) }
     }
-    state check(context: &mut Main, counter: &mut Counter) {
+    machine check(context: &mut Main, counter: &mut Counter) {
         transition counter.count == 1 { true -> ok(context) _ -> bad(context) }
     }
-    state sat(context: &mut Main) { Console::exit_process(71); }
-    state ok(context: &mut Main)  { Console::exit_process(70); }
-    state bad(context: &mut Main) { Console::exit_process(71); }
+    machine sat(context: &mut Main) { Console::exit_process(71); }
+    machine ok(context: &mut Main)  { Console::exit_process(70); }
+    machine bad(context: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -23,9 +23,9 @@ machine main() crashes Trap {
         PlacementOutcome::Ready { view } -> finish(placed_read(&view.entries[1]))
         PlacementOutcome::Rejected { returned, reason } -> wrong()
     }
-    state finish(value: u32) {
+    machine finish(value: u32) {
         transition value == 41 { true -> done() _ -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

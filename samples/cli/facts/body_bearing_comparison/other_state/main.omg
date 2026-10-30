@@ -24,7 +24,7 @@ requires direct == false
 machine main() crashes Trap {
     let value: f64 in Marked = 1.0;
     transition { _ -> check(value, value) }
-    state check(left: f64 in Marked, right: f64 in Marked) {
+    machine check(left: f64 in Marked, right: f64 in Marked) {
         let direct: bool = compare(left, right);
         let matched: u64 = choose(left, right);
         transition hold(direct) && matched == 11 {
@@ -32,6 +32,6 @@ machine main() crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

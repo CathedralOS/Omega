@@ -15,7 +15,7 @@ machine main() crashes Trap {
     let mut other: Slot = Slot::Present { value: 0 };
     let mut visits: u64 = 0;
     transition { _ -> pick(&mut chosen, &mut other, &mut visits) }
-    state pick(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) {
+    machine pick(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) {
         let selected: &mut i64 = match choose(visits) {
             true -> &mut chosen.value
             false -> &mut other.value
@@ -28,6 +28,6 @@ machine main() crashes Trap {
             false -> wrong()
         }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

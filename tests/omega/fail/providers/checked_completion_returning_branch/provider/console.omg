@@ -10,8 +10,8 @@ public NativeConsole satisfies Console {
             true -> leaving(return_code)
             false -> returning()
         }
-        state leaving(return_code: i32) { ConsoleNativeProvider::exit_process(return_code); }
-        state returning() { }
+        machine leaving(return_code: i32) { ConsoleNativeProvider::exit_process(return_code); }
+        machine returning() { }
     }
 }
 macos_arm64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut ConsoleNativeProvider) {

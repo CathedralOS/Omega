@@ -1,18 +1,20 @@
 // Fact: querying size_of and align_of on a two-field u64 structural record (Pair { lo: u64, hi: u64 }) establishes its exact layout geometry (size == 16u64 and align == 8u64), discharging exact subtraction size - (align * 2u64) across all nine places.
-// Invalid: Pair has a single field lo: u64 (size == 8u64, align == 8u64), so query_geometry() underflows u64.
+// Place: another machine. An intermediate forwarding machine delegates the subtraction to the geometry query machine.
 // Expected exit: 0
 
 data Pair {
     lo: u64;
 }
 
-machine query_geometry() -> u64 {
+machine query_geometry() -> u64 crashes Trap {
     let s: u64 = size_of<Pair>();
     let a: u64 = align_of<Pair>();
-    s - (a * 2u64)
+    let diff: u64 = s - (a * 2u64);
+    verify_geometry(s, a, diff);
+    diff
 }
 
-machine runner() -> u64 {
+machine runner() -> u64 crashes Trap {
     query_geometry()
 }
 
@@ -22,6 +24,16 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// Runtime verification happens after exact arithmetic has formed; it cannot
+// establish the static range obligation of the preceding subtraction.
+machine verify_geometry(size: u64, align: u64, diff: u64) crashes Trap {
+    transition size == 16u64 && align == 8u64 && diff == 0u64 {
+        true -> {}
+        _ -> bad()
+    }
+    machine bad() { crash Trap; }
 }

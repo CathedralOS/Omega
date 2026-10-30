@@ -46,7 +46,9 @@
 pub(crate) use optimization_core::codec_bytes;
 pub(crate) use optimization_core::digest_encoder;
 mod function_realization;
+mod native_bridge_encoding;
 pub mod native_entry_bridge;
+pub mod native_foreign_bridge;
 
 pub use function_realization::{
     FunctionRelativeFrame, StagedFixedFrameFunctionRelativeRealization,

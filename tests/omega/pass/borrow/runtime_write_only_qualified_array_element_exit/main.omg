@@ -1,7 +1,7 @@
 // Expected exit: 0. Qualified array elements retain their complete referee
 // contract through indexed write-only calls, captures, fields and state arrivals.
 // Qualification retains the exact eight-byte carrier, never a live-length owner.
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 8]::Utf8 requires valid_utf8(self);
 data Container { entries: [[u8; 8] in Utf8; 2]; }
 
 machine initialize(bytes: &write [u8; 8] in Utf8) { bytes = "éééé"; }
@@ -17,13 +17,13 @@ machine field(container: &mut Container) {
 }
 machine relay(entries: &write [[u8; 8] in Utf8; 2]) {
     transition { _ -> finish(&write entries) }
-    state finish(entries: &write [[u8; 8] in Utf8; 2]) {
+    machine finish(entries: &write [[u8; 8] in Utf8; 2]) {
         initialize(&write entries[1]);
     }
 }
 machine relay_owner(bytes: &write [u8; 8] in Utf8) {
     transition { _ -> finish(&write bytes) }
-    state finish(bytes: &write [u8; 8] in Utf8) {
+    machine finish(bytes: &write [u8; 8] in Utf8) {
         initialize(&write bytes);
     }
 }
@@ -59,6 +59,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -19,7 +19,6 @@ pub mod flow;
 pub mod keyed_rows;
 pub mod operators;
 pub mod proof;
-pub mod service_parameter;
 pub mod statement;
 pub mod values;
 
@@ -32,10 +31,10 @@ pub use admissibility::{
     StatementAcceptance,
 };
 pub use borrow::{
-    BorrowAccessKind, BorrowArgumentAccessFact, BorrowCallFact, BorrowFacts, BorrowLoanFact,
-    BorrowLoanLineage, BorrowLoanOwnerSegment, BorrowRetainedOperand, BorrowReturnedLoanFact,
-    BorrowRootKind, BorrowWritableRootFact, CapturedPlace, CapturedPlaceCompatibility,
-    CapturedPlaceContainment, CheckedBorrowResourceDispositionTarget,
+    BorrowAccessKind, BorrowArgumentAccessFact, BorrowCallFact, BorrowCallReferenceSlotEffect,
+    BorrowFacts, BorrowLoanFact, BorrowLoanLineage, BorrowLoanOwnerSegment, BorrowRetainedOperand,
+    BorrowReturnedLoanFact, BorrowRootKind, BorrowWritableRootFact, CapturedPlace,
+    CapturedPlaceCompatibility, CapturedPlaceContainment, CheckedBorrowResourceDispositionTarget,
     CheckedBorrowResourceLifecyclePhase, CheckedCallBorrowLoanResource,
     CheckedCallBorrowLoanSource, CheckedDirectBorrowLoanResource,
     CheckedDirectBorrowParentLifetime, CheckedDirectBorrowRestorationObligation,
@@ -48,19 +47,28 @@ pub use borrow::{
 };
 pub use facts::CheckedValueQualification;
 pub use facts::{
+    CheckedDeclarationCapture, CheckedDeclarationDescription, CheckedDeclarationDescriptions,
+    CheckedDeclarationParameter, CheckedDeclarationSpecialization, CheckedMachineDescription,
+};
+pub use facts::{
     CheckedMachineRankCorrespondence, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
     CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
     CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,
-    CheckedRankPremiseRegime, CheckedRankReceivingCoordinate, CheckedRankValueDerivation,
-    CheckedRuntimeNaturalState, CheckedRuntimeRankComponent, CheckedRuntimeRankEdge,
-    CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent, CheckedSourceNaturalRankEdge,
-    CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
+    CheckedRankObservation, CheckedRankPremiseRegime, CheckedRankReceivingCoordinate,
+    CheckedRankValueDerivation, CheckedRuntimeNaturalState, CheckedRuntimeRankComponent,
+    CheckedRuntimeRankEdge, CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent,
+    CheckedSourceNaturalRankEdge, CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
+};
+pub use facts::{
+    ProofApplicationMachine, ProofApplicationPlan, ProofApplicationTargetMember, ProofApplications,
+    ProofDeclarationDependencies,
 };
 
 pub use facts::{
     CheckedStoredIntegerWrite, ConstantRecipeObligation, ConstantRecipeRequirement,
     ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupEntryRequirement,
-    ContextualCleanupEntryRequirements, ContextualCleanupFacts, ContextualStorageEstablishment,
+    ContextualCleanupEntryRequirements, ContextualCleanupExcludedRegion,
+    ContextualCleanupExclusionCause, ContextualCleanupFacts, ContextualStorageEstablishment,
     DecidedCallRequires, ProvenAssignmentIndex, StoredIntegerWriteSite,
 };
 
@@ -80,22 +88,23 @@ pub use facts::{
     CheckedRequirementCallSpecialization, CheckedRequirementCallTypeBinding,
     CheckedResourceAxisAnchor, CheckedResourceDerivationObligation,
     CheckedRuntimeMembershipSubject, CheckedSpecializationIdentities, CheckedStateLocal,
-    ClaimCarryPolicyFact, ClosedFloatRangeRequirement, ClosedIntegerRangeRequirement,
-    ClosedScalarContractValue, ClosedScalarValueContractPlan, ContentClassFacts, ContentClassRow,
-    ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
-    ContentPartitionInputClaimBinding, ContentPartitionPlaceSubstitution,
-    ContentPartitionResultRewrite, ContentProjectionFacts, CrashCallSiteLocation, CrashCause,
-    CrashContractCapsule, CrashInterface, CrashPlan, CrashPredicateExpression,
-    CrashPredicateIdentity, CrashRouteBucket, CrashRouteBucketId, CrashRouteGuard,
-    CrashSiteLocation, DataCarryFact, DeclaredCallableContract, DeclaredContractClause,
-    DeclaredContractFact, DeclaredContractKind, DeclaredContractParameter,
-    DeclaredContractStructure, DeclaredProgressPremise, DeclaredTermination, DomainDependencyFact,
-    DomainDependencyPathFact, DomainFacts, DynamicConformanceFacts, DynamicConformanceRowFact,
-    DynamicConformanceRowSource, DynamicSelectionFact, IndexCompatibilityDischarge,
-    IndexCompatibilityFact, IndexCompatibilityFacts, MachineActivationCarryFact,
-    MachineBlockingFact, MachineContractCommitment, MachineContractIdentity, MachineContractPlan,
-    MachineContractPlans, MachineMutationFact, MachineQualifications, MachineServiceReachRows,
-    MachineSuspensionFact, MachineSynchronousInvocationFact, MachineTerminationFact, MutationFacts,
+    CheckedTrappingSite, ClaimCarryPolicyFact, ClosedFloatRangeRequirement,
+    ClosedIntegerRangeRequirement, ClosedScalarContractValue, ClosedScalarValueContractPlan,
+    ContentClassFacts, ContentClassRow, ContentIdentityReshuffleFact,
+    ContentPartitionCompositionFact, ContentPartitionInputClaimBinding,
+    ContentPartitionPlaceSubstitution, ContentPartitionResultRewrite, ContentPartitionReturnFact,
+    ContentProjectionFacts, CrashCallSiteLocation, CrashCause, CrashContractCapsule,
+    CrashInterface, CrashPlan, CrashPredicateExpression, CrashPredicateIdentity, CrashRouteBucket,
+    CrashRouteBucketId, CrashRouteGuard, CrashSiteLocation, DataCarryFact,
+    DeclaredCallableContract, DeclaredContractClause, DeclaredContractFact, DeclaredContractKind,
+    DeclaredContractParameter, DeclaredContractStructure, DeclaredProgressPremise,
+    DeclaredTermination, DomainDependencyFact, DomainDependencyPathFact, DomainFacts,
+    DynamicConformanceFacts, DynamicConformanceRowFact, DynamicConformanceRowSource,
+    DynamicSelectionFact, IndexCompatibilityDischarge, IndexCompatibilityFact,
+    IndexCompatibilityFacts, MachineActivationCarryFact, MachineBlockingFact,
+    MachineContractCommitment, MachineContractIdentity, MachineContractPlan, MachineContractPlans,
+    MachineMutationFact, MachineQualifications, MachineServiceReachRows, MachineSuspensionFact,
+    MachineSynchronousInvocationFact, MachineTerminationFact, MutationFacts,
     NominalMachineUseFacts, NominalMachineUseSite, OperatorSiteLocation, PerformedIntegerWrite,
     QualificationFacts, RealizedMachineContractEnvelope, ReferenceCustodyFacts,
     ReferenceCustodyRow, RequirementCallSpecializationFacts, ResolvedCarrierType,
@@ -113,13 +122,13 @@ pub use operators::{
     CheckedArithmeticPolicyAdapter, CheckedBoundaryApplicationOperands,
     CheckedBoundaryBodyCandidate, CheckedBoundaryOperatorApplicationArgument,
     CheckedBoundaryOperatorApplicationDemand, CheckedBoundaryOperatorApplicationUseSite,
-    CheckedCrashQualifiedUse, CheckedNamedOperatorUseFact, CheckedNamedRequirementUseFact,
-    CheckedOperatorCandidateFact, CheckedOperatorContractUse, CheckedOperatorCrashBucket,
-    CheckedOperatorCrashContract, CheckedOperatorFacts, CheckedOperatorOccurrence,
-    CheckedOperatorRealizationContract, CheckedOperatorResolutionIssue,
+    CheckedBoundaryOperatorDeclaration, CheckedCrashQualifiedUse, CheckedNamedOperatorUseFact,
+    CheckedNamedRequirementUseFact, CheckedOperatorCandidateFact, CheckedOperatorContractUse,
+    CheckedOperatorCrashBucket, CheckedOperatorCrashContract, CheckedOperatorFacts,
+    CheckedOperatorOccurrence, CheckedOperatorRealizationContract, CheckedOperatorResolutionIssue,
     CheckedOperatorResolutionStatus, CheckedOperatorUseFact, CheckedOperatorUseHandle,
-    CheckedProviderPlanCommitment, CheckedSelectedFloatComparisonExecution,
-    CheckedSymbolicBoundaryOperatorApplicationArgument,
+    CheckedProviderPlanCommitment, CheckedProviderRequirement, CheckedProviderRequirementKind,
+    CheckedSelectedFloatComparisonExecution, CheckedSymbolicBoundaryOperatorApplicationArgument,
     CheckedSymbolicBoundaryOperatorApplicationDemand,
 };
 pub use proof::{
@@ -153,30 +162,31 @@ pub use proof::{
     ProofOutputEvidenceArgumentFact, ProofOutputFact, ProofOutputRuntimeCallFact,
     QuantifiedBoundFact, QuantifiedRangeFact, StaticRequirementDispatchFact,
 };
-pub use service_parameter::{CheckedServiceParameterCarrier, CheckedServiceParameterError};
 pub use values::{
     CheckedArrayConstructionSource, CheckedBooleanExpression, CheckedByteSequenceOperand,
-    CheckedDispatchSubject, CheckedElementViewRegion, CheckedErasedProofParameterPlan,
-    CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
-    CheckedIntegerMathExpression, CheckedIntegerMathTerm, CheckedIntegerRange,
-    CheckedLocatedProofTerm, CheckedLocatedScalarExpression, CheckedMathematicalArgument,
+    CheckedDispatchSubject, CheckedElementViewRegion, CheckedEntryIndexBound,
+    CheckedEntryIndexSelector, CheckedErasedProofParameterPlan, CheckedIeeeFloatComparisonKind,
+    CheckedIntegerBinaryKind, CheckedIntegerComparisonKind, CheckedIntegerMathExpression,
+    CheckedIntegerMathTerm, CheckedIntegerRange, CheckedLocatedProofTerm,
+    CheckedLocatedScalarExpression, CheckedMathematicalArgument, CheckedProjectionSelectorRoot,
     CheckedProofTerm, CheckedProofTermField, CheckedProofTermRole, CheckedProofTerms,
     CheckedQuotientAdaptationLicense, CheckedScalarCallee, CheckedScalarCaseComputationField,
     CheckedScalarCaseConstruction, CheckedScalarComputation, CheckedScalarComputationHandle,
     CheckedScalarComputationKind, CheckedScalarComputationPlans, CheckedScalarComputationRoot,
     CheckedScalarComputationStructuralArgument, CheckedScalarComputationTemporaryCleanup,
-    CheckedScalarDispatchArm, CheckedScalarDispatchPattern, CheckedScalarExpression,
-    CheckedScalarExpressionBindings, CheckedScalarExpressionPlans, CheckedScalarExpressionRole,
-    CheckedScalarReadProjection, CheckedScalarSelector, CheckedStorageRoot,
-    CheckedStructuralCaseRoot, CheckedStructuralCaseSubject, CheckedStructuralDispatchArm,
-    CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment,
-    CheckedStructuralRecordField, CheckedStructuralRecordFieldValue, CheckedStructuralValue,
-    CheckedStructuralValueHandle, CheckedStructuralValueKind, CheckedStructuralValuePlans,
-    CheckedStructuralValueRoot, CheckedSubsliceSite, CheckedValueFact, CheckedValueFacts,
+    CheckedScalarDispatchArm, CheckedScalarDispatchPattern, CheckedScalarEvaluationOperand,
+    CheckedScalarExpression, CheckedScalarExpressionBindings, CheckedScalarExpressionPlans,
+    CheckedScalarExpressionRole, CheckedScalarReadProjection, CheckedScalarSelector,
+    CheckedStorageRoot, CheckedStructuralCaseRoot, CheckedStructuralCaseSubject,
+    CheckedStructuralDispatchArm, CheckedStructuralParameterField,
+    CheckedStructuralPredicatePathSegment, CheckedStructuralRecordField,
+    CheckedStructuralRecordFieldValue, CheckedStructuralValue, CheckedStructuralValueHandle,
+    CheckedStructuralValueKind, CheckedStructuralValuePlans, CheckedStructuralValueRoot,
+    CheckedSubsliceSite, CheckedValueCompletion, CheckedValueFact, CheckedValueFacts,
     CheckedValueHandle, CheckedValueOrigin, CheckedValueStatementRole,
 };
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedTrees {
     pub typed: typed_trees::FrozenTypedTrees,
     pub facts: CheckFacts,

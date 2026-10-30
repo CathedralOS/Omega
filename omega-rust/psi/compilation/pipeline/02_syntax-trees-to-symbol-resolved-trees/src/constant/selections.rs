@@ -6,6 +6,7 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionRecordError,
 };
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::name::DiagnosticName;
 use symbols::SymbolKind;
 
 /// Attach the authored const selection to the substituted expression. The
@@ -14,20 +15,8 @@ pub(crate) fn finalize_const_selections(
     program: &mut SymbolResolvedTrees,
     pending: &[crate::resolution::lowerer::PendingConstSelection],
 ) -> Result<(), Diagnostic> {
-    let const_symbols = program
-        .symbols
-        .child_handles(program.symbols.root())
-        .into_iter()
-        .flatten()
-        .filter(|symbol| program.symbols.get(*symbol).kind == SymbolKind::Const)
-        .collect::<Vec<_>>();
-
     for selection in pending {
-        let Some(symbol) = const_symbols.get(selection.declaration_ordinal).copied() else {
-            return Err(Diagnostic::error(
-                "failed to retain const declaration selection provenance",
-            ));
-        };
+        let symbol = selection.declaration;
         carrier::retain_declared_carrier(
             program,
             selection.expression,
@@ -52,28 +41,14 @@ pub(crate) fn finalize_const_selections(
     Ok(())
 }
 
-/// Bind retained const declarations to the symbols minted from the parallel
-/// pending declaration list. Value substitution is independent of this root:
-/// only source identity and visibility survive here.
+/// Finalize const attachment and visibility using the identity its allocation
+/// already published. Historical symbol-table roots are not this declaration
+/// roster and must never be zipped back onto it.
 pub(crate) fn finalize_const_declarations(
     syntax_trees: &syntax_trees::SyntaxTrees,
     program: &mut SymbolResolvedTrees,
     pending: &[crate::resolution::lowerer::PendingConstDeclaration],
 ) -> Result<(), Diagnostic> {
-    let const_symbols = program
-        .symbols
-        .child_handles(program.symbols.root())
-        .into_iter()
-        .flatten()
-        .filter(|symbol| program.symbols.get(*symbol).kind == SymbolKind::Const)
-        .collect::<Vec<_>>();
-    if const_symbols.len() != pending.len()
-        || program.roots.const_declarations.len() != pending.len()
-    {
-        return Err(Diagnostic::error(
-            "failed to retain const declaration visibility provenance",
-        ));
-    }
     // Scoped module constants select their carrier independently of scalar
     // substitution or structural value encoding. The scope head resolves under
     // the declaring source's ordinary name law — a module-local carrier
@@ -85,8 +60,33 @@ pub(crate) fn finalize_const_declarations(
     // declared value type independently closes through ordinary normalization.
     // Retaining the template symbol keeps attachment custody distinct from the
     // specialized instance used for value checking and materialization.
-    for (declaration, constant_symbol) in pending.iter().zip(&const_symbols) {
-        let module = program.symbols.symbol_module(*constant_symbol);
+    // The producer carries the exact declaration for each job. Retained
+    // lookup roots never acquire a second initialization or attachment job.
+    for declaration in pending {
+        if !program
+            .roots
+            .const_declarations
+            .contains(declaration.declaration)
+        {
+            return Err(Diagnostic::error(
+                "pending constant lost its owned declaration",
+            ));
+        }
+        let constant = program
+            .roots
+            .const_declarations
+            .get(declaration.declaration);
+        let constant_symbol = constant.symbol;
+        let is_public = constant.is_public;
+        if !constant_symbol.is_valid()
+            || program.symbols.get(constant_symbol).kind != SymbolKind::Const
+            || declaration.is_public != is_public
+        {
+            return Err(Diagnostic::error(
+                "const declaration identity or visibility drifted before finalization",
+            ));
+        }
+        let module = program.symbols.symbol_module(constant_symbol);
         if declaration.scope.as_str(syntax_trees).is_empty() || !module.is_valid() {
             continue;
         }
@@ -123,7 +123,7 @@ pub(crate) fn finalize_const_declarations(
                 && (definition.is_public
                     || program
                         .symbols
-                        .same_symbol_source_package(carrier, *constant_symbol))
+                        .same_symbol_source_package(carrier, constant_symbol))
         }) {
             return Err(Diagnostic::error(
                 "module type-scoped constants require an exact accessible data carrier selected in their declaring source",
@@ -143,21 +143,6 @@ pub(crate) fn finalize_const_declarations(
             )
             .map_err(const_selection_record_diagnostic)?;
     }
-    let mut ordinal = 0usize;
-    let mut visibility_drifted = false;
-    program
-        .roots
-        .const_declarations
-        .for_each_mut(|declaration| {
-            declaration.symbol = const_symbols[ordinal];
-            visibility_drifted |= declaration.is_public != pending[ordinal].is_public;
-            ordinal += 1;
-        });
-    if visibility_drifted {
-        return Err(Diagnostic::error(
-            "const declaration visibility drifted before symbol assignment",
-        ));
-    }
     Ok(())
 }
 
@@ -176,15 +161,21 @@ pub(crate) fn finalize_const_argument_selections(
     slots: &[crate::resolution::lowerer::PendingConstArgumentSlot],
     lexical_inputs: &[crate::lowering::state::StateLexicalInputs],
 ) -> Result<(), Diagnostic> {
+    let mut selected_arguments = Vec::new();
     for (selection_ordinal, selection) in pending.iter().enumerate() {
         let origin = &selection.origin;
         let mut declarations = program.const_declarations.iter().filter(|declaration| {
             program.symbols.symbol_source_span(declaration.symbol) == Some(origin.declaration)
         });
-        let declaration = declarations.next().ok_or_else(|| {
-            Diagnostic::error("normalized constant argument lost its exact selected declaration")
+        let declaration = declarations
+            .next()
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "normalized constant argument lost its exact selected declaration",
+                )
                 .with_source_span(origin.reference)
-        })?;
+            })?
+            .clone();
         if declarations.next().is_some()
             || declaration.initializer_source_span != origin.initializer
             || declaration.evaluated_value.as_ref() != Some(&origin.evaluated_value)
@@ -203,6 +194,20 @@ pub(crate) fn finalize_const_argument_selections(
                     .evaluated_value
                     .encoding()
                     .is_some_and(carrier::encoding_has_nominal_carrier));
+        let structured_argument = selection.is_argument_value
+            && origin.evaluated_value.encoding().is_some_and(|encoding| {
+                use language_semantics::const_value::{
+                    CanonicalConstValue, DecodedCanonicalConstValue,
+                };
+                matches!(
+                    CanonicalConstValue::new("", encoding, "").decode_encoding(),
+                    Some(
+                        DecodedCanonicalConstValue::Array { .. }
+                            | DecodedCanonicalConstValue::Record { .. }
+                            | DecodedCanonicalConstValue::Variant { .. }
+                    )
+                )
+            });
         let mut matched = false;
         for slot in slots
             .iter()
@@ -237,13 +242,17 @@ pub(crate) fn finalize_const_argument_selections(
                 );
             };
             if selection.is_argument_value
-                && (requires_nominal_slot || carrier::has_nominal_carrier(program, type_reference))
+                && (structured_argument
+                    || requires_nominal_slot
+                    || carrier::has_nominal_carrier(program, type_reference))
             {
-                if !carrier::same_resolved_carrier(
-                    program,
-                    &declaration.declared_type,
-                    type_reference,
-                ) {
+                if (requires_nominal_slot || carrier::has_nominal_carrier(program, type_reference))
+                    && !carrier::same_resolved_carrier(
+                        program,
+                        &declaration.declared_type,
+                        type_reference,
+                    )
+                {
                     return Err(Diagnostic::error("selected constant nominal carrier differs from its receiving generic parameter").with_source_span(origin.reference));
                 }
                 let symbol_resolved_trees::types::TypeReference::Named { symbol, name, .. } =
@@ -254,7 +263,7 @@ pub(crate) fn finalize_const_argument_selections(
                     )
                     .with_source_span(origin.reference));
                 };
-                if symbol.is_valid()
+                if (symbol.is_valid() && *symbol != declaration.symbol)
                     || !language_semantics::const_value::CanonicalConstValue::from_atom(
                         name.as_str(),
                     )
@@ -267,6 +276,15 @@ pub(crate) fn finalize_const_argument_selections(
                     )
                     .with_source_span(origin.reference));
                 }
+                selected_arguments.push((
+                    slot.arguments,
+                    slot.ordinal,
+                    declaration.symbol,
+                    DiagnosticName::from_str(
+                        program.symbols.name(declaration.symbol),
+                        origin.reference,
+                    ),
+                ));
             }
             matched = true;
         }
@@ -276,15 +294,31 @@ pub(crate) fn finalize_const_argument_selections(
             )
             .with_source_span(origin.reference));
         }
-        let selected = declaration.symbol;
-        program
-            .record_resolved_authored_declaration_selection(
-                origin.reference,
-                selection.exposure,
-                AuthoredDeclarationSelectionKind::StaticPathSegment,
-                selected,
-            )
-            .map_err(const_selection_record_diagnostic)?;
+        if let Some(exposure) = selection.exposure {
+            program
+                .record_resolved_authored_declaration_selection(
+                    origin.reference,
+                    exposure,
+                    AuthoredDeclarationSelectionKind::StaticPathSegment,
+                    declaration.symbol,
+                )
+                .map_err(const_selection_record_diagnostic)?;
+        }
+    }
+    // Preparation's value encoding predates nominal symbol allocation. Once
+    // custody has joined the exact declaration and receiving carrier, publish
+    // that selected value rather than its provisional short type label. Defer
+    // replacement until every origin has checked the original argument.
+    for (arguments, ordinal, selected, selected_name) in selected_arguments {
+        let argument = &mut program
+            .tables
+            .declarations
+            .child_type_references
+            .span_mut_or_empty(arguments)[ordinal];
+        if let symbol_resolved_trees::types::TypeReference::Named { symbol, name, .. } = argument {
+            *symbol = selected;
+            *name = selected_name;
+        }
     }
     Ok(())
 }

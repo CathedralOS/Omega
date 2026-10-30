@@ -1,0 +1,167 @@
+//! Retain designated Product paths without demanding host type formation.
+//! The namespace is exact toolchain data; ordinary same-named calls keep their
+//! normal path. Final Product admission owns declaration visibility and roles.
+
+use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::{
+    BuildOperation, BuildSelectionRequest, ProductDeclarationOperand, ProductDeclarationRequest,
+    ProductOperandRole,
+};
+use symbols::JoinedPath;
+
+pub(crate) fn request(
+    source: &symbol_resolved_trees::SymbolResolvedTrees,
+    typed: &mut typed_trees::TypedTrees,
+    exposure: Option<
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    >,
+    occurrences: &[language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId],
+    namespace: symbols::SymbolHandle,
+    target: symbols::SymbolHandle,
+    name: &str,
+    operands: &[symbol_resolved_trees::expression::StaticMachineArgument],
+    ordinary_count: usize,
+    evidence_count: usize,
+    span: source::SourceSpan,
+) -> Result<Option<typed_trees::expression::BuildSelectionRequest>, Diagnostic> {
+    // Resolved enum operations are exact prelude declarations, unlike the
+    // unresolved syntax carrying designated Product declaration operands.
+    if target.is_valid() && source.symbols.is_build_prelude_symbol(target) {
+        use language_semantics::declaration_selection::{
+            EnumExclusionRequest, ExclusionVocabulary,
+        };
+        let vocabulary = match name {
+            "exclude_crash" => Some(ExclusionVocabulary::CrashCause),
+            "exclude_physical_authority" => Some(ExclusionVocabulary::PhysicalAuthorityClass),
+            _ => None,
+        };
+        if let Some(vocabulary) = vocabulary {
+            if ordinary_count != 2 || evidence_count != 0 || !operands.is_empty() {
+                return Err(Diagnostic::error(
+                    "behavior exclusion requires its mutable Build and one evaluated enum value",
+                )
+                .with_source_span(span));
+            }
+            return Ok(Some(BuildSelectionRequest::Exclusion(
+                EnumExclusionRequest {
+                    source_span: span,
+                    vocabulary,
+                },
+            )));
+        }
+    }
+    let Some(operation) = BuildOperation::from_call_target(name)
+        .filter(|operation| operation.has_designated_operands())
+    else {
+        return Ok(None);
+    };
+    if target.is_valid()
+        || !namespace.is_valid()
+        || !source.symbols.is_build_prelude_symbol(namespace)
+        || !source
+            .data_definitions
+            .iter()
+            .any(|data| data.symbol == namespace && data.name.as_str() == "Build")
+    {
+        return Ok(None);
+    }
+    let operand_count_valid = if operation == BuildOperation::ProviderReadiness {
+        operands.len() == 2
+    } else {
+        operation.product_operand_count_valid(operands.len())
+    };
+    if !operand_count_valid
+        || evidence_count != 0
+        || if operation == BuildOperation::NativeBinding {
+            ordinary_count != 3
+        } else if operation == BuildOperation::ProviderSelection {
+            !(2..=3).contains(&ordinary_count)
+        } else {
+            ordinary_count != 1
+        }
+    {
+        return Err(Diagnostic::error(format!(
+            "{} requires {} and {}",
+            operation.authored_spelling(),
+            match operation {
+                BuildOperation::NativeBinding => "one exact requirement operand",
+                BuildOperation::ServiceExclusion
+                | BuildOperation::ServiceAudit
+                | BuildOperation::BoundaryAcceptance => "one bare declaration operand",
+                BuildOperation::WireCompatibilityRequest =>
+                    "four schema declaration operands and compatibility facts",
+                _ => "two bare declaration operands",
+            },
+            if operation == BuildOperation::NativeBinding {
+                "its explicit mutable Build, catalog target and owned native locator arguments"
+            } else if operation == BuildOperation::ProviderSelection {
+                "its explicit mutable Build and catalog target arguments (plus an optional composition mode)"
+            } else {
+                "its explicit mutable Build argument"
+            },
+        ))
+        .with_source_span(span));
+    }
+    let requirement = if operation == BuildOperation::ProviderReadiness {
+        let operand = super::expression::lower_static_machine_argument(
+            Some(source),
+            typed,
+            exposure,
+            &operands[0],
+        )?;
+        let reference = typed
+            .static_operand_type_reference(&operand)
+            .map_err(|reason| Diagnostic::error(reason).with_source_span(span))?;
+        let requirement = typed.type_reference_table.type_symbol(reference);
+        if !source
+            .traits
+            .iter()
+            .any(|definition| definition.symbol == requirement && definition.is_boundary)
+        {
+            return Err(Diagnostic::error("provider readiness requires a pre-known exact boundary requirement; only the backing may be deferred")
+                .with_source_span(span));
+        }
+        Some(reference)
+    } else {
+        None
+    };
+    let operands = operands.iter().skip(usize::from(requirement.is_some())).enumerate().map(|(position, operand)| {
+        let nominal_application = operand.application.is_some() && matches!(operation.product_operand_role(position), Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Provider));
+        if operand.type_reference.is_valid() || (operand.application.is_some() && !nominal_application)
+            || operand.const_literal.is_some() || operand.evidence_projection.is_some()
+            || operand.path.is_empty() {
+            return Err(Diagnostic::error("Build selection operands must name bare declarations, not applied types, conformance applications, values or projections")
+                .with_source_span(span));
+        }
+        let first = operand.path.first().expect("nonempty path checked").source_span();
+        let last = operand.path.last().expect("nonempty path checked").source_span();
+        if first.source_id != last.source_id || first.span.start >= last.span.end {
+            return Err(Diagnostic::error("Product operand has no single authored source coordinate")
+                .with_source_span(span));
+        }
+        let application = nominal_application.then(|| super::capture_product_operands::capture(source, typed, exposure, occurrences, operand).map(std::sync::Arc::new)).transpose()?;
+        let leading = source::SourceSpan::new(first.source_id, source::Span::new(first.span.start, last.span.end));
+        let source_span = application.as_ref().map_or(leading, |graph| graph.authored_operand_span(leading));
+        Ok(ProductDeclarationOperand {
+            application,
+            path: operand.path.joined_path(),
+            source_span,
+        })
+    }).collect::<Result<Vec<_>, Diagnostic>>()?.into_boxed_slice();
+    if let Some(requirement) = requirement {
+        return Ok(Some(BuildSelectionRequest::ProviderReadiness(
+            language_semantics::declaration_selection::ProviderReadinessRequest {
+                source_span: span,
+                requirement,
+                backing: operands[0].clone(),
+            },
+        )));
+    }
+    Ok(Some(BuildSelectionRequest::Declaration(
+        std::sync::Arc::new(ProductDeclarationRequest {
+            source_span: span,
+            operation,
+            operands,
+        }),
+    )))
+}

@@ -7,12 +7,12 @@ data Probe {lab:Measurements;choice:i32;observed:i32;}
 machine observe(lab:&mut Measurements) {lab.events=1;lab.first=0;lab.second=1;lab.time=2.0;lab.impulse=1.5;lab.px=1.0;lab.energy=0.5;lab.initial_x=1.0;lab.initial_energy=0.5;}
 machine accepted(lab:&Measurements,choice:i32)->bool {
  transition choice {0 -> test(lab) _ -> rejected()}
- state test(lab:&Measurements)->bool {lab.events == 1 && lab.first == 0 && lab.second == 1 && abs_f64(lab.time-2.0) <= 0.000000001 && abs_f64(lab.impulse-1.5) <= 0.000000001}
- state rejected()->bool {false}
+ machine test(lab:&Measurements)->bool {lab.events == 1 && lab.first == 0 && lab.second == 1 && abs_f64(lab.time-2.0) <= 0.000000001 && abs_f64(lab.impulse-1.5) <= 0.000000001}
+ machine rejected()->bool {false}
 }
 machine Probe::main(probe:&mut Probe) {
  transition { _ -> check(probe) }
- state check(probe:&mut Probe) {
+ machine check(probe:&mut Probe) {
   observe(&mut probe.lab);
   transition accepted(&probe.lab,probe.choice) && abs_f64(probe.lab.px-probe.lab.initial_x) <= 0.000000001
    && abs_f64(probe.lab.py-probe.lab.initial_y) <= 0.000000001
@@ -21,8 +21,8 @@ machine Probe::main(probe:&mut Probe) {
    true -> passed(probe) _ -> failed(probe)
   }
  }
- state passed(probe:&mut Probe) {probe.observed=1;}
- state failed(probe:&mut Probe) {probe.observed=-1;}
+ machine passed(probe:&mut Probe) {probe.observed=1;}
+ machine failed(probe:&mut Probe) {probe.observed=-1;}
 }
 
 // The entry owns ordinary local state; selection supplies no context.

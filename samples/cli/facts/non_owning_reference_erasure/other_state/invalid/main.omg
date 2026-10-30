@@ -7,12 +7,12 @@ machine issue(value: u32) -> Storage in Issued { Storage { value: value } }
 machine reissue(value: u32) -> Storage in Reissued { Storage { value: value } }
 machine write(storage: &write Storage in Issued) {
     transition { _ -> store(storage as &write Storage in Reissued) }
-    state store(view: &write Storage) { view.value = 73; }
+    machine store(view: &write Storage) { view.value = 73; }
 }
 machine main() crashes Trap {
     let mut storage: Storage in Issued = issue(0);
     write(&write storage);
     transition storage.value == 73 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

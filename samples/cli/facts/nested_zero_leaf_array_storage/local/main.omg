@@ -1,0 +1,59 @@
+// Fact: an owned record with 512-by-512 zero-leaf array elements preserves its two stored sentinels and its last empty row through transport and copying with sixteen bytes of value storage.
+// Expected exit: 0
+use omega::language::core::external_binding;
+public data Packet [copy] { before: u64; empty: [[[u8; 0]; 512]; 512]; after: u64; }
+public boundary trait ZeroLeafProvider {
+ machine make() -> Packet reaches;
+ machine shift(packet: Packet) -> Packet reaches;
+}
+public macos_arm64 machine macos_arm64_make_binding() -> ForeignBinding<31, 15, 0> {
+ ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libomega_zeroleaf_fixture.dylib", symbol: "_zero_leaf_make" } }
+}
+public macos_arm64 boundary machine make() -> Packet satisfies ZeroLeafProvider::make via macos_arm64_make_binding();
+public linux_x86_64 machine linux_x86_64_make_binding() -> ForeignBinding<28, 14, 12> {
+ ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_zeroleaf_fixture.so", symbol: "zero_leaf_make", version: "ZEROLEAF_1.0" } }
+}
+public linux_x86_64 boundary machine make() -> Packet satisfies ZeroLeafProvider::make via linux_x86_64_make_binding();
+public linux_arm64 machine linux_arm64_make_binding() -> ForeignBinding<28, 14, 12> {
+ ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_zeroleaf_fixture.so", symbol: "zero_leaf_make", version: "ZEROLEAF_1.0" } }
+}
+public linux_arm64 boundary machine make() -> Packet satisfies ZeroLeafProvider::make via linux_arm64_make_binding();
+public windows_x86_64 machine windows_x86_64_make_binding() -> ForeignBinding<26, 14, 0> {
+ ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_zeroleaf_fixture.dll", export: "zero_leaf_make" } }
+}
+public windows_x86_64 boundary machine make() -> Packet satisfies ZeroLeafProvider::make via windows_x86_64_make_binding();
+public macos_arm64 machine macos_arm64_shift_binding() -> ForeignBinding<31, 16, 0> {
+ ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libomega_zeroleaf_fixture.dylib", symbol: "_zero_leaf_shift" } }
+}
+public macos_arm64 boundary machine shift(packet: Packet) -> Packet satisfies ZeroLeafProvider::shift via macos_arm64_shift_binding();
+public linux_x86_64 machine linux_x86_64_shift_binding() -> ForeignBinding<28, 15, 12> {
+ ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_zeroleaf_fixture.so", symbol: "zero_leaf_shift", version: "ZEROLEAF_1.0" } }
+}
+public linux_x86_64 boundary machine shift(packet: Packet) -> Packet satisfies ZeroLeafProvider::shift via linux_x86_64_shift_binding();
+public linux_arm64 machine linux_arm64_shift_binding() -> ForeignBinding<28, 15, 12> {
+ ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_zeroleaf_fixture.so", symbol: "zero_leaf_shift", version: "ZEROLEAF_1.0" } }
+}
+public linux_arm64 boundary machine shift(packet: Packet) -> Packet satisfies ZeroLeafProvider::shift via linux_arm64_shift_binding();
+public windows_x86_64 machine windows_x86_64_shift_binding() -> ForeignBinding<26, 15, 0> {
+ ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_zeroleaf_fixture.dll", export: "zero_leaf_shift" } }
+}
+public windows_x86_64 boundary machine shift(packet: Packet) -> Packet satisfies ZeroLeafProvider::shift via windows_x86_64_shift_binding();
+
+machine empty_row(row: &[u8; 0]) -> bool {
+ let view: &[u8] = &row[..];
+ view.len == 0
+}
+machine consume(first: Packet, copied: Packet) -> bool reaches ZeroLeafProvider {
+ let shifted: Packet = shift(copied);
+ first.before == 17 && first.after == 31
+ && shifted.before == 28 && shifted.after == 60
+ && shifted.empty.len == 512 && shifted.empty[511].len == 512
+ && empty_row(&shifted.empty[511][511])
+ && size_of<Packet>() == 16
+}
+machine observe() -> bool reaches ZeroLeafProvider { let first: Packet = make(); let local: Packet = first; consume(local, local) }
+machine main() reaches ZeroLeafProvider crashes Trap {
+ transition observe() { true -> done() _ -> bad() }
+ machine done() {}
+ machine bad() crashes Trap { crash Trap; }
+}

@@ -1,0 +1,12 @@
+// Expected exit: 0
+machine nonzero(value: i64) -> bool { value != 0 }
+machine classify(value: i64) -> u64 requires nonzero(value) == true {
+    match value > 0 { true -> 17u64 false -> 53u64 }
+}
+machine main() crashes Trap {
+    transition classify(-1i64) == 53 && classify(1i64) == 17 && nonzero(0i64) == false {
+        true -> done() _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

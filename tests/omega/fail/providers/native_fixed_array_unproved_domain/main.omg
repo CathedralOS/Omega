@@ -1,5 +1,5 @@
 // Native shape acceptance must not mint the required termination qualification.
-domain [u16; 4]::TerminatedWords(words) requires words[3] == 0;
+domain [u16; 4]::TerminatedWords requires self[3] == 0;
 boundary trait ConsumeWords {
     machine read(words: &[u16; 4] in TerminatedWords) reaches;
 }

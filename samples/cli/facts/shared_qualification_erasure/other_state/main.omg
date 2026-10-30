@@ -11,13 +11,13 @@ machine issue() -> Ticket in Ticket::Labelled { Ticket { number: 17 } }
 machine observe(ticket: &Ticket in Ticket::Observed) -> u64 { ticket.number }
 machine inspect(ticket: Ticket in Ticket::Labelled) -> u64 {
     transition true { true -> carried(ticket) }
-    state carried(ticket: Ticket in Ticket::Labelled) -> u64 {
+    machine carried(ticket: Ticket in Ticket::Labelled) -> u64 {
         observe((&ticket) as &Ticket in Ticket::Observed)
     }
 }
 machine main() crashes Trap {
     let observed: u64 = inspect(issue());
     transition observed == 17 { true -> done() _ -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

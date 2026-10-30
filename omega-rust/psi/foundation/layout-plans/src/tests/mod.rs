@@ -2,9 +2,10 @@
 //! layouts.
 
 use crate::test_support::{
-    data, deeply_nested_layout, entry, layout_field_entry, layout_report, post_handoff_context,
-    post_handoff_context_with, record_layout, recursive_record_array_report, repeated_layout,
-    split_layout, stored_integer_layout, sum_layout, symbolic_path, writer_field_offsets,
+    data, deeply_nested_layout, entry, layout_field_entry, layout_report,
+    numbered_layout_field_entry, post_handoff_context, post_handoff_context_with, record_layout,
+    recursive_record_array_report, repeated_layout, split_layout, stored_integer_layout,
+    sum_layout, symbolic_path, writer_field_offsets,
 };
 
 mod conventional_materializations;
@@ -15,8 +16,7 @@ mod writer_fragments;
 use crate::{
     ConventionalRecordSumChildHop, ConventionalRecordSumChildInterior,
     ConventionalRecordSumChildLayoutReport, ConventionalRecursiveRecordSumPathsLayoutReport,
-    LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, SymbolicFieldInnerLayout,
-    SymbolicFieldValue,
+    LayoutPlacementReport, LayoutPlanReport, SymbolicFieldInnerLayout, SymbolicFieldValue,
 };
 
 /// A nested record field occupies one whole `At` extent inside the flat outer
@@ -29,16 +29,8 @@ fn nested_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
         LayoutPlanReport {
             schema_report_fingerprint: 1,
             entries: vec![
-                LayoutFieldEntryReport {
-                    field: "header".into(),
-                    member_identity: None,
-                    placement: LayoutPlacementReport::At { offset: 0 },
-                },
-                LayoutFieldEntryReport {
-                    field: "slot".into(),
-                    member_identity: None,
-                    placement: LayoutPlacementReport::At { offset: 8 },
-                },
+                layout_field_entry("header".into(), LayoutPlacementReport::At { offset: 0 }),
+                layout_field_entry("slot".into(), LayoutPlacementReport::At { offset: 8 }),
             ],
             offsets: Some(vec![0, 8]),
             size: Some(24),
@@ -49,16 +41,8 @@ fn nested_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
             LayoutPlanReport {
                 schema_report_fingerprint: 2,
                 entries: vec![
-                    LayoutFieldEntryReport {
-                        field: "entry".into(),
-                        member_identity: None,
-                        placement: LayoutPlacementReport::At { offset: 0 },
-                    },
-                    LayoutFieldEntryReport {
-                        field: "flags".into(),
-                        member_identity: None,
-                        placement: LayoutPlacementReport::At { offset: 8 },
-                    },
+                    layout_field_entry("entry".into(), LayoutPlacementReport::At { offset: 0 }),
+                    layout_field_entry("flags".into(), LayoutPlacementReport::At { offset: 8 }),
                 ],
                 offsets: Some(vec![0, 8]),
                 size: Some(16),
@@ -83,21 +67,9 @@ fn sum_field_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
         LayoutPlanReport {
             schema_report_fingerprint: 1,
             entries: vec![
-                LayoutFieldEntryReport {
-                    field: "header".into(),
-                    member_identity: None,
-                    placement: LayoutPlacementReport::At { offset: 0 },
-                },
-                LayoutFieldEntryReport {
-                    field: "choice".into(),
-                    member_identity: None,
-                    placement: LayoutPlacementReport::At { offset: 8 },
-                },
-                LayoutFieldEntryReport {
-                    field: "tail".into(),
-                    member_identity: None,
-                    placement: LayoutPlacementReport::At { offset: 32 },
-                },
+                layout_field_entry("header".into(), LayoutPlacementReport::At { offset: 0 }),
+                layout_field_entry("choice".into(), LayoutPlacementReport::At { offset: 8 }),
+                layout_field_entry("tail".into(), LayoutPlacementReport::At { offset: 32 }),
             ],
             offsets: Some(vec![0, 8, 32]),
             size: Some(40),
@@ -170,16 +142,8 @@ fn sum_array_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
         LayoutPlanReport {
             schema_report_fingerprint: 1,
             entries: vec![
-                LayoutFieldEntryReport {
-                    field: "header".into(),
-                    member_identity: None,
-                    placement: LayoutPlacementReport::At { offset: 0 },
-                },
-                LayoutFieldEntryReport {
-                    field: "sums".into(),
-                    member_identity: None,
-                    placement: LayoutPlacementReport::At { offset: 8 },
-                },
+                layout_field_entry("header".into(), LayoutPlacementReport::At { offset: 0 }),
+                layout_field_entry("sums".into(), LayoutPlacementReport::At { offset: 8 }),
             ],
             offsets: Some(vec![0, 8]),
             size: Some(56),

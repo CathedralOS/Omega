@@ -73,6 +73,45 @@ fn append_register_binary(bytes: &mut Vec<u8>, opcode: u8, source: u8, destinati
     ]);
 }
 
+/// `xor r64, r64` — the dependency-breaking self-clear.
+pub(crate) fn append_self_clear(bytes: &mut Vec<u8>, register: u8) {
+    append_register_binary(bytes, 0x31, register, register);
+}
+
+/// `inc r64`.
+pub(crate) fn append_increment(bytes: &mut Vec<u8>, register: u8) {
+    bytes.extend([rex(0, 0, register), 0xff, modrm(3, 0, register)]);
+}
+
+/// `test r64, r64` — the self-test that defines ZF.
+pub(crate) fn append_self_test(bytes: &mut Vec<u8>, register: u8) {
+    append_register_binary(bytes, 0x85, register, register);
+}
+
+/// `cmp operand, source` — flags describe `operand - source`.
+pub(crate) fn append_register_compare(bytes: &mut Vec<u8>, source: u8, operand: u8) {
+    append_register_binary(bytes, 0x39, source, operand);
+}
+
+/// `movzx value, byte [base + index*1 + offset]` — the SIB byte load the
+/// byte-sequence forms read their operands through.
+pub(crate) fn append_indexed_byte_load(
+    bytes: &mut Vec<u8>,
+    value: u8,
+    base: u8,
+    index: u8,
+    offset: u32,
+) {
+    bytes.extend([
+        rex(value, index, base),
+        0x0f,
+        0xb6,
+        modrm(2, value, 4),
+        ((index & 7) << 3) | (base & 7),
+    ]);
+    bytes.extend(offset.to_le_bytes());
+}
+
 /// The CMOVcc opcode byte selecting a clamp bound: the signed maximum on G,
 /// the signed minimum on L, and an unsigned maximum on A.
 const CMOVG: u8 = 0x4f;
@@ -507,12 +546,7 @@ pub(crate) fn encode_unchecked(
             if integer_bits(value)? != 0 {
                 return Err(X86_64SelectedFormEncodingError::AlternativeMismatch);
             }
-            let register = registers[0];
-            bytes.extend([
-                rex(register, 0, register),
-                0x31,
-                modrm(3, register, register),
-            ]);
+            append_self_clear(&mut bytes, registers[0]);
         }
         SelectedInstructionKind::MaterializeI64 { value } => {
             bytes.extend([0x48 | (registers[0] >> 3), 0xb8 | (registers[0] & 7)]);
@@ -598,10 +632,10 @@ pub(crate) fn encode_unchecked(
             append_register_binary(&mut bytes, 0x89, registers[0], registers[1]);
         }
         SelectedInstructionKind::CompareI64Zero => {
-            append_register_binary(&mut bytes, 0x85, registers[0], registers[0]);
+            append_self_test(&mut bytes, registers[0]);
         }
         SelectedInstructionKind::CompareI64 => {
-            append_register_binary(&mut bytes, 0x39, registers[1], registers[0]);
+            append_register_compare(&mut bytes, registers[1], registers[0]);
         }
         SelectedInstructionKind::CompareI64Immediate { immediate } => {
             bytes.extend([rex(0, 0, registers[0]), 0x81, modrm(3, 7, registers[0])]);
@@ -757,7 +791,7 @@ pub(crate) fn encode_unchecked(
         }
         SelectedInstructionKind::ExactSubtractI64 { .. }
         | SelectedInstructionKind::WrappingSubtractI64 => match alternative.variant {
-            0 => append_register_binary(&mut bytes, 0x31, registers[2], registers[2]),
+            0 => append_self_clear(&mut bytes, registers[2]),
             1 => append_register_binary(&mut bytes, 0x29, registers[1], registers[2]),
             2 => {
                 bytes.extend([rex(0, 0, registers[2]), 0xf7, modrm(3, 3, registers[2])]);

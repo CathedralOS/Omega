@@ -1,6 +1,6 @@
 //! Exact recorded repository selection with selective workspace materialization.
 
-use crate::git::executable::selection::{PrimaryGitSelection, resolver_package_controlled_roots};
+use crate::git::executable::selection::PrimaryGitSelection;
 use crate::git::request::GitSourceRequest;
 use crate::git::workspace::{
     GitWorkspaceDeclarationLimits, GitWorkspaceProjectionError, GitWorkspaceProjectionPlanner,
@@ -12,7 +12,7 @@ use crate::storage::RetainedStorageLane;
 
 use super::super::exact_revision::GitExactRevisionAcquisition;
 use super::super::selection::{GitRevisionSelection, RecordedGitRevision};
-use super::resolve_git_workspace_member_with_selected_roots;
+use super::resolve_git_workspace_member_at_selection;
 
 /// Select one declared member from the exact recorded repository revision with
 /// the selected primary Git from `resolver.primary_git()?`.
@@ -39,11 +39,8 @@ where
     Planner: GitWorkspaceProjectionPlanner,
 {
     let recorded = RecordedGitRevision::new(request, commit, tree, acquisition)?;
-    let package_controlled_roots =
-        resolver_package_controlled_roots(&[git_lane.path(), member_lane.path()])?;
-    resolve_git_workspace_member_with_selected_roots(
+    resolve_git_workspace_member_at_selection(
         primary_git,
-        &package_controlled_roots,
         request,
         GitRevisionSelection::Recorded(&recorded),
         git_lane,

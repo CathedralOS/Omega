@@ -53,8 +53,8 @@ machine through_array(items: &mut [u8; 8]) -> u8 {
         true -> kept()
         _ -> lost()
     }
-    state kept() -> u8 { 5 }
-    state lost() -> u8 { 0 }
+    machine kept() -> u8 { 5 }
+    machine lost() -> u8 { 0 }
 }
 
 // A view parameter lends an inline subslice to a Unit call.
@@ -113,6 +113,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

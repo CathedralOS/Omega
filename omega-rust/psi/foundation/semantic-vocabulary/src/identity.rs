@@ -10,7 +10,7 @@ use std::num::NonZeroU64;
 /// Authored owner of a bodyless requirement. Absence of a nominal attachment
 /// does not identify a trait: an operator also has no service receiver.
 /// This role travels with the declaration, independently of provider selection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum BoundaryRequirementKind {
     /// Includes token-bearing machines and explicit top-level requirements.
     /// Their application custody remains independent of declaration kind.
@@ -21,26 +21,28 @@ pub enum BoundaryRequirementKind {
 
 /// Closed external terminal outcomes. This vocabulary does not grant authority
 /// to invoke an outcome or replace its provider conformance obligations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ExternalCompletionKind {
     ProcessExit,
 }
 
-/// Exact location of a boundary invocation. Terminal completions are edges,
+/// Exact location of an invocation. Terminal completions are edges,
 /// not result-producing operations; the two namespaces never alias.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum BoundaryInvocationSite {
+pub enum InvocationSite {
     Operation(OperationId),
     ExternalCompletion(EdgeId),
+    InvokeNoNormal(EdgeId),
 }
 
-impl BoundaryInvocationSite {
+impl InvocationSite {
     /// Canonical tagged identity; operation and completion-edge namespaces are
     /// distinct even when their nonzero numeric coordinates coincide.
     pub fn encode_identity(self, bytes: &mut Vec<u8>) {
         let (tag, identity) = match self {
             Self::Operation(operation) => (0, operation.get()),
             Self::ExternalCompletion(edge) => (1, edge.get()),
+            Self::InvokeNoNormal(edge) => (2, edge.get()),
         };
         bytes.push(tag);
         crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
@@ -51,6 +53,7 @@ impl BoundaryInvocationSite {
         match tag {
             0 => OperationId::new(identity).map(Self::Operation),
             1 => EdgeId::new(identity).map(Self::ExternalCompletion),
+            2 => EdgeId::new(identity).map(Self::InvokeNoNormal),
             _ => None,
         }
     }
@@ -58,22 +61,23 @@ impl BoundaryInvocationSite {
     pub const fn operation(self) -> Option<OperationId> {
         match self {
             Self::Operation(operation) => Some(operation),
-            Self::ExternalCompletion(_) => None,
+            Self::ExternalCompletion(_) | Self::InvokeNoNormal(_) => None,
         }
     }
 }
 
-impl From<OperationId> for BoundaryInvocationSite {
+impl From<OperationId> for InvocationSite {
     fn from(operation: OperationId) -> Self {
         Self::Operation(operation)
     }
 }
 
-impl fmt::Display for BoundaryInvocationSite {
+impl fmt::Display for InvocationSite {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Operation(operation) => write!(formatter, "operation {operation}"),
             Self::ExternalCompletion(edge) => write!(formatter, "completion edge {edge}"),
+            Self::InvokeNoNormal(edge) => write!(formatter, "no-normal invocation edge {edge}"),
         }
     }
 }
@@ -82,7 +86,9 @@ impl fmt::Display for BoundaryInvocationSite {
 /// normal-result shape and service ceiling. Provider admission must preserve it.
 /// The transitional Unit exit encoding retains `External(ProcessExit)` here;
 /// this does not supply the still-missing terminal invocation representation.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+)]
 pub enum BoundaryCompletion {
     #[default]
     NormalReturn,
@@ -111,7 +117,7 @@ impl PackageKeyIdentity {
 /// Psi semantics. The schedule implementation lives above this dependency-
 /// light identity so installation/resource records can name its units without
 /// depending on a semantic evaluator.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct FuelScheduleIdentity(NonZeroU32);
 
 impl FuelScheduleIdentity {
@@ -136,7 +142,9 @@ pub trait PsiSemanticId: Copy + Eq + Ord + std::hash::Hash {
 macro_rules! semantic_id {
     ($name:ident, $description:literal) => {
         #[doc = $description]
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        #[derive(
+            Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+        )]
         pub struct $name(NonZeroU64);
 
         impl $name {
@@ -168,6 +176,10 @@ macro_rules! semantic_id {
 }
 
 semantic_id!(ValueId, "Stable identity of one terminal-Psi value.");
+semantic_id!(
+    ScalarApplicationId,
+    "Stable identity of one target-dependent scalar application in terminal Psi."
+);
 impl ValueId {
     /// The first nonzero value coordinate, also used in closed formal namespaces.
     pub const FIRST: Self = Self(NonZeroU64::MIN);
@@ -179,7 +191,9 @@ semantic_id!(
 
 /// Immutable canonical module coordinate. Zero denotes the bare qualification
 /// set and has no catalog row; this is not a reclaimable arena handle.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+)]
 pub struct ScalarQualificationSetId(u64);
 
 impl ScalarQualificationSetId {
@@ -316,5 +330,20 @@ mod tests {
                 .digest(),
             digest
         );
+    }
+}
+
+impl compiler_storage::Record for PackageKeyIdentity {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        compiler_storage::Record::write(&self.digest(), output)
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        Self::from_digest(compiler_storage::Record::read(input)?)
+            .ok_or_else(|| input.error("package identity has the reserved zero digest"))
     }
 }

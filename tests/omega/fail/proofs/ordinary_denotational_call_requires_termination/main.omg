@@ -1,6 +1,6 @@
 machine stalled(value: f32) -> u8 in Saturating {
     transition { _ -> again(value) }
-    state again(value: f32) -> u8 in Saturating {
+    machine again(value: f32) -> u8 in Saturating {
         transition { _ -> again(value) }
     }
 }
@@ -17,6 +17,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -14,6 +14,25 @@ const CRATE_ROOT: &str = env!("CARGO_MANIFEST_DIR");
 /// No boundary declarations: every identity in this crate is interned.
 const ALLOWED: &[(&str, &str)] = &[];
 
+#[test]
+fn activation_join_consumes_no_source_ir() {
+    let found = violations(
+        CRATE_ROOT,
+        "",
+        &[
+            concat!("checked", "_trees::"),
+            concat!("typed", "_trees::"),
+            concat!("TypeReference", "Handle"),
+            concat!("Symbol", "Handle"),
+        ],
+        &[],
+    );
+    assert!(
+        found.is_empty(),
+        "task realization reopened source: {found:?}"
+    );
+}
+
 /// Stored `*identity`/`identities` declarations carry interned
 /// `TerminalIdentityIndex` handles; text identity survives only on the
 /// boundary declarations pinned in `ALLOWED`.

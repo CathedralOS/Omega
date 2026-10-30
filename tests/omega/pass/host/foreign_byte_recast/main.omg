@@ -69,6 +69,6 @@ machine Main::main(main: &mut Main) reaches CompareByte + ClearByte {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() {}
+    machine done() {}
+    machine bad() {}
 }

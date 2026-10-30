@@ -20,14 +20,14 @@ public machine fraction(role: i32, logarithm: f64, log_half: f64, hill: f64) -> 
 machine moments(observations: &Observations, sums: &mut Moments, log_half: f64, hill: f64) {
     sums.uu = 0.0; sums.uv = 0.0; sums.vv = 0.0; sums.uy = 0.0; sums.vy = 0.0;
     transition { _ -> scan(observations, sums, log_half, hill, 0) }
-    state scan(observations: &Observations, sums: &mut Moments, log_half: f64,
+    machine scan(observations: &Observations, sums: &mut Moments, log_half: f64,
                hill: f64, position: i32 in Wrapping) {
         transition position >= 0 && position < 32 && position < observations.group_count {
             true -> add(observations, sums, log_half, hill, position)
             _ -> done()
         }
     }
-    state add(observations: &Observations, sums: &mut Moments, log_half: f64,
+    machine add(observations: &Observations, sums: &mut Moments, log_half: f64,
               hill: f64, position: i32 in Wrapping) {
         let v: f64 = fraction(observations.group_role[position], observations.group_logarithm[position], log_half, hill);
         let u: f64 = 1.0 - v;
@@ -38,18 +38,18 @@ machine moments(observations: &Observations, sums: &mut Moments, log_half: f64, 
         sums.vv = sums.vv + weight * v * v; sums.uy = sums.uy + weight * u * y; sums.vy = sums.vy + weight * v * y;
         transition { _ -> scan(observations, sums, log_half, hill, position + 1) }
     }
-    state done() { }
+    machine done() { }
 }
 machine squared_error(observations: &Observations, sums: &Moments, low: f64, high: f64) -> f64 {
     transition { _ -> scan(observations, sums, low, high, 0, 0.0) }
-    state scan(observations: &Observations, sums: &Moments, low: f64, high: f64,
+    machine scan(observations: &Observations, sums: &Moments, low: f64, high: f64,
                position: i32 in Wrapping, total: f64) -> f64 {
         transition position >= 0 && position < 32 && position < observations.group_count {
             true -> add(observations, sums, low, high, position, total)
             _ -> total
         }
     }
-    state add(observations: &Observations, sums: &Moments, low: f64, high: f64,
+    machine add(observations: &Observations, sums: &Moments, low: f64, high: f64,
               position: i32 in Wrapping, total: f64) -> f64 {
         let v: f64 = sums.fractions[position];
         let residual: f64 = observations.group_mean[position] - (low * (1.0 - v) + high * v);
@@ -63,10 +63,10 @@ machine consider(observations: &Observations, sums: &Moments, best: &mut Candida
         true -> accept(best, low, high, error)
         _ -> done()
     }
-    state accept(best: &mut Candidate, low: f64, high: f64, error: f64) {
+    machine accept(best: &mut Candidate, low: f64, high: f64, error: f64) {
         best.low = low; best.high = high; best.sse = error;
     }
-    state done() { }
+    machine done() { }
 }
 machine score(observations: &Observations, query: &Profile, log_half: f64, hill: f64,
               best: &mut Candidate) {
@@ -78,22 +78,22 @@ machine score(observations: &Observations, query: &Profile, log_half: f64, hill:
         true -> constrained(observations, query, best, &sums)
         _ -> done()
     }
-    state constrained(observations: &Observations, query: &Profile, best: &mut Candidate, sums: &Moments) {
+    machine constrained(observations: &Observations, query: &Profile, best: &mut Candidate, sums: &Moments) {
         transition query.fixed {
             0 -> fixed_low(observations, query, best, sums)
             1 -> fixed_high(observations, query, best, sums)
             _ -> free(observations, best, sums)
         }
     }
-    state fixed_low(observations: &Observations, query: &Profile, best: &mut Candidate, sums: &Moments) {
+    machine fixed_low(observations: &Observations, query: &Profile, best: &mut Candidate, sums: &Moments) {
         let high: f64 = clamp((sums.vy - query.value * sums.uv) / sums.vv, 0.0, 100.0);
         consider(observations, sums, best, query.value, high);
     }
-    state fixed_high(observations: &Observations, query: &Profile, best: &mut Candidate, sums: &Moments) {
+    machine fixed_high(observations: &Observations, query: &Profile, best: &mut Candidate, sums: &Moments) {
         let low: f64 = clamp((sums.uy - query.value * sums.uv) / sums.uu, 0.0, 100.0);
         consider(observations, sums, best, low, query.value);
     }
-    state free(observations: &Observations, best: &mut Candidate, sums: &Moments) {
+    machine free(observations: &Observations, best: &mut Candidate, sums: &Moments) {
         consider(observations, sums, best, 0.0, clamp(sums.vy / sums.vv, 0.0, 100.0));
         consider(observations, sums, best, 100.0, clamp((sums.vy - 100.0 * sums.uv) / sums.vv, 0.0, 100.0));
         consider(observations, sums, best, clamp(sums.uy / sums.uu, 0.0, 100.0), 0.0);
@@ -104,7 +104,7 @@ machine score(observations: &Observations, query: &Profile, log_half: f64, hill:
             _ -> done()
         }
     }
-    state interior(observations: &Observations, best: &mut Candidate, sums: &Moments, determinant: f64) {
+    machine interior(observations: &Observations, best: &mut Candidate, sums: &Moments, determinant: f64) {
         let low: f64 = (sums.uy * sums.vv - sums.vy * sums.uv) / determinant;
         let high: f64 = (sums.vy * sums.uu - sums.uy * sums.uv) / determinant;
         transition low >= 0.0 && low <= 100.0 && high >= 0.0 && high <= 100.0 {
@@ -112,10 +112,10 @@ machine score(observations: &Observations, query: &Profile, log_half: f64, hill:
             _ -> done()
         }
     }
-    state evaluate(observations: &Observations, best: &mut Candidate, sums: &Moments, low: f64, high: f64) {
+    machine evaluate(observations: &Observations, best: &mut Candidate, sums: &Moments, low: f64, high: f64) {
         consider(observations, sums, best, low, high);
     }
-    state done() { }
+    machine done() { }
 }
 machine copy_candidate(target: &mut Candidate, source: &Candidate) {
     target.low = source.low; target.high = source.high;
@@ -131,13 +131,13 @@ machine sample_shape(observations: &Observations, query: &Profile,
         3 -> fixed_hill(observations, query, t, candidate)
         _ -> free(observations, query, t, h, candidate)
     }
-    state fixed_half(observations: &Observations, query: &Profile, hill: f64, candidate: &mut Candidate) {
+    machine fixed_half(observations: &Observations, query: &Profile, hill: f64, candidate: &mut Candidate) {
         score(observations, query, query.value, hill, candidate);
     }
-    state fixed_hill(observations: &Observations, query: &Profile, log_half: f64, candidate: &mut Candidate) {
+    machine fixed_hill(observations: &Observations, query: &Profile, log_half: f64, candidate: &mut Candidate) {
         score(observations, query, log_half, query.value, candidate);
     }
-    state free(observations: &Observations, query: &Profile, log_half: f64, hill: f64, candidate: &mut Candidate) {
+    machine free(observations: &Observations, query: &Profile, log_half: f64, hill: f64, candidate: &mut Candidate) {
         score(observations, query, log_half, hill, candidate);
     }
 }
@@ -174,14 +174,14 @@ machine curvature(observations: &Observations, query: &Profile, candidate: &Cand
     sums.half_gradient = 0.0;
     sums.hill_gradient = 0.0;
     transition { _ -> scan(observations, query, candidate, sums, 0) }
-    state scan(observations: &Observations, query: &Profile, candidate: &Candidate,
+    machine scan(observations: &Observations, query: &Profile, candidate: &Candidate,
                sums: &mut Curvature, position: i32 in Wrapping) {
         transition position >= 0 && position < 32 && position < observations.group_count {
             true -> row(observations, query, candidate, sums, position)
             _ -> project(observations, query, candidate, sums)
         }
     }
-    state row(observations: &Observations, query: &Profile, candidate: &Candidate,
+    machine row(observations: &Observations, query: &Profile, candidate: &Candidate,
               sums: &mut Curvature, position: i32 in Wrapping) {
         let high_basis: f64 = fraction(observations.group_role[position], observations.group_logarithm[position],
                                        candidate.log_half, candidate.hill);
@@ -192,7 +192,7 @@ machine curvature(observations: &Observations, query: &Profile, candidate: &Cand
             _ -> add(observations, query, candidate, sums, position, low_basis, high_basis, residual, 0.0, 0.0)
         }
     }
-    state sample(observations: &Observations, query: &Profile, candidate: &Candidate,
+    machine sample(observations: &Observations, query: &Profile, candidate: &Candidate,
                  sums: &mut Curvature, position: i32 in Wrapping, low_basis: f64,
                  high_basis: f64, residual: f64) {
         let derivative: f64 = (candidate.high - candidate.low) * high_basis * low_basis;
@@ -201,7 +201,7 @@ machine curvature(observations: &Observations, query: &Profile, candidate: &Cand
         transition { _ -> add(observations, query, candidate, sums, position, low_basis, high_basis,
                                residual, half_derivative, hill_derivative) }
     }
-    state add(observations: &Observations, query: &Profile, candidate: &Candidate,
+    machine add(observations: &Observations, query: &Profile, candidate: &Candidate,
               sums: &mut Curvature, position: i32 in Wrapping, low_basis: f64,
               high_basis: f64, residual: f64, half_derivative: f64, hill_derivative: f64) {
         let weight: f64 = observations.group_weight[position];
@@ -219,7 +219,7 @@ machine curvature(observations: &Observations, query: &Profile, candidate: &Cand
         sums.hill_gradient = sums.hill_gradient + weight * hill_derivative * residual;
         transition { _ -> scan(observations, query, candidate, sums, position + 1) }
     }
-    state project(observations: &Observations, query: &Profile, candidate: &Candidate, sums: &mut Curvature) {
+    machine project(observations: &Observations, query: &Profile, candidate: &Candidate, sums: &mut Curvature) {
         let low_free: bool = query.fixed != 0 && candidate.low > 0.00000001 && candidate.low < 99.99999999;
         let high_free: bool = query.fixed != 1 && candidate.high > 0.00000001 && candidate.high < 99.99999999;
         transition low_free && high_free {
@@ -227,14 +227,14 @@ machine curvature(observations: &Observations, query: &Profile, candidate: &Cand
             _ -> one(observations, query, candidate, sums, low_free, high_free)
         }
     }
-    state both(observations: &Observations, query: &Profile, candidate: &Candidate, sums: &mut Curvature) {
+    machine both(observations: &Observations, query: &Profile, candidate: &Candidate, sums: &mut Curvature) {
         let determinant: f64 = sums.low_low * sums.high_high - sums.low_high * sums.low_high;
         transition determinant > 1.0e-14 {
             true -> inverse(observations, query, candidate, sums, determinant)
             _ -> constrain(observations, query, candidate, sums)
         }
     }
-    state inverse(observations: &Observations, query: &Profile, candidate: &Candidate,
+    machine inverse(observations: &Observations, query: &Profile, candidate: &Candidate,
                   sums: &mut Curvature, determinant: f64) {
         let low_half: f64 = (sums.high_high * sums.low_half - sums.low_high * sums.high_half) / determinant;
         let high_half: f64 = (sums.low_low * sums.high_half - sums.low_high * sums.low_half) / determinant;
@@ -245,33 +245,33 @@ machine curvature(observations: &Observations, query: &Profile, candidate: &Cand
         sums.hill_hill = sums.hill_hill - sums.low_hill * low_hill - sums.high_hill * high_hill;
         transition { _ -> constrain(observations, query, candidate, sums) }
     }
-    state one(observations: &Observations, query: &Profile, candidate: &Candidate,
+    machine one(observations: &Observations, query: &Profile, candidate: &Candidate,
               sums: &mut Curvature, low_free: bool, high_free: bool) {
         transition low_free && sums.low_low > 1.0e-20 {
             true -> subtract_low(observations, query, candidate, sums)
             _ -> select_high(observations, query, candidate, sums, high_free)
         }
     }
-    state subtract_low(observations: &Observations, query: &Profile, candidate: &Candidate, sums: &mut Curvature) {
+    machine subtract_low(observations: &Observations, query: &Profile, candidate: &Candidate, sums: &mut Curvature) {
         sums.half_half = sums.half_half - sums.low_half * sums.low_half / sums.low_low;
         sums.half_hill = sums.half_hill - sums.low_half * sums.low_hill / sums.low_low;
         sums.hill_hill = sums.hill_hill - sums.low_hill * sums.low_hill / sums.low_low;
         transition { _ -> constrain(observations, query, candidate, sums) }
     }
-    state select_high(observations: &Observations, query: &Profile, candidate: &Candidate,
+    machine select_high(observations: &Observations, query: &Profile, candidate: &Candidate,
                       sums: &mut Curvature, high_free: bool) {
         transition high_free && sums.high_high > 1.0e-20 {
             true -> subtract_high(observations, query, candidate, sums)
             _ -> constrain(observations, query, candidate, sums)
         }
     }
-    state subtract_high(observations: &Observations, query: &Profile, candidate: &Candidate, sums: &mut Curvature) {
+    machine subtract_high(observations: &Observations, query: &Profile, candidate: &Candidate, sums: &mut Curvature) {
         sums.half_half = sums.half_half - sums.high_half * sums.high_half / sums.high_high;
         sums.half_hill = sums.half_hill - sums.high_half * sums.high_hill / sums.high_high;
         sums.hill_hill = sums.hill_hill - sums.high_hill * sums.high_hill / sums.high_high;
         transition { _ -> constrain(observations, query, candidate, sums) }
     }
-    state constrain(observations: &Observations, query: &Profile, candidate: &Candidate, sums: &mut Curvature) {
+    machine constrain(observations: &Observations, query: &Profile, candidate: &Candidate, sums: &mut Curvature) {
         transition query.fixed == 2
             || (candidate.log_half <= observations.lower_log_half + 0.000000001 && sums.half_gradient < 0.0)
             || (candidate.log_half >= observations.upper_log_half - 0.000000001 && sums.half_gradient > 0.0) {
@@ -279,11 +279,11 @@ machine curvature(observations: &Observations, query: &Profile, candidate: &Cand
             _ -> constrain_hill(query, candidate, sums)
         }
     }
-    state fixed_half(observations: &Observations, query: &Profile, candidate: &Candidate, sums: &mut Curvature) {
+    machine fixed_half(observations: &Observations, query: &Profile, candidate: &Candidate, sums: &mut Curvature) {
         sums.half_gradient = 0.0; sums.half_half = 1.0; sums.half_hill = 0.0;
         transition { _ -> constrain_hill(query, candidate, sums) }
     }
-    state constrain_hill(query: &Profile, candidate: &Candidate, sums: &mut Curvature) {
+    machine constrain_hill(query: &Profile, candidate: &Candidate, sums: &mut Curvature) {
         transition query.fixed == 3
             || (candidate.hill <= 0.200000001 && sums.hill_gradient < 0.0)
             || (candidate.hill >= 4.999999999 && sums.hill_gradient > 0.0) {
@@ -291,14 +291,14 @@ machine curvature(observations: &Observations, query: &Profile, candidate: &Cand
             _ -> done()
         }
     }
-    state fixed_hill(sums: &mut Curvature) { sums.hill_gradient = 0.0; sums.hill_hill = 1.0; sums.half_hill = 0.0; }
-    state done() { }
+    machine fixed_hill(sums: &mut Curvature) { sums.hill_gradient = 0.0; sums.hill_hill = 1.0; sums.half_hill = 0.0; }
+    machine done() { }
 }
 machine seed_grid(observations: &Observations, query: &Profile, seed: &Candidate, best: &mut Candidate,
                   t_count: i32 in Wrapping, h_count: i32 in Wrapping) {
     sample_shape(observations, query, seed.log_half, seed.hill, best);
     transition { _ -> grid(observations, query, best, t_count, h_count, 0, 0) }
-    state grid(observations: &Observations, query: &Profile, best: &mut Candidate,
+    machine grid(observations: &Observations, query: &Profile, best: &mut Candidate,
                t_count: i32 in Wrapping, h_count: i32 in Wrapping,
                t_position: i32 in Wrapping, h_position: i32 in Wrapping) {
         let t: f64 = observations.lower_log_half + (observations.upper_log_half - observations.lower_log_half)
@@ -311,13 +311,13 @@ machine seed_grid(observations: &Observations, query: &Profile, seed: &Candidate
             _ -> next(observations, query, best, t_count, h_count, t_position, h_position)
         }
     }
-    state accept(observations: &Observations, query: &Profile, best: &mut Candidate, candidate: &Candidate,
+    machine accept(observations: &Observations, query: &Profile, best: &mut Candidate, candidate: &Candidate,
                  t_count: i32 in Wrapping, h_count: i32 in Wrapping,
                  t_position: i32 in Wrapping, h_position: i32 in Wrapping) {
         copy_candidate(best, candidate);
         transition { _ -> next(observations, query, best, t_count, h_count, t_position, h_position) }
     }
-    state next(observations: &Observations, query: &Profile, best: &mut Candidate,
+    machine next(observations: &Observations, query: &Profile, best: &mut Candidate,
                t_count: i32 in Wrapping, h_count: i32 in Wrapping,
                t_position: i32 in Wrapping, h_position: i32 in Wrapping) {
         transition h_position < h_count {
@@ -325,18 +325,18 @@ machine seed_grid(observations: &Observations, query: &Profile, seed: &Candidate
             _ -> next_t(observations, query, best, t_count, h_count, t_position)
         }
     }
-    state next_t(observations: &Observations, query: &Profile, best: &mut Candidate,
+    machine next_t(observations: &Observations, query: &Profile, best: &mut Candidate,
                  t_count: i32 in Wrapping, h_count: i32 in Wrapping, t_position: i32 in Wrapping) {
         transition t_position < t_count {
             true -> grid(observations, query, best, t_count, h_count, t_position + 1, 0)
             _ -> done()
         }
     }
-    state done() { }
+    machine done() { }
 }
 machine newton(observations: &Observations, query: &Profile, best: &mut Candidate) {
     transition { _ -> iteration(observations, query, best, 0.000001, 0) }
-    state iteration(observations: &Observations, query: &Profile, best: &mut Candidate,
+    machine iteration(observations: &Observations, query: &Profile, best: &mut Candidate,
                     damping: f64, count: i32 in Wrapping) {
         let mut sums: Curvature;
         curvature(observations, query, best, &mut sums);
@@ -347,7 +347,7 @@ machine newton(observations: &Observations, query: &Profile, best: &mut Candidat
             _ -> trial(observations, query, best, &sums, damping, count, 0)
         }
     }
-    state trial(observations: &Observations, query: &Profile, best: &mut Candidate, sums: &Curvature,
+    machine trial(observations: &Observations, query: &Profile, best: &mut Candidate, sums: &Curvature,
                 damping: f64, count: i32 in Wrapping, attempt: i32 in Wrapping) {
         let half_diagonal: f64 = sums.half_half + damping * clamp(sums.half_half, 1.0, 1.0e30);
         let hill_diagonal: f64 = sums.hill_hill + damping * clamp(sums.hill_hill, 1.0, 1.0e30);
@@ -357,7 +357,7 @@ machine newton(observations: &Observations, query: &Profile, best: &mut Candidat
             _ -> retry(observations, query, best, sums, damping, count, attempt, 1.0)
         }
     }
-    state step(observations: &Observations, query: &Profile, best: &mut Candidate, sums: &Curvature,
+    machine step(observations: &Observations, query: &Profile, best: &mut Candidate, sums: &Curvature,
                half_diagonal: f64, hill_diagonal: f64, determinant: f64,
                damping: f64, count: i32 in Wrapping, attempt: i32 in Wrapping) {
         let half_step: f64 = clamp((hill_diagonal * sums.half_gradient - sums.half_hill * sums.hill_gradient) / determinant, -1.0, 1.0);
@@ -371,12 +371,12 @@ machine newton(observations: &Observations, query: &Profile, best: &mut Candidat
                         clamp(magnitude(half_step), magnitude(hill_step), 1.0e30))
         }
     }
-    state accept(observations: &Observations, query: &Profile, best: &mut Candidate,
+    machine accept(observations: &Observations, query: &Profile, best: &mut Candidate,
                  candidate: &Candidate, damping: f64, count: i32 in Wrapping, movement: f64) {
         copy_candidate(best, candidate);
         transition { _ -> budget(observations, query, best, clamp(damping / 3.0, 0.0000000001, 1.0e30), count + 1) }
     }
-    state retry(observations: &Observations, query: &Profile, best: &mut Candidate, sums: &Curvature,
+    machine retry(observations: &Observations, query: &Profile, best: &mut Candidate, sums: &Curvature,
                 damping: f64, count: i32 in Wrapping, attempt: i32 in Wrapping, movement: f64) {
         transition magnitude(sums.half_gradient) < 0.0000001 * clamp(sums.half_half, 0.000000000001, 1.0e30)
             && magnitude(sums.hill_gradient) < 0.0000001 * clamp(sums.hill_hill, 0.000000000001, 1.0e30) {
@@ -384,22 +384,22 @@ machine newton(observations: &Observations, query: &Profile, best: &mut Candidat
             _ -> attempts(observations, query, best, sums, damping, count, attempt)
         }
     }
-    state attempts(observations: &Observations, query: &Profile, best: &mut Candidate, sums: &Curvature,
+    machine attempts(observations: &Observations, query: &Profile, best: &mut Candidate, sums: &Curvature,
                    damping: f64, count: i32 in Wrapping, attempt: i32 in Wrapping) {
         transition attempt < 19 {
             true -> trial(observations, query, best, sums, damping * 10.0, count, attempt + 1)
             _ -> done()
         }
     }
-    state budget(observations: &Observations, query: &Profile, best: &mut Candidate,
+    machine budget(observations: &Observations, query: &Profile, best: &mut Candidate,
                  damping: f64, count: i32 in Wrapping) {
         transition count < 100 {
             true -> iteration(observations, query, best, damping, count)
             _ -> done()
         }
     }
-    state converged(best: &mut Candidate, count: i32 in Wrapping) { best.iterations = count; best.converged = true; }
-    state done() { }
+    machine converged(best: &mut Candidate, count: i32 in Wrapping) { best.iterations = count; best.converged = true; }
+    machine done() { }
 }
 // With one nonlinear shape fixed, eliminate linear coefficients and minimize
 // the remaining scalar shape in a bracket around the best 17-point scan.
@@ -414,7 +414,7 @@ machine golden(observations: &Observations, query: &Profile, best: &mut Candidat
                lower: f64, upper: f64) {
     best.sse = 1.0e30; best.converged = false; best.iterations = 0;
     transition { _ -> scan(observations, query, best, lower, upper, 0, 0) }
-    state scan(observations: &Observations, query: &Profile, best: &mut Candidate,
+    machine scan(observations: &Observations, query: &Profile, best: &mut Candidate,
                lower: f64, upper: f64, position: i32 in Wrapping, best_position: i32 in Wrapping) {
         let axis: f64 = lower + (upper - lower) * F64::from_i32(position as i32) / 16.0;
         let mut candidate: Candidate;
@@ -424,19 +424,19 @@ machine golden(observations: &Observations, query: &Profile, best: &mut Candidat
             _ -> next(observations, query, best, lower, upper, position, best_position)
         }
     }
-    state accept(observations: &Observations, query: &Profile, best: &mut Candidate,
+    machine accept(observations: &Observations, query: &Profile, best: &mut Candidate,
                  candidate: &Candidate, lower: f64, upper: f64, position: i32 in Wrapping) {
         copy_candidate(best, candidate);
         transition { _ -> next(observations, query, best, lower, upper, position, position) }
     }
-    state next(observations: &Observations, query: &Profile, best: &mut Candidate,
+    machine next(observations: &Observations, query: &Profile, best: &mut Candidate,
                lower: f64, upper: f64, position: i32 in Wrapping, best_position: i32 in Wrapping) {
         transition position < 16 {
             true -> scan(observations, query, best, lower, upper, position + 1, best_position)
             _ -> begin(observations, query, best, lower, upper, best_position)
         }
     }
-    state begin(observations: &Observations, query: &Profile, best: &mut Candidate,
+    machine begin(observations: &Observations, query: &Profile, best: &mut Candidate,
                 lower: f64, upper: f64, position: i32 in Wrapping) {
         let center: f64 = lower + (upper - lower) * F64::from_i32(position as i32) / 16.0;
         let spacing: f64 = (upper - lower) / 16.0;
@@ -449,45 +449,45 @@ machine golden(observations: &Observations, query: &Profile, best: &mut Candidat
         axis_score(observations, query, search.right, &mut search.right_value);
         transition { _ -> iterate(observations, query, best, &mut search, 0) }
     }
-    state iterate(observations: &Observations, query: &Profile, best: &mut Candidate,
+    machine iterate(observations: &Observations, query: &Profile, best: &mut Candidate,
                   search: &mut AxisSearch, count: i32 in Wrapping) {
         transition search.left_value.sse < best.sse {
             true -> accept_left(observations, query, best, search, count)
             _ -> select_right(observations, query, best, search, count)
         }
     }
-    state accept_left(observations: &Observations, query: &Profile, best: &mut Candidate,
+    machine accept_left(observations: &Observations, query: &Profile, best: &mut Candidate,
                       search: &mut AxisSearch, count: i32 in Wrapping) {
         copy_candidate(best, &search.left_value);
         transition { _ -> select_right(observations, query, best, search, count) }
     }
-    state select_right(observations: &Observations, query: &Profile, best: &mut Candidate,
+    machine select_right(observations: &Observations, query: &Profile, best: &mut Candidate,
                        search: &mut AxisSearch, count: i32 in Wrapping) {
         transition search.right_value.sse < best.sse {
             true -> accept_right(observations, query, best, search, count)
             _ -> decision(observations, query, best, search, count)
         }
     }
-    state accept_right(observations: &Observations, query: &Profile, best: &mut Candidate,
+    machine accept_right(observations: &Observations, query: &Profile, best: &mut Candidate,
                        search: &mut AxisSearch, count: i32 in Wrapping) {
         copy_candidate(best, &search.right_value);
         transition { _ -> decision(observations, query, best, search, count) }
     }
-    state decision(observations: &Observations, query: &Profile, best: &mut Candidate,
+    machine decision(observations: &Observations, query: &Profile, best: &mut Candidate,
                    search: &mut AxisSearch, count: i32 in Wrapping) {
         transition count >= 32 {
             true -> finish(best, search, count)
             _ -> narrow(observations, query, best, search, count)
         }
     }
-    state narrow(observations: &Observations, query: &Profile, best: &mut Candidate,
+    machine narrow(observations: &Observations, query: &Profile, best: &mut Candidate,
                  search: &mut AxisSearch, count: i32 in Wrapping) {
         transition search.left_value.sse < search.right_value.sse {
             true -> left(observations, query, best, search, count)
             _ -> right(observations, query, best, search, count)
         }
     }
-    state left(observations: &Observations, query: &Profile, best: &mut Candidate,
+    machine left(observations: &Observations, query: &Profile, best: &mut Candidate,
                search: &mut AxisSearch, count: i32 in Wrapping) {
         search.upper = search.right; search.right = search.left;
         copy_candidate(&mut search.right_value, &search.left_value);
@@ -495,7 +495,7 @@ machine golden(observations: &Observations, query: &Profile, best: &mut Candidat
         axis_score(observations, query, search.left, &mut search.left_value);
         transition { _ -> iterate(observations, query, best, search, count + 1) }
     }
-    state right(observations: &Observations, query: &Profile, best: &mut Candidate,
+    machine right(observations: &Observations, query: &Profile, best: &mut Candidate,
                 search: &mut AxisSearch, count: i32 in Wrapping) {
         search.lower = search.left; search.left = search.right;
         copy_candidate(&mut search.left_value, &search.right_value);
@@ -503,7 +503,7 @@ machine golden(observations: &Observations, query: &Profile, best: &mut Candidat
         axis_score(observations, query, search.right, &mut search.right_value);
         transition { _ -> iterate(observations, query, best, search, count + 1) }
     }
-    state finish(best: &mut Candidate, search: &AxisSearch, count: i32 in Wrapping) {
+    machine finish(best: &mut Candidate, search: &AxisSearch, count: i32 in Wrapping) {
         best.iterations = count;
         best.converged = (search.upper - search.lower < 0.000001);
     }
@@ -514,23 +514,23 @@ machine optimize(observations: &Observations, query: &Profile, seed: &Candidate,
         3 -> hill_fixed(observations, query, best)
         _ -> dimensions(observations, query, seed, best)
     }
-    state half_fixed(observations: &Observations, query: &Profile, best: &mut Candidate) {
+    machine half_fixed(observations: &Observations, query: &Profile, best: &mut Candidate) {
         golden(observations, query, best, 0.2, 5.0);
     }
-    state hill_fixed(observations: &Observations, query: &Profile, best: &mut Candidate) {
+    machine hill_fixed(observations: &Observations, query: &Profile, best: &mut Candidate) {
         golden(observations, query, best, observations.lower_log_half, observations.upper_log_half);
     }
-    state dimensions(observations: &Observations, query: &Profile, seed: &Candidate, best: &mut Candidate) {
+    machine dimensions(observations: &Observations, query: &Profile, seed: &Candidate, best: &mut Candidate) {
         transition query.fixed < 0 {
             true -> full(observations, query, seed, best)
             _ -> nuisance(observations, query, seed, best)
         }
     }
-    state full(observations: &Observations, query: &Profile, seed: &Candidate, best: &mut Candidate) {
+    machine full(observations: &Observations, query: &Profile, seed: &Candidate, best: &mut Candidate) {
         seed_grid(observations, query, seed, best, 8, 8);
         newton(observations, query, best);
     }
-    state nuisance(observations: &Observations, query: &Profile, seed: &Candidate, best: &mut Candidate) {
+    machine nuisance(observations: &Observations, query: &Profile, seed: &Candidate, best: &mut Candidate) {
         seed_grid(observations, query, seed, best, 4, 2);
         newton(observations, query, best);
     }
@@ -541,14 +541,14 @@ machine optimize(observations: &Observations, query: &Profile, seed: &Candidate,
 // profile endpoint's fitted objective.
 machine control_bound(observations: &Observations, parameter: i32, value: f64) -> f64 {
     transition { _ -> scan(observations, parameter, value, 0, 0.0) }
-    state scan(observations: &Observations, parameter: i32, value: f64,
+    machine scan(observations: &Observations, parameter: i32, value: f64,
                position: i32 in Wrapping, sum: f64) -> f64 {
         transition position >= 0 && position < 32 && position < observations.count {
             true -> row(observations, parameter, value, position, sum)
             _ -> sum
         }
     }
-    state row(observations: &Observations, parameter: i32, value: f64,
+    machine row(observations: &Observations, parameter: i32, value: f64,
               position: i32 in Wrapping, sum: f64) -> f64 {
         transition (parameter == 0 && observations.role[position] == 1)
             || (parameter == 1 && observations.role[position] == 2) {
@@ -556,7 +556,7 @@ machine control_bound(observations: &Observations, parameter: i32, value: f64) -
             _ -> scan(observations, parameter, value, position + 1, sum)
         }
     }
-    state add(observations: &Observations, parameter: i32, value: f64,
+    machine add(observations: &Observations, parameter: i32, value: f64,
               position: i32 in Wrapping, sum: f64) -> f64 {
         let residual: f64 = value - observations.response[position];
         transition { _ -> scan(observations, parameter, value, position + 1, sum + residual * residual) }
@@ -565,24 +565,24 @@ machine control_bound(observations: &Observations, parameter: i32, value: f64) -
 machine bounds(observations: &mut Observations) {
     observations.lower_log_half = 1.0e30; observations.upper_log_half = 0.0;
     transition { _ -> scan(observations, 0) }
-    state scan(observations: &mut Observations, position: i32 in Wrapping) {
+    machine scan(observations: &mut Observations, position: i32 in Wrapping) {
         transition position >= 0 && position < 32 && position < observations.count {
             true -> row(observations, position)
             _ -> finish(observations)
         }
     }
-    state row(observations: &mut Observations, position: i32 in Wrapping) {
+    machine row(observations: &mut Observations, position: i32 in Wrapping) {
         transition observations.role[position] == 0 {
             true -> update(observations, position)
             _ -> scan(observations, position + 1)
         }
     }
-    state update(observations: &mut Observations, position: i32 in Wrapping) {
+    machine update(observations: &mut Observations, position: i32 in Wrapping) {
         observations.lower_log_half = clamp(observations.logarithm[position], 0.0, observations.lower_log_half);
         observations.upper_log_half = clamp(observations.logarithm[position], observations.upper_log_half, 100.0);
         transition { _ -> scan(observations, position + 1) }
     }
-    state finish(observations: &mut Observations) {
+    machine finish(observations: &mut Observations) {
         observations.lower_log_half = observations.lower_log_half - 2.30258509299404568402;
         observations.upper_log_half = observations.upper_log_half + 2.30258509299404568402;
     }
@@ -601,11 +601,11 @@ machine domain_edge(observations: &Observations, position: i32, side: i32) -> f6
         3 -> hill(side)
         _ -> asymptote(side)
     }
-    state log_half(observations: &Observations, side: i32) -> f64 {
+    machine log_half(observations: &Observations, side: i32) -> f64 {
         transition side == 0 { true -> observations.lower_log_half _ -> observations.upper_log_half }
     }
-    state hill(side: i32) -> f64 { transition side == 0 { true -> 0.2 _ -> 5.0 } }
-    state asymptote(side: i32) -> f64 { transition side == 0 { true -> 0.0 _ -> 100.0 } }
+    machine hill(side: i32) -> f64 { transition side == 0 { true -> 0.2 _ -> 5.0 } }
+    machine asymptote(side: i32) -> f64 { transition side == 0 { true -> 0.0 _ -> 100.0 } }
 }
 // A hard parameter bound does not establish a confidence endpoint. Every
 // profile must cross the nominal 95% known-sigma threshold on both sides.
@@ -619,7 +619,7 @@ machine profile_endpoint(observations: &Observations, fit: &mut Fit,
         true -> bisect(observations, fit, position, side, center, edge, 0)
         _ -> optimize_edge(observations, fit, position, side, center, edge)
     }
-    state optimize_edge(observations: &Observations, fit: &mut Fit, position: i32 in Wrapping,
+    machine optimize_edge(observations: &Observations, fit: &mut Fit, position: i32 in Wrapping,
                         side: i32, center: f64, edge: f64) -> bool {
         let query: Profile = Profile { fixed: position as i32, value: edge };
         let mut candidate: Candidate;
@@ -629,7 +629,7 @@ machine profile_endpoint(observations: &Observations, fit: &mut Fit,
             _ -> false
         }
     }
-    state bisect(observations: &Observations, fit: &mut Fit, position: i32 in Wrapping,
+    machine bisect(observations: &Observations, fit: &mut Fit, position: i32 in Wrapping,
                  side: i32, inside: f64, outside: f64, iteration: i32 in Wrapping) -> bool {
         let middle: f64 = (inside + outside) / 2.0;
         let exclusion: f64 = control_bound(observations, position as i32, middle);
@@ -638,7 +638,7 @@ machine profile_endpoint(observations: &Observations, fit: &mut Fit,
             _ -> optimize_middle(observations, fit, position, side, inside, outside, middle, iteration)
         }
     }
-    state optimize_middle(observations: &Observations, fit: &mut Fit, position: i32 in Wrapping,
+    machine optimize_middle(observations: &Observations, fit: &mut Fit, position: i32 in Wrapping,
                           side: i32, inside: f64, outside: f64, middle: f64, iteration: i32 in Wrapping) -> bool {
         let query: Profile = Profile { fixed: position as i32, value: middle };
         let mut candidate: Candidate;
@@ -648,7 +648,7 @@ machine profile_endpoint(observations: &Observations, fit: &mut Fit,
             _ -> false
         }
     }
-    state classify(observations: &Observations, fit: &mut Fit, position: i32 in Wrapping,
+    machine classify(observations: &Observations, fit: &mut Fit, position: i32 in Wrapping,
                    side: i32, inside: f64, outside: f64, middle: f64,
                    candidate: &Candidate, iteration: i32 in Wrapping) -> bool {
         transition iteration >= 22 {
@@ -656,7 +656,7 @@ machine profile_endpoint(observations: &Observations, fit: &mut Fit,
             _ -> branch(observations, fit, position, side, inside, outside, middle, candidate.sse, iteration)
         }
     }
-    state branch(observations: &Observations, fit: &mut Fit, position: i32 in Wrapping,
+    machine branch(observations: &Observations, fit: &mut Fit, position: i32 in Wrapping,
                  side: i32, inside: f64, outside: f64, middle: f64, error: f64,
                  iteration: i32 in Wrapping) -> bool {
         transition error > fit.cutoff {
@@ -664,14 +664,14 @@ machine profile_endpoint(observations: &Observations, fit: &mut Fit,
             _ -> bisect(observations, fit, position, side, middle, outside, iteration + 1)
         }
     }
-    state capacity(fit: &mut Fit, position: i32 in Wrapping, side: i32, value: f64, error: f64) -> bool {
+    machine capacity(fit: &mut Fit, position: i32 in Wrapping, side: i32, value: f64, error: f64) -> bool {
         let slot: i32 in Wrapping = position * 2 + side as i32 in Wrapping;
         transition position >= 0 && position < 4 && slot >= 0 && slot < 8 {
             true -> store(fit, position, slot, side, value, error)
             _ -> false
         }
     }
-    state store(fit: &mut Fit, position: i32 in Wrapping, slot: i32 in Wrapping,
+    machine store(fit: &mut Fit, position: i32 in Wrapping, slot: i32 in Wrapping,
                 side: i32, value: f64, error: f64) -> bool {
         fit.endpoint_sse[slot] = error;
         transition side == 0 {
@@ -679,10 +679,10 @@ machine profile_endpoint(observations: &Observations, fit: &mut Fit,
             _ -> upper(fit, position, value)
         }
     }
-    state lower(fit: &mut Fit, position: i32 in Wrapping, value: f64) -> bool {
+    machine lower(fit: &mut Fit, position: i32 in Wrapping, value: f64) -> bool {
         fit.lower[position] = value; true
     }
-    state upper(fit: &mut Fit, position: i32 in Wrapping, value: f64) -> bool {
+    machine upper(fit: &mut Fit, position: i32 in Wrapping, value: f64) -> bool {
         fit.upper[position] = value; true
     }
 }
@@ -700,45 +700,45 @@ public machine fit_curve(observations: &mut Observations, fit: &mut Fit) {
         true -> amplitude(observations, fit)
         _ -> done()
     }
-    state amplitude(observations: &Observations, fit: &mut Fit) {
+    machine amplitude(observations: &Observations, fit: &mut Fit) {
         transition magnitude(fit.candidate.high - fit.candidate.low) > 5.0 * observations.sigma {
             true -> direction(observations, fit)
             _ -> flat(fit)
         }
     }
-    state direction(observations: &Observations, fit: &mut Fit) {
+    machine direction(observations: &Observations, fit: &mut Fit) {
         let signed_amplitude: f64 = (fit.candidate.high - fit.candidate.low) * F64::from_i32(observations.direction);
         transition signed_amplitude > 0.0 {
             true -> profiles(observations, fit, 0, 0)
             _ -> wrong_direction(fit)
         }
     }
-    state profiles(observations: &Observations, fit: &mut Fit, position: i32 in Wrapping, side: i32) {
+    machine profiles(observations: &Observations, fit: &mut Fit, position: i32 in Wrapping, side: i32) {
         transition position >= 0 && position < 4 {
             true -> endpoint(observations, fit, position, side)
             _ -> reconstruct(observations, fit, 0)
         }
     }
-    state endpoint(observations: &Observations, fit: &mut Fit, position: i32 in Wrapping, side: i32) {
+    machine endpoint(observations: &Observations, fit: &mut Fit, position: i32 in Wrapping, side: i32) {
         let closed: bool = profile_endpoint(observations, fit, position, side);
         transition closed {
             true -> next(observations, fit, position, side)
             _ -> unidentified(fit)
         }
     }
-    state next(observations: &Observations, fit: &mut Fit, position: i32 in Wrapping, side: i32) {
+    machine next(observations: &Observations, fit: &mut Fit, position: i32 in Wrapping, side: i32) {
         transition side == 0 {
             true -> profiles(observations, fit, position, 1)
             _ -> profiles(observations, fit, position + 1, 0)
         }
     }
-    state reconstruct(observations: &Observations, fit: &mut Fit, position: i32 in Wrapping) {
+    machine reconstruct(observations: &Observations, fit: &mut Fit, position: i32 in Wrapping) {
         transition position >= 0 && position < 32 && position < observations.count {
             true -> row(observations, fit, position)
             _ -> success(fit)
         }
     }
-    state row(observations: &Observations, fit: &mut Fit, position: i32 in Wrapping) {
+    machine row(observations: &Observations, fit: &mut Fit, position: i32 in Wrapping) {
         let v: f64 = fraction(observations.role[position], observations.logarithm[position],
                                fit.candidate.log_half, fit.candidate.hill);
         let predicted: f64 = fit.candidate.low * (1.0 - v) + fit.candidate.high * v;
@@ -746,11 +746,11 @@ public machine fit_curve(observations: &mut Observations, fit: &mut Fit) {
         fit.residual[position] = observations.response[position] - predicted;
         transition { _ -> reconstruct(observations, fit, position + 1) }
     }
-    state flat(fit: &mut Fit) { fit.status = 3; }
-    state unidentified(fit: &mut Fit) { fit.status = 4; }
-    state wrong_direction(fit: &mut Fit) { fit.status = 5; }
-    state success(fit: &mut Fit) { fit.status = 0; }
-    state done() { }
+    machine flat(fit: &mut Fit) { fit.status = 3; }
+    machine unidentified(fit: &mut Fit) { fit.status = 4; }
+    machine wrong_direction(fit: &mut Fit) { fit.status = 5; }
+    machine success(fit: &mut Fit) { fit.status = 0; }
+    machine done() { }
 }
 // Grouping is a sufficient-statistic calculation, not replicate averaging that
 // discards noise: SSE = within-group SSE + weight*(mean-prediction)^2. Original
@@ -759,32 +759,32 @@ public machine fit_curve(observations: &mut Observations, fit: &mut Fit) {
 machine group_replicates(observations: &mut Observations) {
     observations.group_count = 0;
     transition { _ -> row(observations, 0) }
-    state row(observations: &mut Observations, position: i32 in Wrapping) {
+    machine row(observations: &mut Observations, position: i32 in Wrapping) {
         transition position >= 0 && position < 32 && position < observations.count {
             true -> search(observations, position, 0)
             _ -> done()
         }
     }
-    state search(observations: &mut Observations, position: i32 in Wrapping, group: i32 in Wrapping) {
+    machine search(observations: &mut Observations, position: i32 in Wrapping, group: i32 in Wrapping) {
         transition group >= 0 && group < 32 {
             true -> capacity(observations, position, group)
             _ -> done()
         }
     }
-    state capacity(observations: &mut Observations, position: i32 in Wrapping, group: i32 in Wrapping) {
+    machine capacity(observations: &mut Observations, position: i32 in Wrapping, group: i32 in Wrapping) {
         transition group < observations.group_count {
             true -> compare(observations, position, group)
             _ -> initialize(observations, position, group)
         }
     }
-    state compare(observations: &mut Observations, position: i32 in Wrapping, group: i32 in Wrapping) {
+    machine compare(observations: &mut Observations, position: i32 in Wrapping, group: i32 in Wrapping) {
         transition observations.group_dose[group] == observations.dose[position]
             && observations.group_role[group] == observations.role[position] {
             true -> accumulate(observations, position, group)
             _ -> search(observations, position, group + 1)
         }
     }
-    state initialize(observations: &mut Observations, position: i32 in Wrapping, group: i32 in Wrapping) {
+    machine initialize(observations: &mut Observations, position: i32 in Wrapping, group: i32 in Wrapping) {
         observations.group_dose[group] = observations.dose[position];
         observations.group_role[group] = observations.role[position];
         observations.group_logarithm[group] = observations.logarithm[position];
@@ -794,7 +794,7 @@ machine group_replicates(observations: &mut Observations) {
         observations.group_count = observations.group_count + 1;
         transition { _ -> accumulate(observations, position, group) }
     }
-    state accumulate(observations: &mut Observations, position: i32 in Wrapping, group: i32 in Wrapping) {
+    machine accumulate(observations: &mut Observations, position: i32 in Wrapping, group: i32 in Wrapping) {
         let response: f64 = observations.response[position];
         let weight: f64 = observations.group_weight[group] + 1.0;
         let delta: f64 = response - observations.group_mean[group];
@@ -804,5 +804,5 @@ machine group_replicates(observations: &mut Observations) {
         observations.group_weight[group] = weight;
         transition { _ -> row(observations, position + 1) }
     }
-    state done() { }
+    machine done() { }
 }

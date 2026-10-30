@@ -20,8 +20,8 @@ machine select(bytes: &[u8; 2], choice: Choice) -> u64 {
         Choice::End -> ended(observed)
         Choice::Return -> observed
     }
-    state forwarded(view: &[u8]) -> u64 { view.len }
-    state ended(observed: u64) -> u64 { observed }
+    machine forwarded(view: &[u8]) -> u64 { view.len }
+    machine ended(observed: u64) -> u64 { observed }
 }
 
 data Main {}
@@ -34,6 +34,6 @@ machine Main::main(main: &mut Main) {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() {}
+    machine done() {}
+    machine bad() {}
 }

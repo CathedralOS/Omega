@@ -13,17 +13,17 @@ machine solve(problem: &Problem, best: &mut Schedule) -> bool {
         true -> empty(best)
         _ -> enumerate(problem, best, 0)
     }
-    state empty(best: &mut Schedule) -> bool {
+    machine empty(best: &mut Schedule) -> bool {
         best.feasible = true;
         transition { _ -> true }
     }
-    state enumerate(problem: &Problem, best: &mut Schedule, code: i32 in Wrapping) -> bool {
+    machine enumerate(problem: &Problem, best: &mut Schedule, code: i32 in Wrapping) -> bool {
         transition code < 256 {
             true -> candidate(problem, best, code)
             _ -> (best.feasible)
         }
     }
-    state candidate(problem: &Problem, best: &mut Schedule, code: i32 in Wrapping) -> bool {
+    machine candidate(problem: &Problem, best: &mut Schedule, code: i32 in Wrapping) -> bool {
         let mut trial: Schedule;
         reset_schedule(&mut trial);
         let feasible: bool = schedule_order(problem, &mut trial, code);
@@ -32,7 +32,7 @@ machine solve(problem: &Problem, best: &mut Schedule) -> bool {
             _ -> enumerate(problem, best, code + 1)
         }
     }
-    state compare(problem: &Problem, best: &mut Schedule, trial: &Schedule,
+    machine compare(problem: &Problem, best: &mut Schedule, trial: &Schedule,
                   code: i32 in Wrapping) -> bool {
         let preferred: bool = better(trial, best);
         transition preferred {
@@ -40,7 +40,7 @@ machine solve(problem: &Problem, best: &mut Schedule) -> bool {
             _ -> enumerate(problem, best, code + 1)
         }
     }
-    state retain(problem: &Problem, best: &mut Schedule, trial: &Schedule,
+    machine retain(problem: &Problem, best: &mut Schedule, trial: &Schedule,
                  code: i32 in Wrapping) -> bool {
         best.starts = trial.starts;
         best.ends = trial.ends;
@@ -56,25 +56,25 @@ machine better(trial: &Schedule, best: &Schedule) -> bool {
         true -> true
         _ -> tied(trial, best)
     }
-    state tied(trial: &Schedule, best: &Schedule) -> bool {
+    machine tied(trial: &Schedule, best: &Schedule) -> bool {
         transition trial.makespan == best.makespan {
             true -> compare(trial, best, 0)
             _ -> false
         }
     }
-    state compare(trial: &Schedule, best: &Schedule, index: i32 in Wrapping) -> bool {
+    machine compare(trial: &Schedule, best: &Schedule, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 4 {
             true -> values(trial, best, index)
             _ -> false
         }
     }
-    state values(trial: &Schedule, best: &Schedule, index: i32 in Wrapping) -> bool {
+    machine values(trial: &Schedule, best: &Schedule, index: i32 in Wrapping) -> bool {
         transition trial.starts[index] < best.starts[index] {
             true -> true
             _ -> equal(trial, best, index)
         }
     }
-    state equal(trial: &Schedule, best: &Schedule, index: i32 in Wrapping) -> bool {
+    machine equal(trial: &Schedule, best: &Schedule, index: i32 in Wrapping) -> bool {
         transition trial.starts[index] == best.starts[index] {
             true -> compare(trial, best, index + 1)
             _ -> false
@@ -85,21 +85,21 @@ machine better(trial: &Schedule, best: &Schedule) -> bool {
 machine schedule_order(problem: &Problem, schedule: &mut Schedule,
                        code: i32 in Wrapping) -> bool {
     transition { _ -> position(problem, schedule, code, 0) }
-    state position(problem: &Problem, schedule: &mut Schedule, code: i32 in Wrapping,
+    machine position(problem: &Problem, schedule: &mut Schedule, code: i32 in Wrapping,
                    placed: i32 in Wrapping) -> bool {
         transition placed < problem.count {
             true -> selected(problem, schedule, code / 4, placed, code % 4)
             _ -> true
         }
     }
-    state selected(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
+    machine selected(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
                    placed: i32 in Wrapping, task: i32 in Wrapping) -> bool {
         transition task >= 0 && task < problem.count && task < 4 {
             true -> unscheduled(problem, schedule, rest, placed, task)
             _ -> false
         }
     }
-    state unscheduled(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
+    machine unscheduled(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
                       placed: i32 in Wrapping, task: i32 in Wrapping) -> bool {
         transition schedule.starts[task] < 0
             && problem.demand_a[task] <= problem.capacity_a
@@ -108,7 +108,7 @@ machine schedule_order(problem: &Problem, schedule: &mut Schedule,
             _ -> false
         }
     }
-    state dependencies(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
+    machine dependencies(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
                         placed: i32 in Wrapping, task: i32 in Wrapping,
                         other: i32 in Wrapping, earliest: i32 in Wrapping) -> bool {
         transition other >= 0 && other < problem.count && other < 4 && task >= 0 && task < 4 {
@@ -116,7 +116,7 @@ machine schedule_order(problem: &Problem, schedule: &mut Schedule,
             _ -> search(problem, schedule, rest, placed, task, earliest)
         }
     }
-    state dependency(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
+    machine dependency(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
                       placed: i32 in Wrapping, task: i32 in Wrapping,
                       other: i32 in Wrapping, earliest: i32 in Wrapping) -> bool {
         let required: bool = predecessor(problem.predecessors[task], other);
@@ -125,7 +125,7 @@ machine schedule_order(problem: &Problem, schedule: &mut Schedule,
             _ -> dependencies(problem, schedule, rest, placed, task, other + 1, earliest)
         }
     }
-    state predecessor_end(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
+    machine predecessor_end(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
                            placed: i32 in Wrapping, task: i32 in Wrapping,
                            other: i32 in Wrapping, earliest: i32 in Wrapping) -> bool {
         transition schedule.starts[other] >= 0 {
@@ -133,7 +133,7 @@ machine schedule_order(problem: &Problem, schedule: &mut Schedule,
             _ -> false
         }
     }
-    state maximum(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
+    machine maximum(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
                    placed: i32 in Wrapping, task: i32 in Wrapping,
                    other: i32 in Wrapping, earliest: i32 in Wrapping) -> bool {
         let previous_end: i32 in Wrapping = schedule.ends[other];
@@ -142,7 +142,7 @@ machine schedule_order(problem: &Problem, schedule: &mut Schedule,
             _ -> dependencies(problem, schedule, rest, placed, task, other + 1, earliest)
         }
     }
-    state search(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
+    machine search(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
                   placed: i32 in Wrapping, task: i32 in Wrapping,
                   start: i32 in Wrapping) -> bool {
         transition start >= 0 && start <= 20 && task >= 0 && task < 4 {
@@ -150,7 +150,7 @@ machine schedule_order(problem: &Problem, schedule: &mut Schedule,
             _ -> false
         }
     }
-    state fit(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
+    machine fit(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
                placed: i32 in Wrapping, task: i32 in Wrapping,
                start: i32 in Wrapping) -> bool {
         let end: i32 in Wrapping = start + problem.durations[task];
@@ -159,7 +159,7 @@ machine schedule_order(problem: &Problem, schedule: &mut Schedule,
             _ -> false
         }
     }
-    state capacity(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
+    machine capacity(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
                     placed: i32 in Wrapping, task: i32 in Wrapping,
                     start: i32 in Wrapping, end: i32 in Wrapping) -> bool {
         let available: bool = fits(problem, schedule, task, start, end);
@@ -168,7 +168,7 @@ machine schedule_order(problem: &Problem, schedule: &mut Schedule,
             _ -> search(problem, schedule, rest, placed, task, start + 1)
         }
     }
-    state commit(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
+    machine commit(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
                   placed: i32 in Wrapping, task: i32 in Wrapping,
                   start: i32 in Wrapping, end: i32 in Wrapping) -> bool {
         schedule.starts[task] = start;
@@ -178,7 +178,7 @@ machine schedule_order(problem: &Problem, schedule: &mut Schedule,
             _ -> position(problem, schedule, rest, placed + 1)
         }
     }
-    state span(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
+    machine span(problem: &Problem, schedule: &mut Schedule, rest: i32 in Wrapping,
                 placed: i32 in Wrapping, end: i32 in Wrapping) -> bool {
         schedule.makespan = end;
         transition { _ -> position(problem, schedule, rest, placed + 1) }
@@ -190,7 +190,7 @@ machine schedule_order(problem: &Problem, schedule: &mut Schedule,
 machine fits(problem: &Problem, schedule: &Schedule, task: i32 in Wrapping,
              start: i32 in Wrapping, end: i32 in Wrapping) -> bool {
     transition { _ -> tick(problem, schedule, task, start, end) }
-    state tick(problem: &Problem, schedule: &Schedule, task: i32 in Wrapping,
+    machine tick(problem: &Problem, schedule: &Schedule, task: i32 in Wrapping,
                 time: i32 in Wrapping, end: i32 in Wrapping) -> bool {
         transition time < end && task >= 0 && task < 4 {
             true -> collect(problem, schedule, task, time, end, 0,
@@ -198,7 +198,7 @@ machine fits(problem: &Problem, schedule: &Schedule, task: i32 in Wrapping,
             _ -> true
         }
     }
-    state collect(problem: &Problem, schedule: &Schedule, task: i32 in Wrapping,
+    machine collect(problem: &Problem, schedule: &Schedule, task: i32 in Wrapping,
                    time: i32 in Wrapping, end: i32 in Wrapping, other: i32 in Wrapping,
                    used_a: i32 in Wrapping, used_b: i32 in Wrapping) -> bool {
         transition other >= 0 && other < problem.count && other < 4 {
@@ -206,7 +206,7 @@ machine fits(problem: &Problem, schedule: &Schedule, task: i32 in Wrapping,
             _ -> capacities(problem, schedule, task, time, end, used_a, used_b)
         }
     }
-    state overlap(problem: &Problem, schedule: &Schedule, task: i32 in Wrapping,
+    machine overlap(problem: &Problem, schedule: &Schedule, task: i32 in Wrapping,
                    time: i32 in Wrapping, end: i32 in Wrapping, other: i32 in Wrapping,
                    used_a: i32 in Wrapping, used_b: i32 in Wrapping) -> bool {
         transition schedule.starts[other] >= 0 && schedule.starts[other] <= time
@@ -216,7 +216,7 @@ machine fits(problem: &Problem, schedule: &Schedule, task: i32 in Wrapping,
             _ -> collect(problem, schedule, task, time, end, other + 1, used_a, used_b)
         }
     }
-    state capacities(problem: &Problem, schedule: &Schedule, task: i32 in Wrapping,
+    machine capacities(problem: &Problem, schedule: &Schedule, task: i32 in Wrapping,
                       time: i32 in Wrapping, end: i32 in Wrapping,
                       used_a: i32 in Wrapping, used_b: i32 in Wrapping) -> bool {
         transition used_a <= problem.capacity_a && used_b <= problem.capacity_b {

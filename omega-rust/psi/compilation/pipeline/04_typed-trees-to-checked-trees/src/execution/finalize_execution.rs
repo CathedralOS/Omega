@@ -10,14 +10,14 @@ pub(crate) fn finalize_execution(
     // One frame resolver answers every planner that still classifies typed
     // call frames.
     let call_frames = validation::CallFrameResolver::new(program);
-    phase_profile::scope("05.d.8_10.a.1.rank_and_terminal_machines", || {
+    let erased_citations = phase_profile::scope("05.d.8_10.a.1.rank_and_terminal_machines", || {
         crate::execution::scalar_computations::record_rank_observations(program, &mut facts);
         facts.flow.terminal_machines =
             crate::execution::terminal_scalar::build_checked_terminal_machine_selections(
                 program,
                 &facts.termination.rank_arrivals,
             );
-        crate::execution::citation_erasure::retire_fact_only_citations(program, &mut facts);
+        crate::execution::citation_erasure::retire_fact_only_citations(program, &mut facts)
     });
     // This plan must be assembled only after multiplicity and carry checking:
     // their ownership events and claim policies are the authority for the
@@ -36,7 +36,7 @@ pub(crate) fn finalize_execution(
         .traits()
         .iter()
         .filter(|owner| owner.is_boundary)
-        .flat_map(|owner| program.trait_machine_instances(owner))
+        .flat_map(|owner| program.executable_trait_machine_instances(owner))
         .filter_map(|signature| {
             validation::boundary_signature_service_reach(program, signature.symbol).map(
                 |services| {
@@ -48,7 +48,7 @@ pub(crate) fn finalize_execution(
             )
         })
         .collect::<Vec<_>>();
-    let (mut terminal_unit_effects, partial_cleanups, prepared_value_calls) =
+    let (mut terminal_unit_effects, partial_cleanups, prepared_calls) =
         phase_profile::scope("05.d.8_10.a.3.unit_effect_plans", || {
             crate::execution::terminal_unit::build_checked_unit_effect_plans(
                 program,
@@ -113,6 +113,11 @@ pub(crate) fn finalize_execution(
             &facts.values.scalar_computations,
             &facts.values.structural_values,
             state,
+            |statement| {
+                !erased_citations.iter().any(|erased| {
+                    erased.state == state && erased.statement_index == statement as usize
+                })
+            },
             &mut construction_shapes,
         )
         .ok_or_else(|| {
@@ -135,15 +140,12 @@ pub(crate) fn finalize_execution(
         return Err(cleanup_diagnostics);
     }
     facts.flow.terminal_unit_effects = terminal_unit_effects;
-    crate::execution::terminal_unit::retain_structural_value_calls(
-        &mut facts,
-        prepared_value_calls,
-    )
-    .map_err(|reason| {
-        vec![Diagnostic::error(format!(
-            "cannot retain structural value calls: {reason}"
-        ))]
-    })?;
+    crate::execution::terminal_unit::retain_structural_value_calls(&mut facts, prepared_calls)
+        .map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "cannot retain structural value calls: {reason}"
+            ))]
+        })?;
 
     // Publish all value-call schedules before selecting their normal-return
     // cleanup. A later schedule must not retain provisional disposal seeds.

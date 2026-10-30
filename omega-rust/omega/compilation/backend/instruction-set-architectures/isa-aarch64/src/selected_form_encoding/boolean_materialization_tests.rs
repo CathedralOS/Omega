@@ -1,6 +1,7 @@
 //! Boolean conditions consume flags and establish a complete canonical register value.
 use super::{encode_aarch64_selected_form, validate_aarch64_selected_form_encoding};
 use crate::aarch64_physical_register_model;
+use crate::test_support::rejects_every_bit_flip;
 use register_model::validate_physical_register_model;
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, SelectedInstructionKind,
@@ -88,21 +89,7 @@ fn conditions_bind_registers_full_width_and_preserved_flags() {
             }
             // Includes condition inversion, destination bits, width, register-mode
             // bits, and (on x86) both REX extensions and MOVZX's source/destination.
-            for bit in 0..encoded.bytes().len() * 8 {
-                let mut changed = encoded.bytes().to_vec();
-                changed[bit / 8] ^= 1 << (bit % 8);
-                assert!(
-                    validate_aarch64_selected_form_encoding(
-                        &physical,
-                        kind,
-                        key,
-                        &[destination],
-                        &changed
-                    )
-                    .is_err(),
-                    "{kind:?} {name} accepted bit {bit}"
-                );
-            }
+            rejects_every_bit_flip(&physical, kind, key, &[destination], encoded.bytes());
             for length in 0..encoded.bytes().len() {
                 assert!(
                     validate_aarch64_selected_form_encoding(

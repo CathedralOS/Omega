@@ -7,7 +7,7 @@ data Region [linear] { base: addr; length: u64; }
 machine Region::drop(region: &mut Region) {}
 let no_wrap(base: addr, length: u64): core::Strict<0> =
     embed(base) + embed(length) <= addr::Bound;
-domain Region::Bounded(region) requires no_wrap(region.base, region.length);
+domain Region::Bounded requires no_wrap(self.base, self.length);
 machine Bounded::content(region: &Region) -> IntervalSet<Nat>
 satisfies Content<Region, IntervalSet<Nat>>::project {
     IntervalSet {
@@ -43,6 +43,6 @@ machine main() crashes Trap {
     drop(left);
     drop(right);
     transition correct { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

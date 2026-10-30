@@ -5,6 +5,10 @@
 //! formed, another ensures, nor a future body citation can license a partial
 //! application. Reflexive equality and body unfolding do not waive this gate.
 
+mod applied_bindings;
+mod collection_operations;
+pub(super) use applied_bindings::{AppliedProofBindings, canonical_result_reference};
+
 use super::refuted_requires::instantiated_selected_fact_judgment;
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use super::structural_terms::structural_term;
@@ -54,15 +58,73 @@ impl<'program> SpecificationCaller<'program> {
         program: &'program dyn crate::CheckingInput,
     ) -> Vec<&'program StateParameter> {
         match self {
-            Self::Machine(machine, state) => program
-                .machine_states(machine)
-                .first()
-                .into_iter()
-                .chain(state)
-                .flat_map(|state| program.state_parameters(state))
-                .collect(),
+            Self::Machine(machine, state) => {
+                let entry = program.machine_states(machine).first();
+                // Machine-header formation already supplies the entry state.
+                // It is one telescope: repeating its exact symbols makes the
+                // case/projection owner correctly refuse an ambiguous binder.
+                // A distinct state retains its own additional parameters.
+                entry
+                    .into_iter()
+                    .chain(
+                        state
+                            .filter(|state| entry.is_none_or(|entry| entry.symbol != state.symbol)),
+                    )
+                    .flat_map(|state| program.state_parameters(state))
+                    .collect()
+            }
             Self::Declaration(_, parameters) => parameters.iter().collect(),
         }
+    }
+
+    fn expression_type(
+        self,
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+    ) -> Option<typed_trees::types::TypeReferenceHandle> {
+        let ordinary = match self {
+            Self::Machine(machine, state) => {
+                let state = state.or_else(|| program.machine_states(machine).first())?;
+                crate::expression_result_type_reference(program, machine, state, expression)
+            }
+            Self::Declaration(symbol, parameters) => {
+                crate::parameter_expression_result_type_reference(
+                    program, symbol, parameters, expression,
+                )
+            }
+        };
+        ordinary.or_else(|| {
+            super::proof_integer::proof_integer_expression(program, expression)
+                .then(|| {
+                    crate::proof_contracts::proof_embeddings::proof_int_type_reference(program)
+                })
+                .flatten()
+        })
+    }
+
+    fn selection_requirements(
+        self,
+        program: &'program dyn crate::CheckingInput,
+    ) -> Vec<&'program ProofFact> {
+        let contracts = match self {
+            Self::Machine(machine, state) => program
+                .machine_contracts(machine)
+                .iter()
+                .chain(
+                    state
+                        .into_iter()
+                        .flat_map(|state| program.state_contracts(state)),
+                )
+                .collect::<Vec<_>>(),
+            Self::Declaration(symbol, _) => selected_contract_by_symbol(program, symbol)
+                .map(|owner| owner_contracts(program, &owner).collect::<Vec<_>>())
+                .unwrap_or_default(),
+        };
+        contracts
+            .into_iter()
+            .filter(|contract| contract.kind == SignatureContractKind::Requires)
+            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+            .collect()
     }
 
     fn term(
@@ -97,6 +159,7 @@ pub(crate) fn validate_declaration_expression_formation(
     prior_facts: &[ExpressionHandle],
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let mut pending = vec![root];
     let mut visited = Vec::new();
@@ -120,7 +183,7 @@ pub(crate) fn validate_declaration_expression_formation(
             );
         }
     }
-    validate_expression(
+    validate_specification_expression(
         program,
         SpecificationCaller::Declaration(owner_symbol, parameters),
         root,
@@ -129,31 +192,28 @@ pub(crate) fn validate_declaration_expression_formation(
         diagnostics,
         None,
         &mut Vec::new(),
+        formation_obligations,
     );
 }
 
 /// Validate a selected application's operands before its requirements or result
 /// can contribute facts. Constant recipes and abstract predicates share this owner.
 #[allow(clippy::too_many_arguments)]
-fn validate_declaration_call_arguments(
+fn validate_declaration_value_arguments(
     program: &dyn crate::CheckingInput,
     owner_symbol: SymbolHandle,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
-    call: &TableCallExpression,
+    actual: &[ExpressionHandle],
     selected: SelectedCallContract<'_>,
     content_formation: Option<ContentDeclarationFormation<'_>>,
+    application: Option<&AppliedProofBindings>,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(expected) = owner_parameter_scope(program, &selected) else {
         return;
     };
-    let actual = program
-        .expression_table
-        .expression_handles(call.arguments)
-        .get(owner_leading_operands(&selected)..)
-        .unwrap_or(&[]);
     if actual.len() != expected.len() {
         diagnostics.push(
             Diagnostic::error(format!(
@@ -164,6 +224,21 @@ fn validate_declaration_call_arguments(
         return;
     }
     for (argument, parameter) in actual.iter().zip(expected.iter()) {
+        let required_type = application.map_or(parameter.type_reference, |application| {
+            application.project_type(program, parameter.type_reference)
+        });
+        if let Some(pending) = pending_data_subject(program, owner_symbol, *argument)
+            && crate::field_domains::readable_nominal_definition(program, required_type)
+                .is_some_and(|required| {
+                    required.symbol == pending.symbol && !required.where_facts.is_empty()
+                })
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "cannot form specification argument in {owner}: the logical subject's pending default domain cannot admit the nominal value required by parameter `{}`",
+                parameter.name,
+            )).with_source_span(program.expression_table.source_span(*argument)));
+            continue;
+        }
         // This exact proof observation already has a checked place, carrier,
         // access and qualification. It is not an ordinary runtime reference.
         // Selected call preconditions remain with validate_expression below.
@@ -173,6 +248,7 @@ fn validate_declaration_call_arguments(
         {
             continue;
         }
+
         let natural = crate::parameter_expression_result_type_reference(
             program,
             owner_symbol,
@@ -185,11 +261,15 @@ fn validate_declaration_call_arguments(
                 // never inherits a type from its expected destination.
                 (!matches!(program.expression_table.expression(*argument), ExpressionNode::Binary(_) | ExpressionNode::Unary(_) | ExpressionNode::Call(_))
                     || crate::has_anonymous_numeric_results(program, *argument))
-                    && crate::value_custody::expression_types::argument_matches_type_reference_with_substitutions(program, *argument, parameter.type_reference, &[])
-            }, |actual| crate::value_custody::type_references::type_references_match(program, actual, parameter.type_reference));
+                    && crate::value_custody::expression_types::argument_matches_type_reference_with_substitutions(program, *argument, required_type, &[])
+            }, |actual| crate::value_custody::expression_types::completed_value_type_matches(program, actual, required_type));
         if !matches {
-            diagnostics.push(Diagnostic::error(format!("{owner} constant expression call argument `{}` does not form parameter `{}` of `{}`",
-                    program.expression_table.display_name(*argument), parameter.name, owner_name(program, &selected)))
+            let actual = natural.map_or_else(
+                || "no retained result type".to_owned(),
+                |reference| program.display_type_reference_with_constraints(reference),
+            );
+            diagnostics.push(Diagnostic::error(format!("{owner} constant expression call argument `{}` does not form parameter `{}` of `{}`: actual {actual}, required {}",
+                    program.expression_table.display_name(*argument), parameter.name, owner_name(program, &selected), program.display_type_reference_with_constraints(required_type)))
                     .with_source_span(program.expression_table.source_span(*argument)));
         }
     }
@@ -205,13 +285,22 @@ pub(crate) fn validate_declaration_call_requirements(
     prior_facts: &[ExpressionHandle],
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
+    if let ProofFact::Membership(membership) = fact
+        && pending_data_subject(program, owner_symbol, membership.value).is_some()
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "cannot form named-domain membership in {owner}: the logical subject's own default domain is still pending admission"
+        )).with_source_span(program.expression_table.source_span(membership.value)));
+        return;
+    }
     let mut roots = Vec::new();
     fact_roots(program, fact, &mut roots);
     let content = content_conservation_inputs(program);
     let mut visited = Vec::new();
     for root in roots {
-        validate_expression(
+        validate_specification_expression(
             program,
             SpecificationCaller::Declaration(owner_symbol, parameters),
             root,
@@ -220,6 +309,7 @@ pub(crate) fn validate_declaration_call_requirements(
             diagnostics,
             content.declaration_formation(owner_symbol, root),
             &mut visited,
+            formation_obligations,
         );
     }
 }
@@ -232,12 +322,13 @@ pub(crate) fn validate_specification_call_requirements(
     prior_facts: &[ExpressionHandle],
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let mut roots = Vec::new();
     fact_roots(program, fact, &mut roots);
     let mut visited = Vec::new();
     for root in roots {
-        validate_expression(
+        validate_specification_expression(
             program,
             SpecificationCaller::Machine(machine, state),
             root,
@@ -246,12 +337,323 @@ pub(crate) fn validate_specification_call_requirements(
             diagnostics,
             None,
             &mut visited,
+            formation_obligations,
         );
     }
 }
 
+/// A proof-valued body forms its applications under its declaration entry,
+/// before normalization erases operation syntax. No executable invocation or
+/// runtime effect is manufactured for this proof material.
+pub(crate) fn validate_proof_body_formation(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    expression: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
+) {
+    let Some(state) = program.machine_states(machine).first() else {
+        return;
+    };
+    let hypotheses = program
+        .contract_expressions(
+            program
+                .machine_contracts(machine)
+                .iter()
+                .chain(program.state_contracts(state)),
+            SignatureContractKind::Requires,
+        )
+        .collect::<Vec<_>>();
+    let owner = format!("proof body `{}`", machine.name);
+    super::proof_integer::validate_proof_fact_integer_formation(
+        program,
+        state.symbol,
+        &ProofFact::Expression(expression),
+        &hypotheses,
+        &owner,
+        &|candidate| {
+            crate::proof_contracts::bound_expression_meaning::builtin_arithmetic(
+                program,
+                machine,
+                Some(state),
+                candidate,
+            )
+        },
+        diagnostics,
+    );
+    validate_specification_expression(
+        program,
+        SpecificationCaller::Machine(machine, Some(state)),
+        expression,
+        &hypotheses,
+        &owner,
+        diagnostics,
+        None,
+        &mut Vec::new(),
+        formation_obligations,
+    );
+}
+
+/// Branch premises retain polarity without manufacturing a source expression.
+/// These are scoped assumptions after independent operand formation, never
+/// admission of the predicate's pending enclosing default domain.
+#[derive(Clone, Copy)]
+struct SpecificationPremises<'scope> {
+    asserted: &'scope [ExpressionHandle],
+    denied: &'scope [ExpressionHandle],
+}
+
+impl SpecificationPremises<'_> {
+    fn arithmetic_hypotheses(
+        self,
+        program: &dyn crate::CheckingInput,
+        caller: SpecificationCaller<'_>,
+    ) -> Vec<crate::ScopedArithmeticHypothesis> {
+        let bindings = arithmetic_caller_bindings(program, caller);
+        self.asserted
+            .iter()
+            .map(|expression| (*expression, true))
+            .chain(self.denied.iter().map(|expression| (*expression, false)))
+            .map(|(expression, holds)| crate::ScopedArithmeticHypothesis {
+                proposition: crate::ScopedArithmeticExpression {
+                    owner: caller.expression_owner(),
+                    expression,
+                    bindings: bindings.clone(),
+                },
+                holds,
+            })
+            .collect()
+    }
+
+    fn structural_judge<'program>(
+        self,
+        program: &'program dyn crate::CheckingInput,
+        caller: SpecificationCaller<'_>,
+        arguments: &[ExpressionHandle],
+    ) -> Option<StructuralJudge<'program>> {
+        let all = self
+            .asserted
+            .iter()
+            .chain(self.denied)
+            .copied()
+            .collect::<Vec<_>>();
+        if !names_are_unambiguous(program, &all, arguments) {
+            return None;
+        }
+        let eligible = |fact: &ExpressionHandle| {
+            structurally_substitutable_fact(program, *fact, &|expression| {
+                caller.term(program, expression)
+            })
+        };
+        // One formed condition can carry both a structural case fact and an
+        // arithmetic fact this judge cannot substitute. Preserve each truth-
+        // implied component before filtering, rather than losing the case
+        // along with its unrelated numeric conjunct. False disjunctions have
+        // the same independent components; the other polarities do not.
+        let mut asserted = Vec::new();
+        let mut denied = Vec::new();
+        let mut pending = self
+            .asserted
+            .iter()
+            .map(|expression| (*expression, true))
+            .chain(self.denied.iter().map(|expression| (*expression, false)))
+            .collect::<Vec<_>>();
+        let mut visited = Vec::new();
+        while let Some((expression, holds)) = pending.pop() {
+            if visited.contains(&(expression, holds)) {
+                continue;
+            }
+            visited.push((expression, holds));
+            if let Some(binary) = program.expression_table.binary_node(expression)
+                && ((holds && binary.operator == BinaryOperator::And)
+                    || (!holds && binary.operator == BinaryOperator::Or))
+            {
+                pending.push((binary.right, holds));
+                pending.push((binary.left, holds));
+            }
+            if eligible(&expression) {
+                if holds {
+                    asserted.push(expression);
+                } else {
+                    denied.push(expression);
+                }
+            }
+        }
+        let parameters = caller
+            .parameters(program)
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut judge = StructuralJudge::from_declaration_requires(
+            program,
+            caller.symbol(),
+            &parameters,
+            &asserted,
+            true,
+        );
+        for expression in asserted {
+            judge.intake_formed_condition(expression, true);
+        }
+        for expression in denied {
+            judge.intake_formed_condition(expression, false);
+        }
+        Some(judge)
+    }
+}
+
+fn declaration_anonymous_fit(
+    program: &dyn crate::CheckingInput,
+    caller: SpecificationCaller<'_>,
+    expression: ExpressionHandle,
+    prior_facts: SpecificationPremises<'_>,
+    target: typed_trees::types::PrimitiveType,
+) -> super::operand_fits::CarrierFit {
+    use crate::{ScopedArithmeticExpression, ScopedArithmeticValue};
+    let bindings = arithmetic_caller_bindings(program, caller);
+    let hypotheses = prior_facts.arithmetic_hypotheses(program, caller);
+    let value = ScopedArithmeticValue::Term(ScopedArithmeticExpression {
+        owner: caller.expression_owner(),
+        expression,
+        bindings,
+    });
+    super::scoped_arithmetic::scoped_arithmetic_value_fits_for_declaration(
+        program,
+        caller.symbol(),
+        &hypotheses,
+        &value,
+        target,
+    )
+}
+
+/// The declaration-owned logical subject exposes carrier geometry, not an
+/// already admitted runtime value of the default domain currently being formed.
+fn pending_data_subject<'program>(
+    program: &'program dyn crate::CheckingInput,
+    owner: SymbolHandle,
+    mut expression: ExpressionHandle,
+) -> Option<&'program typed_trees::data::DataDefinition> {
+    let definition = program.data_definition_by_symbol(owner)?;
+    if !definition.predicate_subject_symbol.is_valid() || definition.where_facts.is_empty() {
+        return None;
+    }
+    let mut visited = Vec::new();
+    loop {
+        if !expression.is_valid() || visited.contains(&expression) {
+            return Some(definition);
+        }
+        visited.push(expression);
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Name(path) => {
+                return (path.symbol == definition.predicate_subject_symbol).then_some(definition);
+            }
+            ExpressionNode::SavedSubject(saved) => {
+                expression = program.saved_value_source(saved)?
+            }
+            ExpressionNode::Borrow(borrow) => expression = borrow.target,
+            ExpressionNode::Cast(cast) => expression = cast.value,
+            _ => return None,
+        }
+    }
+}
+
+fn validate_pending_subject_materialization(
+    program: &dyn crate::CheckingInput,
+    caller: SpecificationCaller<'_>,
+    expression: ExpressionHandle,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let SpecificationCaller::Declaration(symbol, _) = caller else {
+        return;
+    };
+    let mut operands = Vec::new();
+    match program.expression_table.expression(expression) {
+        ExpressionNode::StructLiteral(literal) => operands.extend(
+            program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .map(|field| field.value),
+        ),
+        ExpressionNode::ArrayLiteral(elements) => {
+            operands.extend(program.expression_table.expression_handles(*elements))
+        }
+        ExpressionNode::Borrow(borrow) => operands.push(borrow.target),
+        ExpressionNode::Cast(cast) => operands.push(cast.value),
+        _ => return,
+    }
+    for operand in operands {
+        if pending_data_subject(program, symbol, operand).is_some() {
+            diagnostics.push(Diagnostic::error(format!(
+                "cannot materialize the logical subject in {owner}: its complete default domain is still pending formation"
+            )).with_source_span(program.expression_table.source_span(operand)));
+        }
+    }
+}
+
+fn validate_specification_payload_projection(
+    program: &dyn crate::CheckingInput,
+    caller: SpecificationCaller<'_>,
+    expression: ExpressionHandle,
+    premises: SpecificationPremises<'_>,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        return;
+    };
+    let Some(reference) = caller.expression_type(program, member.receiver) else {
+        return;
+    };
+    let Some(definition) = crate::field_domains::readable_nominal_definition(program, reference)
+    else {
+        return;
+    };
+    let Some(field) = crate::value_custody::places::exact_data_member_field(
+        program,
+        definition,
+        member.member_symbol,
+        member.member.as_str(),
+        member.case_variant.as_ref().map(|case| case.as_str()),
+    ) else {
+        return;
+    };
+    let parent = program.symbols.get(field.symbol).parent;
+    if program.symbols.get(parent).kind != SymbolKind::Variant {
+        return;
+    }
+    let cases = program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| member.as_variant())
+        .collect::<Vec<_>>();
+    // A sole case has no inactive payload alternative. This is carrier
+    // geometry, independent of the default-domain predicate being formed.
+    if matches!(cases.as_slice(), [case] if case.symbol == parent) {
+        return;
+    }
+    let proven = caller
+        .term(program, member.receiver)
+        .is_some_and(|subject| {
+            premises
+                .structural_judge(program, caller, &[member.receiver])
+                .is_some_and(|judge| {
+                    matches!(
+                        judge.judge_case(subject, definition.symbol, parent),
+                        StructuralJudgment::Proven
+                    )
+                })
+        });
+    if !proven {
+        diagnostics.push(Diagnostic::error(format!(
+            "cannot form specification payload projection `{}` in {owner}: establish its exact active case before projecting the payload",
+            member.member.as_str(),
+        )).with_source_span(program.expression_table.source_span(expression)));
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
-fn validate_expression(
+fn validate_specification_expression(
     program: &dyn crate::CheckingInput,
     caller: SpecificationCaller<'_>,
     expression: ExpressionHandle,
@@ -260,61 +662,361 @@ fn validate_expression(
     diagnostics: &mut Vec<Diagnostic>,
     content_formation: Option<ContentDeclarationFormation<'_>>,
     visited: &mut Vec<ExpressionHandle>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
-    if !expression.is_valid() || visited.contains(&expression) {
+    validate_specification_expression_in_scope(
+        program,
+        caller,
+        expression,
+        SpecificationPremises {
+            asserted: prior_facts,
+            denied: &[],
+        },
+        owner,
+        diagnostics,
+        content_formation,
+        visited,
+        formation_obligations,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_specification_expression_in_scope(
+    program: &dyn crate::CheckingInput,
+    caller: SpecificationCaller<'_>,
+    expression: ExpressionHandle,
+    prior_facts: SpecificationPremises<'_>,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+    content_formation: Option<ContentDeclarationFormation<'_>>,
+    visited: &mut Vec<ExpressionHandle>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    if visited.contains(&expression) {
+        diagnostics.push(
+            Diagnostic::error(format!(
+                "cannot form cyclic retained specification expression in {owner}"
+            ))
+            .with_source_span(program.expression_table.source_span(expression)),
+        );
         return;
     }
     visited.push(expression);
     let node = program.expression_table.expression(expression);
     let diagnostics_before = diagnostics.len();
-    children(program, node, |child| {
-        validate_expression(
+    if let ExpressionNode::Binary(binary) = node
+        && matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
+    {
+        let debts_before = formation_obligations.len();
+        validate_specification_expression_in_scope(
             program,
             caller,
-            child,
+            binary.left,
             prior_facts,
             owner,
             diagnostics,
             content_formation,
             visited,
+            formation_obligations,
         );
-    });
+        let mut asserted = prior_facts.asserted.to_vec();
+        let mut denied = prior_facts.denied.to_vec();
+        // A conditional formation receipt cannot justify its own next operand.
+        // When it remains pending, form the right side without that assumption.
+        if diagnostics.len() == diagnostics_before && formation_obligations.len() == debts_before {
+            let branch = if binary.operator == BinaryOperator::And {
+                &mut asserted
+            } else {
+                &mut denied
+            };
+            if !branch.contains(&binary.left) {
+                branch.push(binary.left);
+            }
+        }
+        validate_specification_expression_in_scope(
+            program,
+            caller,
+            binary.right,
+            SpecificationPremises {
+                asserted: &asserted,
+                denied: &denied,
+            },
+            owner,
+            diagnostics,
+            content_formation,
+            visited,
+            formation_obligations,
+        );
+    } else {
+        children(program, node, |child| {
+            validate_specification_expression_in_scope(
+                program,
+                caller,
+                child,
+                prior_facts,
+                owner,
+                diagnostics,
+                content_formation,
+                visited,
+                formation_obligations,
+            );
+        });
+    }
+    // Only active ancestry is retained. Successful formation under a
+    // guarded branch cannot cache authority for another retained DAG use.
+    visited.pop();
     if diagnostics.len() != diagnostics_before {
         return;
     }
-    let ExpressionNode::Call(call) = node else {
+    validate_pending_subject_materialization(program, caller, expression, owner, diagnostics);
+    if diagnostics.len() != diagnostics_before {
         return;
-    };
-    // Resolution, not target spelling, selects the declaration. Abstract
-    // signature applications arrive through two spellings of the same owner:
-    // a static requirement dispatch keeps the declaring trait's requirement
-    // identity beside the rewritten realization target, and a direct
-    // `Trait::requirement` citation resolves to the signature symbol itself.
-    // Both enforce the requirement's own contract under the call's subjects.
-    let selected = match caller {
-        SpecificationCaller::Declaration(symbol, parameters) => {
-            selected_call_contract_for_parameters(program, call, symbol, parameters)
+    }
+    validate_specification_payload_projection(
+        program,
+        caller,
+        expression,
+        prior_facts,
+        owner,
+        diagnostics,
+    );
+    if diagnostics.len() != diagnostics_before {
+        return;
+    }
+    if let ExpressionNode::Cast(cast) = node
+        && !cast.form.is_recast()
+        && program.primitive_type_reference(cast.target_type)
+            == Some(typed_trees::types::PrimitiveType::Addr)
+        && crate::value_custody::literals::has_anonymous_numeric_results(program, cast.value)
+    {
+        let before = diagnostics.len();
+        crate::proof_contracts::arithmetic_domains::validate_anonymous_integer_primitive_range(
+            program,
+            typed_trees::types::PrimitiveType::Addr,
+            cast.value,
+            owner,
+            diagnostics,
+        );
+        if diagnostics.len() == before
+            && !declaration_anonymous_fit(
+                program,
+                caller,
+                cast.value,
+                prior_facts,
+                typed_trees::types::PrimitiveType::Addr,
+            )
+            .retain(expression, caller.symbol(), owner, formation_obligations)
+        {
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "anonymous address cast operand cannot prove fit in `addr::Bound` in {owner}",
+                ))
+                .with_source_span(program.expression_table.source_span(cast.value)),
+            );
         }
-        SpecificationCaller::Machine(..) => selected_call_contract(program, caller.symbol(), call),
+    }
+    // Both ordinary call syntax and an authored operator application consume
+    // the selected declaration's public preconditions through this one intake.
+    let (contract_owner, arguments, call, application_bindings) = match node {
+        ExpressionNode::Call(call) => {
+            if crate::mathematical_applications::selected_definition(program, call).is_some() {
+                // Mathematical definitions own checked dependent applications,
+                // not machine contract telescopes. Their source producer checks
+                // the application; the walk above still forms every argument.
+                // An authored generic registration does not change that owner.
+                return;
+            }
+            let selected = match caller {
+                SpecificationCaller::Declaration(symbol, parameters) => {
+                    selected_call_contract_for_parameters(program, call, symbol, parameters)
+                }
+                SpecificationCaller::Machine(..) => {
+                    selected_call_contract(program, caller.symbol(), call)
+                }
+            };
+            let Some(selected) = selected else {
+                if call.authored_machine_application.is_valid()
+                    && program
+                        .expression_table
+                        .static_machine_application(call.authored_machine_application)
+                        .registration_operation
+                        .is_valid()
+                {
+                    diagnostics.push(Diagnostic::error(format!("cannot form specification call in {owner}: retained public contract owner is unavailable"))
+                        .with_source_span(program.expression_table.source_span(expression)));
+                }
+                return;
+            };
+            let Some(arguments) = program
+                .expression_table
+                .expression_handles(call.arguments)
+                .get(owner_leading_operands(&selected)..)
+            else {
+                return;
+            };
+            let substitution =
+                AppliedProofBindings::for_call(program, caller.symbol(), &selected, call);
+            (selected, arguments.to_vec(), Some(call), substitution)
+        }
+        ExpressionNode::Binary(_)
+            if program.static_type_predicate_operands(expression).is_some() =>
+        {
+            return;
+        }
+        ExpressionNode::Binary(_) | ExpressionNode::Indexed(_) => {
+            let (spelling, arguments) = match node {
+                ExpressionNode::Binary(binary) => {
+                    let Some(spelling) =
+                        typed_trees::operator::binary_operator_spelling(binary.operator)
+                    else {
+                        return;
+                    };
+                    (spelling, vec![binary.left, binary.right])
+                }
+                ExpressionNode::Indexed(indexed) => {
+                    if let Some(range) = program.expression_table.range_node(indexed.index) {
+                        (
+                            language_core::OperatorSpelling::Range,
+                            vec![indexed.collection, range.start, range.end],
+                        )
+                    } else {
+                        (
+                            language_core::OperatorSpelling::Index,
+                            vec![indexed.collection, indexed.index],
+                        )
+                    }
+                }
+                _ => unreachable!(),
+            };
+            let types = arguments
+                .iter()
+                .map(|argument| caller.expression_type(program, *argument))
+                .collect::<Vec<_>>();
+            let requirements = caller.selection_requirements(program);
+            let scope = crate::OperatorApplicationScope {
+                owner: caller.expression_owner(),
+                origin: None,
+                requires: &requirements,
+                expression_type: &|operand| caller.expression_type(program, operand),
+            };
+            let resolution =
+                crate::scoped_operator_application(program, &scope, expression, spelling, &types);
+            if resolution.status == checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+            {
+                if let ExpressionNode::Binary(binary) = node {
+                    crate::value_custody::expression_types::validate_builtin_comparison_operand_landing(
+                        program,
+                        binary.operator,
+                        [(binary.left, types[0]), (binary.right, types[1])],
+                        owner,
+                        &mut |peer, target| {
+                            declaration_anonymous_fit(program, caller, peer, prior_facts, target)
+                                .retain(
+                                    expression,
+                                    caller.symbol(),
+                                    "anonymous address comparison operand",
+                                    formation_obligations,
+                                )
+                        },
+                        diagnostics,
+                    );
+                } else {
+                    collection_operations::validate_builtin_index(
+                        program,
+                        caller,
+                        expression,
+                        prior_facts,
+                        &arguments,
+                        owner,
+                        diagnostics,
+                    );
+                }
+                return;
+            }
+            let Some(selected) = resolution.into_selected() else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "cannot form specification operator `{}` in {owner}: no exact selected meaning",
+                    spelling.symbol(),
+                )).with_source_span(program.expression_table.source_span(expression)));
+                return;
+            };
+            let Some(selected_owner) =
+                selected_contract_by_symbol(program, selected.public_symbol())
+            else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "cannot form specification operator `{}` in {owner}: selected public contract is unavailable",
+                    spelling.symbol(),
+                )));
+                return;
+            };
+            let substitution = AppliedProofBindings::for_operator(program, &selected);
+            (selected_owner, arguments, None, substitution)
+        }
+        _ => return,
     };
-    let Some(contract_owner) = selected else {
-        return;
-    };
+    // Type correspondence and carrier formation are distinct. Every selected
+    // specification application lands its anonymous actuals before any public
+    // Requires or result facts, including machine callers and user operators.
+    if let Some(parameters) = owner_parameter_scope(program, &contract_owner) {
+        for (argument, parameter) in arguments.iter().zip(parameters.iter()) {
+            let required_type = application_bindings
+                .as_ref()
+                .map_or(parameter.type_reference, |application| {
+                    application.project_type(program, parameter.type_reference)
+                });
+            if program.primitive_type_reference(required_type)
+                != Some(typed_trees::types::PrimitiveType::Addr)
+                || !crate::has_anonymous_numeric_results(program, *argument)
+            {
+                continue;
+            }
+            let before = diagnostics.len();
+            crate::proof_contracts::arithmetic_domains::validate_anonymous_integer_primitive_range(
+                program,
+                typed_trees::types::PrimitiveType::Addr,
+                *argument,
+                owner,
+                diagnostics,
+            );
+            if diagnostics.len() == before
+                && !declaration_anonymous_fit(
+                    program,
+                    caller,
+                    *argument,
+                    prior_facts,
+                    typed_trees::types::PrimitiveType::Addr,
+                )
+                .retain(
+                    *argument,
+                    caller.symbol(),
+                    "anonymous address specification argument",
+                    formation_obligations,
+                )
+            {
+                diagnostics.push(Diagnostic::error(format!("anonymous address specification argument cannot prove fit in `addr::Bound` in {owner}"))
+                    .with_source_span(program.expression_table.source_span(*argument)));
+            }
+        }
+    }
     if let SpecificationCaller::Declaration(symbol, parameters) = caller {
-        validate_declaration_call_arguments(
+        validate_declaration_value_arguments(
             program,
             symbol,
             parameters,
             expression,
-            call,
+            &arguments,
             contract_owner,
             content_formation,
+            application_bindings.as_ref(),
             owner,
             diagnostics,
         );
-        if diagnostics.len() != diagnostics_before {
-            return;
-        }
+    }
+    if diagnostics.len() != diagnostics_before {
+        return;
     }
     let requirements = applicable_requirements_of(program, &contract_owner);
     if requirements.is_empty() {
@@ -327,20 +1029,21 @@ fn validate_expression(
         )));
         return;
     }
-    let mut arguments = Vec::new();
     let Some(parameter_scope) = owner_parameter_scope(program, &contract_owner) else {
         return;
     };
     let parameters = parameter_scope.as_ref();
-    let Some(actuals) = program
-        .expression_table
-        .expression_handles(call.arguments)
-        .get(owner_leading_operands(&contract_owner)..)
-    else {
-        return;
-    };
-    arguments.extend_from_slice(actuals);
-    let machine_substitution = call_machine_substitution(program, &contract_owner, call);
+    let projected_parameters = application_bindings.as_ref().map(|bindings| {
+        parameters
+            .iter()
+            .map(|parameter| {
+                let mut projected = parameter.clone();
+                projected.type_reference = bindings.project_type(program, parameter.type_reference);
+                projected
+            })
+            .collect::<Vec<_>>()
+    });
+    let parameters = projected_parameters.as_deref().unwrap_or(parameters);
     let substitution = parameters
         .iter()
         .zip(&arguments)
@@ -351,30 +1054,21 @@ fn validate_expression(
             ))
         })
         .collect::<Option<Vec<_>>>();
-    // The existing structural prover has name-backed private variables. Do
-    // not let two different resolved caller binders acquire one such variable.
-    // The arithmetic route below uses exact symbols directly.
-    let structural_facts = prior_facts
-        .iter()
-        .copied()
-        .filter(|fact| {
-            structurally_substitutable_fact(program, *fact, &|expression| {
-                caller.term(program, expression)
-            }) && names_are_unambiguous(program, &[*fact], &arguments)
-        })
-        .collect::<Vec<_>>();
-    let structural_names_unique = names_are_unambiguous(program, &structural_facts, &arguments);
-    let judge = StructuralJudge::from_declaration_requires(
-        program,
-        caller.symbol(),
-        &caller
-            .parameters(program)
-            .into_iter()
-            .cloned()
-            .collect::<Vec<_>>(),
-        &structural_facts,
-        true,
-    );
+    let substitution = substitution.and_then(|mut substitution| {
+        let bindings = application_bindings.as_ref()?;
+        for binding in &bindings.constants {
+            let value = binding.value_term()?;
+            let name = program.symbols.name(binding.symbol);
+            if substitution.iter().any(|(existing, _)| existing == name) {
+                return None;
+            }
+            substitution.push((name.to_owned(), value));
+        }
+        Some(substitution)
+    });
+    // The shared projection owns eligibility, polarity and exact-name fences;
+    // filtering a compound here first would discard its usable case facts.
+    let judge = prior_facts.structural_judge(program, caller, &arguments);
     // Named proposition requirements are an erased evidence lane, not Boolean
     // facts for the structural/arithmetic prover. The checked-tree contract
     // evidence binder validates each supplied term's exact owner, proposition
@@ -383,11 +1077,13 @@ fn validate_expression(
     // requirements below still need independent prior facts.
     let named_evidence_count = requirements.iter().filter(|(_, named)| *named).count();
     let has_named_evidence_lane = matches!(contract_owner, SelectedCallContract::Concrete(..))
-        && call.static_requirement_dispatch.is_none()
-        && call.quotient_operation.is_none()
-        && call.machine_arguments.is_empty()
         && named_evidence_count != 0
-        && call.evidence_arguments.len() == named_evidence_count;
+        && call.is_some_and(|call| {
+            call.static_requirement_dispatch.is_none()
+                && call.quotient_operation.is_none()
+                && call.machine_arguments.is_empty()
+                && call.evidence_arguments.len() == named_evidence_count
+        });
     for (requirement, named_evidence) in requirements {
         if named_evidence
             && has_named_evidence_lane
@@ -397,16 +1093,26 @@ fn validate_expression(
         }
         // Both telescopes belong to the selected public owner. A missing or
         // unsupported static operand never becomes an empty substitution.
-        let arguments_select_plainly = machine_substitution.is_some()
+        let arguments_select_plainly = application_bindings.is_some()
             && (matches!(
                 contract_owner,
                 SelectedCallContract::Signature(..) | SelectedCallContract::DynamicSlot { .. }
-            ) || call.static_requirement_dispatch.is_none());
+            ) || call.is_none_or(|call| call.static_requirement_dispatch.is_none()));
         let proven = if let Some(required) = requirement.as_expression()
             && arguments_select_plainly
         {
-            let structural = requirement_parameters_are_bound(program, *required, parameters)
-                && structurally_substitutable_fact(program, *required, &|expression| {
+            let structural = judge.as_ref().is_some_and(|judge| {
+                requirement_parameters_are_bound(
+                    program,
+                    *required,
+                    parameters,
+                    application_bindings.as_ref().expect("complete application"),
+                ) && structural_static_binders_are_exact(
+                    program,
+                    *required,
+                    parameters,
+                    application_bindings.as_ref().expect("complete application"),
+                ) && structurally_substitutable_fact(program, *required, &|expression| {
                     structural_term(
                         program,
                         None,
@@ -414,27 +1120,33 @@ fn validate_expression(
                         expression,
                         None,
                     )
-                })
-                && parameters.len() == arguments.len()
-                && structural_names_unique
-                && substitution.as_ref().is_some_and(|substitution| {
-                    substitution
-                        .iter()
-                        .all(|(_, term)| term_has_complete_substitution(program, term))
-                        && matches!(
-                            instantiated_selected_fact_judgment(
-                                program,
-                                &judge,
-                                owner_symbol(&contract_owner),
-                                parameters,
-                                *required,
-                                substitution,
-                                machine_substitution.as_deref().unwrap_or_default(),
-                                caller.state_scope(),
-                            ),
-                            StructuralJudgment::Proven
-                        )
-                });
+                }) && parameters.len() == arguments.len()
+                    && substitution.as_ref().is_some_and(|substitution| {
+                        substitution
+                            .iter()
+                            .all(|(_, term)| term_has_complete_substitution(program, term))
+                            && matches!(
+                                instantiated_selected_fact_judgment(
+                                    program,
+                                    judge,
+                                    owner_symbol(&contract_owner),
+                                    parameters,
+                                    *required,
+                                    substitution,
+                                    &application_bindings
+                                        .as_ref()
+                                        .expect("complete application")
+                                        .machines,
+                                    &application_bindings
+                                        .as_ref()
+                                        .expect("complete application")
+                                        .types,
+                                    caller.state_scope(),
+                                ),
+                                StructuralJudgment::Proven
+                            )
+                    })
+            });
             structural
                 || arithmetic_requirement(
                     program,
@@ -443,6 +1155,7 @@ fn validate_expression(
                     prior_facts,
                     *required,
                     &arguments,
+                    application_bindings.as_ref().expect("complete application"),
                 )
         } else {
             false
@@ -613,6 +1326,25 @@ pub(super) fn owner_symbol(owner: &SelectedCallContract<'_>) -> SymbolHandle {
         SelectedCallContract::Signature(signature)
         | SelectedCallContract::DynamicSlot { signature, .. } => signature.symbol,
         SelectedCallContract::Operator(operator) => operator.symbol,
+    }
+}
+
+/// The selected public callable determines whether structural proof values
+/// are available. Citation intake and call-entry discharge must make the same
+/// judgment; an absent private machine is not evidence of runtime values.
+pub(super) fn owner_is_proof(
+    program: &dyn crate::CheckingInput,
+    classification: &typed_trees::proof_only::ProofOnlyClassification,
+    owner: &SelectedCallContract<'_>,
+) -> bool {
+    match owner {
+        SelectedCallContract::Concrete(machine, _) => {
+            classification.is_proof_machine(program, machine)
+        }
+        SelectedCallContract::Signature(signature) => {
+            classification.is_proof_signature(program, signature)
+        }
+        _ => false,
     }
 }
 
@@ -866,21 +1598,20 @@ fn applicable_requirements_of<'program>(
         .collect()
 }
 
-/// The same source application supplies closed and runtime scalar binders.
-/// Runtime values are observed by the completed-operand owner, never evaluated
-/// as fresh recipes in this declaration-only substitution query.
+/// The same authenticated application supplies closed and runtime values.
+/// Runtime values come from the completed-operand owner, never source replay.
 #[derive(Clone, Copy)]
 pub(super) enum RuntimeScalarSubject {
     Symbol(SymbolHandle),
     Expression(ExpressionHandle),
 }
 
-/// Whole public contracts read the occurrence's applied signature. Selected
-/// executable calls have already substituted closed operands into that view;
-/// their runtime Value coordinates are ordinary mapped public formals supplied
-/// by `call_parameter_scope`. Rebinding the provider's tuple by the fresh public
-/// symbols loses that correspondence. Raw index projections retain their own
-/// executable telescope and use `call_scalar_substitution` below instead.
+/// Whole public contracts read the occurrence's applied signature and exact
+/// retained static tuple. The shared application correspondence transports its
+/// header values into that public namespace; completed runtime Value operands
+/// remain the ordinary mapped formals supplied by `call_parameter_scope`.
+/// An applied signature can still retain member Const binders, so its name
+/// alone does not establish that every static operand was already substituted.
 pub(super) fn call_contract_scalar_substitution(
     program: &dyn crate::CheckingInput,
     caller: SymbolHandle,
@@ -899,122 +1630,66 @@ pub(super) fn call_contract_scalar_substitution(
             return None;
         }
         crate::selected_call_arguments(program, caller, &site).ok()?;
-        return Some(Vec::new());
     }
-    call_scalar_substitution(program, owner, site, observed)
+    call_scalar_substitution(program, caller, owner, site, observed)
 }
 
 pub(super) fn call_scalar_substitution(
     program: &dyn crate::CheckingInput,
+    caller: SymbolHandle,
     owner: &SelectedCallContract<'_>,
     site: crate::CallSite<'_>,
     mut observed: impl FnMut(RuntimeScalarSubject) -> Option<StructuralTerm>,
 ) -> Option<Vec<(typed_trees::signature::StateParameter, StructuralTerm)>> {
-    use typed_trees::static_applications::StaticMachineBindingValue;
-    let (application, arguments) = match site {
-        crate::CallSite::Expression { call, .. } => (
-            call.authored_machine_application,
-            call.machine_arguments.as_ref(),
-        ),
-        crate::CallSite::Statement(call) => (
-            call.authored_machine_application,
-            call.machine_arguments.as_ref(),
-        ),
-        crate::CallSite::TransitionNamed { .. } => (Default::default(), &[][..]),
-    };
+    let applied = AppliedProofBindings::for_call_site(program, caller, owner, site)?;
     let parameters = match owner {
+        SelectedCallContract::Operator(operator) => program.operator_type_parameters(operator),
         SelectedCallContract::Concrete(machine, _) => program.machine_type_parameters(machine),
-        SelectedCallContract::Signature(signature) => {
+        SelectedCallContract::Signature(signature)
+        | SelectedCallContract::DynamicSlot { signature, .. } => {
             program.state_signature_type_parameters(signature)
         }
-        _ => return arguments.is_empty().then(Vec::new),
     };
-    let retained = if application.is_valid() {
-        program
-            .expression_table
-            .static_machine_application_bindings(application)
-    } else {
-        &[]
-    };
+    let mut values = applied
+        .constants
+        .iter()
+        .map(|binding| Some((binding.symbol, binding.value_term()?)))
+        .collect::<Option<Vec<_>>>()?;
+    if !applied.runtime_parameters.is_empty() {
+        let executable = call_parameter_scope(program, caller, owner, site)?;
+        for binding in &applied.runtime_parameters {
+            let mut receiving = executable
+                .iter()
+                .filter(|parameter| parameter.symbol == binding.symbol);
+            if let Some(parameter) = receiving.next() {
+                if receiving.next().is_some() || parameter.is_const || parameter.is_mutable {
+                    return None;
+                }
+                // Realization already made this exact Value binder an ordinary
+                // trailing formal. Its completed argument owns the substitution;
+                // it has no second declaration-header name or source replay.
+                continue;
+            }
+            values.push((binding.symbol, observed(binding.observation_subject()?)?));
+        }
+    }
     let mut result = Vec::new();
-    for (ordinal, parameter) in parameters.iter().enumerate() {
+    for (symbol, value) in values {
+        let parameter = parameters
+            .iter()
+            .find(|parameter| parameter.symbol == symbol)?;
         let (typed_trees::data::TypeParameterKind::Const { type_reference }
         | typed_trees::data::TypeParameterKind::Value { type_reference }) = parameter.kind
         else {
-            continue;
-        };
-        if !program
-            .primitive_type_reference(type_reference)
-            .is_some_and(|primitive| primitive.is_fixed_integer())
-        {
             return None;
-        }
-        let value = if let Some(binding) = retained
-            .iter()
-            .find(|binding| binding.parameter == parameter.symbol)
-        {
-            match binding.value {
-                StaticMachineBindingValue::Const(reference) => {
-                    if let Some(literal) =
-                        program.static_const_literal_from_type_reference(reference)
-                    {
-                        StructuralTerm::Integer(literal.value_bignum()?)
-                    } else if let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
-                        program.type_reference_table.type_reference(reference)
-                        && symbol.is_valid()
-                        && program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
-                    {
-                        StructuralTerm::BoundValue(*symbol)
-                    } else {
-                        return None;
-                    }
-                }
-                StaticMachineBindingValue::RuntimeValue {
-                    subject,
-                    expression,
-                    ..
-                } if matches!(
-                    parameter.kind,
-                    typed_trees::data::TypeParameterKind::Value { .. }
-                ) =>
-                {
-                    if expression.is_valid() {
-                        observed(RuntimeScalarSubject::Expression(expression))?
-                    } else if subject.is_valid() {
-                        observed(RuntimeScalarSubject::Symbol(subject))?
-                    } else {
-                        return None;
-                    }
-                }
-                _ => return None,
-            }
-        } else {
-            let argument = arguments.get(ordinal)?;
-            match super::static_applications::constant_value(program, argument) {
-                Some(super::static_applications::ConstantValue::Integer(value)) => {
-                    StructuralTerm::Integer(value)
-                }
-                Some(_) => return None,
-                None if argument.symbol.is_valid()
-                    && program.symbols.get(argument.symbol).kind
-                        == symbols::SymbolKind::TypeParameter =>
-                {
-                    StructuralTerm::BoundValue(argument.symbol)
-                }
-                None => return None,
-            }
         };
         result.push((
             typed_trees::signature::StateParameter {
-                symbol: parameter.symbol,
-                name: format!(
-                    "\0static_{}_{}",
-                    parameter.symbol.arena_index(),
-                    parameter.symbol.generation()
-                )
-                .as_str()
-                .into(),
-                type_reference,
+                symbol,
+                name: format!("\0static_{}_{}", symbol.arena_index(), symbol.generation())
+                    .as_str()
+                    .into(),
+                type_reference: applied.project_type(program, type_reference),
                 is_const: matches!(
                     parameter.kind,
                     typed_trees::data::TypeParameterKind::Const { .. }
@@ -1030,7 +1705,7 @@ pub(super) fn call_scalar_substitution(
 fn call_machine_substitution(
     program: &dyn crate::CheckingInput,
     owner: &SelectedCallContract<'_>,
-    call: &TableCallExpression,
+    arguments: &[typed_trees::expression::StaticMachineArgument],
 ) -> Option<
     Vec<(
         SymbolHandle,
@@ -1039,30 +1714,36 @@ fn call_machine_substitution(
     )>,
 > {
     let SelectedCallContract::Concrete(machine, _) = owner else {
-        return call.machine_arguments.is_empty().then(Vec::new);
+        return arguments.is_empty().then(Vec::new);
     };
     let parameters = program
         .machine_kind_type_parameters(machine)
         .collect::<Vec<_>>();
-    if parameters.len() != call.machine_arguments.len()
-        || !call
-            .machine_arguments
-            .iter()
-            .all(|selection| plain_machine_selection(program, selection))
-    {
+    if parameters.len() != arguments.len() {
         return None;
     }
     parameters
         .into_iter()
-        .zip(call.machine_arguments.iter())
-        .map(|(parameter, selected)| {
-            Some((
-                parameter.symbol,
-                selected_machine_result_type(program, selected.symbol)?,
-                selected.clone(),
-            ))
-        })
+        .zip(arguments.iter())
+        .map(|(parameter, selected)| selected_machine_binding(program, parameter.symbol, selected))
         .collect()
+}
+
+fn selected_machine_binding(
+    program: &dyn crate::CheckingInput,
+    parameter: SymbolHandle,
+    selected: &typed_trees::expression::StaticMachineArgument,
+) -> Option<(
+    SymbolHandle,
+    typed_trees::types::TypeReferenceHandle,
+    typed_trees::expression::StaticMachineArgument,
+)> {
+    plain_machine_selection(program, selected).then_some(())?;
+    Some((
+        parameter,
+        selected_machine_result_type(program, selected.symbol)?,
+        selected.clone(),
+    ))
 }
 
 fn selected_machine_result_type(
@@ -1100,8 +1781,16 @@ fn structurally_substitutable_fact(
     expression: ExpressionHandle,
     term: &impl Fn(ExpressionHandle) -> Option<StructuralTerm>,
 ) -> bool {
+    if program.static_type_predicate_operands(expression).is_some() {
+        return term(expression).is_some_and(|term| term_has_complete_substitution(program, &term));
+    }
     let Some(binary) = program.expression_table.binary_node(expression) else {
-        return false;
+        return matches!(program.expression_table.expression(expression), ExpressionNode::Call(_))
+            && term(expression).is_some_and(|term| {
+                matches!(&term, StructuralTerm::Application { result_type, .. }
+                    if program.primitive_type_reference(*result_type) == Some(typed_trees::types::PrimitiveType::Bool))
+                    && term_has_complete_substitution(program, &term)
+            });
     };
     if super::structural_terms::is_case_observation(program, expression) {
         // Classification is not a value operand. Exact selected meaning is
@@ -1109,13 +1798,18 @@ fn structurally_substitutable_fact(
         return term(binary.left)
             .is_some_and(|term| term_has_complete_substitution(program, &term));
     }
-    if binary.operator == BinaryOperator::And {
+    if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
         return structurally_substitutable_fact(program, binary.left, term)
             && structurally_substitutable_fact(program, binary.right, term);
     }
     matches!(
         binary.operator,
-        BinaryOperator::Equal | BinaryOperator::NotEqual
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
     ) && [binary.left, binary.right].iter().all(|operand| {
         term(*operand).is_some_and(|term| term_has_complete_substitution(program, &term))
     })
@@ -1220,7 +1914,8 @@ fn term_has_complete_substitution(
             collection: subject,
             ..
         }
-        | StructuralTerm::Projection { subject, .. } => {
+        | StructuralTerm::Projection { subject, .. }
+        | StructuralTerm::ScalarRepresentation { value: subject, .. } => {
             // Term formation retains a selected field or collection measure;
             // its complete subject, not the display path alone, owns identity.
             term_has_complete_substitution(program, subject)
@@ -1347,18 +2042,60 @@ fn requirement_parameters_are_bound(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
+    applied: &AppliedProofBindings,
 ) -> bool {
     !crate::expression_traversal::visit_pre_order(program, vec![expression], |_, node| {
         let ExpressionNode::Name(path) = node else {
             return false;
         };
         [path.head_symbol, path.symbol].iter().any(|symbol| {
+            if let Some(parameter) = program.data_type_parameter_by_symbol(*symbol) {
+                // Header binders can remain outside the member-local roster.
+                // An unprojected reference still needs its exact applied operand;
+                // a caller's same-spelled variable cannot complete that frame.
+                return !applied.retains_parameter(parameter);
+            }
             program.symbols.get(*symbol).kind == SymbolKind::Parameter
                 && !parameters
                     .iter()
                     .any(|parameter| parameter.symbol == *symbol)
+                && !applied
+                    .constants
+                    .iter()
+                    .any(|binding| binding.symbol == *symbol)
         })
     })
+}
+
+/// The legacy structural term algebra uses private names. Before replacing
+/// static operands there, require every same-spelled source reference to
+/// resolve to the exact selected formal. Actual argument terms are substituted
+/// simultaneously and are never traversed again under this receiving map.
+fn structural_static_binders_are_exact(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    applied: &AppliedProofBindings,
+) -> bool {
+    names_are_unambiguous(program, &[expression], &[])
+        && !crate::expression_traversal::visit_pre_order(program, vec![expression], |_, node| {
+            let ExpressionNode::Name(path) = node else {
+                return false;
+            };
+            let [name] = program.expression_table.name_path_members(path.members) else {
+                return false;
+            };
+            parameters
+                .iter()
+                .map(|parameter| (parameter.symbol, parameter.name.as_str()))
+                .chain(
+                    applied
+                        .constants
+                        .iter()
+                        .map(|binding| (binding.symbol, program.symbols.name(binding.symbol))),
+                )
+                .any(|(symbol, formal)| formal == name.as_str() && symbol != path.symbol)
+        })
 }
 
 fn selected_machine(
@@ -1374,25 +2111,14 @@ fn selected_machine(
     })
 }
 
-fn arithmetic_requirement(
+/// Preserve the original declaration telescope by resolved symbol. Only actual
+/// integer/address parameters receive numeric atoms; structural arguments stay
+/// with their own proof owners rather than becoming numeric by spelling.
+fn arithmetic_caller_bindings(
     program: &dyn crate::CheckingInput,
     caller: SpecificationCaller<'_>,
-    callee: &SelectedCallContract<'_>,
-    prior_facts: &[ExpressionHandle],
-    requirement: ExpressionHandle,
-    arguments: &[ExpressionHandle],
-) -> bool {
-    use super::{
-        ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
-        ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
-    };
-    let Some(parameter_scope) = owner_parameter_scope(program, callee) else {
-        return false;
-    };
-    let parameters = parameter_scope.as_ref();
-    if parameters.len() != arguments.len() {
-        return false;
-    }
+) -> Vec<super::ScopedArithmeticBinding> {
+    use crate::{ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticValue};
     let mut bindings = Vec::new();
     for parameter in caller.parameters(program) {
         let Some(primitive) =
@@ -1416,33 +2142,73 @@ fn arithmetic_requirement(
             },
         });
     }
-    let hypotheses = prior_facts
-        .iter()
-        .map(|expression| ScopedArithmeticHypothesis {
-            proposition: ScopedArithmeticExpression {
-                owner: caller.expression_owner(),
-                expression: *expression,
-                bindings: bindings.clone(),
-            },
-            holds: true,
-        })
-        .collect::<Vec<_>>();
+    bindings
+}
+
+fn arithmetic_requirement(
+    program: &dyn crate::CheckingInput,
+    caller: SpecificationCaller<'_>,
+    callee: &SelectedCallContract<'_>,
+    prior_facts: SpecificationPremises<'_>,
+    requirement: ExpressionHandle,
+    arguments: &[ExpressionHandle],
+    applied: &AppliedProofBindings,
+) -> bool {
+    use crate::{
+        ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
+        ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
+    };
+    let Some(parameter_scope) = owner_parameter_scope(program, callee) else {
+        return false;
+    };
+    let parameters = parameter_scope.as_ref();
+    if parameters.len() != arguments.len() {
+        return false;
+    }
+    let bindings = arithmetic_caller_bindings(program, caller);
+    let hypotheses = prior_facts.arithmetic_hypotheses(program, caller);
     // Separate rosters keep self-call argument substitution from rewriting
     // the caller's hypotheses, even when caller and callee symbols coincide.
-    let goal = ScopedArithmeticExpression {
-        owner: owner_symbol(callee),
-        expression: requirement,
-        bindings: parameters
+    // Call formation still consumes the complete selected telescope. This
+    // integer proposition reads only its own exact symbol dependencies: an
+    // unused structural argument is not an integer term. The shared reference
+    // traversal includes static operands and type-owned expression graphs.
+    let dependencies =
+        typed_trees::references::collect_expression_symbol_dependencies(program, requirement);
+    let mut goal_bindings = applied
+        .types
+        .iter()
+        .map(|(symbol, reference)| ScopedArithmeticBinding {
+            binder: ScopedArithmeticBinder::Type(*symbol),
+            value: ScopedArithmeticValue::TypeReference(*reference),
+        })
+        .collect::<Vec<_>>();
+    for constant in &applied.constants {
+        if !dependencies.contains(&constant.symbol) {
+            continue;
+        }
+        let Some(value) = applied.constant_integer(constant.symbol) else {
+            return false;
+        };
+        goal_bindings.push(ScopedArithmeticBinding {
+            binder: ScopedArithmeticBinder::Symbol(constant.symbol),
+            value: ScopedArithmeticValue::Integer(value),
+        });
+    }
+    goal_bindings.extend(
+        parameters
             .iter()
             .zip(arguments)
+            .filter(|(parameter, _)| dependencies.contains(&parameter.symbol))
             // An arithmetic requirement cannot interpret a record argument
             // merely because another formal is numeric. Install only integer
-            // formals; a goal that actually needs an unsupported subject still
-            // remains unknown rather than acquiring an invented denotation.
+            // formals under the selected type application, so an applied
+            // integer retains its actual operand. A goal needing an unsupported
+            // subject remains unknown rather than acquiring a denotation.
             .filter(|(parameter, _)| {
                 crate::value_custody::recasts::exact_primitive_type(
                     program,
-                    parameter.type_reference,
+                    applied.project_type(program, parameter.type_reference),
                 )
                 .is_some_and(|primitive| primitive.accepts_integer_literal())
             })
@@ -1453,8 +2219,12 @@ fn arithmetic_requirement(
                     expression: *argument,
                     bindings: bindings.clone(),
                 }),
-            })
-            .collect(),
+            }),
+    );
+    let goal = ScopedArithmeticExpression {
+        owner: owner_symbol(callee),
+        expression: requirement,
+        bindings: goal_bindings,
     };
     matches!(
         super::scoped_arithmetic::scoped_arithmetic_implication_for_declaration(

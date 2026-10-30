@@ -7,7 +7,7 @@ machine travel(tour: &mut Tour, destination: i32 in Saturating) {
         true -> move(tour, destination, position - destination)
         false -> move(tour, destination, destination - position)
     }
-    state move(tour: &mut Tour, destination: i32 in Saturating, length: i32 in Saturating) {
+    machine move(tour: &mut Tour, destination: i32 in Saturating, length: i32 in Saturating) {
         // Runtime index: the leg span is an arithmetic operand, not a scratch copy.
         let slot: u64 = 0;
         tour.legs[slot].span = length;
@@ -25,72 +25,72 @@ public machine visit(plan: &Plan, tour: &mut Tour, event: u64) -> bool {
         3 -> drop_b(plan, tour)
         _ -> false
     }
-    state pickup_a(plan: &Plan, tour: &mut Tour) -> bool {
+    machine pickup_a(plan: &Plan, tour: &mut Tour) -> bool {
         transition !tour.picked_a && tour.load < plan.capacity {
             true -> collect_a(plan, tour)
             false -> false
         }
     }
-    state collect_a(plan: &Plan, tour: &mut Tour) -> bool {
+    machine collect_a(plan: &Plan, tour: &mut Tour) -> bool {
         travel(tour, plan.site_a);
         tour.picked_a = true;
         transition { _ -> window(tour, plan.ready_a, plan.latest_a) }
     }
-    state pickup_b(plan: &Plan, tour: &mut Tour) -> bool {
+    machine pickup_b(plan: &Plan, tour: &mut Tour) -> bool {
         transition !tour.picked_b && tour.load < plan.capacity {
             true -> collect_b(plan, tour)
             false -> false
         }
     }
-    state collect_b(plan: &Plan, tour: &mut Tour) -> bool {
+    machine collect_b(plan: &Plan, tour: &mut Tour) -> bool {
         travel(tour, plan.site_b);
         tour.picked_b = true;
         transition { _ -> window(tour, plan.ready_b, plan.latest_b) }
     }
-    state window(tour: &mut Tour, ready: i32 in Saturating, latest: i32 in Saturating) -> bool {
+    machine window(tour: &mut Tour, ready: i32 in Saturating, latest: i32 in Saturating) -> bool {
         transition tour.time < ready {
             true -> wait(tour, ready, latest)
             false -> admit(tour, latest)
         }
     }
-    state wait(tour: &mut Tour, ready: i32 in Saturating, latest: i32 in Saturating) -> bool {
+    machine wait(tour: &mut Tour, ready: i32 in Saturating, latest: i32 in Saturating) -> bool {
         tour.waiting = tour.waiting + ready - tour.time;
         tour.time = ready;
         transition { _ -> admit(tour, latest) }
     }
-    state admit(tour: &mut Tour, latest: i32 in Saturating) -> bool {
+    machine admit(tour: &mut Tour, latest: i32 in Saturating) -> bool {
         transition tour.time <= latest {
             true -> loaded(tour)
             false -> false
         }
     }
-    state loaded(tour: &mut Tour) -> bool {
+    machine loaded(tour: &mut Tour) -> bool {
         tour.load = tour.load + 1;
         transition tour.load > tour.peak {
             true -> peak(tour)
             false -> true
         }
     }
-    state peak(tour: &mut Tour) -> bool { tour.peak = tour.load; true }
-    state drop_a(plan: &Plan, tour: &mut Tour) -> bool {
+    machine peak(tour: &mut Tour) -> bool { tour.peak = tour.load; true }
+    machine drop_a(plan: &Plan, tour: &mut Tour) -> bool {
         transition tour.picked_a && !tour.dropped_a {
             true -> unload_a(tour)
             false -> false
         }
     }
-    state unload_a(tour: &mut Tour) -> bool {
+    machine unload_a(tour: &mut Tour) -> bool {
         travel(tour, 0);
         tour.dropped_a = true;
         tour.load = tour.load - 1;
         true
     }
-    state drop_b(plan: &Plan, tour: &mut Tour) -> bool {
+    machine drop_b(plan: &Plan, tour: &mut Tour) -> bool {
         transition tour.picked_b && !tour.dropped_b {
             true -> unload_b(tour)
             false -> false
         }
     }
-    state unload_b(tour: &mut Tour) -> bool {
+    machine unload_b(tour: &mut Tour) -> bool {
         travel(tour, 0);
         tour.dropped_b = true;
         tour.load = tour.load - 1;

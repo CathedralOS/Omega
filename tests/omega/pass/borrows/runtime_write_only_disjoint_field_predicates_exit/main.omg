@@ -6,7 +6,7 @@ machine replace(values: &write [i64; 2], position: u64)
 requires position < 2
 {
     transition { _ -> store(&write values, position) }
-    state store(values: &write [i64; 2], position: u64)
+    machine store(values: &write [i64; 2], position: u64)
     requires position < 2
     {
         values[position] = -17;
@@ -31,8 +31,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -158,6 +158,10 @@ fn validate_function(
                 FunctionFragmentControlProvenance::HostedExitProcess { .. }
                     | FunctionFragmentControlProvenance::OperationTrap { .. }
                     | FunctionFragmentControlProvenance::Crash { .. }
+                    | FunctionFragmentControlProvenance::InternalCall {
+                        owner: target_operations::CallSiteOwner::InvokeNoNormal(_),
+                        ..
+                    }
             ) && (index + 1 != source_block.instructions.len() || source_row.bytes.is_empty())
             {
                 return Err(FrameApplicationError::MissingFinalReturn(source.machine));

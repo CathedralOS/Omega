@@ -71,7 +71,7 @@ fn prove(
     )?;
     let ordinary_call = match &site {
         validation::CallSite::Expression { call: source, .. } => {
-            source.target_symbol == call.target_symbol
+            validation::call_target_entry_symbol(program, validation::call_target_symbol(program, source)) == call.target_symbol
                 // A receiver that is a PLACE is admissible, not only a data
                 // namespace. The goal is substituted through the receiver
                 // before it is compared -- `Store::read`'s `self.limit <= 15`
@@ -125,7 +125,8 @@ fn prove(
                         )
                         .is_some()
                     }));
-            source.target_symbol == call.target_symbol
+            validation::call_target_entry_symbol(program, source.target_symbol)
+                == call.target_symbol
                 && admissible_receiver
                 && source.static_requirement_dispatch.is_none()
                 && source.machine_arguments.is_empty()

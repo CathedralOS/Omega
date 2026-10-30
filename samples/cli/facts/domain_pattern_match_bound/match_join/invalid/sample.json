@@ -1,0 +1,8 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "exact arithmetic",
+    "operands are not provably in range"
+  ]
+}

@@ -21,7 +21,7 @@ public machine encode(records: &SensorBlock, stream: &mut SensorStream) -> bool 
         true -> header(records, stream)
         _ -> invalid()
     }
-    state header(records: &SensorBlock, stream: &mut SensorStream) -> bool
+    machine header(records: &SensorBlock, stream: &mut SensorStream) -> bool
     requires records.count >= 1 && records.count <= 16 && records.tolerance >= 0 && records.tolerance <= 7 {
         stream.bytes[0] = 83;
         stream.bytes[1] = 67;
@@ -30,13 +30,13 @@ public machine encode(records: &SensorBlock, stream: &mut SensorStream) -> bool 
         stream.bytes[4] = records.tolerance as u8;
         transition { _ -> scan(records, stream, 0, 0, 5) }
     }
-    state scan(records: &SensorBlock, stream: &mut SensorStream, index: i32, previous: i32, cursor: i32) -> bool {
+    machine scan(records: &SensorBlock, stream: &mut SensorStream, index: i32, previous: i32, cursor: i32) -> bool {
         transition index >= 0 && index < records.count && index < 16 && previous >= 0 && previous <= 4095 && cursor >= 5 && cursor <= 50 && records.tolerance >= 0 && records.tolerance <= 7 {
             true -> sample(records, stream, index, previous, cursor)
             _ -> finish(records, stream, index, cursor)
         }
     }
-    state sample(records: &SensorBlock, stream: &mut SensorStream, index: i32, previous: i32, cursor: i32) -> bool
+    machine sample(records: &SensorBlock, stream: &mut SensorStream, index: i32, previous: i32, cursor: i32) -> bool
     requires index >= 0 && index < 16 && previous >= 0 && previous <= 4095 && cursor >= 5 && cursor <= 50 && records.tolerance >= 0 && records.tolerance <= 7 {
         let value: i32 = records.values[index];
         transition value >= 0 && value <= 4095 {
@@ -44,39 +44,39 @@ public machine encode(records: &SensorBlock, stream: &mut SensorStream) -> bool 
             _ -> invalid()
         }
     }
-    state rounded(records: &SensorBlock, stream: &mut SensorStream, index: i32, previous: i32, cursor: i32, value: i32) -> bool {
+    machine rounded(records: &SensorBlock, stream: &mut SensorStream, index: i32, previous: i32, cursor: i32, value: i32) -> bool {
         transition value >= 0 && value <= 4095 && previous >= 0 && previous <= 4095 && index >= 0 && index < 16 && cursor >= 5 && cursor <= 50 {
             true -> difference(records, stream, index, cursor, value, value - previous)
             _ -> invalid()
         }
     }
-    state difference(records: &SensorBlock, stream: &mut SensorStream, index: i32, cursor: i32, value: i32, delta: i32) -> bool
+    machine difference(records: &SensorBlock, stream: &mut SensorStream, index: i32, cursor: i32, value: i32, delta: i32) -> bool
     requires index >= 0 && index < 16 && cursor >= 5 && cursor <= 50 && value >= 0 && value <= 4095 {
         transition delta >= -127 && delta <= 127 {
             true -> compact(records, stream, index, cursor, value, delta)
             _ -> absolute(records, stream, index, cursor, value)
         }
     }
-    state compact(records: &SensorBlock, stream: &mut SensorStream, index: i32, cursor: i32, value: i32, delta: i32) -> bool
+    machine compact(records: &SensorBlock, stream: &mut SensorStream, index: i32, cursor: i32, value: i32, delta: i32) -> bool
     requires index >= 0 && index < 16 && cursor >= 5 && cursor <= 50 && delta >= -127 && delta <= 127 {
         stream.bytes[cursor] = (delta + 127) as u8;
         transition { _ -> scan(records, stream, index + 1, value, cursor + 1) }
     }
-    state absolute(records: &SensorBlock, stream: &mut SensorStream, index: i32, cursor: i32, value: i32) -> bool
+    machine absolute(records: &SensorBlock, stream: &mut SensorStream, index: i32, cursor: i32, value: i32) -> bool
     requires index >= 0 && index < 16 && cursor >= 5 && cursor <= 50 && value >= 0 && value <= 4095 {
         stream.bytes[cursor] = 255;
         stream.bytes[cursor + 1] = (value % 256) as u8;
         stream.bytes[cursor + 2] = (value / 256) as u8;
         transition { _ -> scan(records, stream, index + 1, value, cursor + 3) }
     }
-    state finish(records: &SensorBlock, stream: &mut SensorStream, index: i32, cursor: i32) -> bool {
+    machine finish(records: &SensorBlock, stream: &mut SensorStream, index: i32, cursor: i32) -> bool {
         transition index == records.count && cursor >= 5 && cursor <= 53 {
             true -> complete(stream, cursor)
             _ -> invalid()
         }
     }
-    state complete(stream: &mut SensorStream, cursor: i32) -> bool { stream.length = cursor; true }
-    state invalid() -> bool { false }
+    machine complete(stream: &mut SensorStream, cursor: i32) -> bool { stream.length = cursor; true }
+    machine invalid() -> bool { false }
 }
 
 // Independent byte decoder, no encoder state and no original readings.
@@ -87,7 +87,7 @@ public machine decode(stream: &SensorStream, records: &mut SensorBlock) -> bool 
         true -> header(stream, records)
         _ -> invalid()
     }
-    state header(stream: &SensorStream, records: &mut SensorBlock) -> bool {
+    machine header(stream: &SensorStream, records: &mut SensorBlock) -> bool {
         let count: i32 = stream.bytes[3] as i32;
         let tolerance: i32 = stream.bytes[4] as i32;
         transition stream.bytes[0] == 83 && stream.bytes[1] == 67 && stream.bytes[2] == 1 && count >= 1 && count <= 16 && tolerance <= 7 {
@@ -95,18 +95,18 @@ public machine decode(stream: &SensorStream, records: &mut SensorBlock) -> bool 
             _ -> invalid()
         }
     }
-    state begin(stream: &SensorStream, records: &mut SensorBlock, count: i32, tolerance: i32) -> bool {
+    machine begin(stream: &SensorStream, records: &mut SensorBlock, count: i32, tolerance: i32) -> bool {
         records.count = count;
         records.tolerance = tolerance;
         transition { _ -> scan(stream, records, 0, 0, 5) }
     }
-    state scan(stream: &SensorStream, records: &mut SensorBlock, index: i32, previous: i32, cursor: i32) -> bool {
+    machine scan(stream: &SensorStream, records: &mut SensorBlock, index: i32, previous: i32, cursor: i32) -> bool {
         transition index >= 0 && index < records.count && index < 16 && cursor >= 5 && cursor < stream.length && cursor < 53 && previous >= 0 && previous <= 4095 {
             true -> tag(stream, records, index, previous, cursor)
             _ -> finish(stream, records, index, cursor)
         }
     }
-    state tag(stream: &SensorStream, records: &mut SensorBlock, index: i32, previous: i32, cursor: i32) -> bool
+    machine tag(stream: &SensorStream, records: &mut SensorBlock, index: i32, previous: i32, cursor: i32) -> bool
     requires index >= 0 && index < 16 && cursor >= 5 && cursor < 53 && previous >= 0 && previous <= 4095 {
         let code: i32 = stream.bytes[cursor] as i32;
         transition code == 255 {
@@ -114,13 +114,13 @@ public machine decode(stream: &SensorStream, records: &mut SensorBlock) -> bool 
             _ -> reconstructed(stream, records, index, cursor + 1, previous + code - 127)
         }
     }
-    state escape(stream: &SensorStream, records: &mut SensorBlock, index: i32, previous: i32, cursor: i32) -> bool {
+    machine escape(stream: &SensorStream, records: &mut SensorBlock, index: i32, previous: i32, cursor: i32) -> bool {
         transition cursor >= 5 && cursor <= 50 && cursor + 2 < stream.length {
             true -> absolute(stream, records, index, previous, cursor)
             _ -> invalid()
         }
     }
-    state absolute(stream: &SensorStream, records: &mut SensorBlock, index: i32, previous: i32, cursor: i32) -> bool
+    machine absolute(stream: &SensorStream, records: &mut SensorBlock, index: i32, previous: i32, cursor: i32) -> bool
     requires cursor >= 5 && cursor <= 50 {
         let value: i32 = (stream.bytes[cursor + 1] as i32) + (stream.bytes[cursor + 2] as i32) * 256;
         transition previous >= 0 && previous <= 4095 && value >= 0 && value <= 4095 {
@@ -128,27 +128,27 @@ public machine decode(stream: &SensorStream, records: &mut SensorBlock) -> bool 
             _ -> invalid()
         }
     }
-    state canonical(stream: &SensorStream, records: &mut SensorBlock, index: i32, cursor: i32, value: i32, delta: i32) -> bool {
+    machine canonical(stream: &SensorStream, records: &mut SensorBlock, index: i32, cursor: i32, value: i32, delta: i32) -> bool {
         transition delta < -127 || delta > 127 {
             true -> reconstructed(stream, records, index, cursor, value)
             _ -> invalid()
         }
     }
-    state reconstructed(stream: &SensorStream, records: &mut SensorBlock, index: i32, cursor: i32, value: i32) -> bool {
+    machine reconstructed(stream: &SensorStream, records: &mut SensorBlock, index: i32, cursor: i32, value: i32) -> bool {
         transition index >= 0 && index < 16 && value >= 0 && value <= 4095 {
             true -> store(stream, records, index, cursor, value)
             _ -> invalid()
         }
     }
-    state store(stream: &SensorStream, records: &mut SensorBlock, index: i32, cursor: i32, value: i32) -> bool
+    machine store(stream: &SensorStream, records: &mut SensorBlock, index: i32, cursor: i32, value: i32) -> bool
     requires index >= 0 && index < 16 {
         records.values[index] = value;
         transition { _ -> scan(stream, records, index + 1, value, cursor) }
     }
-    state finish(stream: &SensorStream, records: &mut SensorBlock, index: i32, cursor: i32) -> bool {
+    machine finish(stream: &SensorStream, records: &mut SensorBlock, index: i32, cursor: i32) -> bool {
         index == records.count && cursor == stream.length
     }
-    state invalid() -> bool { false }
+    machine invalid() -> bool { false }
 }
 
 // A posteriori certificate from original observations and decoded bytes.
@@ -158,13 +158,13 @@ public machine certify(original: &SensorBlock, decoded: &SensorBlock) -> i32 {
         true -> scan(original, decoded, 0, 0)
         _ -> invalid()
     }
-    state scan(original: &SensorBlock, decoded: &SensorBlock, index: i32, maximum: i32) -> i32 {
+    machine scan(original: &SensorBlock, decoded: &SensorBlock, index: i32, maximum: i32) -> i32 {
         transition index >= 0 && index < original.count && index < 16 {
             true -> sample(original, decoded, index, maximum)
             _ -> done(maximum)
         }
     }
-    state sample(original: &SensorBlock, decoded: &SensorBlock, index: i32, maximum: i32) -> i32
+    machine sample(original: &SensorBlock, decoded: &SensorBlock, index: i32, maximum: i32) -> i32
     requires index >= 0 && index < 16 {
         let first: i32 = original.values[index];
         let second: i32 = decoded.values[index];
@@ -173,16 +173,16 @@ public machine certify(original: &SensorBlock, decoded: &SensorBlock) -> i32 {
             _ -> invalid()
         }
     }
-    state error(original: &SensorBlock, decoded: &SensorBlock, index: i32, maximum: i32, difference: i32) -> i32 {
+    machine error(original: &SensorBlock, decoded: &SensorBlock, index: i32, maximum: i32, difference: i32) -> i32 {
         transition index >= 0 && index < 16 && difference <= original.tolerance {
             true -> advance(original, decoded, index, max_i32(maximum, difference))
             _ -> invalid()
         }
     }
-    state advance(original: &SensorBlock, decoded: &SensorBlock, index: i32, maximum: i32) -> i32
+    machine advance(original: &SensorBlock, decoded: &SensorBlock, index: i32, maximum: i32) -> i32
     requires index >= 0 && index < 16 {
         transition { _ -> scan(original, decoded, index + 1, maximum) }
     }
-    state done(maximum: i32) -> i32 { maximum }
-    state invalid() -> i32 { -1 }
+    machine done(maximum: i32) -> i32 { maximum }
+    machine invalid() -> i32 { -1 }
 }

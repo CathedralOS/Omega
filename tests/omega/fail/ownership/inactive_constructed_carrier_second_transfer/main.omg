@@ -1,0 +1,11 @@
+// An inactive payload owes no claim, but its affine carrier still moves once.
+data Token [linear] { value: u32; }
+machine Token::drop(token: &mut Token) {}
+data Slot { case Empty; case Held(token: Token); }
+data Holder { slot: Slot; }
+machine forward(value: Holder) -> Holder { value }
+machine main() {
+    let value: Holder = Holder { slot: Slot::Empty {} };
+    let first: Holder = forward(Holder { slot: value.slot });
+    let second: Holder = forward(Holder { slot: value.slot });
+}

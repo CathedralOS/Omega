@@ -9,7 +9,7 @@ machine Main::main(main: &mut Main) {
         (true) -> held(main, hit)
         _ -> swapped(main)
     }
-    state held(main: &mut Main, was_none: bool) {
+    machine held(main: &mut Main, was_none: bool) {
         main.cmd = Command::None;
         let now_none: bool = main.cmd == Command::None;
         let value: i32 = match now_none {
@@ -20,7 +20,7 @@ machine Main::main(main: &mut Main) {
             _ -> 4
         };
     }
-    state swapped(main: &mut Main) { let value: i32 = 0; }
+    machine swapped(main: &mut Main) { let value: i32 = 0; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

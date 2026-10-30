@@ -11,10 +11,10 @@ public machine integrate(segment: WetSegment, water: f64, gamma: f64, hinge: f64
         true -> wet(segment, water, gamma, hinge, height)
         false -> zero()
     }
-    state zero() -> SegmentLoad {
+    machine zero() -> SegmentLoad {
         SegmentLoad { area: 0.0, force: 0.0, first_moment: 0.0, hinge_moment: 0.0 }
     }
-    state wet(segment: WetSegment, water: f64, gamma: f64, hinge: f64, height: f64) -> SegmentLoad {
+    machine wet(segment: WetSegment, water: f64, gamma: f64, hinge: f64, height: f64) -> SegmentLoad {
         let slope: f64 = (segment.upper_width - segment.lower_width) / height;
         let depth: f64 = water - segment.lower;
         let square: f64 = height * height;

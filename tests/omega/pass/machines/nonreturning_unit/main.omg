@@ -3,7 +3,7 @@
 // transition to themselves.
 machine wait_forever() {
     transition { _ -> waiting() }
-    state waiting() { transition { _ -> waiting() } }
+    machine waiting() { transition { _ -> waiting() } }
 }
 
 data Main { wait: bool; }
@@ -13,6 +13,6 @@ machine Main::run(main: &mut Main) {
         true -> wait()
         _ -> finish()
     }
-    state wait() { wait_forever(); }
-    state finish() {}
+    machine wait() { wait_forever(); }
+    machine finish() {}
 }

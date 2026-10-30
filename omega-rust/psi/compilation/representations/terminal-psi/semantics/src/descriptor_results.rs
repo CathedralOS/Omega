@@ -24,7 +24,9 @@ pub use boundary_calls::{
 mod compatibility;
 mod contents;
 mod payload_entry;
+pub(crate) use payload_entry::prove as prove_payload_predicate;
 mod payload_history;
+pub(crate) use payload_history::completed_payload_contract;
 mod payload_predicates;
 mod payload_reachability;
 mod payload_versions;
@@ -34,15 +36,19 @@ pub use contents::{
     DescriptorContentsTransfer, DescriptorPayloadTarget, ElementPayloadMemberships,
     PayloadMembershipContract, descriptor_contents_query, descriptor_contents_transfers,
     element_payload_memberships, element_payload_memberships_in, payload_memberships,
-    terminal_payload_contract,
+    reference_backing_memberships, terminal_payload_contract,
 };
 pub use payload_history::{
     PayloadMembershipHistory, current_payload_contract, current_selected_payload_contract,
 };
-pub use payload_predicates::{PayloadScalarObservation, scalar_payload_expression};
+pub(crate) use payload_predicates::terminal_scalar_snapshots;
+pub use payload_predicates::{
+    PayloadEntryScalarIdentity, PayloadScalarObservation, scalar_payload_expression,
+};
 pub use payload_versions::{
-    ProducedPayloadVersion, require_unchanged_observed_storage, require_unchanged_produced_payload,
-    unchanged_payload_producer,
+    ProducedPayloadVersion, require_completed_scalar_capture, require_unchanged_observed_storage,
+    require_unchanged_produced_payload, unchanged_payload_producer,
+    unchanged_stored_scalar_sources,
 };
 pub use scalar_contracts::{case_payload_scalar_types, instantiate_payload_scalar_guarantees};
 mod owned_shape;
@@ -50,6 +56,7 @@ mod replay;
 pub use compatibility::{DescriptorCompatibilityFailure, DescriptorCompatibilityRequirement};
 pub use owned_shape::{owned_shared_byte_descriptor_shape, plain_owned_shape};
 mod invocation;
+pub use invocation::selected_stored_effects_row;
 mod provider_invocation;
 pub use provider_invocation::{provider_invocation, provider_outputs_cover_writable_slots};
 mod terminal_flow;
@@ -436,6 +443,10 @@ pub struct DescriptorMachine {
     pub place_types: BTreeMap<PlaceId, StructuralTypeId>,
     pub entry: DescriptorPosition,
     pub flow: BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    /// Exact constructor tags and selected case edges, in the current typed
+    /// executable graph. These facts grant neither descriptor nor claim custody.
+    pub case_constructors: BTreeMap<DescriptorPosition, Vec<DescriptorCasePredicate>>,
+    pub case_successors: BTreeMap<DescriptorPosition, Vec<(DescriptorCasePredicate, bool)>>,
     pub originations: BTreeMap<DescriptorPosition, Vec<(DescriptorLocation, DescriptorCallOrigin)>>,
     pub projections:
         BTreeMap<(DescriptorPosition, DescriptorLocation, DescriptorLocation), Projection>,
@@ -483,10 +494,6 @@ pub struct DescriptorMachine {
     pub scalar_payload_writes:
         BTreeMap<DescriptorPosition, Vec<(DescriptorLocation, semantic_vocabulary::ScalarTerm)>>,
     pub payload_invalidations: BTreeMap<DescriptorPosition, Vec<Option<DescriptorContentsQuery>>>,
-    /// Nonexact value arrivals retain their actual typed read query, indexed
-    /// by successor ordinal. They supplement membership transport only: exact
-    /// address/custody bindings in `flow` remain unchanged.
-    pub payload_arrivals: BTreeMap<DescriptorPosition, Vec<Vec<PayloadMembershipBinding>>>,
     /// Unresolved writes cannot leave entry contents available for a later
     /// query. These operations require contents effects before replay is usable.
     pub unresolved_contents_writes: BTreeSet<DescriptorPosition>,
@@ -497,9 +504,49 @@ pub struct DescriptorMachine {
     pub normal_exits: Vec<DescriptorPosition>,
 }
 
-pub struct PayloadMembershipBinding {
-    pub parameter: PlaceId,
-    pub source: Option<DescriptorContentsQuery>,
+/// A typed tag observation at an exact storage subject, before edge binding.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DescriptorCasePredicate {
+    pub subject: DescriptorLocation,
+    pub case: semantic_vocabulary::StructuralCaseId,
+}
+
+/// Reuse the zero-value owner's actual selected-case roster. Zero bytes alone
+/// never establish a case; unavailable materialization supplies no tag facts.
+pub fn zeroed_case_predicates(
+    types: &[StructuralTypeDeclaration],
+    root: PlaceId,
+    structural_type: StructuralTypeId,
+) -> Vec<DescriptorCasePredicate> {
+    let Some(leaves) = crate::zeroed_structural_leaves(types.iter(), structural_type) else {
+        return Vec::new();
+    };
+    let mut predicates = Vec::new();
+    for leaf in leaves {
+        let crate::ZeroedStructuralLeaf::SumSelection { path, case, .. } = leaf else {
+            continue;
+        };
+        let Some(subject) = crate::descriptor_lifetimes::descriptor_location(
+            types,
+            root,
+            structural_type,
+            &path,
+            None,
+        ) else {
+            return Vec::new();
+        };
+        predicates.push(DescriptorCasePredicate { subject, case });
+    }
+    predicates
+}
+
+/// Failure to reconstruct a case is not evidence that an executable path is
+/// dead. Only a contradiction with retained current tag facts excludes it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FlowFeasibility {
+    ProvedImpossible,
+    Possible,
+    Unknown,
 }
 
 /// The graph row for `id`, when the catalog covers that machine.
@@ -534,6 +581,9 @@ pub enum DescriptorInvocationTarget {
         invalidates_contents: bool,
     },
     Public {
+        /// Exact current code selection may supply stored-slot effects only.
+        /// The result regions and scalar contract remain requirement-owned.
+        effects_machine: Option<MachineId>,
         /// Complete executable alternatives from the authenticated dispatch
         /// catalog. Their stored effects join; public result contracts stay
         /// separate from implementation-private return guarantees.
@@ -545,6 +595,14 @@ pub enum DescriptorInvocationTarget {
 }
 
 impl DescriptorInvocation {
+    pub fn stored_effects_callee(&self) -> Option<MachineId> {
+        match self.target {
+            DescriptorInvocationTarget::Public {
+                effects_machine, ..
+            } => effects_machine,
+            _ => self.callee(),
+        }
+    }
     pub fn callee(&self) -> Option<MachineId> {
         match self.target {
             DescriptorInvocationTarget::Machine(machine) => Some(machine),
@@ -648,33 +706,6 @@ fn external_backing(
     })
 }
 
-fn place_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTypeId> {
-    machine
-        .signature_structural_parameter(place)
-        .map(|parameter| parameter.structural_type)
-        .or_else(|| {
-            machine
-                .block_structural_parameters()
-                .find(|parameter| parameter.place == place)
-                .map(|parameter| parameter.structural_type)
-        })
-        .or_else(|| {
-            machine.structural_places.iter().find_map(|row| {
-                if row.id != place {
-                    return None;
-                }
-                match row.kind {
-                    StructuralPlaceKind::Result => machine
-                        .result
-                        .structural()
-                        .filter(|result| result.place == place)
-                        .map(|result| result.structural_type),
-                    _ => row.kind.produced_structural_type(),
-                }
-            })
-        })
-}
-
 /// Return custody applies to nested descriptor slots of an owned aggregate,
 /// regardless of which operation constructed it. Direct references and views
 /// retain their separate return contracts. Missing or ambiguous types fail closed.
@@ -703,22 +734,28 @@ pub fn aggregate_descriptor_slots(
 }
 
 pub fn terminal_graph(module: &TerminalModule) -> Vec<DescriptorMachine> {
-    module
-        .machines
-        .iter()
-        .filter_map(|machine| terminal_flow::adapt(module, machine, DescriptorSlotKind::Views, &[]))
-        .collect()
+    terminal_graph_for(module, DescriptorSlotKind::Views, &[]).unwrap_or_default()
 }
 
 /// Current Terminal reference-slot graph; pair with `with_reference_slots`.
 pub fn terminal_reference_graph(module: &TerminalModule) -> Vec<DescriptorMachine> {
-    module
-        .machines
-        .iter()
-        .filter_map(|machine| {
-            terminal_flow::adapt(module, machine, DescriptorSlotKind::References, &[])
-        })
-        .collect()
+    terminal_graph_for(module, DescriptorSlotKind::References, &[]).unwrap_or_default()
+}
+
+/// The complete borrowed-storage inventory over the same executable flow.
+/// Ordinary reference contents and view backing keep their independent roles;
+/// neither inventory can stand in for the other when tracking carrier homes.
+pub fn terminal_borrowed_storage_graph(module: &TerminalModule) -> Vec<DescriptorMachine> {
+    terminal_graph_for(module, DescriptorSlotKind::BorrowedStorage, &[]).unwrap_or_default()
+}
+
+/// Typed address capture and borrowed edge roles for physical-home liveness.
+/// Ordinary aggregate copies continue to transport values, never source homes.
+pub fn terminal_residence_rules(
+    module: &TerminalModule,
+    machine: &terminal_psi::TerminalMachine,
+) -> Option<crate::descriptor_lifetimes::DescriptorResidenceRules> {
+    terminal_flow::residence_rules(module, machine)
 }
 
 /// Placed-loan provenance uses the same exact descriptor transport graph,
@@ -729,17 +766,35 @@ pub fn terminal_placed_origin_graph(
     module: &TerminalModule,
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
 ) -> Option<Vec<DescriptorMachine>> {
+    terminal_graph_for(module, DescriptorSlotKind::PlacedOrigins, selected_calls)
+}
+
+fn terminal_graph_for(
+    module: &TerminalModule,
+    kind: DescriptorSlotKind,
+    selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
+) -> Option<Vec<DescriptorMachine>> {
+    // The first graph conservatively withholds stored-selector identities. Its
+    // version cuts authenticate actual stores before resource hints are added.
+    let initial = module
+        .machines
+        .iter()
+        .map(|machine| terminal_flow::adapt(module, machine, kind, selected_calls, None))
+        .collect::<Option<Vec<_>>>()?;
+    // The graph parameter is consulted only by dynamic calls. Ordinary
+    // modules already have their final graph; replaying every machine again
+    // would add work without discovering a stored selector.
+    if !module.machines.iter().any(|machine| {
+        machine
+            .operations()
+            .any(|operation| matches!(operation.kind, OperationKind::CallDynamic { .. }))
+    }) {
+        return Some(initial);
+    }
     module
         .machines
         .iter()
-        .map(|machine| {
-            terminal_flow::adapt(
-                module,
-                machine,
-                DescriptorSlotKind::PlacedOrigins,
-                selected_calls,
-            )
-        })
+        .map(|machine| terminal_flow::adapt(module, machine, kind, selected_calls, Some(&initial)))
         .collect()
 }
 

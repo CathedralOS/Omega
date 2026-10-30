@@ -4,7 +4,8 @@ Reflection describes an explicitly selected type and specializes ordinary checke
 machines over its members. Libraries own inspection, encoding, editing, ordering,
 and migration policy. No format-specific compiler operation, expansion keyword,
 AST quotation, mandatory object header, or implicit runtime registry follows.
-Implementation work is tracked in [TASKS.md](../../../TASKS.md#semantic-reflection).
+Implementation work is tracked under `WIRE-CODEC-LIBRARY` (including
+`SEMANTIC-REFLECTION`) in [TASKS.md](../../../TASKS.md).
 
 ## Semantic descriptions
 
@@ -42,6 +43,15 @@ type equality follows from matching declaration names or symbolic descriptors.
 Typed visitation of dependent values remains possible with their actual subject
 and equality evidence; it does not require a fully static TypeKey for every field.
 
+Numeric descriptions, when exposed, retain the exact semantic carrier kind,
+integer width/signedness or IEEE format identity, not a width guessed from
+storage or a declaration's display name. [Core integer and float APIs](numeric_values.md#core-integer-and-float-apis)
+may use that authoritative metadata or ordinary exact type-equality refinement
+to compute library results. Their names acquire no compiler-owned meaning.
+Knowing a carrier's extrema neither solves an arbitrary domain predicate nor
+establishes a routed qualification. This adds no integer-width constructor or
+automatic primitive-member namespace.
+
 Closed descriptions and retained symbolic references have deterministic encodings:
 versioned descriptor roles, exact owner/declaration/application correspondence,
 and exact member identity. Graph-local indices are relocated/reconstructed within
@@ -58,6 +68,13 @@ semantic member to the applicable physical field key and validated plan; it
 rejects wrong owner, application, revision, relevance, or case mappings.
 There is no second offset calculator or interpretation of a semantic member index
 as its byte offset.
+
+Semantic data remains layout-neutral. A selected representation application
+joins that same exact schema to its policy and physical geometry; a transparent
+alias changes neither semantic identity nor the selected representation.
+Fixed-memory families and variable-length encoded carriers retain their
+different projection and conversion capabilities under the
+[representation contract](../layouts/plans.md#representation-applications).
 
 Geometry may be queried only after the selected [layout plan](../layouts/plans.md)
 is validated. Core `size_of<T>()` and `align_of<T>()` consume that same plan,

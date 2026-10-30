@@ -11,10 +11,10 @@
 //! any substituted capture still owes its complete definition-to-exit fence.
 
 use super::arithmetic_judgment::{Engine, Judgment, Polynomial};
-use super::{ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticValue};
 use crate::value_custody::places::{
     exact_data_member_field, exact_self_field, unwrapped_type_reference,
 };
+use crate::{ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticValue};
 use facts::IntegerRange;
 use numerics::bignum::BigInt;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};

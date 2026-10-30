@@ -14,7 +14,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> empty_case(main)
         false -> finish(main, 1)
     }
-    state empty_case(main: &mut Main) {
+    machine empty_case(main: &mut Main) {
         main.left = Choice::Empty;
         main.right = Choice::Empty;
         let equal_empty: bool = main.left == main.right;
@@ -23,7 +23,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> finish(main, 2)
         }
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

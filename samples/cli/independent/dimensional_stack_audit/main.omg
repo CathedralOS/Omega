@@ -18,22 +18,22 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> profile(main)
         false -> invalid(main)
     }
-    state profile(main: &mut Main) {
+    machine profile(main: &mut Main) {
         load(&mut main.assembly, main.input.value);
         block read_integer(&mut main.input);
         transition main.input.valid { true -> temperature_low(main) false -> invalid(main) }
     }
-    state temperature_low(main: &mut Main) {
+    machine temperature_low(main: &mut Main) {
         main.assembly.temperature_low = main.input.value;
         block read_integer(&mut main.input);
         transition main.input.valid { true -> temperature_high(main) false -> invalid(main) }
     }
-    state temperature_high(main: &mut Main) {
+    machine temperature_high(main: &mut Main) {
         main.assembly.temperature_high = main.input.value;
         let accepted: bool = valid(&main.assembly);
         transition accepted { true -> audit(main) false -> invalid(main) }
     }
-    state audit(main: &mut Main) {
+    machine audit(main: &mut Main) {
         calculate(&main.assembly, &mut main.audit);
         Console::write_line("fit_low_um");
         write_integer(main.audit.low);
@@ -45,22 +45,22 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> conditional(main)
         }
     }
-    state guaranteed(main: &mut Main) {
+    machine guaranteed(main: &mut Main) {
         Console::write_line("GUARANTEED");
         transition { _ -> contributors(main, 0) }
     }
-    state impossible(main: &mut Main) {
+    machine impossible(main: &mut Main) {
         Console::write_line("IMPOSSIBLE");
         transition { _ -> contributors(main, 0) }
     }
-    state conditional(main: &mut Main) {
+    machine conditional(main: &mut Main) {
         Console::write_line("CONDITIONAL");
         transition { _ -> contributors(main, 0) }
     }
-    state contributors(main: &mut Main, index: u32) {
+    machine contributors(main: &mut Main, index: u32) {
         transition index < 3 { true -> lower(main, index) false -> done(main) }
     }
-    state lower(main: &mut Main, index: u32) requires index < 3 {
+    machine lower(main: &mut Main, index: u32) requires index < 3 {
         let value: Contributor = main.assembly.contributors[index];
         let temperature: i32 in Saturating = lower_choice(main.audit.thermal, main.assembly.temperature_low, main.assembly.temperature_high);
         let gauge_a: i32 in Saturating = lower_choice(main.audit.gauge_a, main.assembly.gauge_a_low, main.assembly.gauge_a_high);
@@ -71,14 +71,14 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> upper(main, index)
         }
     }
-    state lower_offender(main: &mut Main, index: u32, deviation: i32 in Saturating) requires index < 3 {
+    machine lower_offender(main: &mut Main, index: u32, deviation: i32 in Saturating) requires index < 3 {
         Console::write_line("lower_offender_index_zero_based");
         write_integer(index as i32 in Saturating);
         Console::write_line("deviation_um");
         write_integer(deviation);
         transition { _ -> upper(main, index) }
     }
-    state upper(main: &mut Main, index: u32) requires index < 3 {
+    machine upper(main: &mut Main, index: u32) requires index < 3 {
         let value: Contributor = main.assembly.contributors[index];
         let temperature: i32 in Saturating = upper_choice(main.audit.thermal, main.assembly.temperature_low, main.assembly.temperature_high);
         let gauge_a: i32 in Saturating = upper_choice(main.audit.gauge_a, main.assembly.gauge_a_low, main.assembly.gauge_a_high);
@@ -89,15 +89,15 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> contributors(main, index + 1)
         }
     }
-    state upper_offender(main: &mut Main, index: u32, deviation: i32 in Saturating) requires index < 3 {
+    machine upper_offender(main: &mut Main, index: u32, deviation: i32 in Saturating) requires index < 3 {
         Console::write_line("upper_offender_index_zero_based");
         write_integer(index as i32 in Saturating);
         Console::write_line("deviation_um");
         write_integer(deviation);
         transition { _ -> contributors(main, index + 1) }
     }
-    state done(main: &mut Main) { Console::exit_process(0); }
-    state invalid(main: &mut Main) {
+    machine done(main: &mut Main) { Console::exit_process(0); }
+    machine invalid(main: &mut Main) {
         Console::write_line("INVALID INPUT: expected profile 1..6 and ordered temperatures in [-100,100]");
         Console::exit_process(64);
     }

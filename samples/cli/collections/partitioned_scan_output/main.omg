@@ -4,35 +4,35 @@ data Partition<'storage> { values: &'storage mut [i32]; count: u64; }
 
 machine scan<'storage>(partitions: &mut [Partition<'storage>], input: &[i32]) -> u64 {
     transition { _ -> next(partitions, input, 0, 0) }
-    state next(partitions: &mut [Partition<'storage>], input: &[i32], position: u64, selected: u64) -> u64
+    machine next(partitions: &mut [Partition<'storage>], input: &[i32], position: u64, selected: u64) -> u64
     requires position <= input.len && selected <= partitions.len {
         transition position < input.len {
             true -> inspect(partitions, input, position, selected)
             false -> position
         }
     }
-    state inspect(partitions: &mut [Partition<'storage>], input: &[i32], position: u64, selected: u64) -> u64
+    machine inspect(partitions: &mut [Partition<'storage>], input: &[i32], position: u64, selected: u64) -> u64
     requires position < input.len && selected <= partitions.len {
         transition input[position] > 0 {
             true -> choose(partitions, input, position, selected)
             false -> next(partitions, input, position + 1, selected)
         }
     }
-    state choose(partitions: &mut [Partition<'storage>], input: &[i32], position: u64, selected: u64) -> u64
+    machine choose(partitions: &mut [Partition<'storage>], input: &[i32], position: u64, selected: u64) -> u64
     requires position < input.len && selected <= partitions.len {
         transition selected < partitions.len {
             true -> capacity(partitions, input, position, selected)
             false -> position
         }
     }
-    state capacity(partitions: &mut [Partition<'storage>], input: &[i32], position: u64, selected: u64) -> u64
+    machine capacity(partitions: &mut [Partition<'storage>], input: &[i32], position: u64, selected: u64) -> u64
     requires position < input.len && selected < partitions.len {
         transition partitions[selected].count < partitions[selected].values.len {
             true -> store(partitions, input, position, selected)
             false -> choose(partitions, input, position, selected + 1)
         }
     }
-    state store(partitions: &mut [Partition<'storage>], input: &[i32], position: u64, selected: u64) -> u64
+    machine store(partitions: &mut [Partition<'storage>], input: &[i32], position: u64, selected: u64) -> u64
     requires position < input.len && selected < partitions.len
         && partitions[selected].count < partitions[selected].values.len {
         partitions[selected].values[partitions[selected].count] = input[position];
@@ -63,6 +63,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

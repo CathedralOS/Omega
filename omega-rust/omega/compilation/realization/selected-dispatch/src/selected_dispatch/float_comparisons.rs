@@ -12,7 +12,7 @@ use provider_planning::{
 use semantic_vocabulary::IeeeFloatComparisonOperation;
 use typed_trees::types::PrimitiveType;
 
-pub(super) fn selected_executions(
+pub(crate) fn selected_executions(
     checked: &CheckedTrees,
     scope: source::DependencyScope,
     providers: &[SelectedProviderReviewProvenance],
@@ -65,7 +65,9 @@ pub(super) fn selected_executions(
         if matches.next().is_some()
             || provider.provider.row_requirements.as_slice() != [requirement]
             || provider.provider.row_realizations.len() != 1
-            || !context.contains(provider.provider.row_realizations[0])
+            || provider.provider.row_realizations[0]
+                .authored()
+                .is_none_or(|symbol| !context.contains(symbol))
         {
             return Err(fail(
                 "selected provider lost its exact requirement or realization custody",

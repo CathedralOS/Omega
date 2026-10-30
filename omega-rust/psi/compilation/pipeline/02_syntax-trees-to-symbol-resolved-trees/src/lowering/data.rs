@@ -235,6 +235,7 @@ fn lower_data_definition_with_argument_origins(
     let type_equations = crate::preparation::generic_data::template_type_equation_offsets(
         syntax_trees,
         data_definition,
+        lowerer.constant_selection.as_ref(),
     )?;
     let where_facts = crate::lowering::domain::lower_proof_facts_excluding(
         lowerer,
@@ -252,6 +253,8 @@ fn lower_data_definition_with_argument_origins(
         name: crate::lowering::name::lower_name(syntax_trees, &data_definition.name),
         is_public: data_definition.is_public,
         storage: DataDefinitionStorage {
+            predicate_subject_symbol: SymbolHandle::invalid(),
+            predicate_subject_type: symbol_resolved_trees::types::TypeReference::Unit,
             supply_mode: data_definition.supply_mode,
             lifetime_parameters: data_definition
                 .lifetime_parameters
@@ -273,6 +276,17 @@ fn lower_data_definition_with_argument_origins(
                 carry: data_definition.properties.carry,
                 multiplicity: data_definition.properties.multiplicity,
             },
+            cleanup_selection: data_definition
+                .cleanup_selection
+                .as_ref()
+                .map(|selection| {
+                    crate::lowering::expression::lower_static_machine_argument(
+                        lowerer,
+                        syntax_trees,
+                        selection,
+                    )
+                })
+                .transpose()?,
             quotient,
             where_facts,
             zero_gated,
@@ -451,8 +465,11 @@ where_facts: contract.where_facts })?;
                             handle,
                         ),
                     owner: crate::resolution::lowerer::PendingSignatureOwner::Requirement(owner),
-                    keyword_source_spans,
-                    authored,
+                    reaches:
+                        crate::selection::service_reaches::PendingAuthoredServiceReach::Authored {
+                            keyword_source_spans,
+                            authored,
+                        },
                 },
             );
         }

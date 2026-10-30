@@ -1,5 +1,5 @@
 //! Publish owned byte-input results from their selected occurrence and real frame home.
-use super::{Error, attribution, fragment, host, selected, source};
+use super::{Error, attribution, fragment, host, placed_text_offset, selected, source};
 use crate::ObjectBoundarySettlement;
 use machine_code::{
     BoundaryExecutionRecord, BoundaryResultRecord, BoundarySettlementRecord,
@@ -178,9 +178,7 @@ pub(super) fn settlement(
         .ok_or_else(invalid)?;
     Ok(ObjectBoundarySettlement {
         machine,
-        text_offset: host(placed.section_offset)?
-            .checked_add(code_offset)
-            .ok_or(Error::Overflow)?,
+        text_offset: placed_text_offset(placed.section_offset, code_offset)?,
         settlement: record,
     })
 }
@@ -234,10 +232,7 @@ pub(super) fn validate(
     let code_offset = host(span.offset)?;
     if proposed.machine != machine
         || &produced.declaration != result_declaration(function, result.structural_type)?
-        || proposed.text_offset
-            != host(placed.section_offset)?
-                .checked_add(code_offset)
-                .ok_or(Error::Overflow)?
+        || proposed.text_offset != placed_text_offset(placed.section_offset, code_offset)?
         || record.invocation_site != (*operation).into()
         || record.boundary != *boundary
         || record.operation_ordinal
@@ -301,6 +296,7 @@ fn result_declaration(
 #[cfg(test)]
 mod tests {
     use super::cleanup_actions_match;
+    use crate::object_artifact::test_support::structural_declaration;
     use abstract_operations::{
         AbstractBoundaryResult, AbstractFunction, AbstractFunctionResult, AbstractOperation,
         AbstractResult,
@@ -352,16 +348,10 @@ mod tests {
             },
             structural: Some(legalized_operations::LegalizedStructuralContract {
                 result: None,
-                structural_types: vec![terminal_psi::StructuralTypeDeclaration {
-                    quotient_carrier: None,
-                    owns_linear_claim: false,
-                    no_code_affine_cleanup: false,
-                    copyable: false,
-                    descriptor_cleanup: false,
-                    scalar_restriction: None,
-                    id: structural_type,
-                    identity: terminal_psi::TerminalIdentityIndex(1),
-                    shape: StructuralTypeShape::Sum {
+                structural_types: vec![structural_declaration(
+                    structural_type,
+                    terminal_psi::TerminalIdentityIndex(1),
+                    StructuralTypeShape::Sum {
                         cases: vec![
                             terminal_psi::StructuralCaseDeclaration {
                                 id: StructuralCaseId::new(1).unwrap(),
@@ -383,7 +373,7 @@ mod tests {
                             },
                         ],
                     },
-                }]
+                )]
                 .into(),
                 parameters: vec![],
                 structural_places: vec![],

@@ -3,6 +3,7 @@
 
 use super::super::{AbstractOperationPlan, Error, PsiOptimizationUnit};
 use crate::LegalizationError;
+use crate::legalization::accepted_fact;
 use crate::legalization::scalar_graph_input;
 use abstract_operations::AbstractOperation;
 use legalized_operations::LegalizedScalarInstructionKind;
@@ -24,32 +25,25 @@ pub(super) fn project_structural_case_membership(
     else {
         unreachable!("dispatched project_structural_case_membership")
     };
-    let kind = {
-        if result.scalar_type != ScalarType::Boolean {
-            return Err(Error::custody());
-        }
-        let (case_tag, tag_byte_offset, elements) =
-            scalar_graph_input::structural_case::membership_layout(
-                optimized, *source, path, *case, plan,
-            )?;
-        // A runtime element joins its selector and certificate, as a
-        // primitive read's does.
-        let indices = crate::legalization::runtime_indices::operands(
-            optimized,
-            unit,
-            *psi_operation,
-            &elements,
+    if result.scalar_type != ScalarType::Boolean {
+        return Err(Error::custody());
+    }
+    let (case_tag, tag_byte_offset, elements) =
+        scalar_graph_input::structural_case::membership_layout(
+            optimized, *source, path, *case, plan,
         )?;
-        LegalizedScalarInstructionKind::StructuralCaseMembership {
-            source: *source,
-            path: path.clone(),
-            case: *case,
-            case_tag,
-            tag_byte_offset,
-            indices,
-        }
-    };
-    Ok(kind)
+    // A runtime element joins its selector and certificate, as a
+    // primitive read's does.
+    let indices =
+        crate::legalization::runtime_indices::operands(optimized, unit, *psi_operation, &elements)?;
+    Ok(LegalizedScalarInstructionKind::StructuralCaseMembership {
+        source: *source,
+        path: path.clone(),
+        case: *case,
+        case_tag,
+        tag_byte_offset,
+        indices,
+    })
 }
 
 pub(super) fn project_structural_leaf_copy(
@@ -82,32 +76,25 @@ pub(super) fn project_structural_leaf_copy(
         }
         _ => return Err(Error::custody()),
     };
-    let kind = {
-        let (byte_offset, shape, elements) =
-            scalar_graph_input::structural_case::structural_transport_layout(
-                optimized,
-                psi_operation,
-                source,
-                path,
-                result,
-                plan,
-            )?;
-        let indices = crate::legalization::runtime_indices::operands(
+    let (byte_offset, shape, elements) =
+        scalar_graph_input::structural_case::structural_transport_layout(
             optimized,
-            unit,
             psi_operation,
-            &elements,
-        )?;
-        LegalizedScalarInstructionKind::StructuralLeafCopy {
-            result: result.clone(),
             source,
-            path: path.clone(),
-            byte_offset,
-            shape,
-            indices,
-        }
-    };
-    Ok(kind)
+            path,
+            result,
+            plan,
+        )?;
+    let indices =
+        crate::legalization::runtime_indices::operands(optimized, unit, psi_operation, &elements)?;
+    Ok(LegalizedScalarInstructionKind::StructuralLeafCopy {
+        result: result.clone(),
+        source,
+        path: path.clone(),
+        byte_offset,
+        shape,
+        indices,
+    })
 }
 
 /// Window byte movement consumes the target producer's selected storage.
@@ -253,29 +240,26 @@ pub(super) fn project_write_only_primitive_store(
     else {
         unreachable!("dispatched project_write_only_primitive_store")
     };
-    let kind = {
-        let geometry = crate::structural_inputs::structural_reference_input::primitive_store(
-            destination,
-            path,
-            value.scalar_type,
-            &unit.structural_types,
-        )
-        .ok_or(Error::custody())?;
-        LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
-            destination: destination.clone(),
-            path: path.clone(),
-            value: *value,
-            byte_offset: geometry.byte_offset,
-            byte_size: u8::try_from(geometry.byte_size).map_err(|_| Error::custody())?,
-            indices: crate::legalization::runtime_indices::operands(
-                optimized,
-                unit,
-                *psi_operation,
-                &geometry.elements,
-            )?,
-        }
-    };
-    Ok(kind)
+    let geometry = crate::structural_inputs::structural_reference_input::primitive_store(
+        destination,
+        path,
+        value.scalar_type,
+        &unit.structural_types,
+    )
+    .ok_or(Error::custody())?;
+    Ok(LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
+        destination: destination.clone(),
+        path: path.clone(),
+        value: *value,
+        byte_offset: geometry.byte_offset,
+        byte_size: u8::try_from(geometry.byte_size).map_err(|_| Error::custody())?,
+        indices: crate::legalization::runtime_indices::operands(
+            optimized,
+            unit,
+            *psi_operation,
+            &geometry.elements,
+        )?,
+    })
 }
 
 pub(super) fn project_structural_scalar_field_store(
@@ -293,48 +277,72 @@ pub(super) fn project_structural_scalar_field_store(
     else {
         unreachable!("dispatched project_structural_scalar_field_store")
     };
-    let kind = {
-        let target_operations::TargetUnitOperation::StructuralScalarFieldStore {
-            destination,
-            path,
-            field_byte_offset,
-            ..
-        } = targeted
-        else {
-            return Err(Error::custody());
-        };
-        let (_, byte_size, elements) = crate::structural_inputs::structural_reference_input::store(
-            destination.structural_type(),
-            path,
-            *field,
-            value.scalar_type,
-            &unit.structural_types,
-        )
-        .ok_or(Error::custody())?;
-        LegalizedScalarInstructionKind::StructuralScalarFieldStore {
-            destination: destination.clone(),
-            path: path.clone(),
-            field: *field,
-            value: *value,
-            byte_offset: *field_byte_offset,
-            byte_size,
-            indices: crate::legalization::runtime_indices::operands(
-                optimized,
-                unit,
-                *psi_operation,
-                &elements,
-            )?,
-        }
+    let target_operations::TargetUnitOperation::StructuralScalarFieldStore {
+        destination,
+        path,
+        field_byte_offset,
+        ..
+    } = targeted
+    else {
+        return Err(Error::custody());
     };
-    Ok(kind)
+    let (_, byte_size, elements) = crate::structural_inputs::structural_reference_input::store(
+        destination.structural_type(),
+        path,
+        *field,
+        value.scalar_type,
+        &unit.structural_types,
+    )
+    .ok_or(Error::custody())?;
+    Ok(LegalizedScalarInstructionKind::StructuralScalarFieldStore {
+        destination: destination.clone(),
+        path: path.clone(),
+        field: *field,
+        value: *value,
+        byte_offset: *field_byte_offset,
+        byte_size,
+        indices: crate::legalization::runtime_indices::operands(
+            optimized,
+            unit,
+            *psi_operation,
+            &elements,
+        )?,
+    })
 }
 
-pub(super) fn project_byte_sequence_subslice(
+/// The runtime indices of one immutable view: each element its descriptor
+/// selects joins a selector and a certificate. Both windows project through
+/// this, so neither restates the join.
+fn view_indices(
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+    psi_operation: semantic_vocabulary::OperationId,
+    view: &terminal_psi::StructuralArgument,
+) -> Result<Vec<legalized_operations::LegalizedRuntimeIndexOperand>, LegalizationError> {
+    crate::legalization::runtime_indices::operands(
+        optimized,
+        unit,
+        psi_operation,
+        &scalar_graph_input::element_views::descriptor_geometry(
+            optimized,
+            view,
+            &unit.structural_types,
+        )
+        .ok_or(LegalizationError::custody())?
+        .elements,
+    )
+}
+
+/// Both immutable windows legalize the same way: the source view's descriptor
+/// geometry supplies the runtime indices and the operation's two-leg bounds
+/// proof supplies the accepted fact. Only the published storage class differs,
+/// so the operation itself selects the legalized variant.
+pub(super) fn project_subslice(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let AbstractOperation::ByteSequenceSubslice {
+    let (AbstractOperation::ByteSequenceSubslice {
         psi_operation,
         result,
         source,
@@ -342,36 +350,45 @@ pub(super) fn project_byte_sequence_subslice(
         end,
         length,
         obligation,
-    } = &node.operation
+    }
+    | AbstractOperation::ElementViewSubslice {
+        psi_operation,
+        result,
+        source,
+        start,
+        end,
+        length,
+        obligation,
+    }) = &node.operation
     else {
-        unreachable!("dispatched project_byte_sequence_subslice")
+        return Err(Error::custody());
     };
-    let kind = {
-        LegalizedScalarInstructionKind::ByteSequenceSubslice {
+    let indices = view_indices(optimized, unit, *psi_operation, source)?;
+    let accepted_fact = accepted_fact(unit, optimized, *psi_operation, *obligation)?;
+    let kind = if matches!(
+        node.operation,
+        AbstractOperation::ElementViewSubslice { .. }
+    ) {
+        LegalizedScalarInstructionKind::ElementViewSubslice {
             result: result.clone(),
             source: source.clone(),
-            indices: crate::legalization::runtime_indices::operands(
-                optimized,
-                unit,
-                *psi_operation,
-                &scalar_graph_input::element_views::descriptor_geometry(
-                    optimized,
-                    source,
-                    &unit.structural_types,
-                )
-                .ok_or(LegalizationError::custody())?
-                .elements,
-            )?,
+            indices,
             start: *start,
             end: *end,
             length: *length,
             obligation: *obligation,
-            accepted_fact: obligation_fact_identity(
-                unit,
-                optimized.machine,
-                *psi_operation,
-                *obligation,
-            )?,
+            accepted_fact,
+        }
+    } else {
+        LegalizedScalarInstructionKind::ByteSequenceSubslice {
+            result: result.clone(),
+            source: source.clone(),
+            indices,
+            start: *start,
+            end: *end,
+            length: *length,
+            obligation: *obligation,
+            accepted_fact,
         }
     };
     Ok(kind)
@@ -395,14 +412,14 @@ pub(super) fn project_structural_byte_sequence_field_byte_store(
     else {
         unreachable!("dispatched project_structural_byte_sequence_field_byte_store")
     };
-    let kind = {
-        let target_operations::TargetUnitOperation::StructuralByteSequenceFieldByteStore {
-            destination,
-            ..
-        } = targeted
-        else {
-            return Err(Error::custody());
-        };
+    let target_operations::TargetUnitOperation::StructuralByteSequenceFieldByteStore {
+        destination,
+        ..
+    } = targeted
+    else {
+        return Err(Error::custody());
+    };
+    Ok(
         LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
             destination: destination.clone(),
             field: *field,
@@ -410,15 +427,9 @@ pub(super) fn project_structural_byte_sequence_field_byte_store(
             value: *value,
             length: *length,
             obligation: *obligation,
-            accepted_fact: obligation_fact_identity(
-                unit,
-                optimized.machine,
-                *psi_operation,
-                *obligation,
-            )?,
-        }
-    };
-    Ok(kind)
+            accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
+        },
+    )
 }
 
 pub(super) fn project_structural_byte_sequence_field_read(
@@ -457,12 +468,7 @@ pub(super) fn project_structural_byte_sequence_field_read(
             index: *index,
             length: *length,
             obligation: *obligation,
-            accepted_fact: obligation_fact_identity(
-                unit,
-                optimized.machine,
-                *psi_operation,
-                *obligation,
-            )?,
+            accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
         },
     )
 }
@@ -484,29 +490,23 @@ pub(super) fn project_structural_byte_sequence_field_store(
     else {
         unreachable!("dispatched project_structural_byte_sequence_field_store")
     };
-    let kind = {
-        let target_operations::TargetUnitOperation::StructuralByteSequenceFieldStore {
-            destination,
-            ..
-        } = targeted
-        else {
-            return Err(Error::custody());
-        };
+    let target_operations::TargetUnitOperation::StructuralByteSequenceFieldStore {
+        destination,
+        ..
+    } = targeted
+    else {
+        return Err(Error::custody());
+    };
+    Ok(
         LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {
             destination: destination.clone(),
             field: *field,
             source: *source,
             length: *length,
             obligation: *obligation,
-            accepted_fact: obligation_fact_identity(
-                unit,
-                optimized.machine,
-                *psi_operation,
-                *obligation,
-            )?,
-        }
-    };
-    Ok(kind)
+            accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
+        },
+    )
 }
 
 pub(super) fn project_byte_sequence_write(
@@ -525,22 +525,14 @@ pub(super) fn project_byte_sequence_write(
     else {
         unreachable!("dispatched project_byte_sequence_write")
     };
-    let kind = {
-        LegalizedScalarInstructionKind::ByteSequenceWrite {
-            destination: *destination,
-            index: *index,
-            value: *value,
-            length: *length,
-            obligation: *obligation,
-            accepted_fact: obligation_fact_identity(
-                unit,
-                optimized.machine,
-                *psi_operation,
-                *obligation,
-            )?,
-        }
-    };
-    Ok(kind)
+    Ok(LegalizedScalarInstructionKind::ByteSequenceWrite {
+        destination: *destination,
+        index: *index,
+        value: *value,
+        length: *length,
+        obligation: *obligation,
+        accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
+    })
 }
 
 pub(super) fn project_byte_sequence_read(
@@ -559,21 +551,13 @@ pub(super) fn project_byte_sequence_read(
     else {
         unreachable!("dispatched project_byte_sequence_read")
     };
-    let kind = {
-        LegalizedScalarInstructionKind::ByteSequenceRead {
-            source: *source,
-            index: *index,
-            length: *length,
-            obligation: *obligation,
-            accepted_fact: obligation_fact_identity(
-                unit,
-                optimized.machine,
-                *psi_operation,
-                *obligation,
-            )?,
-        }
-    };
-    Ok(kind)
+    Ok(LegalizedScalarInstructionKind::ByteSequenceRead {
+        source: *source,
+        index: *index,
+        length: *length,
+        obligation: *obligation,
+        accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
+    })
 }
 
 pub(super) fn project_element_view_write(
@@ -593,35 +577,16 @@ pub(super) fn project_element_view_write(
     else {
         unreachable!("dispatched project_element_view_write")
     };
-    let kind = {
-        LegalizedScalarInstructionKind::ElementViewWrite {
-            path: path.clone(),
-            destination: destination.clone(),
-            indices: crate::legalization::runtime_indices::operands(
-                optimized,
-                unit,
-                *psi_operation,
-                &crate::legalization::scalar_graph_input::element_views::descriptor_geometry(
-                    optimized,
-                    destination,
-                    &unit.structural_types,
-                )
-                .ok_or(LegalizationError::custody())?
-                .elements,
-            )?,
-            index: *index,
-            value: *value,
-            length: *length,
-            obligation: *obligation,
-            accepted_fact: obligation_fact_identity(
-                unit,
-                optimized.machine,
-                *psi_operation,
-                *obligation,
-            )?,
-        }
-    };
-    Ok(kind)
+    Ok(LegalizedScalarInstructionKind::ElementViewWrite {
+        path: path.clone(),
+        destination: destination.clone(),
+        indices: view_indices(optimized, unit, *psi_operation, destination)?,
+        index: *index,
+        value: *value,
+        length: *length,
+        obligation: *obligation,
+        accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
+    })
 }
 
 pub(super) fn project_element_view_read(
@@ -642,92 +607,36 @@ pub(super) fn project_element_view_read(
     else {
         unreachable!("dispatched project_element_view_read")
     };
-    let kind = {
-        LegalizedScalarInstructionKind::ElementViewRead {
-            source: *source,
-            index: *index,
-            length: *length,
-            obligation: *obligation,
-            accepted_fact: obligation_fact_identity(
-                unit,
-                optimized.machine,
-                *psi_operation,
-                *obligation,
-            )?,
-            path: path.clone(),
-            indices: {
-                let element = scalar_graph_input::byte_views::element_type(
-                    optimized,
-                    *source,
+    Ok(LegalizedScalarInstructionKind::ElementViewRead {
+        source: *source,
+        index: *index,
+        length: *length,
+        obligation: *obligation,
+        accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
+        path: path.clone(),
+        indices: {
+            let element = scalar_graph_input::byte_views::element_type(
+                optimized,
+                *source,
+                &unit.structural_types,
+            )
+            .ok_or(Error::custody())?;
+            let (_, _, elements) =
+                crate::structural_inputs::structural_reference_input::element_leaf_projection(
+                    element,
+                    path,
+                    result.scalar_type,
                     &unit.structural_types,
                 )
                 .ok_or(Error::custody())?;
-                let (_, _, elements) =
-                    crate::structural_inputs::structural_reference_input::element_leaf_projection(
-                        element,
-                        path,
-                        result.scalar_type,
-                        &unit.structural_types,
-                    )
-                    .ok_or(Error::custody())?;
-                crate::legalization::runtime_indices::operands(
-                    optimized,
-                    unit,
-                    *psi_operation,
-                    &elements,
-                )?
-            },
-        }
-    };
-    Ok(kind)
-}
-
-pub(super) fn project_element_view_subslice(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
-    unit: &PsiOptimizationUnit,
-) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let AbstractOperation::ElementViewSubslice {
-        psi_operation,
-        result,
-        source,
-        start,
-        end,
-        length,
-        obligation,
-    } = &node.operation
-    else {
-        unreachable!("dispatched project_element_view_subslice")
-    };
-    let kind = {
-        LegalizedScalarInstructionKind::ElementViewSubslice {
-            result: result.clone(),
-            source: source.clone(),
-            indices: crate::legalization::runtime_indices::operands(
+            crate::legalization::runtime_indices::operands(
                 optimized,
                 unit,
                 *psi_operation,
-                &scalar_graph_input::element_views::descriptor_geometry(
-                    optimized,
-                    source,
-                    &unit.structural_types,
-                )
-                .ok_or(LegalizationError::custody())?
-                .elements,
-            )?,
-            start: *start,
-            end: *end,
-            length: *length,
-            obligation: *obligation,
-            accepted_fact: obligation_fact_identity(
-                unit,
-                optimized.machine,
-                *psi_operation,
-                *obligation,
-            )?,
-        }
-    };
-    Ok(kind)
+                &elements,
+            )?
+        },
+    })
 }
 
 /// Retain both exact observations and the accepted sum bound. Selection chooses
@@ -753,12 +662,7 @@ pub(super) fn project_byte_sequence_concatenation(
             left: left.clone(),
             right: right.clone(),
             capacity_obligation: *capacity_obligation,
-            accepted_fact: obligation_fact_identity(
-                unit,
-                optimized.machine,
-                *psi_operation,
-                *capacity_obligation,
-            )?,
+            accepted_fact: accepted_fact(unit, optimized, *psi_operation, *capacity_obligation)?,
         },
     )
 }
@@ -787,40 +691,8 @@ pub(super) fn project_byte_sequence_store(
         source: *source,
         length: *length,
         obligation: *obligation,
-        accepted_fact: obligation_fact_identity(
-            unit,
-            optimized.machine,
-            *psi_operation,
-            *obligation,
-        )?,
+        accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
     })
-}
-
-/// The obligation fact `obligation` carries on `machine`'s operation
-/// `psi_operation`, or the custody error when the unit recorded none.
-fn obligation_fact_identity(
-    unit: &PsiOptimizationUnit,
-    machine: semantic_vocabulary::MachineId,
-    operation: semantic_vocabulary::OperationId,
-    obligation: semantic_vocabulary::ObligationId,
-) -> Result<optimization_core::AcceptedObligationFactIdentity, Error> {
-    Ok(accepted_obligation_fact(unit, machine, operation, obligation)?.identity)
-}
-
-fn accepted_obligation_fact<'unit>(
-    unit: &'unit PsiOptimizationUnit,
-    machine: semantic_vocabulary::MachineId,
-    operation: semantic_vocabulary::OperationId,
-    obligation: semantic_vocabulary::ObligationId,
-) -> Result<&'unit optimization_unit::AcceptedObligationFact, Error> {
-    unit.accepted_obligation_facts
-        .iter()
-        .find(|fact| {
-            fact.machine == machine
-                && fact.owner == optimization_unit::PsiProvenance::Operation(operation)
-                && fact.obligation == obligation
-        })
-        .ok_or(Error::custody())
 }
 
 /// Address geometry retains backing and selector proofs without reading a leaf.
@@ -843,7 +715,7 @@ pub(super) fn project_storage_address(
     }
     let root = scalar_graph_input::primitive_locals::read_root_type(optimized, *source)
         .ok_or(Error::custody())?;
-    let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
+    let geometry = crate::structural_inputs::structural_reference_input::storage_address_geometry(
         root,
         path,
         &unit.structural_types,

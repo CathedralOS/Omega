@@ -94,14 +94,14 @@ crashes Trap
         _ -> failed(count)
     }
 
-    state byte(cell: i32) -> ByteRead {
+    machine byte(cell: i32) -> ByteRead {
         let value: u8 = narrow_i32_to_u8_wrapping(cell);
         ByteRead::Byte { value: value as i32 }
     }
 
-    state end() -> ByteRead { ByteRead::Eof }
+    machine end() -> ByteRead { ByteRead::Eof }
 
-    state failed(count: i32) -> ByteRead {
+    machine failed(count: i32) -> ByteRead {
         let trapped: u8 = narrow_i32_to_u8_trapping(count);
         ByteRead::Eof
     }

@@ -44,6 +44,6 @@ machine main() crashes Trap {
     drop(strategy.tail);
     drop(other.tail);
     transition correct { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

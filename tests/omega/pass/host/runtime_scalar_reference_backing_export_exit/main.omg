@@ -37,19 +37,19 @@ machine Main::main(main: &mut Main) reaches Compare crashes Trap {
         true -> next(main)
         _ -> bad()
     }
-    state next(main: &mut Main) {
+    machine next(main: &mut Main) {
         let result: i32 = Compare::compare(&main.left.value, &main.right.value, 8);
         transition result == 0 {
             true -> next_reference(&main.left.value, &main.right.value)
             _ -> bad()
         }
     }
-    state next_reference(left: &u64, right: &u64) {
+    machine next_reference(left: &u64, right: &u64) {
         let result: i32 = Compare::compare(left, right, 8);
         transition result == 0 { true -> done() _ -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

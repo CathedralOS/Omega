@@ -2,7 +2,6 @@ use super::{
     AnalysisInvalidationSet, AnalysisSet, CoreContractDecodeError, OptimizationSafetyClass,
 };
 use crate::{OptimizationPassIdentity, OptimizationRuleIdentity};
-use std::fmt;
 
 const RULE_CONTRACT_MAGIC: &[u8; 8] = b"OMGRUL\0\0";
 const RULE_CONTRACT_SCHEMA_VERSION: u32 = 1;
@@ -16,6 +15,18 @@ pub struct OptimizationRuleContract {
     required_analyses: AnalysisSet,
     invalidated_analyses: AnalysisInvalidationSet,
     safety_class: OptimizationSafetyClass,
+}
+
+crate::record_views! {
+    record OptimizationRuleContract;
+    copied {
+        identity: OptimizationRuleIdentity,
+        pass: OptimizationPassIdentity,
+        version: u32,
+        required_analyses: AnalysisSet,
+        invalidated_analyses: AnalysisInvalidationSet,
+        safety_class: OptimizationSafetyClass,
+    }
 }
 
 impl OptimizationRuleContract {
@@ -51,30 +62,6 @@ impl OptimizationRuleContract {
         encoded.extend_from_slice(&self.invalidated_analyses.encode());
         encoded.extend_from_slice(&self.safety_class.encode());
         encoded
-    }
-
-    pub const fn identity(self) -> OptimizationRuleIdentity {
-        self.identity
-    }
-
-    pub const fn pass(self) -> OptimizationPassIdentity {
-        self.pass
-    }
-
-    pub const fn version(self) -> u32 {
-        self.version
-    }
-
-    pub const fn required_analyses(self) -> AnalysisSet {
-        self.required_analyses
-    }
-
-    pub const fn invalidated_analyses(self) -> AnalysisInvalidationSet {
-        self.invalidated_analyses
-    }
-
-    pub const fn safety_class(self) -> OptimizationSafetyClass {
-        self.safety_class
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, CoreContractDecodeError> {
@@ -126,10 +113,7 @@ pub enum InvalidOptimizationRuleContract {
     ZeroVersion,
 }
 
-impl fmt::Display for InvalidOptimizationRuleContract {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("optimization rule version must be nonzero")
-    }
-}
-
-impl std::error::Error for InvalidOptimizationRuleContract {}
+crate::fixed_error_display!(
+    InvalidOptimizationRuleContract,
+    "optimization rule version must be nonzero"
+);

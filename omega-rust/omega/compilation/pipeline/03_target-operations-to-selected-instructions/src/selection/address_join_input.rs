@@ -9,6 +9,8 @@
 //! both derive the edge transport here from the legalized function and their
 //! own transport state; neither trusts the other's choice.
 
+use crate::selection::place_declaration::declares_block_parameter;
+
 use calling_conventions::ValueShape;
 use legalized_operations::LegalizedScalarFunction;
 use selected_instructions::{
@@ -38,14 +40,7 @@ pub(crate) fn join(
             parameter,
             &signature.structural_types,
         )
-        && signature.structural_places.iter().any(|declaration| {
-            declaration.id == place
-                && declaration.kind
-                    == (semantic_vocabulary::StructuralPlaceKind::BlockParameter {
-                        block,
-                        position: parameter.position,
-                    })
-        }))
+        && declares_block_parameter(signature, place, block, parameter.position))
     .then_some((block, parameter))
 }
 
@@ -350,7 +345,7 @@ pub(super) fn root_type(
                 result.multiplicity,
                 terminal_psi::StructuralMultiplicity::Affine
                     | terminal_psi::StructuralMultiplicity::Unrestricted
-            ) && result.claims.is_empty())
+            ))
             .then_some(result.structural_type);
         }
         if let Some((_, parameter)) = join(source, place) {

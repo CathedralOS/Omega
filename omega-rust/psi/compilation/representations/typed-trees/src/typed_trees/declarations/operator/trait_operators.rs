@@ -55,18 +55,13 @@ pub fn trait_operator_matches_application(
             })
 }
 
-struct TraitOperatorOperandBindings {
-    types: Vec<(SymbolHandle, TypeReferenceHandle)>,
-    constants: Vec<super::OperatorConstBinding>,
-}
-
-fn trait_operator_operand_bindings(
+pub fn trait_operator_operand_bindings(
     program: &TypedTrees,
     trait_definition: &crate::trait_definition::TraitDefinition,
     requirement: &crate::signature::StateSignature,
     operand_types: &[Option<TypeReferenceHandle>],
     application: Option<&[(SymbolHandle, TypeReferenceHandle)]>,
-) -> Option<TraitOperatorOperandBindings> {
+) -> Option<super::OperatorOperandBindings> {
     let parameters = program.state_signature_parameters(requirement);
     if parameters.len() != operand_types.len() || operand_types.iter().all(Option::is_none) {
         return None;
@@ -113,7 +108,7 @@ fn trait_operator_operand_bindings(
     {
         return None;
     }
-    Some(TraitOperatorOperandBindings {
+    Some(super::OperatorOperandBindings {
         types: bindings,
         constants: const_bindings,
     })
@@ -128,7 +123,8 @@ pub struct BoundTraitOperatorMeaning<'program> {
     pub bound: &'program crate::machine::GenericConformanceBound,
     pub trait_definition: &'program crate::trait_definition::TraitDefinition,
     pub requirement: &'program crate::signature::StateSignature,
-    substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+    pub substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+    pub constants: Vec<super::OperatorConstBinding>,
 }
 
 impl BoundTraitOperatorMeaning<'_> {
@@ -177,16 +173,18 @@ pub fn bound_trait_operator_meanings<'program>(
             spelling,
             operand_types,
             &substitutions,
-            &mut |trait_definition, requirement, substitutions| {
+            &mut |trait_definition, requirement, substitutions, constants| {
                 let meaning = BoundTraitOperatorMeaning {
                     bound,
                     trait_definition,
                     requirement,
                     substitutions,
+                    constants,
                 };
                 let same_application = |known: &BoundTraitOperatorMeaning<'_>| {
                     known.bound.binder == bound.binder
                         && known.requirement.symbol == requirement.symbol
+                        && known.constants == meaning.constants
                         && program
                             .trait_type_parameters(trait_definition)
                             .iter()
@@ -218,6 +216,40 @@ pub fn bound_trait_operator_meanings<'program>(
 /// Operator meaning in a trait's own abstract contract scope, including its
 /// inherited applications. The trait's parameters stay rigid lexical symbols;
 /// this query neither selects a visible implementation nor closes that scope.
+/// One applied abstract requirement in its authentic declaring trait telescope.
+#[derive(Debug, Clone)]
+pub struct ScopedTraitOperatorMeaning<'program> {
+    pub trait_definition: &'program crate::trait_definition::TraitDefinition,
+    pub requirement: &'program crate::signature::StateSignature,
+    pub substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+    pub constants: Vec<super::OperatorConstBinding>,
+}
+
+pub fn trait_scope_operator_meanings<'program>(
+    program: &'program TypedTrees,
+    trait_definition: &'program crate::trait_definition::TraitDefinition,
+    spelling: OperatorSpelling,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> Vec<ScopedTraitOperatorMeaning<'program>> {
+    let mut meanings = Vec::new();
+    visit_trait_operator_meanings(
+        program,
+        trait_definition,
+        spelling,
+        operand_types,
+        &[],
+        &mut |trait_definition, requirement, substitutions, constants| {
+            meanings.push(ScopedTraitOperatorMeaning {
+                trait_definition,
+                requirement,
+                substitutions,
+                constants,
+            });
+        },
+    );
+    meanings
+}
+
 pub fn trait_scope_operator_meaning_exists(
     program: &TypedTrees,
     trait_definition: &crate::trait_definition::TraitDefinition,
@@ -231,7 +263,7 @@ pub fn trait_scope_operator_meaning_exists(
         spelling,
         operand_types,
         &[],
-        &mut |_, _, _| found = true,
+        &mut |_, _, _, _| found = true,
     );
     found
 }
@@ -246,6 +278,7 @@ fn visit_trait_operator_meanings<'program>(
         &'program crate::trait_definition::TraitDefinition,
         &'program crate::signature::StateSignature,
         Vec<(SymbolHandle, TypeReferenceHandle)>,
+        Vec<super::OperatorConstBinding>,
     ),
 ) {
     let mut scope = crate::trait_definition::AppliedTraitScope::abstract_scope(trait_definition);
@@ -326,7 +359,12 @@ fn visit_trait_operator_meanings<'program>(
                     .iter()
                     .any(|(parameter, _)| parameter == binder)
             }));
-            visit(trait_definition, requirement, applied_substitutions);
+            visit(
+                trait_definition,
+                requirement,
+                applied_substitutions,
+                bindings.constants,
+            );
         }
     });
 }

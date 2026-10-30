@@ -131,8 +131,15 @@ impl TerminalImportAdapter for AllocationImport {
 }
 
 impl TerminalEffectHandler for AllocationImport {
-    fn storage_arguments(&self, _: semantic_vocabulary::BoundaryMachineId) -> &[usize] {
-        if self.payload.is_some() { &[0] } else { &[] }
+    fn storage_requirements(
+        &self,
+        _: semantic_vocabulary::BoundaryMachineId,
+        _arguments: &[terminal_interpreter::TerminalScalarValue],
+    ) -> terminal_interpreter::TerminalCallStorageRequirements<'_> {
+        terminal_interpreter::TerminalCallStorageRequirements {
+            original: false,
+            arguments: if self.payload.is_some() { &[0] } else { &[] },
+        }
     }
 
     fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {

@@ -33,7 +33,7 @@ crashes Trap
         _ -> full(checker, syntax, handle)
     }
 
-    state write(checker: &mut Checker, index: u64, handle: u64 in Trapping)
+    machine write(checker: &mut Checker, index: u64, handle: u64 in Trapping)
     requires index < 16
     {
         checker.matches[index] = handle as u64;
@@ -41,7 +41,7 @@ crashes Trap
         checker.match_count = index + 1;
     }
 
-    state full(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping) {
+    machine full(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping) {
         let expression: Expression = SyntaxTrees::expression(syntax, handle);
         Checks::reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
     }
@@ -61,7 +61,7 @@ crashes Trap
 {
     transition { _ -> next(checker, syntax, resolution, typing, handle, checker.match_count, checking) }
 
-    state next(
+    machine next(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -76,7 +76,7 @@ crashes Trap
         }
     }
 
-    state record(
+    machine record(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -93,7 +93,7 @@ crashes Trap
         transition { _ -> next(checker, syntax, resolution, typing, handle, index, checking) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Fire the events of the match at `match_handle` that begin at `handle`,
@@ -114,7 +114,7 @@ crashes Trap
     let expression: Expression = SyntaxTrees::expression(syntax, match_handle);
     transition { _ -> pending(checker, syntax, resolution, typing, handle, match_handle, expression, index, event, checking) }
 
-    state pending(
+    machine pending(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -133,7 +133,7 @@ crashes Trap
         }
     }
 
-    state fire(
+    machine fire(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -149,20 +149,20 @@ crashes Trap
         transition { _ -> pending(checker, syntax, resolution, typing, handle, match_handle, expression, index, event + 1, checking) }
     }
 
-    state keep(checker: &mut Checker, index: u64, event: u64 in Trapping) {
+    machine keep(checker: &mut Checker, index: u64, event: u64 in Trapping) {
         transition index < 16 {
             true -> write(checker, index, event)
             _ -> done()
         }
     }
 
-    state write(checker: &mut Checker, index: u64, event: u64 in Trapping)
+    machine write(checker: &mut Checker, index: u64, event: u64 in Trapping)
     requires index < 16
     {
         checker.match_events[index] = event as u64;
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Where a match's event `event` begins: arm `event / 2`'s pattern for an
@@ -178,7 +178,7 @@ crashes Trap
         _ -> at(18446744073709551615)
     }
 
-    state arm(syntax: &SyntaxTrees, expression: Expression, offset: u64 in Trapping, valued: bool) -> u64 in Trapping {
+    machine arm(syntax: &SyntaxTrees, expression: Expression, offset: u64 in Trapping, valued: bool) -> u64 in Trapping {
         let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
         let value: Expression = SyntaxTrees::expression(syntax, arm.target);
         transition valued || arm.kind == ArmPatternKind::Wildcard {
@@ -187,12 +187,12 @@ crashes Trap
         }
     }
 
-    state pattern(syntax: &SyntaxTrees, arm: TransitionArm) -> u64 in Trapping {
+    machine pattern(syntax: &SyntaxTrees, arm: TransitionArm) -> u64 in Trapping {
         let pattern: Expression = SyntaxTrees::expression(syntax, arm.pattern);
         transition { _ -> at(pattern.first_row) }
     }
 
-    state at(handle: u64 in Trapping) -> u64 in Trapping {
+    machine at(handle: u64 in Trapping) -> u64 in Trapping {
         handle
     }
 }
@@ -221,7 +221,7 @@ crashes Trap
         _ -> begun(checker, syntax, resolution, typing, match_handle, expression, offset, held, checking)
     }
 
-    state begun(
+    machine begun(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -238,7 +238,7 @@ crashes Trap
         }
     }
 
-    state opened(checker: &mut Checker, match_handle: u64 in Trapping, expression: Expression) {
+    machine opened(checker: &mut Checker, match_handle: u64 in Trapping, expression: Expression) {
         let joined: bool = Checker::save_zone(checker, match_handle + 1);
         transition joined {
             true -> unreached(checker, match_handle, expression)
@@ -246,7 +246,7 @@ crashes Trap
         }
     }
 
-    state unreached(checker: &mut Checker, match_handle: u64 in Trapping, expression: Expression) {
+    machine unreached(checker: &mut Checker, match_handle: u64 in Trapping, expression: Expression) {
         Checker::unreach_saved(checker);
         let saved: bool = Checker::save_zone(checker, match_handle + 1);
         transition saved {
@@ -256,12 +256,12 @@ crashes Trap
     }
 
     // Only the join was saved: drop it, so no later arm or join meets it.
-    state half_saved(checker: &mut Checker, expression: Expression) {
+    machine half_saved(checker: &mut Checker, expression: Expression) {
         Checker::drop_saved(checker);
         transition { _ -> overflow(checker, expression) }
     }
 
-    state following(
+    machine following(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -278,7 +278,7 @@ crashes Trap
         }
     }
 
-    state passed_over(
+    machine passed_over(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -296,24 +296,24 @@ crashes Trap
         Checker::resave_zone(checker);
     }
 
-    state selected(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, offset: u64 in Trapping, held: bool) {
+    machine selected(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, offset: u64 in Trapping, held: bool) {
         transition held {
             true -> chosen(checker, syntax, resolution, typing, expression, offset)
             _ -> done()
         }
     }
 
-    state chosen(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, offset: u64 in Trapping) {
+    machine chosen(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, offset: u64 in Trapping) {
         let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
         let pattern: Value = Checker::pattern_value(checker, arm);
         Checker::arm_facts(checker, syntax, resolution, typing, expression.left, pattern, arm, true);
     }
 
-    state overflow(checker: &mut Checker, expression: Expression) {
+    machine overflow(checker: &mut Checker, expression: Expression) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A pattern's value, already evaluated; unknown for `_`.
@@ -325,12 +325,12 @@ crashes Trap
         _ -> unknown()
     }
 
-    state literal(checker: &Checker, arm: TransitionArm) -> Value {
+    machine literal(checker: &Checker, arm: TransitionArm) -> Value {
         let value: Value = Checker::value_at(checker, arm.pattern);
         value
     }
 
-    state unknown() -> Value {
+    machine unknown() -> Value {
         let value: Value = Value::unknown();
         value
     }
@@ -349,12 +349,12 @@ crashes Trap
         _ -> untracked(checker, typing, handle)
     }
 
-    state closed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, checking: bool) {
+    machine closed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, checking: bool) {
         Checker::end_arm(checker, syntax, resolution, typing, handle, expression, expression.count - 1, checking);
         Checker::take_join(checker);
     }
 
-    state untracked(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping) {
+    machine untracked(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping) {
         let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
         let row: TypeRow = TypeTable::row(&typing.types, type_handle);
         let value: Value = Value::typed(row);
@@ -384,7 +384,7 @@ crashes Trap
         _ -> joined(checker, match_handle, offset, value)
     }
 
-    state qualified(
+    machine qualified(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -400,7 +400,7 @@ crashes Trap
         transition { _ -> joined(checker, match_handle, offset, value) }
     }
 
-    state joined(checker: &mut Checker, match_handle: u64 in Trapping, offset: u64 in Trapping, value: Value) {
+    machine joined(checker: &mut Checker, match_handle: u64 in Trapping, offset: u64 in Trapping, value: Value) {
         Checker::join_arms(checker);
         transition offset == 0 {
             true -> first(checker, match_handle, value)
@@ -408,12 +408,12 @@ crashes Trap
         }
     }
 
-    state first(checker: &mut Checker, match_handle: u64 in Trapping, value: Value) {
+    machine first(checker: &mut Checker, match_handle: u64 in Trapping, value: Value) {
         let interval: Value = Value::interval(value);
         Checker::set_value(checker, match_handle, interval);
     }
 
-    state widened(checker: &mut Checker, match_handle: u64 in Trapping, value: Value) {
+    machine widened(checker: &mut Checker, match_handle: u64 in Trapping, value: Value) {
         let so_far: Value = Checker::value_at(checker, match_handle);
         let hull: Value = Value::hull(so_far, value);
         Checker::set_value(checker, match_handle, hull);
@@ -429,7 +429,7 @@ crashes Trap
         _ -> answer(false)
     }
 
-    state owners(checker: &Checker, match_handle: u64 in Trapping, below: u64) -> bool
+    machine owners(checker: &Checker, match_handle: u64 in Trapping, below: u64) -> bool
     requires below < 7
     {
         let join: u64 = checker.saved_owners[below];
@@ -438,7 +438,7 @@ crashes Trap
         transition { _ -> answer(held) }
     }
 
-    state answer(held: bool) -> bool {
+    machine answer(held: bool) -> bool {
         held
     }
 }
@@ -452,7 +452,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    state mark(checker: &mut Checker, index: u64)
+    machine mark(checker: &mut Checker, index: u64)
     requires index < 8
     {
         checker.merged = checker.saved[index];
@@ -460,7 +460,7 @@ crashes Trap
         checker.saved[index] = checker.merged;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -474,7 +474,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    state join(checker: &mut Checker, index: u64)
+    machine join(checker: &mut Checker, index: u64)
     requires index < 8
     {
         checker.merged = checker.saved[index];
@@ -488,7 +488,7 @@ crashes Trap
         checker.saved[index] = checker.merged;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -502,7 +502,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    state take(checker: &mut Checker, index: u64)
+    machine take(checker: &mut Checker, index: u64)
     requires index < 8
     {
         checker.zone = checker.saved[index];
@@ -510,7 +510,7 @@ crashes Trap
         checker.saved_count = index;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }

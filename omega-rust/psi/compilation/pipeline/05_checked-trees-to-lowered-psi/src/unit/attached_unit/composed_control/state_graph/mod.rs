@@ -8,7 +8,7 @@
 //! once, in dependency order, and failures retain their actual diagnostic.
 //!
 //! `admission::admit` checks the contract identity and the ranking witness
-//! (`ranking::validate_witness`), computes the reachable states
+//! (`ranking::require_witness_ranks`), computes the reachable states
 //! (`topology::live`), then checks each state in authored order: its
 //! structural parameters (the persistent receiver through `parameters`), its
 //! scalar prefix (`scalars`), and its terminator, at the statement ordinal
@@ -86,6 +86,7 @@ use checked_trees::{
 // The two steps: `admission` checks the graph against its authored source;
 // `emission` writes the admitted graph.
 mod admission;
+mod custody_frontiers;
 mod emission;
 
 // Whole-graph records: reachable states, claim transport across edges,
@@ -114,6 +115,7 @@ mod subslices;
 
 pub(in crate::unit::attached_unit) use admission::AdmittedGraph;
 pub(in crate::unit::attached_unit) use admission::admit;
+pub(super) use custody_frontiers::prepare;
 pub(super) use edges::successors;
 pub(super) use emission::emit;
 pub(crate) use topology::live;

@@ -9,7 +9,7 @@ machine local_value() -> u32 {
 }
 machine named_value(value: u32) -> u32 requires value <= 4 {
     transition { _ -> step(value) }
-    state step(mut current: u32) requires current <= 4 {
+    machine step(mut current: u32) -> u32 requires current <= 4 {
         current = 2;
         (current)
     }
@@ -22,6 +22,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

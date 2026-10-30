@@ -65,6 +65,27 @@ pub(crate) fn validate_foreign_call_site(
     )
 }
 
+/// Earliest pre-call custody site: the first scalar argument or callback
+/// materialization, else the outbound allocation, else the call word itself.
+fn pre_call_custody_start(call: &machine_code::ForeignCallRelocation, call_start: usize) -> usize {
+    call.unit_stack.outbound.map_or_else(
+        || {
+            call.scalar_arguments
+                .first()
+                .map(|argument| argument.code_offset)
+                .into_iter()
+                .chain(
+                    call.callback_addresses
+                        .iter()
+                        .map(|callback| callback.code_offset),
+                )
+                .min()
+                .unwrap_or(call_start)
+        },
+        |outbound| outbound.allocation_offset,
+    )
+}
+
 pub(crate) fn validate_foreign_call_floating_control(
     target: NativeTarget,
     function: &machine_code::MachineCodeFunction,
@@ -184,22 +205,7 @@ pub(crate) fn validate_foreign_call_floating_control(
         Architecture::Aarch64 => call.offset,
     };
     let call_end = call.offset.checked_add(4).ok_or_else(invalid)?;
-    let pre_call_start = call.unit_stack.outbound.map_or_else(
-        || {
-            call.scalar_arguments
-                .first()
-                .map(|argument| argument.code_offset)
-                .into_iter()
-                .chain(
-                    call.callback_addresses
-                        .iter()
-                        .map(|callback| callback.code_offset),
-                )
-                .min()
-                .unwrap_or(call_start)
-        },
-        |outbound| outbound.allocation_offset,
-    );
+    let pre_call_start = pre_call_custody_start(call, call_start);
     let post_call_end = match call.unit_stack.outbound {
         Some(outbound) => outbound
             .release_offset
@@ -552,32 +558,33 @@ pub(crate) fn validate_foreign_scalar_arguments(
             ))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let result_shape =
-        call.scalar_result
-            .as_ref()
-            .map(|result| {
-                let Some(result_type) = result.home.scalar_type.as_integer() else {
-                    return Err(invalid());
-                };
-                let expected_shape =
-                    crate::object_artifact::replay::unit::scalar_call_custody::integer_shape(
-                        result_type,
-                    )
-                    .ok_or_else(invalid)?;
-                if result.home.defining_operation
-                    != match call.owner {
-                        CallSiteOwner::Operation(operation) => operation,
-                        CallSiteOwner::CleanupAction { .. }
-                        | CallSiteOwner::ExternalCompletion(_) => return Err(invalid()),
-                    }
-                    || result.home.shape != expected_shape
-                    || !function.unit_scalar_homes.contains(&result.home)
-                {
-                    return Err(invalid());
+    let result_shape = call
+        .scalar_result
+        .as_ref()
+        .map(|result| {
+            let Some(result_type) = result.home.scalar_type.as_integer() else {
+                return Err(invalid());
+            };
+            let expected_shape =
+                crate::object_artifact::replay::unit::scalar_call_custody::integer_shape(
+                    result_type,
+                )
+                .ok_or_else(invalid)?;
+            if result.home.defining_operation
+                != match call.owner {
+                    CallSiteOwner::Operation(operation) => operation,
+                    CallSiteOwner::InvokeNoNormal(_)
+                    | CallSiteOwner::CleanupAction { .. }
+                    | CallSiteOwner::ExternalCompletion(_) => return Err(invalid()),
                 }
-                Ok(expected_shape)
-            })
-            .transpose()?;
+                || result.home.shape != expected_shape
+                || !function.unit_scalar_homes.contains(&result.home)
+            {
+                return Err(invalid());
+            }
+            Ok(expected_shape)
+        })
+        .transpose()?;
     // Only `Parameter`-destination callbacks occupy a native slot; a `Field`
     // destination writes through its root parameter's existing slot.
     let callback_ordinals = call
@@ -668,24 +675,7 @@ pub(crate) fn validate_foreign_scalar_arguments(
             .aarch64_floating_control
             .map(|control| control.save_offset),
     }
-    .unwrap_or_else(|| {
-        call.unit_stack.outbound.map_or_else(
-            || {
-                call.scalar_arguments
-                    .first()
-                    .map(|argument| argument.code_offset)
-                    .into_iter()
-                    .chain(
-                        call.callback_addresses
-                            .iter()
-                            .map(|callback| callback.code_offset),
-                    )
-                    .min()
-                    .unwrap_or(call_start)
-            },
-            |outbound| outbound.allocation_offset,
-        )
-    });
+    .unwrap_or_else(|| pre_call_custody_start(call, call_start));
     let post_save = match target.architecture {
         Architecture::X86_64 => call.x86_floating_control.map(|control| {
             control
@@ -1080,6 +1070,7 @@ mod tests {
         CallSiteOwner, MachineId, NativeTarget, ObjectError, SemanticCodeAttribution,
         SemanticCodeSite, validate_foreign_scalar_arguments,
     };
+    use crate::object_artifact::test_support::empty_machine_code_function;
     use machine_code::{
         ForeignCallRelocation, MachineCodeFunction, ProviderExecutionRecord, UnitCallStackEvidence,
     };
@@ -1191,49 +1182,19 @@ mod tests {
             same_stack_contribution,
         };
         let function = MachineCodeFunction {
-            machine: machine(),
-            attachment: None,
-            nominal_cleanup_subject: None,
-            scalar_abi: None,
-            mixed_structural_scalar_abi: None,
-            structural_call_scalar_return: None,
-            parameter_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![operation()],
                 edges: vec![edge()],
             },
             bytes,
-            x86_floating_control: None,
-            unit_stack: None,
-            unit_parameter_homes: Vec::new(),
-            unit_parameters: Vec::new(),
-            scalar_stack: None,
-            internal_calls: Vec::new(),
             foreign_calls: vec![call.clone()],
-            internal_unit_calls: Vec::new(),
-            internal_unit_scalar_calls: Vec::new(),
-            installed_provider_unit_scalar_calls: Vec::new(),
-            unit_scalar_homes: Vec::new(),
-            unit_integer_constants: Vec::new(),
-            unit_affine_scalar_records: Vec::new(),
-            unit_structural_scalar_field_stores: Vec::new(),
-            unit_write_only_primitive_stores: Vec::new(),
-            scalar_structural_scalar_field_stores: Vec::new(),
-            unit_affine_cleanup: None,
-            unit_continuations: Vec::new(),
-            scalar_affine_cleanup: None,
-            scalar_control_affine_cleanups: Vec::new(),
-            scalar_structural_parameters: Vec::new(),
-            scalar_structural_parameter_homes: Vec::new(),
             semantic_code_attribution: vec![SemanticCodeAttribution {
                 site: SemanticCodeSite::Operation(operation()),
                 operation_ordinal: 0,
                 code_offset: 0,
                 byte_count: 13,
             }],
-            port_effects: Vec::new(),
-            boundary_settlements: Vec::new(),
-            structural_return: None,
+            ..empty_machine_code_function(machine())
         };
         (function, call)
     }

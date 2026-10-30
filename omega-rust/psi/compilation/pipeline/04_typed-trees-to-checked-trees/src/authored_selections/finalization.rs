@@ -58,9 +58,13 @@ pub(crate) fn finalize_checked_authored_selections(
 
     {
         let _s = phase_profile::guard("05.d.11_13.a.2.root_bindings");
-        super::root_bindings::validate(program, &owner_index)?;
+        super::build_selections::validate(program, &owner_index)?;
     }
 
+    super::static_inputs::collect(program, &mut resolutions)?;
+
+    let product_operands =
+        validation::execution_projection::product_request_operand_occurrences(program);
     {
         let _s = phase_profile::guard("05.d.11_13.a.3.expression_loop");
         for (expression, node) in expressions.iter_expressions() {
@@ -81,6 +85,9 @@ pub(crate) fn finalize_checked_authored_selections(
                     continue;
                 };
 
+                if product_operands.contains(&occurrence) {
+                    continue;
+                }
                 if binding == AuthoredDeclarationSelectionLateBinding::CheckedOperator {
                     for selected_symbol in checked_operator_conformance_targets(facts, expression) {
                         let inferred = (
@@ -88,12 +95,20 @@ pub(crate) fn finalize_checked_authored_selections(
                             selection.exposure(),
                             selected_symbol,
                         );
-                        if !inferred_conformances.contains(&inferred) {
-                            inferred_conformances.push(inferred);
-                        }
+                        crate::collections::push_unique(&mut inferred_conformances, inferred);
                     }
                 }
-                let target = match (binding, node) {
+                let request_target =
+                    validation::compiler_operations::build_product_request_intrinsic(
+                        program, expression, selection,
+                    )
+                    .map_err(|reason| {
+                        Diagnostic::error(reason).with_source_span(selection.source_span())
+                    })?;
+                let target = if let Some(intrinsic) = request_target {
+                    Some(AuthoredSelectionResolutionTarget::Intrinsic(intrinsic))
+                } else {
+                    match (binding, node) {
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStaticArgument,
                     ExpressionNode::Call(call),
@@ -147,7 +162,13 @@ pub(crate) fn finalize_checked_authored_selections(
                     ExpressionNode::Call(call),
                 ) => {
                     let _s = phase_profile::guard("05.d.11_13.a.3.call");
-                    validation::compiler_operations::classify_expression_call_intrinsic(program, call)
+                    program.expression_table.build_selection_request(call.build_selection)
+                    .and_then(|request| match request {
+                        language_semantics::declaration_selection::BuildSelectionRequest::Declaration(request) => Some(request.operation.intrinsic()),
+                        language_semantics::declaration_selection::BuildSelectionRequest::ProviderReadiness(_) => Some(BuildOperation::ProviderReadiness.intrinsic()),
+                        _ => None,
+                    })
+                    .or_else(|| validation::compiler_operations::classify_expression_call_intrinsic(program, call))
                     .map(AuthoredSelectionResolutionTarget::Intrinsic)
                     .or_else(|| {
                         declaration_target(
@@ -294,9 +315,11 @@ pub(crate) fn finalize_checked_authored_selections(
                         })
                 }
                 _ => None,
-            };
+            }
+                };
                 if let Some(target) = target {
                     push_consistent_resolution(
+                        program,
                         &mut resolutions,
                         AuthoredSelectionResolution {
                             occurrence,

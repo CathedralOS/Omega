@@ -585,7 +585,6 @@ pub(super) fn capture(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     build: &mut FlowBuildContext,
-    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     destination: &typed_trees::state::State,
     statement_index: usize,
@@ -714,9 +713,7 @@ pub(super) fn capture(
                 for predicate in ByteSequencePredicate::ALL.into_iter().filter(|predicate| {
                     predicate.is_subslice_preserving() && predicate.holds_for(&[minimum, maximum])
                 }) {
-                    if !predicates.contains(&predicate) {
-                        predicates.push(predicate);
-                    }
+                    crate::collections::push_unique(&mut predicates, predicate);
                 }
             }
             let Some(place) = fact.place.as_place() else {
@@ -781,9 +778,7 @@ pub(super) fn capture(
                             };
                     }
                     for predicate in predicates.iter().copied() {
-                        if !field.predicates.contains(&predicate) {
-                            field.predicates.push(predicate);
-                        }
+                        crate::collections::push_unique(&mut field.predicates, predicate);
                     }
                 } else {
                     bounds_ranks.push(if integer_bounds.is_some() {

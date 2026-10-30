@@ -7,7 +7,7 @@ use super::{
 use crate::SelectedInstructionError;
 use crate::selection::byte_view_homes::ByteViewHomes;
 use crate::selection::element_view_homes::ElementViewHomes;
-use calling_conventions::IndirectPointerLocation;
+use calling_conventions::{IndirectPointerLocation, ValueShape};
 use legalized_operations::LegalizedScalarInstruction;
 use optimization_core::AcceptedObligationFactIdentity;
 use selected_instructions::{
@@ -130,29 +130,7 @@ pub(super) fn transport_register(
     place: PlaceId,
     byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
-    let instruction = SelectedInstructionId(
-        builder
-            .instructions
-            .len()
-            .try_into()
-            .map_err(|_| invalid())?,
-    );
-    builder.registers.push(VirtualRegister {
-        id,
-        scalar_type: ScalarType::Integer(
-            IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
-        ),
-        class: builder.class,
-        origin: VirtualRegisterOrigin::AbiTransport {
-            instruction,
-            place,
-            byte_offset,
-        },
-        definition_site: None,
-        entry_fixed_view: None,
-    });
-    Ok(id)
+    super::structural_case::register(builder, place, byte_offset, 64, false)
 }
 
 /// The byte offset of element `index` inside `place`'s view home:
@@ -224,16 +202,13 @@ pub(super) fn scaled_element_index(
 /// own custody before reaching this transport.
 pub(super) fn place_pointer(
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::call_arguments::InvocationArgumentSource,
     place: PlaceId,
     byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     place_pointer_at_site(
         builder,
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            ..Default::default()
-        },
+        super::call_arguments::invocation_provenance(row),
         place,
         byte_offset,
     )
@@ -304,7 +279,7 @@ pub(super) fn place_pointer_at_site(
 pub(super) fn view_element_pointer(
     source: &LegalizedScalarFunction,
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::call_arguments::InvocationArgumentSource,
     place: PlaceId,
     byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
@@ -318,11 +293,19 @@ pub(super) fn view_element_pointer(
         input,
         output,
         byte_offset,
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            ..Default::default()
-        },
+        super::call_arguments::invocation_provenance(row),
     )
+}
+
+/// Match one legalized kind and return once its emitter succeeds. Each
+/// structural family keeps its own callee; this shell is the shared dispatch.
+macro_rules! dispatch_kind {
+    ($row:expr, $pattern:pat, $emit:expr) => {
+        if matches!($row.kind, $pattern) {
+            $emit?;
+            return Ok(true);
+        }
+    };
 }
 
 pub(super) fn operation(
@@ -334,188 +317,135 @@ pub(super) fn operation(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<bool, SelectedInstructionError> {
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::IeeeFloatClassify { .. }
-    ) {
-        ieee_float_classify::establish(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation { .. }
-    ) {
-        byte_concatenation::establish(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore { .. }
-    ) {
-        byte_field_store::replace_byte(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::ByteSequenceStore { .. }
-            | LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { .. }
-    ) {
-        byte_field_store::replace(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::StructuralByteViewFieldStore { .. }
-    ) {
-        byte_view_field_store::replace(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::ByteSequenceWrite { .. }
-    ) {
-        byte_views::write(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::ElementViewWrite { .. }
-    ) {
-        element_view_write::write(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishPrimitiveLocal { .. }
-            | LegalizedScalarInstructionKind::PrimitiveLocalStore { .. }
-    ) {
-        primitive_locals::write(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishRecord { .. }
-    ) {
-        record::establish(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::PlacementLifecycle { .. }
-    ) {
-        placement_lifecycles::emit(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishCase { .. }
-    ) {
-        scalar_case::establish(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::StructuralLeafCopy { .. }
-    ) {
-        leaf_copy::copy(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::StoreStructuralField { .. }
-    ) {
-        leaf_copy::reseat(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishStructuralArray { .. }
-    ) {
-        structural_array::establish(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishScalarArray { .. }
-    ) {
-        scalar_array::establish(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
-    ) {
-        zeroed::establish(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishStructuralLocal { .. }
-    ) {
-        structural_local::establish(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
-            | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
-    ) {
-        scalar_store::emit(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishActivationClaim { .. }
-            | LegalizedScalarInstructionKind::SplitActivationClaim { .. }
-            | LegalizedScalarInstructionKind::MergeActivationClaim { .. }
-            | LegalizedScalarInstructionKind::ReleaseActivationClaim { .. }
-    ) {
-        activation_storage::emit(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishNativeCodeLayout { .. }
-    ) {
-        native_code_layout::establish(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
-    ) {
-        literals::establish(builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::ByteSequenceSubslice { .. }
-    ) {
-        subslice::create(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishElementView { .. }
-    ) {
-        element_establishment::establish(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::ElementViewSubslice { .. }
-    ) {
-        element_subslice::create(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishReference { .. }
-            | LegalizedScalarInstructionKind::EstablishPlacedReference { .. }
-    ) {
-        reference::establish(source, row, builder)?;
-        return Ok(true);
-    }
+    use LegalizedScalarInstructionKind as Kind;
+    dispatch_kind!(
+        row,
+        Kind::IeeeFloatClassify { .. },
+        ieee_float_classify::establish(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishByteSequenceConcatenation { .. },
+        byte_concatenation::establish(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::StructuralByteSequenceFieldByteStore { .. },
+        byte_field_store::replace_byte(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::ByteSequenceStore { .. } | Kind::StructuralByteSequenceFieldStore { .. },
+        byte_field_store::replace(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::StructuralByteViewFieldStore { .. },
+        byte_view_field_store::replace(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::ByteSequenceWrite { .. },
+        byte_views::write(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::ElementViewWrite { .. },
+        element_view_write::write(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishPrimitiveLocal { .. } | Kind::PrimitiveLocalStore { .. },
+        primitive_locals::write(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishRecord { .. },
+        record::establish(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::PlacementLifecycle { .. },
+        placement_lifecycles::emit(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishCase { .. },
+        scalar_case::establish(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::StructuralLeafCopy { .. },
+        leaf_copy::copy(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::StoreStructuralField { .. },
+        leaf_copy::reseat(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishStructuralArray { .. },
+        structural_array::establish(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishScalarArray { .. },
+        scalar_array::establish(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishZeroedStructural { .. },
+        zeroed::establish(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishStructuralLocal { .. },
+        structural_local::establish(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::StructuralScalarFieldStore { .. } | Kind::WriteOnlyPrimitiveStore { .. },
+        scalar_store::emit(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishActivationClaim { .. }
+            | Kind::SplitActivationClaim { .. }
+            | Kind::MergeActivationClaim { .. }
+            | Kind::ReleaseActivationClaim { .. },
+        activation_storage::emit(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishNativeCodeLayout { .. },
+        native_code_layout::establish(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishByteSequenceLiteral { .. },
+        literals::establish(builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::ByteSequenceSubslice { .. },
+        subslice::create(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishElementView { .. },
+        element_establishment::establish(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::ElementViewSubslice { .. },
+        element_subslice::create(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishReference { .. } | Kind::EstablishPlacedReference { .. },
+        reference::establish(source, row, builder)
+    );
     // Closing a loan changes custody, not referent bytes. Trivial empty locals
     // likewise carry no executable initialization.
     if matches!(
@@ -557,13 +487,11 @@ pub(super) fn operation(
     }
     // Evaluated normalized foreign calls own their own argument transport and
     // result custody; they are never routed through the internal Call family.
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::NormalizedForeignCall(_)
-    ) {
-        super::normalized_foreign::emit(function, source, row, environment, builder)?;
-        return Ok(true);
-    }
+    dispatch_kind!(
+        row,
+        Kind::NormalizedForeignCall(_),
+        super::normalized_foreign::emit(function, source, row, environment, builder)
+    );
     if row.result.is_some() {
         return Ok(false);
     }
@@ -577,19 +505,71 @@ pub(super) fn operation(
     Ok(true)
 }
 
-pub(super) fn provenance(row: &LegalizedScalarInstruction) -> SelectedInstructionProvenance {
+pub(super) fn provenance(
+    row: &impl super::call_arguments::InvocationArgumentSource,
+) -> SelectedInstructionProvenance {
+    super::call_arguments::invocation_provenance(row)
+}
+
+/// Provenance for an instruction emitted from one legalized row that names the
+/// values it consumes or produces. The row's operation and the fuel that
+/// operation settles travel with those values; an emission site states the
+/// values and never re-lists the operation and fuel fields beside them.
+pub(super) fn operation_provenance(
+    row: &LegalizedScalarInstruction,
+    values: Vec<ValueId>,
+) -> SelectedInstructionProvenance {
     SelectedInstructionProvenance {
         operations: vec![row.operation],
-        fuel: Vec::new(),
+        values,
+        fuel: row.fuel.clone(),
         ..Default::default()
     }
 }
+/// Zero an established structural result before its tag and payloads publish:
+/// one zero register fills the whole extent through descending-width stores.
+pub(super) fn zeroed_slot(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+    shape: ValueShape,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let slot = builder.transport.push_structural_local_slot(
+        row.operation,
+        place,
+        shape.byte_size,
+        shape.alignment,
+    );
+    let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size, true)?;
+    let zero = transport_register(builder, place, 0)?;
+    builder.emit_materialize_i64(IntegerValue::Unsigned(0), zero, provenance(row))?;
+    let mut offset = 0;
+    while offset < shape.byte_size {
+        let remaining = shape.byte_size - offset;
+        let width = [8, 4, 2, 1]
+            .into_iter()
+            .find(|width| *width <= remaining)
+            .ok_or_else(invalid)?;
+        memory(
+            builder,
+            row,
+            place,
+            offset,
+            width,
+            SelectedMemoryAccessRole::WritePlace,
+        )?;
+        builder.emit_store(offset, width as u8, pointer, zero, provenance(row))?;
+        offset += width;
+    }
+    Ok(pointer)
+}
+
 /// Keep native displacement limits separate from semantic storage bounds.
 /// Address staging has no memory effect: callers record the original place
 /// offset on the following access, even when its encoded displacement is zero.
 fn memory_pointer(
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::call_arguments::InvocationArgumentSource,
     place: PlaceId,
     pointer: VirtualRegisterId,
     byte_offset: u32,
@@ -629,7 +609,7 @@ pub(super) fn displaced_memory_pointer(
 
 fn memory(
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::call_arguments::InvocationArgumentSource,
     place: PlaceId,
     byte_offset: u32,
     byte_count: u32,
@@ -637,7 +617,7 @@ fn memory(
 ) -> Result<(), SelectedInstructionError> {
     memory_at_origin(
         builder,
-        selected_instructions::SelectedMemoryAccessOrigin::Operation(row.operation),
+        super::call_arguments::invocation_memory_origin(row),
         place,
         byte_offset,
         byte_count,

@@ -10,6 +10,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> failed()
     }
-    state done() {}
-    state failed() { crash Trap; }
+    machine done() {}
+    machine failed() { crash Trap; }
 }

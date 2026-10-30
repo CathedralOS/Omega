@@ -8,10 +8,11 @@ use super::{
 use crate::selected_form_encoding::request_validation::resolve_registers;
 use register_model::RegisterConstraintKey;
 use selected_instructions::{
-    LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey, MachineEffectDeclaration,
-    MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
+    LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    SelectedInstructionKind,
 };
 use target::NativeTarget;
 
@@ -62,11 +63,12 @@ pub(crate) fn declaration(
     target: NativeTarget,
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
-    super::hosted_alternative_declaration(
-        constraint,
+    MachineEffectDeclaration::single(
         MachineSemanticKind::HostedWriteByteI32,
+        constraint,
         MachineMemoryEffect::HostedWriteByteV1,
         MachineTrapBehavior::HostedWriteFailureV1,
+        MachineBarrier::ExternalEffect,
         MachineAlternativeFamily::HostedWriteByteI32,
         MachineSizeKnowledge::ExactBytes(leaf_bytes(target)),
         effects(),
@@ -286,10 +288,9 @@ mod tests {
                         encoded.footprint().encoded.stack,
                         MachineEncodedStackEffect::UnchangedV1
                     );
-                    for bit in 0..encoded.bytes().len() * 8 {
-                        let mut changed = encoded.bytes().to_vec();
-                        changed[bit / 8] ^= 1 << (bit % 8);
-                        assert!(
+                    crate::selected_form_encoding::assert_every_bit_flip_rejected(
+                        encoded.bytes(),
+                        |changed| {
                             validate_x86_64_selected_hosted_write_byte_form(
                                 target,
                                 &physical,
@@ -297,12 +298,11 @@ mod tests {
                                 alternative,
                                 &operands,
                                 displacement,
-                                &changed
+                                changed,
                             )
-                            .is_err(),
-                            "encoded bit {bit}"
-                        );
-                    }
+                            .is_err()
+                        },
+                    );
                     assert!(
                         validate_x86_64_selected_hosted_write_byte_form(
                             target,

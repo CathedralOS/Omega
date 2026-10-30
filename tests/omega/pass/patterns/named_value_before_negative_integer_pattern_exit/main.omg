@@ -10,5 +10,5 @@ machine classify(status: i32) -> Outcome {
 machine main() crashes Trap {
  let selected: Outcome = classify(-33);
  transition selected { Outcome::Negative -> done() _ -> wrong() }
- state done() {} state wrong() { crash Trap; }
+ machine done() {} machine wrong() { crash Trap; }
 }

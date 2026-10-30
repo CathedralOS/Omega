@@ -29,7 +29,85 @@ macro_rules! typed_tree_table {
 }
 pub(crate) use typed_tree_table;
 
+/// One declaration's retained column, projected out of the table that owns the
+/// rows and extended through the same names.
+///
+/// `$node.$span` is the node's `HandleSpan<$ty>` and `$column` is the table
+/// column that stores those rows. The read accessor answers "the rows this
+/// declaration owns"; the bracketed `$push` appends one. `typed_tree_table!`
+/// already generates this pair for a root column, so a declaration-node column
+/// gets the same owner: the projection and its append are one entry and cannot
+/// drift apart.
+macro_rules! declaration_columns {
+    ($( $(#[$attr:meta])* $name:ident($node:ident: $node_ty:ty) -> &[$ty:ty]
+        = $column:ident.$span:ident $( [ $push:ident ] )? ; )*) => {
+        $(
+            $(#[$attr])*
+            pub fn $name(&self, $node: &$node_ty) -> &[$ty] {
+                self.$column.span_or_empty($node.$span)
+            }
+
+            $(
+                pub fn $push(&mut self, $node: &mut $node_ty, value: $ty) {
+                    self.$column.append_to_span(&mut $node.$span, value);
+                }
+            )?
+        )*
+    };
+
+    ($( append $push:ident($node:ident: $node_ty:ty, $ty:ty)
+        = $column:ident.$span:ident ; )*) => {
+        $(
+            pub fn $push(&mut self, $node: &mut $node_ty, value: $ty) {
+                self.$column.append_to_span(&mut $node.$span, value);
+            }
+        )*
+    };
+}
+pub(crate) use declaration_columns;
+
+/// A row-aligned span column: rows appended one at a time, or reserved as a
+/// block and patched by offset.
+///
+/// `reserve` fills `count` default rows so a consumer can address them by
+/// offset while it builds them, `set` patches one of those rows, and `push`
+/// appends to a span the caller is growing. All three name one arena column, so
+/// they cannot disagree about which rows they address, and the overflow message
+/// that names the column is stated once beside it.
+///
+/// An entry spells the column and its row type as `$arena($ty)`, then the three
+/// names. The row type is bracketed rather than written after a `:` because a
+/// `ty` fragment may not precede an identifier in a matcher; the parentheses
+/// also keep the column and its row type one token tree.
+macro_rules! span_columns {
+    ($( $arena:ident($ty:ty)
+        reserve $reserve:ident($message:literal)
+        set $set:ident
+        $( push $push:ident )? ; )*) => {
+        $(
+            pub fn $reserve(&mut self, count: u32) -> HandleSpan<$ty> {
+                self.$arena.insert_many(
+                    std::iter::repeat_with(<$ty as Default>::default)
+                        .take(usize::try_from(count).expect($message)),
+                )
+            }
+
+            pub fn $set(&mut self, span: HandleSpan<$ty>, offset: u32, value: $ty) {
+                *self.$arena.get_mut(span.handle_at(offset)) = value;
+            }
+
+            $(
+                pub fn $push(&mut self, span: &mut HandleSpan<$ty>, value: $ty) {
+                    self.$arena.append_to_span(span, value);
+                }
+            )?
+        )*
+    };
+}
+pub(crate) use span_columns;
+
 mod authored_targets;
+mod build_selections;
 mod callable_applications;
 mod canonical_values;
 pub use callable_applications::{
@@ -41,8 +119,10 @@ pub mod constant_recipes;
 mod frozen;
 pub use frozen::FrozenTypedTrees;
 pub mod control_flow;
+mod data_definitions;
 pub mod declaration_index;
 mod declaration_tables;
+pub use data_definitions::DataDefinitionTable;
 pub mod declarations;
 pub mod evidence;
 pub mod inspection;
@@ -118,7 +198,7 @@ impl PartialEq for ProgramIdentity {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTrees {
     /// This instance's cache key; see `ProgramIdentity`. A clone keeps the
     /// tag it was cloned from: its content is identical at that moment, and a
@@ -146,6 +226,9 @@ pub struct TypedTrees {
     /// STR4 checked plans, slice 1: the semantic-domain interner, copied
     /// verbatim from the resolved trees.
     pub semantic_domains: language_semantics::SemanticDomainTable,
+    /// Substituted declaration theories keyed by exact closed index instances.
+    /// They are views of authored domains, not new declarations or authority.
+    pub applied_domain_applications: Vec<domain::AppliedDomainApplication>,
     /// Exact structured identities for external realization bindings. Typed
     /// conformance and supply rows retain ids into this table, so downstream
     /// consumers never need to rescan source syntax to recover the binding.
@@ -239,6 +322,7 @@ pub struct TypedTrees {
     /// The shared program keeps their authored symbolic nodes; checking
     /// records what it needs from each; a closed copy carries the values.
     pub constant_recipes: Arena<constant_recipes::RetainedConstantRecipe>,
+    pub constant_expression_contexts: Arena<constant_recipes::ConstantExpressionContext>,
     /// Every recipe's value under this copy's target capsule. Empty in the
     /// shared program: no consumer may guess a value the capsule has not fixed.
     pub constant_recipe_closure: constant_recipes::ConstantRecipeClosure,
@@ -256,7 +340,7 @@ pub struct TypedTrees {
 /// A package-scoped declaration whose consumer role supplies its completion
 /// contract before checking. Final provider admission independently rejoins
 /// the accepted role's complete schema and selected-plan commitments.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BoundaryCompletionDeclaration {
     /// Absent only for the arena's invalid sentinel; every admitted row must
     /// retain its nonzero package identity.
@@ -268,7 +352,7 @@ pub struct BoundaryCompletionDeclaration {
     pub completion: semantic_vocabulary::BoundaryCompletion,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct EvidenceForwarding {
     pub machine_symbol: symbols::SymbolHandle,
     pub state_symbol: symbols::SymbolHandle,
@@ -280,7 +364,7 @@ pub struct EvidenceForwarding {
     pub source_conformance: Option<symbols::SymbolHandle>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProofOutputCall {
     pub machine_symbol: symbols::SymbolHandle,
     pub state_symbol: symbols::SymbolHandle,
@@ -294,7 +378,7 @@ pub struct ProofOutputCall {
     pub call: crate::expression::ExpressionHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProofOutputSelector {
     pub output_field: crate::name::Identifier,
     pub binding: crate::name::Identifier,
@@ -302,27 +386,44 @@ pub struct ProofOutputSelector {
 
 /// Producer-retained fields for one application and its separate closure
 /// status. Substitution alone grants no concrete storage or checking authority.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DataApplicationView {
     definition: Handle<data::DataDefinition>,
     is_closed: bool,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+/// One designated source type's independent formation obligation. This is
+/// source custody, not an executable call or provider selection.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct DesignatedStaticTypeArgument {
+    pub owner: symbols::SymbolHandle,
+    pub reference: types::TypeReferenceHandle,
+    pub source_span: source::SourceSpan,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTreeTables {
+    pub designated_static_type_arguments: Arena<DesignatedStaticTypeArgument>,
+    pub retained_product_application_handles:
+        Arena<Handle<crate::product_operand::ProductOperandApplication>>,
+    pub product_input_selections: Arena<crate::product_operand::ProductInputSelection>,
+    pub product_input_argument_steps: Arena<crate::product_operand::ProductArgumentStep>,
+    pub product_operand_applications: Arena<crate::product_operand::ProductOperandApplication>,
     /// Package-agnostic authored-selection custody carried verbatim from
     /// symbol resolution. Checked facts join late selections through the
     /// opaque occurrence identities in this ledger, never source rendering.
     authored_declaration_selections:
         language_semantics::declaration_selection::AuthoredDeclarationSelections,
     pub const_declarations: Arena<crate::constant::ConstDeclaration>,
-    pub data_definitions: Arena<data::DataDefinition>,
+    pub data_definitions: DataDefinitionTable,
     /// Applied field views, indexed by the exact type-reference row. A symbolic
     /// view retains its caller's binders without granting closed storage.
     /// Their definitions live in the declaration arena but not the authored
     /// root roster: substitution creates no new nominal or field identity.
     pub data_application_definitions: Arena<DataApplicationView>,
     pub data_type_parameters: Arena<data::TypeParameter>,
+    pub declared_type_equations: Arena<machine::DeclaredTypeEquation>,
+    pub static_type_contexts: crate::typed_trees::type_system::type_predicates::StaticTypeContexts,
     pub data_members: Arena<data::DataMember>,
     pub data_payload_fields: Arena<data::DataField>,
     pub domain_definitions: Arena<domain::DomainDefinition>,
@@ -365,8 +466,12 @@ pub struct TypedTreeTables {
     pub wire_members: Arena<wire::WireMember>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTreeRoots {
+    /// Closed choices admitted through dependency Build output custody.
+    /// These explicit roots are independent of authored body occurrences.
+    pub retained_product_applications:
+        HandleSpan<Handle<crate::product_operand::ProductOperandApplication>>,
     pub const_declarations: HandleSpan<crate::constant::ConstDeclaration>,
     pub data_definitions: HandleSpan<data::DataDefinition>,
     pub domain_definitions: HandleSpan<domain::DomainDefinition>,
@@ -399,6 +504,7 @@ impl TypedTreeRoots {
         traits: HandleSpan<trait_definition::TraitDefinition>,
     ) -> Self {
         Self {
+            retained_product_applications: HandleSpan::default(),
             const_declarations: HandleSpan::default(),
             data_definitions,
             domain_definitions,
@@ -496,6 +602,7 @@ impl TypedTrees {
             service_reach_rows: language_semantics::ServiceReachRowTable::default(),
             authored_service_reach_rows: Vec::new(),
             semantic_domains: language_semantics::SemanticDomainTable::default(),
+            applied_domain_applications: Vec::new(),
             external_bindings: language_semantics::ExternalBindingTable::default(),
             plan_laid_layouts: Vec::new(),
             plan_laid_target_layouts: Arena::new(),
@@ -520,6 +627,7 @@ impl TypedTrees {
             ranking_expression_custody: Vec::new(),
             pending_const_range_endpoints: std::collections::HashSet::new(),
             constant_recipes: Arena::new(),
+            constant_expression_contexts: Arena::new(),
             constant_recipe_closure: constant_recipes::ConstantRecipeClosure::default(),
             callable_identities: OwnedInterner::default(),
             callable_identity_memo: OwnedIndex::default(),
@@ -556,6 +664,34 @@ fn proof_fact_source_span_index(handle: Handle<domain::ProofFact>) -> usize {
         .expect("proof fact source-span handle must be valid")
 }
 
+/// Project a selected constant's canonical value with its actual resolved
+/// carrier. The encoded aggregate labels remain schema consistency checks;
+/// they never select nominal ownership. Pending declarations have no value.
+pub fn canonical_const_declaration_value(
+    program: &TypedTrees,
+    symbol: symbols::SymbolHandle,
+) -> Option<language_semantics::const_value::CanonicalConstValue> {
+    use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+    let declaration = program.const_declaration_by_symbol(symbol)?;
+    let encoding = declaration.evaluated_value.as_ref()?.encoding()?;
+    let decoded = CanonicalConstValue::new("", encoding, "").decode_encoding()?;
+    let carrier = match decoded {
+        DecodedCanonicalConstValue::Integer { type_name, .. } => type_name,
+        DecodedCanonicalConstValue::Boolean(_) => "bool".to_owned(),
+        DecodedCanonicalConstValue::Array { .. }
+        | DecodedCanonicalConstValue::Record { .. }
+        | DecodedCanonicalConstValue::Variant { .. }
+        | DecodedCanonicalConstValue::Float { .. } => {
+            program.normalized_type_identity_text(declaration.declared_type)
+        }
+    };
+    Some(CanonicalConstValue::new(
+        carrier,
+        encoding,
+        program.symbols.name(symbol),
+    ))
+}
+
 /// The static const spelling one machine argument selects, mirroring the
 /// specialization pipeline's argument spelling exactly: decimal for integer
 /// literals and integer-valued const declarations, the canonical atom for
@@ -584,23 +720,13 @@ pub fn static_const_argument_spelling(
         );
     }
     if argument.symbol.is_valid() {
-        let declaration = program.const_declaration_by_symbol(argument.symbol)?;
-        let value = CanonicalConstValue::new(
-            program.display_type_reference(declaration.declared_type),
-            declaration.evaluated_value.as_ref()?.encoding()?.to_owned(),
-            argument.display_name(),
-        );
+        let value = canonical_const_declaration_value(program, argument.symbol)?;
         return Some(match value.decode_encoding()? {
             DecodedCanonicalConstValue::Integer { value, .. } => value.to_string(),
             DecodedCanonicalConstValue::Boolean(value) => {
                 CanonicalConstValue::boolean(value).atom()
             }
-            _ => CanonicalConstValue::new(
-                program.normalized_type_identity_text(declaration.declared_type),
-                value.encoding,
-                value.display,
-            )
-            .atom(),
+            _ => value.atom(),
         });
     }
     let [name] = argument.path.as_ref() else {
@@ -651,6 +777,7 @@ impl Deref for TypedTrees {
 impl DerefMut for TypedTrees {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
+        self.invalidate_state_declaration_index();
         &mut self.tables
     }
 }
@@ -678,4 +805,19 @@ pub(crate) fn escape(value: &str) -> String {
         out.push(character);
     }
     out
+}
+
+// Instance identity is only a memo-cache key, never semantic program content.
+impl compiler_storage::Record for ProgramIdentity {
+    fn write(
+        &self,
+        _: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        Ok(())
+    }
+    fn read<Context>(
+        _: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        Ok(Self::default())
+    }
 }

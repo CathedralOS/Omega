@@ -39,21 +39,22 @@ const WRITE_SEMANTICS_PRESENCE_OFFSET: usize = 572;
 const WRITE_SEMANTICS_OFFSET: usize = 573;
 
 #[test]
-fn post_allocation_codec_retains_pre_streaming_bytes_at_empty_boundaries() {
+fn post_allocation_codec_pins_current_schema_at_empty_boundaries() {
     use sha2::Digest;
-    // Captured from the whole-buffer v21 encoder before changing its storage.
-    // Round trips alone could let the codec and identity drift together.
+    // Version-22 pins were measured after the explicit protocol-domain change.
+    // Historical v21 pins are retained in the merge evidence. Round trips
+    // alone could let the codec and identity drift together.
     let identities = [
-        "81ae82f282f0b42d01fe4f27edeb54c205a6766fa4bc3490d8e16869c6e1c88a",
-        "87c5761e5480a1e03643e77075e804408afc5315ca94934eb3fdd79169534239",
-        "e6e993c6fba81ed794cb5242015f67a3b640930228b81affeaf31b1433fa14bd",
-        "b6a5b6be77bd548d2e38605c9c4cbf23a1e1c903d06fbba63b21c30e00ee93f0",
+        "18a91a223c167662dc022bd28563fb63715aa1bfa39240bbb5ec84036e871de9",
+        "016b184915ec6e273f581a57a44f3bcca6c92dd8a6c0bfc4911a90a01eaf9072",
+        "6c29af6164b824be348bf17d30ec10f4cc1075a05164c8945fda1984ce6c17dc",
+        "06ed789fb9dbe980427c8f1de269508f765436289a569cffe8c8725a81c8d280",
     ];
     let wire_digests = [
-        "41a28159395be83700d76726a4bf94b7ba451a58039a961b79e4efb2b0d20e38",
-        "84e9091f3f0563fc7e1705ff043dc265887874299c92e3a4bcc13cc50922ea9b",
-        "0360e4cfc87a430b6765d604ac3e0011994fefcac2f03142c71c336c58142385",
-        "762a788d614791be3f2cd3f439cc5f882b6c3acd838a6e8cad601f0182927341",
+        "0332ff359e3baf8a4174d9c8c616a8b51d43359d8021eb2069b958b197c0cb83",
+        "6bb7ab5439211ea03b1699ab3c379d9276212cb3d86e46a52f4a15a2a7dc9251",
+        "918dc65f3589f99482633ca53f4a544bb801c8a93a389a1fee107262156ff0a1",
+        "5787c93c59b129f9946d2d8b90a91bad1a92db8209d5d877cb054989406a6a74",
     ];
     for variant in 0..4 {
         let mut source = plan();
@@ -111,10 +112,7 @@ fn physical_copy_bytes_codec_binds_dynamic_operand_roles_without_an_address_oper
         count_operand: 2,
     };
     source.identity = post_allocation_machine_identity(&source);
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&source.encode()),
-        Ok(source.clone())
-    );
+    assert_round_trip(&source);
     for role in 0..3 {
         let mut changed = source.clone();
         let MachineEncodedMemoryEffect::CopyBytesV1 {
@@ -149,10 +147,7 @@ fn physical_zero_bytes_codec_binds_dynamic_operand_roles_without_an_address_oper
         count_operand: 1,
     };
     source.identity = post_allocation_machine_identity(&source);
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&source.encode()),
-        Ok(source.clone())
-    );
+    assert_round_trip(&source);
     for role in 0..2 {
         let mut changed = source.clone();
         let MachineEncodedMemoryEffect::ZeroBytesV1 {
@@ -176,6 +171,45 @@ fn physical_zero_bytes_codec_binds_dynamic_operand_roles_without_an_address_oper
 
 fn identity(byte: u8) -> [u8; 32] {
     [byte; 32]
+}
+
+/// The codec contract every field probe re-states: one plan round trips
+/// through its own canonical bytes.
+fn assert_round_trip(plan: &PostAllocationMachinePlan) {
+    assert_eq!(
+        PostAllocationMachinePlan::decode(&plan.encode()),
+        Ok(plan.clone())
+    );
+}
+
+/// Content that changed after the identity was stamped is refused by the
+/// artifact's own authentication, not silently re-authenticated.
+fn assert_content_mismatch(changed: &PostAllocationMachinePlan) {
+    assert_eq!(
+        PostAllocationMachinePlan::decode(&changed.encode()),
+        Err(PostAllocationMachineDecodeError::InvalidIdentity)
+    );
+}
+
+fn assert_content_rejected(
+    source: &PostAllocationMachinePlan,
+    mutate: impl FnOnce(&mut PostAllocationMachinePlan),
+) {
+    let mut changed = source.clone();
+    mutate(&mut changed);
+    assert_content_mismatch(&changed);
+}
+
+/// Patch the framed version field: the envelope admits only its own version.
+fn assert_version_rejected(encoded: &[u8], version: u32) {
+    let mut stale = encoded.to_vec();
+    crate::codec_bytes::patch_encoded(&mut stale, 8, version.to_le_bytes());
+    assert_eq!(
+        PostAllocationMachinePlan::decode(&stale),
+        Err(PostAllocationMachineDecodeError::UnsupportedVersion(
+            version
+        ))
+    );
 }
 
 fn plan() -> PostAllocationMachinePlan {
@@ -281,32 +315,20 @@ fn physical_codec_retains_byte_view_address_family_not_exact_add() {
         .key
         .family = MachineAlternativeFamily::ByteViewAddress;
     source.identity = post_allocation_machine_identity(&source);
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&source.encode()),
-        Ok(source.clone())
-    );
-    source.functions[0].blocks[0].instructions[0]
-        .alternative
-        .key
-        .family = MachineAlternativeFamily::ExactAddI64;
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&source.encode()),
-        Err(PostAllocationMachineDecodeError::InvalidIdentity)
-    );
+    assert_round_trip(&source);
+    assert_content_rejected(&source, |changed| {
+        changed.functions[0].blocks[0].instructions[0]
+            .alternative
+            .key
+            .family = MachineAlternativeFamily::ExactAddI64;
+    });
 }
 
 #[test]
 fn physical_current_format_rejects_all_retired_versions() {
     let encoded = plan().encode();
     for version in 0..18_u32 {
-        let mut stale = encoded.clone();
-        crate::codec_bytes::patch_encoded(&mut stale, 8, version.to_le_bytes());
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&stale),
-            Err(PostAllocationMachineDecodeError::UnsupportedVersion(
-                version
-            ))
-        );
+        assert_version_rejected(&encoded, version);
     }
 }
 
@@ -352,16 +374,8 @@ fn outgoing_copy_and_pointer_slots_round_trip_with_independent_role_identity() {
             source.functions[0].blocks[0].instructions[0].address = Some(address);
             source.identity = post_allocation_machine_identity(&source);
             let encoded = source.encode();
-            assert_eq!(
-                PostAllocationMachinePlan::decode(&encoded),
-                Ok(source.clone())
-            );
-            let mut stale = encoded.clone();
-            crate::codec_bytes::patch_encoded(&mut stale, 8, 17_u32.to_le_bytes());
-            assert_eq!(
-                PostAllocationMachinePlan::decode(&stale),
-                Err(PostAllocationMachineDecodeError::UnsupportedVersion(17))
-            );
+            assert_round_trip(&source);
+            assert_version_rejected(&encoded, 17);
 
             for mutation in 0..3 {
                 let mut changed = source.clone();
@@ -395,10 +409,7 @@ fn outgoing_copy_and_pointer_slots_round_trip_with_independent_role_identity() {
                     }
                     _ => unreachable!(),
                 }
-                assert_eq!(
-                    PostAllocationMachinePlan::decode(&changed.encode()),
-                    Err(PostAllocationMachineDecodeError::InvalidIdentity)
-                );
+                assert_content_mismatch(&changed);
             }
             let mut slot_bytes = Vec::new();
             argument.encode_identity(&mut slot_bytes);
@@ -444,18 +455,10 @@ fn physical_codec_retains_owned_entry_homes_and_rejects_stale_or_absent_identity
         source.functions[0].blocks[0].instructions[0].address = Some(address);
         source.identity = post_allocation_machine_identity(&source);
         let encoded = source.encode();
-        assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 21);
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&encoded),
-            Ok(source.clone())
-        );
+        assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 22);
+        assert_round_trip(&source);
 
-        let mut stale = encoded.clone();
-        crate::codec_bytes::patch_encoded(&mut stale, 8, 16_u32.to_le_bytes());
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&stale),
-            Err(PostAllocationMachineDecodeError::UnsupportedVersion(16))
-        );
+        assert_version_rejected(&encoded, 16);
 
         // The function machine and local-slot count precede the first tagged slot.
         let slot_offset = MACHINE_OFFSET + 8 + 8;
@@ -498,14 +501,7 @@ fn post_allocation_codec_rejects_bad_framing_and_closed_field_tags() {
 
     let current_version = u32::from_le_bytes(encoded[8..12].try_into().unwrap());
     for version in [current_version - 1, current_version.checked_add(1).unwrap()] {
-        let mut unsupported_version = encoded.clone();
-        crate::codec_bytes::patch_encoded(&mut unsupported_version, 8, version.to_le_bytes());
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&unsupported_version),
-            Err(PostAllocationMachineDecodeError::UnsupportedVersion(
-                version
-            ))
-        );
+        assert_version_rejected(&encoded, version);
     }
 
     for offset in [
@@ -642,28 +638,16 @@ fn physical_codec_binds_symbolic_address_roles_and_outgoing_geometry() {
     ] {
         source.functions[0].blocks[0].instructions[0].address = Some(address);
         source.identity = post_allocation_machine_identity(&source);
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&source.encode()),
-            Ok(source.clone())
-        );
-        let mut changed = source.clone();
-        changed.functions[0].blocks[0].instructions[0].address = None;
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&changed.encode()),
-            Err(PostAllocationMachineDecodeError::InvalidIdentity)
-        );
-        let mut changed = source.clone();
-        changed.functions[0].outgoing_arguments[0].abi_stack_byte_offset += 8;
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&changed.encode()),
-            Err(PostAllocationMachineDecodeError::InvalidIdentity)
-        );
-        let mut changed = source.clone();
-        changed.functions[0].outgoing_arguments[0].id.argument_index += 1;
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&changed.encode()),
-            Err(PostAllocationMachineDecodeError::InvalidIdentity)
-        );
+        assert_round_trip(&source);
+        assert_content_rejected(&source, |changed| {
+            changed.functions[0].blocks[0].instructions[0].address = None;
+        });
+        assert_content_rejected(&source, |changed| {
+            changed.functions[0].outgoing_arguments[0].abi_stack_byte_offset += 8;
+        });
+        assert_content_rejected(&source, |changed| {
+            changed.functions[0].outgoing_arguments[0].id.argument_index += 1;
+        });
     }
 }
 
@@ -704,26 +688,17 @@ fn floating_control_codec_binds_direction_and_private_frame_slot() {
             }
         };
         source.identity = post_allocation_machine_identity(&source);
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&source.encode()),
-            Ok(source.clone())
-        );
-        let mut changed = source.clone();
-        changed.functions[0].blocks[0].instructions[0].address = Some(if restore {
-            PhysicalAddressOperation::SaveFloatingControl { slot }
-        } else {
-            PhysicalAddressOperation::RestoreFloatingControl { slot }
+        assert_round_trip(&source);
+        assert_content_rejected(&source, |changed| {
+            changed.functions[0].blocks[0].instructions[0].address = Some(if restore {
+                PhysicalAddressOperation::SaveFloatingControl { slot }
+            } else {
+                PhysicalAddressOperation::RestoreFloatingControl { slot }
+            });
         });
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&changed.encode()),
-            Err(PostAllocationMachineDecodeError::InvalidIdentity)
-        );
-        let mut changed = source;
-        changed.functions[0].local_storage_slots[0].alignment = 4;
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&changed.encode()),
-            Err(PostAllocationMachineDecodeError::InvalidIdentity)
-        );
+        assert_content_rejected(&source, |changed| {
+            changed.functions[0].local_storage_slots[0].alignment = 4;
+        });
     }
 }
 
@@ -743,10 +718,7 @@ fn boundary_scratch_codec_binds_tag_operation_geometry_and_address() {
     source.functions[0].blocks[0].instructions[0].address =
         Some(PhysicalAddressOperation::HostedWriteByteI32 { slot });
     source.identity = post_allocation_machine_identity(&source);
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&source.encode()),
-        Ok(source.clone())
-    );
+    assert_round_trip(&source);
     for mutation in 0..4 {
         let mut changed = source.clone();
         match mutation {
@@ -768,10 +740,7 @@ fn boundary_scratch_codec_binds_tag_operation_geometry_and_address() {
                     })
             }
         }
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&changed.encode()),
-            Err(PostAllocationMachineDecodeError::InvalidIdentity)
-        );
+        assert_content_mismatch(&changed);
     }
 }
 
@@ -792,10 +761,7 @@ fn read_byte_codec_binds_structural_home_operation_geometry_and_address() {
     source.functions[0].blocks[0].instructions[0].address =
         Some(PhysicalAddressOperation::HostedReadByte { slot });
     source.identity = post_allocation_machine_identity(&source);
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&source.encode()),
-        Ok(source.clone())
-    );
+    assert_round_trip(&source);
     for mutation in 0..4 {
         let mut changed = source.clone();
         match mutation {
@@ -816,10 +782,7 @@ fn read_byte_codec_binds_structural_home_operation_geometry_and_address() {
                     })
             }
         }
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&changed.encode()),
-            Err(PostAllocationMachineDecodeError::InvalidIdentity)
-        );
+        assert_content_mismatch(&changed);
     }
 }
 
@@ -834,10 +797,7 @@ fn pointer_store_codec_binds_exact_width_and_rejects_unsupported_widths() {
                 byte_size,
             });
         source.identity = post_allocation_machine_identity(&source);
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&source.encode()),
-            Ok(source.clone())
-        );
+        assert_round_trip(&source);
         for changed_address in [
             PhysicalAddressOperation::Store {
                 base_operand: 1,
@@ -855,12 +815,9 @@ fn pointer_store_codec_binds_exact_width_and_rejects_unsupported_widths() {
                 byte_size: if byte_size == 8 { 4 } else { 8 },
             },
         ] {
-            let mut changed = source.clone();
-            changed.functions[0].blocks[0].instructions[0].address = Some(changed_address);
-            assert_eq!(
-                PostAllocationMachinePlan::decode(&changed.encode()),
-                Err(PostAllocationMachineDecodeError::InvalidIdentity)
-            );
+            assert_content_rejected(&source, |changed| {
+                changed.functions[0].blocks[0].instructions[0].address = Some(changed_address);
+            });
         }
     }
     for byte_size in [0, 3, 5, 16, 255] {
@@ -912,10 +869,7 @@ fn physical_codec_binds_activation_local_geometry_and_source_identity() {
     ] {
         source.functions[0].blocks[0].instructions[0].address = Some(address);
         source.identity = post_allocation_machine_identity(&source);
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&source.encode()),
-            Ok(source.clone())
-        );
+        assert_round_trip(&source);
         for field in 0..4 {
             let mut changed = source.clone();
             let local = &mut changed.functions[0].local_storage_slots[0];
@@ -935,10 +889,7 @@ fn physical_codec_binds_activation_local_geometry_and_source_identity() {
                 2 => local.byte_size += 8,
                 _ => local.alignment = 4,
             }
-            assert_eq!(
-                PostAllocationMachinePlan::decode(&changed.encode()),
-                Err(PostAllocationMachineDecodeError::InvalidIdentity)
-            );
+            assert_content_mismatch(&changed);
         }
     }
 }
@@ -978,18 +929,13 @@ fn physical_u32_normalization_round_trips_and_binds_its_family() {
         .key
         .family = MachineAlternativeFamily::ZeroExtendU32;
     source.identity = post_allocation_machine_identity(&source);
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&source.encode()),
-        Ok(source.clone())
-    );
-    source.functions[0].blocks[0].instructions[0]
-        .alternative
-        .key
-        .family = MachineAlternativeFamily::CopyI64;
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&source.encode()),
-        Err(PostAllocationMachineDecodeError::InvalidIdentity)
-    );
+    assert_round_trip(&source);
+    assert_content_rejected(&source, |changed| {
+        changed.functions[0].blocks[0].instructions[0]
+            .alternative
+            .key
+            .family = MachineAlternativeFamily::CopyI64;
+    });
 }
 
 #[test]
@@ -1017,10 +963,7 @@ fn compiler_spill_slot_codec_retains_function_local_identity() {
     ] {
         source.functions[0].blocks[0].instructions[0].address = Some(address);
         source.identity = post_allocation_machine_identity(&source);
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&source.encode()),
-            Ok(source.clone())
-        );
+        assert_round_trip(&source);
         let mut changed = source.clone();
         changed.functions[0].local_storage_slots[0].id =
             selected_instructions::LocalStorageSlotId::Spill {
@@ -1060,10 +1003,7 @@ fn physical_codec_retains_narrow_load_families_and_exact_addresses() {
             byte_count,
         };
         source.identity = post_allocation_machine_identity(&source);
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&source.encode()),
-            Ok(source.clone())
-        );
+        assert_round_trip(&source);
         for mutation in 0..3 {
             let mut changed = source.clone();
             let instruction = &mut changed.functions[0].blocks[0].instructions[0];

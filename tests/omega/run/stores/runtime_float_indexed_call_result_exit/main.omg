@@ -13,21 +13,21 @@ crashes Trap
         ByteRead::Byte { value } -> guard(application, value, 1)
         _ -> bad(application)
     }
-    state guard(application: &mut Main, value: i32, index: i32 in Wrapping) {
+    machine guard(application: &mut Main, value: i32, index: i32 in Wrapping) {
         transition index >= 0 && index < 2 {
             true -> store(application, value, index)
             false -> bad(application)
         }
     }
-    state store(application: &mut Main, value: i32, index: i32 in Wrapping) {
+    machine store(application: &mut Main, value: i32, index: i32 in Wrapping) {
         application.values[index] = F64::from_i32(value);
         application.values[index] = application.values[index] + 1.0;
         let observed: i32 in Saturating = I32::from_f64(application.values[index]);
         transition observed == 66 { true -> done(application) false -> bad(application) }
     }
-    state done(application: &mut Main) {
+    machine done(application: &mut Main) {
         Console::write_line("indexed value=66");
         Console::exit_process(0);
     }
-    state bad(application: &mut Main) { Console::exit_process(3); }
+    machine bad(application: &mut Main) { Console::exit_process(3); }
 }

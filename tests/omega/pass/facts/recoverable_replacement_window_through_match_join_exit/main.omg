@@ -10,7 +10,7 @@ machine attempt(token: Token, succeed: bool, observed: u64) -> Outcome {
         true -> success(token)
         _ -> Outcome::Failure { token: token }
     }
-    state success(token: Token) -> Outcome {
+    machine success(token: Token) -> Outcome {
         let value: u64 = token.value;
         drop(token);
         Outcome::Success { token: Token { value: ((value as u64 in Wrapping) + 1) as u64 } }
@@ -47,6 +47,6 @@ machine main() crashes Trap {
     let correct: bool = holder.token.value == 44 && holder.sibling == 19;
     drop(holder.token);
     transition correct { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

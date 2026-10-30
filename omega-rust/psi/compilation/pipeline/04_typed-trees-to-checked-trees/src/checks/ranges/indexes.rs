@@ -23,6 +23,11 @@ pub(super) struct IndexVerdicts {
 }
 
 impl IndexVerdicts {
+    pub(super) fn extend(&mut self, other: Self) {
+        self.verdicts.extend(other.verdicts);
+        self.obligations.extend(other.obligations);
+    }
+
     /// The occurrences every check proved, ordered by handle position, beside
     /// the recipe obligations those proofs depend on.
     pub(super) fn into_parts(

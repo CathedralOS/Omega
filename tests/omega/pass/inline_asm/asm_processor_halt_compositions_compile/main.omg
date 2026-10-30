@@ -10,7 +10,7 @@ machine main() reaches MachineControl {
     asm { hlt }
     pause_processor();
     transition { _ -> idle() }
-    state idle() {
+    machine idle() {
         asm { hlt }
         transition { _ -> idle() }
     }

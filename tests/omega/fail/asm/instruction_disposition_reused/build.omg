@@ -1,5 +1,13 @@
 machine build(builder: &mut Build) {
     Build::package(builder, "instruction_disposition_reused");
     builder.freestanding = true;
-    Build::select_provider<Finish, Finisher>(builder);
+    Build::select_provider<Finish, Finisher>(builder, linux_arm64);
+    Build::select_provider<Finish, Finisher>(builder, linux_x86_64);
+    Build::select_provider<Finish, Finisher>(builder, macos_arm64);
+    Build::select_provider<Finish, Finisher>(builder, macos_x86_64);
+    Build::select_provider<Finish, Finisher>(builder, windows_x86_64);
+    Build::select_provider<Finish, Finisher>(builder, uefi_x86_64);
+    Build::select_provider<Finish, Finisher>(builder, cross_platform_cli);
+    Build::select_provider<Finish, Finisher>(builder, local_unchecked);
+    Build::select_provider<Finish, Finisher>(builder, alpha_bootstrap);
 }

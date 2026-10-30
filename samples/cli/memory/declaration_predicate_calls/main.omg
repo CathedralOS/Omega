@@ -3,16 +3,16 @@
 use helpers;
 let small(value: u64): core::Strict<0> = embed(value) <= 100;
 data Bounded [copy] { amount: u64; }
-domain Bounded::Small(value) requires embed(value.amount) <= 100;
-domain Bounded::NamedSmall(value) requires small(value.amount);
+domain Bounded::Small requires embed(self.amount) <= 100;
+domain Bounded::NamedSmall requires small(self.amount);
 
 data Nested [copy] { payload: Bounded; }
-domain Nested::Small(value) requires helpers::within_hundred(value.payload.amount);
+domain Nested::Small requires helpers::within_hundred(self.payload.amount);
 data Envelope<T [copy]> [copy] { payload: T; }
 data Narrow [copy] { envelope: Envelope<u8>; }
-domain Narrow::Small(value) requires helpers::small_byte(value.envelope.payload);
+domain Narrow::Small requires helpers::small_byte(self.envelope.payload);
 data Wide [copy] { envelope: Envelope<u64>; }
-domain Wide::Small(value) requires helpers::within_hundred(value.envelope.payload);
+domain Wide::Small requires helpers::within_hundred(self.envelope.payload);
 
 data Ordered [copy] where embed(lower) <= embed(upper) {
     lower: u64;
@@ -34,13 +34,13 @@ data SignedWrapped [copy] where embed(left - right) == 127 {
     right: i8 in Wrapping;
 }
 data Text [copy] { bytes: [u8; 3]; tag: u8; }
-domain Text::Ready(value) requires ascii_only(value.bytes) && value.tag == 1;
-domain Mixed::Valid(value)
-requires value.child in Bounded::Small, value.tag == 1;
-domain<T> T::Accepted(value) requires value == value;
+domain Text::Ready requires ascii_only(self.bytes) && self.tag == 1;
+domain Mixed::Valid
+requires self.child in Bounded::Small, self.tag == 1;
+domain<T> T::Accepted requires self == self;
 data Counter { value: u64; }
 data CounterResult [copy] { value: u64; }
-domain CounterResult::One(value) requires value.value == 1;
+domain CounterResult::One requires self.value == 1;
 machine initialize_counter(value: &mut Counter) -> u64 ensures value.value == 1 {
     value.value = 1;
     0
@@ -60,14 +60,14 @@ requires value <= 100
 machine changed_bytes_are_ascii() -> bool {
     let text: Text = Text { bytes: "go!", tag: 1 };
     transition { _ -> observe(&mut text, 0) }
-    state observe(text: &mut Text, phase: u8) {
+    machine observe(text: &mut Text, phase: u8) -> bool {
         let ascii: bool = ascii_only(text.bytes);
         transition phase == 0 {
             true -> overwrite(text, ascii)
             _ -> ascii
         }
     }
-    state overwrite(text: &mut Text, before: bool) {
+    machine overwrite(text: &mut Text, before: bool) -> bool {
         text.bytes = [103, 255, 33];
         transition before {
             true -> observe(text, 1)
@@ -101,6 +101,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -1,0 +1,12 @@
+// Expected exit: 0
+machine narrow_pair(first: u64, second: u64) -> bool { first != second && first < 2 }
+trait Accept {
+    machine accept(first: u64, second: u64) requires first != second;
+}
+Selected satisfies Accept {
+    machine accept(first: u64, second: u64) requires narrow_pair(first, second) == true { }
+}
+machine main() {
+    let selected: dyn Accept = Selected as dyn Accept;
+    Accept::accept(selected, 2, 3);
+}

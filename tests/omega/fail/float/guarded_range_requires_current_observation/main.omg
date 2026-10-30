@@ -9,7 +9,7 @@ machine mutating_guard(reading: &mut f64) -> f64 {
             && overwrite(reading) -> bounded(reading)
         _ -> 0.0
     }
-    state bounded(changed: f64) -> f64
+    machine bounded(changed: f64) -> f64
         requires changed >= 0.0 && changed <= 1.0
     { changed }
 }
@@ -19,7 +19,7 @@ machine stale_guard(value: f64) -> f64 {
     let zero: f64 = 0.0;
     current = zero / zero;
     transition accepted { true -> bounded(current) _ -> 0.0 }
-    state bounded(stale: f64) -> f64
+    machine bounded(stale: f64) -> f64
         requires stale >= 0.0 && stale <= 1.0
     { stale }
 }
@@ -27,7 +27,7 @@ machine reassigned_guard(value: f64) -> f64 {
     let mut accepted: bool = value >= 0.0 && value <= 1.0;
     accepted = true;
     transition accepted { true -> bounded(value) _ -> 0.0 }
-    state bounded(reassigned: f64) -> f64
+    machine bounded(reassigned: f64) -> f64
         requires reassigned >= 0.0 && reassigned <= 1.0
     { reassigned }
 }
@@ -39,7 +39,7 @@ machine changed_selector(values: &[f64; 2]) -> f64 {
             && change_index(&mut selected) -> bounded(values[selected])
         _ -> 0.0
     }
-    state bounded(selected: f64) -> f64
+    machine bounded(selected: f64) -> f64
         requires selected >= 0.0 && selected <= 1.0
     { selected }
 }

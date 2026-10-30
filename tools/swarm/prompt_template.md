@@ -2,10 +2,12 @@
 
 You are one session of a coordinated wave. {customer_block}
 
-First complete the mandatory main preflight in `AGENTS.md`: fetch main
+For a new assignment, complete the initial main preflight in `AGENTS.md`: fetch main
 successfully, update clean main or create an isolated checkout from its exact
 fetched commit, then reread current instructions. A failed fetch stops new work;
-cached main is not a fallback. Preserve unpublished work in a resumed checkout.
+cached main is not a fallback for a new launch. Resumed outcomes retain their
+fixed base, unpublished work and warm exact-source producers; do not refresh
+their lane merely because main moved.
 
 Read `AGENTS.md` fully, then run the `advance` skill
 (`.agents/skills/advance/SKILL.md`) restricted to this customer. Do not select
@@ -88,9 +90,10 @@ in the commit that records the frontier. Never touch these excluded items:
 {exclusions}.
 Required edits may span other sessions' paths and multiple stages. Reconcile
 shared repairs rather than adding a competing mode or dropping incoming work.
-Refetch main before landing. If the assigned acceptance is already satisfied,
-verify and report superseded. One passing witness does not supersede an
-unfinished board-item assignment; continue its remaining requirements.
+Inspect peer claims and PRs for duplicate repairs without moving the fixed base.
+Only actual conflicts, concrete prerequisites or changed affected source justify
+targeted local integration and validation. One passing witness does not supersede
+an unfinished board-item assignment; continue its remaining requirements.
 
 ## Landing
 
@@ -99,7 +102,8 @@ branch, open a PR, then `python3 tools/landing.py enqueue NUMBER --expected-head
 FULL_SOURCE_SHA`. GitHub checks integration and squash-merges; never push main.
 Release local build slots before waiting. Do not rebase, rebuild or repeat
 review merely because main advances. Resolve actual conflicts and failed checks.
-Verify the merged PR's source head and published commit on fetched main.
+Verify the merged PR's source head, published commit and CI by read-only
+observation on fetched main; no postlanding rebuild or qualification rerun.
 When a rebase or merge conflicts, first ask which abstraction both sides are
 trying to express. If one general operation covers both, implement that and
 delete the superseded path in the same commit, as AGENTS.md requires for

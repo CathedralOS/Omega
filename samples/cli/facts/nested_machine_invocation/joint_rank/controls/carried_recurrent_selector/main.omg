@@ -1,0 +1,29 @@
+// Expected exit: 0
+// Reentering a ranked return component uses the recurring selector, not its first invocation's scalar snapshot.
+machine choose<'storage>(values: &'storage [u8; 2], counter: &mut u64, index: u64, remaining: u64) -> &'storage u8
+requires index < 2;
+terminates;
+terminates by remaining;
+{
+    transition remaining > 0 {
+        true -> step(values, counter, index, remaining)
+        false -> &values[index]
+    }
+    machine step(values: &'storage [u8; 2], counter: &mut u64, selected: u64, pending: u64) -> &'storage u8
+    requires selected < 2;
+    requires pending > 0;
+    {
+        counter = ((counter as u64 in Wrapping) + 1) as u64;
+        transition { _ -> choose(values, counter, 1, pending - 1) }
+    }
+}
+machine main() crashes Trap {
+    let values: [u8; 2] = [11, 23];
+    let mut counter: u64 = 3;
+    let selected: &u8 = choose(&values, &mut counter, 0, 7);
+    transition selected == 23 && counter == 10 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

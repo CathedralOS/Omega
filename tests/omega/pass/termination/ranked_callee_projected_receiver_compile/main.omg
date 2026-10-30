@@ -23,7 +23,7 @@ terminates by remaining -> Nat::Descending;
         false -> done(cursor)
     }
     // This terminal return owes Cursor::step's published result bound.
-    state done(cursor: &mut Cursor) -> u64 {
+    machine done(cursor: &mut Cursor) -> u64 {
         cursor.remaining = 0;
         0
     }
@@ -50,11 +50,11 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

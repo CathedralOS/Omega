@@ -1,0 +1,2 @@
+reads field `value` from write-only parameter `holders`
+write-only projection never grants observation

@@ -13,18 +13,39 @@ use std::process::ExitCode;
 // Checking allocates and frees many small tree and fact nodes; the macOS
 // system allocator's tiny-zone paths dominated package commands' profiles.
 #[global_allocator]
+#[cfg(not(feature = "allocation-observation"))]
 static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+#[cfg(feature = "allocation-observation")]
+#[global_allocator]
+static ALLOCATOR: allocation_observation::ObservedAllocator<mimalloc::MiMalloc> =
+    allocation_observation::ObservedAllocator::new(mimalloc::MiMalloc);
+
+#[cfg(feature = "allocation-observation")]
+struct AllocationReport;
+#[cfg(feature = "allocation-observation")]
+impl Drop for AllocationReport {
+    fn drop(&mut self) {
+        if let Some(path) = std::env::var_os("OMEGA_ALLOCATION_PROFILE")
+            && let Err(error) = ALLOCATOR.write_report(std::path::Path::new(&path))
+        {
+            eprintln!("cannot write allocation observation: {error}");
+        }
+    }
+}
 
 // Compile-bearing operations provision their own large-stack worker inside
 // `run_on_compile_thread`; their recursive paths never touch this stack. But
 // every command that reaches a package project first runs the package arm's
 // project discovery, source-closure resolution, and review walks on the
 // caller's stack: `--check`, `run`, and `inspect-terminal` on a package root
-// recurse through `prepare_local_project` before the compile worker exists.
+// enter application-owned source discovery before the compile worker exists.
 // Give every dispatched command this stack; only usage output stays shallow.
 const COMPILER_STACK_SIZE: usize = 256 * 1024 * 1024;
 
 fn main() -> ExitCode {
+    #[cfg(feature = "allocation-observation")]
+    let _allocation_report = AllocationReport;
+    terminal_runtime::run_native_provider_worker_if_requested();
     let invocation = match arguments::parse(std::env::args_os().skip(1)) {
         Ok(invocation) => invocation,
         Err(error) => {
@@ -71,8 +92,13 @@ fn dispatch(invocation: Invocation) {
         Invocation::Help(usage) => println!("{usage}"),
         Invocation::BuildProfile => println!("{}", compiler::compiler_build_profile()),
         Invocation::Version => println!(
-            "omega {} ({}; {})",
+            "omega {}{} ({}; {})",
             env!("OMEGA_VERSION"),
+            if cfg!(feature = "allocation-observation") {
+                "+allocation-observation"
+            } else {
+                ""
+            },
             env!("OMEGA_COMMIT"),
             env!("OMEGA_HOST")
         ),

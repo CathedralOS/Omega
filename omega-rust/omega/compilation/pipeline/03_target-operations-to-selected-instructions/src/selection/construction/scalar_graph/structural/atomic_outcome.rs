@@ -4,9 +4,9 @@
 //! Mismatched or Exchanged. The third case remains in the outcome schema;
 //! no contention or synthetic spurious failure is invented to select it.
 use super::{
-    Builder, IntegerValue, LegalizedScalarFunction, LegalizedScalarInstruction,
-    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind, SelectedMemoryAccessRole,
-    VirtualRegisterId, invalid, local_storage, memory, provenance, transport_register,
+    Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+    ScalarType, SelectedInstructionKind, SelectedMemoryAccessRole, VirtualRegisterId, invalid,
+    memory, provenance, transport_register,
 };
 use crate::SelectedInstructionError;
 
@@ -69,33 +69,7 @@ pub(super) fn establish(
         &[tag],
         provenance(row),
     )?;
-    let slot = builder.transport.push_structural_local_slot(
-        row.operation,
-        result.place,
-        layout.shape.byte_size,
-        layout.shape.alignment,
-    );
-    let pointer = local_storage::address(builder, row, slot, 0, layout.shape.byte_size, true)?;
-    let zero = transport_register(builder, result.place, 0)?;
-    builder.emit_materialize_i64(IntegerValue::Unsigned(0), zero, provenance(row))?;
-    let mut offset = 0;
-    while offset < layout.shape.byte_size {
-        let remaining = layout.shape.byte_size - offset;
-        let width = [8, 4, 2, 1]
-            .into_iter()
-            .find(|width| *width <= remaining)
-            .ok_or_else(invalid)?;
-        memory(
-            builder,
-            row,
-            result.place,
-            offset,
-            width,
-            SelectedMemoryAccessRole::WritePlace,
-        )?;
-        builder.emit_store(offset, width as u8, pointer, zero, provenance(row))?;
-        offset += width;
-    }
+    let pointer = super::zeroed_slot(builder, row, result.place, layout.shape)?;
     let payload = &layout.cases[0].fields[0];
     if layout.cases[2].fields != layout.cases[0].fields {
         return Err(invalid());

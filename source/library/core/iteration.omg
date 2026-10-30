@@ -12,9 +12,9 @@ terminates by items -> Slice::Length;
         true -> head(items)
         _ -> done()
     }
-    state head(items: &mut [Element]) requires items.len > 0 {
+    machine head(items: &mut [Element]) requires items.len > 0 {
         Step(&mut items[0]);
         for_each<Element, Step>(&mut items[1..])
     }
-    state done() {}
+    machine done() {}
 }

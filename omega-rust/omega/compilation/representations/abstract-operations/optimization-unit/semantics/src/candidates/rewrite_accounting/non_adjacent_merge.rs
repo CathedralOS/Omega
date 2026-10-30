@@ -1,7 +1,7 @@
-use crate::candidates::{canonicalize_provenance, provenance_realized_at};
+use crate::candidates::rewrite_accounting::realize_merged_target_provenance;
+use crate::candidates::{canonicalize_provenance, provenance_realized_at, realize_node_provenance};
 use optimization_unit::{
-    NodeLocation, NonAdjacentBlockMergeRewrite, PsiOptimizationFunction, PsiRealizationSite,
-    ScalarSubstitution,
+    NonAdjacentBlockMergeRewrite, PsiOptimizationFunction, PsiRealizationSite, ScalarSubstitution,
 };
 use semantic_vocabulary::BlockId;
 use std::collections::{BTreeMap, BTreeSet};
@@ -54,30 +54,7 @@ pub(crate) fn reconstruct_non_adjacent_merge_accounting(
         return None;
     };
 
-    for (node_index, node) in target.nodes.iter().enumerate() {
-        if node.provenance.is_empty() {
-            continue;
-        }
-        let input = PsiRealizationSite::Node(NodeLocation {
-            machine: function.machine,
-            block: target.id,
-            node: u32::try_from(node_index).ok()?,
-        });
-        let output = PsiRealizationSite::Node(NodeLocation {
-            machine: function.machine,
-            block: predecessor.id,
-            node: patch
-                .predecessor
-                .node
-                .checked_add(u32::try_from(node_index).ok()?)?,
-        });
-        realized.push(provenance_realized_at(
-            input,
-            output,
-            &node.provenance,
-            &node.fuel,
-        ));
-    }
+    realize_merged_target_provenance(function, patch.predecessor, target, &mut realized)?;
 
     let mut input_effect = 0u64;
     let mut input_starts = BTreeMap::new();
@@ -127,24 +104,14 @@ pub(crate) fn reconstruct_non_adjacent_merge_accounting(
                 affected.insert(block.id);
             }
         }
-        for (node_index, node) in block.nodes.iter().enumerate() {
-            if node.provenance.is_empty()
-                || (!effect_shifted.contains(&block.id) && !changed_uses.contains(&node_index))
-            {
-                continue;
-            }
-            let site = PsiRealizationSite::Node(NodeLocation {
-                machine: function.machine,
-                block: block.id,
-                node: u32::try_from(node_index).ok()?,
-            });
-            realized.push(provenance_realized_at(
-                site,
-                site,
-                &node.provenance,
-                &node.fuel,
-            ));
-        }
+        realize_node_provenance(
+            function.machine,
+            block.id,
+            block.nodes.iter().enumerate().filter(|(node_index, _)| {
+                effect_shifted.contains(&block.id) || changed_uses.contains(node_index)
+            }),
+            &mut realized,
+        )?;
     }
     canonicalize_provenance(&mut realized);
     Some((affected.into_iter().collect(), realized))

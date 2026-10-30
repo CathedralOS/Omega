@@ -6,8 +6,8 @@ machine verify(ok: bool) -> bool
 crashes Trap
 {
     transition ok { true -> pass() false -> fail() }
-    state pass() -> bool { true }
-    state fail() -> bool { crash Trap; }
+    machine pass() -> bool { true }
+    machine fail() -> bool { crash Trap; }
 }
 public data CheckingAssert { }
 machine CheckingAssert::check(ok: bool)

@@ -26,3 +26,4 @@ pub mod static_arguments;
 pub mod static_bindings;
 pub(crate) mod static_machine_call_contracts;
 pub(crate) mod structural_call_custody;
+pub(crate) mod terminal_transitions;

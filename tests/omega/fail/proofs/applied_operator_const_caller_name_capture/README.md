@@ -1,0 +1,1 @@
+The selected operator has its own const `Width` bound to 8 by the original `Carrier<8>` application. The caller has a different ordinary parameter also named `Width` with value 16. The actual value 12 must fail the selected bound; the caller parameter cannot supply 16 as the selected const.

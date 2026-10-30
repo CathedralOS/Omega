@@ -17,5 +17,5 @@ machine Main::main(main: &mut Main) {
         Command::B -> done()
         Command::C -> done()
     }
-    state done() {}
+    machine done() {}
 }

@@ -1,5 +1,44 @@
 use symbols::{SymbolHandle, SymbolKind, SymbolLookup, SymbolTable};
 
+/// The closed builtin type atom installed under `symbol_name`, or `None` for
+/// a name outside the roster. Every name-based builtin-type lookup reads the
+/// roster here instead of re-scanning `BuiltinTypeAtom::ALL`.
+pub(crate) fn builtin_type_atom_by_symbol_name(
+    symbol_name: &str,
+) -> Option<symbols::BuiltinTypeAtom> {
+    symbols::BuiltinTypeAtom::ALL
+        .into_iter()
+        .find(|atom| atom.symbol_name() == symbol_name)
+}
+
+/// Search declaration scopes only. Enclosing invocation parameters, locals and
+/// live facts are never lexical declaration bindings. Stop at a shadowing cohort,
+/// including ambiguity; root/module visibility remains the ordinary lookup's job.
+pub(super) fn lexical_declaration_lookup(
+    symbols: &SymbolTable,
+    mut scope: SymbolHandle,
+    name: &str,
+    kinds: &[SymbolKind],
+) -> SymbolLookup {
+    while symbols.get(scope).kind == SymbolKind::Machine {
+        let mut declarations = symbols
+            .child_handles(scope)
+            .into_iter()
+            .flatten()
+            .filter(|child| {
+                kinds.contains(&symbols.get(*child).kind) && symbols.name(*child) == name
+            });
+        if let Some(first) = declarations.next() {
+            return match declarations.next() {
+                Some(second) => SymbolLookup::Ambiguous { first, second },
+                None => SymbolLookup::Unique(first),
+            };
+        }
+        scope = symbols.get(scope).parent;
+    }
+    SymbolLookup::NotFound
+}
+
 pub(super) fn diagnostic_path_source_span(
     members: &[symbol_resolved_trees::name::DiagnosticName],
 ) -> source::SourceSpan {

@@ -2,7 +2,10 @@
 //!
 //! This is structural inspection, not an execution/reachability analysis:
 //! every expression arm is visited, while implicit operator dispatch, cleanup,
-//! and provider selection are not inferred.
+//! and provider selection are not inferred. Statement and named-transition
+//! argument lists belong to StatementTable; expression-call lists belong to
+//! ExpressionTable. Their span coordinates are independent even though the
+//! referenced expression nodes share one owner.
 
 use crate::TypedTrees;
 use crate::expression::ExpressionHandle;
@@ -53,7 +56,7 @@ fn collect_statement_callees(
         StatementNode::Assembly(_) => {} // Its instruction window is visited in source order.
         StatementNode::Call(call) => {
             note_callee(called, call.target_symbol);
-            for argument in typed.expression_table.expression_handles(call.arguments) {
+            for argument in typed.statement_table.expression_handles(call.arguments) {
                 collect_expression_callees(typed, *argument, visited, called);
             }
         }
@@ -100,7 +103,7 @@ fn collect_transition_target_callees(
             path, arguments, ..
         } => {
             note_callee(called, path.symbol);
-            for argument in typed.expression_table.expression_handles(*arguments) {
+            for argument in typed.statement_table.expression_handles(*arguments) {
                 collect_expression_callees(typed, *argument, visited, called);
             }
         }
@@ -183,6 +186,6 @@ fn collect_expression_callees(
         ExpressionNode::Unary(unary) => {
             collect_expression_callees(typed, unary.operand, visited, called);
         }
-        crate::literal_expression_pattern!() => {}
+        ExpressionNode::TypeExpression(_) | crate::literal_expression_pattern!() => {}
     }
 }

@@ -235,7 +235,7 @@ pub fn canonical_structural_path_tip<'a>(
     root: StructuralTypeId,
     path: &[CanonicalStructuralPathSegment],
 ) -> Option<&'a StructuralTypeDeclaration> {
-    let selected = canonical_projection_type(declarations.clone(), root, path, None)?;
+    let selected = canonical_projection_type(declarations.clone(), root, path, None, None)?;
     let mut matching = declarations.filter(|declaration| declaration.id == selected);
     let declaration = matching.next()?;
     matching.next().is_none().then_some(declaration)
@@ -253,7 +253,7 @@ pub fn canonical_case_leaf_type<'a>(
     path.iter()
         .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
         .then_some(())?;
-    canonical_projection_type(types, root, path, None)
+    canonical_projection_type(types, root, path, None, None)
 }
 
 /// Translate declaration-local identities to storage-path spelling without
@@ -265,8 +265,20 @@ pub fn canonical_structural_storage_path<'a>(
     path: &[CanonicalStructuralPathSegment],
 ) -> Option<Vec<StructuralPathSegment>> {
     let mut storage = Vec::with_capacity(path.len());
-    canonical_projection_type(types, root, path, Some(&mut storage))?;
+    canonical_projection_type(types, root, path, Some(&mut storage), None)?;
     Some(storage)
+}
+
+/// Dependencies of an exact declaration-ID projection. This does not admit
+/// unresolved fixed indices or produce a canonical storage fact for them.
+pub fn canonical_storage_dependencies<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[CanonicalStructuralPathSegment],
+    dependencies: &mut std::collections::BTreeSet<StructuralTypeId>,
+) -> Option<()> {
+    canonical_projection_type(types, root, path, None, Some(dependencies))?;
+    Some(())
 }
 
 // Canonical and name-spelled paths use the same declaration-local namespaces.
@@ -277,6 +289,7 @@ fn canonical_projection_type<'a>(
     mut root: StructuralTypeId,
     path: &[CanonicalStructuralPathSegment],
     mut storage: Option<&mut Vec<StructuralPathSegment>>,
+    mut dependencies: Option<&mut std::collections::BTreeSet<StructuralTypeId>>,
 ) -> Option<StructuralTypeId> {
     let declaration = |identity| {
         let mut matching = types.clone().filter(|candidate| candidate.id == identity);
@@ -285,8 +298,25 @@ fn canonical_projection_type<'a>(
     };
     let mut case_fields: Option<&[terminal_psi::StructuralFieldDeclaration]> = None;
     for segment in path {
+        if let Some(dependencies) = dependencies.as_mut() {
+            dependencies.insert(root);
+        }
         let shape = &declaration(root)?.shape;
         match segment {
+            CanonicalStructuralPathSegment::Referent => {
+                if case_fields.is_some() {
+                    return None;
+                }
+                let StructuralTypeShape::Reference { referent, .. } = shape else {
+                    return None;
+                };
+                // Canonical type/storage paths describe geometry for predicates
+                // and postconditions too; this query grants no readable access.
+                if let Some(storage) = storage.as_mut() {
+                    storage.push(StructuralPathSegment::Referent);
+                }
+                root = *referent;
+            }
             CanonicalStructuralPathSegment::Case(identity) => {
                 if case_fields.is_some() {
                     return None;
@@ -336,7 +366,11 @@ fn canonical_projection_type<'a>(
                     return None;
                 }
                 root = match shape {
-                    StructuralTypeShape::FixedArray { element, length } if index < length => {
+                    StructuralTypeShape::FixedArray { element, length }
+                        if length
+                            .literal()
+                            .map_or(dependencies.is_some(), |length| *index < length) =>
+                    {
                         *element
                     }
                     // This query resolves only type identity. A view's live
@@ -350,7 +384,14 @@ fn canonical_projection_type<'a>(
             }
         }
     }
-    case_fields.is_none().then_some(declaration(root)?.id)
+    // Scalar observation carriers may end in a case namespace. Only dependency
+    // collection accepts that endpoint, retaining its enclosing sum storage.
+    let selected =
+        (case_fields.is_none() || dependencies.is_some()).then_some(declaration(root)?.id)?;
+    if let Some(dependencies) = dependencies {
+        dependencies.insert(selected);
+    }
+    Some(selected)
 }
 
 /// A scalar replacement preserves memberships only on disjoint storage.

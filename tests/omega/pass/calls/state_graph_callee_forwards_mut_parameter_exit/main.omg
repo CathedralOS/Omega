@@ -32,14 +32,14 @@ machine Main::read_at(main: &mut Main, index: i32) -> i32 {
         _ -> second(main, index)
     }
 
-    state second(main: &mut Main, index: i32) {
+    machine second(main: &mut Main, index: i32) -> i32 {
         transition index == 1 {
             true -> (main.table[1])
             _ -> third(main, index)
         }
     }
 
-    state third(main: &mut Main, index: i32) {
+    machine third(main: &mut Main, index: i32) -> i32 {
         transition index == 2 {
             true -> (main.table[2])
             _ -> (main.table[3])
@@ -53,14 +53,14 @@ machine Main::reading_at(main: &mut Main, index: i32) -> Reading {
         _ -> second(main, index)
     }
 
-    state second(main: &mut Main, index: i32) {
+    machine second(main: &mut Main, index: i32) -> Reading {
         transition index == 1 {
             true -> (Reading { value: main.table[1], index: 1 })
             _ -> third(main, index)
         }
     }
 
-    state third(main: &mut Main, index: i32) {
+    machine third(main: &mut Main, index: i32) -> Reading {
         transition index == 2 {
             true -> (Reading { value: main.table[2], index: 2 })
             _ -> (Reading { value: main.table[3], index: 3 })
@@ -86,14 +86,14 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> finish(main, 71)
     }
 
-    state check_record(main: &mut Main, value: i32, index: i32) {
+    machine check_record(main: &mut Main, value: i32, index: i32) {
         transition value == 60 && index == 3 {
             true -> finish(main, 70)
             _ -> finish(main, 72)
         }
     }
 
-    state finish(main: &mut Main, code: i32) {
+    machine finish(main: &mut Main, code: i32) {
         Console::exit_process(code);
     }
 }

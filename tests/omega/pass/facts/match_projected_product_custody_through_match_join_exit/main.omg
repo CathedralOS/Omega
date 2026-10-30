@@ -1,0 +1,43 @@
+// An owned match carries its selected Payload, exact captured source and field projection, and complete residual cleanup roster through transport, then consumes the result with (left >> 4) ^ right.
+// Place: match_join.
+// Expected exit: 0
+data Payload { left: u64; right: u64; }
+data Pair { first: Payload; second: Payload; }
+
+machine supply(first: u64, second: u64) -> Pair {
+    Pair {
+        first: Payload { left: first, right: second },
+        second: Payload { left: second, right: first }
+    }
+}
+
+machine fold(value: Payload) -> u64 {
+    (value.left >> 4) ^ value.right
+}
+
+machine choose(selected: u64, first: u64, second: u64) -> u64 {
+    let pair: Pair = Pair {
+        first: Payload { left: first, right: second },
+        second: Payload { left: second, right: first }
+    };
+    let incoming: Payload = match selected {
+        0 -> pair.first,
+        _ -> supply(first ^ 255, second ^ 255).second
+    };
+    let result: Payload = match selected == 0 {
+        true -> incoming,
+        false -> incoming
+    };
+    fold(result)
+}
+
+machine main() crashes Trap {
+    let first_result: u64 = choose(0, 4, 6);
+    let second_result: u64 = choose(1, 4, 6);
+    transition first_result == 6 && second_result == 244 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

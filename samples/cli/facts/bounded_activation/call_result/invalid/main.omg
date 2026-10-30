@@ -6,7 +6,7 @@ machine write_read(bytes: &mut [u8]) -> u8 {
         true -> access(bytes)
         false -> (0u8)
     }
-    state access(bytes: &mut [u8]) -> u8
+    machine access(bytes: &mut [u8]) -> u8
     requires bytes.len >= 3 {
         bytes[2] = 37u8;
         bytes[2]
@@ -18,7 +18,7 @@ machine run_attempt() -> bool crashes Trap {
         ActivationClaimAttempt::Established { claim } -> established(claim)
         ActivationClaimAttempt::Rejected -> (false)
     }
-    state established(claim: ActivationClaim) -> bool {
+    machine established(claim: ActivationClaim) -> bool {
         let mut live: ActivationClaim = claim;
         let bytes: &mut [u8] = ActivationClaim::bytes(&mut live);
         let observed: u8 = write_read(bytes);
@@ -29,13 +29,13 @@ machine run_attempt() -> bool crashes Trap {
             false -> (false)
         }
     }
-    state over_bound() -> bool {
+    machine over_bound() -> bool {
         transition Activation::try_claim<8>(9) {
             ActivationClaimAttempt::Rejected -> (true)
             ActivationClaimAttempt::Established { claim } -> unexpectedly_established(claim)
         }
     }
-    state unexpectedly_established(claim: ActivationClaim) -> bool {
+    machine unexpectedly_established(claim: ActivationClaim) -> bool {
         ActivationClaim::release(claim);
         false
     }
@@ -47,6 +47,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

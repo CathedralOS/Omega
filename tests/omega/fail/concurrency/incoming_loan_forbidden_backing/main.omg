@@ -1,0 +1,12 @@
+public boundary trait Scheduler { machine park() reaches suspends; }
+data Restricted [carry(suspension: forbidden, cpu: any, thread: any, address: movable)] {
+    value: u32;
+}
+machine inspect(value: &mut Restricted) reaches Scheduler suspends; {
+    suspend Scheduler::park();
+    value.value = 7;
+}
+machine main() reaches Scheduler suspends; {
+    let mut backing: Restricted = Restricted { value: 1 };
+    suspend inspect(&mut backing);
+}

@@ -7,7 +7,6 @@
 use super::{
     Binding, CurrentScalarValues, Length, LengthSubject, ScalarField, admitted, fixed_length,
     integer_carrier, length_occurrence, literal_window_length, scalar_field_occurrence, scoped,
-    unsigned,
 };
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, StaticMachineArgument};
@@ -18,6 +17,12 @@ use validation::{
     CallSite, ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticValue,
 };
+
+struct CapturedParameterGoal {
+    goal: ScopedArithmeticExpression,
+    /// Exact actuals aligned with goal bindings; non-parameter rows are absent.
+    arguments_by_binding: Vec<ExpressionHandle>,
+}
 
 impl CurrentScalarValues<'_> {
     pub(crate) fn bind_call_parameters(
@@ -30,14 +35,87 @@ impl CurrentScalarValues<'_> {
         site: CallSite<'_>,
     ) -> Option<ScopedArithmeticExpression> {
         let machine_values = self.machine_value_bindings(callee, site)?;
-        self.bind_parameters(
+        let captured = self.capture_parameter_goal(
             callee,
             state,
             expression,
             parameters,
             arguments,
             &machine_values,
-        )
+        )?;
+        Some(self.enrich_parameter_goal(captured))
+    }
+
+    /// Prove a simultaneous substitution from its independently captured actuals.
+    /// Current facts may suffice before discovering extra occurrence bounds;
+    /// every unsuccessful attempt retains the original enriched proof.
+    pub(crate) fn proves_parameter_substitution(
+        &self,
+        callee: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+        parameters: &[typed_trees::signature::StateParameter],
+        arguments: &[ExpressionHandle],
+        site: CallSite<'_>,
+    ) -> bool {
+        let Some(machine_values) = self.machine_value_bindings(callee, site) else {
+            return false;
+        };
+        let Some(captured) = self.capture_parameter_goal(
+            callee,
+            state,
+            expression,
+            parameters,
+            arguments,
+            &machine_values,
+        ) else {
+            return false;
+        };
+        if self.proves(self.program, self.machine, &captured.goal) {
+            return true;
+        }
+        let goal = self.enrich_parameter_goal(captured);
+        self.proves(self.program, self.machine, &goal)
+    }
+
+    fn enrich_parameter_goal(&self, captured: CapturedParameterGoal) -> ScopedArithmeticExpression {
+        let CapturedParameterGoal {
+            mut goal,
+            arguments_by_binding,
+        } = captured;
+        let bounds = validation::occurrence_integer_bounds(
+            self.program,
+            self.machine.symbol,
+            self.state.symbol,
+            self.statement_index,
+            goal.bindings
+                .iter()
+                .zip(&arguments_by_binding)
+                .filter_map(|(binding, argument)| {
+                    (argument.is_valid()
+                        && !matches!(binding.value, ScopedArithmeticValue::Integer(_)))
+                    .then_some(*argument)
+                })
+                .collect(),
+        );
+        goal.bindings = goal
+            .bindings
+            .into_iter()
+            .zip(arguments_by_binding)
+            .map(|(mut binding, argument)| {
+                // Arrival knowledge belongs to this actual's exact observation,
+                // never a destination requirement or a later storage version.
+                if let Some((minimum, maximum)) = bounds.get(argument) {
+                    binding.value = ScopedArithmeticValue::BoundedInteger {
+                        value: Box::new(binding.value),
+                        minimum: Some(numerics::bignum::BigInt::from_i64(minimum)),
+                        maximum: Some(numerics::bignum::BigInt::from_i64(maximum)),
+                    };
+                }
+                binding
+            })
+            .collect();
+        goal
     }
 
     pub(crate) fn machine_value_bindings(
@@ -139,6 +217,14 @@ impl CurrentScalarValues<'_> {
                 TypeReferenceNode::Named {
                     symbol: selected, ..
                 } if selected.is_valid() => symbol = *selected,
+                TypeReferenceNode::Named {
+                    symbol: selected,
+                    name,
+                } if !selected.is_valid() => {
+                    if let Ok(value) = name.as_str().parse::<i128>() {
+                        return Some(ScopedArithmeticValue::Integer(BigInt::from_i128(value)));
+                    }
+                }
                 _ => {}
             }
         }
@@ -214,6 +300,22 @@ impl CurrentScalarValues<'_> {
         );
     }
 
+    pub(super) fn assume_aggregate_call_ensures(
+        &mut self,
+        expression: ExpressionHandle,
+        actuals: &[ScopedArithmeticBinding],
+        statement_index: usize,
+    ) {
+        if let Some(call) = self.program.expression_table.call_node(expression) {
+            self.assume_completed_guarantees(
+                CallSite::Expression { expression, call },
+                actuals,
+                None,
+                statement_index,
+            );
+        }
+    }
+
     pub(super) fn assume_statement_ensures(
         &mut self,
         call: &typed_trees::statement::TableCall,
@@ -253,6 +355,17 @@ impl CurrentScalarValues<'_> {
             }
             Vec::new()
         };
+        let result_observations = match site {
+            CallSite::Expression { expression, .. } if result.is_none() => {
+                validation::scoped_call_result_observations(
+                    self.program,
+                    self.machine,
+                    self.state,
+                    expression,
+                )
+            }
+            _ => Vec::new(),
+        };
         for hypothesis in validation::scoped_completed_call_guarantees(
             self.program,
             self.machine,
@@ -263,18 +376,17 @@ impl CurrentScalarValues<'_> {
                 actuals,
                 machine_values: &machine_values,
                 result,
+                result_observations: &result_observations,
             },
         ) {
-            if !self.hypotheses.contains(&hypothesis) {
-                self.hypotheses.push(hypothesis);
-            }
+            crate::collections::push_unique(&mut self.hypotheses, hypothesis);
         }
     }
 
     /// Simultaneous parameter substitution with independently retained actual
     /// snapshots. The caller owns selection and exact formal/actual roster
     /// identity; this owner checks arithmetic meaning before exposing a term.
-    fn bind_parameters(
+    fn capture_parameter_goal(
         &self,
         callee: &Machine,
         state: &State,
@@ -282,7 +394,7 @@ impl CurrentScalarValues<'_> {
         parameters: &[typed_trees::signature::StateParameter],
         arguments: &[ExpressionHandle],
         machine_values: &[(SymbolHandle, ScopedArithmeticValue)],
-    ) -> Option<ScopedArithmeticExpression> {
+    ) -> Option<CapturedParameterGoal> {
         if parameters.len() != arguments.len() {
             return None;
         }
@@ -290,7 +402,7 @@ impl CurrentScalarValues<'_> {
         let mut lengths = Vec::new();
         let mut fields = Vec::new();
         for (parameter, argument) in parameters.iter().zip(arguments) {
-            let Some(primitive) = integer_carrier(self.program, parameter.type_reference) else {
+            let Some(_primitive) = integer_carrier(self.program, parameter.type_reference) else {
                 let measured = self.collection_length(*argument, 0);
                 if let Some(value) = measured
                     && fixed_length(self.program, parameter.type_reference, String::new).is_some()
@@ -341,12 +453,10 @@ impl CurrentScalarValues<'_> {
             formals.push(Binding {
                 symbol: parameter.symbol,
                 name: parameter.name.to_string(),
-                value: Some(ScopedArithmeticValue::Atom {
-                    identity: format!("callee:{:?}", parameter.symbol),
-                    unsigned: unsigned(primitive),
-                }),
+                value: self.capture(self.program, self.machine, self.state, *argument),
                 alternatives: Vec::new(),
                 immutable_coordinate: false,
+                read_dependencies: Some(Vec::new()),
             });
         }
         formals.extend(machine_values.iter().map(|(symbol, value)| Binding {
@@ -355,40 +465,27 @@ impl CurrentScalarValues<'_> {
             value: Some(value.clone()),
             alternatives: Vec::new(),
             immutable_coordinate: true,
+            read_dependencies: Some(Vec::new()),
         }));
-        if !admitted(
-            self.program,
-            callee,
-            state,
-            self.statement_index,
-            expression,
-            &formals,
-            &lengths,
-            &fields,
-            0,
-        ) {
+        let occurrence = self.occurrence_at(self.program, callee, state, &lengths);
+        if !admitted(occurrence, expression, &formals, &fields, 0) {
             return None;
         }
-        let mut goal = scoped(
-            callee,
-            state,
-            self.statement_index,
-            expression,
-            &formals,
-            &lengths,
-            &fields,
-            &self.hypotheses,
-            self.program,
-        )?;
-        let mut pending_bounds = Vec::new();
-        for binding in &mut goal.bindings {
+        let mut goal = scoped(occurrence, expression, &formals, &fields)?;
+        let mut captured_actuals = Vec::new();
+        for (binding_index, binding) in goal.bindings.iter_mut().enumerate() {
             // A callee field needs an actual-place substitution, including on
             // recursion. Its entry atom is never the caller's current field
             // merely because the declaration and formal symbol are equal.
             if let ScopedArithmeticBinder::Occurrence(occurrence) = binding.binder
                 && length_occurrence(self.program, occurrence, &lengths).is_none()
-                && scalar_field_occurrence(self.program, callee, state, occurrence, &fields)
-                    .is_none()
+                && scalar_field_occurrence(
+                    self.occurrence_at(self.program, callee, state, &lengths),
+                    occurrence,
+                    &formals,
+                    &fields,
+                )
+                .is_none()
                 && literal_window_length(self.program, occurrence).is_none()
             {
                 return None;
@@ -409,56 +506,19 @@ impl CurrentScalarValues<'_> {
                     .position(|parameter| parameter.symbol == symbol)?;
                 let captured =
                     self.capture(self.program, self.machine, self.state, arguments[position])?;
-                let needs_bounds = !matches!(captured, ScopedArithmeticValue::Integer(_));
-                binding.value = captured;
-                if needs_bounds {
-                    pending_bounds.push(arguments[position]);
-                }
+                captured_actuals.push((binding_index, arguments[position], captured));
             }
         }
-        if !pending_bounds.is_empty() {
-            let observed_bounds = validation::occurrence_integer_expressions_bounds(
-                self.program,
-                self.machine.symbol,
-                self.state.symbol,
-                self.statement_index,
-                &pending_bounds,
-            );
-            for binding in &mut goal.bindings {
-                let ScopedArithmeticBinder::Symbol(symbol) = binding.binder else {
-                    continue;
-                };
-                if machine_values.iter().any(|(formal, _)| *formal == symbol)
-                    || matches!(binding.value, ScopedArithmeticValue::Integer(_))
-                {
-                    continue;
-                }
-                let Some(position) = parameters
-                    .iter()
-                    .position(|parameter| parameter.symbol == symbol)
-                else {
-                    continue;
-                };
-                let argument = arguments[position];
-                // The argument's captured identity remains mandatory. Bounds
-                // from its exact caller observation add arrival knowledge
-                // (including acyclic predecessors), never a destination
-                // requirement or permission to revive an invalidated value.
-                if let Some((_, Some((minimum, maximum)))) =
-                    observed_bounds.iter().find(|(expr, _)| *expr == argument)
-                {
-                    let captured = std::mem::replace(
-                        &mut binding.value,
-                        ScopedArithmeticValue::Integer(numerics::bignum::BigInt::from_i64(0)),
-                    );
-                    binding.value = ScopedArithmeticValue::BoundedInteger {
-                        value: Box::new(captured),
-                        minimum: Some(numerics::bignum::BigInt::from_i64(*minimum)),
-                        maximum: Some(numerics::bignum::BigInt::from_i64(*maximum)),
-                    };
-                }
-            }
+        // Every actual identity is established before optional bounds or proof.
+        // Machine coordinates already retain their exact invocation binding.
+        let mut arguments_by_binding = vec![ExpressionHandle::invalid(); goal.bindings.len()];
+        for (binding_index, argument, captured) in captured_actuals {
+            goal.bindings[binding_index].value = captured;
+            arguments_by_binding[binding_index] = argument;
         }
-        Some(goal)
+        Some(CapturedParameterGoal {
+            goal,
+            arguments_by_binding,
+        })
     }
 }

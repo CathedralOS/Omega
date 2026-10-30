@@ -29,11 +29,11 @@ machine stamp(bytes: &mut [u8]) {
         _ -> skip()
     }
 
-    state write(bytes: &mut [u8]) {
+    machine write(bytes: &mut [u8]) {
         bytes[1] = 5;
     }
 
-    state skip() { }
+    machine skip() { }
 }
 
 machine peek(bytes: &[u8], position: u64) -> u64 {
@@ -42,7 +42,7 @@ machine peek(bytes: &[u8], position: u64) -> u64 {
         _ -> (0)
     }
 
-    state read(bytes: &[u8], position: u64) -> u64 {
+    machine read(bytes: &[u8], position: u64) -> u64 {
         let value: u8 = bytes[position];
         transition { _ -> (value as u64) }
     }
@@ -59,7 +59,7 @@ machine Main::main(context: &mut Main) reaches Console {
     context.values[1] = 11;
     transition { _ -> lend(context) }
 
-    state lend(context: &mut Main) {
+    machine lend(context: &mut Main) {
         stamp(&mut context.pause);
         let seen: u64 = peek(&context.pause, 1);
         let line: LineReadResult = block Console::read_line(&mut context.pause);
@@ -72,18 +72,18 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
 
-    state check(context: &mut Main, seen: u64, count: u64, first: u64, second: u64, high: i32) {
+    machine check(context: &mut Main, seen: u64, count: u64, first: u64, second: u64, high: i32) {
         transition seen == 5 && count == 3 && first == 97 && second == 98 && high == 11 {
             true -> done(context)
             _ -> refused(context, 72)
         }
     }
 
-    state done(context: &mut Main) {
+    machine done(context: &mut Main) {
         Console::exit_process(70);
     }
 
-    state refused(context: &mut Main, code: i32) {
+    machine refused(context: &mut Main, code: i32) {
         Console::exit_process(code);
     }
 }

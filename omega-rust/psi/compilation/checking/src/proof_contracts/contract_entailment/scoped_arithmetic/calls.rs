@@ -23,6 +23,7 @@ use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
 
 mod collections;
+pub(super) mod result_observations;
 
 /// Expression handles name value occurrences; statement calls additionally
 /// need their exact state/ordinal because no expression result identifies them.
@@ -51,6 +52,7 @@ impl CallOccurrence {
     }
 }
 
+#[derive(Clone)]
 pub(in crate::proof_contracts::contract_entailment) struct ScopedCalls<'program> {
     program: &'program dyn crate::CheckingInput,
     context: SymbolHandle,
@@ -290,12 +292,13 @@ impl<'program> ScopedCalls<'program> {
             actuals,
             machine_values,
             result,
+            result_observations,
         } = completion;
         let occurrence = match site {
             crate::CallSite::Expression { expression, call } => {
                 if self.program.expression_table.call_node(expression)? != call
                     || crate::integer_embedding_argument(self.program, expression).is_some()
-                    || result.is_none()
+                    || (result.is_none() && result_observations.is_empty())
                 {
                     return None;
                 }
@@ -309,6 +312,7 @@ impl<'program> ScopedCalls<'program> {
                     .as_call()?
                     != call
                     || result.is_some()
+                    || !result_observations.is_empty()
                 {
                     return None;
                 }
@@ -346,19 +350,30 @@ impl<'program> ScopedCalls<'program> {
             let declared = super::super::specification_calls::owner_return_type(&owner);
             let observed =
                 crate::expression_result_type_reference(self.program, machine, state, expression)?;
-            if !self
-                .program
-                .primitive_type_reference(declared)?
-                .is_fixed_integer()
-                || !crate::declared_carriers_match(self.program, observed, declared)
-                || self.program.arithmetic_domain_for_type_reference(observed)
-                    != self.program.arithmetic_domain_for_type_reference(declared)
+            if !crate::declared_carriers_match(self.program, observed, declared) {
+                return None;
+            }
+            if result.is_some()
+                && (!self
+                    .program
+                    .primitive_type_reference(declared)?
+                    .is_fixed_integer()
+                    || self.program.arithmetic_domain_for_type_reference(observed)
+                        != self.program.arithmetic_domain_for_type_reference(declared))
             {
                 return None;
             }
         }
         let mut bindings =
             self.completed_bindings(owner, arguments, occurrence, actuals, result, 0)?;
+        bindings.extend(
+            result_observations
+                .iter()
+                .map(|observation| ScopedArithmeticBinding {
+                    binder: ScopedArithmeticBinder::Occurrence(observation.expression),
+                    value: observation.value.clone(),
+                }),
+        );
         for (symbol, value) in machine_values {
             self.step()?;
             if bindings
@@ -529,13 +544,11 @@ impl<'program> ScopedCalls<'program> {
                         .iter()
                         .any(|binding| binding.binder == ScopedArithmeticBinder::Result)
                 {
-                    let mut occurrences = Vec::new();
-                    self.postorder(guarantee, &mut occurrences)?;
-                    if occurrences.iter().any(|expression| {
-                        self.program
-                            .expression_table
-                            .names_reserved_result(*expression)
-                    }) {
+                    if !result_observations::result_uses_are_bound(
+                        self.program,
+                        guarantee,
+                        bindings,
+                    ) {
                         continue;
                     }
                 }

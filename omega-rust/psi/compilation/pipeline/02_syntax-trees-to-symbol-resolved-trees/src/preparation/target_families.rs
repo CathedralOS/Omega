@@ -63,7 +63,7 @@ impl Member<'_> {
     }
 }
 
-pub(super) fn normalize(
+pub(crate) fn normalize(
     syntax: &mut SyntaxTrees,
     sources: Option<&SourceMap>,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -176,6 +176,9 @@ pub(super) fn normalize(
         let entry = syntax.items.insert_state(&entry);
         let entry = syntax.items.append_state_handle(entry);
         interface.states = HandleSpan::from_parts(entry, 1);
+        // Private implementation children stay in their authored member scope.
+        // A bodyless callable interface contains no implementation declarations.
+        interface.nested_machines = HandleSpan::empty();
         interface.target_family_interface = true;
         interface.bodyless = true;
         interface.target = None;

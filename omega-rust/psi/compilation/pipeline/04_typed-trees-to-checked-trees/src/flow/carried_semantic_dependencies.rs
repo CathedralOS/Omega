@@ -255,6 +255,14 @@ pub(super) fn event_type_reference(
         facts::PlaceRoot::InvocationReferent { type_reference, .. } => {
             project_type_reference_from_segments(program, type_reference, segments)
         }
+        facts::PlaceRoot::InvocationOutput(identity) => {
+            identity.is_valid().then_some(())?;
+            project_type_reference_from_segments(
+                program,
+                validation::invocation_output_parameter(program, identity)?.type_reference,
+                segments,
+            )
+        }
         facts::PlaceRoot::Unknown => None,
     }
 }

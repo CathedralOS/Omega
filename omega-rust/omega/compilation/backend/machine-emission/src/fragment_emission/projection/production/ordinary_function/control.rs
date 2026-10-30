@@ -14,7 +14,7 @@ pub(super) fn provenance(
     FunctionFragmentControlProvenance,
     crate::fragment_emission::projection::ResolvedFragmentEmissionError,
 > {
-    if let selected_instructions::selected_call_triple_pattern!(target, ..) = instruction.kind {
+    if let selected_instructions::selected_call_pattern!(target, ..) = instruction.kind {
         let mut rows = function
             .calls
             .iter()
@@ -25,6 +25,28 @@ pub(super) fn provenance(
         if rows.next().is_some()
             || selected_instructions::SelectedCallTarget::from_native(row.call.target) != target
         {
+            return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
+        }
+        if matches!(
+            instruction.kind,
+            SelectedInstructionKind::InvokeNoNormal { .. }
+        ) {
+            let SelectedTerminator::InvokeNoNormal {
+                instruction: terminal,
+                psi_edge,
+            } = &block.terminator
+            else {
+                return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
+            };
+            if terminal.id != instruction.id
+                || row.owner != target_operations::CallSiteOwner::InvokeNoNormal(*psi_edge)
+            {
+                return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
+            }
+        } else if matches!(
+            row.owner,
+            target_operations::CallSiteOwner::InvokeNoNormal(_)
+        ) {
             return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
         }
         return Ok(FunctionFragmentControlProvenance::InternalCall {

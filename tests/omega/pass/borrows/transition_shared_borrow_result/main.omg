@@ -14,11 +14,11 @@ machine Main::main(main: &mut Main) reaches Console {
     let seen: &Node = Holder::first(&holder);
     transition seen.value == 7 { true -> done() _ -> bad() }
 
-    state done() {
+    machine done() {
         Console::exit_process(181);
     }
 
-    state bad() {
+    machine bad() {
         Console::exit_process(71);
     }
 }

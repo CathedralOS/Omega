@@ -185,14 +185,14 @@ machine submit(submission: Submission, claim: Ticket, executor_open: bool) -> Su
         false -> refuse(submission, claim)
     }
 
-    state admit(submission: Submission, claim: Ticket) {
+    machine admit(submission: Submission, claim: Ticket) -> SubmitOutcome {
         // The accepted submission's custody transfers to the executor;
         // released at contract shape.
         Submission::release(submission);
         SubmitOutcome::Accepted { ticket: claim }
     }
 
-    state refuse(submission: Submission, claim: Ticket) {
+    machine refuse(submission: Submission, claim: Ticket) -> SubmitOutcome {
         Ticket::release(claim);
         SubmitOutcome::Rejected {
             submission: submission,
@@ -258,8 +258,8 @@ machine Main::main() reaches WorkerProvider suspends; blocks; crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 CanaryWorkerImplementation satisfies WorkerProvider {

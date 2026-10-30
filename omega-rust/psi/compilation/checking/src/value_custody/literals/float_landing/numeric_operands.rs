@@ -217,10 +217,13 @@ fn report_anonymous_formation(
     }
 }
 
-/// The formation checks the pre-machine validation phase owns: an anonymous
-/// integer `%` and an anonymous division by zero. Both report before any other
-/// validator, and validation stops if either reports.
-pub(crate) fn validate_anonymous_numeric_formation(
+/// Check the source formation of retained anonymous numeric operations after
+/// ordinary operator selection: an integer `%` needs an already-typed operand,
+/// and anonymous division by zero has no numeric value. Ordinary validation
+/// reports these before other checks. A producer whose unresolved type is only
+/// a consequence of failed formation can use the same diagnostics at its final
+/// completion fence; this query supplies neither a type nor a runtime carrier.
+pub fn validate_anonymous_numeric_formation(
     program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {

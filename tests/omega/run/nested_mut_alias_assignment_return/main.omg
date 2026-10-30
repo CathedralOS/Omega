@@ -65,11 +65,11 @@ machine Generator::run(generator: &mut Generator) reaches Console {
         true -> yes(generator)
         false -> no(generator)
     }
-    state yes(generator: &mut Generator) {
+    machine yes(generator: &mut Generator) {
         Console::write_line("yes");
     }
 
-    state no(generator: &mut Generator) {
+    machine no(generator: &mut Generator) {
         Console::write_line("no");
     }
 }

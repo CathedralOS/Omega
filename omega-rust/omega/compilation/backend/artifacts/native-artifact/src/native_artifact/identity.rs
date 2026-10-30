@@ -4,7 +4,7 @@ use super::{
     NativeArtifactIdentity, NativePhysicalEvidenceScope, NativeProviderExecution,
     NativeSelectedProviderPlan,
 };
-use crate::physical::{canonical_usize, hash_bytes};
+use crate::physical::{canonical_usize, hash_bytes, hash_call_site_owner};
 use effects::{TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
 
 // v10 commits closed Import coordinates independently of unchanged Terminal bytes.
@@ -91,17 +91,9 @@ pub(super) fn derive_native_artifact_identity(
     let mut digest =
         crate::digest_encoder::DomainDigestEncoder::new(NATIVE_ARTIFACT_IDENTITY_DOMAIN);
     digest.raw(&fields.terminal_artifact_identity);
-    digest.raw(&[match fields.target.architecture {
-        target::Architecture::Aarch64 => 1,
-        target::Architecture::X86_64 => 2,
-    }]);
-    digest.raw(&[match fields.target.object_format {
-        target::ObjectFormat::Elf => 1,
-        target::ObjectFormat::MachO => 2,
-        target::ObjectFormat::Coff => 3,
-    }]);
-    digest.raw(&canonical_usize(fields.target.pointer_size));
-    digest.raw(&canonical_usize(fields.target.pointer_alignment));
+    // The target's canonical wire identity: architecture, object format,
+    // pointer size and alignment, stated once by the target owner.
+    digest.raw(&fields.target.wire_identity_bytes());
     hash_bytes(&mut digest, fields.object_text_bytes);
     hash_bytes(&mut digest, fields.image_bytes);
     hash_bytes(&mut digest, fields.final_text_bytes);
@@ -251,79 +243,13 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
     digest.raw(&canonical_usize(calls.len()));
     for call in calls {
         digest.raw(&call.machine.get().to_le_bytes());
-        match call.owner {
-            target_operations::CallSiteOwner::Operation(operation) => {
-                digest.raw(&[1]);
-                digest.raw(&operation.get().to_le_bytes());
-                digest.raw(&0_u32.to_le_bytes());
-            }
-            target_operations::CallSiteOwner::ExternalCompletion(edge) => {
-                digest.raw(&[3]);
-                digest.raw(&edge.get().to_le_bytes());
-                digest.raw(&0_u32.to_le_bytes());
-            }
-            target_operations::CallSiteOwner::CleanupAction {
-                edge,
-                action_ordinal,
-            } => {
-                digest.raw(&[2]);
-                digest.raw(&edge.get().to_le_bytes());
-                digest.raw(&action_ordinal.to_le_bytes());
-            }
-        }
+        hash_call_site_owner(&mut digest, &call.owner);
         digest.raw(&canonical_usize(call.text_offset));
         digest.raw(&call.caller_live_bytes.to_le_bytes());
-        match call.x86_floating_control {
-            None => digest.raw(&[0]),
-            Some(control) => {
-                digest.raw(&[1]);
-                digest.raw(&[match control.target.architecture {
-                    target::Architecture::Aarch64 => 1,
-                    target::Architecture::X86_64 => 2,
-                }]);
-                digest.raw(&[match control.target.object_format {
-                    target::ObjectFormat::Elf => 1,
-                    target::ObjectFormat::MachO => 2,
-                    target::ObjectFormat::Coff => 3,
-                }]);
-                digest.raw(&canonical_usize(control.target.pointer_size));
-                digest.raw(&canonical_usize(control.target.pointer_alignment));
-                digest.raw(&control.saved_slot_byte_offset.to_le_bytes());
-                for value in [
-                    control.save_offset,
-                    control.save_byte_count,
-                    control.restore_offset,
-                    control.restore_byte_count,
-                ] {
-                    digest.raw(&canonical_usize(value));
-                }
-            }
-        }
-        match call.aarch64_floating_control {
-            None => digest.raw(&[0]),
-            Some(control) => {
-                digest.raw(&[1]);
-                digest.raw(&[match control.target.architecture {
-                    target::Architecture::Aarch64 => 1,
-                    target::Architecture::X86_64 => 2,
-                }]);
-                digest.raw(&[match control.target.object_format {
-                    target::ObjectFormat::Elf => 1,
-                    target::ObjectFormat::MachO => 2,
-                    target::ObjectFormat::Coff => 3,
-                }]);
-                digest.raw(&canonical_usize(control.target.pointer_size));
-                digest.raw(&canonical_usize(control.target.pointer_alignment));
-                digest.raw(&control.saved_slot_byte_offset.to_le_bytes());
-                for value in [
-                    control.save_offset,
-                    control.save_byte_count,
-                    control.restore_offset,
-                    control.restore_byte_count,
-                ] {
-                    digest.raw(&canonical_usize(value));
-                }
-            }
+        // MXCSR/FPCR preservation around the call: one saved slot plus the
+        // exact save and restore intervals per target lane.
+        for control in [call.x86_floating_control, call.aarch64_floating_control] {
+            hash_floating_control(&mut digest, control);
         }
         if let Some(kernel) = call.binding.system_call() {
             digest.raw(&[2]);
@@ -387,6 +313,28 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
         digest.raw(&contribution.alignment().to_le_bytes());
     }
     digest.finish()
+}
+
+fn hash_floating_control(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    control: Option<machine_code::ForeignCallFloatingControlRecord>,
+) {
+    match control {
+        None => digest.raw(&[0]),
+        Some(control) => {
+            digest.raw(&[1]);
+            digest.raw(&control.target.wire_identity_bytes());
+            digest.raw(&control.saved_slot_byte_offset.to_le_bytes());
+            for value in [
+                control.save_offset,
+                control.save_byte_count,
+                control.restore_offset,
+                control.restore_byte_count,
+            ] {
+                digest.raw(&canonical_usize(value));
+            }
+        }
+    }
 }
 
 fn hash_optional_digest(

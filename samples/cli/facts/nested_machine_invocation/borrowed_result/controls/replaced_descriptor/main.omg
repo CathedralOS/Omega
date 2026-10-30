@@ -1,0 +1,11 @@
+public domain [u8]::Utf8 requires valid_utf8(self);
+public data Buffer where used <= 4 { storage: [u8; 4]; used: u64; }
+public machine stale<'a>(first: &'a Buffer, second: &'a Buffer) -> &'a [u8] in Utf8 crashes Trap {
+    let mut bytes: &[u8] = &first.storage[..first.used];
+    let saved: bool = valid_utf8(bytes);
+    bytes = &second.storage[..second.used];
+    transition saved { true -> finish(bytes) false -> invalid() }
+    machine finish(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    machine invalid() -> &[u8] in Utf8 crashes Trap { crash Trap; }
+}
+machine main() {}

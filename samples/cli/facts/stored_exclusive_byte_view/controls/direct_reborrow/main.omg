@@ -8,6 +8,6 @@ machine main() crashes Trap {
     let second: u64 = length(view);
     let observed: bool = first == 1 && second == 1 && view[0] == 19;
     transition observed { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

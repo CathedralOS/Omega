@@ -17,7 +17,7 @@ machine Main::main(main: &mut Main) {
     main.pair.right = 20;
     transition { _ -> update(main) }
 
-    state update(main: &mut Main) {
+    machine update(main: &mut Main) {
         Main::replace_pair(main);
         main.pair.left = 15;
     }

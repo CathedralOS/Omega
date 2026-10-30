@@ -11,9 +11,11 @@ use target::NativeTarget;
 mod callback_admission;
 mod callback_catalog;
 mod identity;
+mod recovery;
 pub use callback_catalog::{
     BoundaryCallbackLayout, CallbackDataGeometry, CallbackInlineFieldGeometry, CallbackSlotGeometry,
 };
+pub use recovery::BoundaryCallingApplicationCandidate;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryCallingApplication {
@@ -24,6 +26,9 @@ pub struct BoundaryCallingApplication {
     pub plan: ValidatedBoundaryEntryPlan,
     pub signature: BoundarySignatureGeometry,
     pub opaque_applications: Vec<BoundaryOpaqueApplication>,
+    /// Complete producer context, including binders and demands whose absence
+    /// from a candidate plan must still make that candidate fail validation.
+    pub callback_context: crate::CallbackMaterializationContext,
     pub callback_context_closed: bool,
 }
 
@@ -39,6 +44,32 @@ pub struct BoundarySignatureGeometry {
     pub native_parameter_rows: HandleSpan<BoundaryNativeParameterGeometry>,
     pub callback_layouts: Arena<BoundaryCallbackLayout>,
     pub callback_layout_rows: HandleSpan<BoundaryCallbackLayout>,
+    pub callback_bindings: Arena<BoundaryCallbackBinding>,
+    pub callback_binding_rows: HandleSpan<BoundaryCallbackBinding>,
+}
+
+/// Exact source binder correspondence retained by the calling-policy producer.
+/// Structural machine parameters also consume ordinals, so vector position and
+/// compact binder IDs cannot reconstruct the authored correspondence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundaryCallbackBinding {
+    pub binder: crate::StaticMachineBinderId,
+    pub requirement: crate::CallbackRequirementId,
+    pub static_machine_ordinal: u32,
+    pub requirement_identity: String,
+    pub invokes_synchronously: bool,
+}
+
+impl Default for BoundaryCallbackBinding {
+    fn default() -> Self {
+        Self {
+            binder: crate::StaticMachineBinderId::new(1).expect("nonzero arena sentinel"),
+            requirement: crate::CallbackRequirementId::new(1).expect("nonzero arena sentinel"),
+            static_machine_ordinal: 0,
+            requirement_identity: String::new(),
+            invokes_synchronously: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

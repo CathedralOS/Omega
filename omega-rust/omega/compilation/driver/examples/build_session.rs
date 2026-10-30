@@ -34,8 +34,7 @@ fn main() {
         if let Some(inputs) = prepared.package_inputs.clone() {
             request = request.with_package_inputs(inputs);
         }
-        let report = session
-            .compile(request)
+        let report = omega_build::compile_sources(&mut session, request)
             .expect("request admission")
             .into_single_report()
             .expect("target publication");
@@ -61,12 +60,21 @@ fn main() {
     let mut limited =
         compiler::CheckedCompileRequest::new(&prepared.root_path, Some("linux_x86_64"));
     limited.package_inputs = prepared.package_inputs.clone();
-    limited.build_execution_profile = target::TargetProfile::host_if_supported();
-    limited.build_snapshot = compiler::BuildSnapshotRequest::automatic_package_inventory(
+    limited.build.profile = target::TargetProfile::host_if_supported();
+    limited.build.snapshot = compiler::BuildSnapshotRequest::automatic_package_inventory(
         limited.package_inputs.as_ref(),
     );
-    limited.evaluation_sponsor = Some(build_time_evaluation::BuildEvaluationSponsor::new(limits));
-    let result = session.check(limited);
+    limited.build.evaluation_sponsor = Some(
+        build_time_evaluation::BuildEvaluationSponsor::new_with_measurement(
+            limits,
+            evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
+                fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                storage_schedule: evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
+            },
+        )
+        .expect("current Terminal measurement"),
+    );
+    let result = omega_build::check_source(&mut session, limited);
     let diagnostics = match result.result {
         Err(failure) => failure.into_diagnostics(),
         Ok(_) => panic!("fresh fuel authority must not be borrowed from a prior result"),
@@ -74,7 +82,7 @@ fn main() {
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("build-evaluation aggregate fuel sponsor exhausted at 1 fuel units")),
+            .contains("Terminal Build failed: evaluation Fuel allowance exhausted")),
         "unexpected rejection: {diagnostics:?}"
     );
     assert_eq!(counters::build_execution_count() - before, 2);
@@ -96,8 +104,7 @@ fn main() {
     if let Some(inputs) = other.package_inputs {
         request = request.with_package_inputs(inputs);
     }
-    let report = session
-        .compile(request)
+    let report = omega_build::compile_sources(&mut session, request)
         .expect("distinct request")
         .into_single_report()
         .expect("distinct native product");

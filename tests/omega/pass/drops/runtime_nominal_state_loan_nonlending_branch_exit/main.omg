@@ -81,8 +81,8 @@ machine scope(selected: bool) reaches Console {
  let room: Room = Room { count: 10 };
  let loan: &mut Room = &mut room;
  transition selected { true -> observe(loan) false -> done() }
- state observe(room: &mut Room) { Console::write_byte(79); }
- state done() {}
+ machine observe(room: &mut Room) { Console::write_byte(79); }
+ machine done() {}
 }
 data Main {} machine Main::main(main: &mut Main) reaches Console { scope(true); scope(false); }
 

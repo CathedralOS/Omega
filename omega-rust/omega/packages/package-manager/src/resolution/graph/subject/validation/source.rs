@@ -22,7 +22,7 @@ pub(super) fn git_request(
         .map_err(|_| CanonicalSourceClosureSubjectError::new("invalid Git source request"))
 }
 
-pub(super) fn validate_package_navigation(
+pub(in super::super) fn validate_package_navigation(
     source: &ResolvedSourceIdentity,
     navigation: &PackageSourceNavigation,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
@@ -76,7 +76,7 @@ pub(super) fn validate_request_bytes(
     }
 }
 
-pub(super) fn validate_source_identity(
+pub(in super::super) fn validate_source_identity(
     source: &ResolvedSourceIdentity,
     maximum_identity_bytes: usize,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {

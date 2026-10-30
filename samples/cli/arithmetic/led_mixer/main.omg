@@ -20,19 +20,19 @@ machine Main::main(main: &mut Main) reaches Console {
     let channel: u8 in Saturating = source_a + source_b;
     transition channel == 255 { true -> dim() _ -> wrong_mix() }
 
-    state dim() {
+    machine dim() {
         // Dimming below zero stays off, never wraps to bright.
         let mut channel: u8 in Saturating = 40;
         channel = channel - 90;
         transition channel == 0 { true -> gamma() _ -> wrong_dim() }
     }
-    state gamma() {
+    machine gamma() {
         // Gamma boost: 100 * 3 = 300 -> clamps at full brightness.
         let mut channel: u8 in Saturating = 100;
         channel = channel * 3;
         transition channel == 255 { true -> ambient_mix() _ -> wrong_gamma() }
     }
-    state ambient_mix() {
+    machine ambient_mix() {
         // A plain (exact) sensor reading joins saturating math via the S2
         // retag, and the arithmetic runs FUSED in the guard -- no stored
         // intermediate, the clamp happens at the operation itself.
@@ -43,22 +43,22 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> wrong_ambient()
         }
     }
-    state frame_roll() {
+    machine frame_roll() {
         // The frame counter WRAPS by design: 250 + 10 rolls to 4.
         let mut frames: u8 in Wrapping = 250;
         frames = frames + 10;
         transition frames == 4 { true -> done() _ -> wrong_roll() }
     }
 
-    state done() {
+    machine done() {
         Console::write_line("mix stable: channel clamps, counter rolls");
         Console::exit_process(70);
     }
-    state wrong_mix() { Console::exit_process(71); }
-    state wrong_dim() { Console::exit_process(72); }
-    state wrong_gamma() { Console::exit_process(73); }
-    state wrong_ambient() { Console::exit_process(74); }
-    state wrong_roll() { Console::exit_process(75); }
+    machine wrong_mix() { Console::exit_process(71); }
+    machine wrong_dim() { Console::exit_process(72); }
+    machine wrong_gamma() { Console::exit_process(73); }
+    machine wrong_ambient() { Console::exit_process(74); }
+    machine wrong_roll() { Console::exit_process(75); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

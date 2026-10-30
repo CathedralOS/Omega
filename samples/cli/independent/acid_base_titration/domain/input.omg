@@ -13,11 +13,11 @@ machine character(reader: &mut Reader) -> i32 reaches Console {
         true -> read(reader)
         _ -> -2
     }
-    state read(reader: &mut Reader) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {
+    machine read(reader: &mut Reader) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {
         let byte: ByteRead = block Console::read_byte();
         transition byte { ByteRead::Eof -> -1 ByteRead::Byte { value } -> counted(reader, value) }
     }
-    state counted(reader: &mut Reader, value: i32) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {
+    machine counted(reader: &mut Reader, value: i32) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {
         reader.consumed = reader.consumed + 1;
         transition { _ -> value }
     }
@@ -29,11 +29,11 @@ blocks;
 crashes Trap
 {
     transition { _ -> start(reader) }
-    state start(reader: &mut Reader) -> Number {
+    machine start(reader: &mut Reader) -> Number {
         let byte: i32 = block character(reader);
         transition whitespace(byte) { true -> start(reader) _ -> first(reader, byte) }
     }
-    state first(reader: &mut Reader, byte: i32) -> Number {
+    machine first(reader: &mut Reader, byte: i32) -> Number {
         transition byte {
             -1 -> Number { valid: false, ended: true, value: 0.0 }
             45 -> signed(reader, -1.0)
@@ -41,79 +41,79 @@ crashes Trap
             _ -> digit(reader, byte, 1.0, 0, 0, false, 0)
         }
     }
-    state signed(reader: &mut Reader, sign: f64) -> Number {
+    machine signed(reader: &mut Reader, sign: f64) -> Number {
         let byte: i32 = block character(reader);
         transition { _ -> digit(reader, byte, sign, 0, 0, false, 0) }
     }
-    state digit(reader: &mut Reader, byte: i32, sign: f64, accumulated: i64 in Wrapping,
+    machine digit(reader: &mut Reader, byte: i32, sign: f64, accumulated: i64 in Wrapping,
                 digits: i32 in Wrapping, point: bool, fractional: i32 in Wrapping) -> Number {
         transition byte >= 48 && byte <= 57 && digits < 18 {
             true -> append(reader, byte, sign, accumulated, digits, point, fractional)
             _ -> punctuation(reader, byte, sign, accumulated, digits, point, fractional)
         }
     }
-    state append(reader: &mut Reader, byte: i32, sign: f64, accumulated: i64 in Wrapping,
+    machine append(reader: &mut Reader, byte: i32, sign: f64, accumulated: i64 in Wrapping,
                  digits: i32 in Wrapping, point: bool, fractional: i32 in Wrapping) -> Number {
         let next: i64 in Wrapping = accumulated * 10 + ((byte - 48) as i64 in Wrapping);
         transition point { true -> following(reader, sign, next, digits + 1, true, fractional + 1)
                            _ -> following(reader, sign, next, digits + 1, false, fractional) }
     }
-    state following(reader: &mut Reader, sign: f64, accumulated: i64 in Wrapping,
+    machine following(reader: &mut Reader, sign: f64, accumulated: i64 in Wrapping,
                     digits: i32 in Wrapping, point: bool, fractional: i32 in Wrapping) -> Number {
         let byte: i32 = block character(reader);
         transition { _ -> digit(reader, byte, sign, accumulated, digits, point, fractional) }
     }
-    state punctuation(reader: &mut Reader, byte: i32, sign: f64, accumulated: i64 in Wrapping,
+    machine punctuation(reader: &mut Reader, byte: i32, sign: f64, accumulated: i64 in Wrapping,
                       digits: i32 in Wrapping, point: bool, fractional: i32 in Wrapping) -> Number {
         transition byte == 46 && !point {
             true -> following(reader, sign, accumulated, digits, true, fractional)
             _ -> exponent(reader, byte, sign, accumulated, digits, fractional)
         }
     }
-    state exponent(reader: &mut Reader, byte: i32, sign: f64, accumulated: i64 in Wrapping,
+    machine exponent(reader: &mut Reader, byte: i32, sign: f64, accumulated: i64 in Wrapping,
                    digits: i32 in Wrapping, fractional: i32 in Wrapping) -> Number {
         transition digits > 0 && (byte == 101 || byte == 69) {
             true -> exponent_first(reader, sign, accumulated, fractional)
             _ -> finish(byte, sign, accumulated, digits, fractional)
         }
     }
-    state exponent_first(reader: &mut Reader, sign: f64, accumulated: i64 in Wrapping, fractional: i32 in Wrapping) -> Number {
+    machine exponent_first(reader: &mut Reader, sign: f64, accumulated: i64 in Wrapping, fractional: i32 in Wrapping) -> Number {
         let byte: i32 = block character(reader);
         transition byte { 45 -> exponent_sign(reader, sign, accumulated, fractional, true)
                           43 -> exponent_sign(reader, sign, accumulated, fractional, false)
                           _ -> exponent_digit(reader, byte, sign, accumulated, fractional, false, 0, 0) }
     }
-    state exponent_sign(reader: &mut Reader, sign: f64, accumulated: i64 in Wrapping,
+    machine exponent_sign(reader: &mut Reader, sign: f64, accumulated: i64 in Wrapping,
                         fractional: i32 in Wrapping, negative: bool) -> Number {
         let byte: i32 = block character(reader);
         transition { _ -> exponent_digit(reader, byte, sign, accumulated, fractional, negative, 0, 0) }
     }
-    state exponent_digit(reader: &mut Reader, byte: i32, sign: f64, accumulated: i64 in Wrapping,
+    machine exponent_digit(reader: &mut Reader, byte: i32, sign: f64, accumulated: i64 in Wrapping,
                          fractional: i32 in Wrapping, negative: bool, exponent: i32 in Wrapping, digits: i32 in Wrapping) -> Number {
         transition byte >= 48 && byte <= 57 && digits < 2 {
             true -> exponent_append(reader, byte, sign, accumulated, fractional, negative, exponent, digits)
             _ -> exponent_end(byte, sign, accumulated, fractional, negative, exponent, digits)
         }
     }
-    state exponent_append(reader: &mut Reader, byte: i32, sign: f64, accumulated: i64 in Wrapping,
+    machine exponent_append(reader: &mut Reader, byte: i32, sign: f64, accumulated: i64 in Wrapping,
                           fractional: i32 in Wrapping, negative: bool, exponent: i32 in Wrapping, digits: i32 in Wrapping) -> Number {
         let observed: i32 = block character(reader);
         transition { _ -> exponent_digit(reader, observed, sign, accumulated, fractional, negative,
                      exponent * 10 + (byte as i32 in Wrapping) - 48, digits + 1) }
     }
-    state exponent_end(byte: i32, sign: f64, accumulated: i64 in Wrapping,
+    machine exponent_end(byte: i32, sign: f64, accumulated: i64 in Wrapping,
                        fractional: i32 in Wrapping, negative: bool, exponent: i32 in Wrapping, digits: i32 in Wrapping) -> Number {
         transition digits > 0 && exponent <= 30 && (whitespace(byte) || byte == -1) {
             true -> exponent_value(sign, accumulated, fractional, negative, exponent)
             _ -> Number { valid: false, ended: false, value: 0.0 }
         }
     }
-    state exponent_value(sign: f64, accumulated: i64 in Wrapping, fractional: i32 in Wrapping,
+    machine exponent_value(sign: f64, accumulated: i64 in Wrapping, fractional: i32 in Wrapping,
                          negative: bool, exponent: i32 in Wrapping) -> Number {
         transition negative { true -> normalize(sign, accumulated, 0 - exponent - fractional)
                               _ -> normalize(sign, accumulated, exponent - fractional) }
     }
-    state finish(byte: i32, sign: f64, accumulated: i64 in Wrapping,
+    machine finish(byte: i32, sign: f64, accumulated: i64 in Wrapping,
                  digits: i32 in Wrapping, fractional: i32 in Wrapping) -> Number {
         transition digits > 0 && (whitespace(byte) || byte == -1) {
             true -> normalize(sign, accumulated, 0 - fractional)
@@ -123,19 +123,19 @@ crashes Trap
     // Canonicalize decimal integer coefficient and combined exponent first.
     // Equivalent spellings of domain endpoints then use exactly the same
     // conversion. Eighteen digits fit i64; bounded powers cannot be nonfinite.
-    state normalize(sign: f64, coefficient: i64 in Wrapping, exponent: i32 in Wrapping) -> Number {
+    machine normalize(sign: f64, coefficient: i64 in Wrapping, exponent: i32 in Wrapping) -> Number {
         transition coefficient > 0 && coefficient % 10 == 0 {
             true -> normalize(sign, coefficient / 10, exponent + 1)
             _ -> convert(sign, coefficient, exponent)
         }
     }
-    state convert(sign: f64, coefficient: i64 in Wrapping, exponent: i32 in Wrapping) -> Number {
+    machine convert(sign: f64, coefficient: i64 in Wrapping, exponent: i32 in Wrapping) -> Number {
         transition exponent >= -48 && exponent <= 48 {
             true -> scaled(sign, coefficient, exponent + 48)
             _ -> Number { valid: false, ended: false, value: 0.0 }
         }
     }
-    state scaled(sign: f64, coefficient: i64 in Wrapping, position: i32 in Wrapping) -> Number
+    machine scaled(sign: f64, coefficient: i64 in Wrapping, position: i32 in Wrapping) -> Number
     requires position >= 0 && position < 97
     {
         let powers: [f64; 97] = [1.0e-48, 1.0e-47, 1.0e-46, 1.0e-45, 1.0e-44, 1.0e-43, 1.0e-42, 1.0e-41, 1.0e-40, 1.0e-39, 1.0e-38, 1.0e-37, 1.0e-36, 1.0e-35, 1.0e-34, 1.0e-33, 1.0e-32, 1.0e-31, 1.0e-30, 1.0e-29, 1.0e-28, 1.0e-27, 1.0e-26, 1.0e-25, 1.0e-24, 1.0e-23, 1.0e-22, 1.0e-21, 1.0e-20, 1.0e-19, 1.0e-18, 1.0e-17, 1.0e-16, 1.0e-15, 1.0e-14, 1.0e-13, 1.0e-12, 1.0e-11, 1.0e-10, 1.0e-9, 1.0e-8, 1.0e-7, 1.0e-6, 1.0e-5, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 1.0e0, 1.0e1, 1.0e2, 1.0e3, 1.0e4, 1.0e5, 1.0e6, 1.0e7, 1.0e8, 1.0e9, 1.0e10, 1.0e11, 1.0e12, 1.0e13, 1.0e14, 1.0e15, 1.0e16, 1.0e17, 1.0e18, 1.0e19, 1.0e20, 1.0e21, 1.0e22, 1.0e23, 1.0e24, 1.0e25, 1.0e26, 1.0e27, 1.0e28, 1.0e29, 1.0e30, 1.0e31, 1.0e32, 1.0e33, 1.0e34, 1.0e35, 1.0e36, 1.0e37, 1.0e38, 1.0e39, 1.0e40, 1.0e41, 1.0e42, 1.0e43, 1.0e44, 1.0e45, 1.0e46, 1.0e47, 1.0e48];
@@ -151,17 +151,17 @@ crashes Trap
 {
     input.count = 0;
     transition { _ -> scan(reader, input) }
-    state scan(reader: &mut Reader, input: &mut Input) -> bool {
+    machine scan(reader: &mut Reader, input: &mut Input) -> bool {
         let item: Number = block read_number(reader);
         transition item.ended { true -> validate(input) _ -> capacity(reader, input, item) }
     }
-    state capacity(reader: &mut Reader, input: &mut Input, item: Number) -> bool {
+    machine capacity(reader: &mut Reader, input: &mut Input, item: Number) -> bool {
         transition item.valid && input.count >= 0 && input.count < 22 {
             true -> store(reader, input, item)
             _ -> false
         }
     }
-    state store(reader: &mut Reader, input: &mut Input, item: Number) -> bool {
+    machine store(reader: &mut Reader, input: &mut Input, item: Number) -> bool {
         input.values[input.count] = item.value;
         input.count = input.count + 1;
         transition { _ -> scan(reader, input) }
@@ -178,13 +178,13 @@ machine validate(input: &Input) -> bool {
         true -> volumes(input, 6)
         _ -> false
     }
-    state volumes(input: &Input, position: i32 in Wrapping) -> bool {
+    machine volumes(input: &Input, position: i32 in Wrapping) -> bool {
         transition position >= 6 && position < 22 && position < input.count {
             true -> volume(input, position)
             _ -> true
         }
     }
-    state volume(input: &Input, position: i32 in Wrapping) -> bool {
+    machine volume(input: &Input, position: i32 in Wrapping) -> bool {
         transition input.values[position] >= 0.0 && input.values[position] <= 1000.0 {
             true -> volumes(input, position + 1)
             _ -> false

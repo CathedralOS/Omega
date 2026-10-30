@@ -76,7 +76,7 @@ machine main() crashes Trap {
     }
     // Declared reference slots in inactive cases are not resident loans.
     // A runtime selector still has declared coverage when no slot is live.
-    state empty_array() {
+    machine empty_array() {
         let values: [Choice; 2] = [Choice::Empty, Choice::Empty];
         let position: u64 = 1;
         let selected: Choice = values[position];
@@ -85,6 +85,6 @@ machine main() crashes Trap {
             Choice::Some { target } -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

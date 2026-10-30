@@ -19,8 +19,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> ok(main)
         false -> bad(main)
     }
-    state ok(main: &mut Main) { Console::exit_process(main.r); }
-    state bad(main: &mut Main) { Console::exit_process(99); }
+    machine ok(main: &mut Main) { Console::exit_process(main.r); }
+    machine bad(main: &mut Main) { Console::exit_process(99); }
 }
 // Expected exit: 30
 

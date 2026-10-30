@@ -88,21 +88,19 @@ fn conditions_bind_registers_full_width_and_preserved_flags() {
             }
             // Includes condition inversion, destination bits, width, register-mode
             // bits, and (on x86) both REX extensions and MOVZX's source/destination.
-            for bit in 0..encoded.bytes().len() * 8 {
-                let mut changed = encoded.bytes().to_vec();
-                changed[bit / 8] ^= 1 << (bit % 8);
-                assert!(
+            crate::selected_form_encoding::assert_every_bit_flip_rejected(
+                encoded.bytes(),
+                |changed| {
                     validate_x86_64_selected_form_encoding(
                         &physical,
                         kind,
                         key,
                         &[destination],
-                        &changed
+                        changed,
                     )
-                    .is_err(),
-                    "{kind:?} {name} accepted bit {bit}"
-                );
-            }
+                    .is_err()
+                },
+            );
             for length in 0..encoded.bytes().len() {
                 assert!(
                     validate_x86_64_selected_form_encoding(

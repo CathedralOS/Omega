@@ -1,4 +1,4 @@
-use crate::contracts::facts::parse_proof_facts_until;
+use crate::contracts::facts::parse_logical_proof_facts_until;
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use arena::HandleSpan;
@@ -73,36 +73,23 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         .last()
         .expect("a domain chain always holds its first segment")
         .1;
-    let (mut subject, input) = if input.at_punctuation(PunctuationKind::LeftParen) {
-        let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-        let (subject, input) = input.take_identifier()?;
-        if syntax_trees
-            .items
-            .type_parameters(generic_parameters.type_parameters)
-            .iter()
-            .any(|parameter| parameter.name.as_str(syntax_trees) == subject.as_str(syntax_trees))
-        {
-            return Err(input.error_here("domain subject duplicates a generic parameter"));
-        }
-        let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-        (Some(subject), input)
-    } else {
-        (None, input)
-    };
+    if input.at_punctuation(PunctuationKind::LeftParen) {
+        return Err(input.error_here(
+            "explicit domain subject binders are retired; use `self` in the domain's `requires` predicates",
+        ));
+    }
     let ((classification, classification_token_count), input) = parse_domain_classification(input)?;
+    let (cleanup_selection, input) = parse_cleanup_selection(syntax_trees, input)?;
     // A chained declaration is authored at the last segment and carries the
     // leading subject membership proposition its refinement semantics imply;
     // the parent path spells the chain's own prefix so a bracketed target
     // (`[u8]::A::B`) spells only the domain segments that identifiers can name.
     let refinement_parent = if name_segments.len() > 1 {
         let parent_span = name_segments[name_segments.len() - 2].0.source_span();
-        let subject_name = subject
-            .get_or_insert_with(|| Identifier::generated("$subject"))
-            .clone();
         let subject_path = HandleSpan::from_parts(
             syntax_trees
                 .expressions
-                .append_identifier_path_member(subject_name),
+                .append_identifier_path_member(Identifier::generated("self")),
             1,
         );
         let parent_path = syntax_trees.items.insert_identifier_path_members(
@@ -153,7 +140,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     let (
         alias,
         authored_routes,
-        predicate_body,
+        predicate_presence,
         facts,
         operators,
         semantic_clause_token_count,
@@ -168,7 +155,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         (
             Some(alias),
             Vec::new(),
-            language_core::DomainPredicateBody::Bodyless,
+            language_core::DomainPredicatePresence::Absent,
             HandleSpan::empty(),
             HandleSpan::empty(),
             0,
@@ -186,21 +173,21 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
                 .set_proof_fact_source_span(handle, parent_span);
             handle
         });
-        let ((predicate_body, authored_facts, requires_token_count), input) =
+        let ((predicate_presence, authored_facts, requires_token_count), input) =
             parse_domain_requires(syntax_trees, input)?;
-        let (predicate_body, facts) = match parent_fact {
+        let (predicate_presence, facts) = match parent_fact {
             Some(handle) => (
-                language_core::DomainPredicateBody::Present,
+                language_core::DomainPredicatePresence::Present,
                 HandleSpan::from_parts(handle, 1 + authored_facts.count()),
             ),
-            None => (predicate_body, authored_facts),
+            None => (predicate_presence, authored_facts),
         };
         let ((authored_routes, semantic_clause_token_count), input) =
-            parse_domain_establishment(input, predicate_body.is_present())?;
+            parse_domain_establishment(input, predicate_presence.is_present())?;
         (
             None,
             authored_routes,
-            predicate_body,
+            predicate_presence,
             facts,
             HandleSpan::empty(),
             requires_token_count.saturating_add(semantic_clause_token_count),
@@ -211,15 +198,15 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     Ok((
         DomainDefinition {
             name,
-            subject,
             type_parameters: generic_parameters.type_parameters,
             target_type,
             index_arguments,
             is_public: false,
             alias,
             authored_routes,
+            cleanup_selection,
             classification,
-            predicate_body,
+            predicate_presence,
             facts,
             operators,
             semantic_clause_token_count: classification_token_count
@@ -267,7 +254,7 @@ fn parse_domain_requires<'tokens, 'source>(
     'tokens,
     'source,
     (
-        language_core::DomainPredicateBody,
+        language_core::DomainPredicatePresence,
         HandleSpan<ProofFact>,
         usize,
     ),
@@ -275,7 +262,7 @@ fn parse_domain_requires<'tokens, 'source>(
     if !input.at_contextual("requires") {
         return Ok((
             (
-                language_core::DomainPredicateBody::Bodyless,
+                language_core::DomainPredicatePresence::Absent,
                 HandleSpan::empty(),
                 0,
             ),
@@ -285,13 +272,13 @@ fn parse_domain_requires<'tokens, 'source>(
 
     let input = input.take_contextual("requires")?;
     let ((facts, token_count), input) =
-        parse_proof_facts_until(syntax_trees, input, domain_requires_terminator)?;
+        parse_logical_proof_facts_until(syntax_trees, input, domain_requires_terminator)?;
     if facts.is_empty() {
         return Err(input.error_here("domain `requires` must contain at least one proposition"));
     }
     Ok((
         (
-            language_core::DomainPredicateBody::Present,
+            language_core::DomainPredicatePresence::Present,
             facts,
             token_count,
         ),
@@ -307,6 +294,7 @@ fn domain_requires_terminator(input: Input<'_, '_>) -> bool {
         || input.at_keyword(KeywordKind::Public)
         || input.at_keyword(KeywordKind::Data)
         || input.at_keyword(KeywordKind::Machine)
+        || super::parse_declaration::starts_machine_declaration(input)
         || input.at_keyword(KeywordKind::Use)
         || input.at_contextual("domain")
         || input.at_contextual("operator")
@@ -381,9 +369,6 @@ fn parse_domain_establishment<'tokens, 'source>(
         ));
     }
 
-    // A `requires` clause may own the declaration's final semicolon. When its
-    // proof-fact parser has already consumed that token, the next root item is
-    // the caller's input and this domain has no establishment clause.
     if requires_consumed
         && !input.at_contextual("established")
         && !input.at_punctuation(PunctuationKind::LeftBrace)
@@ -395,8 +380,9 @@ fn parse_domain_establishment<'tokens, 'source>(
     if input.at_punctuation(PunctuationKind::LeftBrace) {
         let body = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
         if body.at_punctuation(PunctuationKind::RightBrace) {
-            let input = body.take_punctuation(PunctuationKind::RightBrace, "}")?;
-            return Ok(((Vec::new(), 0), input));
+            return Err(
+                input.error_here("empty domain bodies are retired; end the declaration with `;`")
+            );
         }
         if at_legacy_authored_route(body) {
             return Err(input.error_here(
@@ -416,6 +402,11 @@ fn parse_domain_establishment<'tokens, 'source>(
         ));
     }
 
+    if !input.at_contextual("established") {
+        return Err(input.error_here(
+            "expected `;` to end the domain declaration or an `established by` clause",
+        ));
+    }
     let mut input = input.take_contextual("established")?;
     input = input.take_contextual("by")?;
     let routes_start_tokens = input.tokens.len();
@@ -472,4 +463,41 @@ fn parse_authored_route<'tokens, 'source>(
     // length, distinguishes an exact machine from a trait requirement and
     // rejects ambiguous or ineligible declarations.
     Ok((route, input))
+}
+
+/// A cleanup clause selects a declaration, never a runtime call or receiver.
+/// Reuse static-application grammar so nested generic arguments retain their
+/// own telescope instead of being reparsed as diagnostic text downstream.
+pub(super) fn parse_cleanup_selection<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, Option<syntax_trees::expression::StaticMachineArgument>> {
+    if !input.at_contextual("dropped") {
+        return Ok((None, input));
+    }
+    let input = input.take_contextual("dropped")?.take_contextual("by")?;
+    let (path, input) = parse_authored_route(input)?;
+    let (application, input) =
+        match crate::expressions::parse_postfix::try_parse_static_symbol_application(
+            syntax_trees,
+            input,
+        )? {
+            Some((application, input)) => (Some(application), input),
+            None if input.at_punctuation(PunctuationKind::Less) => {
+                return Err(
+                    input.error_here("dropped by requires a complete static machine application")
+                );
+            }
+            None => (None, input),
+        };
+    Ok((
+        Some(syntax_trees::expression::StaticMachineArgument {
+            type_reference: Default::default(),
+            path: path.into_boxed_slice(),
+            application,
+            const_literal: None,
+            evidence_projection: None,
+        }),
+        input,
+    ))
 }

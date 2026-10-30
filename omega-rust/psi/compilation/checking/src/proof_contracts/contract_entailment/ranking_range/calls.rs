@@ -4,7 +4,6 @@
 //! destination's formal and projection namespace replaces it. Source ranks and
 //! hypotheses are already polynomials, so rebinding cannot rewrite their past.
 
-use super::super::{StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding};
 use super::coordinate::{CoordinateFamily, CoordinateSet};
 use super::{
     BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine,
@@ -13,10 +12,8 @@ use super::{
     meanings, measure_body_shape, parameter_comparisons, projections, saved_arguments,
     validate_mapping,
 };
+use crate::{StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding};
 use symbols::SymbolHandle;
-mod endpoint_pins;
-pub(crate) use endpoint_pins::{RankingRangeCallEdge, mixed_call_endpoints_are_pinned};
-
 /// The exact transition site inside the caller's machine. `state` is the state
 /// whose statements carry the call; `entry_parameters` is the source-admitted
 /// assignment of full entry coordinates to that state's completed readings.
@@ -48,9 +45,8 @@ pub(crate) enum RankingRangeCallProgress {
 /// The caller owns prefix stability and whole-component cycle coverage. This
 /// judgment reads only caller entry hypotheses, never destination requirements,
 /// and proves nonincrease or strict descent with pinned view bounds. Authored
-/// ranges additionally require membership and equality of their endpoints.
-/// When only one side authors a range, the component owner must separately
-/// conserve its endpoint inputs through every unranged participant.
+/// ranges additionally require independently formed endpoint expressions and
+/// membership at each invocation; their endpoints need not be equal.
 pub(crate) fn prove_ranking_range_call(
     program: &dyn crate::CheckingInput,
     caller: RankingRangeCallMember<'_>,
@@ -193,18 +189,6 @@ pub(crate) fn prove_ranking_range_call(
         &mut engine,
         &expressions,
     )?;
-    // Saved caller observations ride the same site scope: a state-local
-    // `let` the saved-observation bar admits denotes the exact value its
-    // initializer produced, so an actual or guard spelling the local
-    // normalizes to the bound polynomial rather than an unknown atom. A
-    // written or exclusively exposed binding never joins the roster.
-    saved_arguments::install(
-        program,
-        caller.machine,
-        source,
-        &length_bindings,
-        &mut engine,
-    );
     // A field-view member's rank is its record's exact projection coordinate:
     // a fresh atom per carrier formal, shared with every authored
     // `record.field` chain the site can read. Resolve the measure's chain on
@@ -348,6 +332,17 @@ pub(crate) fn prove_ranking_range_call(
         )?;
         Some(coordinates)
     };
+    // Saved observations consume the complete caller coordinate roster.
+    // In particular, a saved Boolean over a field must see that field's
+    // exact atom before its comparison is captured. Written or exclusively
+    // exposed bindings remain excluded by the saved-observation owner.
+    saved_arguments::install(
+        program,
+        caller.machine,
+        source,
+        &length_bindings,
+        &mut engine,
+    );
     let mut comparisons = if at_entry {
         entry_comparisons(program, caller.machine, source, &mut engine, &bindings)?
     } else {
@@ -394,7 +389,7 @@ pub(crate) fn prove_ranking_range_call(
         // A subordinate site holds the member's own authored range on
         // arrival. Entry facts stop at the entry state, but the range is the
         // member's private witness invariant: its state-edge judgment
-        // re-establishes membership and endpoint pinning at every internal
+        // re-establishes formed endpoint membership at every internal
         // arrival, and the checked stage runs that judgment for every ranged
         // member with internal arrivals. Consume exactly the facts that
         // judgment proves -- never a destination requirement, never a caller
@@ -696,15 +691,10 @@ pub(crate) fn prove_ranking_range_call(
     {
         return None;
     }
-    if let (Some((floor, ceiling, _)), Some((next_floor, next_ceiling, _))) =
-        (source_range, destination_range)
-        && (!prove(next_floor.sub(&floor), 0)
-            || !prove(floor.sub(&next_floor), 0)
-            || !prove(next_ceiling.sub(&ceiling), 0)
-            || !prove(ceiling.sub(&next_ceiling), 0))
-    {
-        return None;
-    }
+    // Optional intervals constrain each invocation's produced rank. They do
+    // not parameterize the shared nonnegative relation, so their endpoints
+    // may differ after exact actual substitution. View bounds above remain
+    // part of the selected view and still owe their own equality proof.
     let clamped = matches!(source_measure, RankingRangeMeasure::IncreasingTo { .. });
     // Without an authored range, natural subtraction still cannot descend out
     // of the well-founded carrier. Do not count mathematical underflow as a
@@ -1125,6 +1115,18 @@ fn installation_expressions(
     }
     expressions.extend(arguments.iter().copied());
     expressions.extend(guards.iter().map(|(guard, _)| *guard));
+    // Occurrence bindings are exact: a field read inside a saved predicate
+    // is distinct from another spelling of that field in a call actual.
+    // Install the admitted initializer's coordinates before capturing it.
+    expressions.extend(
+        program
+            .statement_table
+            .statements(source.statement_nodes)
+            .iter()
+            .filter_map(|statement| statement.as_local_data())
+            .filter(|local| saved_arguments::saved(program, source, local.symbol).is_some())
+            .map(|local| local.initial_value),
+    );
     expressions.extend(projections::entry_expressions(
         program,
         caller.machine,

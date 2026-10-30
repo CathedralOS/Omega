@@ -18,14 +18,21 @@
 //! domains and wire.
 
 pub(crate) use optimization::codec_bytes;
+pub mod callback_declarations;
 
+mod boundary_bodies;
+pub mod build_requests;
+pub use boundary_bodies::{BoundaryBodySelection, CheckedBodyCandidate};
+pub mod boundary_provider_review;
 pub mod byte_predicates;
 pub mod const_value;
 pub mod content;
 pub mod declaration_selection;
 mod external_bindings;
 mod machine_termination;
+pub mod numeric_intrinsics;
 mod permissions;
+pub mod provider_declarations;
 pub mod quotient_correspondence;
 mod semantic_domains;
 mod semantic_identities;
@@ -42,7 +49,7 @@ pub use external_bindings::{
 pub use language_core::{
     CallOperationalAcknowledgement, CallOperationalAcknowledgementOrigin, CarryAddress, CarryCpu,
     CarryHostThread, CarryPermission, CarryPolicy, CarrySuspension, DataSupplyMode,
-    DomainClassification, DomainPredicateBody, Multiplicity, ReferenceAccess,
+    DomainClassification, DomainPredicatePresence, Multiplicity, ReferenceAccess,
 };
 pub use machine_termination::{
     MachineSupplyMode, MachineTerminationPlan, ProgressPremise, ProgressSubject,
@@ -54,8 +61,8 @@ pub use permissions::{
     PermissionProvenance,
 };
 pub use semantic_domains::{
-    DomainEstablishmentRoute, DomainSemanticRole, DomainSemanticRoles, QualificationEvidenceOrigin,
-    SemanticDomainTable,
+    BoundaryQualificationIssuer, DomainEstablishmentRoute, DomainSemanticRole, DomainSemanticRoles,
+    QualificationEvidenceOrigin, SemanticDomainTable,
 };
 pub use semantic_identities::{
     ExternalBindingId, RankingViewId, SemanticDomainId, ServiceReachId, ServiceReachRowId,
@@ -66,3 +73,5 @@ pub use service_reach::{
     ServiceReachTable, SuspensionInterface, SuspensionPlan, SuspensionSummary,
     SynchronousInvocationInterface, SynchronousInvocationPlan,
 };
+
+pub mod native_bindings;

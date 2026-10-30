@@ -28,7 +28,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> kept(result, marker, main)
         false -> kept(result, marker, main)
     }
-    state kept(result: Choice, marker: Marker, main: &mut Main) {
+    machine kept(result: Choice, marker: Marker, main: &mut Main) {
         let bonus: u64 = match result in Choice::Some {
             true -> 1u64,
             false -> 2u64
@@ -38,8 +38,8 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> bad(main)
         }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

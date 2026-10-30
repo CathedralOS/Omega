@@ -54,8 +54,8 @@ impl<'a> Reviewer<'a> {
     }
 
     pub(super) fn expand_boundary(&mut self, boundary: BoundaryMachineId) -> Result<(), String> {
-        // Provider planning's selected synchronous-invocation cycle check
-        // already rejects a cycle through the selected providers; this set
+        // Canonical provider admission already rejects cycles through every
+        // installed provider instance; this set
         // only bounds the recursion so a repeated boundary is expanded once
         // rather than re-checked.
         if !self.expanded.insert(boundary) {
@@ -194,7 +194,7 @@ impl<'a> Reviewer<'a> {
                             selected_plan.provider_type
                         )
                     })?;
-                let schema = selected_plan.schema.identity_digest();
+                let schema = selected_plan.schema_identity_digest();
                 let provider_plan = selected_plan.identity_digest();
                 let nested = self
                     .context
@@ -221,7 +221,7 @@ impl<'a> Reviewer<'a> {
                 let mechanism = self
                     .context
                     .exact_mechanism(boundary, &selected_row.binding)?;
-                let schema = selected_plan.schema.identity_digest();
+                let schema = selected_plan.schema_identity_digest();
                 self.admit_leaf(
                     schema,
                     selected_plan

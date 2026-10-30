@@ -12,7 +12,7 @@ machine compute_other_state(val: i32) -> i32
 {
     let shifted: i32 = val << 2u32;
     transition { _ -> step(shifted) }
-    state step(s: i32) -> i32 {
+    machine step(s: i32) -> i32 {
         verify_shifted(s)
     }
 }
@@ -27,6 +27,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -68,12 +68,13 @@ pub(crate) fn bind_applications(
                             let Some(instance_root) = instance.root.as_symbol() else {
                                 return false;
                             };
-                            template.root
-                                == PlaceRoot::Symbol(source_symbol(
-                                    program,
-                                    instance_root,
-                                    specialization.instance,
-                                ))
+                            template.cause == instance.cause
+                                && template.root
+                                    == PlaceRoot::Symbol(source_symbol(
+                                        program,
+                                        instance_root,
+                                        specialization.instance,
+                                    ))
                                 && cleanup.segments.span_or_empty(template.segments)
                                     == source_path(
                                         program,

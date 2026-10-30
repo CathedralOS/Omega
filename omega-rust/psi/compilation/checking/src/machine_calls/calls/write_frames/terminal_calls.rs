@@ -5,6 +5,12 @@
 //! argument origins. Operand effects are collected by the state walker before
 //! this call; a terminal spelling neither hides them nor grants an empty frame.
 //!
+//! Specialization has already selected the executable target of a static
+//! callable. Its retained public binder still owns source contract admission;
+//! that provenance marker does not make the selected body's ordinary write
+//! and result transport unavailable. All terminal invocations use the same
+//! resolved-target join as ordinary calls.
+//!
 //! A tail call to the calling machine itself is not a terminal invocation.
 //! Runtime recursion lowers to a backedge into the entry state, and its frame
 //! is the same entry-state summary the call would have asked for, so it would
@@ -56,17 +62,11 @@ pub(super) fn written_paths(
         return None;
     }
     let TransitionTargetNode::Named {
-        path,
-        arguments,
-        static_machine_parameter,
-        ..
+        path, arguments, ..
     } = program.statement_table.transition_target(transition)
     else {
         return None;
     };
-    if static_machine_parameter.is_valid() {
-        return None;
-    }
     let (name, receiver) = program
         .statement_table
         .name_path_members(path.members)

@@ -1,7 +1,7 @@
 use isa_aarch64::validate_aarch64_selected_form_encoding;
 use isa_x86_64::validate_x86_64_selected_form_encoding;
 use physical_instructions::PostAllocationMachineInstruction;
-use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
+use register_model::{RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
     MachineEncodedEffects, MachineSizeKnowledge, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind,
@@ -16,6 +16,22 @@ use machine_code::{
 
 mod normalized_foreign_call;
 mod scalar_call;
+
+/// Reduce one arm's decoded row onto the footprint the interned row must
+/// match. Both ISAs spell the same three-part projection, so the reduction
+/// has one owner; only the ISA error mapping stays with the caller.
+macro_rules! decoded_row_footprint {
+    ($decoded:expr, $map:expr) => {{
+        let decoded = $decoded.map_err($map)?;
+        decoded_footprint(
+            &decoded.footprint().register_reads,
+            &decoded.footprint().register_writes,
+            &decoded.footprint().encoded,
+        )
+    }};
+}
+
+pub(crate) use decoded_row_footprint;
 
 pub(crate) fn validate(
     target: NativeTarget,
@@ -108,13 +124,8 @@ pub(crate) fn validate(
                         address.displacement,
                         bytes,
                     )
-                }
-                .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
-                decoded_footprint(
-                    &encoded.footprint().register_reads,
-                    &encoded.footprint().register_writes,
-                    &encoded.footprint().encoded,
-                )
+                };
+                decoded_row_footprint!(encoded, OptimizedSelectedFormEncodingError::Aarch64)
             } else {
                 let encoded = if matches!(kind, SelectedInstructionKind::HostedWriteByteI32 { .. })
                 {
@@ -160,18 +171,13 @@ pub(crate) fn validate(
                         address.displacement,
                         bytes,
                     )
-                }
-                .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
-                decoded_footprint(
-                    &encoded.footprint().register_reads,
-                    &encoded.footprint().register_writes,
-                    &encoded.footprint().encoded,
-                )
+                };
+                decoded_row_footprint!(encoded, OptimizedSelectedFormEncodingError::X86_64)
             };
             admit_decoded_footprint(selected.id, machine, bytes.len(), footprint, &decoded)?;
             Ok(())
         }
-        kind @ (selected_instructions::selected_call_triple_pattern!(..)) => {
+        kind @ (selected_instructions::selected_call_pattern!(..)) => {
             if row.address.is_some() {
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             }
@@ -349,13 +355,10 @@ fn validate_baseline(
                     &views,
                     bytes,
                 )
-            }
-            .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
-            decoded_footprint(
-                &decoded.footprint().register_reads,
-                &decoded.footprint().register_writes,
-                &decoded.footprint().encoded,
-            )
+            };
+            decoded_row_footprint!(decoded, |_| {
+                OptimizedSelectedFormEncodingError::ArtifactMismatch
+            })
         }
         Architecture::Aarch64 => {
             let decoded = if kind == SelectedInstructionKind::HostedExitProcessI32 {
@@ -375,13 +378,10 @@ fn validate_baseline(
                     &views,
                     bytes,
                 )
-            }
-            .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
-            decoded_footprint(
-                &decoded.footprint().register_reads,
-                &decoded.footprint().register_writes,
-                &decoded.footprint().encoded,
-            )
+            };
+            decoded_row_footprint!(decoded, |_| {
+                OptimizedSelectedFormEncodingError::ArtifactMismatch
+            })
         }
     };
     admit_decoded_footprint(instruction, machine, bytes.len(), footprint, &decoded)?;
@@ -450,22 +450,9 @@ fn validate_external_operands(
     machine: &PostAllocationMachineInstruction,
     decoded: &SelectedFormDecodedFootprint,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let resolve = |operand: u16| machine.operand_footprint(operand).map(|row| row.view);
-    let expected_reads = decoded
-        .encoded
-        .external_operand_reads
-        .iter()
-        .map(|operand| resolve(*operand))
-        .collect::<Option<Vec<_>>>()
-        .ok_or(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(instruction))?;
-    let expected_writes = decoded
-        .encoded
-        .external_operand_writes
-        .iter()
-        .map(|operand| resolve(*operand))
-        .collect::<Option<Vec<_>>>()
-        .ok_or(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(instruction))?;
-    if decoded.register_reads != expected_reads || decoded.register_writes != expected_writes {
+    if decoded.register_reads != views_for_effects(machine, &decoded.encoded, true)?
+        || decoded.register_writes != views_for_effects(machine, &decoded.encoded, false)?
+    {
         return Err(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(instruction));
     }
     Ok(())
@@ -498,6 +485,16 @@ fn operand_views(machine: &PostAllocationMachineInstruction) -> Vec<RegisterView
         .operands
         .iter()
         .map(|operand| operand.view)
+        .collect()
+}
+
+/// The access class of every machine operand, in the same order: the hosted
+/// and call-form validators take both rosters.
+fn operand_accesses(machine: &PostAllocationMachineInstruction) -> Vec<RegisterOperandAccess> {
+    machine
+        .operands
+        .iter()
+        .map(|operand| operand.access)
         .collect()
 }
 

@@ -6,6 +6,7 @@ use object_file::{RelocationKind, SymbolKind};
 use target::{Architecture, NativeTarget};
 
 use super::ElfComponentExport;
+use crate::bytes::name_at;
 use crate::dynamic_executable::import_sections::dynamic_sections::{
     ElfDynamicSymbol, build_sysv_hash, derive_shared_import_contents,
 };
@@ -109,7 +110,7 @@ pub(super) fn emit(
         .dynsym
         .iter()
         .skip(1)
-        .map(|symbol| string_at(&tables.dynstr, symbol.name))
+        .map(|symbol| name_at(&tables.dynstr, symbol.name, "dynamic symbol string"))
         .collect::<Result<Vec<_>, _>>()?;
     tables.sysv_hash = build_sysv_hash(&names)?;
     let mut sections = vec![Section::default(); SECTION_COUNT];
@@ -496,16 +497,6 @@ fn append(output: &mut Vec<u8>, alignment: usize, bytes: &[u8]) -> Result<usize,
     output.resize(offset, 0);
     output.extend_from_slice(bytes);
     Ok(offset)
-}
-fn string_at(strings: &[u8], offset: u32) -> Result<&[u8], Diagnostic> {
-    let remaining = strings
-        .get(offset as usize..)
-        .ok_or_else(|| invalid("dynamic symbol string offset is absent"))?;
-    let end = remaining
-        .iter()
-        .position(|byte| *byte == 0)
-        .ok_or_else(|| invalid("dynamic symbol string is unterminated"))?;
-    Ok(&remaining[..end])
 }
 fn set_section(
     sections: &mut [Section],

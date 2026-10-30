@@ -7,7 +7,7 @@ use super::{
 };
 use super::{byte_field_store, byte_views, invalid, local_storage, provenance, transport_register};
 use crate::SelectedInstructionError;
-use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
+use semantic_vocabulary::{IntegerSign, IntegerType, PlaceId, ScalarType, ValueId};
 use terminal_psi::control_flow::ByteSequenceOperand;
 
 pub(super) fn establish(
@@ -156,28 +156,14 @@ pub(super) fn operand_pointer(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn copy(
+/// The operand's measured byte displacement and every backing root its span
+/// reaches. The copy and the measured read roster share this derivation; each
+/// caller keeps its own row role.
+pub(super) fn operand_span(
     function: &LegalizedScalarFunction,
-    builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    builder: &Builder<'_>,
     operand: &ByteSequenceOperand,
-    source_pointer: VirtualRegisterId,
-    destination_pointer: VirtualRegisterId,
-    count: VirtualRegisterId,
-    capacity: u32,
-) -> Result<(), SelectedInstructionError> {
-    let LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
-        result,
-        capacity_obligation,
-        accepted_fact,
-        ..
-    } = &row.kind
-    else {
-        return Err(invalid());
-    };
-    let cursor = byte_field_store::scratch(builder, 3)?;
-    let byte = byte_field_store::scratch(builder, 4)?;
+) -> Result<(u32, Vec<(PlaceId, ValueId)>), SelectedInstructionError> {
     let offset = match operand {
         ByteSequenceOperand::Field { .. } => {
             crate::selection::byte_concatenation_input::field_offset(function, operand)
@@ -204,7 +190,36 @@ fn copy(
         }
         ByteSequenceOperand::Whole { .. } | ByteSequenceOperand::Field { .. } => None,
     };
-    for (root, length) in roots.unwrap_or_else(|| vec![(operand.source(), operand.length())]) {
+    Ok((
+        offset,
+        roots.unwrap_or_else(|| vec![(operand.source(), operand.length())]),
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn copy(
+    function: &LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    operand: &ByteSequenceOperand,
+    source_pointer: VirtualRegisterId,
+    destination_pointer: VirtualRegisterId,
+    count: VirtualRegisterId,
+    capacity: u32,
+) -> Result<(), SelectedInstructionError> {
+    let LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
+        result,
+        capacity_obligation,
+        accepted_fact,
+        ..
+    } = &row.kind
+    else {
+        return Err(invalid());
+    };
+    let cursor = byte_field_store::scratch(builder, 3)?;
+    let byte = byte_field_store::scratch(builder, 4)?;
+    let (offset, roots) = operand_span(function, builder, operand)?;
+    for (root, length) in roots {
         memory(
             builder,
             row,

@@ -41,7 +41,18 @@ pub fn reference_shell(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<ReferenceShell> {
-    let shell = peel_carrier_shells(program, reference, &[])?;
+    reference_shell_with_substitutions(program, reference, &[])
+}
+
+/// Classify the same reference under exact static type assumptions. The
+/// shell retains its access and complete referee; substitution never lends
+/// additional authority or removes a referent qualification.
+pub(crate) fn reference_shell_with_substitutions(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> Option<ReferenceShell> {
+    let shell = peel_carrier_shells(program, reference, substitutions)?;
     let TypeReferenceNode::Reference {
         referee, access, ..
     } = program.type_reference_table.type_reference(shell)
@@ -88,7 +99,7 @@ pub fn slice_view_shell(
 /// node that is neither. A parameter bound to itself has no actual to stand
 /// for, and a walk longer than the table has nodes has revisited one and
 /// would never end; both answer `None`.
-fn peel_carrier_shells(
+pub(crate) fn peel_carrier_shells(
     program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
@@ -106,6 +117,28 @@ fn peel_carrier_shells(
                 }
                 reference = replacement;
             }
+            _ => return Some(reference),
+        }
+    }
+    None
+}
+
+/// The carrier a declared type spells beneath its borrows and domain
+/// constraint shells: `[u8; 4]`, `[u8]`, `Room`, a primitive. Access and
+/// domain qualification shape what a carrier may be used for, never which
+/// node it is, so every carrier classifier reads the shape here instead of
+/// re-walking the shells once per query.
+pub fn carrier_beneath_borrows(
+    program: &dyn crate::CheckingInput,
+    mut reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    if !reference.is_valid() {
+        return None;
+    }
+    for _ in 0..=program.type_reference_table.type_reference_count() {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
             _ => return Some(reference),
         }
     }
@@ -131,49 +164,29 @@ pub fn stored_view_shell(
 /// their storage and live length explicitly.
 pub fn byte_sequence_carrier(
     program: &dyn crate::CheckingInput,
-    mut type_reference: TypeReferenceHandle,
+    type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<checked_trees::CheckedByteSequenceCarrier> {
-    let mut borrowed = None;
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Named { symbol, .. } => {
-                let Some(replacement) = crate::substitutions::actual_for(substitutions, *symbol)
-                else {
-                    break;
-                };
-                // A substitution can bind a parameter to its own reference;
-                // rewriting it again only loops.
-                if replacement == type_reference {
-                    break;
-                }
-                type_reference = replacement;
-            }
-            TypeReferenceNode::Constrained { base_type, .. } => {
-                type_reference = *base_type;
-            }
-            // The reference's access is the carrier's access: a `&mut [u8]`
-            // field and a `&[u8]` one are distinguishable here and nowhere
-            // downstream, so it is recorded rather than discarded.
-            TypeReferenceNode::Reference {
-                referee, access, ..
-            } if borrowed.is_none() => {
-                borrowed = Some(*access);
-                type_reference = *referee;
-            }
-            _ => break,
-        }
+    let shell = peel_carrier_shells(program, type_reference, substitutions)?;
+    // The reference's access is the carrier's access: a `&mut [u8]` field and a
+    // `&[u8]` one are distinguishable here and nowhere downstream, so it is
+    // recorded rather than discarded.
+    let TypeReferenceNode::Reference {
+        referee, access, ..
+    } = program.type_reference_table.type_reference(shell)
+    else {
+        return None;
+    };
+    let slice = peel_carrier_shells(program, *referee, substitutions)?;
+    let TypeReferenceNode::Slice { element_type } =
+        program.type_reference_table.type_reference(slice)
+    else {
+        return None;
+    };
+    if program.primitive_type_reference(*element_type) != Some(PrimitiveType::U8) {
+        return None;
     }
-
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Slice { element_type }
-            if borrowed.is_some()
-                && program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8) =>
-        {
-            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView {
-                access: Some(borrowed?.into()),
-            })
-        }
-        _ => None,
-    }
+    Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView {
+        access: Some((*access).into()),
+    })
 }

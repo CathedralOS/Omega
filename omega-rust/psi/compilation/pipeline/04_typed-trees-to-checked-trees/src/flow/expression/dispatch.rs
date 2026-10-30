@@ -9,8 +9,9 @@
 //! contributes the predicates already carried by the value it yields, and
 //! the match result keeps only the consequences every arm carries. A fact
 //! about some other place in the surrounding context does not move onto the
-//! result. Routed domains keep their authorized provenance and are not joined
-//! here; this publication is transport, not a new establishment.
+//! result. Owned qualifications first rebase the exact yielded occurrence;
+//! only identical membership and authority present in every covered arm survive.
+//! This publication transports authorized provenance, never establishes it.
 use crate::flow::expression::Execution;
 use crate::flow::state_values::qualifications::CarriedPredicate;
 use arena::HandleSpan;
@@ -27,7 +28,7 @@ impl Execution<'_, '_, '_> {
         destination: typed_trees::types::TypeReferenceHandle,
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
-    ) -> HandleSpan<checked_trees::FlowOperandFact> {
+    ) -> HandleSpan<checked_trees::FlowOperandAlternative> {
         let destination = if destination.is_valid() {
             destination
         } else {
@@ -35,7 +36,6 @@ impl Execution<'_, '_, '_> {
                 .expression_result_type_at(self.program, self.machine, self.state, expression)
                 .unwrap_or_default()
         };
-        let mut alternatives = Vec::new();
         let structural = validation::structural_match_subject_type(
             self.program,
             self.machine,
@@ -57,13 +57,15 @@ impl Execution<'_, '_, '_> {
         let subject_writes = self.operand_writes.len();
         let mut joined = None;
         let mut completed_writes = Vec::new();
-        let mut completed_storage = Vec::new();
+        let mut completed_reference_branches = Vec::new();
         let mut boolean_coverage = [false; 2];
         let mut case_coverage = Vec::new();
         let mut shared_predicates: Option<Vec<CarriedPredicate>> = None;
         let mut shared_scalar: Option<Option<facts::ScalarValue>> = None;
         let mut shared_members: Option<Vec<_>> = None;
+        let mut shared_qualifications = None;
         let mut value_coverage = false;
+        let mut alternatives = HandleSpan::empty();
         for (ordinal, arm) in self
             .program
             .expression_table
@@ -80,28 +82,9 @@ impl Execution<'_, '_, '_> {
                     &dispatch,
                     arm.pattern,
                 )
-                && match arm.pattern {
-                    MatchPattern::Destructure(pattern) => {
-                        !pattern.guard.is_valid()
-                            && !self
-                                .program
-                                .expression_table
-                                .match_fields(pattern.fields)
-                                .iter()
-                                .any(|field| {
-                                    matches!(
-                                        field.action,
-                                        typed_trees::expression::MatchFieldAction::Equal(_)
-                                    )
-                                })
-                    }
-                    MatchPattern::Value(_) => true,
-                    MatchPattern::Wildcard => false,
-                }
+                && validation::structural_match_pattern_is_total(self.program, arm.pattern)
             {
-                if !case_coverage.contains(&case) {
-                    case_coverage.push(case);
-                }
+                crate::collections::push_unique(&mut case_coverage, case);
                 covered |= validation::structural_match_cases_are_covered(
                     self.program,
                     reference,
@@ -143,8 +126,11 @@ impl Execution<'_, '_, '_> {
                         self.context,
                         self.state.symbol,
                         self.statement_index,
-                        pattern.condition,
-                        matched,
+                        crate::flow::GuardObservation::evaluated(
+                            pattern.condition,
+                            matched,
+                            self.statement_index,
+                        ),
                         ProgramPoint::Statement {
                             machine_symbol: self.machine.symbol,
                             state_symbol: self.state.symbol,
@@ -159,6 +145,7 @@ impl Execution<'_, '_, '_> {
             }
             // Arm writes are absent on the fallthrough path. Retain their union
             // only after all alternatives, for later enclosing operands.
+            let branch_prefix = self.write_prefix();
             if !matches!(arm.pattern, MatchPattern::Destructure(_))
                 && self
                     .changed_operand_sources(&[(dispatch.subject, subject_writes)])
@@ -166,6 +153,7 @@ impl Execution<'_, '_, '_> {
                 && let Ok(ordinal) = u32::try_from(ordinal)
             {
                 let source_arm = dispatch.arms.handle_at(ordinal);
+                let prefix = self.write_prefix();
                 let point = ProgramPoint::Statement {
                     machine_symbol: self.machine.symbol,
                     state_symbol: self.state.symbol,
@@ -187,21 +175,40 @@ impl Execution<'_, '_, '_> {
                             matched,
                         },
                         point,
+                        prefix.writes,
+                        prefix.unknown,
                         branch_contexts,
                         branch_constraints,
                     );
                 }
             }
-            let fallthrough_storage = self.storage_snapshot;
-            let branch_writes = self.operand_writes.len();
             let completed = self.evaluated_operand_as(
                 arm.value,
                 destination,
                 &mut selected_contexts,
                 &mut selected_constraints,
             );
-            alternatives.push(completed.capture);
-            let members = self.constructed_values(&[], destination, &completed);
+            // A receiving declaration supplies no qualification. Rebase each
+            // actual completed value through the ordinary owned transfer,
+            // then meet its exact subject/domain/evidence. Private contexts
+            // prevent an incomplete result roster publishing arm-only facts.
+            let mut value_contexts = selected_contexts;
+            let mut value_constraints = selected_constraints;
+            self.append_completed_qualifications(
+                expression,
+                &[],
+                destination,
+                &completed,
+                &mut value_contexts,
+                &mut value_constraints,
+            );
+            let qualifications = self.value_memberships(expression, value_contexts);
+            if let Some(shared) = &mut shared_qualifications {
+                super::live_memberships::retain_common(shared, &qualifications);
+            } else {
+                shared_qualifications = Some(qualifications);
+            }
+            let members = self.captured_owned_value_observations(&[], destination, &completed);
             if let Some(shared) = &mut shared_members {
                 shared.retain(|member| members.contains(member));
             } else {
@@ -212,6 +219,16 @@ impl Execution<'_, '_, '_> {
                 None => scalar,
                 Some(previous) => previous.filter(|previous| scalar.as_ref() == Some(previous)),
             });
+            let value = self.context.control.operands.append(completed.capture);
+            // A missing arm identity remains visible as an incomplete join;
+            // never silently remove a successfully evaluated alternative.
+            let source_arm = u32::try_from(ordinal)
+                .map(|ordinal| dispatch.arms.handle_at(ordinal))
+                .unwrap_or_default();
+            self.context.control.operand_alternatives.append_to_span(
+                &mut alternatives,
+                checked_trees::FlowOperandAlternative { source_arm, value },
+            );
             let yielded = self.predicates_on_value(arm.value, &selected_contexts);
             match shared_predicates.as_mut() {
                 Some(shared) => shared.retain_mut(|predicate| {
@@ -232,9 +249,9 @@ impl Execution<'_, '_, '_> {
                 }),
                 None => shared_predicates = Some(yielded),
             }
-            completed_storage.push(self.storage_snapshot);
-            self.storage_snapshot = fallthrough_storage;
-            completed_writes.extend(self.operand_writes.drain(branch_writes..));
+            completed_writes.extend(self.operand_writes[branch_prefix.length..].iter().cloned());
+            completed_reference_branches.push(self.write_prefix());
+            self.restore_write_prefix(branch_prefix);
             if let Some((previous_contexts, previous_constraints)) = joined {
                 self.meet(
                     previous_contexts,
@@ -249,21 +266,35 @@ impl Execution<'_, '_, '_> {
                 break;
             }
         }
+        // Later operands may observe any selected arm's effects. Each arm's
+        // own capture retains only its first-match prefix, never a sibling's
+        // writes or unknown-write flag.
         if !value_coverage {
-            completed_storage.push(self.storage_snapshot);
+            completed_reference_branches.push(self.write_prefix());
         }
-        self.storage_snapshot =
-            super::super::stored_values::join(&mut self.context.control, &completed_storage);
-        self.operand_writes.extend(completed_writes);
+        for writes in completed_writes {
+            self.record_operand_writes(writes);
+        }
+        self.join_storage_prefixes(&completed_reference_branches);
         self.match_subjects.truncate(outer_captures);
         if let Some((joined_contexts, joined_constraints)) = joined {
             *contexts = joined_contexts;
             *constraints = joined_constraints;
         }
-        self.retain_value_observation(expression, subject_operand, *contexts, *constraints);
+        let subject = self.context.control.operands.insert(subject_operand);
+        self.retain_value_observation(
+            expression,
+            subject,
+            subject_operand.referents,
+            *contexts,
+            *constraints,
+        );
         if value_coverage {
+            if let Some(qualifications) = shared_qualifications {
+                self.publish_live_memberships(qualifications, contexts, constraints);
+            }
             if let Some(members) = shared_members {
-                self.publish_constructed_values(expression, members, contexts, constraints);
+                self.publish_owned_value_observations(expression, members, contexts, constraints);
             }
             if let Some(shared) = shared_predicates {
                 self.publish_joined_values(
@@ -275,11 +306,11 @@ impl Execution<'_, '_, '_> {
                 );
             }
         }
-        // A partial result roster cannot supply retention evidence. Keep each
-        // covered arm's original constraints instead of the joined context,
-        // which has intentionally forgotten arm-local reference occurrences.
+        // A partial result roster cannot authorize reference retention. Each
+        // retained alternative keeps its own completed constraints and arm
+        // identity; the joined context cannot substitute for missing coverage.
         if value_coverage {
-            self.context.control.operands.insert_many(alternatives)
+            alternatives
         } else {
             HandleSpan::empty()
         }
@@ -312,12 +343,7 @@ impl Execution<'_, '_, '_> {
                 return None;
             }
         }
-        let source = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state.symbol,
-            self.statement_index,
-            value,
-        )?;
+        let source = self.completed_value_place(value)?;
         if matches!(source.root, facts::PlaceRoot::Symbol(_))
             && !validation::place_has_builtin_coordinates(
                 self.program,
@@ -351,12 +377,7 @@ impl Execution<'_, '_, '_> {
         value: ExpressionHandle,
         contexts: &HandleSpan<FlowSemanticContextRef>,
     ) -> Vec<CarriedPredicate> {
-        let Some(source) = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state.symbol,
-            self.statement_index,
-            value,
-        ) else {
+        let Some(source) = self.completed_value_place(value) else {
             return Vec::new();
         };
         let mut predicates = Vec::new();
@@ -375,7 +396,7 @@ impl Execution<'_, '_, '_> {
                 let Some(domain) = self.program.domain_definition(domain_symbol) else {
                     continue;
                 };
-                if !domain.predicate_body.is_present() || domain.alias.is_some() {
+                if !domain.predicate_presence.is_present() || domain.alias.is_some() {
                     continue;
                 }
                 CarriedPredicate::Domain {
@@ -401,9 +422,7 @@ impl Execution<'_, '_, '_> {
             if !crate::flow::canonical_places_agree(self.program, &source, &fact_place) {
                 continue;
             }
-            if !predicates.contains(&predicate) {
-                predicates.push(predicate);
-            }
+            crate::collections::push_unique(&mut predicates, predicate);
         }
         predicates
     }

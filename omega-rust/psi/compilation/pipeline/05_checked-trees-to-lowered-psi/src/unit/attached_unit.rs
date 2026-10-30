@@ -37,18 +37,18 @@ use super::{
     Block, BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
     CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedScalarExpression,
     CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, ClaimTransfer, LoweredPsi, LoweringError, MachineContract,
-    MachineId, Multiplicity, Operation, OperationKind, OperationResult, PlaceId,
-    ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
-    ProviderSignature, ProviderSignatureParameter, ScalarType, SemanticDomainId,
-    ServiceReachSummary, StructuralDomainRequirement, StructuralMultiplicity,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
-    TERMINAL_UNIT_CALL_OBLIGATION_BASE, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker, allocate_dense, boundary_machine_id,
-    content_conservation, contract_id, dense_identity, direct_expression_contains_short_circuit,
-    edge_id, emit_direct_expression, lookup_claim_id, lookup_domain_id, lookup_machine_id,
-    lookup_service_id, lookup_type_id, lower_boundary_content_guarantees,
-    lower_boundary_crash_routes, lower_checked_crash_route_buckets, lower_placed_view_input,
+    CheckedUnitEffectOperationPlan, LoweredPsi, LoweringError, MachineContract, MachineId,
+    Multiplicity, Operation, OperationKind, OperationResult, PlaceId, ProviderCandidateConformance,
+    ProviderParameterRefinement, ProviderRefinement, ProviderSignature, ProviderSignatureParameter,
+    ScalarType, SemanticDomainId, ServiceReachSummary, StructuralDomainRequirement,
+    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
+    StructuralTypeShape, TERMINAL_UNIT_CALL_OBLIGATION_BASE, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    allocate_dense, boundary_machine_id, content_conservation, contract_id, dense_identity,
+    direct_expression_contains_short_circuit, edge_id, emit_direct_expression, lookup_claim_id,
+    lookup_domain_id, lookup_machine_id, lookup_service_id, lookup_type_id,
+    lower_boundary_content_guarantees, lower_boundary_crash_routes,
+    lower_checked_crash_route_buckets, lower_placed_view_input,
     lower_structural_crash_route_buckets, machine_id, obligation_id, place_id,
     terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
@@ -69,6 +69,7 @@ pub(crate) mod completion_cleanup;
 mod entry_requirements;
 mod folded_constants;
 mod providers;
+pub(crate) mod scalar_applications;
 pub(crate) mod signatures;
 pub(crate) mod target_families;
 mod target_layouts;
@@ -81,6 +82,9 @@ pub(crate) mod argument_schedule;
 pub(crate) mod bodies;
 mod composed_control;
 mod operation_frame;
+pub(crate) use operation_frame::completed_arguments::{
+    emit_snapshot as emit_argument_snapshot, selected_memberships as argument_memberships,
+};
 pub(crate) use operation_frame::{BoundaryParameters, OperationEnvironment};
 mod normal_guarantees;
 mod ordinary_machine;
@@ -114,9 +118,9 @@ pub(crate) use catalog::lower_root_service_reach;
 use catalog::require_valid_service_row;
 pub(crate) use composed_control::live as unit_graph_live_states;
 pub(crate) use parameters::{
-    literal_argument_places, lower_boundary_parameter_order,
-    lower_installation_machine_service_ceiling, lower_published_service_ceiling,
-    lower_structural_arguments, lower_unit_parameters,
+    literal_argument_places, lower_installation_machine_service_ceiling,
+    lower_published_service_ceiling, lower_runtime_parameter_order, lower_structural_arguments,
+    lower_unit_parameters,
 };
 use providers::checked_unit_provider_candidates;
 
@@ -221,16 +225,30 @@ pub(crate) fn lower_unit_closure(
         return unsupported("ordinary Unit closure must begin with its exact entry");
     }
 
+    let scalar_applications = std::sync::Arc::new(
+        scalar_applications::SourceScalarApplications::prepare(checked)?,
+    );
+    let mut retained_roots = program_roots.machines.to_vec();
+    retained_roots.extend(scalar_applications.evaluation_roots());
+    retained_roots.sort_unstable_by_key(|root| (root.arena_index(), root.generation()));
+    retained_roots.dedup();
+    let program_roots = crate::TerminalProgramRoots {
+        machines: &retained_roots,
+        boundaries: program_roots.boundaries,
+    };
+
     // Discovery: every machine the closure emits, grouped by the route that
     // emits it.
-    let call_catalog = call_catalog::discover(
-        checked,
-        plans,
-        entry,
-        unit_roots,
-        program_roots,
-        scalar_entry,
-    )?;
+    let call_catalog = phase_profile::scope("05.01.a_discover_call_catalog", || {
+        call_catalog::discover(
+            checked,
+            plans,
+            entry,
+            unit_roots,
+            program_roots,
+            scalar_entry,
+        )
+    })?;
     let closure = call_catalog.operations;
     let provider_candidate_plans = call_catalog.providers;
 
@@ -240,7 +258,9 @@ pub(crate) fn lower_unit_closure(
     for symbol in call_catalog.boundaries {
         retain_unit_boundary(checked, plans, &mut boundaries, symbol)?;
     }
-    let admitted_bodies = admission::admit(checked, plans, &closure, &mut boundaries)?;
+    let admitted_bodies = phase_profile::scope("05.01.b_admit_bodies", || {
+        admission::admit(checked, plans, &closure, &mut boundaries)
+    })?;
     boundaries.sort_by_key(|(_, identity)| identity.order_key());
     if let Some(pair) = boundaries.windows(2).find(|pair| pair[0].1 == pair[1].1) {
         return Err(LoweringError::InvalidUnitMachinePlan {
@@ -259,7 +279,17 @@ pub(crate) fn lower_unit_closure(
     // Shared namespaces: every emitted machine resolves types, domains, and
     // services against these one catalogs.
     let (mut structural_types, type_ids, structural_referents) =
-        catalog::lower_unit_structural_types(identities, checked, plans, &closure, &boundaries)?;
+        phase_profile::scope("05.01.c_lower_structural_types", || {
+            catalog::lower_unit_structural_types(
+                identities,
+                checked,
+                &scalar_applications,
+                plans,
+                &closure,
+                &boundaries,
+                &scalar_applications.type_roots().collect::<Vec<_>>(),
+            )
+        })?;
     // Callable composed bodies borrow a complete shared catalog. Retain the
     // generated immutable carrier before cloning it into any callee emitter.
     for machine_symbol in &closure {
@@ -307,23 +337,29 @@ pub(crate) fn lower_unit_closure(
             }
         }
     }
-    let (structural_domains, domain_ids) = catalog::lower_unit_structural_domains(
-        identities,
-        checked,
-        plans,
-        &closure,
-        &boundaries,
-        &type_ids,
-        &structural_types,
-    )?;
-    let (services, service_ids) = catalog::lower_unit_services(
-        identities,
-        checked,
-        plans,
-        &closure,
-        &boundaries,
-        &provider_candidate_plans,
-    )?;
+    let (structural_domains, domain_ids) =
+        phase_profile::scope("05.01.d_lower_domains_and_services", || {
+            catalog::lower_unit_structural_domains(
+                identities,
+                checked,
+                plans,
+                &closure,
+                &boundaries,
+                &type_ids,
+                &structural_types,
+            )
+        })?;
+    let (services, service_ids) =
+        phase_profile::scope("05.01.d_lower_domains_and_services", || {
+            catalog::lower_unit_services(
+                identities,
+                checked,
+                plans,
+                &closure,
+                &boundaries,
+                &provider_candidate_plans,
+            )
+        })?;
     let root_service_reach = lower_root_service_reach(identities, checked, entry, &service_ids)?;
 
     let boundary_signatures = boundaries.iter().map(|(plan, _)| *plan).collect::<Vec<_>>();
@@ -331,43 +367,51 @@ pub(crate) fn lower_unit_closure(
         catalog::scalar_field_types(identities, checked, plans, &type_ids, &structural_types)?;
     // One scalar qualification namespace for every machine the closure
     // emits; every body's signature declares against it.
-    let qualification_bodies = admission::source_machines(&admitted_bodies);
-    let qualifications =
+    let qualifications = phase_profile::scope("05.01.e_prepare_qualifications", || {
         crate::expression_preparation::qualifications::PreparedScalarQualifications::prepare(
             identities,
             checked,
+            &scalar_applications,
             &[],
-            &qualification_bodies,
+            &call_catalog.source_machines,
             &boundary_signatures,
             &scalar_fields,
-        )?;
+        )
+    })?;
     // Signatures: boundary declarations, then each admitted body's formals,
     // claims and requirements, then every machine's Terminal identity.
     let mut next_place = 1_u64;
-    let (boundary_machines, lowered_boundary_parameters) = boundaries::lower_declarations(
-        identities,
-        checked,
-        exact_toolchain_sources,
-        &boundaries,
-        &qualifications,
-        &type_ids,
-        &structural_types,
-        &domain_ids,
-        &service_ids,
-        &mut next_place,
-    )?;
+    let (boundary_machines, lowered_boundary_parameters) =
+        phase_profile::scope("05.01.f_lower_signatures", || {
+            boundaries::lower_declarations(
+                identities,
+                checked,
+                &scalar_applications,
+                exact_toolchain_sources,
+                &boundaries,
+                &qualifications,
+                &type_ids,
+                &structural_types,
+                &domain_ids,
+                &service_ids,
+                &mut next_place,
+            )
+        })?;
     let mut next_value = 1_u64;
-    let machine_signatures = signatures::lower(
-        identities,
-        checked,
-        &admitted_bodies,
-        &qualifications,
-        &type_ids,
-        &domain_ids,
-        &structural_types,
-        &mut next_place,
-        &mut next_value,
-    )?;
+    let machine_signatures = phase_profile::scope("05.01.f_lower_signatures", || {
+        signatures::lower(
+            identities,
+            checked,
+            &scalar_applications,
+            &admitted_bodies,
+            &qualifications,
+            &type_ids,
+            &domain_ids,
+            &structural_types,
+            &mut next_place,
+            &mut next_value,
+        )
+    })?;
     let machine_ids = closure
         .iter()
         .enumerate()
@@ -415,7 +459,11 @@ pub(crate) fn lower_unit_closure(
     let mut next_call_obligation = TERMINAL_UNIT_CALL_OBLIGATION_BASE;
     let mut machines = Vec::with_capacity(closure.len());
     let mut occurrences = ClosureOccurrences::default();
+    let dynamic_dispatch = std::sync::Arc::new(
+        crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(checked),
+    );
     let catalog = ordinary_machine::ClosureCatalog {
+        scalar_applications: &scalar_applications,
         type_ids: &type_ids,
         domain_ids: &domain_ids,
         domain_declarations: &structural_domains,
@@ -428,6 +476,7 @@ pub(crate) fn lower_unit_closure(
         closure: &closure,
         provider_candidate_plans: &provider_candidate_plans,
         prepared_scalar_qualifications: &qualifications,
+        dynamic_dispatch: &dynamic_dispatch,
     };
     let mut scalar_qualification_coercions = Vec::new();
     for (signature, admitted) in machine_signatures.iter().zip(admitted_bodies) {
@@ -452,35 +501,39 @@ pub(crate) fn lower_unit_closure(
         } = admitted
         {
             let (machine, composed, mut invariants, mut coercions) =
-                composed_control::callable::emit(
-                    identities,
-                    checked,
-                    source_plan,
-                    admitted,
-                    parameters.clone(),
-                    scalar_parameters,
-                    composed_control::callable::SharedCatalog {
-                        structural_types: &structural_types,
-                        type_ids: &type_ids,
-                        domain_ids: &domain_ids,
-                        domain_declarations: &structural_domains,
-                        service_ids: &service_ids,
-                        boundary_parameters: &lowered_boundary_parameters,
-                        machine_ids: &machine_ids,
-                        signatures: &machine_signatures,
-                        scalar_requirement_counts: &scalar_requirement_counts,
-                        closure: &closure,
-                        prepared_scalar_qualifications: &qualifications,
-                    },
-                    composed_control::callable::EmissionCounters {
-                        place: &mut next_place,
-                        value: &mut next_value,
-                        block: &mut next_block,
-                        operation: &mut next_operation,
-                        edge: &mut next_edge,
-                        call_obligation: &mut next_call_obligation,
-                    },
-                )
+                phase_profile::scope("05.01.g1_emit_composed_body", || {
+                    composed_control::callable::emit(
+                        identities,
+                        checked,
+                        source_plan,
+                        admitted,
+                        parameters.clone(),
+                        scalar_parameters,
+                        composed_control::callable::SharedCatalog {
+                            scalar_applications: &scalar_applications,
+                            structural_types: &structural_types,
+                            type_ids: &type_ids,
+                            domain_ids: &domain_ids,
+                            domain_declarations: &structural_domains,
+                            service_ids: &service_ids,
+                            boundary_parameters: &lowered_boundary_parameters,
+                            machine_ids: &machine_ids,
+                            signatures: &machine_signatures,
+                            scalar_requirement_counts: &scalar_requirement_counts,
+                            closure: &closure,
+                            prepared_scalar_qualifications: &qualifications,
+                            dynamic_dispatch: &dynamic_dispatch,
+                        },
+                        composed_control::callable::EmissionCounters {
+                            place: &mut next_place,
+                            value: &mut next_value,
+                            block: &mut next_block,
+                            operation: &mut next_operation,
+                            edge: &mut next_edge,
+                            call_obligation: &mut next_call_obligation,
+                        },
+                    )
+                })
                 .map_err(attributed)?;
             occurrences
                 .quotient_adaptations
@@ -498,23 +551,25 @@ pub(crate) fn lower_unit_closure(
             continue;
         }
         let plan = body.ordinary()?;
-        let emitted = ordinary_machine::emit(
-            identities,
-            checked,
-            signature,
-            plan,
-            terminal_machine,
-            &mut structural_types,
-            catalog,
-            composed_control::callable::EmissionCounters {
-                place: &mut next_place,
-                value: &mut next_value,
-                block: &mut next_block,
-                operation: &mut next_operation,
-                edge: &mut next_edge,
-                call_obligation: &mut next_call_obligation,
-            },
-        )
+        let emitted = phase_profile::scope("05.01.g2_emit_ordinary_body", || {
+            ordinary_machine::emit(
+                identities,
+                checked,
+                signature,
+                plan,
+                terminal_machine,
+                &mut structural_types,
+                catalog,
+                composed_control::callable::EmissionCounters {
+                    place: &mut next_place,
+                    value: &mut next_value,
+                    block: &mut next_block,
+                    operation: &mut next_operation,
+                    edge: &mut next_edge,
+                    call_obligation: &mut next_call_obligation,
+                },
+            )
+        })
         .map_err(attributed)?;
         scalar_block_invariants.extend(emitted.scalar_block_invariants);
         scalar_qualification_coercions.extend(emitted.qualification_coercions);
@@ -535,16 +590,18 @@ pub(crate) fn lower_unit_closure(
         &type_ids,
         &machine_ids,
     )?;
-    let provider_candidates = providers::conformances(
-        identities,
-        checked,
-        exact_toolchain_sources,
-        &provider_candidate_plans,
-        &lowered_boundary_parameters,
-        &boundary_machines,
-        &machine_ids,
-        &machines,
-    )?;
+    let provider_candidates = phase_profile::scope("05.01.h_provider_conformances", || {
+        providers::conformances(
+            identities,
+            checked,
+            exact_toolchain_sources,
+            &provider_candidate_plans,
+            &lowered_boundary_parameters,
+            &boundary_machines,
+            &machine_ids,
+            &machines,
+        )
+    })?;
 
     let folded_constants = folded_constants::lower(
         checked,
@@ -628,7 +685,20 @@ pub(crate) fn lower_unit_closure(
         &machine_ids,
     )?;
     let lowered = LoweredPsi {
+        build_provider_requirements: Vec::new(),
         semantic_module: TerminalModule {
+            scalar_applications: scalar_applications.publish(
+                &type_ids,
+                &machine_ids,
+                &lowered_boundary_parameters,
+                scalar_applications::EmittedScalars {
+                    checked,
+                    identities,
+                    sources: exact_toolchain_sources,
+                    calls: &occurrences.source_calls,
+                    machines: &machines,
+                },
+            )?,
             folded_constants,
             indexed_theorems,
             mathematical_carriers,
@@ -642,7 +712,12 @@ pub(crate) fn lower_unit_closure(
             identities: identities.snapshot(),
             // The root may be a bodyless portable contract. Every family body
             // stays in the catalog; no target member stands in for its head.
-            entry: target_families::callable(entry, &machine_ids, &lowered_boundary_parameters)?,
+            entry: entry
+                .is_valid()
+                .then(|| {
+                    target_families::callable(entry, &machine_ids, &lowered_boundary_parameters)
+                })
+                .transpose()?,
             structural_types,
             structural_referents,
             structural_domains,
@@ -653,6 +728,7 @@ pub(crate) fn lower_unit_closure(
             placement_lifecycle_plans: Vec::new(),
             reborrow_restored_call_uses: Vec::new(),
             boundary_machines,
+            external_providers: Vec::new(),
             provider_candidates,
             dynamic_dispatch: Default::default(),
             quotients: quotient_catalog,

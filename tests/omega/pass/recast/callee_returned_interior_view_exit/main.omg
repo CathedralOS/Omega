@@ -23,7 +23,7 @@ machine Source::packed_middle(source: &Source) -> Envelope {
 
 machine Source::forward_middle(source: &Source) -> &Header {
     transition { _ -> next(source) }
-    state next(source: &Source) { Source::middle_direct(source) }
+    machine next(source: &Source) -> &Header { Source::middle_direct(source) }
 }
 
 machine View::middle(view: &View) -> &Header { &view.middle }
@@ -52,8 +52,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

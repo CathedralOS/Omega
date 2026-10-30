@@ -12,6 +12,6 @@ machine start() crashes Trap {
     let value: Gate<2> = choose(true);
     let code: u8 = Gate::read(&value);
     transition code == 0u8 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

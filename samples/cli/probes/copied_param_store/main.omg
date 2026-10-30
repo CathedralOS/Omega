@@ -26,8 +26,8 @@ machine Kind::tag(kind: Kind) -> u64 in Trapping {
         _ -> two()
     }
 
-    state one() -> u64 in Trapping { 1 }
-    state two() -> u64 in Trapping { 2 }
+    machine one() -> u64 in Trapping { 1 }
+    machine two() -> u64 in Trapping { 2 }
 }
 
 machine Item::promoted(item: Item) -> Item {
@@ -49,8 +49,8 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

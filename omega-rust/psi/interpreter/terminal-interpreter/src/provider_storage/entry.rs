@@ -4,6 +4,7 @@
 //! add a qualification or establish resident content.
 
 use super::{ProviderByteAllocation, ProviderStorageBinding, ProviderStorageSlot};
+use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
 use crate::values::{StructuralRuntimePlace, StructuralScalarRuntimeField, TerminalScalarValue};
 use access_plans::AdmittedResourceProfile;
@@ -112,12 +113,15 @@ impl TerminalExecution<'_> {
         if binding.offset != 0 || binding.length != allocation.extent().length() {
             return Err("provider storage handback does not own its complete allocation".into());
         }
-        if !self.provider_storage_geometry_matches(
-            &home,
-            storage,
-            allocation.extent().base(),
-            allocation.extent().length(),
-        ) {
+        if !self
+            .provider_storage_geometry_matches(
+                &home,
+                storage,
+                allocation.extent().base(),
+                allocation.extent().length(),
+            )
+            .map_err(|error| error.to_string())?
+        {
             return Err("provider storage handback changed the bound extent geometry".into());
         }
         let handle = binding.allocation;
@@ -187,19 +191,22 @@ impl TerminalExecution<'_> {
         storage: &terminal_psi::TerminalPlacementStorage,
         base: u64,
         length: u64,
-    ) -> bool {
-        let integer = |field| {
-            self.structural_scalar_fields
+    ) -> Result<bool, TerminalInterpretError> {
+        let integer = |field| -> Result<Option<u64>, TerminalInterpretError> {
+            let value = self
+                .structural_scalar_fields
                 .get(&StructuralScalarRuntimeField::member(home.clone(), field))
-                .and_then(|value| match value {
-                    TerminalScalarValue::Integer {
-                        value: semantic_vocabulary::IntegerValue::Unsigned(value),
-                        ..
-                    } => u64::try_from(*value).ok(),
-                    _ => None,
-                })
+                .map(crate::scalar_storage::ScalarCell::read)
+                .transpose()?;
+            Ok(match value {
+                Some(TerminalScalarValue::Integer {
+                    value: semantic_vocabulary::IntegerValue::Unsigned(value),
+                    ..
+                }) => u64::try_from(value).ok(),
+                _ => None,
+            })
         };
-        integer(storage.base) == Some(base) && integer(storage.length) == Some(length)
+        Ok(integer(storage.base)? == Some(base) && integer(storage.length)? == Some(length))
     }
 
     /// Supply actual backing after ordinary entry binding and before execution.
@@ -373,12 +380,15 @@ impl TerminalExecution<'_> {
         {
             return Err("provider storage entry has no exact live ownership claim".into());
         }
-        if !self.provider_storage_geometry_matches(
-            &home,
-            storage,
-            input.extent.base(),
-            input.extent.length(),
-        ) {
+        if !self
+            .provider_storage_geometry_matches(
+                &home,
+                storage,
+                input.extent.base(),
+                input.extent.length(),
+            )
+            .map_err(|error| error.to_string())?
+        {
             return Err("provider storage differs from the actual entry geometry".into());
         }
         let loan = input

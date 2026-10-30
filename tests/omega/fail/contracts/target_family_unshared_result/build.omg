@@ -1,4 +1,12 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "target_family_unshared_result");
-    Build::select_provider<Reports, ForwardedReports>(builder);
+    Build::select_provider<Reports, ForwardedReports>(builder, linux_arm64);
+    Build::select_provider<Reports, ForwardedReports>(builder, linux_x86_64);
+    Build::select_provider<Reports, ForwardedReports>(builder, macos_arm64);
+    Build::select_provider<Reports, ForwardedReports>(builder, macos_x86_64);
+    Build::select_provider<Reports, ForwardedReports>(builder, windows_x86_64);
+    Build::select_provider<Reports, ForwardedReports>(builder, uefi_x86_64);
+    Build::select_provider<Reports, ForwardedReports>(builder, cross_platform_cli);
+    Build::select_provider<Reports, ForwardedReports>(builder, local_unchecked);
+    Build::select_provider<Reports, ForwardedReports>(builder, alpha_bootstrap);
 }

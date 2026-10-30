@@ -17,7 +17,7 @@ machine Main::main(main: &mut Main) reaches MachineControl {
     asm where clobbers x9, x10, x11, x15 { write_tpidr_el1 value; }
     main.value = read_thread();
     transition { _ -> next(main, value) }
-    state next(main: &mut Main, value: u64) {
+    machine next(main: &mut Main, value: u64) {
         write_thread(value);
         asm where clobbers x9, x10, x11, x15 {
             write_tpidr_el1 identity(main.value);

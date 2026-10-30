@@ -7,10 +7,11 @@
 use terminal_psi::{
     ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
     ProviderSignature, ProviderSignatureParameter, StructuralDomainRequirement,
-    StructuralMultiplicity,
 };
 
 use super::CodecError;
+use super::structural_place_wire::{decode_qualification_path, encode_qualification_path};
+use super::structural_result_wire::{decode_multiplicity, encode_multiplicity};
 use super::structural_signature_wire::{
     decode_projected_qualifications, decode_structural_access, encode_projected_qualifications,
     encode_service_ceiling, encode_structural_access,
@@ -50,11 +51,7 @@ pub(crate) fn encode_provider_candidate(
     for parameter in &candidate.signature.parameters {
         writer.u32(parameter.position);
         writer.id(parameter.structural_type);
-        writer.u8(match parameter.multiplicity {
-            StructuralMultiplicity::Unrestricted => 1,
-            StructuralMultiplicity::Affine => 2,
-            StructuralMultiplicity::Linear => 3,
-        });
+        encode_multiplicity(writer, parameter.multiplicity);
         encode_structural_access(writer, parameter.access);
         writer.len(
             "provider signature qualifications",
@@ -79,6 +76,7 @@ pub(crate) fn encode_provider_candidate(
     )?;
     for requirement in &candidate.refinement.required_domains {
         writer.u32(requirement.argument_index);
+        encode_qualification_path(writer, &requirement.path)?;
         writer.id(requirement.domain);
     }
     encode_service_ceiling(writer, &candidate.refinement.realized_service_ceiling)
@@ -111,12 +109,7 @@ pub(crate) fn decode_provider_candidate(
     let parameters = decode_counted(reader, |reader| {
         let position = reader.u32()?;
         let structural_type = reader.id("StructuralTypeId")?;
-        let multiplicity = match reader.u8()? {
-            1 => StructuralMultiplicity::Unrestricted,
-            2 => StructuralMultiplicity::Affine,
-            3 => StructuralMultiplicity::Linear,
-            tag => return Err(CodecError::InvalidTag("StructuralMultiplicity", tag)),
-        };
+        let multiplicity = decode_multiplicity(reader)?;
         Ok(ProviderSignatureParameter {
             position,
             structural_type,
@@ -135,6 +128,7 @@ pub(crate) fn decode_provider_candidate(
     let required_domains = decode_counted(reader, |reader| {
         Ok(StructuralDomainRequirement {
             argument_index: reader.u32()?,
+            path: decode_qualification_path(reader)?,
             domain: reader.id("StructuralDomainId")?,
         })
     })?;

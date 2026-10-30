@@ -64,12 +64,9 @@ pub(crate) fn compute_terminal_fixed_view_copies(
         evidence.usage,
         work_usage(selected, &evidence.boundaries, policy)?,
     )?;
-    if !usage.within(budget) {
-        return Err(FixedViewCopyError::BudgetExceeded {
-            required: usage,
-            budget,
-        });
-    }
+    crate::work_accounting::admit(usage, budget, |required, budget| {
+        FixedViewCopyError::BudgetExceeded { required, budget }
+    })?;
 
     let mut transformed = selected.plan().clone();
     let mut copies = Vec::new();

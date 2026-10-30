@@ -4,8 +4,8 @@ data Main { cells: [Cell; 2]; }
 machine read(value: &u8) -> u8 { value }
 machine verify(value: &u8) crashes Trap {
     transition value == 1 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine select(index: u64, main: &mut Main) -> u8 crashes Trap
 requires index < 2
@@ -27,8 +27,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

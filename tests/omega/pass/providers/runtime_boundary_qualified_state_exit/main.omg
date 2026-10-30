@@ -23,50 +23,50 @@ machine Main::main(context: &mut Main) reaches Grant crashes Trap {
     through_inline_result();
     let root: Root = Grant::grant(Root { value: 42 });
     transition { _ -> consume(root) }
-    state consume(root: Root in Granted) {
+    machine consume(root: Root in Granted) {
         let value: u64 = root.value;
         drop(root);
         transition value == 42 { true -> done() _ -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 machine through_parameter(root: Root)
 requires root in Root::Granted
 crashes Trap {
     transition { _ -> consume(root) }
-    state consume(root: Root in Granted) {
+    machine consume(root: Root in Granted) {
         let value: u64 = root.value;
         drop(root);
         transition value == 42 { true -> done() _ -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 data Holder { root: Root in Granted; }
 machine through_field() reaches Grant crashes Trap {
     let holder: Holder = Holder { root: Grant::grant(Root { value: 42 }) };
     transition { _ -> consume(holder.root) }
-    state consume(root: Root in Granted) {
+    machine consume(root: Root in Granted) {
         let value: u64 = root.value;
         drop(root);
         transition value == 42 { true -> done() _ -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 machine through_inline_result() reaches Grant crashes Trap {
     transition { _ -> consume(Grant::grant(Root { value: 42 })) }
-    state consume(root: Root in Granted) {
+    machine consume(root: Root in Granted) {
         let value: u64 = root.value;
         drop(root);
         transition value == 42 { true -> done() _ -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

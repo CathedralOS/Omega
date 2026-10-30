@@ -21,9 +21,7 @@ use crate::execution::terminal_unit::StateParameter;
 use crate::execution::terminal_unit::StatementNode;
 use crate::execution::terminal_unit::SymbolHandle;
 
-use crate::execution::terminal_unit::calls::argument_paths::{
-    projected_argument_path_for_identity, projected_evaluated_path,
-};
+use crate::execution::terminal_unit::calls::argument_paths::projected_evaluated_path;
 use crate::execution::terminal_unit::calls::argument_presentation::ArgumentPresentation;
 use crate::execution::terminal_unit::calls::structural_arguments::exact_structural_argument_access;
 
@@ -39,6 +37,7 @@ pub(crate) use reference::{
 #[allow(clippy::too_many_arguments)]
 pub(super) fn argument(
     program: &dyn ::validation::CheckingInput,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -58,6 +57,7 @@ pub(super) fn argument(
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let mut argument = argument_contract(
         program,
+        shapes,
         facts,
         machine,
         state,
@@ -92,6 +92,7 @@ pub(super) fn argument(
 #[allow(clippy::too_many_arguments)]
 fn argument_contract(
     program: &dyn ::validation::CheckingInput,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -193,6 +194,7 @@ fn argument_contract(
             parameter,
             target_identity,
             trace,
+            selectors,
         );
     }
     // Anonymous producers publish the same stored descriptor as named locals.
@@ -247,6 +249,7 @@ fn argument_contract(
                 parameter,
                 target_identity,
                 trace,
+                selectors,
             );
         }
     }
@@ -423,13 +426,22 @@ fn argument_contract(
             }
                 Some(path)
             } else {
-                projected_argument_path_for_identity(
+                phase("call result argument: owned projected storage");
+                // Owned projection keeps its checked selector evaluation just
+                // like a loan. Custody is joined independently below; a
+                // static-only path reader cannot present a completed index.
+                projected_evaluated_path(
                     program,
+                    machine,
                     state,
                     call.statement_index,
                     place,
-                    target_identity,
+                    selectors,
                 )
+                .and_then(|(selected, path)| {
+                    (base_type_identity(program, selected, &[], &[])? == target_identity)
+                        .then_some(path)
+                })
             }
         } else {
             None
@@ -498,6 +510,7 @@ fn argument_contract(
         // when publication retains a reference descriptor.
         let argument = super::computation_arguments::borrowed_storage_argument(
             program,
+            shapes,
             &facts.borrow,
             machine,
             source_state,
@@ -542,6 +555,7 @@ fn argument_contract(
             return None;
         }
         return Some(CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
             source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal: result.binding_ordinal,
             },
@@ -648,6 +662,7 @@ fn argument_contract(
                 && matches!(place.root, facts::PlaceRoot::Expression(_))
             {
                 return Some(CheckedUnitStructuralArgumentPlan {
+                    projection_evaluations: Default::default(),
                     source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal: result.binding_ordinal,
                     },
@@ -708,7 +723,12 @@ fn argument_contract(
         || if access == CheckedStructuralAccess::Owned {
             result.type_identity == target_identity
         } else {
-            result_presents(base_type_identity(program, referent, &[], &[])?)
+            result_presents(validation::stored_structural_type_identity(
+                program,
+                referent,
+                &[],
+                &[],
+            ))
         };
     // Only owned transfer carries the selected storage's disposal obligation.
     // A loan retains its owner's custody; its source/formal presentation and
@@ -872,6 +892,7 @@ fn argument_contract(
     // A borrowed referent has no owned-ingress permission rows to replay:
     // its extraction operation relocates custody into this same result slot.
     Some(CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         },

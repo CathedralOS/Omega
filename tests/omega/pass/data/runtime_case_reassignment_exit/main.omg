@@ -27,11 +27,11 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main, 72)
     }
 
-    state done(main: &mut Main, speed: i32) {
+    machine done(main: &mut Main, speed: i32) {
         Console::exit_process(speed);
     }
 
-    state bad(main: &mut Main, code: i32) {
+    machine bad(main: &mut Main, code: i32) {
         Console::exit_process(code);
     }
 }

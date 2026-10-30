@@ -14,6 +14,7 @@ mod entry_guards;
 mod entry_requirements;
 mod operation_sites;
 mod source_fallthrough;
+use source_fallthrough::SourceCrashPaths;
 
 /// A crash transition is recorded unconditionally at its site: contract exits,
 /// returned values, and state joins attach only to `Ordinary` exits, and the
@@ -162,8 +163,8 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
         // arrives. That is the point where current storage can still be
         // related to the invocation-entry operand a published route names.
         let eval_sites = entry_guards::guard_eval_sites(program, machine);
-        let source_fallthrough =
-            source_fallthrough::collect(program, machine, &parameter_names, &content_conservation);
+        let source_paths =
+            SourceCrashPaths::new(program, machine, &parameter_names, &content_conservation);
         let entry_requirements = entry_requirements::collect(
             program,
             machine,
@@ -226,9 +227,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
             .map(|site| {
                 let mut covering = site.guard_covering_buckets().to_vec();
                 let classification = &state_classifications[&site.location().state()];
-                let fallthrough = source_fallthrough
-                    .iter()
-                    .find(|fallthrough| fallthrough.location == site.location());
+                let fallthrough = source_paths.at_site(site.location());
                 let (path_guard_conjuncts, mut path_predicates) = site_path_classification(
                     program,
                     classification,
@@ -282,31 +281,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
             .iter()
             .map(|call| {
                 let classification = &state_classifications[&call.location().state()];
-                // Calls inherit earlier unselected-arm facts and their own
-                // selected target's guard, but never assume a guard while
-                // evaluating it. Each leaf must retain entry provenance.
-                let fallthrough = source_fallthrough.iter().find(|fallthrough| {
-                    fallthrough.location.state() == call.location().state()
-                        && fallthrough.location.statement_ordinal()
-                            == call.location().statement_ordinal()
-                });
-                let mut guards = fallthrough
-                    .map(|site| site.guards.clone())
-                    .unwrap_or_default();
-                guards.extend(source_fallthrough::selected_call_guards(
-                    program,
-                    machine,
-                    call.location(),
-                    &parameter_names,
-                    &content_conservation,
-                ));
-                let call_path = source_fallthrough::SiteFallthrough {
-                    location: checked_trees::CrashSiteLocation::new(
-                        call.location().state(),
-                        call.location().statement_ordinal(),
-                    ),
-                    guards,
-                };
+                let call_path = source_paths.at_call(call.location());
                 let (path_guard_conjuncts, path_guard_consequences) = site_path_classification(
                     program,
                     classification,
@@ -327,9 +302,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
         if crash_plan.interface() == checked_trees::CrashInterface::PublishedCeiling {
             for operation in operations {
                 let classification = &state_classifications[&operation.location.state()];
-                let fallthrough = source_fallthrough
-                    .iter()
-                    .find(|fallthrough| fallthrough.location == operation.location);
+                let fallthrough = source_paths.at_site(operation.location);
                 let (_, consequences) = site_path_classification(
                     program,
                     classification,
@@ -513,6 +486,7 @@ fn site_path_classification(
     let mut path_guard_consequences = entry_requirements.consequences.clone();
     path_guard_consequences.extend(classification.consequences.iter().cloned());
     if let Some(fallthrough) = fallthrough {
+        path_guard_consequences.extend(fallthrough.entry_value_consequences.iter().cloned());
         let mut order_relations = classification.order_relations.clone();
         let mut integer_disequalities = classification.disequalities.clone();
         for &(guard, negated) in &fallthrough.guards {
@@ -652,7 +626,10 @@ pub(crate) fn check_published_ceiling_coverage(
     }
 }
 
-fn call_route_guard_covers(
+/// Compare one surviving route with a permitted alternative. Invocation callers
+/// may supply consequences from their exact path; universal callable refinement
+/// supplies none and cannot narrow a contract using its selecting call's values.
+pub(crate) fn call_route_guard_covers(
     published: &CrashRouteGuard,
     surviving: &CrashRouteGuard,
     path_guard_consequences: &[checked_trees::CrashPredicateIdentity],
@@ -968,9 +945,7 @@ fn collect_normalized_integer_order_relation(
             right,
             strict,
         };
-        if !output.contains(&relation) {
-            output.push(relation);
-        }
+        crate::collections::push_unique(&mut *output, relation);
     };
     match normalized {
         BinaryOperator::Less => push(left, right, true),
@@ -993,9 +968,7 @@ fn collect_normalized_integer_order_relation(
                 left_identity,
                 right_identity,
             };
-            if !disequalities.contains(&disequality) {
-                disequalities.push(disequality);
-            }
+            crate::collections::push_unique(&mut *disequalities, disequality);
         }
         _ => unreachable!("normalized comparisons use only comparison operators"),
     }
@@ -1026,9 +999,7 @@ fn push_transitive_integer_order_consequences(
         })
         .collect::<Vec<_>>();
     for refinement in strict_refinements {
-        if !relations.contains(&refinement) {
-            relations.push(refinement);
-        }
+        crate::collections::push_unique(&mut *relations, refinement);
     }
 
     loop {

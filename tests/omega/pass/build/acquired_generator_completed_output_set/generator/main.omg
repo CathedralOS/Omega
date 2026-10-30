@@ -1,9 +1,1 @@
 public machine generated_value() -> i32 { 7 }
-
-public machine generate_companion(template: &[u8; 6]) -> [u8; 6] {
-    [template[0], template[1], template[2], template[3], template[4], template[5]]
-}
-
-public machine generate_declaration() -> [u8; 34] {
-    "public const GENERATED: u32 = 73;\n"
-}

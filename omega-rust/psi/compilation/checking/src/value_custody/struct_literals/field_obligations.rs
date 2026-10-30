@@ -50,6 +50,7 @@ pub(super) fn enforce_construction_field_obligations(
     diagnostics: &mut Vec<Diagnostic>,
     stored_integer_writes: &mut Vec<checked_trees::CheckedStoredIntegerWrite>,
     statement_index: usize,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let type_name = literal.type_name.as_str();
     let Some(data_definition) = selected_construction_definition(program, expression, literal)
@@ -125,6 +126,7 @@ pub(super) fn enforce_construction_field_obligations(
             field.value,
             field_type,
             diagnostics,
+            formation_obligations,
         );
         // Cross-class guard: a `bool`/text value stored into a numeric field (or
         // vice versa) at construction is a silent miscompile, exactly as at the
@@ -195,7 +197,7 @@ pub(super) fn enforce_construction_field_obligations(
         ) {
             continue;
         }
-        let scalar = scalar_values::validate(
+        let writes = scalar_values::validate_scalar_receiving(
             program,
             machine,
             state,
@@ -204,67 +206,78 @@ pub(super) fn enforce_construction_field_obligations(
             field_type,
             &slot_context,
             diagnostics,
-        );
-        if let Some(scalar) = scalar.as_ref() {
-            stored_integer_writes.extend(stored_integers::validate_construction(
-                program,
-                machine,
-                state,
-                expression,
-                literal,
-                field,
-                scalar,
-                &slot_context,
-                diagnostics,
-                statement_index,
-            ));
-        }
-        let Some(range) = crate::proof_contracts::arithmetic_domains::range_constraint_interval(
-            program, field_type,
-        ) else {
-            continue;
-        };
-        let bounds = format!(
-            "{}..={}",
-            range.low().map(|low| low.to_string()).unwrap_or_default(),
-            range
-                .high()
-                .map(|high| high.to_string())
-                .unwrap_or_default(),
-        );
-        match construction_field_literal(program, field.value) {
-            Some(value) => {
-                let below = range.low().is_some_and(|low| value < low);
-                let above = range.high().is_some_and(|high| value > high);
-                if below || above {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "construction of `{type_name}` field `{}`: value {value} is outside its declared range `{bounds}`",
-                        field.name.as_str()
-                    )));
+            formation_obligations,
+            |scalar, diagnostics| {
+                let mut writes = Vec::new();
+                if let Some(scalar) = scalar {
+                    writes.extend(stored_integers::validate_construction(
+                        program,
+                        machine,
+                        state,
+                        expression,
+                        literal,
+                        field,
+                        scalar,
+                        &slot_context,
+                        diagnostics,
+                        statement_index,
+                    ));
                 }
-            }
-            None => {
-                // Arithmetic and semantic landing were checked once above.
-                // Refined fields and physical encodings consume the same value
-                // observed before later sibling effects.
-                let Some(scalar) = scalar.as_ref() else {
-                    continue;
+                let Some(range) =
+                    crate::proof_contracts::arithmetic_domains::range_constraint_interval(
+                        program, field_type,
+                    )
+                else {
+                    return writes;
                 };
-                let interval = scalar.interval;
-                let provably_in_range = range
-                    .low()
-                    .is_none_or(|low| interval.low().is_some_and(|value_low| value_low >= low))
-                    && range.high().is_none_or(|high| {
-                        interval.high().is_some_and(|value_high| value_high <= high)
-                    });
-                if !provably_in_range {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "construction of `{type_name}` field `{}` cannot be proven within its declared range `{bounds}`; constrain the value, construct with a literal in range, or widen the field",
-                        field.name.as_str()
-                    )));
+                let format_bounds = || {
+                    format!(
+                        "{}..={}",
+                        range.low().map(|low| low.to_string()).unwrap_or_default(),
+                        range
+                            .high()
+                            .map(|high| high.to_string())
+                            .unwrap_or_default(),
+                    )
+                };
+                match construction_field_literal(program, field.value) {
+                    Some(value) => {
+                        let below = range.low().is_some_and(|low| value < low);
+                        let above = range.high().is_some_and(|high| value > high);
+                        if below || above {
+                            let bounds = format_bounds();
+                            diagnostics.push(Diagnostic::error(format!(
+                                "construction of `{type_name}` field `{}`: value {value} is outside its declared range `{bounds}`",
+                                field.name.as_str()
+                            )));
+                        }
+                    }
+                    None => {
+                        // Arithmetic and semantic landing share this scalar judgment.
+                        // Refined fields and physical encodings consume the same value
+                        // observed before later sibling effects.
+                        let Some(scalar) = scalar else {
+                            return writes;
+                        };
+                        let interval = scalar.interval;
+                        let provably_in_range = range.low().is_none_or(|low| {
+                            interval.low().is_some_and(|value_low| value_low >= low)
+                        }) && range.high().is_none_or(|high| {
+                            interval.high().is_some_and(|value_high| value_high <= high)
+                        });
+                        if !provably_in_range {
+                            let bounds = format_bounds();
+                            diagnostics.push(Diagnostic::error(format!(
+                                "construction of `{type_name}` field `{}` cannot be proven within its declared range `{bounds}`; constrain the value, construct with a literal in range, or widen the field",
+                                field.name.as_str()
+                            )));
+                        }
+                    }
                 }
-            }
-        }
+                writes
+            },
+        );
+        stored_integer_writes.extend(writes);
     }
 }
 
@@ -280,6 +293,7 @@ pub(crate) fn validate_array_literal_elements(
     value: ExpressionHandle,
     expected_type: TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let observations = ConstructionObservations::new(program, machine, state, value);
     check_array_literal_elements(
@@ -290,6 +304,7 @@ pub(crate) fn validate_array_literal_elements(
         value,
         expected_type,
         diagnostics,
+        formation_obligations,
     );
 }
 
@@ -301,6 +316,7 @@ pub(crate) fn validate_array_literal_elements_for_shape(
     element_type: TypeReferenceHandle,
     expected_len: Option<usize>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let observations = ConstructionObservations::new(program, machine, state, value);
     check_array_literal_elements_for_shape(
@@ -312,6 +328,7 @@ pub(crate) fn validate_array_literal_elements_for_shape(
         element_type,
         expected_len,
         diagnostics,
+        formation_obligations,
     );
 }
 
@@ -330,6 +347,7 @@ fn check_array_literal_elements(
     value: ExpressionHandle,
     expected_type: TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     if let Some(dispatch) = program.expression_table.match_node(value) {
         for arm in program.expression_table.match_arms(dispatch.arms) {
@@ -341,6 +359,7 @@ fn check_array_literal_elements(
                 arm.value,
                 expected_type,
                 diagnostics,
+                formation_obligations,
             );
         }
         return;
@@ -363,6 +382,7 @@ fn check_array_literal_elements(
             borrow.target,
             *referee,
             diagnostics,
+            formation_obligations,
         );
         return;
     }
@@ -391,6 +411,7 @@ fn check_array_literal_elements(
         element_type,
         expected_len,
         diagnostics,
+        formation_obligations,
     );
 }
 
@@ -407,6 +428,7 @@ fn check_array_literal_elements_for_shape(
     element_type: TypeReferenceHandle,
     expected_len: Option<usize>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let Some(elements) = program.expression_table.array_literal_node(value) else {
         return;
@@ -493,7 +515,7 @@ fn check_array_literal_elements_for_shape(
                     )));
                     continue;
                 }
-                let Some(scalar) = scalar_values::validate(
+                scalar_values::validate_scalar_receiving(
                     program,
                     machine,
                     state,
@@ -502,21 +524,25 @@ fn check_array_literal_elements_for_shape(
                     element_type,
                     &owner,
                     diagnostics,
-                ) else {
-                    continue;
-                };
-                // Closed receiving bounds belong to the bounded-initializer
-                // obligations, including values beyond the i64 analysis
-                // interval. Symbolic endpoints consume this exact environment.
-                crate::proof_contracts::arithmetic_domains::enforce_symbolic_range(
-                    program,
-                    machine,
-                    Some(state),
-                    element_type,
-                    *element,
-                    &scalar.environment,
-                    &owner,
-                    diagnostics,
+                    formation_obligations,
+                    |scalar, diagnostics| {
+                        let Some(scalar) = scalar else {
+                            return;
+                        };
+                        // Closed receiving bounds belong to the bounded-initializer
+                        // obligations, including values beyond the i64 analysis
+                        // interval. Symbolic endpoints consume this exact environment.
+                        crate::proof_contracts::arithmetic_domains::enforce_symbolic_range(
+                            program,
+                            machine,
+                            Some(state),
+                            element_type,
+                            *element,
+                            &scalar.environment,
+                            &owner,
+                            diagnostics,
+                        );
+                    },
                 );
             }
         }
@@ -541,6 +567,7 @@ fn check_array_literal_elements_for_shape(
                     *element,
                     element_type,
                     diagnostics,
+                    formation_obligations,
                 );
             }
         }
@@ -608,16 +635,39 @@ pub(crate) fn construction_application(
     let required = program
         .expression_table
         .construction_required_type_reference(expression);
+    let constructed = program
+        .expression_table
+        .constructed_value_type_reference(expression);
     if required.is_valid() {
-        required
-    } else {
-        program
-            .expression_table
-            .constructed_value_type_reference(expression)
+        return required;
     }
+    if constructed.is_valid() {
+        return constructed;
+    }
+    for occurrence in program
+        .expression_table
+        .authored_selection_occurrences(expression)
+    {
+        if let Some(selection) = program.authored_declaration_selections().get(occurrence) {
+            // Initializer roots retain their complete dependency inventory.
+            // Only this occurrence's selection supplies its carrier; a nested
+            // constant operand cannot select the enclosing constructor's type.
+            if selection.source_span() != program.expression_table.source_span(expression) {
+                continue;
+            }
+            if let Some(selected) = selection.target().as_resolved() {
+                if let Some(declaration) =
+                    program.const_declaration_by_symbol(selected.selected_symbol())
+                {
+                    return declaration.declared_type;
+                }
+            }
+        }
+    }
+    TypeReferenceHandle::invalid()
 }
 
-pub(super) fn selected_construction_definition<'a>(
+pub fn selected_construction_definition<'a>(
     program: &'a dyn crate::CheckingInput,
     expression: ExpressionHandle,
     literal: &TableStructLiteral,
@@ -630,7 +680,7 @@ pub(super) fn selected_construction_definition<'a>(
     construction_members_are_concrete(program, definition).then_some(definition)
 }
 
-pub(super) fn selected_construction_case<'a>(
+pub fn selected_construction_case<'a>(
     program: &'a dyn crate::CheckingInput,
     expression: ExpressionHandle,
     literal: &TableStructLiteral,
@@ -679,7 +729,7 @@ pub fn selected_construction_field_type(
         .map(|field| field.type_reference)
 }
 
-pub(crate) fn selected_construction_field<'a>(
+pub fn selected_construction_field<'a>(
     program: &'a dyn crate::CheckingInput,
     expression: ExpressionHandle,
     literal: &TableStructLiteral,

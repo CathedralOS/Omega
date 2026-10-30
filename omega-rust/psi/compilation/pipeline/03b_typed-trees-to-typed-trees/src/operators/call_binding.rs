@@ -102,10 +102,10 @@ pub(crate) fn bind_selected_operator_calls(
     {
         return Ok(0);
     }
-    // Binding reads the operator uses and their candidates only.
+    // Binding reads the operator, named and named-requirement uses with their
+    // candidates only.
     let values = validation::collect_executable_value_origins(program, roots);
     let mut facts = validation::build_operator_uses(program, &values);
-    let named = validation::collect_named_requirement_uses(program, &values);
     // A domain-homed binding (`machine + Quantity::Additive::add`) is a
     // `DomainPending` candidate until binding-site selection settles it. That
     // selection reads only static operand qualifications, mints, and
@@ -231,27 +231,30 @@ pub(crate) fn bind_selected_operator_calls(
     // specializing first changes the diagnostic leaf but not the authored
     // qualifier. The ordinary call edge, not closedness, owns this decision.
     let mut named_targets = Vec::new();
-    for (_, value) in values.values.iter() {
-        expressions.clear();
-        validation::expression_traversal::collect_expression_tree(
-            program,
-            value.expression,
-            &mut expressions,
-        );
-        for expression in expressions.iter().copied() {
-            let Some(call) = program.expression_table.call_node(expression) else {
-                continue;
-            };
-            let owner = program
-                .machine_holding_state(call.target_symbol)
-                .or_else(|| program.machine_by_symbol(call.target_symbol));
-            if let Some(owner) = owner
-                && program
-                    .machine_token_binding_by_symbol(owner.symbol)
-                    .is_some()
-                && !named_targets.contains(&(expression, owner.symbol))
-            {
-                named_targets.push((expression, owner.symbol));
+    if !program.machine_token_bindings().is_empty() {
+        let mut seen_named = HashSet::with_hasher(symbols::BuildSymbolHasher);
+        for (_, value) in values.values.iter() {
+            expressions.clear();
+            validation::expression_traversal::collect_expression_tree(
+                program,
+                value.expression,
+                &mut expressions,
+            );
+            for expression in expressions.iter().copied() {
+                let Some(call) = program.expression_table.call_node(expression) else {
+                    continue;
+                };
+                let owner = program
+                    .machine_holding_state(call.target_symbol)
+                    .or_else(|| program.machine_by_symbol(call.target_symbol));
+                if let Some(owner) = owner
+                    && program
+                        .machine_token_binding_by_symbol(owner.symbol)
+                        .is_some()
+                    && seen_named.insert((expression, owner.symbol))
+                {
+                    named_targets.push((expression, owner.symbol));
+                }
             }
         }
     }
@@ -263,7 +266,8 @@ pub(crate) fn bind_selected_operator_calls(
         .named_uses()
         .map(|fact| (fact.expression, fact.selected_operator_symbol))
         .chain(
-            named
+            facts
+                .named_requirement_uses
                 .iter()
                 .map(|(_, fact)| (fact.expression, fact.requirement_symbol)),
         )
@@ -398,6 +402,8 @@ pub(crate) fn bind_selected_operator_calls(
         };
         *program.expression_table.expression_mut(expression) =
             ExpressionNode::Call(TableCallExpression {
+ authored_call_selection: None,
+ authored_call_binding: None,
                 authored_machine_application: Default::default(),
                 requirement_application: Default::default(),
                 exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
@@ -411,7 +417,7 @@ pub(crate) fn bind_selected_operator_calls(
                 private_layout_operation: None,
                 layout_query: None,
                     native_code_layout: None,
-                    root_binding: Default::default(),
+                    build_selection: Default::default(),
                 arguments,
                 evidence_arguments: Box::default(),
                 operational_acknowledgement: language_semantics::CallOperationalAcknowledgement {
@@ -551,6 +557,8 @@ fn rewrite_match_equality(
         let call = program
             .expression_table
             .insert(ExpressionNode::Call(TableCallExpression {
+            authored_call_selection: None,
+            authored_call_binding: None,
             authored_machine_application: Default::default(),
             requirement_application: Default::default(),
             exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
@@ -564,7 +572,7 @@ fn rewrite_match_equality(
             private_layout_operation: None,
             layout_query: None,
             native_code_layout: None,
-            root_binding: Default::default(),
+            build_selection: Default::default(),
             arguments,
             evidence_arguments: Box::default(),
             operational_acknowledgement: language_semantics::CallOperationalAcknowledgement {
@@ -730,6 +738,7 @@ fn selected_call_target(
                     }),
                 dispatch: Some(StaticRequirementDispatch {
                     selection_application: Default::default(),
+                    evidence_parameter: SymbolHandle::invalid(),
                     application_report_fingerprint: meaning.application.report_fingerprint,
                     application_commitment: meaning.application.commitment,
                     declaring_trait: meaning.row.declaring_trait,

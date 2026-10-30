@@ -12,7 +12,7 @@ machine consume(value: Holder) {
         Slot::Empty -> done()
         Slot::Held { token } -> drop(token)
     }
-    state done() {}
+    machine done() {}
 }
 
 machine main() {

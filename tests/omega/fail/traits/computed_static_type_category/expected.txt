@@ -1,1 +1,2 @@
-call `entry` has an invalid static type argument correspondence
+machine `type_only` static argument 1
+requires its declared binder kind, not a const value

@@ -4,5 +4,5 @@ machine main() crashes Trap {
  asm {entry:mov eax,3735928559; sub eax,eax; pushfq snapshot; mov result,eax; jmp observed;
  observed requires (snapshot&2261u64)==68u64: nop }
  transition (snapshot&2261u64)==68u64 && result==0u32 {true ->done() false->bad()}
- state done(){} state bad(){crash Trap;}
+ machine done(){} machine bad(){crash Trap;}
 }

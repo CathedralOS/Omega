@@ -314,6 +314,17 @@ occurrence, operation axes, and result shape. It returns the unchanged non-clona
 request on rejection. This join is not an attempt, result, source call, provider
 selection/installation, or Terminal/native lowering authority.
 
+## Ordinary backing initialization
+
+[Deferred-establishment recasts](../layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts)
+provide an ordinary exclusive-storage route to initializing a stricter shape.
+They do not recast `Placed<P, T>` or bypass its access plan. Only a legitimate
+underlying storage claim with the required geometry, authority and custody can
+support that ordinary route. Opening a pending view does not mint `Resident`,
+discard occupied content or infer `Vacant`; the declared content-establishment
+and conservation obligations still apply. Explicit placed `Initialize` remains
+the route for encoding into placement-governed storage.
+
 ## Generic provider demand
 
 `ResidentContentTransfer<P, T>` is one requirement schema, not an ambient provider

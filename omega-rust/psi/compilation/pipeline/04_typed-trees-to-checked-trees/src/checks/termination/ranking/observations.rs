@@ -13,7 +13,7 @@ use typed_trees::types::PrimitiveType;
 pub(in crate::checks::termination) fn prepare_natural_observations(
     program: &dyn validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
-    admitted: &checked_trees::CheckedRankArrivalPlan,
+    admitted: &mut checked_trees::CheckedRankArrivalPlan,
 ) -> Option<Vec<CheckedStateNaturalRank>> {
     let states = program.machine_states(machine);
     let root = states.first()?;
@@ -25,7 +25,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
     else {
         return None;
     };
-    let body = admitted.for_body(machine.symbol, machine.states)?;
+    let body_states = admitted.for_body(machine.symbol, machine.states)?.states;
     let relevance = validation::rank_relevance(program, &[machine.symbol])?;
     let coordinate = |expression| {
         let place = validation::canonical_place_from_expression_in_state(
@@ -67,7 +67,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
     {
         let mut rows = admitted
             .states
-            .span(body.states)?
+            .span(body_states)?
             .iter()
             .filter(|row| row.state == state.symbol);
         let row = rows.next()?;
@@ -104,20 +104,42 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                 }
             }
             (RankingOrder::SliceLength, [_]) => {
-                CheckedNaturalRankMeasure::SequenceLength { subject }
+                let path = admitted.path_segments.insert_many(destination.path.clone());
+                let coordinate =
+                    admitted
+                        .coordinates
+                        .insert(checked_trees::CheckedRankCoordinate {
+                            parameter: destination.parameter,
+                            path,
+                            entry_indexes: Default::default(),
+                        });
+                CheckedNaturalRankMeasure::SequenceLength { coordinate }
             }
             (RankingOrder::NatDescending, [_]) => {
                 let primitive_type = primitive()?;
                 if !primitive_type.is_fixed_integer() {
                     return None;
                 }
-                CheckedNaturalRankMeasure::IntegerParameter { primitive_type }
+                let path = admitted.path_segments.insert_many(destination.path.clone());
+                let coordinate =
+                    admitted
+                        .coordinates
+                        .insert(checked_trees::CheckedRankCoordinate {
+                            parameter: destination.parameter,
+                            path,
+                            entry_indexes: Default::default(),
+                        });
+                CheckedNaturalRankMeasure::IntegerValue {
+                    coordinate,
+                    primitive_type,
+                }
             }
             (RankingOrder::BoundedDistance, [_, upper]) => distance_measure(primitive()?, *upper)?,
             (RankingOrder::IncreasingTo(upper), [_]) => distance_measure(primitive()?, *upper)?,
             _ => return None,
         };
         observations.push(CheckedStateNaturalRank {
+            function: checked_trees::CheckedNaturalRankFunction::Identity,
             state: state.symbol,
             parameter: destination.parameter,
             parameter_position: u32::try_from(parameter_position).ok()?,

@@ -30,6 +30,39 @@ pub(super) fn disposes_loan(
     else {
         return false;
     };
+    [transition.target, transition.continuation]
+        .into_iter()
+        .filter(|target| target.is_valid())
+        .any(|target| {
+            let TransitionTargetNode::Named { path: selected, .. } =
+                program.statement_table.transition_target(target)
+            else {
+                return false;
+            };
+            // Exact immutable source occurrence, not an equal callee label.
+            std::ptr::eq(path, selected)
+                && disposes_loan_on_target(program, facts, flow, call.statement_index, target, loan)
+        })
+}
+
+pub(super) fn disposes_loan_on_target(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    flow: &FlowStateFact,
+    statement_index: usize,
+    target: typed_trees::statement::TransitionTargetHandle,
+    loan: &BorrowLoanFact,
+) -> bool {
+    let Some(source) = program.state_by_symbol(flow.state_symbol) else {
+        return false;
+    };
+    let Some(transition) = program
+        .statement_table
+        .statement_at(source, statement_index)
+        .and_then(|statement| statement.as_transition())
+    else {
+        return false;
+    };
     let cleanup = &facts.contextual_cleanup;
     let owner_path = facts.borrow.loan_owner_path(loan);
     cleanup.dispositions.iter().any(|(_, disposition)| {
@@ -37,39 +70,30 @@ pub(super) fn disposes_loan(
             || disposition.state != flow.state_symbol
             || disposition.source != PermissionEventSource::StateExit
             || disposition.exit.state_symbol != flow.state_symbol
-            || disposition.exit.statement_index != call.statement_index
+            || disposition.exit.statement_index != statement_index
             || disposition.root.as_symbol() != Some(loan.owner_symbol)
             || disposition.zero_image
             || disposition.completion.is_valid()
         {
             return false;
         }
-        let target = match disposition.exit.kind {
+        let disposed_target = match disposition.exit.kind {
             checked_trees::FlowClaimJoinExitKind::TransitionTarget => transition.target,
             checked_trees::FlowClaimJoinExitKind::TransitionContinuation => transition.continuation,
             _ => return false,
         };
-        if !target.is_valid() {
+        if !target.is_valid() || disposed_target != target {
             return false;
         }
-        let TransitionTargetNode::Named { path: selected, .. } =
-            program.statement_table.transition_target(target)
-        else {
-            return false;
-        };
-        // These references come from the same immutable statement arena.
-        // Equality of callee names or operands would conflate distinct arms.
-        if !std::ptr::eq(path, selected)
-            || !crate::borrow::place_path_covers_owner(
-                program,
-                facts
-                    .flow
-                    .ownership
-                    .segments
-                    .span_or_empty(disposition.path),
-                owner_path,
-            )
-        {
+        if !crate::borrow::place_path_covers_owner(
+            program,
+            facts
+                .flow
+                .ownership
+                .segments
+                .span_or_empty(disposition.path),
+            owner_path,
+        ) {
             return false;
         }
         [disposition.exclusions, disposition.inactive_cases]

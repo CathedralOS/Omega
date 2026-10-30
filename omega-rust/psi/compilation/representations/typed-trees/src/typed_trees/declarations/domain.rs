@@ -6,7 +6,7 @@ use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct DomainDefinition {
     pub symbol: SymbolHandle,
     pub name: Identifier,
@@ -16,13 +16,15 @@ pub struct DomainDefinition {
     pub target_type: TypeReferenceHandle,
     pub index_arguments: Vec<TypeReferenceHandle>,
     pub is_public: bool,
+    /// Selected machine identity and its full declaration-site application.
+    pub cleanup_selection: Option<CleanupSelection>,
     /// Authored transparent alias theory. Semantic consumers expand this
     /// record before normalization rather than treating the alias as evidence.
     pub alias: Option<DomainAliasDefinition>,
     /// Explicit closed classification copied from the resolved declaration.
     pub classification: Option<language_semantics::DomainClassification>,
     /// Explicit predicate-body presence copied from the resolved theory.
-    pub predicate_body: language_semantics::DomainPredicateBody,
+    pub predicate_presence: language_semantics::DomainPredicatePresence,
     pub facts: HandleSpan<ProofFact>,
     pub operators: HandleSpan<crate::operator::OperatorDefinition>,
     pub semantic_clause_token_count: usize,
@@ -49,9 +51,10 @@ impl Default for DomainDefinition {
             target_type: TypeReferenceHandle::invalid(),
             index_arguments: Vec::new(),
             is_public: false,
+            cleanup_selection: None,
             alias: None,
             classification: None,
-            predicate_body: language_semantics::DomainPredicateBody::Bodyless,
+            predicate_presence: language_semantics::DomainPredicatePresence::Absent,
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),
             semantic_clause_token_count: 0,
@@ -62,12 +65,12 @@ impl Default for DomainDefinition {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DomainAliasDefinition {
     pub constituents: Vec<DomainAliasConstituent>,
 }
 
-#[derive(Debug, Clone, Default, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct DomainAliasConstituent {
     pub domain: HandleSpan<Identifier>,
     pub domain_symbol: SymbolHandle,
@@ -198,14 +201,19 @@ fn const_index_type_name(
 ) -> Result<String, Diagnostic> {
     use crate::types::{FixedArrayLength, TypeReferenceNode};
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { name, .. } => Ok(name.as_str().to_owned()),
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length: FixedArrayLength::Literal(length),
-        } => Ok(format!(
-            "[{}; {length}]",
-            const_index_type_name(program, *element_type)?
-        )),
+        TypeReferenceNode::Named { name, .. }
+            if program
+                .type_reference_table
+                .primitive_type(type_reference)
+                .is_some() =>
+        {
+            Ok(name.as_str().to_owned())
+        }
+        TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::FixedArray {
+            length: FixedArrayLength::Literal(_),
+            ..
+        } => Ok(program.normalized_type_identity_text(type_reference)),
         TypeReferenceNode::Constrained { base_type, .. } => {
             const_index_type_name(program, *base_type)
         }
@@ -259,21 +267,27 @@ fn closed_domain_argument_identity(
             )),
         };
     }
-    if let Some(value) =
-        language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
-    {
+    if let Some(value) = crate::typed_trees::canonical_const_declaration_value(program, *symbol) {
         if value.type_name != expected {
             return Err(Diagnostic::error(format!(
-                "indexed-domain argument has canonical type `{}`, expected `{expected}`",
+                "indexed-domain selected constant has canonical type `{}`, expected `{expected}`",
                 value.type_name
             )));
         }
-        return Ok(format!(
-            "const:{}:{}:{}",
-            value.type_name,
-            value.encoding.len(),
-            value.encoding
-        ));
+        if let Some(retained) =
+            language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+            && retained.encoding != value.encoding
+        {
+            return Err(Diagnostic::error(
+                "indexed-domain constant differs from its selected declaration value",
+            ));
+        }
+        return canonical_domain_const_identity(&value, expected);
+    }
+    if let Some(value) =
+        language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+    {
+        return canonical_domain_const_identity(&value, expected);
     }
     if name.as_str().parse::<i128>().is_ok() {
         return Ok(format!("integer:{expected}:{}", name.as_str()));
@@ -291,7 +305,7 @@ fn closed_domain_argument_identity(
     ))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProofFact {
     Expression(crate::expression::ExpressionHandle),
     Membership(ProofMembershipFact),
@@ -330,7 +344,7 @@ impl Default for ProofFact {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProofMembershipFact {
     pub value: crate::expression::ExpressionHandle,
     pub domain: HandleSpan<Identifier>,
@@ -363,10 +377,19 @@ impl Default for ProofMembershipFact {
 /// Carrier-only generic parameters remain eligible. This is a fail-closed
 /// proof-reader fence, not an identity or metadata-normalization judgment.
 pub fn has_symbol_only_proof(program: &TypedTrees, domain_symbol: SymbolHandle) -> bool {
-    fn visit(program: &TypedTrees, symbol: SymbolHandle, visited: &mut Vec<SymbolHandle>) -> bool {
-        let Some(domain) = domain_by_symbol(program, symbol) else {
-            return false;
-        };
+    domain_by_symbol(program, domain_symbol)
+        .is_some_and(|domain| has_bound_symbol_only_proof(program, domain))
+}
+
+/// Complete applied theories have no free index slots. Read the selected
+/// definition itself; falling back to its generic source would lose that tuple.
+pub fn has_bound_symbol_only_proof(program: &TypedTrees, domain: &DomainDefinition) -> bool {
+    fn visit(
+        program: &TypedTrees,
+        domain: &DomainDefinition,
+        visited: &mut Vec<(SymbolHandle, language_semantics::SemanticDomainId)>,
+    ) -> bool {
+        let symbol = (domain.symbol, domain.semantic_id);
         if !index_parameters(program, domain).is_empty() || !domain.index_arguments.is_empty() {
             return false;
         }
@@ -375,19 +398,21 @@ pub fn has_symbol_only_proof(program: &TypedTrees, domain_symbol: SymbolHandle) 
         }
         visited.push(symbol);
         domain.alias.as_ref().is_none_or(|alias| {
-            alias
-                .constituents
-                .iter()
-                .all(|constituent| visit(program, constituent.domain_symbol, visited))
+            alias.constituents.iter().all(|constituent| {
+                domain_by_symbol(program, constituent.domain_symbol)
+                    .is_some_and(|domain| visit(program, domain, visited))
+            })
         }) && program.proof_facts(domain).iter().all(|fact| match fact {
-            ProofFact::Membership(membership) => {
-                membership.domain_arguments.is_empty()
-                    && visit(program, membership.domain_symbol, visited)
-            }
+            ProofFact::Membership(membership) => program
+                .domain_definition_for_instance(
+                    membership.domain_symbol,
+                    membership.semantic_domain,
+                )
+                .is_some_and(|domain| visit(program, domain, visited)),
             _ => true,
         })
     }
-    visit(program, domain_symbol, &mut Vec::new())
+    visit(program, domain, &mut Vec::new())
 }
 
 /// Matches the declaration-owned subject, independently of its authored name.
@@ -402,7 +427,23 @@ pub fn domain_subject_reference(
         return false;
     }
     let subject = program.symbols.get(domain.subject_symbol);
-    if subject.kind != symbols::SymbolKind::Parameter || subject.parent != domain.symbol {
+    let applied_subject = program
+        .applied_domain_applications
+        .iter()
+        .any(|application| {
+            application.declaration == domain.symbol
+                && application.theory.semantic_id == domain.semantic_id
+                && application.theory.subject_symbol == domain.subject_symbol
+                && program
+                    .domain_definition(domain.symbol)
+                    .is_some_and(|declared| {
+                        program.symbols.authored_origin(domain.subject_symbol)
+                            == declared.subject_symbol
+                    })
+        });
+    if subject.kind != symbols::SymbolKind::Parameter
+        || (subject.parent != domain.symbol && !applied_subject)
+    {
         return false;
     }
     let crate::expression::ExpressionNode::Name(path) =
@@ -436,6 +477,49 @@ pub fn subject_membership_facts<'a>(
             }
             _ => None,
         })
+}
+
+/// The complete closed same-subject prerequisite relation. Source value
+/// predicates keep their own projection; this query neither expands them nor
+/// establishes any membership. Unrepresented aliases, indexed applications
+/// and different-subject memberships cannot become an empty relation.
+pub fn required_subject_memberships<'a>(
+    program: &'a TypedTrees,
+    domain: &'a DomainDefinition,
+) -> Option<Vec<&'a ProofMembershipFact>> {
+    if domain.alias.is_some() {
+        return None;
+    }
+    program
+        .proof_facts(domain)
+        .iter()
+        .filter_map(|fact| match fact {
+            ProofFact::Membership(membership) => Some(membership),
+            _ => None,
+        })
+        .map(|membership| {
+            (domain_subject_reference(program, domain, membership.value)
+                && program
+                    .type_reference_table
+                    .type_reference_handles(membership.domain_arguments)
+                    .len()
+                    == membership.domain_arguments.len()
+                && program
+                    .type_reference_table
+                    .type_reference_handles(membership.domain_arguments)
+                    .iter()
+                    .all(|argument| index_argument_is_closed(program, *argument))
+                && membership.domain_symbol.is_valid()
+                && membership.semantic_domain != language_semantics::SemanticDomainId::NULL
+                && program
+                    .domain_definition_for_instance(
+                        membership.domain_symbol,
+                        membership.semantic_domain,
+                    )
+                    .is_some())
+            .then_some(membership)
+        })
+        .collect()
 }
 
 /// Whether one declared domain implies another by normalized semantic identity
@@ -527,4 +611,156 @@ pub fn type_selects_semantic_domain(
             }),
         _ => false,
     }
+}
+
+/// One owner-authored cleanup interface. The canonical application retains its
+/// supplying declaration, static tuple and bounds; executable retargeting never
+/// replaces that source identity. The exact subject prevents one shared helper
+/// from borrowing the first carrier that happened to select it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CleanupSelection {
+    pub application: crate::static_applications::StaticMachineApplicationHandle,
+    pub authorization:
+        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
+    pub subject: TypeReferenceHandle,
+    pub executable: SymbolHandle,
+}
+
+/// A complete explicit index telescope applied to one immutable authored theory.
+/// Original constraints retain their argument pack and ordinary formation checks.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct AppliedDomainApplication {
+    pub declaration: SymbolHandle,
+    pub arguments: Vec<TypeReferenceHandle>,
+    pub theory: DomainDefinition,
+}
+
+impl TypedTrees {
+    pub fn domain_arguments_for_instance(
+        &self,
+        symbol: SymbolHandle,
+        identity: language_semantics::SemanticDomainId,
+    ) -> Option<&[TypeReferenceHandle]> {
+        let declared = self.domain_definition(symbol)?;
+        if declared.semantic_id == identity {
+            return Some(&[]);
+        }
+        self.applied_domain_applications
+            .iter()
+            .find(|application| {
+                application.declaration == symbol && application.theory.semantic_id == identity
+            })
+            .map(|application| application.arguments.as_slice())
+    }
+
+    pub fn domain_definition_for_instance(
+        &self,
+        symbol: SymbolHandle,
+        identity: language_semantics::SemanticDomainId,
+    ) -> Option<&DomainDefinition> {
+        let declared = self.domain_definition(symbol)?;
+        if declared.semantic_id == identity {
+            return Some(declared);
+        }
+        self.applied_domain_applications
+            .iter()
+            .find(|application| {
+                application.declaration == symbol && application.theory.semantic_id == identity
+            })
+            .map(|application| &application.theory)
+    }
+}
+
+/// Whether a domain index recipe has no remaining declaration-owned binding.
+/// This structural reference query grants neither formation nor const admission.
+pub fn index_argument_is_closed(
+    program: &TypedTrees,
+    reference: crate::types::TypeReferenceHandle,
+) -> bool {
+    index_argument_is_closed_with_substitutions(program, reference, &[])
+}
+
+/// Closure under an exact proposed static telescope. This derives no call
+/// permission or where premise: replacements must themselves be closed.
+pub fn index_argument_is_closed_with_substitutions(
+    program: &TypedTrees,
+    reference: crate::types::TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, crate::types::TypeReferenceHandle)],
+) -> bool {
+    struct Closure<'a> {
+        program: &'a TypedTrees,
+        substitutions: &'a [(symbols::SymbolHandle, crate::types::TypeReferenceHandle)],
+        types: std::collections::HashSet<crate::types::TypeReferenceHandle>,
+        expressions: std::collections::HashSet<crate::expression::ExpressionHandle>,
+        open: bool,
+    }
+    impl Extend<symbols::SymbolHandle> for Closure<'_> {
+        fn extend<T: IntoIterator<Item = symbols::SymbolHandle>>(&mut self, symbols: T) {
+            self.open |= symbols
+                .into_iter()
+                .filter(|symbol| symbol.is_valid())
+                .any(|symbol| {
+                    if let Some((_, actual)) = self
+                        .substitutions
+                        .iter()
+                        .find(|(formal, _)| *formal == symbol)
+                    {
+                        return !index_argument_is_closed(self.program, *actual);
+                    }
+                    matches!(
+                        self.program.symbols.get(symbol).kind,
+                        symbols::SymbolKind::TypeParameter
+                            | symbols::SymbolKind::MachineParameter
+                            | symbols::SymbolKind::ConformanceParameter
+                            | symbols::SymbolKind::PropositionParameter
+                            | symbols::SymbolKind::Parameter
+                            | symbols::SymbolKind::Local
+                    )
+                });
+        }
+    }
+    impl crate::references::TypedReferences for Closure<'_> {
+        fn type_reference(&mut self, reference: crate::types::TypeReferenceHandle) -> bool {
+            self.types.insert(reference)
+        }
+        fn expression(&mut self, expression: crate::expression::ExpressionHandle) -> bool {
+            self.expressions.insert(expression)
+        }
+    }
+    let mut closure = Closure {
+        program,
+        substitutions,
+        types: Default::default(),
+        expressions: Default::default(),
+        open: false,
+    };
+    crate::references::visit_type_reference(program, &mut closure, reference);
+    !closure.open
+}
+
+/// Names and literal atoms denote the same admitted value in a domain index.
+/// Carrier admission remains exact; spelling and declaration identity do not
+/// distinguish equal values of that carrier.
+fn canonical_domain_const_identity(
+    value: &language_semantics::const_value::CanonicalConstValue,
+    expected: &str,
+) -> Result<String, Diagnostic> {
+    if value.type_name != expected {
+        return Err(Diagnostic::error(format!(
+            "indexed-domain argument has canonical type `{}`, expected `{expected}`",
+            value.type_name
+        )));
+    }
+    if let Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+        value,
+        ..
+    }) = value.decode_encoding()
+    {
+        return Ok(format!("integer:{expected}:{value}"));
+    }
+    Ok(format!(
+        "const:{expected}:{}:{}",
+        value.encoding.len(),
+        value.encoding
+    ))
 }

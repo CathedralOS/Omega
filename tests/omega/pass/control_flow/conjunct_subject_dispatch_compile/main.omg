@@ -13,6 +13,6 @@ machine Main::main(main: &mut Main) {
         _ -> partial(main)
     }
 
-    state both(main: &mut Main) { main.answer = 70; }
-    state partial(main: &mut Main) { main.answer = 71; }
+    machine both(main: &mut Main) { main.answer = 70; }
+    machine partial(main: &mut Main) { main.answer = 71; }
 }

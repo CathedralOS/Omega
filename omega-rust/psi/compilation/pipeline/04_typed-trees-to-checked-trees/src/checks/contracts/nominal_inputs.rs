@@ -13,7 +13,7 @@ use facts::{FactOrigin, FactPayload, FactPlan, PlaceRoot, PlaceSegment, ProgramP
 use symbols::SymbolHandle;
 
 pub(super) struct DeclaredFieldRequirements {
-    rows: Vec<(SymbolHandle, Vec<FieldRequirement>)>,
+    rows: symbols::SymbolKeyMap<SymbolHandle, Vec<FieldRequirement>>,
 }
 
 type FieldRequirement = (
@@ -24,7 +24,8 @@ type FieldRequirement = (
 
 impl DeclaredFieldRequirements {
     pub(super) fn new(semantic: &FactPlan) -> Self {
-        let mut rows: Vec<(SymbolHandle, Vec<FieldRequirement>)> = Vec::new();
+        let mut rows: symbols::SymbolKeyMap<SymbolHandle, Vec<FieldRequirement>> =
+            symbols::SymbolKeyMap::default();
         for (_, fact) in semantic.facts.iter() {
             let FactPayload::DomainMembership {
                 domain_symbol,
@@ -66,24 +67,14 @@ impl DeclaredFieldRequirements {
                 domain_symbol,
                 semantic_domain,
             );
-            if let Some((_, requirements)) =
-                rows.iter_mut().find(|(candidate, _)| *candidate == owner)
-            {
-                if !requirements.contains(&requirement) {
-                    requirements.push(requirement);
-                }
-            } else {
-                rows.push((owner, vec![requirement]));
-            }
+            let requirements = rows.entry(owner).or_default();
+            crate::collections::push_unique(requirements, requirement);
         }
         Self { rows }
     }
 
     fn requirements(&self, owner: SymbolHandle) -> &[FieldRequirement] {
-        self.rows
-            .iter()
-            .find(|(candidate, _)| *candidate == owner)
-            .map_or(&[], |(_, rows)| rows)
+        self.rows.get(&owner).map_or(&[], Vec::as_slice)
     }
 }
 
@@ -126,13 +117,19 @@ pub(super) fn check(
         &facts.semantic,
         state.machine_symbol,
     );
+    let mut result_memberships = crate::flow::CapturedResultMemberships::new(facts);
+    let receiver_offset = usize::from(
+        matches!(&site, validation::CallSite::Expression { call, .. } if call.receiver.is_valid()),
+    );
     let mut argument_index = 0;
     for parameter in parameters {
+        let position = argument_index;
         let argument = {
             let argument = arguments.get(argument_index).copied();
             argument_index += 1;
             argument
         };
+        let operand_position = position + receiver_offset;
         // Every formal owes the same declared fields, including a subject
         // forwarded from the caller, independently of declaration qualification.
         // Its nominal type cannot restore evidence invalidated by a write.
@@ -152,13 +149,12 @@ pub(super) fn check(
             // The required field may have completed before a later sibling
             // changed its source. Select its capture independently, including
             // every candidate of a runtime-indexed constructed array.
-            let captured_actual = super::call_values::actual_at(
-                program,
-                state,
-                call,
-                argument_index - 1,
-                segments.clone(),
-            );
+            let captured_actual = argument.map(|arg| super::call_values::Actual {
+                parameter,
+                argument: Some(arg),
+                path: segments.clone(),
+                operand_position,
+            });
             // Every obligation uses the completed operand tree. Detached
             // children retain their completion epoch; live views use the
             // invocation facts on every retained referent. Replaying a local
@@ -166,11 +162,31 @@ pub(super) fn check(
             let satisfied = captured_actual
                 .as_ref()
                 .and_then(|actual| {
-                    super::call_values::captured_values(program, facts, state, call, actual)
+                    phase_profile::scope("05.d.7.3b.1b.nominal_inputs.captures", || {
+                        super::call_values::captured_values(program, facts, state, call, actual)
+                    })
                 })
                 .is_some_and(|projections| {
                     !projections.is_empty()
                         && projections.iter().all(|captured| {
+                            let invocation = facts
+                                .flow
+                                .control
+                                .operands
+                                .span_or_empty(call.operands)
+                                .last();
+                            if invocation.is_some_and(|observation| {
+                                observation.storage_snapshot == call.invocation_storage
+                                    && result_memberships.contains(
+                                        program,
+                                        captured,
+                                        observation,
+                                        *domain_symbol,
+                                        *semantic_domain,
+                                    )
+                            }) {
+                                return true;
+                            }
                             // A reaching producer explains the value, but a
                             // later observation also retains qualifications
                             // established on the stored copy. Keep their
@@ -211,13 +227,15 @@ pub(super) fn check(
                                     invocation,
                                     (source_state, source_statement),
                                 )| {
-                                    let selection = operand_contexts.for_operand(
+                                    let Some(selection) = operand_contexts.for_operand(
                                         operand,
                                         reference,
                                         invocation,
                                         source_state,
                                         source_statement,
-                                    );
+                                    ) else {
+                                        return false;
+                                    };
                                     subjects.is_some_and(|subjects| {
                                         !subjects.is_empty()
                                             && subjects.iter().all(|place| {
@@ -228,7 +246,7 @@ pub(super) fn check(
                                                 // pointwise ancestor is vacuous.
                                                 if pointwise_field_is_empty(
                                                     program,
-                                                    operand,
+                                                    &operand,
                                                     &place.projected,
                                                 ) {
                                                     return true;
@@ -322,17 +340,19 @@ fn prove_declared_field_domain(
     domain_symbol: SymbolHandle,
     semantic_domain: language_semantics::SemanticDomainId,
 ) -> bool {
-    if validation::field_domains::domain_requires_provenance(program, domain_symbol)
-        || !typed_trees::domain::has_symbol_only_proof(program, domain_symbol)
-    {
-        selection.has_membership(subject, domain_symbol, semantic_domain)
-    } else {
-        super::prover::prove_domain_at_place(
-            program,
-            &facts.semantic,
-            &selection.contexts,
-            subject,
-            domain_symbol,
-        )
-    }
+    phase_profile::scope("05.d.7.3b.1b.nominal_inputs.domain", || {
+        if validation::field_domains::domain_requires_provenance(program, domain_symbol)
+            || !typed_trees::domain::has_symbol_only_proof(program, domain_symbol)
+        {
+            selection.has_membership(subject, domain_symbol, semantic_domain)
+        } else {
+            super::prover::prove_domain_at_place(
+                program,
+                &facts.semantic,
+                &selection.contexts,
+                subject,
+                domain_symbol,
+            )
+        }
+    })
 }

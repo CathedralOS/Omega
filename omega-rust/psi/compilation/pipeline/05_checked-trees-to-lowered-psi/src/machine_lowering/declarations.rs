@@ -12,6 +12,9 @@ pub(crate) fn nominal(
     sources: &[(source::SourceId, [u8; 32])],
     symbol: SymbolHandle,
 ) -> Result<NominalDeclarationIdentity, &'static str> {
+    if let Some(identity) = invocation_local(identities, checked, symbol)? {
+        return Ok(NominalDeclarationIdentity::new(identity));
+    }
     let identity = checked
         .exact_owner_nominal_identity(symbol, sources)
         .ok_or("checked declaration has no exact package or toolchain owner")?;
@@ -21,130 +24,128 @@ pub(crate) fn nominal(
     Ok(NominalDeclarationIdentity::new(identities.intern(&text)))
 }
 
+/// Missing package ownership is permitted only for an explicitly private code
+/// product. The checked symbol coordinate stays local to that code's live owner;
+/// it is never reclassified as a package or toolchain declaration.
+fn invocation_local(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    symbol: SymbolHandle,
+) -> Result<Option<terminal_psi::TerminalIdentityIndex>, &'static str> {
+    if !symbol.is_valid()
+        || !identities.is_invocation_scoped()
+        || checked.symbols.symbol_package_identity(symbol).is_some()
+        || checked.symbols.symbol_source_origin(symbol) != Some(source::SourceOrigin::User)
+    {
+        return Ok(None);
+    }
+    let coordinate = format!(
+        "invocation-declaration({}:{})",
+        symbol.arena_index(),
+        symbol.generation()
+    );
+    identities.intern_invocation_local(&coordinate).map(Some)
+}
+
+pub(crate) fn semantic_identity(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    symbol: SymbolHandle,
+) -> Result<terminal_psi::TerminalIdentityIndex, String> {
+    if let Some(identity) = invocation_local(identities, checked, symbol)? {
+        return Ok(identity);
+    }
+    Ok(identities.intern(&checked.normalized_hermetic_symbol_identity(symbol)?))
+}
+
 pub(crate) fn identity(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     sources: &[(source::SourceId, [u8; 32])],
     machine: SymbolHandle,
-) -> Result<CheckedMachineDeclaration, &'static str> {
+) -> Result<CheckedMachineDeclaration, String> {
     let declaration = checked
-        .machine(machine)
-        .ok_or("checked machine declaration is absent")?;
-    let entry = checked
-        .machine_states(declaration)
-        .first()
-        .ok_or("checked machine declaration has no entry state")?;
+        .facts
+        .declaration_descriptions
+        .for_machine(machine)?;
+    let parameters = checked
+        .facts
+        .declaration_descriptions
+        .parameters
+        .span(declaration.parameters)
+        .ok_or("checked declaration lost its retained parameter identities")?;
     // Entry receipts retain the authored parameter type, including its
     // reference access. Structural declarations name only the owned referent,
     // so their identities cannot stand in for this source-signature identity.
-    for parameter in checked.state_parameters(entry) {
-        identities.intern(&checked.normalized_type_identity_text(parameter.type_reference));
+    for parameter in parameters {
+        type_identity(identities, checked, parameter.normalized)?;
     }
-    let semantic_declaration = identities.intern(
-        &checked
-            .normalized_hermetic_symbol_identity(machine)
-            .map_err(|_| "checked machine has no hermetic declaration identity")?,
-    );
-    let parameter_types = checked
-        .state_parameters(entry)
+    let semantic_declaration = semantic_identity(identities, checked, machine)
+        .map_err(|reason| format!("checked machine identity: {reason}"))?;
+    let parameter_types = parameters
         .iter()
-        .map(|parameter| {
-            identities
-                .intern(&checked.package_qualified_type_identity_text(parameter.type_reference))
-        })
-        .collect();
-    let callable = identities.intern(
-        &checked
-            .typed
-            .machine_callable_identity_text(declaration)
-            .ok_or("checked machine has no callable signature identity")?,
-    );
-    let result_type = identities.intern(
-        &checked
-            .typed
-            .package_qualified_type_identity_text(entry.return_type),
-    );
-    let contract = checked
-        .facts
-        .contract_plans
-        .for_machine(machine)
-        .ok_or("checked machine declaration has no contract")?
-        .commitment
-        .as_bytes();
-    let specialization = checked
-        .typed
-        .executable_application_template(machine)?
-        .map(|template| {
-            let identity = checked
-                .facts
-                .specialization_identities
-                .for_instance(machine)
-                .ok_or("checked executable application has no retained identity")?;
-            Ok::<_, &'static str>(CheckedMachineSpecialization {
+        .map(|parameter| type_identity(identities, checked, parameter.qualified))
+        .collect::<Result<Vec<_>, _>>()?;
+    let callable = identities.intern(&checked.callable_identity_text(declaration.callable));
+    let result_type = type_identity(identities, checked, declaration.result)?;
+    let specialization = declaration
+        .specialization
+        .as_ref()
+        .map(|specialization| {
+            Ok::<_, String>(CheckedMachineSpecialization {
                 capture: capture_identity(identities, checked, machine)?,
-                template: nominal(identities, checked, sources, template)?,
-                template_callable: identities.intern(
-                    &checked
-                        .machine(template)
-                        .and_then(|machine| checked.typed.machine_callable_identity_text(machine))
-                        .ok_or("checked specialization lost its exact template callable")?,
-                ),
-                commitment: identity.commitment.as_bytes(),
+                template: nominal(identities, checked, sources, specialization.template)?,
+                template_semantic_declaration: semantic_identity(
+                    identities,
+                    checked,
+                    specialization.template,
+                )?,
+                template_callable: identities
+                    .intern(&checked.callable_identity_text(specialization.callable)),
+                commitment: specialization.commitment,
             })
         })
         .transpose()?;
     Ok(CheckedMachineDeclaration {
         machine: nominal(identities, checked, sources, machine)?,
-        state: nominal(identities, checked, sources, entry.symbol)?,
+        state: nominal(identities, checked, sources, declaration.entry)?,
         semantic_declaration,
         parameter_types,
         callable,
         result_type,
-        contract,
+        contract: declaration.contract.as_bytes(),
         specialization,
     })
 }
 
-pub(crate) fn capture_identity(
+fn type_identity(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    identity: typed_trees::type_identity::TypeIdentityId,
+) -> Result<terminal_psi::TerminalIdentityIndex, &'static str> {
+    let text = checked
+        .type_identity_text(identity)
+        .ok_or("checked declaration lost its retained type identity")?;
+    Ok(identities.intern(&text))
+}
+
+pub(crate) fn capture_identity<'a>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &'a CheckedTrees,
     machine: SymbolHandle,
-) -> Result<Option<terminal_psi::CheckedMachineCapture>, &'static str> {
-    let template = checked.executable_application_template(machine)?;
-    let mut direct = checked
-        .captured_machine_applications
-        .iter()
-        .filter(|(_, capture)| capture.instance == machine)
-        .map(|(_, capture)| capture);
-    let direct_capture = direct.next();
-    if direct.next().is_some() {
-        return Err("checked declaration has ambiguous capture ownership");
-    }
-    let capture = if direct_capture.is_some() {
-        direct_capture
-    } else {
-        let mut outer = checked
-            .captured_machine_applications
-            .iter()
-            .filter(|(_, capture)| Some(capture.instance) == template)
-            .map(|(_, capture)| capture);
-        let capture = outer.next();
-        if outer.next().is_some() {
-            return Err("checked invocation has ambiguous capture ownership");
-        }
-        capture
-    };
-    capture
+) -> Result<Option<terminal_psi::CheckedMachineCapture>, &'a str> {
+    checked
+        .facts
+        .declaration_descriptions
+        .for_machine(machine)?
+        .specialization
+        .as_ref()
+        .and_then(|specialization| specialization.capture.as_ref())
         .map(|capture| {
-            let receipt = checked
-                .facts
-                .specialization_identities
-                .for_instance(capture.instance)
-                .ok_or("checked capture declaration lost its independent receipt")?;
             Ok(terminal_psi::CheckedMachineCapture {
-                template_identity: identities.intern(&capture.normalized_template_identity),
-                template_commitment: receipt.template_contract_commitment.as_bytes(),
-                specialization_commitment: receipt.commitment.as_bytes(),
+                template_identity: type_identity(identities, checked, capture.template_identity)?,
+                template_commitment: capture.template_contract,
+                specialization_commitment: capture.specialization,
             })
         })
         .transpose()
@@ -160,14 +161,19 @@ pub(crate) fn boundary_identity(
     checked: &CheckedTrees,
     sources: &[(source::SourceId, [u8; 32])],
     target: SymbolHandle,
-) -> Result<Option<CheckedMachineDeclaration>, &'static str> {
-    if checked.machine(target).is_some() {
+) -> Result<Option<CheckedMachineDeclaration>, String> {
+    if checked
+        .facts
+        .declaration_descriptions
+        .description(target)
+        .is_some()
+    {
         return identity(identities, checked, sources, target).map(Some);
     }
     let program = &checked.typed;
     let mut requirements = program.traits().iter().flat_map(|owner| {
         program
-            .trait_machine_instances(owner)
+            .executable_trait_machine_instances(owner)
             .filter_map(move |signature| (signature.symbol == target).then_some((owner, signature)))
     });
     let Some((owner, signature)) = requirements.next() else {
@@ -176,7 +182,7 @@ pub(crate) fn boundary_identity(
         return Ok(None);
     };
     if requirements.next().is_some() {
-        return Err("boundary requirement has multiple checked declaration owners");
+        return Err("boundary requirement has multiple checked declaration owners".into());
     }
     let capsule = checked
         .facts
@@ -185,7 +191,7 @@ pub(crate) fn boundary_identity(
         .ok_or("boundary requirement lost its complete checked contract capsule")?;
     let contract = capsule.target_contract_commitment();
     if contract.is_zero() {
-        return Err("boundary requirement has an empty checked contract commitment");
+        return Err("boundary requirement has an empty checked contract commitment".into());
     }
     let parameter_types = program
         .state_signature_parameters(signature)
@@ -198,11 +204,8 @@ pub(crate) fn boundary_identity(
     Ok(Some(CheckedMachineDeclaration {
         machine: nominal(identities, checked, sources, owner.symbol)?,
         state: nominal(identities, checked, sources, signature.symbol)?,
-        semantic_declaration: identities.intern(
-            &program
-                .normalized_hermetic_symbol_identity(signature.symbol)
-                .map_err(|_| "boundary requirement has no hermetic declaration identity")?,
-        ),
+        semantic_declaration: semantic_identity(identities, checked, signature.symbol)
+            .map_err(|reason| format!("boundary requirement identity: {reason}"))?,
         parameter_types,
         callable: identities
             .intern(&program.trait_requirement_callable_identity_text(owner, signature)),
@@ -213,13 +216,33 @@ pub(crate) fn boundary_identity(
     }))
 }
 
+/// The same exact operator slot used by executable application demands and
+/// declaration-only proof scope. Neither an overload name nor a package owner
+/// alone identifies the requirement.
+pub(crate) fn operator_requirement(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    sources: &[(source::SourceId, [u8; 32])],
+    symbol: SymbolHandle,
+    callable: typed_trees::type_identity::CallableIdentityId,
+) -> Result<terminal_psi::BoundaryOperatorRequirement, &'static str> {
+    if !callable.is_valid() {
+        return Err("boundary operator has no complete callable identity");
+    }
+    terminal_psi::BoundaryOperatorRequirement::new(
+        nominal(identities, checked, sources, symbol)?,
+        checked.typed.callable_identity_text(callable),
+        checked.symbols.symbol_package_identity(symbol),
+    )
+}
+
 pub(super) fn retain(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     sources: &[(source::SourceId, [u8; 32])],
     owners: &[(SymbolHandle, semantic_vocabulary::MachineId)],
     module: &mut terminal_psi::TerminalModule,
-) -> Result<(), &'static str> {
+) -> Result<(), String> {
     // Producer ownership rows follow emitted-machine order. Advance through
     // the output once instead of rebuilding an index or restarting each search.
     let mut machines = module.machines.iter_mut();

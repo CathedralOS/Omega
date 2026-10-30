@@ -20,13 +20,13 @@ machine Main::main(main: &mut Main) reaches Console {
         LineReadResult::LineComplete { count } -> input(&bytes, count, &mut problem)
         _ -> invalid()
     }
-    state input(bytes: &[u8], count: u64, problem: &mut Problem) {
+    machine input(bytes: &[u8], count: u64, problem: &mut Problem) {
         transition count <= bytes.len {
             true -> admitted(bytes, count, problem)
             false -> invalid()
         }
     }
-    state admitted(bytes: &[u8], count: u64, problem: &mut Problem)
+    machine admitted(bytes: &[u8], count: u64, problem: &mut Problem)
     requires count <= bytes.len
     {
         transition count == 0 {
@@ -34,7 +34,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> decode(bytes[..count], problem)
         }
     }
-    state demo(problem: &mut Problem) {
+    machine demo(problem: &mut Problem) {
         // Three exact circles through (3,4): radii 5,5,3.
         problem.values[0] = -8; problem.values[1] = 8;
         problem.values[2] = -8; problem.values[3] = 8;
@@ -47,40 +47,40 @@ machine Main::main(main: &mut Main) reaches Console {
         problem.values[15] = 3; problem.values[16] = 3;
         transition { _ -> search(problem, problem.values[0], problem.values[2], 0) }
     }
-    state decode(bytes: &[u8], problem: &mut Problem) {
+    machine decode(bytes: &[u8], problem: &mut Problem) {
         let parsed: bool = parse(bytes, problem);
         transition parsed {
             true -> validate(problem)
             false -> invalid()
         }
     }
-    state validate(problem: &Problem) {
+    machine validate(problem: &Problem) {
         transition valid(problem) {
             true -> search(problem, problem.values[0], problem.values[2], 0)
             false -> invalid()
         }
     }
-    state search(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, count: i32 in Wrapping) {
+    machine search(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, count: i32 in Wrapping) {
         transition feasible(problem, x, y) {
             true -> candidate(problem, x, y, count)
             false -> advance(problem, x, y, count)
         }
     }
-    state candidate(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, count: i32 in Wrapping) {
+    machine candidate(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, count: i32 in Wrapping) {
         Console::write("candidate "); number(x); Console::write(" "); number(y);
         Console::write(" residual2");
         residuals(problem, x, y, 0);
         Console::write_line("");
         transition { _ -> advance(problem, x, y, count + 1) }
     }
-    state advance(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, count: i32 in Wrapping) {
+    machine advance(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, count: i32 in Wrapping) {
         transition {
             x < problem.values[1] -> search(problem, x + 1, y, count)
             y < problem.values[3] -> search(problem, problem.values[0], y + 1, count)
             _ -> summary(problem, count)
         }
     }
-    state summary(problem: &Problem, count: i32 in Wrapping) {
+    machine summary(problem: &Problem, count: i32 in Wrapping) {
         Console::write("count "); number(count); Console::write_line("");
         transition {
             count == 0 -> inconsistent()
@@ -89,11 +89,11 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> ambiguous()
         }
     }
-    state inconsistent() { Console::write_line("status inconsistent"); Console::exit_process(0); }
-    state degenerate_result() { Console::write_line("status degenerate"); Console::exit_process(0); }
-    state unique() { Console::write_line("status unique"); Console::exit_process(0); }
-    state ambiguous() { Console::write_line("status ambiguous"); Console::exit_process(0); }
-    state invalid() { Console::write_line("error invalid input"); Console::exit_process(64); }
+    machine inconsistent() { Console::write_line("status inconsistent"); Console::exit_process(0); }
+    machine degenerate_result() { Console::write_line("status degenerate"); Console::exit_process(0); }
+    machine unique() { Console::write_line("status unique"); Console::exit_process(0); }
+    machine ambiguous() { Console::write_line("status ambiguous"); Console::exit_process(0); }
+    machine invalid() { Console::write_line("error invalid input"); Console::exit_process(64); }
 }
 
 machine residuals(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64)
@@ -102,7 +102,7 @@ reaches Console {
         true -> emit(problem, x, y, index)
         false -> done()
     }
-    state emit(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64)
+    machine emit(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64)
     requires index < 3
     {
         let offset: u64 = 5 + index * 4;
@@ -111,7 +111,7 @@ reaches Console {
         Console::write(" "); number(residual);
         transition { _ -> residuals(problem, x, y, index + 1) }
     }
-    state done() { }
+    machine done() { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

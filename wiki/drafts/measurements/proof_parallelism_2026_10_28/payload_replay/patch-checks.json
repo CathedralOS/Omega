@@ -1,0 +1,39 @@
+[
+  {
+    "candidate": "outer",
+    "patches": [
+      "instrumentation.patch"
+    ],
+    "applies_to": "2ee0da1dc171fd966c11a457bb5997a72add37c3"
+  },
+  {
+    "candidate": "index",
+    "patches": [
+      "instrumentation.patch",
+      "rejected-carrier-index.patch"
+    ],
+    "applies_to": "2ee0da1dc171fd966c11a457bb5997a72add37c3"
+  },
+  {
+    "candidate": "rosters",
+    "patches": [
+      "instrumentation.patch",
+      "rejected-roster-projection.patch"
+    ],
+    "applies_to": "2ee0da1dc171fd966c11a457bb5997a72add37c3"
+  },
+  {
+    "candidate": "core",
+    "patches": [
+      "core-instrumentation.patch"
+    ],
+    "applies_to": "2ee0da1dc171fd966c11a457bb5997a72add37c3"
+  },
+  {
+    "candidate": "transfer",
+    "patches": [
+      "transfer-instrumentation.patch"
+    ],
+    "applies_to": "2ee0da1dc171fd966c11a457bb5997a72add37c3"
+  }
+]

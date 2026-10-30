@@ -168,6 +168,14 @@ pub(super) fn encode_content_term(bytes: &mut CanonicalBytes, term: &ContentTerm
 pub(super) fn encode_scalar_term(bytes: &mut CanonicalBytes, term: &ScalarTerm) {
     use ScalarTerm as S;
     match term {
+        S::Application {
+            application,
+            scalar_type,
+        } => {
+            bytes.u8(41);
+            bytes.id(*application);
+            encode_scalar_type(bytes, *scalar_type);
+        }
         S::IeeeFloatField { root, path, format } => {
             bytes.u8(38);
             bytes.id(*root);
@@ -383,6 +391,7 @@ pub(super) fn encode_scalar_term(bytes: &mut CanonicalBytes, term: &ScalarTerm) 
             for projection in path {
                 match projection {
                     semantic_vocabulary::ScalarReadProjection::Referent => bytes.u8(3),
+                    semantic_vocabulary::ScalarReadProjection::Extent => bytes.u8(4),
                     semantic_vocabulary::ScalarReadProjection::Static(segment) => {
                         bytes.u8(1);
                         encode_canonical_path(bytes, std::slice::from_ref(segment));
@@ -467,6 +476,7 @@ pub(super) fn encode_canonical_path(
     bytes.len(path.len());
     for segment in path {
         match segment {
+            CanonicalStructuralPathSegment::Referent => bytes.u8(4),
             CanonicalStructuralPathSegment::Field(value) => {
                 bytes.u8(1);
                 bytes.id(*value);

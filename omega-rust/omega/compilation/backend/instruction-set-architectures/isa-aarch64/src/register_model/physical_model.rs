@@ -3,10 +3,10 @@
 
 use calling_conventions::MachineRegister;
 use register_model::{
-    PhysicalRegisterModel, PhysicalRegisterModelIdentity, PreservationConvention, RegisterClass,
-    RegisterClassId, RegisterUnit, RegisterUnitId, RegisterUnitKind, RegisterView, RegisterViewId,
-    RegisterWriteSemantics, ReservationReason, ValidatedPhysicalRegisterModel, reservation_overlay,
-    sorted_units, validate_physical_register_model,
+    PhysicalModelBuilder, PhysicalRegisterModel, PhysicalRegisterModelIdentity,
+    PreservationConvention, RegisterClassId, RegisterUnitId, RegisterUnitKind, RegisterViewId,
+    RegisterWriteSemantics, ReservationReason, ValidatedPhysicalRegisterModel, complement,
+    reservation_overlay, sorted_units, validate_physical_register_model, view_ids,
 };
 use std::collections::BTreeMap;
 use target::Architecture;
@@ -50,78 +50,6 @@ pub fn aarch64_fixed_register_view(
     model.model().view_named(&name).map(|view| view.id)
 }
 
-struct ModelBuilder {
-    units: Vec<RegisterUnit>,
-    views: Vec<RegisterView>,
-    classes: Vec<RegisterClass>,
-}
-
-impl ModelBuilder {
-    fn new() -> Self {
-        Self {
-            units: Vec::new(),
-            views: Vec::new(),
-            classes: [
-                "aarch64.gpr64",
-                "aarch64.gpr32",
-                "aarch64.vector128",
-                "aarch64.float64",
-                "aarch64.float32",
-                "aarch64.flags",
-                "aarch64.stack64",
-                "aarch64.stack32",
-                "aarch64.zero",
-                "aarch64.float-control",
-                "aarch64.instruction-pointer",
-            ]
-            .into_iter()
-            .enumerate()
-            .map(|(id, name)| RegisterClass {
-                id: RegisterClassId(u16::try_from(id).expect("class id fits u16")),
-                name: name.into(),
-                views: Vec::new(),
-            })
-            .collect(),
-        }
-    }
-
-    fn unit(&mut self, name: String, bits: u16, kind: RegisterUnitKind) -> RegisterUnitId {
-        let id = RegisterUnitId(u16::try_from(self.units.len()).expect("unit id fits u16"));
-        self.units.push(RegisterUnit {
-            id,
-            name,
-            bits,
-            kind,
-        });
-        id
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn view(
-        &mut self,
-        name: String,
-        class: RegisterClassId,
-        units: Vec<RegisterUnitId>,
-        bits: u16,
-        write_semantics: RegisterWriteSemantics,
-        allocatable: bool,
-    ) -> RegisterViewId {
-        let id = RegisterViewId(u16::try_from(self.views.len()).expect("view id fits u16"));
-        self.views.push(RegisterView {
-            id,
-            name,
-            class,
-            write_units: units.clone(),
-            units,
-            bits,
-            write_semantics,
-            allocatable,
-        });
-        self.classes[usize::from(class.0)].views.push(id);
-        id
-    }
-}
-
 /// The AArch64 physical register model, built once per process. The model is
 /// a fixed table; building it formats every register name and fills two
 /// name maps, and encoders and effect declarations asked for it per
@@ -138,7 +66,19 @@ pub fn aarch64_physical_register_model() -> PhysicalRegisterModel {
 }
 
 fn build_aarch64_physical_register_model() -> PhysicalRegisterModel {
-    let mut builder = ModelBuilder::new();
+    let mut builder = PhysicalModelBuilder::with_classes(&[
+        "aarch64.gpr64",
+        "aarch64.gpr32",
+        "aarch64.vector128",
+        "aarch64.float64",
+        "aarch64.float32",
+        "aarch64.flags",
+        "aarch64.stack64",
+        "aarch64.stack32",
+        "aarch64.zero",
+        "aarch64.float-control",
+        "aarch64.instruction-pointer",
+    ]);
     let mut named_units = BTreeMap::<String, RegisterUnitId>::new();
     let mut named_views = BTreeMap::<String, RegisterViewId>::new();
     for index in 0..31 {
@@ -149,6 +89,7 @@ fn build_aarch64_physical_register_model() -> PhysicalRegisterModel {
             x.clone(),
             GPR64,
             vec![unit],
+            vec![unit],
             64,
             RegisterWriteSemantics::ExactView,
             true,
@@ -156,6 +97,7 @@ fn build_aarch64_physical_register_model() -> PhysicalRegisterModel {
         let w_view = builder.view(
             w.clone(),
             GPR32,
+            vec![unit],
             vec![unit],
             32,
             RegisterWriteSemantics::ZeroExtendsWithinUnit,
@@ -169,6 +111,7 @@ fn build_aarch64_physical_register_model() -> PhysicalRegisterModel {
         "sp".into(),
         STACK64,
         vec![sp_unit],
+        vec![sp_unit],
         64,
         RegisterWriteSemantics::ExactView,
         false,
@@ -176,6 +119,7 @@ fn build_aarch64_physical_register_model() -> PhysicalRegisterModel {
     let wsp_view = builder.view(
         "wsp".into(),
         STACK32,
+        vec![sp_unit],
         vec![sp_unit],
         32,
         RegisterWriteSemantics::ZeroExtendsWithinUnit,
@@ -188,6 +132,7 @@ fn build_aarch64_physical_register_model() -> PhysicalRegisterModel {
         "xzr".into(),
         ZERO,
         vec![zero_unit],
+        vec![zero_unit],
         64,
         RegisterWriteSemantics::Discards,
         false,
@@ -195,6 +140,7 @@ fn build_aarch64_physical_register_model() -> PhysicalRegisterModel {
     let wzr_view = builder.view(
         "wzr".into(),
         ZERO,
+        vec![zero_unit],
         vec![zero_unit],
         32,
         RegisterWriteSemantics::Discards,
@@ -221,24 +167,26 @@ fn build_aarch64_physical_register_model() -> PhysicalRegisterModel {
             q.clone(),
             VECTOR128,
             vec![low, high],
+            vec![low, high],
             128,
             RegisterWriteSemantics::ExactView,
             true,
         );
+        // Scalar FMOV destinations clear the rest of the architectural vector;
+        // normalized scalar transports therefore interfere with both lanes.
         let d_view = builder.view(
             d.clone(),
             FLOAT64,
             vec![low],
+            vec![low, high],
             64,
             RegisterWriteSemantics::InstructionDefined,
             true,
         );
-        // Scalar FMOV destinations clear the rest of the architectural vector.
-        // Normalized scalar transports therefore interfere with both lanes.
-        builder.views[usize::from(d_view.0)].write_units = vec![low, high];
         let s_view = builder.view(
             s.clone(),
             FLOAT32,
+            vec![low],
             vec![low],
             32,
             RegisterWriteSemantics::InstructionDefined,
@@ -252,6 +200,7 @@ fn build_aarch64_physical_register_model() -> PhysicalRegisterModel {
         "nzcv".into(),
         FLAGS,
         vec![nzcv_unit],
+        vec![nzcv_unit],
         4,
         RegisterWriteSemantics::InstructionDefined,
         false,
@@ -262,6 +211,7 @@ fn build_aarch64_physical_register_model() -> PhysicalRegisterModel {
         "fpcr".into(),
         FLOAT_CONTROL,
         vec![fpcr_unit],
+        vec![fpcr_unit],
         32,
         RegisterWriteSemantics::InstructionDefined,
         false,
@@ -271,6 +221,7 @@ fn build_aarch64_physical_register_model() -> PhysicalRegisterModel {
     let fpsr_view = builder.view(
         "fpsr".into(),
         FLOAT_CONTROL,
+        vec![fpsr_unit],
         vec![fpsr_unit],
         32,
         RegisterWriteSemantics::InstructionDefined,
@@ -286,13 +237,14 @@ fn build_aarch64_physical_register_model() -> PhysicalRegisterModel {
         "pc".into(),
         INSTRUCTION_POINTER,
         vec![pc_unit],
+        vec![pc_unit],
         64,
         RegisterWriteSemantics::InstructionDefined,
         false,
     );
     named_views.insert("pc".into(), pc_view);
 
-    let all_units = builder.units.iter().map(|unit| unit.id).collect::<Vec<_>>();
+    let all_units = builder.unit_ids();
     let common_fixed = sorted_units([sp_unit, zero_unit, fpcr_unit, fpsr_unit, pc_unit]);
     let aapcs_callee = sorted_units(
         (19..=29)
@@ -368,29 +320,7 @@ fn build_aarch64_physical_register_model() -> PhysicalRegisterModel {
             vec![named_units["x28"]],
         ),
     ];
-    PhysicalRegisterModel {
-        architecture: Architecture::Aarch64,
-        units: builder.units,
-        views: builder.views,
-        classes: builder.classes,
-        conventions,
-        reservations,
-    }
-}
-
-pub(crate) fn complement(
-    all: &[RegisterUnitId],
-    fixed: &[RegisterUnitId],
-    callee: &[RegisterUnitId],
-) -> Vec<RegisterUnitId> {
-    all.iter()
-        .copied()
-        .filter(|unit| !fixed.contains(unit) && !callee.contains(unit))
-        .collect()
-}
-
-fn view_ids(views: &BTreeMap<String, RegisterViewId>, names: &[&str]) -> Vec<RegisterViewId> {
-    names.iter().map(|name| views[*name]).collect()
+    builder.finish(Architecture::Aarch64, conventions, reservations)
 }
 
 /// The canonical AArch64 physical register model, validated once per

@@ -8,6 +8,7 @@ pub(crate) fn is_terminator(operation: &abstract_operations::AbstractOperation) 
             | O::StructuralCase { .. }
             | abstract_operations::return_or_return_unit_pattern!()
             | abstract_operations::return_structural_or_crash_pattern!()
+            | O::InvokeNoNormal { .. }
             | O::ExternalCompletion { .. }
     )
 }

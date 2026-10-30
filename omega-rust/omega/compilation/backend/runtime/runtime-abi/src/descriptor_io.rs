@@ -19,6 +19,19 @@ pub enum DescriptorAbi {
 pub fn descriptor_import(
     locator: &NormalizedForeignLocator,
 ) -> Option<(DescriptorAbi, DescriptorOperation)> {
+    let identity = descriptor_import_identity(locator)?;
+    // The finite private-output adapter offers libc write. Libc read
+    // requires an input/errno model that it does not yet supply. Recognition
+    // remains separate so other execution routes cannot silently run it with
+    // a different input capability.
+    (identity != (DescriptorAbi::LinuxLibc, DescriptorOperation::Read)).then_some(identity)
+}
+
+/// Recognize the exact descriptor operation independently of whether the host
+/// adapter offers its environment. This is not permission to execute it.
+pub fn descriptor_import_identity(
+    locator: &NormalizedForeignLocator,
+) -> Option<(DescriptorAbi, DescriptorOperation)> {
     let target = locator.target();
     let abi = match target {
         TargetProfile::MacosArm64 | TargetProfile::MacosX64 => DescriptorAbi::DarwinLibSystem,
@@ -39,14 +52,13 @@ pub fn descriptor_import(
                 library: b"msvcrt.dll".to_vec(),
                 export: symbol.to_vec(),
             },
-            // The finite private-output adapter offers libc write, whose
-            // size_t/ssize_t contract is distinct from raw syscall errors.
-            // Libc read is not offered: recognizing it here would also admit
-            // native input-prefix guards and require an input/errno model.
-            DescriptorAbi::LinuxLibc if operation == DescriptorOperation::Write => {
+            DescriptorAbi::LinuxLibc => {
                 ForeignLocatorCandidate::ElfVersioned {
                     object: b"libc.so.6".to_vec(),
-                    symbol: b"write".to_vec(),
+                    symbol: match operation {
+                        DescriptorOperation::Read => b"read".to_vec(),
+                        DescriptorOperation::Write => b"write".to_vec(),
+                    },
                     version: match target {
                         TargetProfile::LinuxX64 => b"GLIBC_2.2.5".to_vec(),
                         TargetProfile::LinuxArm64 => b"GLIBC_2.17".to_vec(),
@@ -54,7 +66,7 @@ pub fn descriptor_import(
                     },
                 }
             }
-            DescriptorAbi::LinuxLibc | DescriptorAbi::LinuxKernel => continue,
+            DescriptorAbi::LinuxKernel => continue,
         };
         if target::normalize_foreign_locator(candidate, target)
             .ok()
@@ -120,6 +132,10 @@ mod tests {
                 descriptor_import(&libc(target, b"libc.so.6", b"read", version)),
                 None
             );
+            assert_eq!(
+                descriptor_import_identity(&libc(target, b"libc.so.6", b"read", version)),
+                Some((DescriptorAbi::LinuxLibc, DescriptorOperation::Read))
+            );
         }
     }
 
@@ -144,6 +160,10 @@ mod tests {
         ] {
             assert_eq!(
                 descriptor_import(&libc(TargetProfile::LinuxX64, object, symbol, version)),
+                None
+            );
+            assert_eq!(
+                descriptor_import_identity(&libc(TargetProfile::LinuxX64, object, symbol, version)),
                 None
             );
         }

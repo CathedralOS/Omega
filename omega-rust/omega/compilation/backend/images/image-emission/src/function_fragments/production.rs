@@ -28,6 +28,11 @@ pub fn build_function_fragment_object_artifact(
     super::source::placed_reference::establish_geometry(source)?;
     let text = source.source().text_section();
     let fragments = source::fragments(source);
+    let temporary_stack_bytes = if text.functions.is_empty() {
+        std::collections::BTreeMap::new()
+    } else {
+        source::temporary_stack_bytes_by_function(source)?
+    };
     let mut object = ObjectPlan::with_capacity(text.target, 1, text.functions.len());
     let mut text_bytes = text.bytes.clone();
     let mut functions = Vec::new();
@@ -38,7 +43,8 @@ pub fn build_function_fragment_object_artifact(
             source::fragment_metadata(source, placed.machine)?;
         let (abstracted, targeted) = source::function(source, placed.machine)?;
         requires_graph_storage_replay |=
-            source::requires_graph_storage_replay(&abstracted.operations);
+            source::requires_graph_storage_replay(&abstracted.operations)
+                || super::structural::requires_call_graph_replay(source, placed.machine)?;
         let offset = host(placed.section_offset)?;
         let length = host(placed.byte_count)?;
         let symbol = object.layout.symbols.insert(SymbolPlan {
@@ -70,8 +76,17 @@ pub fn build_function_fragment_object_artifact(
         );
         let mut unit_call_stacks = Vec::new();
         let mut scalar_call_stacks = Vec::new();
+        fragments.function(placed.machine).ok_or(Error::Mismatch(
+            "missing current fragment for temporary stack replay",
+        ))?;
+        let function_temporary_stack =
+            *temporary_stack_bytes
+                .get(&placed.machine)
+                .ok_or(Error::Mismatch(
+                    "missing selected function for temporary stack replay",
+                ))?;
         let mut local_peak = frame_bytes
-            .checked_add(source::temporary_stack_bytes(source, placed.machine)?)
+            .checked_add(function_temporary_stack)
             .ok_or(Error::Overflow)?;
         for call in source::stack_calls(source, placed.machine)? {
             let caller_live_bytes = frame_bytes.checked_add(linkage).ok_or(Error::Overflow)?;

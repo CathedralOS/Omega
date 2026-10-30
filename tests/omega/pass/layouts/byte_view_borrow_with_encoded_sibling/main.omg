@@ -55,7 +55,7 @@ data RawView { value: SignedByte<PortableByte>; }
 public boundary trait ByteWriter { machine write(value: &mut u8) reaches; }
 machine write_first(bytes: &mut [u8]) reaches ByteWriter {
     transition bytes.len > 0 { true -> change(bytes) _ -> done() }
-    state change(bytes: &mut [u8]) { ByteWriter::write(&mut bytes[0]); }
-    state done() {}
+    machine change(bytes: &mut [u8]) { ByteWriter::write(&mut bytes[0]); }
+    machine done() {}
 }
 machine main() {}

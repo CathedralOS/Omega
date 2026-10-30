@@ -28,6 +28,7 @@ pub mod control_flow;
 pub mod declarations;
 pub mod evidence;
 pub mod lookup_indexes;
+pub mod machine_declarations;
 pub mod names;
 pub mod storage;
 pub mod type_system;
@@ -49,7 +50,7 @@ use std::ops::{Deref, DerefMut};
 use symbols::JoinedPath;
 use symbols::SymbolTable;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SymbolResolvedTrees {
     pub roots: SymbolResolvedRoots,
     pub tables: SymbolResolvedTableStorage,
@@ -102,12 +103,12 @@ pub enum AuthoredSelectionExtensionRebaseError {
     OccurrenceOutsideOwnerFrontier(AuthoredSelectionOccurrenceStore),
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SymbolResolvedRoots {
     pub const_declarations: OrderedRootArena<crate::constant::ConstDeclaration>,
     pub data_definitions: OrderedRootArena<crate::data::DataDefinition>,
     pub domain_definitions: OrderedRootArena<crate::domain::DomainDefinition>,
-    pub machines: OrderedRootArena<crate::machine::Machine>,
+    pub machines: machine_declarations::MachineDeclarations,
     pub measures: OrderedRootArena<measure::MeasureDefinition>,
     pub operators: OrderedRootArena<operator::OperatorDefinition>,
     pub propositions: OrderedRootArena<proposition::PropositionDefinition>,
@@ -152,7 +153,7 @@ impl SymbolResolvedRoots {
             const_declarations: OrderedRootArena::default(),
             data_definitions,
             domain_definitions,
-            machines,
+            machines: machines.into(),
             measures: OrderedRootArena::default(),
             operators,
             propositions: OrderedRootArena::default(),
@@ -164,7 +165,7 @@ impl SymbolResolvedRoots {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SymbolResolvedTableStorage {
     pub declarations: SymbolResolvedDeclarationStorage,
     pub bodies: SymbolResolvedBodyStorage,
@@ -172,11 +173,12 @@ pub struct SymbolResolvedTableStorage {
     authored_declaration_selections: AuthoredDeclarationSelections,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SymbolResolvedDeclarationStorage {
     pub data_members: Arena<data::DataMember>,
     pub data_payload_fields: Arena<data::DataField>,
     pub data_type_parameters: Arena<data::TypeParameter>,
+    pub declared_type_equations: Arena<crate::machine::DeclaredTypeEquation>,
     pub proof_facts: Arena<domain::ProofFact>,
     proof_fact_source_spans: Vec<Option<source::SourceSpan>>,
     pub domain_path_members: Arena<crate::name::DiagnosticName>,
@@ -204,7 +206,7 @@ pub struct SymbolResolvedDeclarationStorage {
     pub wire_members: Arena<wire::WireMember>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SymbolResolvedTypeStorage {
     pub operand_lifetime_owners: Arena<types::OperandLifetimeOwner>,
     pub constraints: Arena<types::TypeConstraint>,
@@ -212,7 +214,7 @@ pub struct SymbolResolvedTypeStorage {
     pub generic_application_origins: Arena<types::GenericApplicationOrigin>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SymbolResolvedBodyStorage {
     pub expressions: expression::ExpressionTable,
     pub statements: statement::StatementTable,
@@ -551,6 +553,21 @@ impl SymbolResolvedTrees {
             .record_late_bound(source_span, exposure, kind, late_binding)
     }
 
+    /// Complete the exact retained source obligation with its checked declaration.
+    pub fn finalize_authored_declaration_selection(
+        &mut self,
+        occurrence: AuthoredDeclarationSelectionOccurrenceId,
+        expected_binding: AuthoredDeclarationSelectionLateBinding,
+        selected_symbol: symbols::SymbolHandle,
+    ) -> Result<
+        (),
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionFinalizationError,
+    > {
+        self.tables
+            .authored_declaration_selections
+            .finalize_late_bound(occurrence, expected_binding, selected_symbol)
+    }
+
     /// Finalize a retained occurrence whose checked meaning is compiler-owned.
     pub fn finalize_intrinsic_authored_declaration_selection(
         &mut self,
@@ -836,9 +853,7 @@ impl SymbolResolvedTrees {
 
     /// The machine declaration keyed `symbol`.
     pub fn machine(&self, symbol: symbols::SymbolHandle) -> Option<&crate::machine::Machine> {
-        self.machines
-            .iter()
-            .find(|machine| machine.symbol == symbol)
+        self.machines.by_symbol(symbol)
     }
 
     pub fn machine_invokes(
@@ -1199,6 +1214,7 @@ mod tests {
         occurrence: crate::AuthoredDeclarationSelectionOccurrenceId,
     ) -> statement::TransitionTarget {
         statement::TransitionTarget::Named(statement::NamedTransitionTarget {
+            receiver_symbol: Default::default(),
             head_symbol: SymbolHandle::from_arena_index(8),
             symbol: SymbolHandle::from_arena_index(9),
             storage: statement::NamedTransitionTargetStorage {

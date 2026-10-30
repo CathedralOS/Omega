@@ -1,0 +1,12 @@
+// Expected exit: 0
+// A required scalar arithmetic operand exits before addition and its receiving local.
+use omega::language::core::process_exit;
+use omega_language_std::process_exit;
+
+machine stop_scalar() -> u64 reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+machine main() reaches ProcessExit {
+    let absent: u64 in Wrapping = (stop_scalar() as u64 in Wrapping) + 1;
+    ProcessExit::exit_process(43);
+}

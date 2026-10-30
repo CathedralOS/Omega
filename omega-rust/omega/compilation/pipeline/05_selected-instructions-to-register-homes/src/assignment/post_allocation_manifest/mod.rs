@@ -60,7 +60,7 @@ pub struct ValidatedPostAllocationOptimizationManifest {
 }
 
 impl ValidatedPostAllocationOptimizationManifest {
-    pub const fn record(&self) -> &PostAllocationOptimizationManifest {
-        &self.record
-    }
+    receipt_accessor_rows!(borrow ValidatedPostAllocationOptimizationManifest {
+        record: &PostAllocationOptimizationManifest,
+    });
 }

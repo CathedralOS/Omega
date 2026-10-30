@@ -3,11 +3,11 @@
 
 use compiler::PackageBuild;
 use diagnostics::Diagnostic;
+use package_manager::PackageSourceBindings;
 use package_manager::review::{
     CompileResolvedPackageReviewsError, PackageReviewComponent, PackageReviewPass,
     PackageReviewRound, PackageReviewWork, RetainedPackageReviews,
 };
-use package_manager::{PackageBuildSession, PackageSourceBindings};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
@@ -23,15 +23,16 @@ struct PendingReviewBuild {
 /// input comparisons decide what work still applies after that refresh.
 pub(super) fn execute_pass(
     plan: PackageReviewPass<'_>,
-    session: &mut PackageBuildSession,
+    compiler: &mut compiler::CompilationSession,
     source_bindings: &mut PackageSourceBindings,
+    builds: &mut [compiler::CompletedBuild],
 ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
     let mut fresh_components = BTreeSet::new();
     let mut recovered = Vec::new();
     let mut pending_builds = Vec::new();
     loop {
         let mut round = plan.begin_round(source_bindings, &fresh_components, &recovered);
-        let result = execute_round(&plan, &mut round, session, &mut pending_builds);
+        let result = execute_round(&plan, &mut round, compiler, &mut pending_builds, builds);
         match result {
             Ok(()) => return round.finish(),
             Err(error) => {
@@ -52,14 +53,15 @@ pub(super) fn execute_pass(
 fn execute_round<'pass>(
     plan: &'pass PackageReviewPass<'_>,
     round: &mut PackageReviewRound<'pass>,
-    session: &mut PackageBuildSession,
+    compiler: &mut compiler::CompilationSession,
     pending_builds: &mut Vec<PendingReviewBuild>,
+    builds: &mut [compiler::CompletedBuild],
 ) -> Result<(), CompileResolvedPackageReviewsError> {
     for occurrence in plan.occurrences() {
-        let Some(work) = round.admit_occurrence(occurrence, session)? else {
+        let Some(work) = round.admit_occurrence(occurrence)? else {
             continue;
         };
-        complete_occurrence(work, round, session, pending_builds)?;
+        complete_occurrence(work, round, compiler, pending_builds, builds)?;
     }
     Ok(())
 }
@@ -67,24 +69,18 @@ fn execute_round<'pass>(
 fn complete_occurrence(
     work: PackageReviewWork<'_>,
     round: &mut PackageReviewRound<'_>,
-    session: &mut PackageBuildSession,
+    compiler: &mut compiler::CompilationSession,
     pending_builds: &mut Vec<PendingReviewBuild>,
+    builds: &mut [compiler::CompletedBuild],
 ) -> Result<(), CompileResolvedPackageReviewsError> {
     let PackageReviewWork {
-        mut request,
+        request,
         completion,
         maximum_policy_canonical_bytes,
     } = work;
-    let inputs = request.package_inputs.as_ref().ok_or_else(|| {
-        completion.compilation_failure(
-            vec![Diagnostic::error(
-                "review work has no package input custody",
-            )]
-            .into(),
-        )
-    })?;
-    let entry = request.root_path.clone();
-    let snapshot = request.build_snapshot.clone();
+    let inputs = &request.inputs;
+    let entry = request.entry.clone();
+    let snapshot = request.execution.snapshot.clone();
     let pending = pending_builds
         .iter()
         .position(|pending| {
@@ -101,10 +97,27 @@ fn complete_occurrence(
     let build = match pending {
         Some(pending) => pending.build,
         None => {
-            request.build_dir = Some(completion.reserve_build_directory(session)?);
-            session
-                .compiler()
-                .prepare_package_build(request)
+            let source = builds
+                .iter_mut()
+                .find(|source| source.package_inputs().root() == request.inputs.root())
+                .ok_or_else(|| {
+                    completion.compilation_failure(
+                        vec![Diagnostic::error(
+                            "review request has no settled source Build",
+                        )]
+                        .into(),
+                    )
+                })?;
+            source
+                .require_execution_contract(&request.execution)
+                .map_err(|failure| completion.compilation_failure(failure))?;
+            compiler
+                .prepare_package_product(
+                    source,
+                    request.target,
+                    request.inputs,
+                    compiler::PackageProductOptions::default(),
+                )
                 .map_err(|failure| completion.compilation_failure(failure))?
         }
     };
@@ -130,8 +143,7 @@ fn complete_occurrence(
         .with_independent_component_descriptions(descriptions)
         .map_err(|errors| completion.input_failure(errors))?;
     let inputs = build.package_inputs().clone();
-    let product = session
-        .compiler()
+    let product = compiler
         .review_package_build(build, maximum_policy_canonical_bytes)
         .map_err(|failure| completion.review_failure(failure))?;
     if let Some(cache_write) = round.retain(completion, product, inputs)? {

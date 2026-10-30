@@ -193,7 +193,12 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             };
             let (binding, fact_input) = input.take_optional_label()?;
             let ((facts, token_count), rest) =
-                parse_proof_facts_until(syntax_trees, fact_input, signature_clause_boundary)?;
+                crate::contracts::facts::parse_required_proof_facts_until(
+                    syntax_trees,
+                    fact_input,
+                    signature_clause_boundary,
+                    false,
+                )?;
             if binding.is_some() && facts.count() != 1 {
                 return Err(fact_input.error_here(
                     "a named bodyless-signature contract must contain exactly one proposition",

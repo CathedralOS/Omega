@@ -45,7 +45,7 @@ machine Main::apply(main: &mut Main, post: Post) -> i32 in Wrapping {
         Post::Withdraw { index, amount } -> withdraw(main, index, amount)
         Post::Freeze { index } -> freeze(main, index)
     }
-    state deposit(main: &mut Main, index: i32, amount: i32 in Wrapping) -> i32 in Wrapping
+    machine deposit(main: &mut Main, index: i32, amount: i32 in Wrapping) -> i32 in Wrapping
     requires 0 <= index && index < 4
     {
         main.hits = main.hits + 1;
@@ -54,13 +54,13 @@ machine Main::apply(main: &mut Main, post: Post) -> i32 in Wrapping {
             _ -> (main.accounts[index].balance)
         }
     }
-    state credit(main: &mut Main, index: i32, amount: i32 in Wrapping) -> i32 in Wrapping
+    machine credit(main: &mut Main, index: i32, amount: i32 in Wrapping) -> i32 in Wrapping
     requires 0 <= index && index < 4
     {
         main.accounts[index].balance = main.accounts[index].balance + amount;
         main.accounts[index].balance
     }
-    state withdraw(main: &mut Main, index: i32, amount: i32 in Wrapping) -> i32 in Wrapping
+    machine withdraw(main: &mut Main, index: i32, amount: i32 in Wrapping) -> i32 in Wrapping
     requires 0 <= index && index < 4
     {
         main.hits = main.hits + 1;
@@ -69,13 +69,13 @@ machine Main::apply(main: &mut Main, post: Post) -> i32 in Wrapping {
             _ -> (main.accounts[index].balance)
         }
     }
-    state debit(main: &mut Main, index: i32, amount: i32 in Wrapping) -> i32 in Wrapping
+    machine debit(main: &mut Main, index: i32, amount: i32 in Wrapping) -> i32 in Wrapping
     requires 0 <= index && index < 4
     {
         main.accounts[index].balance = main.accounts[index].balance - amount;
         main.accounts[index].balance
     }
-    state freeze(main: &mut Main, index: i32) -> i32 in Wrapping
+    machine freeze(main: &mut Main, index: i32) -> i32 in Wrapping
     requires 0 <= index && index < 4
     {
         main.hits = main.hits + 10;
@@ -90,43 +90,43 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> second(main)
         _ -> bad(main, 71)
     }
-    state second(main: &mut Main) {
+    machine second(main: &mut Main) {
         let value: i32 in Wrapping = Main::apply(main, Post::Deposit { index: 1, amount: 40 });
         transition value == 40 && main.hits == 2 && main.accounts[1].balance == 40 {
             true -> frozen(main)
             _ -> bad(main, 72)
         }
     }
-    state frozen(main: &mut Main) {
+    machine frozen(main: &mut Main) {
         let value: i32 in Wrapping = Main::apply(main, Post::Freeze { index: 0 });
         transition value == 0 && main.hits == 12 && main.accounts[0].frozen == 1 {
             true -> skipped(main)
             _ -> bad(main, 73)
         }
     }
-    state skipped(main: &mut Main) {
+    machine skipped(main: &mut Main) {
         let value: i32 in Wrapping = Main::apply(main, Post::Deposit { index: 0, amount: 5 });
         transition value == 100 && main.hits == 13 && main.accounts[0].balance == 100 {
             true -> withdrawn(main)
             _ -> bad(main, 74)
         }
     }
-    state withdrawn(main: &mut Main) {
+    machine withdrawn(main: &mut Main) {
         let value: i32 in Wrapping = Main::apply(main, Post::Withdraw { index: 1, amount: 10 });
         transition value == 30 && main.hits == 14 {
             true -> finals(main)
             _ -> bad(main, 75)
         }
     }
-    state finals(main: &mut Main) {
+    machine finals(main: &mut Main) {
         transition main.accounts[0].balance == 100 && main.accounts[1].balance == 30
             && main.accounts[2].balance == 0 && main.accounts[3].balance == 0 {
             true -> good(main)
             _ -> bad(main, 76)
         }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

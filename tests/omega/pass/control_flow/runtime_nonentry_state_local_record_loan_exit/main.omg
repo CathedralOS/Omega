@@ -19,13 +19,13 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> refused(71)
     }
 
-    state prepare(start: u64) {
+    machine prepare(start: u64) {
         let mut score: Score;
         score.value = start as u64 in Wrapping;
         transition { _ -> bump(&mut score) }
     }
 
-    state bump(score: &mut Score) {
+    machine bump(score: &mut Score) {
         score.bonus = score.value + 67;
         transition score.bonus == 70 {
             true -> done()
@@ -33,11 +33,11 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state done() {
+    machine done() {
         Console::exit_process(70);
     }
 
-    state refused(code: i32) {
+    machine refused(code: i32) {
         Console::exit_process(code);
     }
 }

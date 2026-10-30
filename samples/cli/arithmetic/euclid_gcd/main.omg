@@ -19,21 +19,21 @@ machine Main::main(context: &mut Main) reaches Console {
     }
 
     // Retain the sample's Wrapping arithmetic domain on the explicit operands.
-    state step(context: &mut Main, left: i32 in Wrapping, right: i32 in Wrapping) {
+    machine step(context: &mut Main, left: i32 in Wrapping, right: i32 in Wrapping) {
         transition right == 0 {
             true -> done(context, left)
             _ -> reduce(context, left, right)
         }
     }
 
-    state reduce(context: &mut Main, left: i32 in Wrapping, right: i32 in Wrapping) {
+    machine reduce(context: &mut Main, left: i32 in Wrapping, right: i32 in Wrapping) {
         let remainder: i32 in Wrapping = left % right;
         transition {
             _ -> step(context, right, remainder)
         }
     }
 
-    state done(context: &mut Main, result: i32 in Wrapping) {
+    machine done(context: &mut Main, result: i32 in Wrapping) {
         Console::write_line("result: the GCD, 12 for (48, 36) (the exit code)");
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];

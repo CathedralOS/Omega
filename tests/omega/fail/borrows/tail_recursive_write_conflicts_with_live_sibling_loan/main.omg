@@ -7,12 +7,12 @@ machine main() reaches ProcessExit {
     let observed: &Count = &work.stable;
     fill(&mut work, 2);
     transition observed.value == 3 && work.scratch == 2.0 { true -> good() false -> bad() }
-    state good() { ProcessExit::exit_process(0); } state bad() { ProcessExit::exit_process(1); }
+    machine good() { ProcessExit::exit_process(0); } machine bad() { ProcessExit::exit_process(1); }
 }
 machine fill(work: &mut Work, remaining: u64) {
     transition remaining > 0 { true -> write(work, remaining) false -> done() }
-    state write(work: &mut Work, remaining: u64) requires remaining > 0 {
+    machine write(work: &mut Work, remaining: u64) requires remaining > 0 {
         work.stable.value = 9; transition { _ -> fill(work, remaining - 1) }
     }
-    state done() { }
+    machine done() { }
 }

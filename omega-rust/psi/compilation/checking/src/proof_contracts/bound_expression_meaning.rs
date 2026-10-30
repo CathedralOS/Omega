@@ -141,6 +141,11 @@ fn binary_expression_meaning(
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
+    if program.static_type_predicate_operands(expression).is_some() {
+        // Type equality has a fixed static meaning; it neither selects a value
+        // operator nor authorizes a runtime read of either type operand.
+        return true;
+    }
     match binary.operator {
         BinaryOperator::CaseMembership => {
             has_exact_case_membership_meaning(program, machine, state, expression, binary)
@@ -441,7 +446,7 @@ fn sealed_float_comparison_for_operands(
     .is_some()
 }
 
-pub(super) fn sealed_float_comparison_declaration_for_operands(
+pub(crate) fn sealed_float_comparison_declaration_for_operands(
     program: &dyn crate::CheckingInput,
     owner: symbols::SymbolHandle,
     expression: ExpressionHandle,
@@ -577,21 +582,15 @@ pub fn has_exact_case_membership_meaning(
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> bool {
     exact_case_membership_meaning(program, expression, comparison, |subject, owner| {
-        membership_subject_matches_owner(
-            program,
-            Some((machine, state)),
-            subject,
-            owner,
-            |subject| {
-                operand_type(program, machine, state, subject).or_else(|| {
-                    // Reserved result spelling has meaning only at its exact
-                    // authored postcondition occurrence in this machine.
-                    crate::reserved_result_place(program, subject)
-                        .filter(|place| place.machine_symbol == machine.symbol)
-                        .map(|place| place.type_reference)
-                })
-            },
-        )
+        membership_subject_matches_owner(program, subject, owner, |subject| {
+            operand_type(program, machine, state, subject).or_else(|| {
+                // Reserved result spelling has meaning only at its exact
+                // authored postcondition occurrence in this machine.
+                crate::reserved_result_place(program, subject)
+                    .filter(|place| place.machine_symbol == machine.symbol)
+                    .map(|place| place.type_reference)
+            })
+        })
     })
 }
 
@@ -632,20 +631,41 @@ pub fn applied_case_membership_variant(
     Some(selected)
 }
 
-/// Rejoin membership in an abstract signature's exact parameter scope. A
-/// parameter from another declaration cannot supply this subject's carrier.
-pub fn has_exact_parameter_case_membership_meaning(
+/// Rejoin membership in this declaration's exact observation scope. Parameters
+/// remain telescope-owned; reserved result observations retain their authored
+/// callable owner. A global declaration lookup supplies neither identity.
+pub fn has_exact_declaration_case_membership_meaning(
     program: &dyn crate::CheckingInput,
+    declaration_owner: symbols::SymbolHandle,
     parameters: &[typed_trees::signature::StateParameter],
     expression: ExpressionHandle,
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> bool {
     exact_case_membership_meaning(program, expression, comparison, |subject, owner| {
-        membership_subject_matches_owner(program, None, subject, owner, |subject| {
+        membership_subject_matches_owner(program, subject, owner, |subject| {
             crate::value_custody::places::parameter_scoped_type_reference(
                 program, parameters, subject,
             )
+            .or_else(|| {
+                crate::reserved_result_place(program, subject)
+                    .filter(|result| result.machine_symbol == declaration_owner)
+                    .map(|result| result.type_reference)
+            })
         })
+    })
+}
+
+/// A result-typing or selection query already owns the subject's exact scoped
+/// carrier. Reuse the retained case operation and nominal owner checks without
+/// treating its lowered equality node as an overloadable equality occurrence.
+pub fn has_exact_typed_case_membership_meaning(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    comparison: &typed_trees::expression::TableBinaryExpression,
+    subject_type: Option<TypeReferenceHandle>,
+) -> bool {
+    exact_case_membership_meaning(program, expression, comparison, |subject, owner| {
+        membership_subject_matches_owner(program, subject, owner, |_| subject_type)
     })
 }
 
@@ -800,7 +820,6 @@ fn exact_case_reference_owner_position(
 
 fn membership_subject_matches_owner(
     program: &dyn crate::CheckingInput,
-    machine_context: Option<(&Machine, Option<&State>)>,
     subject: ExpressionHandle,
     owner: &DataDefinition,
     subject_type: impl FnOnce(ExpressionHandle) -> Option<TypeReferenceHandle>,
@@ -823,11 +842,7 @@ fn membership_subject_matches_owner(
     // case's type as evidence for an otherwise unknown subject. Field
     // construction and default-domain obligations remain separate checks.
     match program.expression_table.expression(subject) {
-        ExpressionNode::Name(path)
-            if machine_context.is_some_and(|(machine, _)| {
-                path.symbol == machine.symbol && path.head_symbol == machine.symbol
-            }) =>
-        {
+        ExpressionNode::Name(path) if program.machine(path.symbol).is_some() => {
             // A machine declaration does not supply a runtime value whose
             // case tag can be observed.
             return false;
@@ -930,7 +945,7 @@ fn operand_type_at_depth(
                 program, expression,
             )
         }
-        ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol == path.symbol => {
+        ExpressionNode::Name(path) => {
             crate::value_custody::expression_types::named_value_type_reference(program, path)
         }
         ExpressionNode::Member(_)
@@ -1206,4 +1221,62 @@ fn builtin_comparison_meaning(
             operand_type(program, machine, state, comparison.right),
         ],
     )
+}
+
+/// Static type refinement reuses the ordinary equality selection. A generated
+/// Boolean pattern has no permission to replace a selected user operation.
+pub fn static_type_boolean_equalities(program: &dyn crate::CheckingInput) -> Vec<ExpressionHandle> {
+    let mut meanings =
+        std::collections::HashMap::<ExpressionHandle, bool, symbols::BuildSymbolHasher>::default();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            let mut expressions = Vec::new();
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                crate::collect_statement_expression_trees(program, statement, &mut expressions);
+            }
+            for contract in program
+                .machine_contracts(machine)
+                .iter()
+                .chain(program.state_contracts(state))
+            {
+                for fact in program.proof_facts.span_or_empty(contract.facts) {
+                    crate::append_fact_expression_roots(program, fact, &mut expressions);
+                }
+            }
+            for expression in expressions {
+                let Some(binary) = program.expression_table.binary_node(expression) else {
+                    continue;
+                };
+                if !matches!(
+                    binary.operator,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                ) {
+                    continue;
+                }
+                if !matches!(
+                    program.expression_table.expression(binary.left),
+                    ExpressionNode::Boolean(_)
+                ) && !matches!(
+                    program.expression_table.expression(binary.right),
+                    ExpressionNode::Boolean(_)
+                ) {
+                    continue;
+                }
+                let builtin =
+                    builtin_boolean_equality(program, machine, Some(state), expression, binary);
+                meanings
+                    .entry(expression)
+                    .and_modify(|all| *all &= builtin)
+                    .or_insert(builtin);
+            }
+        }
+    }
+    let mut equalities = meanings
+        .into_iter()
+        .filter_map(|(expression, all)| all.then_some(expression))
+        .collect::<Vec<_>>();
+    equalities
+        .sort_unstable_by_key(|expression| (expression.arena_index(), expression.generation()));
+    equalities.dedup();
+    equalities
 }

@@ -1,0 +1,14 @@
+// Changing the recursive actual cannot establish the caller's original result bound.
+machine descend(n: u64, previous: u64) -> u64
+requires n <= previous && previous <= 1000
+terminates by n -> Nat::Descending;
+ensures result <= previous
+{
+    transition n > 0 {
+        true -> descend(n - 1, 1000)
+        false -> previous
+    }
+}
+
+
+machine main() {}

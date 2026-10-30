@@ -4,13 +4,13 @@ data Password [copy] {
     salt: i32 in Wrapping;
 }
 
-domain Password::Valid(password)
+domain Password::Valid
 requires
-    password.length > 0;
+    self.length > 0;
 
-domain Password::Secure(password)
+domain Password::Secure
 requires
-    password.score >= 8;
+    self.score >= 8;
 
 data Main {
     password: Password;

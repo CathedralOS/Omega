@@ -15,6 +15,6 @@ machine through(choice: bool) -> bool {
 }
 machine main() crashes Trap {
     transition through(true) && through(false) { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

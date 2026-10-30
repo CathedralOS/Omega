@@ -16,7 +16,7 @@ requires input.pairs[0].left.ready, input.pairs[0].right.ready,
 {
     let local: Token = Token { ready: true, value: 7 };
     transition { _ -> finish(input.pairs[0].left) }
-    state finish(selected: Token)
+    machine finish(selected: Token)
     requires selected.ready
     {
         transition selected.value == 42 {
@@ -24,8 +24,8 @@ requires input.pairs[0].left.ready, input.pairs[0].right.ready,
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine main() crashes Trap {

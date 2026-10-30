@@ -73,28 +73,28 @@ machine CriticalStackPolicy::plan(
         _ -> reject()
     }
 
-    state accept(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+    machine accept(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
         transition root < 256 {
             true -> size(signature, root)
             _ -> reject()
         }
     }
 
-    state size(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+    machine size(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
         transition signature.shapes[root].byte_size == 40 {
             true -> alignment(signature, root)
             _ -> reject()
         }
     }
 
-    state alignment(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+    machine alignment(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
         transition signature.shapes[root].alignment == 8 {
             true -> build(signature, root)
             _ -> reject()
         }
     }
 
-    state build(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+    machine build(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan;
         output.call.convention = CallingConvention::SystemVAMD64;
         output.call.parameter_count = 1;
@@ -131,7 +131,7 @@ machine CriticalStackPolicy::plan(
         BoundaryPlanResult::Accepted { plan: output }
     }
 
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection {
                 reason: "fatal exception roots take exactly one acknowledgement",
@@ -189,28 +189,28 @@ machine TimerStackPolicy::plan(
         _ -> reject()
     }
 
-    state accept(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+    machine accept(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
         transition root < 256 {
             true -> size(signature, root)
             _ -> reject()
         }
     }
 
-    state size(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+    machine size(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
         transition signature.shapes[root].byte_size == 40 {
             true -> alignment(signature, root)
             _ -> reject()
         }
     }
 
-    state alignment(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+    machine alignment(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
         transition signature.shapes[root].alignment == 8 {
             true -> build(signature, root)
             _ -> reject()
         }
     }
 
-    state build(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+    machine build(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan;
         output.call.convention = CallingConvention::SystemVAMD64;
         output.call.parameter_count = 1;
@@ -247,7 +247,7 @@ machine TimerStackPolicy::plan(
         BoundaryPlanResult::Accepted { plan: output }
     }
 
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection {
                 reason: "timer roots take exactly one acknowledgement",

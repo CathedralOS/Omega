@@ -11,5 +11,5 @@ machine main() crashes Trap {
     let item: Other<SEVEN> = Other { marker: 1 };
     let observed: u64 = read(item);
     transition observed == 7 { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

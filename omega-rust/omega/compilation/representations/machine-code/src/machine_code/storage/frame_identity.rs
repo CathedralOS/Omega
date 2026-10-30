@@ -22,7 +22,7 @@ pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrame
         TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1 => 0,
         TargetFrameLayoutPolicy::CanonicalSavedReturnAddressFrameV1 => 1,
     });
-    encode_len(&mut hasher, plan.functions.len());
+    hasher.len(plan.functions.len());
     for function in &plan.functions {
         hasher.raw(&function.machine.get().to_le_bytes());
         hasher.byte(u8::from(function.contains_call));
@@ -33,7 +33,7 @@ pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrame
         hasher.raw(&function.abi_stack_alignment_bytes.to_le_bytes());
         hasher.raw(&function.outgoing_abi_area.byte_size.to_le_bytes());
         hasher.raw(&function.outgoing_abi_area.shadow_bytes.to_le_bytes());
-        encode_len(&mut hasher, function.local_storage_slots.len());
+        hasher.len(function.local_storage_slots.len());
         for slot in &function.local_storage_slots {
             let mut identity = Vec::new();
             slot.id.encode_identity(&mut identity);
@@ -42,13 +42,13 @@ pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrame
             hasher.raw(&slot.size_bytes.to_le_bytes());
             hasher.raw(&slot.alignment_bytes.to_le_bytes());
         }
-        encode_len(&mut hasher, function.stable_address_loans.len());
+        hasher.len(function.stable_address_loans.len());
         for slot in &function.stable_address_loans {
             let mut identity = Vec::new();
             slot.encode_identity(&mut identity);
             hasher.raw(&identity);
         }
-        encode_len(&mut hasher, function.callee_save_slots.len());
+        hasher.len(function.callee_save_slots.len());
         for slot in &function.callee_save_slots {
             hasher.raw(&slot.abstract_slot.0.to_le_bytes());
             hasher.raw(&slot.storage_view.0.to_le_bytes());
@@ -59,7 +59,7 @@ pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrame
         encode_return_address(&mut hasher, function.return_address);
         hasher.raw(&function.stack_probe.interval_bytes.to_le_bytes());
         hasher.raw(&function.stack_probe.touches.to_le_bytes());
-        encode_len(&mut hasher, function.unwind.restores.len());
+        hasher.len(function.unwind.restores.len());
         for restore in &function.unwind.restores {
             hasher.raw(&restore.view.0.to_le_bytes());
             hasher.raw(&restore.frame_offset_bytes.to_le_bytes());
@@ -99,8 +99,4 @@ fn encode_return_address(
             hasher.raw(&size_bytes.to_le_bytes());
         }
     }
-}
-
-fn encode_len(hasher: &mut crate::digest_encoder::DomainDigestEncoder, value: usize) {
-    hasher.u64(value as u64);
 }

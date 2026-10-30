@@ -23,7 +23,22 @@ pub fn normalize_closed_const_expression(
     expression: ExpressionHandle,
     carrier: TypeReferenceHandle,
 ) -> Result<Option<CanonicalConstValue>, String> {
-    let carrier = AppliedValueCarrier::ordinary(carrier);
+    normalize_closed_const_expression_in_carrier(
+        program,
+        owner,
+        expression,
+        AppliedValueCarrier::ordinary(carrier),
+    )
+}
+
+/// One receiving application keeps its complete carrier substitution while
+/// source leaves retain their independent lexical owner and formation.
+pub(crate) fn normalize_closed_const_expression_in_carrier(
+    program: &dyn crate::CheckingInput,
+    owner: SymbolHandle,
+    expression: ExpressionHandle,
+    carrier: AppliedValueCarrier<'_>,
+) -> Result<Option<CanonicalConstValue>, String> {
     if !exact_structured_const_carrier_is_eligible(program, carrier, &mut Vec::new()) {
         return Ok(None);
     }
@@ -98,6 +113,12 @@ impl Context<'_> {
         let carrier = carrier.resolved(program);
         let expected = carrier.reference;
         let node = program.expression_table.expression(expression);
+        // Boolean literals are closed independently of their receiving carrier.
+        // The shared canonical validator still checks that carrier before the
+        // value can be published or used as a constructor field.
+        if let ExpressionNode::Boolean(value) = node {
+            return Ok(Some(DecodedCanonicalConstValue::Boolean(*value)));
+        }
         if let ExpressionNode::Name(path) = node {
             if program
                 .data_type_parameter_by_symbol(path.symbol)

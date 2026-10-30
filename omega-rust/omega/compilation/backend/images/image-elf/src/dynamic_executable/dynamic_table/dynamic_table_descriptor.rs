@@ -10,9 +10,8 @@
 //! [System V ABI section header]: https://gabi.xinuos.com/elf/03-sheader.html
 //! [dynamic section]: https://gabi.xinuos.com/elf/08-dynamic.html#dynamic-section
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
+use crate::bytes::require_name;
 use crate::dynamic_executable::checked::{checked_product, checked_sum, checked_u32, require};
 use crate::dynamic_executable::dynamic_table::dynamic_tag_bytes::ValidatedElfDynamicTablePayload;
 use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ElfDynamicSectionKind;
@@ -144,25 +143,12 @@ pub(crate) fn plan_elf_dynamic_table_section_descriptor(
     ValidatedElfDynamicTableSectionDescriptorPlan,
     Box<ElfDynamicTableSectionDescriptorPlanningError>,
 > {
-    checked::plan_candidate(
-        payload,
-        derive_contents,
-        |payload, contents| {
-            non_authoritative_descriptor_compatibility_fingerprint(&payload, &contents)
-        },
-        |payload, contents, fingerprint| Candidate {
-            payload: payload,
-            contents: contents,
-            non_authoritative_descriptor_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.payload,
-        |payload, diagnostic| {
-            Box::new(ElfDynamicTableSectionDescriptorPlanningError {
-                payload: payload,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: payload,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_descriptor_compatibility_fingerprint,
+        error: ElfDynamicTableSectionDescriptorPlanningError,
     )
 }
 
@@ -204,27 +190,13 @@ fn base_name_seed(payload: &ValidatedElfDynamicTablePayload) -> &[u8] {
         .section_name_table_seed
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfDynamicTableSectionDescriptorPlan, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.payload, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_descriptor_compatibility_fingerprint
-                == non_authoritative_descriptor_compatibility_fingerprint(
-                    &candidate.payload,
-                    &candidate.contents,
-                )
-        },
-        "ELF dynamic-table descriptor compatibility fingerprint does not replay",
-        |candidate| ValidatedElfDynamicTableSectionDescriptorPlan {
-            payload: candidate.payload,
-            contents: candidate.contents,
-            non_authoritative_descriptor_compatibility_fingerprint: candidate
-                .non_authoritative_descriptor_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: payload,
+    contents: contents,
+    validated: ValidatedElfDynamicTableSectionDescriptorPlan,
+    validate: validate_contents,
+    fingerprint: non_authoritative_descriptor_compatibility_fingerprint,
+    message: "ELF dynamic-table descriptor compatibility fingerprint does not replay",
 }
 
 fn validate_contents(
@@ -298,18 +270,11 @@ fn validate_contents(
 }
 
 fn validate_name(seed: &[u8], row: &ElfDynamicTableSectionDescriptor) -> Result<(), Diagnostic> {
-    let offset = usize::try_from(row.name_offset)
-        .map_err(|_| Diagnostic::error("dynamic-table sh_name exceeds usize"))?;
-    let tail = seed
-        .get(offset..)
-        .ok_or_else(|| Diagnostic::error("dynamic-table sh_name is outside the name seed"))?;
-    let terminator = tail
-        .iter()
-        .position(|byte| *byte == 0)
-        .ok_or_else(|| Diagnostic::error("dynamic-table section name is not NUL-terminated"))?;
-    require(
-        tail.get(..terminator) == Some(row.kind.name()),
-        "dynamic-table sh_name does not select the exact semantic name",
+    require_name(
+        seed,
+        row.name_offset,
+        row.kind.name(),
+        "dynamic-table sh_name",
     )
 }
 
@@ -317,12 +282,9 @@ fn non_authoritative_descriptor_compatibility_fingerprint(
     payload: &ValidatedElfDynamicTablePayload,
     contents: &ElfDynamicTableSectionDescriptorContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-dynamic-table-section-descriptor.v1");
-    hash.bytes(
-        &payload
-            .non_authoritative_payload_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf-dynamic-table-section-descriptor.v1",
+        payload.non_authoritative_payload_compatibility_fingerprint(),
     );
     hash.bytes(&contents.section_name_table_seed);
     let row = &contents.descriptor;

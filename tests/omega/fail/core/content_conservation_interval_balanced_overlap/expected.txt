@@ -1,0 +1,1 @@
+cannot prove ensures contract for exit from retain at statement 0: separate(Owned.content(old(&left)), Owned.content(old(&right))) == separate(Owned.content(&result.left), Owned.content(&result.right))

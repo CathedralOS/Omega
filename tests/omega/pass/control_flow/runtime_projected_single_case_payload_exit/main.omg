@@ -8,7 +8,7 @@ machine total(holder: &Holder) -> u64 in Wrapping {
     transition holder.pair {
         Pair::Both { a, b } -> value(a + b)
     }
-    state value(result: u64 in Wrapping) -> u64 in Wrapping { result }
+    machine value(result: u64 in Wrapping) -> u64 in Wrapping { result }
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -18,8 +18,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         false -> bad(main)
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(1); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

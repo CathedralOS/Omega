@@ -1,0 +1,25 @@
+// An exclusive byte view stored in a fixed array preserves its one-byte extent and byte 19 through owned transport.
+// Place: field.
+// Expected exit: 0
+data Bundle<'storage> { windows: [&'storage mut [u8]; 1]; }
+data Wrapper<'bundle, 'storage> { bundle: &'bundle Bundle<'storage>; }
+machine observe(wrapper: &Wrapper) -> bool
+requires wrapper.bundle.windows[0].len == 1
+{
+    wrapper.bundle.windows[0].len == 1 && wrapper.bundle.windows[0][0] == 19
+}
+data Container<'bundle, 'storage> { wrapper: Wrapper<'bundle, 'storage>; }
+machine relay<'bundle, 'storage>(container: Container<'bundle, 'storage>) -> Container<'bundle, 'storage>
+ensures result.wrapper.bundle.windows[0].len == container.wrapper.bundle.windows[0].len
+{ container }
+machine main() crashes Trap {
+    let mut backing: [u8; 1] = [19];
+    let bundle: Bundle = Bundle { windows: [&mut backing[..0]] };
+    let wrapper: Wrapper = Wrapper { bundle: &bundle };
+    let stored: Container = Container { wrapper: wrapper };
+    let selected: Container = relay(stored);
+    let observed: bool = observe(&selected.wrapper);
+    transition observed { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

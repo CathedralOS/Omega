@@ -7,14 +7,14 @@ invokes Poll;
 requires addr::Bound == 18446744073709551616 && retry <= 1
 {
     transition { _ -> inspect(device, retry) }
-    state inspect(device: &mut Device, retry: u64) -> u64
+    machine inspect(device: &mut Device, retry: u64) -> u64
     requires addr::Bound == 18446744073709551616 && retry <= 1
     {
         let status: Status = Poll::poll(device);
         let code: u64 = status.code;
         transition code == 0 { true -> finish(retry) _ -> inspect(device, 2) }
     }
-    state finish(retry: u64) -> u64
+    machine finish(retry: u64) -> u64
     requires addr::Bound == 18446744073709551616 && retry <= 1
     { 42 }
 }

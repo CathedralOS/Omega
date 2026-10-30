@@ -29,7 +29,7 @@ requires Rooms >= 1 {
         true -> swing(actor)
         _ -> (actor)
     }
-    state swing(mut actor: Actor<Rooms>) -> Actor<Rooms> {
+    machine swing(mut actor: Actor<Rooms>) -> Actor<Rooms> {
         actor.attack = Countdown { remaining: ATTACK_FRAMES };
         actor
     }
@@ -42,10 +42,10 @@ requires Rooms >= 1 {
         true -> faction(attacker, victim)
         _ -> (victim)
     }
-    state faction(attacker: Actor<Rooms>, victim: Actor<Rooms>) -> Actor<Rooms> {
+    machine faction(attacker: Actor<Rooms>, victim: Actor<Rooms>) -> Actor<Rooms> {
         transition attacker.faction != victim.faction { true -> range(attacker, victim) _ -> (victim) }
     }
-    state range(attacker: Actor<Rooms>, victim: Actor<Rooms>) -> Actor<Rooms> {
+    machine range(attacker: Actor<Rooms>, victim: Actor<Rooms>) -> Actor<Rooms> {
         let dx: i32 = victim.position.x - attacker.position.x;
         let dy: i32 = victim.position.y - attacker.position.y;
         let forward: bool = (attacker.facing == 0 && dy < 0) || (attacker.facing == 1 && dx > 0) || (attacker.facing == 2 && dy > 0) || (attacker.facing == 3 && dx < 0);
@@ -54,7 +54,7 @@ requires Rooms >= 1 {
             _ -> (victim)
         }
     }
-    state hit(mut victim: Actor<Rooms>, direction: i32) -> Actor<Rooms>
+    machine hit(mut victim: Actor<Rooms>, direction: i32) -> Actor<Rooms>
     requires direction >= 0 && direction < 4 {
         victim.vitality = damage(victim.vitality);
         victim.position = knock_back(victim.position, direction);
@@ -71,25 +71,25 @@ requires direction >= 0 && direction < 4 {
         2 -> south(position)
         _ -> west(position)
     }
-    state north(position: Position) -> Position {
+    machine north(position: Position) -> Position {
         transition position.y >= KNOCKBACK_DISTANCE {
             true -> (Position { x: position.x, y: position.y - KNOCKBACK_DISTANCE })
             _ -> (Position { x: position.x, y: 0 })
         }
     }
-    state east(position: Position) -> Position {
+    machine east(position: Position) -> Position {
         transition position.x < ROOM_WIDTH - KNOCKBACK_DISTANCE {
             true -> (Position { x: position.x + KNOCKBACK_DISTANCE, y: position.y })
             _ -> (Position { x: ROOM_WIDTH - 1, y: position.y })
         }
     }
-    state south(position: Position) -> Position {
+    machine south(position: Position) -> Position {
         transition position.y < ROOM_HEIGHT - KNOCKBACK_DISTANCE {
             true -> (Position { x: position.x, y: position.y + KNOCKBACK_DISTANCE })
             _ -> (Position { x: position.x, y: ROOM_HEIGHT - 1 })
         }
     }
-    state west(position: Position) -> Position {
+    machine west(position: Position) -> Position {
         transition position.x >= KNOCKBACK_DISTANCE {
             true -> (Position { x: position.x - KNOCKBACK_DISTANCE, y: position.y })
             _ -> (Position { x: 0, y: position.y })
@@ -104,15 +104,15 @@ requires Rooms >= 1 {
         true -> faction(attacker, victim)
         _ -> (victim)
     }
-    state faction(attacker: Actor<Rooms>, victim: Actor<Rooms>) -> Actor<Rooms> {
+    machine faction(attacker: Actor<Rooms>, victim: Actor<Rooms>) -> Actor<Rooms> {
         transition attacker.faction != victim.faction { true -> range(attacker, victim) _ -> (victim) }
     }
-    state range(attacker: Actor<Rooms>, victim: Actor<Rooms>) -> Actor<Rooms> {
+    machine range(attacker: Actor<Rooms>, victim: Actor<Rooms>) -> Actor<Rooms> {
         let dx: i32 = victim.position.x - attacker.position.x;
         let dy: i32 = victim.position.y - attacker.position.y;
         transition dx > -CONTACT_DISTANCE && dx < CONTACT_DISTANCE && dy > -CONTACT_DISTANCE && dy < CONTACT_DISTANCE { true -> hit(victim) _ -> (victim) }
     }
-    state hit(mut victim: Actor<Rooms>) -> Actor<Rooms> {
+    machine hit(mut victim: Actor<Rooms>) -> Actor<Rooms> {
         victim.vitality = damage(victim.vitality);
         victim.immunity = Countdown { remaining: INVULNERABILITY_FRAMES };
         victim

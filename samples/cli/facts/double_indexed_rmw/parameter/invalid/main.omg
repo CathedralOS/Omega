@@ -16,8 +16,8 @@ machine rmw(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 3], i: u64, j
         rows[ri].data[rj] = rows[ri].data[rj] + 1;
         let rows_got: i32 in Wrapping = rows[2].data[1] + rows[2].tag;
         transition grid_got == 42 && rows_got == 49 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
     }
 
 machine main() crashes Trap {

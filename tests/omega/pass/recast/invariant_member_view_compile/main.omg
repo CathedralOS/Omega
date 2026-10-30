@@ -21,6 +21,6 @@ machine Main::main(main: &mut Main) {
         _ -> bad(main)
     }
 
-    state good(main: &mut Main) { main.verdict = 70; }
-    state bad(main: &mut Main) { main.verdict = 71; }
+    machine good(main: &mut Main) { main.verdict = 70; }
+    machine bad(main: &mut Main) { main.verdict = 71; }
 }

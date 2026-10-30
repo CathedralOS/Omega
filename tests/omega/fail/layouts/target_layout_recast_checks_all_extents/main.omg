@@ -44,6 +44,6 @@ machine program() crashes Trap {
     let bytes: [u8; 4] = [17, 17, 17, 17];
     let view: &View = &bytes[0] as &View;
     transition view.payload.value == expected() { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

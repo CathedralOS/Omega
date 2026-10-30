@@ -8,6 +8,6 @@ machine main() crashes Trap {
     transition observed == 19 && pair.left == 17 {
         true -> done() false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

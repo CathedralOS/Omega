@@ -5,14 +5,15 @@
 //! checked results retain immutable output custody after session disposal.
 
 mod bindings;
-mod inputs;
 mod order;
 pub use bindings::PackageSourceBindings;
-pub(crate) use inputs::{OccurrenceBuildInputs, reconcile_build_inputs};
 pub(crate) use order::{dependency_first_package_order, package_build_root};
 
 use crate::review::CompileResolvedPackageReviewsError;
-use evaluation_accounting::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
+use evaluation_accounting::{
+    BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+    TerminalStorageScheduleIdentity,
+};
 use filesystem_authority::FilesystemSponsor;
 use std::fs;
 use std::io;
@@ -21,7 +22,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 static PACKAGE_BUILD_SESSION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
-/// Deterministic evaluator work granted to one complete package
+/// Deterministic Terminal work granted to one complete package
 /// invocation. The sibling limits below bound retained compiler resources; none
 /// claims to bound CPU time or process memory.
 const PACKAGE_BUILD_FUEL_CEILING: u64 = 100_000_000;
@@ -51,14 +52,6 @@ pub struct PackageBuildSession {
     root: PathBuf,
     filesystem_sponsor: FilesystemSponsor,
     evaluation_sponsor: BuildEvaluationSponsor,
-    /// Completed pure Build evaluations owned by the whole invocation. Review
-    /// rounds and targets adopt this store into their per-command source
-    /// preparation so one occurrence row's evaluation can answer a later
-    /// round's identical request instead of re-executing the same build.
-    /// Membership stays exact input equality: a hit replays no output and
-    /// carries no checked product, entry token, or host grant, and a round
-    /// whose closure no longer matches simply misses.
-    compiler: compiler::CompilationSession,
     next_occurrence: u64,
     active: bool,
 }
@@ -73,12 +66,6 @@ impl std::fmt::Debug for PackageBuildSession {
 }
 
 impl PackageBuildSession {
-    /// Application-owned work uses the invocation's one compiler session;
-    /// source and pure Build reuse do not replenish the package sponsors.
-    pub fn compiler(&mut self) -> &mut compiler::CompilationSession {
-        &mut self.compiler
-    }
-
     /// Reserve private staging and bounded sponsors for one invocation. The
     /// caller owns disposal after all targets and review rounds have finished.
     pub fn create(build_workspace: &Path) -> Result<Self, CompileResolvedPackageReviewsError> {
@@ -123,11 +110,25 @@ impl PackageBuildSession {
                         PACKAGE_RESULT_TEXT_BYTE_CEILING,
                     )
                     .expect("package build ceilings are nonzero");
+                    // A fresh invocation chooses Terminal units explicitly. Old
+                    // tree-measured records remain distinct and cannot pay for it.
+                    let evaluation_sponsor = BuildEvaluationSponsor::new_with_measurement(
+                        evaluation_limits,
+                        EvaluationMeasurementIdentity::TerminalPsi {
+                            fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                            storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+                        },
+                    )
+                    .map_err(|error| {
+                        CompileResolvedPackageReviewsError::BuildStagingCreate {
+                            path: root.clone(),
+                            error: io::Error::other(error),
+                        }
+                    })?;
                     return Ok(Self {
                         root: canonical_root,
                         filesystem_sponsor,
-                        evaluation_sponsor: BuildEvaluationSponsor::new(evaluation_limits),
-                        compiler: compiler::CompilationSession::default(),
+                        evaluation_sponsor,
                         next_occurrence: 0,
                         active: true,
                     });
@@ -159,6 +160,53 @@ impl PackageBuildSession {
         resolution: &package_source::ImmutableSourceResolution,
         purpose: crate::declarations::DependencyPurpose,
     ) -> Result<PathBuf, CompileResolvedPackageReviewsError> {
+        let base = package_build_root(&self.root, key, resolution, purpose);
+        self.create_build_directory(base)
+    }
+
+    /// Admit acquired source work before its Build declares a package name.
+    /// Explicit inputs reach this activation before its effects. Absent sponsors
+    /// use the invocation's shared grants; supplied grants are not replenished
+    /// or inherited by dependencies. No permission is created here.
+    pub fn source_build_request(
+        &mut self,
+        capture: &package_compilation::CapturedLocalSource,
+        entry: &Path,
+        profile: target::TargetProfile,
+        execution: package_compilation::BuildExecutionInputs,
+    ) -> Result<compiler::CheckedCompileRequest, CompileResolvedPackageReviewsError> {
+        self.require_open()?;
+        let profile = execution.profile.unwrap_or(profile);
+        let directory = match execution.directory {
+            Some(directory) => directory,
+            None => self.create_build_directory(self.root.join("source"))?,
+        };
+        Ok(compiler::CheckedCompileRequest {
+            source_capture: Some(capture.clone()),
+            build: package_compilation::BuildExecutionInputs {
+                profile: Some(profile),
+                snapshot: execution.snapshot.or_else(|| {
+                    Some(package_compilation::BuildSnapshotRequest::new(
+                        std::iter::empty(),
+                    ))
+                }),
+                directory: Some(directory),
+                filesystem_sponsor: execution
+                    .filesystem_sponsor
+                    .or_else(|| Some(self.filesystem_sponsor.clone())),
+                evaluation_sponsor: execution
+                    .evaluation_sponsor
+                    .or_else(|| Some(self.evaluation_sponsor.clone())),
+                restricted_grants: execution.restricted_grants,
+            },
+            ..compiler::CheckedCompileRequest::new(entry, Some(profile.target_name()))
+        })
+    }
+
+    fn create_build_directory(
+        &mut self,
+        base: PathBuf,
+    ) -> Result<PathBuf, CompileResolvedPackageReviewsError> {
         self.require_open()?;
         let sequence = self.next_occurrence;
         self.next_occurrence = sequence.checked_add(1).ok_or_else(|| {
@@ -167,8 +215,7 @@ impl PackageBuildSession {
                 error: io::Error::other("package build occurrence sequence exhausted"),
             }
         })?;
-        let directory = package_build_root(&self.root, key, resolution, purpose)
-            .with_extension(sequence.to_string());
+        let directory = base.with_extension(sequence.to_string());
         let sponsor_error = |error| CompileResolvedPackageReviewsError::BuildStagingSponsor {
             path: directory.clone(),
             error,
@@ -208,12 +255,14 @@ impl PackageBuildSession {
         &self.filesystem_sponsor
     }
 
-    pub(crate) fn evaluation_sponsor(&self) -> &BuildEvaluationSponsor {
+    /// Observe or spend the invocation's existing allowance. Cloning this
+    /// sponsor shares its counters; it never creates a fresh budget.
+    pub fn evaluation_sponsor(&self) -> &BuildEvaluationSponsor {
         &self.evaluation_sponsor
     }
 
     /// Release staging before publishing accepted project files. Closing does
-    /// not create another grant, and this owner cannot execute another Build.
+    /// not create another grant, and this owner cannot admit another Build.
     pub fn close(&mut self) -> Result<(), CompileResolvedPackageReviewsError> {
         if !self.active {
             return Ok(());

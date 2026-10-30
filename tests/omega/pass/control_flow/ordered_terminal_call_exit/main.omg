@@ -29,7 +29,7 @@ machine unit(counter: &mut Counter) crashes Trap {
 }
 machine arrived(counter: &mut Counter) -> Item crashes Trap {
     transition { _ -> selected(counter) }
-    state selected(current: &mut Counter) -> Item {
+    machine selected(current: &mut Counter) -> Item {
         transition { _ -> issue(increment(current)) _ -> forbidden_item() }
     }
 }
@@ -43,6 +43,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

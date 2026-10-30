@@ -33,9 +33,12 @@ use typed_trees::types::TypeReferenceNode;
 
 pub(super) struct Builder<'program, 'plans> {
     pub(super) program: &'program dyn ::validation::CheckingInput,
+    pub(super) shapes: crate::execution::terminal_unit::types::ShapeCollector<'program>,
     pub(super) operators: &'program CheckedOperatorFacts,
+    pub(super) semantic: &'program facts::FactPlan,
     pub(super) flow: &'program FlowFacts,
     pub(super) borrow: &'program checked_trees::BorrowFacts,
+    pub(super) proof: &'program checked_trees::ProofFacts,
     pub(super) pure: &'program CheckedScalarExpressionPlans,
     pub(super) exact_integer_casts: &'program [validation::ExactIntegerCastFact],
     pub(super) machine: SymbolHandle,
@@ -126,6 +129,7 @@ impl Builder<'_, '_> {
             .expression_at(self.state, statement_ordinal, role)
             .is_some()
             && !self.is_bodyless_boundary_call(expression)
+            && !self.observes_captured_dispatch_value(expression)
         {
             return;
         }
@@ -234,6 +238,7 @@ impl Builder<'_, '_> {
         self.structural_values
             .roots
             .append(CheckedStructuralValueRoot {
+                captured_copy: arena::Handle::invalid(),
                 machine: self.machine,
                 state: self.state,
                 statement_ordinal,
@@ -493,15 +498,11 @@ impl Builder<'_, '_> {
         if let Some((constant, primitive)) = self.retained_constant(expression) {
             return (primitive == expected_type).then_some(constant);
         }
-        if let Some(observation) = self.primitive_reference_observation(expression, expected_type) {
-            return Some(observation);
-        }
-        // A Boolean result rooted at an integer destination is the implicit
-        // `{0, 1}` coercion checking admits for a raw comparison or logical
-        // result (`value_classification`): `hits = value == 70`. It takes the
-        // node the explicit `(value == 70) as i32` cast takes
-        // (`integers.rs`), with the comparison itself as the source
-        // occurrence, so locals, fields and arguments share one lowering.
+        // Normalize the declared Boolean result before selecting its actual
+        // observation. This is the ordinary {0, 1} scalar conversion, including
+        // explicitly checked casts and internal arithmetic operands. Source
+        // admission separately rejects implicit cross-class stores; selecting
+        // a saved or live receiver must not bypass this shared conversion.
         if is_integer(expected_type)
             && expected_type != PrimitiveType::Addr
             && semantic_casts::result_type(self.program, self.state, expression)
@@ -518,14 +519,26 @@ impl Builder<'_, '_> {
             ));
         }
 
+        if self.uses_captured_dispatch_value(expression) {
+            return self.completed_scalar_observation(expression, expected_type);
+        }
+        // A value-producing control expression owns its receiving context.
+        // Dispatch lowers each arm into that scalar type; retaining the whole
+        // naturally reference-valued match would publish the wrong local root.
+        if let ExpressionNode::Match(dispatch) =
+            self.program.expression_table.expression(expression).clone()
+        {
+            return self.dispatch(expression, &dispatch, expected_type);
+        }
+        if let Some(observation) = self.primitive_reference_observation(expression, expected_type) {
+            return Some(observation);
+        }
+
         if let ExpressionNode::Name(name) = self.program.expression_table.expression(expression)
-            && name.symbol == name.head_symbol
             && self
                 .program
                 .expression_table
-                .name_path_members(name.members)
-                .len()
-                == 1
+                .name_path_is_single_member(name)
         {
             let mut selected = self.declaration_bindings.iter().filter(|(formal, _)| {
                 formal.root == facts::PlaceRoot::Symbol(name.symbol) && formal.segments.is_empty()
@@ -535,7 +548,7 @@ impl Builder<'_, '_> {
                     return None;
                 }
                 let coordinate = coordinate.clone();
-                return self.scalar_coordinate(expression, &coordinate, expected_type);
+                return self.scalar_coordinate(expression, &coordinate, expected_type, &[]);
             }
         }
         if validation::atomic_load_carrier(self.program, expression).is_some() {
@@ -628,11 +641,6 @@ impl Builder<'_, '_> {
         {
             return self.authored_cast(expression, &cast, expected_type);
         }
-        if let ExpressionNode::Match(dispatch) =
-            self.program.expression_table.expression(expression).clone()
-        {
-            return self.dispatch(expression, &dispatch, expected_type);
-        }
         if expected_type == PrimitiveType::Bool
             && let Some(operator_use) = self.comparison_use(
                 expression,
@@ -675,6 +683,7 @@ impl Builder<'_, '_> {
         // explicit declaration substitution must reach the graph operands
         // before any whole-expression shortcut can choose a scalar lane.
         if !self.has_declaration_binding(expression)
+            && !self.observes_captured_dispatch_value(expression)
             && !semantic_casts::requires_custody(self.program, self.state, expression)
             && let Some(value) = lower_return_expression(
                 self.program,
@@ -765,7 +774,7 @@ impl Builder<'_, '_> {
                     } else {
                         None
                     };
-                if !call.carries_only_positional_arguments()
+                if !call.machine_arguments.is_empty()
                     || call.quotient_operation.is_some()
                     || call.private_layout_operation.is_some()
                     || call.layout_query.is_some()
@@ -778,10 +787,19 @@ impl Builder<'_, '_> {
                         validation::call_target_symbol(self.program, &call),
                     )
                 {
+                    // Boundary execution has its own admitted contract owner;
+                    // an ordinary machine evidence lane cannot authorize it.
+                    if !call.evidence_arguments.is_empty() {
+                        return None;
+                    }
                     return self.boundary_call(expression, &call, target, expected_type);
                 }
+                let entered_target = validation::call_target_entry_symbol(
+                    self.program,
+                    validation::call_target_symbol(self.program, &call),
+                );
                 let (target_machine, target_state) =
-                    validation::find_machine_by_entry_state(self.program, call.target_symbol)?;
+                    validation::find_machine_by_entry_state(self.program, entered_target)?;
                 if static_requirement_dispatch.is_some()
                     && target_machine.supply_mode
                         != language_semantics::MachineSupplyMode::CheckedBody
@@ -817,6 +835,16 @@ impl Builder<'_, '_> {
                 }
                 let (source_call, call_ordinal) =
                     self.call_ordinal(expression, call.target_symbol)?;
+                if !call.evidence_arguments.is_empty()
+                    && !self.has_declared_evidence_inputs(
+                        target_machine.symbol,
+                        target_state.symbol,
+                        call_ordinal,
+                        call.evidence_arguments.len(),
+                    )
+                {
+                    return None;
+                }
                 let arguments = self
                     .program
                     .expression_table
@@ -949,11 +977,66 @@ impl Builder<'_, '_> {
         }
     }
 
+    /// Retain an executable occurrence only with one complete declared input
+    /// lane. This is plan formation, not evidence inhabitation: the ordinary
+    /// contract checker still authenticates every source term before emission.
+    fn has_declared_evidence_inputs(
+        &self,
+        target_machine: SymbolHandle,
+        target_state: SymbolHandle,
+        call_ordinal: u32,
+        count: usize,
+    ) -> bool {
+        let mut calls = self
+            .proof
+            .contract_calls
+            .iter()
+            .map(|(_, call)| call)
+            .filter(|call| {
+                call.caller_machine_symbol == self.machine
+                    && call.caller_state_symbol == self.state
+                    && call.statement_index == self.statement_index
+                    && call.call_ordinal == call_ordinal as usize
+            });
+        let Some(call) = calls.next() else {
+            return false;
+        };
+        if calls.next().is_some()
+            || call.target_machine_symbol != target_machine
+            || call.target_state_symbol != target_state
+            || call.signature.is_valid()
+        {
+            return false;
+        }
+        let mut parameters = Vec::new();
+        for reference in self.proof.contract_fact_refs.span_or_empty(call.requires) {
+            let contract = self.proof.contract_facts.get(reference.fact);
+            let Some(parameter) = contract.evidence_term else {
+                continue;
+            };
+            let term = self.proof.evidence_terms.get(parameter);
+            if contract.kind != checked_trees::ContractProofFactKind::Requires
+                || contract.owner
+                    != (checked_trees::ContractProofFactOwner::Machine {
+                        machine_symbol: target_machine,
+                    })
+                || term.owner != contract.owner
+                || term.kind != contract.kind
+            {
+                return false;
+            }
+            parameters.push(term.lane_position);
+        }
+        parameters.sort_unstable();
+        parameters.len() == count && parameters.iter().copied().eq(0..count)
+    }
+
     pub(super) fn call_ordinal(
         &self,
         expression: ExpressionHandle,
         target: SymbolHandle,
     ) -> Option<(arena::Handle<checked_trees::FlowCallFact>, u32)> {
+        let target = validation::call_target_entry_symbol(self.program, target);
         let state = self.flow.control.state(self.machine, self.state)?;
         let mut matching = self
             .flow

@@ -153,7 +153,7 @@ pub(crate) fn validate_value_range(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> (Interval, Option<PrimitiveType>, Option<ArithmeticDomain>) {
-    validate_value_range_retaining_decisions(
+    validate_value_range_with_decision_sink(
         program,
         machine,
         state,
@@ -163,7 +163,7 @@ pub(crate) fn validate_value_range(
         target_domain,
         owner,
         diagnostics,
-        &mut super::ArithmeticDecisions::default(),
+        ArithmeticDecisionSink::Discard,
     )
 }
 
@@ -183,9 +183,104 @@ pub(crate) fn validate_value_range_retaining_decisions(
     diagnostics: &mut Vec<Diagnostic>,
     decisions: &mut super::ArithmeticDecisions,
 ) -> (Interval, Option<PrimitiveType>, Option<ArithmeticDomain>) {
+    validate_value_range_with_decision_sink(
+        program,
+        machine,
+        state,
+        expression,
+        environment,
+        target_primitive,
+        target_domain,
+        owner,
+        diagnostics,
+        ArithmeticDecisionSink::All(decisions),
+    )
+}
+
+/// Construction/static receiving checks retain model-bound obligations, not
+/// execution receipts. Request only that output: their speculative independent
+/// checks cannot publish occurrence judgments and must not reconstruct private
+/// runtime prefixes for decisions the receiver will discard.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn validate_value_range_retaining_obligations(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    environment: &ValueEnvironment,
+    target_primitive: Option<PrimitiveType>,
+    target_domain: ArithmeticDomain,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+    obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
+) -> (Interval, Option<PrimitiveType>, Option<ArithmeticDomain>) {
+    validate_value_range_with_decision_sink(
+        program,
+        machine,
+        state,
+        expression,
+        environment,
+        target_primitive,
+        target_domain,
+        owner,
+        diagnostics,
+        ArithmeticDecisionSink::Obligations(obligations),
+    )
+}
+
+/// A request's output custody determines its optional work. All three consumers
+/// still run the same mandatory formation/range check; only actual admission
+/// retains occurrence receipts for downstream execution planning.
+enum ArithmeticDecisionSink<'a> {
+    Discard,
+    Obligations(&'a mut Vec<checked_trees::IntegerRangeObligation>),
+    All(&'a mut super::ArithmeticDecisions),
+}
+
+impl ArithmeticDecisionSink<'_> {
+    fn retains_execution_receipts(&self) -> bool {
+        matches!(self, Self::All(_))
+    }
+
+    fn publish(self, decisions: super::ArithmeticDecisions) {
+        match self {
+            Self::Discard => {}
+            Self::Obligations(obligations) => {
+                obligations.extend(decisions.integer_range_obligations)
+            }
+            Self::All(retained) => retained.extend(decisions),
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_value_range_with_decision_sink(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    environment: &ValueEnvironment,
+    target_primitive: Option<PrimitiveType>,
+    target_domain: ArithmeticDomain,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+    retained: ArithmeticDecisionSink<'_>,
+) -> (Interval, Option<PrimitiveType>, Option<ArithmeticDomain>) {
+    let retain_trap_receipts = retained.retains_execution_receipts();
+    let mut decisions = super::ArithmeticDecisions::default();
     if !expression.is_valid() {
         return (Interval::UNBOUNDED, None, None);
     }
+    validate_anonymous_address_landing(
+        program,
+        machine,
+        state,
+        expression,
+        target_primitive,
+        owner,
+        diagnostics,
+        &mut decisions.integer_range_obligations,
+    );
     let first_diagnostic = diagnostics.len();
     let analysis = analyze(
         program,
@@ -197,6 +292,7 @@ pub(crate) fn validate_value_range_retaining_decisions(
         target_domain,
         owner,
         true,
+        retain_trap_receipts,
         diagnostics,
     );
     if !diagnostics[first_diagnostic..]
@@ -205,11 +301,58 @@ pub(crate) fn validate_value_range_retaining_decisions(
     {
         decisions.extend(analysis.decisions);
     }
+    retained.publish(decisions);
     (
         analysis.value.interval,
         analysis.value.primitive,
         analysis.value.domain,
     )
+}
+
+/// All ordinary anonymous Addr receiving boundaries use the same formation
+/// owner. Payload validation remains separate from symbolic model admission.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn validate_anonymous_address_landing(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    target: Option<PrimitiveType>,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+    obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
+) {
+    if target != Some(PrimitiveType::Addr)
+        || !crate::value_custody::literals::has_anonymous_numeric_results(program, expression)
+    {
+        return;
+    }
+    let before = diagnostics.len();
+    validate_anonymous_integer_primitive_range(
+        program,
+        PrimitiveType::Addr,
+        expression,
+        owner,
+        diagnostics,
+    );
+    if diagnostics.len() != before {
+        return;
+    }
+    let fit = crate::proof_contracts::contract_entailment::anonymous_value_fit_at_occurrence(
+        program,
+        machine,
+        state,
+        expression,
+        PrimitiveType::Addr,
+    );
+    if !fit.retain(expression, machine.symbol, owner, obligations) {
+        diagnostics.push(
+            Diagnostic::error(format!(
+                "anonymous address value cannot prove fit in `addr::Bound` in {owner}",
+            ))
+            .with_source_span(program.expression_table.source_span(expression)),
+        );
+    }
 }
 
 /// The interval of an anonymous literal (D14). A literal that fits i64 is a
@@ -375,19 +518,6 @@ pub(crate) fn u64_exact_shift_left_fits(value: Interval, count: Interval) -> boo
         .ok()
         .and_then(|value| value.checked_shl(count_high as u32))
         .is_some_and(|maximum| maximum <= u128::from(u64::MAX))
-}
-
-/// The integer value of a literal operand (through a `Mutable` wrapper), or `None`
-/// when the operand is not a plain integer literal.
-pub(crate) fn integer_literal_value(
-    program: &dyn crate::CheckingInput,
-    value: ExpressionHandle,
-) -> Option<i64> {
-    let node = program.expression_table.peeled_expression(value);
-    match node {
-        ExpressionNode::Integer(literal) => literal.value_i64(),
-        _ => None,
-    }
 }
 
 /// A type-constraint range bound as an i64: a literal integer (`[0..100]`) or

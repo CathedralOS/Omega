@@ -9,12 +9,12 @@ requires value.value == 2 {
 }
 machine carry() -> bool {
     transition { _ -> onward(Bonus { value: 2 }) }
-    state onward(value: Bonus) -> bool
+    machine onward(value: Bonus) -> bool
     requires value.value == 2 { consume(value) }
 }
 machine main() crashes Trap {
     let accepted: bool = carry();
     transition accepted { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -175,7 +175,7 @@ impl Captures<'_> {
                             state,
                             statement_index,
                             facts::PlaceRoot::Symbol(symbol),
-                            &loan_place_segments(self.program, reference, &source.path)?,
+                            &self.captured_place_segments(reference, &source.path)?,
                             capture,
                             active,
                         )?
@@ -209,6 +209,27 @@ impl Captures<'_> {
             present |= supplied;
         }
         Some(present)
+    }
+
+    /// Canonical storage coordinates omit physical pointer loads. Validate
+    /// the complete checked path against its declaration before removing those
+    /// markers; place_leaf_present then requires the actual descriptor loads
+    /// from the consumer's immutable storage cut. Geometry alone is no presence
+    /// evidence, and an unresolved binding never falls back to an initializer.
+    fn captured_place_segments(
+        &self,
+        reference: TypeReferenceHandle,
+        path: &[CheckedUnitStructuralPathSegment],
+    ) -> Option<Vec<facts::PlaceSegment>> {
+        let coordinates = path
+            .iter()
+            .filter(|segment| !matches!(segment, CheckedUnitStructuralPathSegment::Referent))
+            .cloned()
+            .collect::<Vec<_>>();
+        let segments = loan_place_segments(self.program, reference, &coordinates)?;
+        let (physical, _) =
+            super::super::source_paths::structural_path(self.program, reference, &segments)?;
+        (physical == path).then_some(segments)
     }
 
     pub(super) fn place_leaf_present(

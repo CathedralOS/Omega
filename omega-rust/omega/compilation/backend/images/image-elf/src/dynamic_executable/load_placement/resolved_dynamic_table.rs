@@ -7,8 +7,6 @@
 //! or source relocations, serialize ELF/program headers, or
 //! claim loader or runnable-image authority.
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
 use crate::constants::{
     ELF64_DYNAMIC_ROW_SIZE, ELF64_DYNAMIC_VALUE_OFFSET, ELF64_DYNAMIC_VALUE_SIZE,
@@ -59,6 +57,7 @@ fn expected_targets(
 /// The only field encoding admitted by this `.dynamic` application rung.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
+#[cfg(test)]
 pub(crate) enum ElfDynamicAddressApplicationKind {
     Elf64AbsoluteAddress = 1,
 }
@@ -94,38 +93,47 @@ pub(crate) struct ElfAppliedDynamicAddress {
 }
 
 impl ElfAppliedDynamicAddress {
+    #[cfg(test)]
     pub const fn row_ordinal(&self) -> u32 {
         self.row_ordinal
     }
 
+    #[cfg(test)]
     pub const fn storage_section_index(&self) -> u32 {
         self.storage_section_index
     }
 
+    #[cfg(test)]
     pub const fn byte_offset(&self) -> usize {
         self.byte_offset
     }
 
+    #[cfg(test)]
     pub const fn byte_width(&self) -> u8 {
         self.byte_width
     }
 
+    #[cfg(test)]
     pub const fn kind(&self) -> ElfDynamicAddressApplicationKind {
         ElfDynamicAddressApplicationKind::Elf64AbsoluteAddress
     }
 
+    #[cfg(test)]
     pub const fn target(&self) -> ElfDynamicAddressApplicationTarget {
         self.target
     }
 
+    #[cfg(test)]
     pub const fn target_section_index(&self) -> u32 {
         self.target_section_index
     }
 
+    #[cfg(test)]
     pub const fn target_section_kind(&self) -> ElfPlacedDynamicSectionKind {
         self.target_section_kind
     }
 
+    #[cfg(test)]
     pub const fn value(&self) -> u64 {
         self.value
     }
@@ -154,6 +162,7 @@ impl ValidatedElfResolvedDynamicTable {
         &self.contents.bytes
     }
 
+    #[cfg(test)]
     pub(crate) fn applied_addresses(&self) -> &[ElfAppliedDynamicAddress] {
         &self.contents.applications
     }
@@ -202,25 +211,12 @@ struct Candidate {
 pub(crate) fn apply_elf_dynamic_address_fixups(
     placed_section_headers: ValidatedElfPlacedSectionHeaderTable,
 ) -> Result<ValidatedElfResolvedDynamicTable, Box<ElfDynamicAddressApplicationError>> {
-    checked::plan_candidate(
-        placed_section_headers,
-        derive_contents,
-        |placed_section_headers, contents| {
-            non_authoritative_resolved_compatibility_fingerprint(&placed_section_headers, &contents)
-        },
-        |placed_section_headers, contents, fingerprint| Candidate {
-            placed_section_headers: placed_section_headers,
-            contents: contents,
-            non_authoritative_resolved_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.placed_section_headers,
-        |placed_section_headers, diagnostic| {
-            Box::new(ElfDynamicAddressApplicationError {
-                placed_section_headers: placed_section_headers,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: placed_section_headers,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_resolved_compatibility_fingerprint,
+        error: ElfDynamicAddressApplicationError,
     )
 }
 
@@ -312,28 +308,14 @@ fn application_for_fixup(
     })
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfResolvedDynamicTable, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.placed_section_headers, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_resolved_compatibility_fingerprint != 0
-                && candidate.non_authoritative_resolved_compatibility_fingerprint
-                    == non_authoritative_resolved_compatibility_fingerprint(
-                        &candidate.placed_section_headers,
-                        &candidate.contents,
-                    )
-        },
-        "resolved ELF dynamic-table compatibility fingerprint does not replay",
-        |candidate| ValidatedElfResolvedDynamicTable {
-            placed_section_headers: candidate.placed_section_headers,
-            contents: candidate.contents,
-            non_authoritative_resolved_compatibility_fingerprint: candidate
-                .non_authoritative_resolved_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: placed_section_headers,
+    contents: contents,
+    validated: ValidatedElfResolvedDynamicTable,
+    validate: validate_contents,
+    fingerprint: non_authoritative_resolved_compatibility_fingerprint,
+    nonzero,
+    message: "resolved ELF dynamic-table compatibility fingerprint does not replay",
 }
 
 fn validate_contents(
@@ -599,12 +581,9 @@ fn non_authoritative_resolved_compatibility_fingerprint(
     placed: &ValidatedElfPlacedSectionHeaderTable,
     contents: &ElfResolvedDynamicTableContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf.resolved-dynamic-table.v1");
-    hash.bytes(
-        &placed
-            .non_authoritative_placed_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf.resolved-dynamic-table.v1",
+        placed.non_authoritative_placed_compatibility_fingerprint(),
     );
     hash.bytes(&contents.bytes);
     hash.bytes(&(contents.applications.len() as u64).to_le_bytes());

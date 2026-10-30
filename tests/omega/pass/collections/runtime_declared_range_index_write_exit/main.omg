@@ -12,7 +12,7 @@ machine Main::main(main: &mut Main) reaches Console
 {
     transition { _ -> write(main) }
 
-    state write(main: &mut Main)
+    machine write(main: &mut Main)
     {
         main.arr[main.i] = 30;
         transition main.arr[0] == 30 {
@@ -20,9 +20,9 @@ machine Main::main(main: &mut Main) reaches Console
             false -> unmatched(main)
         }
     }
-    state matched(main: &mut Main)
+    machine matched(main: &mut Main)
     { Console::exit_process(30); }
-    state unmatched(main: &mut Main)
+    machine unmatched(main: &mut Main)
     { Console::exit_process(0); }
 }
 

@@ -44,7 +44,7 @@ pub(crate) fn compiled_review_key(
     ))
 }
 
-pub(super) fn compiled_review_key_with_identity(
+pub(crate) fn compiled_review_key_with_identity(
     package: PackageKeyIdentity,
     purpose: DependencyPurpose,
     checked_target: target::TargetProfile,

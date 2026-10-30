@@ -13,7 +13,7 @@ requires remaining <= 9
         true -> hold(remaining)
         false -> remaining
     }
-    state hold(pending: u32)
+    machine hold(pending: u32) -> u32
     requires pending > 0 && pending <= 9
     {
         let saved: u32 = pending;

@@ -27,6 +27,6 @@ machine main() crashes Trap {
     let slot: Slot = produce(42);
     let correct: bool = consume(slot.receipt);
     transition correct { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

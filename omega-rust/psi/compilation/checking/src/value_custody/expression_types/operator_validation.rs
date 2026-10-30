@@ -1,4 +1,5 @@
 use super::value_classification::{ValueClass, concrete_data_type_name, value_class};
+use crate::value_custody::places::collection_operations::type_reference_is_collection;
 use diagnostics::Diagnostic;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
@@ -16,6 +17,7 @@ pub(crate) fn validate_binary_operand_types(
     left: ExpressionHandle,
     right: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     if let Some(state) = state {
         let operands = [left, right].map(|operand| {
@@ -28,6 +30,25 @@ pub(crate) fn validate_binary_operand_types(
             &operands,
             diagnostics,
         );
+        if crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning(
+            program,
+            machine,
+            Some(state),
+            expression,
+        ) {
+            validate_builtin_comparison_operand_landing(
+                program,
+                operator,
+                [(left, operands[0]), (right, operands[1])],
+                &format!("machine `{}` state `{}`", machine.name, state.name),
+                &mut |peer, target| {
+                    crate::proof_contracts::contract_entailment::anonymous_comparison_operand_fits_at_occurrence(
+                        program, machine, state, expression, peer, target,
+                    ).retain(expression, machine.symbol, "anonymous address comparison operand", formation_obligations)
+                },
+                diagnostics,
+            );
+        }
     }
     report_cross_class_binary_operands(program, machine, state, left, right, diagnostics);
     report_invalid_text_operator(program, machine, state, operator, left, right, diagnostics);
@@ -35,15 +56,64 @@ pub(crate) fn validate_binary_operand_types(
     report_array_operator_operands(program, machine, state, operator, left, right, diagnostics);
     report_undeclared_struct_operator(program, machine, state, operator, left, right, diagnostics);
     report_float_bitwise_operator(program, machine, state, operator, left, right, diagnostics);
-    crate::proof_contracts::arithmetic_domains::report_out_of_range_comparison_literal(
-        program,
-        machine,
-        state,
+}
+
+/// Form anonymous comparison operands only after builtin selection. Typed
+/// operands retain their carriers. Anonymous peers use the existing exact
+/// integer/address representation landing, without inventing address bounds.
+pub(crate) fn validate_builtin_comparison_operand_landing(
+    program: &dyn crate::CheckingInput,
+    operator: typed_trees::expression::BinaryOperator,
+    operands: [(ExpressionHandle, Option<TypeReferenceHandle>); 2],
+    owner: &str,
+    target_fit: &mut dyn FnMut(ExpressionHandle, PrimitiveType) -> bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    use typed_trees::expression::BinaryOperator;
+    if !matches!(
         operator,
-        left,
-        right,
-        diagnostics,
-    );
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+    ) {
+        return;
+    }
+    for ((_, reference), (peer, peer_reference)) in
+        [(operands[0], operands[1]), (operands[1], operands[0])]
+    {
+        if peer_reference.is_some() {
+            continue;
+        }
+        let Some(primitive) = reference
+            .and_then(|reference| {
+                super::scalar_observations::readable_observation_type_reference(program, reference)
+            })
+            .and_then(|reference| program.primitive_type_reference(reference))
+            .filter(|primitive| primitive.is_integer() || *primitive == PrimitiveType::Addr)
+        else {
+            continue;
+        };
+        let before = diagnostics.len();
+        crate::proof_contracts::arithmetic_domains::validate_anonymous_integer_primitive_range(
+            program,
+            primitive,
+            peer,
+            owner,
+            diagnostics,
+        );
+        if primitive == PrimitiveType::Addr
+            && diagnostics.len() == before
+            && crate::value_custody::literals::has_anonymous_numeric_results(program, peer)
+            && !target_fit(peer, primitive)
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "anonymous address comparison operand cannot prove fit in `addr::Bound` in {owner}",
+            )).with_source_span(program.expression_table.source_span(peer)));
+        }
+    }
 }
 
 /// Whether `operand`'s type is a float (`f32`/`f64`): a landed float literal, or a place
@@ -168,22 +238,17 @@ pub(super) fn type_reference_is_text_carrier(
     program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> bool {
-    if !handle.is_valid() {
+    let Some(carrier) =
+        crate::value_custody::reference_shells::carrier_beneath_borrows(program, handle)
+    else {
         return false;
-    }
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            type_reference_is_text_carrier(program, *referee)
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_is_text_carrier(program, *base_type)
-        }
+    };
+    let element_type = match program.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::FixedArray { element_type, .. }
-        | TypeReferenceNode::Slice { element_type } => {
-            program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
-        }
-        _ => false,
-    }
+        | TypeReferenceNode::Slice { element_type } => *element_type,
+        _ => return false,
+    };
+    program.primitive_type_reference(element_type) == Some(PrimitiveType::U8)
 }
 
 /// Reject logical `&&`/`||` on a NON-bool operand (`5 && 3`, `a && n` for int `n`).
@@ -519,7 +584,7 @@ fn report_array_operator_operands(
     for operand in [left, right] {
         if let Some(operand_type) =
             crate::value_custody::places::declared_place_type(program, machine, state, operand)
-            && type_reference_is_array(program, operand_type)
+            && type_reference_is_collection(program, operand_type)
             && !type_reference_is_text_carrier(program, operand_type)
         {
             let detail = if is_equality {
@@ -537,23 +602,4 @@ fn report_array_operator_operands(
         }
     }
     false
-}
-
-/// Whether a type reference denotes an ARRAY (a fixed array or a slice), looking
-/// through `Reference`/`Constrained` shells.
-pub(super) fn type_reference_is_array(
-    program: &dyn crate::CheckingInput,
-    handle: TypeReferenceHandle,
-) -> bool {
-    if !handle.is_valid() {
-        return false;
-    }
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { referee, .. } => type_reference_is_array(program, *referee),
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_is_array(program, *base_type)
-        }
-        TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. } => true,
-        _ => false,
-    }
 }

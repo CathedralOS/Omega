@@ -30,14 +30,14 @@ crashes Trap
         _ -> open(typer, sources, syntax, resolution, range, subject_type)
     }
 
-    state open(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, subject_type: u64 in Trapping) -> bool {
+    machine open(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, subject_type: u64 in Trapping) -> bool {
         transition subject_type > 0 {
             true -> subject(typer, syntax, resolution, range, subject_type)
             _ -> guards(typer, sources, syntax, range)
         }
     }
 
-    state subject(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, subject_type: u64 in Trapping) -> bool {
+    machine subject(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, subject_type: u64 in Trapping) -> bool {
         let base: u64 in Trapping = Typer::referent(typer, subject_type);
         let row: TypeRow = TypeTable::row(&typer.output.types, base);
         transition row.kind == TypeKind::Data {
@@ -46,7 +46,7 @@ crashes Trap
         }
     }
 
-    state boolean(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, base: u64 in Trapping) -> bool {
+    machine boolean(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, base: u64 in Trapping) -> bool {
         let holds: bool = Typer::arm_present(syntax, resolution, range, ArmPatternKind::Literal, true, 0);
         let fails: bool = Typer::arm_present(syntax, resolution, range, ArmPatternKind::Literal, false, 0);
         let covered: bool = base == typer.output.boolean && holds && fails;
@@ -54,7 +54,7 @@ crashes Trap
     }
 
     // A record has no cases for its arms to name.
-    state data(syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, item: u64 in Trapping) -> bool {
+    machine data(syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, item: u64 in Trapping) -> bool {
         let declared: DataItem = SyntaxTrees::data_item(syntax, item);
         transition declared.case_count > 0 {
             true -> case(syntax, resolution, range, declared, 0)
@@ -62,14 +62,14 @@ crashes Trap
         }
     }
 
-    state case(syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, declared: DataItem, offset: u64 in Trapping) -> bool {
+    machine case(syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, declared: DataItem, offset: u64 in Trapping) -> bool {
         transition offset < declared.case_count {
             true -> case_named(syntax, resolution, range, declared, offset)
             _ -> answer(true)
         }
     }
 
-    state case_named(syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, declared: DataItem, offset: u64 in Trapping) -> bool {
+    machine case_named(syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, declared: DataItem, offset: u64 in Trapping) -> bool {
         let named: bool = Typer::arm_present(syntax, resolution, range, ArmPatternKind::Case, false, declared.first_case + offset);
         transition named {
             true -> case(syntax, resolution, range, declared, offset + 1)
@@ -77,12 +77,12 @@ crashes Trap
         }
     }
 
-    state guards(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, range: ArmRange) -> bool {
+    machine guards(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, range: ArmRange) -> bool {
         let opposed: bool = Typer::opposed_guards(typer, sources, syntax, range);
         transition { _ -> answer(opposed) }
     }
 
-    state answer(covered: bool) -> bool {
+    machine answer(covered: bool) -> bool {
         covered
     }
 }
@@ -93,7 +93,7 @@ crashes Trap
 {
     transition { _ -> arm(syntax, range, 0) }
 
-    state arm(syntax: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping) -> bool {
+    machine arm(syntax: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping) -> bool {
         transition offset < range.count {
             true -> candidate(syntax, range, offset)
             _ -> answer(false)
@@ -102,7 +102,7 @@ crashes Trap
 
     // A guarded arm is selected only while its guard holds, so it closes
     // nothing.
-    state candidate(syntax: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping) -> bool {
+    machine candidate(syntax: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping) -> bool {
         let arm: TransitionArm = SyntaxTrees::range_arm(syntax, range, offset);
         transition arm.has_guard {
             true -> arm(syntax, range, offset + 1)
@@ -110,7 +110,7 @@ crashes Trap
         }
     }
 
-    state unguarded(syntax: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping, arm: TransitionArm) -> bool {
+    machine unguarded(syntax: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping, arm: TransitionArm) -> bool {
         transition arm.kind {
             ArmPatternKind::Wildcard -> answer(true)
             ArmPatternKind::Guard -> guard(syntax, range, offset, arm)
@@ -118,7 +118,7 @@ crashes Trap
         }
     }
 
-    state guard(syntax: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping, arm: TransitionArm) -> bool {
+    machine guard(syntax: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping, arm: TransitionArm) -> bool {
         let pattern: Expression = SyntaxTrees::expression(syntax, arm.pattern);
         transition pattern.kind == ExpressionKind::Boolean && pattern.flag {
             true -> answer(true)
@@ -126,7 +126,7 @@ crashes Trap
         }
     }
 
-    state answer(closed: bool) -> bool {
+    machine answer(closed: bool) -> bool {
         closed
     }
 }
@@ -145,7 +145,7 @@ crashes Trap
 {
     transition { _ -> arm(syntax, resolution, range, kind, flag, data_case, 0) }
 
-    state arm(
+    machine arm(
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
         range: ArmRange,
@@ -160,7 +160,7 @@ crashes Trap
         }
     }
 
-    state candidate(
+    machine candidate(
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
         range: ArmRange,
@@ -176,7 +176,7 @@ crashes Trap
         }
     }
 
-    state same_kind(
+    machine same_kind(
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
         range: ArmRange,
@@ -193,7 +193,7 @@ crashes Trap
         }
     }
 
-    state literal(
+    machine literal(
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
         range: ArmRange,
@@ -210,7 +210,7 @@ crashes Trap
         }
     }
 
-    state case_pattern(
+    machine case_pattern(
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
         range: ArmRange,
@@ -228,7 +228,7 @@ crashes Trap
         }
     }
 
-    state answer(present: bool) -> bool {
+    machine answer(present: bool) -> bool {
         present
     }
 }
@@ -240,7 +240,7 @@ machine Typer::named_case(binding: ValueBinding) -> u64 in Trapping {
         _ -> found(0)
     }
 
-    state found(handle: u64 in Trapping) -> u64 in Trapping {
+    machine found(handle: u64 in Trapping) -> u64 in Trapping {
         handle
     }
 }
@@ -252,14 +252,14 @@ crashes Trap
 {
     transition { _ -> first(typer, sources, syntax, range, 0) }
 
-    state first(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping) -> bool {
+    machine first(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping) -> bool {
         transition offset < range.count {
             true -> first_guard(typer, sources, syntax, range, offset)
             _ -> answer(false)
         }
     }
 
-    state first_guard(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping) -> bool {
+    machine first_guard(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping) -> bool {
         let arm: TransitionArm = SyntaxTrees::range_arm(syntax, range, offset);
         let pattern: Expression = SyntaxTrees::expression(syntax, arm.pattern);
         transition arm.kind == ArmPatternKind::Guard && pattern.kind == ExpressionKind::Binary
@@ -269,7 +269,7 @@ crashes Trap
         }
     }
 
-    state second(
+    machine second(
         typer: &Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -284,7 +284,7 @@ crashes Trap
         }
     }
 
-    state second_guard(
+    machine second_guard(
         typer: &Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -302,7 +302,7 @@ crashes Trap
         }
     }
 
-    state answer(opposed: bool) -> bool {
+    machine answer(opposed: bool) -> bool {
         opposed
     }
 }
@@ -318,7 +318,7 @@ crashes Trap
         _ -> answer(false)
     }
 
-    state binary(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, equal: Expression, other: Expression) -> bool {
+    machine binary(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, equal: Expression, other: Expression) -> bool {
         transition other.operator {
             OperatorKind::NotEqual -> negated(typer, sources, syntax, equal, other)
             OperatorKind::Equal -> literals(typer, sources, syntax, equal, other)
@@ -326,13 +326,13 @@ crashes Trap
         }
     }
 
-    state negated(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, equal: Expression, other: Expression) -> bool {
+    machine negated(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, equal: Expression, other: Expression) -> bool {
         let left: bool = Typer::same_tree(typer, sources, syntax, equal.left, other.left);
         let right: bool = Typer::same_tree(typer, sources, syntax, equal.right, other.right);
         transition { _ -> answer(left && right) }
     }
 
-    state literals(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, equal: Expression, other: Expression) -> bool {
+    machine literals(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, equal: Expression, other: Expression) -> bool {
         let first: BooleanComparison = Typer::boolean_comparison(syntax, equal);
         let second: BooleanComparison = Typer::boolean_comparison(syntax, other);
         transition first.compared && second.compared && first.value != second.value {
@@ -341,12 +341,12 @@ crashes Trap
         }
     }
 
-    state same_subject(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, first: BooleanComparison, second: BooleanComparison) -> bool {
+    machine same_subject(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, first: BooleanComparison, second: BooleanComparison) -> bool {
         let same: bool = Typer::same_tree(typer, sources, syntax, first.subject, second.subject);
         transition { _ -> answer(same) }
     }
 
-    state answer(complementary: bool) -> bool {
+    machine answer(complementary: bool) -> bool {
         complementary
     }
 }
@@ -368,18 +368,18 @@ crashes Trap
         _ -> left_literal(equal, left)
     }
 
-    state left_literal(equal: Expression, left: Expression) -> BooleanComparison {
+    machine left_literal(equal: Expression, left: Expression) -> BooleanComparison {
         transition left.kind == ExpressionKind::Boolean {
             true -> compared(equal.right, left.flag)
             _ -> uncompared()
         }
     }
 
-    state compared(subject: u64 in Trapping, value: bool) -> BooleanComparison {
+    machine compared(subject: u64 in Trapping, value: bool) -> BooleanComparison {
         BooleanComparison { compared: true, subject: subject, value: value }
     }
 
-    state uncompared() -> BooleanComparison {
+    machine uncompared() -> BooleanComparison {
         BooleanComparison { compared: false, subject: 0, value: false }
     }
 }
@@ -401,7 +401,7 @@ crashes Trap
         _ -> answer(false)
     }
 
-    state node(
+    machine node(
         typer: &Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -417,7 +417,7 @@ crashes Trap
         }
     }
 
-    state answer(same: bool) -> bool {
+    machine answer(same: bool) -> bool {
         same
     }
 }
@@ -439,7 +439,7 @@ crashes Trap
         _ -> answer(false)
     }
 
-    state kind(
+    machine kind(
         typer: &Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -464,19 +464,19 @@ crashes Trap
         }
     }
 
-    state spelled(sources: &SourceSet, left: SourceSpan, right: SourceSpan) -> bool {
+    machine spelled(sources: &SourceSet, left: SourceSpan, right: SourceSpan) -> bool {
         let same: bool = SourceSet::spans_equal(sources, left, right);
         transition { _ -> answer(same) }
     }
 
-    state path(sources: &SourceSet, syntax: &SyntaxTrees, left: Expression, right: Expression, member: u64 in Trapping) -> bool {
+    machine path(sources: &SourceSet, syntax: &SyntaxTrees, left: Expression, right: Expression, member: u64 in Trapping) -> bool {
         transition member < left.count {
             true -> path_member(sources, syntax, left, right, member)
             _ -> answer(true)
         }
     }
 
-    state path_member(sources: &SourceSet, syntax: &SyntaxTrees, left: Expression, right: Expression, member: u64 in Trapping) -> bool {
+    machine path_member(sources: &SourceSet, syntax: &SyntaxTrees, left: Expression, right: Expression, member: u64 in Trapping) -> bool {
         let left_member: IdentifierSpan = SyntaxTrees::member(syntax, left.first + member);
         let right_member: IdentifierSpan = SyntaxTrees::member(syntax, right.first + member);
         let same: bool = SourceSet::spans_equal(sources, left_member.source_span, right_member.source_span);
@@ -486,7 +486,7 @@ crashes Trap
         }
     }
 
-    state valued(typer: &Typer, left_handle: u64 in Trapping, right_handle: u64 in Trapping) -> bool {
+    machine valued(typer: &Typer, left_handle: u64 in Trapping, right_handle: u64 in Trapping) -> bool {
         let left_value: ExactInteger = Typing::value(&typer.output, left_handle);
         let right_value: ExactInteger = Typing::value(&typer.output, right_handle);
         let left_denominator: u64 in Trapping = Typing::denominator(&typer.output, left_handle);
@@ -496,7 +496,7 @@ crashes Trap
         transition { _ -> answer(same) }
     }
 
-    state field(sources: &SourceSet, left_low: u64 in Trapping, right_low: u64 in Trapping, left: Expression, right: Expression) -> bool {
+    machine field(sources: &SourceSet, left_low: u64 in Trapping, right_low: u64 in Trapping, left: Expression, right: Expression) -> bool {
         let same: bool = SourceSet::spans_equal(sources, left.name.source_span, right.name.source_span);
         transition same {
             true -> children(left_low, right_low, left, right, false)
@@ -505,14 +505,14 @@ crashes Trap
     }
 
     // Children sit at the same offsets in both trees.
-    state children(left_low: u64 in Trapping, right_low: u64 in Trapping, left: Expression, right: Expression, both: bool) -> bool {
+    machine children(left_low: u64 in Trapping, right_low: u64 in Trapping, left: Expression, right: Expression, both: bool) -> bool {
         let left_child: bool = left.left >= left_low && right.left >= right_low && left.left - left_low == right.left - right_low;
         let right_child: bool = !both
             || (left.right >= left_low && right.right >= right_low && left.right - left_low == right.right - right_low);
         transition { _ -> answer(left_child && right_child) }
     }
 
-    state answer(same: bool) -> bool {
+    machine answer(same: bool) -> bool {
         same
     }
 }

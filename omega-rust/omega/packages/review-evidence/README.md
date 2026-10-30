@@ -17,7 +17,10 @@ package, target, row coordinates and complete readable meanings must match.
 
 Aggregate policy capture borrows the supplied semantic program in one
 `CheckingContext`, carried through `PackageReviewInput` into its read-only
-queries. Standalone projections use the bare program; neither path discovers
+queries. A separate context over the original compiler custody reuses its
+normalization across family-head comparisons; candidate and original query
+namespaces never share memos. Both contexts end with the projection.
+Standalone projections use the bare programs; neither path discovers
 memos through a thread-local scope. The context owns scratch only: it does not
 assert that the supplied candidate matches compiler custody or authorize it.
 Candidate/custody joins and projection checks keep their original owners.

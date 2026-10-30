@@ -9,14 +9,14 @@ machine Main::main(main: &mut Main) {
         _ -> miss(main)
     }
 
-    state weigh(main: &mut Main, first: u64, second: u64) {
+    machine weigh(main: &mut Main, first: u64, second: u64) {
         transition first + second {
             6 -> even(main)
             _ -> odd(main)
         }
     }
 
-    state even(main: &mut Main) { main.answer = 70; }
-    state odd(main: &mut Main) { main.answer = 71; }
-    state miss(main: &mut Main) { main.answer = 72; }
+    machine even(main: &mut Main) { main.answer = 70; }
+    machine odd(main: &mut Main) { main.answer = 71; }
+    machine miss(main: &mut Main) { main.answer = 72; }
 }

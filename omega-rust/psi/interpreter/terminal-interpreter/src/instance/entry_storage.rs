@@ -67,8 +67,10 @@ impl TerminalInstance<'_, '_> {
                     *place,
                     value,
                     None,
+                    None,
                     StructuralAccess::SharedBorrow,
                     std::slice::from_ref(&leaf),
+                    &[],
                 )?;
                 let observed = values.pop().ok_or(TerminalEntryStorageError::UnknownPath)?;
                 Ok(TerminalEntryStorageValue::Storage(observed.contents))
@@ -89,14 +91,34 @@ impl TerminalInstance<'_, '_> {
                 })?;
                 Ok(TerminalEntryStorageValue::Bytes(bytes))
             }
+            StorageLeafKind::EmptyScalarArray {
+                destination,
+                structural_type,
+            } => {
+                if crate::structural_inputs::byte_arrays::byte_array_length(
+                    &execution.program.structural_types(),
+                    *structural_type,
+                ) == Some(0)
+                    && execution.initialized_empty_scalar_array(destination, *structural_type)?
+                {
+                    Ok(TerminalEntryStorageValue::Bytes(
+                        crate::TerminalByteRead::contiguous(&[]),
+                    ))
+                } else {
+                    Err(TerminalEntryStorageError::OpaqueContents)
+                }
+            }
             StorageLeafKind::ByteArray { destination, .. } => {
+                if execution.initialized_empty_byte_array(destination)? {
+                    return Ok(TerminalEntryStorageValue::Bytes(
+                        crate::TerminalByteRead::contiguous(&[]),
+                    ));
+                }
                 let bytes = execution
                     .structural_byte_storage
                     .get(destination)
                     .ok_or(TerminalEntryStorageError::OpaqueContents)?;
-                Ok(TerminalEntryStorageValue::Bytes(
-                    crate::TerminalByteRead::contiguous(bytes.bytes()),
-                ))
+                Ok(TerminalEntryStorageValue::Bytes(bytes.read_view()?))
             }
             StorageLeafKind::Opaque { .. } => Err(TerminalEntryStorageError::OpaqueContents),
         }

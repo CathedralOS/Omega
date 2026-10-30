@@ -49,8 +49,8 @@ machine Main::main(main: &mut Main) reaches FilesystemContentRead + FilesystemCo
             | (widen_u8_to_u64(main.buffer[111]) << 56));
     main.discard = PosixFilesystemHost::remove("/tmp/omega_blocks.txt");
     transition main.blksize > 0 { true -> good(main) _ -> fail(main) }
-    state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: st_blksize decodes a nonzero preferred I/O size\n"); }
-    state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: blocks/blksize\n"); }
+    machine good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: st_blksize decodes a nonzero preferred I/O size\n"); }
+    machine fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: blocks/blksize\n"); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

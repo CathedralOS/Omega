@@ -79,7 +79,7 @@ impl Builder<'_, '_> {
             let mut owners = program.traits().iter().filter(|owner| {
                 owner.is_boundary
                     && program
-                        .trait_machine_instances(owner)
+                        .executable_trait_machine_instances(owner)
                         .any(|signature| signature.symbol == authored_target)
             });
             let owner = owners.next()?;
@@ -121,12 +121,7 @@ impl Builder<'_, '_> {
             .is_some_and(|place| matches!(place.root, facts::PlaceRoot::Expression(_)))
             {
                 authority_value = self.structural_value(call.receiver, reference)?;
-                self.retain_structural_root(
-                    u32::try_from(self.statement_index).ok()?,
-                    call.receiver,
-                    reference,
-                    authority_value,
-                );
+                self.retain_structural_value_root(authority_value, reference)?;
             }
         }
         let operands = program
@@ -233,12 +228,9 @@ pub(super) fn bodyless_boundary_target(
     program: &dyn ::validation::CheckingInput,
     target: symbols::SymbolHandle,
 ) -> Option<(symbols::SymbolHandle, symbols::SymbolHandle)> {
-    if let Some((requirement, _)) =
-        validation::exact_external_leaf_boundary_requirement(program, target)
+    if let Some((machine, state)) = validation::find_machine_head(program, target)
+        .or_else(|| validation::find_state(program, target))
     {
-        return Some((requirement, requirement));
-    }
-    if let Some((machine, state)) = validation::find_machine_head(program, target) {
         // Every bodyless callable owns an opaque signature, including a
         // Requirement. Supply/trust classification is not executable ownership:
         // lowering must not search an opaque requirement for a private body.

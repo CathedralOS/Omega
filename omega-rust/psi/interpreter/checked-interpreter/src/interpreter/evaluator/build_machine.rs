@@ -13,7 +13,6 @@ pub(in crate::interpreter::evaluator) mod behavior_exclusions;
 pub(in crate::interpreter::evaluator) mod log;
 pub(in crate::interpreter::evaluator) mod output_obligations;
 pub(in crate::interpreter::evaluator) mod paths;
-pub(in crate::interpreter::evaluator) mod product_declarations;
 pub(in crate::interpreter::evaluator) mod product_entries;
 pub(in crate::interpreter::evaluator) mod product_providers;
 pub(in crate::interpreter::evaluator) mod product_schemas;
@@ -47,6 +46,55 @@ impl Evaluator<'_> {
         self.require_root_build_argument(self.deref_cell(builder), "accept_component_assumption")?;
         self.eval_expression(*digest, frame)?;
         Ok(Some(Value::Unit))
+    }
+
+    /// Run the resolved-toolchain facet routes in one place.
+    ///
+    /// Each rung selects its family from the symbol-resolved prelude the
+    /// compiler attached (`<facet>`/`<method>`), never from a spelling or a
+    /// receiver namespace, so the rungs are disjoint and their order carries
+    /// no meaning. One ladder therefore serves both call positions: an
+    /// expression call returns the rung's value and a call statement discards
+    /// it, but which queries the build machine answers is stated once here
+    /// instead of re-listed beside each position's argument table.
+    pub(in crate::interpreter::evaluator) fn try_build_facet_routes(
+        &mut self,
+        target: SymbolHandle,
+        arguments: &[ExpressionHandle],
+        occurrence: source::SourceSpan,
+        frame: &mut Frame,
+    ) -> EvalResult<Option<Value>> {
+        if let Some(value) = self.try_build_path_call(target, arguments, frame)? {
+            return Ok(Some(value));
+        }
+        if let Some(value) =
+            self.try_build_product_entry_call(target, arguments, occurrence, frame)?
+        {
+            return Ok(Some(value));
+        }
+        if let Some(value) =
+            self.try_build_product_schema_call(target, arguments, occurrence, frame)?
+        {
+            return Ok(Some(value));
+        }
+        if let Some(value) =
+            self.try_build_product_provider_call(target, arguments, occurrence, frame)?
+        {
+            return Ok(Some(value));
+        }
+        if let Some(value) = self.try_product_description_path_call(target, arguments, frame)? {
+            return Ok(Some(value));
+        }
+        if let Some(value) = self.try_build_output_obligation_call(target, arguments, frame)? {
+            return Ok(Some(value));
+        }
+        if let Some(value) = self.try_required_output_path_call(target, arguments, frame)? {
+            return Ok(Some(value));
+        }
+        if let Some(value) = self.try_build_log_write_line_call(target, arguments, frame)? {
+            return Ok(Some(value));
+        }
+        self.try_component_assumption_acceptance(target, arguments, frame)
     }
 
     /// Shared 2-operand product description call: facet-method match, the

@@ -14,7 +14,7 @@ machine first(bytes: &[u8]) -> u8 {
         _ -> (0)
     }
 
-    state read(bytes: &[u8]) -> u8 {
+    machine read(bytes: &[u8]) -> u8 {
         bytes[0]
     }
 }

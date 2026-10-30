@@ -129,6 +129,11 @@ pub(super) fn storage(
                     declarations,
                 )?
             }
+            terminal_semantics::ZeroedStructuralLeaf::EmptyScalarArray { .. } => {
+                // The typed establishment has no physical lane to initialize.
+                // Its logical dimensions and ownership remain in Terminal Psi.
+                continue;
+            }
             terminal_semantics::ZeroedStructuralLeaf::ByteArray { path, length } => {
                 // One store per byte, last element first: the canonical
                 // order of the run's elements.

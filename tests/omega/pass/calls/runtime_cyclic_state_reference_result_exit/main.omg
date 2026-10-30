@@ -6,19 +6,19 @@ data Outer { anchor: u64; pair: Pair; }
 
 machine pick(pair: &mut Pair, second: bool) -> &mut Node {
     transition { _ -> repeat(pair, second, true) }
-    state repeat(pair: &mut Pair, second: bool, again: bool) -> &mut Node {
+    machine repeat(pair: &mut Pair, second: bool, again: bool) -> &mut Node {
         transition again {
             true -> repeat(pair, second, false)
             false -> select(pair, second)
         }
     }
-    state select(pair: &mut Pair, second: bool) -> &mut Node {
+    machine select(pair: &mut Pair, second: bool) -> &mut Node {
         transition second {
             true -> selected(9, &mut pair.right)
             false -> selected(7, &mut pair.left)
         }
     }
-    state selected(marker: u64, node: &mut Node) -> &mut Node { node }
+    machine selected(marker: u64, node: &mut Node) -> &mut Node { node }
 }
 
 machine relay(pair: &mut Pair, second: bool) -> &mut Node {
@@ -45,22 +45,22 @@ machine shared_identity(node: &Node) -> &Node { node }
 
 machine shared_pick(pair: &Pair, second: bool) -> &Node {
     transition { _ -> repeat(pair, second, true) }
-    state repeat(pair: &Pair, second: bool, again: bool) -> &Node {
+    machine repeat(pair: &Pair, second: bool, again: bool) -> &Node {
         transition again {
             true -> back(second, pair)
             false -> select(second, pair)
         }
     }
-    state back(second: bool, pair: &Pair) -> &Node {
+    machine back(second: bool, pair: &Pair) -> &Node {
         transition { _ -> repeat(pair, second, false) }
     }
-    state select(second: bool, pair: &Pair) -> &Node {
+    machine select(second: bool, pair: &Pair) -> &Node {
         transition second {
             true -> selected(&pair.right)
             false -> selected(&pair.left)
         }
     }
-    state selected(node: &Node) -> &Node {
+    machine selected(node: &Node) -> &Node {
         let forwarded: &Node = shared_identity(node);
         forwarded
     }
@@ -78,7 +78,7 @@ machine observe_shared(pair: &Pair, second: bool) -> u64 {
 
 machine shared_swap<'storage>(pair: &'storage Pair, swap: bool) -> &'storage Node {
     transition { _ -> repeat(&pair.left, &pair.right, swap) }
-    state repeat(first: &'storage Node, second: &'storage Node, swap: bool) -> &'storage Node {
+    machine repeat(first: &'storage Node, second: &'storage Node, swap: bool) -> &'storage Node {
         transition swap {
             true -> repeat(second, first, false)
             false -> first

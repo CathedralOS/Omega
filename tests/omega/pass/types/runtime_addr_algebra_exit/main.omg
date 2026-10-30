@@ -15,7 +15,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true  -> diff_leg(main)
         false -> bad_sub(main)
     }
-    state diff_leg(main: &mut Main) {
+    machine diff_leg(main: &mut Main) {
         let a2: addr = 4096;
         let b2: addr = 4000;
         let d: u64 = a2 - b2;
@@ -24,7 +24,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad_diff(main)
         }
     }
-    state order_leg(main: &mut Main) {
+    machine order_leg(main: &mut Main) {
         let a3: addr = 4096;
         let b3: addr = 4000;
         let o: bool = b3 < a3;
@@ -33,10 +33,10 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad_order(main)
         }
     }
-    state good(main: &mut Main)     { Console::exit_process(70); }
-    state bad_sub(main: &mut Main)  { Console::exit_process(71); }
-    state bad_diff(main: &mut Main) { Console::exit_process(72); }
-    state bad_order(main: &mut Main){ Console::exit_process(73); }
+    machine good(main: &mut Main)     { Console::exit_process(70); }
+    machine bad_sub(main: &mut Main)  { Console::exit_process(71); }
+    machine bad_diff(main: &mut Main) { Console::exit_process(72); }
+    machine bad_order(main: &mut Main){ Console::exit_process(73); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -1,6 +1,6 @@
 // Every qualified array holds exactly eight bytes; explicit NUL bytes are content.
 // Qualification contributes no storage: both explicit inputs owe the same domain.
-domain [u8; 8]::NonEmpty(bytes) requires non_empty(bytes);
+domain [u8; 8]::NonEmpty requires non_empty(self);
 data Label { text: [u8; 8] in NonEmpty; }
 data Packet { label: Label; }
 
@@ -26,6 +26,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

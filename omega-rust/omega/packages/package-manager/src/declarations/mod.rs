@@ -1,26 +1,25 @@
 //! Package identity, project roles, and dependencies read from `build.omg`.
 //!
 //! [`identity`] owns package names, aliases, and source-qualified identity.
-//! [`roles`] owns the selected project declaration. [`dependencies`] reads exact
-//! dependency rows and plans conservative edits.
+//! [`dependencies`] reads exact dependency rows and plans conservative edits.
+//! The project-role vocabulary itself is owned by `build_declarations` and
+//! re-exported here rather than restated.
 
 pub(crate) mod dependencies;
 mod identity;
-pub(crate) mod roles;
 
-pub(crate) use identity::{AliasName, PackageKey, PackageName};
+pub(crate) use identity::AliasName;
+pub use identity::{PackageKey, PackageName};
 
+pub use build_declarations::{BuildDeclarationError, BuildDeclarationKind, WorkspaceMemberPath};
+pub use dependencies::DependencyPurpose;
+pub(crate) use dependencies::PackageSelection;
 pub(crate) use dependencies::edit::{
     plan_dependency_addition_from_source, plan_dependency_replacement_from_source,
 };
 pub(crate) use dependencies::{
     BuildDependencyEditPlan, BuildFileReplacement, DependencyProjectionError,
     DependencySourceRequest,
-};
-pub use dependencies::{DependencyPurpose, PackageSelection};
-pub use roles::{
-    ApplicationDeclaration, BuildDeclaration, BuildDeclarationError, BuildDeclarationKind,
-    PackageDeclaration, WorkspaceDeclaration, WorkspaceMemberPath, extract_build_declaration,
 };
 
 /// Flat roster position for one build-dependency purpose: product

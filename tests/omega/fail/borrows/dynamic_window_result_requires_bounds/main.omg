@@ -1,7 +1,7 @@
 data Window<'input> { bytes: &'input [u8]; }
 machine select<'input>(bytes: &'input [u8], start: u64, end: u64) -> Window<'input> {
     transition { _ -> capture(bytes, start, end) }
-    state capture(bytes: &'input [u8], start: u64, end: u64) -> Window<'input> {
+    machine capture(bytes: &'input [u8], start: u64, end: u64) -> Window<'input> {
         Window { bytes: &bytes[start..end] }
     }
 }

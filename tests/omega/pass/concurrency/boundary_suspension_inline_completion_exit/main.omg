@@ -23,7 +23,7 @@ data Marker { value: i32; }
 data Main { }
 machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
     transition { _ -> work(main, 39) }
-    state work(main: &mut Main, mut input: i32) {
+    machine work(main: &mut Main, mut input: i32) {
         input = 40;
         let marker: Marker = Marker { value: 19 };
         let alias: i32 = input;
@@ -43,8 +43,8 @@ machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 InlineSchedulerImplementation satisfies Scheduler {

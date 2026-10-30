@@ -11,8 +11,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 machine descend(n: u64, previous: u64) -> u64
@@ -24,12 +24,12 @@ ensures result <= previous
         true -> hold(n - 1, n)
         false -> previous
     }
-    state hold(n: u64, previous: u64) -> u64
+    machine hold(n: u64, previous: u64) -> u64
     requires n <= previous && previous <= 1000
     {
         transition { _ -> carry(n, previous) }
     }
-    state carry(n: u64, previous: u64) -> u64
+    machine carry(n: u64, previous: u64) -> u64
     requires n <= previous && previous <= 1000
     {
         transition n > 0 {

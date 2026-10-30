@@ -9,22 +9,22 @@ machine number(value: i32 in Wrapping) reaches Console {
         true -> hundreds(value)
         false -> tens(value)
     }
-    state hundreds(value: i32 in Wrapping) {
+    machine hundreds(value: i32 in Wrapping) {
         Console::write_byte((value / 100 + 48) as i32);
         Console::write_byte((value / 10 % 10 + 48) as i32);
         Console::write_byte((value % 10 + 48) as i32);
     }
-    state tens(value: i32 in Wrapping) {
+    machine tens(value: i32 in Wrapping) {
         transition value >= 10 {
             true -> two(value)
             false -> one(value)
         }
     }
-    state two(value: i32 in Wrapping) {
+    machine two(value: i32 in Wrapping) {
         Console::write_byte((value / 10 + 48) as i32);
         Console::write_byte((value % 10 + 48) as i32);
     }
-    state one(value: i32 in Wrapping) {
+    machine one(value: i32 in Wrapping) {
         Console::write_byte((value + 48) as i32);
     }
 }
@@ -37,19 +37,19 @@ reaches Console {
     number(image.width); Console::write(" "); number(image.height); Console::write_line("");
     Console::write_line("64");
     transition { _ -> pixel(image, 0) }
-    state pixel(image: &Image, position: i32 in Wrapping) {
+    machine pixel(image: &Image, position: i32 in Wrapping) {
         transition position >= 0 && position < 64 && position < image.length {
             true -> emit(image, position)
             false -> heading(image)
         }
     }
-    state emit(image: &Image, position: i32 in Wrapping) {
+    machine emit(image: &Image, position: i32 in Wrapping) {
         transition image.width > 0 {
             true -> emit_pixel(image, position)
             false -> stopped()
         }
     }
-    state emit_pixel(image: &Image, position: i32 in Wrapping) {
+    machine emit_pixel(image: &Image, position: i32 in Wrapping) {
         let label: i32 in Wrapping = image.labels[position] as i32 in Wrapping;
         number(label);
         transition (position + 1) % image.width == 0 {
@@ -57,26 +57,26 @@ reaches Console {
             false -> space(image, position)
         }
     }
-    state newline(image: &Image, position: i32 in Wrapping) {
+    machine newline(image: &Image, position: i32 in Wrapping) {
         Console::write_line("");
         transition { _ -> pixel(image, position + 1) }
     }
-    state space(image: &Image, position: i32 in Wrapping) {
+    machine space(image: &Image, position: i32 in Wrapping) {
         Console::write(" ");
         transition { _ -> pixel(image, position + 1) }
     }
-    state heading(image: &Image) {
+    machine heading(image: &Image) {
         Console::write("regions "); number(image.components); Console::write_line("");
         Console::write_line("label area centroid_x centroid_y min_x min_y max_x max_y");
         transition { _ -> region(image, 1) }
     }
-    state region(image: &Image, label: i32 in Wrapping) {
+    machine region(image: &Image, label: i32 in Wrapping) {
         transition label <= image.components {
             true -> report(image, label)
             false -> stopped()
         }
     }
-    state report(image: &Image, label: i32 in Wrapping) {
+    machine report(image: &Image, label: i32 in Wrapping) {
         let mut measured: Region;
         measure(image, label, &mut measured);
         number(label); Console::write(" "); number(measured.area);
@@ -87,5 +87,5 @@ reaches Console {
         Console::write_line("");
         transition { _ -> region(image, label + 1) }
     }
-    state stopped() {}
+    machine stopped() {}
 }

@@ -56,20 +56,20 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad_sum_low(main)
     }
 
-    state bad_sum_low(main: &mut Main) {
+    machine bad_sum_low(main: &mut Main) {
         Console::write_line("FAIL: f32 sum <= 6.9 -- expected ~7.0 (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(71);
     }
 
-    state check_sum_upper(main: &mut Main) {
+    machine check_sum_upper(main: &mut Main) {
         transition main.f.sum_f32 < 7.1 {
             true -> check_diff_low(main)
             _ -> bad_sum_high(main)
         }
     }
-    state bad_sum_high(main: &mut Main) {
+    machine bad_sum_high(main: &mut Main) {
         Console::write_line("FAIL: f32 sum >= 7.1 -- expected ~7.0 (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
@@ -77,26 +77,26 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // Check diff_f64 is ~3.5.
-    state check_diff_low(main: &mut Main) {
+    machine check_diff_low(main: &mut Main) {
         transition main.f.diff_f64 > 3.4 {
             true -> check_diff_high(main)
             _ -> bad_diff_low(main)
         }
     }
-    state bad_diff_low(main: &mut Main) {
+    machine bad_diff_low(main: &mut Main) {
         Console::write_line("FAIL: f64 diff <= 3.4 -- expected ~3.5 (exit 73)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(73);
     }
 
-    state check_diff_high(main: &mut Main) {
+    machine check_diff_high(main: &mut Main) {
         transition main.f.diff_f64 < 3.6 {
             true -> store_result(main)
             _ -> bad_diff_high(main)
         }
     }
-    state bad_diff_high(main: &mut Main) {
+    machine bad_diff_high(main: &mut Main) {
         Console::write_line("FAIL: f64 diff >= 3.6 -- expected ~3.5 (exit 74)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
@@ -104,7 +104,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // All checks passed: encode exit 70.
-    state store_result(main: &mut Main) {
+    machine store_result(main: &mut Main) {
         main.f.result = 70;
         transition main.f.result == 70 {
             true -> good(main)
@@ -112,14 +112,14 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::write_line("PASS: both float widths computed and compared correctly (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(70);
     }
 
-    state bad_result(main: &mut Main) {
+    machine bad_result(main: &mut Main) {
         Console::write_line("FAIL: integer result field readback != 70 (exit 75)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

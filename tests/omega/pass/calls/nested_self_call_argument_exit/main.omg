@@ -20,7 +20,7 @@ machine Sink::probe(sink: &Sink, bytes: &[u8]) {
         _ -> empty(sink)
     }
 
-    state empty(sink: &Sink) {}
+    machine empty(sink: &Sink) {}
 }
 
 data Main {
@@ -42,11 +42,11 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> missed(main)
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state missed(main: &mut Main) {
+    machine missed(main: &mut Main) {
         Console::exit_process(71);
     }
 }

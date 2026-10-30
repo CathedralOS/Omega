@@ -8,20 +8,20 @@ use symbols::SymbolHandle;
 /// Every state's ordered guarded exits:
 /// `tails` holds one row per state whose authored transition guards an exit,
 /// and its `arms` span `exits`.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedGuardedExitPlans {
     pub exits: arena::Arena<CheckedScalarGuardedExit>,
     pub tails: Vec<CheckedScalarGuardedTail>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarGuardedTail {
     pub state: SymbolHandle,
     pub arms: arena::HandleSpan<CheckedScalarGuardedExit>,
     pub fallback: Option<CheckedScalarBranchDestination>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarGuardedExit {
     pub guard_statement_ordinal: u32,
     pub destination: CheckedScalarBranchDestination,
@@ -39,7 +39,7 @@ impl Default for CheckedScalarGuardedExit {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarStateTerminator {
     /// Guards are tested in authored order. No fallback requires independently
     /// checked exhaustive coverage; the final guarded row remains explicit.
@@ -62,8 +62,14 @@ pub enum CheckedScalarStateTerminator {
 }
 
 /// A selected scalar arm transfers into a state, returns, or crashes without a successor.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarBranchDestination {
+    /// An exact checked module invocation with no normal result or successor.
+    /// Its ordinary entry obligations and argument evaluation remain live.
+    InvokeNoNormal {
+        statement_ordinal: u32,
+        is_continuation: bool,
+    },
     Jump(CheckedStructuralControlSuccessorPlan),
     /// The exact standalone source crash retains its cause and site custody.
     Crash {

@@ -18,6 +18,7 @@ pub(crate) use callable_policy::{
 #[allow(clippy::module_inception)]
 // This file groups record modules; `package` holds the package record itself.
 mod provider_policy;
+pub(crate) use provider_policy::validate_native_service_method;
 mod providers;
 mod terminal_permissions;
 

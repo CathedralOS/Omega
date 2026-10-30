@@ -5,6 +5,8 @@
 //! public call equations in evaluation order. Unsupported conjuncts stay
 //! unknown and cannot hide another conjunct that is independently false.
 
+use std::ops::ControlFlow;
+
 use super::refuted_requires::instantiated_selected_fact_judgment;
 use super::structural_judgment::StructuralJudgment;
 use symbols::SymbolHandle;
@@ -59,7 +61,38 @@ pub fn completed_value_proves_domain_predicate(
     judgment.observed && judgment.proven
 }
 
-#[derive(Default)]
+/// Prove a predicate from the exact already-applied theory. The selected
+/// tuple supplies substitution only; the observed value must establish truth.
+pub fn completed_value_proves_bound_domain_predicate(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    domain: &typed_trees::domain::DomainDefinition,
+    predicate: ExpressionHandle,
+    projection: &[facts::PlaceSegment],
+) -> bool {
+    let judgment = completed_bound_domain_judgment(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        domain,
+        predicate,
+        projection,
+    );
+    if super::struct_trace() {
+        eprintln!(
+            "STRUCT completed-bound-domain machine={} domain={} instance={:?} observed={} proven={}",
+            machine.name, domain.name, domain.semantic_id, judgment.observed, judgment.proven
+        );
+    }
+    judgment.observed && judgment.proven
+}
+
+#[derive(Clone, Default)]
 struct CompletedDomainJudgment {
     observed: bool,
     proven: bool,
@@ -79,7 +112,29 @@ fn completed_domain_judgment(
     let Some(domain) = program.domain_definition(domain_symbol) else {
         return CompletedDomainJudgment::default();
     };
-    if !typed_trees::domain::has_symbol_only_proof(program, domain_symbol) || domain.alias.is_some()
+    completed_bound_domain_judgment(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        domain,
+        predicate,
+        projection,
+    )
+}
+
+fn completed_bound_domain_judgment(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    domain: &typed_trees::domain::DomainDefinition,
+    predicate: ExpressionHandle,
+    projection: &[facts::PlaceSegment],
+) -> CompletedDomainJudgment {
+    if !typed_trees::domain::has_bound_symbol_only_proof(program, domain) || domain.alias.is_some()
     {
         return CompletedDomainJudgment::default();
     }
@@ -87,23 +142,29 @@ fn completed_domain_judgment(
     // site. A typed value retains its own actual instance, including generics.
     let reference = crate::expression_result_type_reference(program, machine, state, expression)
         .unwrap_or(domain.target_type);
-    let mut judgment = CompletedDomainJudgment {
+    let initial = CompletedDomainJudgment {
         proven: true,
         ..Default::default()
     };
-    let coverage = super::completed_observations::observe_completed_values(
+    let result = super::completed_observations::fold_completed_values(
         program,
         machine,
         state,
         statement_index,
         expression,
         reference,
-        |judge, value| {
+        initial,
+        |judgment| judgment.proven,
+        |judgment, observation| {
+            let Some((judge, value)) = observation else {
+                judgment.proven = false;
+                return ControlFlow::Continue(());
+            };
             let Some(projected_reference) =
                 crate::project_type_reference_from_segments(program, reference, projection)
             else {
                 judgment.proven = false;
-                return;
+                return ControlFlow::Continue(());
             };
             let parameters = [typed_trees::signature::StateParameter {
                 symbol: domain.subject_symbol,
@@ -118,7 +179,7 @@ fn completed_domain_judgment(
                 program, reference, value, projection,
             ) else {
                 judgment.proven = false;
-                return;
+                return ControlFlow::Continue(());
             };
             let bindings = [(domain.subject_name.to_string(), value)];
             // Positive callers supply the declared predicate (or a Boolean
@@ -140,17 +201,20 @@ fn completed_domain_judgment(
                     expression,
                     &bindings,
                     &[],
+                    &[],
                     Some((machine, state)),
                 );
                 judgment.proven &= matches!(predicate_judgment, StructuralJudgment::Proven);
                 judgment.refuted |= matches!(predicate_judgment, StructuralJudgment::Refuted);
             }
+            ControlFlow::Continue(())
         },
     );
-    let Some(complete) = coverage else {
+    let Some(result) = result else {
         return CompletedDomainJudgment::default();
     };
-    judgment.observed = complete;
-    judgment.proven &= complete;
+    let mut judgment = result.state;
+    judgment.observed = result.complete;
+    judgment.proven &= result.complete;
     judgment
 }

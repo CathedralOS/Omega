@@ -16,8 +16,8 @@ machine read(selected: dyn Payload, first: &mut [u8], second: &mut [u8]) -> u8
  requires first.len >= 2 && second.len >= 2 crashes Trap {
  let bytes: &mut [u8] = Payload::window(selected, first, second);
  transition bytes.len == 2 { true -> inspect(bytes) false -> bad() }
- state inspect(bytes: &mut [u8]) -> u8 requires bytes.len == 2 { bytes[0] }
- state bad() -> u8 { crash Trap; }
+ machine inspect(bytes: &mut [u8]) -> u8 requires bytes.len == 2 { bytes[0] }
+ machine bad() -> u8 { crash Trap; }
 }
 machine Main::main(main: &mut Main) crashes Trap {
  main.first[0] = 11; main.second[0] = 29;
@@ -26,7 +26,7 @@ machine Main::main(main: &mut Main) crashes Trap {
  selected = Second as dyn Payload;
  let second: u8 = read(selected, &mut main.first, &mut main.second);
  transition first == 11 && second == 29 { true -> done() false -> bad() }
- state done() {} state bad() { crash Trap; }
+ machine done() {} machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -16,8 +16,8 @@ ensures embed(Total) <= 10 * embed(Nodes)
         Tree::Fork { left_nodes, left_total, right_nodes, right_total, head, left, right, .. }
             -> step(left_nodes, left_total, right_nodes, right_total, head, left, right)
     }
-    state done() requires Nodes == 0 && Total == 0 {}
-    state step(left_nodes: u64, left_total: u64, right_nodes: u64, right_total: u64, head: u64,
+    machine done() requires Nodes == 0 && Total == 0 {}
+    machine step(left_nodes: u64, left_total: u64, right_nodes: u64, right_total: u64, head: u64,
                left [erased]: Tree<left_nodes, left_total>, right [erased]: Tree<right_nodes, right_total>)
     requires head <= 10 && embed(left_nodes) + embed(right_nodes) + 1 == embed(Nodes)
              && embed(left_total) + embed(right_total) + embed(head) == embed(Total)
@@ -51,6 +51,6 @@ machine main() crashes Trap {
     };
     let result: u64 = joined(left, right);
     transition result == 73 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

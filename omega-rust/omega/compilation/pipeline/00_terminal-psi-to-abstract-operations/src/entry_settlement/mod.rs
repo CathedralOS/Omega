@@ -29,9 +29,6 @@ pub fn validate_native_program_entry_settlement(
     if slot.owner.native_target() != target {
         return Err(NativeProgramEntrySettlementError::TargetDrift);
     }
-    program_entry
-        .validate_fused_service_establishments_for_target()
-        .map_err(|_| NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift)?;
     let admitted_calling_plans = program_entry
         .validate_for_target(target)
         .map_err(|_| NativeProgramEntrySettlementError::CallingPlanPairingDrift)?;
@@ -85,6 +82,14 @@ pub fn validate_native_program_entry_settlement(
     {
         return Err(NativeProgramEntrySettlementError::SourceMachineSubstitution);
     }
+    // These are actual selected boundary inputs, not module.entry discovery.
+    // The public source declaration and selected realization both retain
+    // their full erased-input obligation when they are distinct coordinates.
+    for machine in [checked_entry.terminal_entry(), entry] {
+        terminal_semantics::validate_empty_erased_invocation_inputs(module, machine).map_err(
+            |reason| NativeProgramEntrySettlementError::UnsuppliedErasedInputs { machine, reason },
+        )?;
+    }
     Ok(ValidatedNativeProgramEntrySettlement {
         checked_entry: checked_entry.clone(),
         physical_adapter: program_entry.physical_adapter.cloned(),
@@ -94,7 +99,6 @@ pub fn validate_native_program_entry_settlement(
         admitted_calling_plans,
         physical_calling_application: program_entry.physical_calling_application.cloned(),
         storage_entry: program_entry.storage_entry.cloned(),
-        fused_service_establishments: program_entry.fused_service_establishments.to_vec(),
         // Executable input supplies these loans, not declaration settlement.
         placed_view_establishments: Vec::new(),
         private_entry_ram: Vec::new(),

@@ -17,22 +17,35 @@ validation, board rules, and publication.
 
 ## Choose the capability and its next witness
 
-Record the start time, starting checkout, and branch. Fetch main and inspect
-status and recent lane commits. If the starting checkout is clean and on main,
-fast-forward it with `git merge --ff-only origin/main` before reading its boards.
-Otherwise preserve it and read from an isolated worktree based on fetched main.
+Record the start time, starting checkout, and base. Fetch main (`git fetch origin main`)
+and inspect recent lane commits. Never fast-forward, pull, or modify the starting checkout;
+preserve it intact as a stable reference. Create and work exclusively in an isolated worktree
+based on fetched `origin/main`.
 
 Apply the selection order in [AGENTS.md](../../../AGENTS.md#the-sample-loop):
-known main regressions, explicit user scope, the existing capability continuation,
-then an actionable board outcome by priority and release dependencies. Compiler
-advancement then selects the witness only from `samples/cli/facts`. One fact
+explicit user scope, the existing capability continuation, an unclaimed active
+`main` regression (only when unassigned and the newest completed `Post-merge smoke`
+run on `main` failed), then an actionable `TASKS.md` outcome starting with
+`## Priority (human-set only)` in top-down order (set and reordered only by
+humans), prioritizing ratified language-design and surface-syntax migrations
+by `.omg` blast radius (`NESTED-MACHINE-UNIFICATION`,
+`CANONICALIZE-SCALAR-RANGE-CONTRACTS`, `DOMAIN-DEFAULT-PREDICATE-UNIFICATION`,
+`STATIC-MACHINE-MIGRATION`, `BUILD-OWNED-TARGET-SELECTION`,
+`BUILD-OWNED-NATIVE-BINDINGS`,
+`TOP-LEVEL-BOUNDARY-REQUIREMENTS`) before lower feature/library sections so new
+files are not authored in retired syntax. Compiler
+advancement then selects the witness from `samples/cli/facts` (and for a
+language-design or surface-syntax migration outcome, also executes its
+repository-wide `.omg` source/library/sample/fixture migration and
+retired-syntax deletion bullets). One fact
 is one folder. The nine places are local, field, parameter, call result,
 match join, const name, another state, another machine, and another target
 body. Those places are one row. Do not expand them into a combinatorial
 matrix. `samples/cli/facts/length/` is the filled row that met this bar. The
 next witness fills one other fact across those nine places, or takes the next
-uncovered fact. Programs under the rest of `samples/` stay out of this
-selection and may stay broken while this layer is in progress.
+uncovered fact. Except when executing a ratified language/syntax migration or an
+explicitly named customer assignment, programs under the rest of `samples/` stay
+out of this selection and may stay broken while this layer is in progress.
 
 A fact folder is done only when the same fact survives all nine places. One
 sentence names the fact and the operation, and every place copies that
@@ -89,10 +102,11 @@ changes. When a repair adds or changes a construct, carrier, access
 mode, cleanup disposition, or target rule, complete the entire source-to-native
 path in the same change rather than splitting work by compiler stage.
 
-Read the whole item's acceptance and verify its remaining gap against a fresh
-current-main compiler build (`build/gate-cli`), never an older cached binary
-(`omega-latest.exe`). Record the parent task and the exact requirement the next
-fact will discharge. Do not attach a task ID to an unrelated program after
+Read the whole item's acceptance and verify its remaining gap with an optimized
+exact-source producer for the fixed recorded base. Reuse warm `build/gate-cli`
+artifacts with verified inputs; build only for changed producer inputs or a
+missing valid producer. Never use an unverified cached binary. Record the parent
+task and the exact requirement the next fact will discharge. Do not attach a task ID to an unrelated program after
 choosing it. Never filter discovery solely to folders that already have all nine
 `<place>/main.omg` files and already pass on current main (which yields
 coverage-only commits without advancing `omega-rust/`), and never treat fixing
@@ -129,7 +143,16 @@ The construct under test must establish and carry the static proof fact into the
 consuming operation itself: never re-establish the fact in the caller after the
 construct completes using a post-hoc equality guard (`transition x == 100`), and
 verify via `git diff` that `<place>/main.omg` vs. `<place>/invalid/main.omg`
-differ only in the construct's own value, domain, or contract. Keep
+differ only in the construct's own value, domain, or contract. Just as
+`<place>/invalid/main.omg` is the static falsifier for `Psi 01–04`, `main()` in
+`<place>/main.omg` must be a runtime falsifier that traps (`crash Trap`) if
+`Psi 05–07` or `Omega 00–09` mis-lowers the construct: exercise both matching
+and fallback paths with distinct runtime outcomes (never testing only a
+boundary value where both arms evaluate to the same number), make affine
+cleanup (`DiscardRoot`, `DiscardResidual`, `InvokeNominal`, `RetireHome`) or
+restoration observable in caller-visible state rather than mutating only a
+dying temporary or dropping a plain scalar struct, and check untouched neighbor
+canaries around indexed/projected/ABI writes. Keep
 producer/target-bound run records in the existing qualification/claim record or
 commit. Close only the acceptance that evidence actually establishes.
 
@@ -174,9 +197,13 @@ work. Name its workflow, baseline and adequate target first; a minor
 incidental slowdown is not permission to abandon a sample.
 Read live claims and in-flight assignments before choosing unassigned work.
 Prefer distinct capability outcomes with demonstrated acceptance; shared
-implementation paths do not exclude them. A named assignment, continuation or
-known regression keeps its priority even when another session claims it: read
-the note, reuse available repairs and reconcile at rebase. Do not invent unrelated
+implementation paths do not exclude them. An explicit user-named assignment or
+same-session continuation keeps its priority even when another session claims
+it: read the note, reuse available repairs and reconcile at rebase. A `main`
+regression is single-owner (`REGRESSION-<sha>`): if another live session has
+already claimed it, skip it and take normal unassigned work. Sessions with an
+active capability or user assignment never pivot to unrelated `main`
+regressions or check out historical `main` commits. Do not invent unrelated
 programs to fill capacity when the current fact witnesses are already assigned.
 
 Claim the parent item (`claim --board TASKS.md --item <ID> --owner "<label>"
@@ -184,20 +211,21 @@ Claim the parent item (`claim --board TASKS.md --item <ID> --owner "<label>"
 standalone sample work, claim `--item <sample path>` without inventing a board
 entry. Existing sample tickets remain valid; add the parent context in the note
 rather than discarding ownership. Inspect the registration's `overlaps`: if an
-automatic assignment duplicates a just-claimed outcome, choose another ready
-outcome before implementation. This preference
+automatic assignment (including a regression) duplicates a just-claimed outcome,
+choose another ready outcome before implementation. This preference
 for distinct automatic assignments grants no veto and requires no permission;
-named samples, continuations and known main regressions still proceed.
+explicitly user-named samples and same-session continuations still proceed.
 Overlapping paths are informational.
 Renew long work and release it when finished for any reason, recording the
 remaining frontier if interrupted. An unavailable registry means ownership is
 unknown, never that every sample is free. Report that uncertainty and retain the
 isolated scope required by AGENTS.md; do not claim registration succeeded.
 
-Fetch and inspect incoming main after reducing the failure to its root cause,
-before committing to a long repair or validation run. If another session already
-landed the repair, verify that sample on main and use it rather than duplicating
-its implementation. Repeat integration near publication. An explicitly named
+Keep the recorded base fixed after initial preflight. Inspect peer claims/PRs
+to avoid duplicate repairs. Integrate only a demonstrated actual merge conflict,
+concrete prerequisite or changed affected source, then validate that affected
+closure. Main or queue SHA movement alone does not justify local integration,
+builds or qualification. An explicitly named
 program is the customer for this session. A smaller witness isolates the
 current failure; it does not replace that program. Return to it in the same
 session until its oracle holds. Do not open a second feature while it still
@@ -213,10 +241,10 @@ checkout. After a landed repair, compact when the next assignment is a
 different outcome, and leave the context in place when the next run branches
 from that repair. The rule for cloud pods is in
 [cursor-swarm](../cursor-swarm/SKILL.md#reuse-the-session). When resuming
-saved work after a crash or compaction, rebase first and check whether main
-already carries it (`git log origin/main -S '<distinctive line>'`) before
-reapplying a patch or rerunning its validation. A new obstacle updates this
-frontier; it does not create a task for someone else. Do not split work or
+saved work after a crash or compaction, inspect its existing checkpoint, PR and
+receipts before reapplying a patch or rerunning validation. Preserve its fixed
+base and warm producers; resumption does not require a rebase. A new obstacle
+updates this frontier; it does not create a task for someone else. Do not split work or
 mine tasks to keep a slot occupied.
 
 Choose the capability by its source-to-execution acceptance: "a helper mutates
@@ -322,10 +350,12 @@ authored.
 
 ## Implement and validate
 
+Never edit files, switch branches, or build in the primary repository checkout.
 Use an isolated worktree under `<repository>/.agents/worktree/<short-name>`
-created from the fetched `origin/main`, not from the starting checkout's HEAD
-or local `main`: a checkout that could not fast-forward leaves local `main`
-behind, and a stale base rereads landed work and lengthens the landing rebase.
+created in detached HEAD mode directly from the fetched `origin/main`:
+`git worktree add --detach .agents/worktree/<short-name> origin/main`.
+Local branches are banned: do not create local named branches.
+Record that initial base once; do not refresh it merely as main moves.
 A continuation retains its existing worktree base. Keep its name short; if a
 generated Windows path fails, measure the actual path before relocating work or
 changing compiler architecture.
@@ -489,18 +519,25 @@ and keep the work marked unfinished while continuing feasible engineering.
 Invoking advance authorizes committing and publishing the change through
 [the landing protocol](../../../tools/landing.md).
 
-Validate the submitted change, push its owned branch, open/reuse a PR, and use
+Validate the submitted change, push HEAD directly to origin (`git push origin HEAD:refs/heads/work/<name>`), open/reuse a PR, and use
 the native merge queue under the linked protocol. Put actual agent/model
 provenance in the PR body when known. Do not invent unknown metadata. Release
-local build slots before waiting. No local publication lease or exact-SHA
-landing receipt remains; main movement alone does not restart author review.
+local build slots before waiting. Never chase main with gates, rebases, or rebuilds:
+GitHub Actions CI does the integration build and checks in the merge queue. No local publication
+lease or exact-SHA landing receipt remains; main movement alone does not restart author review.
 
-The sample running on main establishes the completed repair. Update its parent
-item in the same change following [board update discipline](../../../TASKS.md#updating-the-boards):
-subtract only requirements established by the evidence, delete the item only
-when its full acceptance is met, and do not add a success narrative or a new
-item per witness. Keep the next remaining requirement in the claim note. A
-sample that still fails keeps its current failure in its README.
+Focused acceptance on the submitted source plus required GitHub integration CI
+and verified publication establishes the landed repair. Postlanding verification
+is a read-only PR/commit/CI observation, not a compiler rebuild or acceptance
+rerun. Update its parent item in the same change following [board update discipline](../../../TASKS.md#updating-the-boards):
+`tests/omega/` (`corpus_results.txt`) and `samples/cli/facts/` own regression
+protection of landed witnesses, while `TASKS.md` owns only the unbuilt or
+failing gap. Delete the completed witness's bullet or requirement from
+`TASKS.md` outright so the item shrinks with every landed step; never move a
+completed witness into a `"preserving / retaining / keeping / now passes"`
+regression list or append a milestone narrative, and delete the item when its
+full `Acceptance:` is met. Keep the next remaining requirement in the claim
+note. A sample that still fails keeps its current failure in its README.
 
 Landing one witness is not a switch to an unrelated outcome. Continue the
 parent's next required witness within authorized scope; use a fresh worktree
@@ -512,22 +549,20 @@ native run, and a miss means generalize the operation. A genuine external
 prerequisite pauses only the affected work;
 preserve its frontier and continue other feasible work within user scope.
 
-After publication, return to the recorded starting checkout and recheck its
-branch and status. If it is still clean and on main, fetch and run
-`git merge --ff-only origin/main`, then verify HEAD equals fetched `origin/main`.
-This fast-forward creates no merge commit; the candidate rebase above integrates
-local work. Never reset, auto-stash, switch branches, or rebase unrelated local
-commits to synchronize the starting checkout. If synchronization cannot proceed,
-report why and distinguish published remote main from the local checkout state.
+After publication, observe the merged PR's exact submitted head, published commit
+and GitHub CI. Fetching main to verify published ancestry is read-only observation;
+it does not require moving the starting checkout or building that revision.
+Preserve the starting checkout and any dirty or unpublished work.
 
-Then remove the worktree and local branch this invocation created. From the
-starting checkout, confirm the worktree is clean (including untracked files)
-and its HEAD equals the merged PR's source head, verify the PR's published
-commit is an ancestor of fetched `origin/main`, stop any processes
-running there, run `git worktree remove <path>`, then delete the verified-landed
-local branch (squash publication may require `git branch -D`). Pre-existing worktrees, the starting checkout, and anything dirty
-or unpublished stay; report a retained worktree and the reason. Verify the path
-is absent from `git worktree list` and the branch is gone.
+Retain the worktree as a warm build workbench for subsequent tasks rather than
+tearing it down. To reuse it: reset its detached HEAD to the new `origin/main`
+(`git checkout --detach origin/main`) and clean scratch files (`git clean -fd`),
+keeping the pre-compiled `target/` cache warm. If teardown is explicitly requested
+or disk must be reclaimed: confirm the worktree is clean, verify the PR's published
+commit is an ancestor of fetched `origin/main`, stop any running processes, and
+run `git worktree remove <path>`. Because work was done in detached HEAD, no local
+branch exists to delete. Pre-existing worktrees, the starting checkout, and anything
+dirty or unpublished stay.
 
 ## When acceptance is not complete
 

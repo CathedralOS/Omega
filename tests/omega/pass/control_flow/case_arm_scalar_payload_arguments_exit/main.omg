@@ -22,7 +22,7 @@ machine NextToken::span(next_token: &NextToken) -> u64 {
         NextToken::Token { start, end } -> at(start, end, end)
         _ -> (0)
     }
-    state at(start: u64, end: u64, again: u64) -> u64 {
+    machine at(start: u64, end: u64, again: u64) -> u64 {
         transition end == again {
             true -> (again)
             _ -> (0)
@@ -54,20 +54,20 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> refused(main)
     }
 
-    state root_token(main: &mut Main, start: u64, end: u64, again: u64) {
+    machine root_token(main: &mut Main, start: u64, end: u64, again: u64) {
         transition start == 2 && end == 3 && again == 2 {
             true -> attached(main)
             _ -> refused(main)
         }
     }
-    state attached(main: &mut Main) {
+    machine attached(main: &mut Main) {
         let token: NextToken = NextToken::Token { start: 5, end: 7 };
         transition NextToken::span(&token) == 7 {
             true -> read_line(main)
             _ -> refused(main)
         }
     }
-    state read_line(main: &mut Main) {
+    machine read_line(main: &mut Main) {
         let result: LineRead = line_read();
         transition result {
             LineRead::LineComplete { count } -> got_line(main, count, false)
@@ -75,22 +75,22 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> refused(main)
         }
     }
-    state got_line(main: &mut Main, count: u64, end_after: bool) {
+    machine got_line(main: &mut Main, count: u64, end_after: bool) {
         transition end_after {
             true -> refused(main)
             false -> check_count(main, count)
         }
     }
-    state check_count(main: &mut Main, count: u64) {
+    machine check_count(main: &mut Main, count: u64) {
         transition count == 30 {
             true -> done(main)
             _ -> refused(main)
         }
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(70);
     }
-    state refused(main: &mut Main) {
+    machine refused(main: &mut Main) {
         Console::exit_process(71);
     }
 }

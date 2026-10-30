@@ -1,0 +1,7 @@
+public boundary trait Reading {
+    machine read() -> u32 reaches ensures result == 42;
+}
+public Reader satisfies Reading {
+    machine read() -> u32 ensures result == 42 { 42 }
+}
+machine component_entry() {}

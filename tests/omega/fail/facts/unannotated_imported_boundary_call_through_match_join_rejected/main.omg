@@ -7,6 +7,6 @@ machine take(flag: bool) -> u64 reaches {
 }
 machine main() crashes Trap {
     transition take(true) == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

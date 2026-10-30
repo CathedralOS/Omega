@@ -1,7 +1,5 @@
 use super::IDENTITY_WIDTH;
 use std::collections::BTreeSet;
-use std::fmt;
-
 canonical_identity!(
     OptimizationRuleIdentity,
     b"omega.optimization-rule-identity.v1\0"
@@ -57,10 +55,7 @@ impl OptimizationRuleSetIdentity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DuplicateOptimizationRuleIdentity(pub OptimizationRuleIdentity);
 
-impl fmt::Display for DuplicateOptimizationRuleIdentity {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("normalized optimization rule set contains a duplicate identity")
-    }
-}
-
-impl std::error::Error for DuplicateOptimizationRuleIdentity {}
+crate::fixed_error_display!(
+    DuplicateOptimizationRuleIdentity,
+    "normalized optimization rule set contains a duplicate identity"
+);

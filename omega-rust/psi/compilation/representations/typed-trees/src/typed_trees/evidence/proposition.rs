@@ -11,7 +11,7 @@ mod constructor_values;
 
 /// A typed proof-formula declaration. It remains outside the executable
 /// machine graph and owns no runtime result or body.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct PropositionDefinition {
     pub symbol: SymbolHandle,
     pub name: Identifier,
@@ -24,7 +24,7 @@ pub struct PropositionDefinition {
     pub body: PropositionBody,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct PropositionBinder {
     pub symbol: SymbolHandle,
     pub name: Identifier,
@@ -32,7 +32,7 @@ pub struct PropositionBinder {
     pub bounds: DataProperties,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum PropositionBinderKind {
     #[default]
     Type,
@@ -42,7 +42,7 @@ pub enum PropositionBinderKind {
     Machine,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum PropositionBody {
     #[default]
     Primitive,
@@ -56,13 +56,13 @@ pub enum PropositionBody {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum PropositionFormula {
     Application(PropositionApplication),
     BooleanExpression(ExpressionHandle),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PropositionApplication {
     pub proposition: SymbolHandle,
     pub name: Identifier,
@@ -70,7 +70,7 @@ pub struct PropositionApplication {
     pub arguments: HandleSpan<ExpressionHandle>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PropositionBinderArgument {
     pub kind: PropositionBinderArgumentKind,
     pub path: Box<[Identifier]>,
@@ -79,7 +79,7 @@ pub struct PropositionBinderArgument {
     pub symbol: SymbolHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, compiler_storage::Record)]
 pub enum PropositionBinderArgumentKind {
     Type,
     Const,
@@ -360,6 +360,7 @@ fn expression_mentions_any(
         | ExpressionNode::Member(_)
         | ExpressionNode::Range(_)
         | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => !symbols.is_empty(),
     }
 }
@@ -1111,6 +1112,7 @@ fn render_expression(
         ExpressionNode::StructLiteral(literal) => {
             program.render_proof_constructor_value(literal, render)
         }
+        ExpressionNode::TypeExpression(reference) => program.display_type_reference(*reference),
         ExpressionNode::ZeroValue(_) => program.expression_table.display_name(expression),
         ExpressionNode::Unary(unary) => {
             format!("{}{}", unary.operator.display_name(), render(unary.operand))

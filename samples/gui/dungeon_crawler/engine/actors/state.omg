@@ -59,7 +59,7 @@ public machine elapse<const Duration: i32>(timer: Countdown<Duration>) -> Countd
 terminates;
 requires Duration >= 1 {
     transition timer.remaining > 0 { true -> decrement(timer) _ -> (timer) }
-    state decrement(timer: Countdown<Duration>) -> Countdown<Duration>
+    machine decrement(timer: Countdown<Duration>) -> Countdown<Duration>
     requires timer.remaining > 0 {
         Countdown { remaining: timer.remaining - 1 }
     }
@@ -69,7 +69,7 @@ public machine damage(vitality: Vitality) -> Vitality
 terminates;
 {
     transition vitality.current > 0 { true -> decrement(vitality.current, vitality.maximum) _ -> (vitality) }
-    state decrement(current: i32, maximum: i32) -> Vitality
+    machine decrement(current: i32, maximum: i32) -> Vitality
     requires current > 0 && current <= maximum {
         Vitality { current: current - 1, maximum: maximum }
     }

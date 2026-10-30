@@ -8,6 +8,6 @@ machine replace(bytes: &mut [u8]) requires bytes.len >= 1 {
         true -> inspect(view)
         false -> done()
     }
-    state done() {}
+    machine done() {}
 }
 machine main() {}

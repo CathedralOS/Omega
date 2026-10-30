@@ -15,22 +15,22 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> analyze(main, &mut image)
         false -> invalid(main)
     }
-    state analyze(main: &mut Main, image: &mut Image) {
+    machine analyze(main: &mut Main, image: &mut Image) {
         let complete: bool = label_regions(image);
         transition complete {
             true -> report(main, image)
             false -> internal(main)
         }
     }
-    state report(main: &mut Main, image: &Image) {
+    machine report(main: &mut Main, image: &Image) {
         render(image);
         Console::exit_process(0);
     }
-    state invalid(main: &mut Main) {
+    machine invalid(main: &mut Main) {
         Console::write_line("ERROR invalid image: width height 1..8, threshold 0..255, connectivity 4 or 8, exact pixels 0..255");
         Console::exit_process(2);
     }
-    state internal(main: &mut Main) {
+    machine internal(main: &mut Main) {
         Console::write_line("ERROR internal capacity invariant");
         Console::exit_process(3);
     }

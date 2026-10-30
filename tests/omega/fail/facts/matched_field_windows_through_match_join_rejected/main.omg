@@ -16,6 +16,6 @@ machine main() crashes Trap {
     let mut left: [u8; 4] = [1, 2, 3, 4];
     let window: &mut [u8] = from_join(&mut left, 0, true);
     transition window.len == 2 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

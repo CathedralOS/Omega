@@ -4,5 +4,5 @@ ensures result <= values.len {
         true -> finish(values)
         _ -> finish(other)
     }
-    state finish(selected: &[u8]) -> u64 { selected.len }
+    machine finish(selected: &[u8]) -> u64 { selected.len }
 }

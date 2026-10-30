@@ -78,6 +78,7 @@ pub fn returned_sources(
                             root: checked_trees::CheckedReferenceOriginRoot::Invocation {
                                 carrier_type: program.normalized_type_identity(carrier),
                             },
+                            entry_reference_hops: 0,
                             path: vec![CheckedReferenceOriginProjection::Exact(
                                 CheckedUnitStructuralPathSegment::Referent,
                             )],
@@ -136,6 +137,7 @@ pub fn returned_sources(
             return Err("public input access does not supply returned access");
         }
         let mut path = Vec::new();
+        let entry_reference_hops = 0;
         if field.source == ViewReturnInputSource::Stored {
             // Public origins are relative to the executable structural formal,
             // which already presents borrowed container storage. Its outer
@@ -154,6 +156,7 @@ pub fn returned_sources(
                 root: checked_trees::CheckedReferenceOriginRoot::Parameter {
                     index: parameter_index,
                 },
+                entry_reference_hops,
                 path,
                 extent: ReferenceOriginExtent::WithinRegion,
                 type_identity: input.type_identity,

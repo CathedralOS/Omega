@@ -1,0 +1,20 @@
+// Actual helper calls, not unused public permissions, determine provider edges.
+public boundary trait Alpha {
+    machine read() -> u64 reaches Alpha + Beta invokes Beta;
+}
+public boundary trait Beta {
+    machine read() -> u64 reaches Alpha + Beta invokes Alpha;
+}
+SelectedAlpha satisfies Alpha {
+    machine read() -> u64 { Beta::read() }
+}
+SelectedBeta satisfies Beta {
+    machine read() -> u64 { helper() }
+}
+public machine helper() -> u64 reaches Alpha + Beta invokes Alpha; { Alpha::read() }
+machine main() reaches Alpha + Beta crashes Trap {
+    let value: u64 = Alpha::read();
+    transition value == 73 { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

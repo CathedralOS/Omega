@@ -3,14 +3,14 @@
 // any representation that the established source value did not already admit.
 use omega_language_std::console;
 
-domain u32::Wide(value)
+domain u32::Wide
 requires
-    value <= 100;
+    self <= 100;
 
-domain u32::Narrow(value)
+domain u32::Narrow
 requires
-    value in u32::Wide;
-    value <= 10;
+    self in u32::Wide;
+    self <= 10;
 
 data Main {
     value: u32 in Narrow;
@@ -23,8 +23,8 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

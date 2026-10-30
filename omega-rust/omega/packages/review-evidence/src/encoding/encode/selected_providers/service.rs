@@ -12,21 +12,15 @@ pub(in crate::encoding::encode) fn method(
     method: &PackagePolicyServiceMethod,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field("name", |encoder| encoder.string(&method.name))?;
-    encoder.field("requirement_owner", |encoder| {
-        encode_nominal(encoder, &method.requirement_owner)
-    })?;
-    encoder.field("requirement", |encoder| {
-        encode_nominal(encoder, &method.requirement)
-    })?;
-    encoder.field("signature", |encoder| {
-        super::signature::signature(encoder, &method.signature)
-    })?;
-    encoder.field("authority", |encoder| {
-        super::authority::authority(encoder, &method.authority)
-    })?;
-    encoder.field("parameter_count", |encoder| {
-        encoder.usize(method.parameter_count)
-    })?;
+    encoder.field_by(
+        "requirement_owner",
+        &method.requirement_owner,
+        encode_nominal,
+    )?;
+    encoder.field_by("requirement", &method.requirement, encode_nominal)?;
+    encoder.field_by("signature", &method.signature, super::signature::signature)?;
+    encoder.field_by("authority", &method.authority, super::authority::authority)?;
+    encoder.usize_field("parameter_count", method.parameter_count)?;
     encoder.field("parameter_type_identities", |encoder| {
         encoder.sequence(&method.parameter_type_identities, |encoder, value| {
             encoder.field("value", |encoder| encoder.string(value))
@@ -34,24 +28,28 @@ pub(in crate::encoding::encode) fn method(
     })?;
     encoder.field("entry_claims", |encoder| {
         encoder.sequence(&method.entry_claims, |encoder, claim| {
-            encoder.field("parameter_index", |encoder| {
-                encoder.usize(claim.parameter_index)
-            })?;
-            encoder.field("carrier_identity", |encoder| {
-                encoder.string(method.identities.text(claim.carrier_identity))
-            })?;
+            encoder.usize_field("parameter_index", claim.parameter_index)?;
+            encoder.string_field(
+                "carrier_identity",
+                method.identities.text(claim.carrier_identity),
+            )?;
             encoder.field("domain", |encoder| encoder.string(&claim.domain))?;
-            encoder.field("predicate_body", |encoder| {
-                match claim.predicate_body {
-                    language_semantics::DomainPredicateBody::Bodyless => encoder.tag("bodyless", 0),
-                    language_semantics::DomainPredicateBody::Present => encoder.tag("present", 1),
+            encoder.field("predicate_presence", |encoder| {
+                match claim.predicate_presence {
+                    language_semantics::DomainPredicatePresence::Absent => {
+                        encoder.tag("bodyless", 0)
+                    }
+                    language_semantics::DomainPredicatePresence::Present => {
+                        encoder.tag("present", 1)
+                    }
                 };
                 Ok(())
             })?;
-            encoder.field("effective_carry", |encoder| {
-                encode_carry_policy(encoder, claim.effective_carry);
-                Ok(())
-            })?;
+            encoder.field_by(
+                "effective_carry",
+                claim.effective_carry,
+                encode_carry_policy,
+            )?;
             encoder.field("authority_flow", |encoder| {
                 match claim.authority_flow {
                     ServiceEntryAuthorityFlow::Accepts => encoder.tag("accepts", 0),
@@ -72,10 +70,7 @@ pub(in crate::encoding::encode) fn method(
         };
         Ok(())
     })?;
-    encoder.field("has_result", |encoder| {
-        encoder.boolean(method.has_result);
-        Ok(())
-    })?;
+    encoder.boolean_field("has_result", method.has_result)?;
     encoder.field("result_type_identity", |encoder| {
         encoder.option(method.result_type_identity.as_ref(), |encoder, value| {
             encoder.field("value", |encoder| encoder.string(value))
@@ -84,10 +79,11 @@ pub(in crate::encoding::encode) fn method(
     encoder.field("result_claims", |encoder| {
         encoder.sequence(&method.result_claims, |encoder, claim| {
             encoder.field("domain", |encoder| encoder.string(&claim.domain))?;
-            encoder.field("effective_carry", |encoder| {
-                encode_carry_policy(encoder, claim.effective_carry);
-                Ok(())
-            })?;
+            encoder.field_by(
+                "effective_carry",
+                claim.effective_carry,
+                encode_carry_policy,
+            )?;
             Ok(())
         })
     })?;
@@ -101,18 +97,9 @@ pub(in crate::encoding::encode) fn method(
             encoder.field("value", |encoder| encoder.string(value))
         })
     })?;
-    encoder.field("may_suspend", |encoder| {
-        encoder.boolean(method.may_suspend);
-        Ok(())
-    })?;
-    encoder.field("may_block", |encoder| {
-        encoder.boolean(method.may_block);
-        Ok(())
-    })?;
-    encoder.field("terminates_guarantee", |encoder| {
-        encoder.boolean(method.terminates_guarantee);
-        Ok(())
-    })?;
+    encoder.boolean_field("may_suspend", method.may_suspend)?;
+    encoder.boolean_field("may_block", method.may_block)?;
+    encoder.boolean_field("terminates_guarantee", method.terminates_guarantee)?;
     encoder.field("termination_premises", |encoder| {
         encoder.sequence(&method.termination_premises, |encoder, premise| {
             encoder.field("profile", |encoder| encoder.string(&premise.profile))?;
@@ -143,14 +130,13 @@ pub(in crate::encoding::encode) fn method(
                         };
                         Ok(())
                     })?;
-                    encoder.field("requirement_identity", |encoder| {
-                        encoder.string(method.identities.text(route.requirement_identity))
-                    })
+                    encoder.string_field(
+                        "requirement_identity",
+                        method.identities.text(route.requirement_identity),
+                    )
                 })
             })
         })
     })?;
-    encoder.field("calling", |encoder| {
-        encoder.option(method.calling.as_ref(), encode_application)
-    })
+    encoder.option_field("calling", method.calling.as_ref(), encode_application)
 }

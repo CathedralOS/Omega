@@ -13,5 +13,5 @@ machine main() crashes Trap {
     transition first == 41 && second == 73 && first + second == 114 {
         true -> done() _ -> bad()
     }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

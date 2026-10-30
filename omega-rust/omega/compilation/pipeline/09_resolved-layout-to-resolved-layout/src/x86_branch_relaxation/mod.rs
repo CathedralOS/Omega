@@ -1,4 +1,4 @@
-//! Optimizer module role: executable entrance. Explicit x86 conditional-branch relaxation and independent replay.
+//! Optimizer module role: executable entrance. Explicit x86 conditional-branch relaxation.
 
 mod catalog;
 mod compute;
@@ -14,7 +14,7 @@ use optimization_core::OptimizationWorkBudget;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
-use compute::{compute_relaxation, replay_relaxation};
+use compute::compute_relaxation;
 pub use machine_code::layout::evidence::{
     X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
     X86BranchRelaxationIdentity, X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
@@ -27,7 +27,7 @@ use selected_form_encoding_to_resolved_layout::{
     StagedOptimizedResolvedSelectedFormLayout, validate_optimized_resolved_selected_form_layout,
 };
 use target::NativeTarget;
-use validation::{compare_replayed_evidence, validate_roots};
+use validation::validate_roots;
 
 pub(crate) fn stage_optimized_x86_branch_relaxation(
     physical: &ValidatedPhysicalRegisterModel,
@@ -38,9 +38,12 @@ pub(crate) fn stage_optimized_x86_branch_relaxation(
     compute_relaxation(source, physical, budget)
 }
 
-/// Independent replay does not call the production fixed-point driver. It
-/// reconstructs the ordered scan, each shrink, every dense offset, the terminal
-/// no-change sweep, work usage, revisions, and final receipt.
+/// Check the artifact against its retained roots: the source layout is
+/// re-admitted as the input its own owner produced, the target is x86-64, and
+/// the artifact's identity fields agree with the source layout, the policy and
+/// the work it consumed. The relaxation is not re-derived here — the producer
+/// is the mechanism, and the corpus and the stage's tests observe it
+/// (verification placement, `omega-rust/pipeline.md`).
 pub(crate) fn validate_optimized_x86_branch_relaxation<S: ValidatedSelectedAnalysis>(
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
@@ -62,11 +65,6 @@ pub(crate) fn validate_optimized_x86_branch_relaxation<S: ValidatedSelectedAnaly
         || artifact.policy != X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1
         || !artifact.usage.within(artifact.budget)
     {
-        return Err(OptimizedX86BranchRelaxationError::ArtifactMismatch);
-    }
-    let replayed = replay_relaxation(source, physical, artifact.budget)?;
-    compare_replayed_evidence(artifact, &replayed)?;
-    if artifact != &replayed {
         return Err(OptimizedX86BranchRelaxationError::ArtifactMismatch);
     }
     Ok(())

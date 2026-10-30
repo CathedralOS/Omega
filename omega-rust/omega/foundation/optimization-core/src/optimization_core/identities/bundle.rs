@@ -28,49 +28,19 @@ pub struct OptimizationIdentityBundle {
     transformation_ledger: TransformationLedgerIdentity,
 }
 
-impl OptimizationIdentityBundle {
-    pub const fn new(
+crate::record_views! {
+    record OptimizationIdentityBundle; new;
+    copied {
         selections: OptimizationSelectionIdentity,
         rule_set: OptimizationRuleSetIdentity,
         target_cost_model: TargetCostModelIdentity,
         decision_log: Option<OptimizationDecisionLogIdentity>,
         workload_profile: Option<OptimizationWorkloadProfileIdentity>,
         transformation_ledger: TransformationLedgerIdentity,
-    ) -> Self {
-        Self {
-            selections,
-            rule_set,
-            target_cost_model,
-            decision_log,
-            workload_profile,
-            transformation_ledger,
-        }
     }
+}
 
-    pub const fn selections(self) -> OptimizationSelectionIdentity {
-        self.selections
-    }
-
-    pub const fn rule_set(self) -> OptimizationRuleSetIdentity {
-        self.rule_set
-    }
-
-    pub const fn target_cost_model(self) -> TargetCostModelIdentity {
-        self.target_cost_model
-    }
-
-    pub const fn decision_log(self) -> Option<OptimizationDecisionLogIdentity> {
-        self.decision_log
-    }
-
-    pub const fn workload_profile(self) -> Option<OptimizationWorkloadProfileIdentity> {
-        self.workload_profile
-    }
-
-    pub const fn transformation_ledger(self) -> TransformationLedgerIdentity {
-        self.transformation_ledger
-    }
-
+impl OptimizationIdentityBundle {
     pub fn encode(self) -> Vec<u8> {
         let optional_width = |value: bool| 1 + usize::from(value) * IDENTITY_WIDTH;
         let mut encoded = Vec::with_capacity(

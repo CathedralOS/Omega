@@ -7,7 +7,7 @@ terminates by countdown -> Countdown::Remaining in 0..=5;
     transition {
         _ -> iterate(countdown, Countdown { remaining: 4 })
     }
-    state iterate(held: Countdown, spare: Countdown) {
+    machine iterate(held: Countdown, spare: Countdown) -> u64 {
         transition spare.remaining > 0 {
             true -> iterate(held, Countdown { remaining: spare.remaining - 1 })
             false -> held.remaining

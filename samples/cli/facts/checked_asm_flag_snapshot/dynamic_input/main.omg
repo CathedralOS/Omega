@@ -15,6 +15,6 @@ machine main() crashes Trap {
  nop
  }
  transition ((input==0u32) && (output==4294967295u32) && ((snapshot & 2261u64)==149u64)) || ((input==1u32) && (output==0u32) && ((snapshot & 2261u64)==68u64)) {true->done() false->bad()}
- state done() {}
- state bad() {crash Trap;}
+ machine done() {}
+ machine bad() {crash Trap;}
 }

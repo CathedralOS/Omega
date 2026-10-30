@@ -12,13 +12,13 @@ pub use arrival_correspondence::{
     CheckedMachineRankCorrespondence, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
     CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
     CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,
-    CheckedRankPremiseRegime, CheckedRankReceivingCoordinate, CheckedRankValueDerivation,
-    CheckedRuntimeNaturalState, CheckedRuntimeRankComponent, CheckedRuntimeRankEdge,
-    CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent, CheckedSourceNaturalRankEdge,
-    CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
+    CheckedRankObservation, CheckedRankPremiseRegime, CheckedRankReceivingCoordinate,
+    CheckedRankValueDerivation, CheckedRuntimeNaturalState, CheckedRuntimeRankComponent,
+    CheckedRuntimeRankEdge, CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent,
+    CheckedSourceNaturalRankEdge, CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
 };
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminationFacts {
     /// Coherent source-admitted arrival coordinates. Observation production
     /// consumes this choice rather than rediscovering a carrier by type.
@@ -31,12 +31,13 @@ pub struct TerminationFacts {
     pub proof_recursive_components: Vec<CheckedProofRecursiveComponent>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum CheckedProofRankingRelation {
     StructuralSubterm,
+    StructuralSubtermCycles,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedProofRecursiveCallSite {
     Statement {
         state: SymbolHandle,
@@ -54,29 +55,30 @@ pub enum CheckedProofRecursiveCallSite {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum CheckedProofRecursiveTransitionLane {
     Target,
     Continuation,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedProofRecursiveMember {
     pub machine: SymbolHandle,
     pub rank_parameter: SymbolHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedProofRecursiveEdge {
     pub caller: SymbolHandle,
     pub callee: SymbolHandle,
     pub site: CheckedProofRecursiveCallSite,
     pub caller_rank_parameter: SymbolHandle,
     pub callee_rank_parameter: SymbolHandle,
+    /// Empty only for a preserving edge under StructuralSubtermCycles.
     pub strict_member_path: Vec<SymbolHandle>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedProofRecursiveComponent {
     pub members: Vec<CheckedProofRecursiveMember>,
     pub ranking_relation: CheckedProofRankingRelation,
@@ -93,7 +95,7 @@ impl TerminationFacts {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct MachineTerminationFact {
     pub machine: SymbolHandle,
     pub plan: MachineTerminationPlan,

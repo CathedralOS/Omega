@@ -14,13 +14,56 @@
 //! descriptions and semantic validity only: Omega consumers derive, lower,
 //! validate, and execute their own writer programs from the same vocabulary,
 //! and the interpreter consumes the portable operations through its own path.
+//! `aggregate_geometry.rs` owns numeric default sum packing shared by canonical
+//! layout observations and native ABI placement; callers retain their carrier
+//! classes and supply tag geometry explicitly.
 
+/// Generates one `*_numbered` constructor from its positional sibling. The
+/// positional constructor always runs first, complete with its own
+/// validation, so stamping a compiler-retained stable member identity can
+/// never produce a value the sibling would have refused. The spelling stays
+/// diagnostic presentation; the identity is what selects placements.
+macro_rules! numbered_constructor {
+    ($(#[$attribute:meta])* $name:ident(field $(, $argument:ident : $type:ty)*) -> $base:ident) => {
+        $(#[$attribute])*
+        pub fn $name(
+            field: impl Into<String>,
+            member_identity: u64,
+            $($argument: $type),*
+        ) -> Result<Self, MaterializationDiagnostic> {
+            let mut value = Self::$base(field, $($argument),*)?;
+            value.member_identity = Some(member_identity);
+            Ok(value)
+        }
+    };
+}
+
+/// `numbered_constructor` for the field carriers whose positional sibling is
+/// infallible: the identity is stamped through the same construct-then-set
+/// shape, so every numbered spelling of one carrier agrees on where the
+/// identity enters.
+macro_rules! numbered_variant {
+    ($(#[$attribute:meta])* $name:ident(field $(, $argument:ident : $type:ty)*) -> $base:ident) => {
+        $(#[$attribute])*
+        pub fn $name(field: impl Into<String>, member_identity: u64, $($argument: $type),*) -> Self {
+            Self {
+                member_identity: Some(member_identity),
+                ..Self::$base(field, $($argument),*)
+            }
+        }
+    };
+}
+
+mod aggregate_geometry;
 mod layout_reports;
 mod materialization;
 mod placement;
 mod symbolic_materialization;
 mod symbolic_values;
 
+pub use aggregate_geometry::{
+    AggregateGeometryError, ConventionalSumGeometry, StorageGeometry, conventional_sum_geometry,
+};
 pub use layout_reports::{
     CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalNestedRecordSumOccurrenceLayoutReport,
     ConventionalNestedRecordSumPathLayoutReport, ConventionalNestedRecordSumPathsLayoutReport,

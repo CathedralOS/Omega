@@ -12,13 +12,14 @@
 //! consistent occurrence resolution. Preparation owns early binding; this
 //! owner never rewrites the typed input.
 
+mod build_selections;
 mod call_targets;
 mod contract_resolution;
 mod finalization;
 mod member_targets;
 mod operator_targets;
-mod root_bindings;
 mod selection_collection;
+mod static_inputs;
 
 pub(crate) use contract_resolution::{
     CheckedContractOperatorResolution, checked_named_operator_call, checked_operator_resolution,

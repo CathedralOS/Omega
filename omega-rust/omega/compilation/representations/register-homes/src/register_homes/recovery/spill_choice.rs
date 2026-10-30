@@ -90,8 +90,4 @@ pub enum SpillChoiceDecodeError {
     TrailingBytes,
 }
 
-optimization_core::truncated_from_adapter!(SpillChoiceDecodeError);
-
-optimization_core::take_error_from_adapter!(SpillChoiceDecodeError);
-
-crate::decode_error_display! { SpillChoiceDecodeError, "invalid Terminal spill-choice encoding" }
+crate::decode_error! { SpillChoiceDecodeError, "invalid Terminal spill-choice encoding" }

@@ -30,8 +30,8 @@ machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 InlineSchedulerImplementation satisfies Scheduler {

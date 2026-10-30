@@ -61,6 +61,8 @@ pub(super) fn zero_argument_invocation_discharges(
     };
 
     let call = TableCallExpression {
+        authored_call_selection: None,
+        authored_call_binding: None,
         authored_machine_application: Default::default(),
         requirement_application: Default::default(),
         exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
@@ -74,7 +76,7 @@ pub(super) fn zero_argument_invocation_discharges(
         private_layout_operation: None,
         layout_query: None,
         native_code_layout: None,
-        root_binding: Default::default(),
+        build_selection: Default::default(),
         arguments: probe.expression_table.insert_expression_handles([]),
         evidence_arguments: Box::default(),
         operational_acknowledgement: language_semantics::CallOperationalAcknowledgement::default(),
@@ -107,6 +109,9 @@ pub(super) fn zero_argument_invocation_discharges(
     else {
         return false;
     };
+    if require_complete_invocation_conditions(&checked, owner).is_err() {
+        return false;
+    }
     matches!(
         typed_trees_to_checked_trees::infer_checked_machine_crash_causes(
             &checked.typed,
@@ -124,6 +129,7 @@ pub(super) fn zero_argument_invocation_discharges(
 /// Reuse that judgment when supplied; otherwise check the demanded closure.
 /// An entry premise keeps its concrete routes or the conservative fence.
 pub(super) fn argument_independent_closure_discharges(
+    admission: &super::BuildTimeAdmissionPlan,
     input: BuildTimeProgram<'_>,
     machine: &Machine,
 ) -> Result<bool, String> {
@@ -138,19 +144,26 @@ pub(super) fn argument_independent_closure_discharges(
     // call/transition premises. This proves nothing about entry arguments,
     // hence the unconditional-entry test above remains mandatory. The caller
     // still checks every independent execution-admission axis.
-    if matches!(input, BuildTimeProgram::Checked(_)) {
+    if let BuildTimeProgram::Checked(checked) = input {
+        require_complete_invocation_conditions(checked, machine.symbol)?;
         return Ok(true);
     }
+    admission.checked_closure_admission(program, machine.symbol)?;
+    Ok(true)
+}
+
+/// Retain the complete ordinary checking judgment for the demanded execution.
+/// Consumers must not discard operator, custody or pending-condition facts
+/// when crossing from source admission into the existing checked evaluator.
+pub(super) fn checked_demanded_closure(
+    domain: &crate::build_time_evaluation::EvaluationDomain,
+    program: &TypedTrees,
+) -> Result<checked_trees::CheckedTrees, String> {
     // A layout policy may be admitted before unrelated runtime declarations
     // have their authoritative layout/accessor plans. Those declarations are
     // not premises of this invocation. Close the root's real type, proof,
     // operator and body dependencies through the shared evaluation projection;
     // retain their contracts unchanged and check that exact demanded program.
-    let domain = crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(
-        program,
-        &[machine.symbol],
-        &[],
-    );
     let mut probe = domain.execution_program(program);
     // Same preliminary-package window as the zero-argument probe above.
     probe.pending_const_range_endpoints.clear();
@@ -165,15 +178,14 @@ pub(super) fn argument_independent_closure_discharges(
                 )
             },
         )?;
-    typed_trees_to_checked_trees::lower_typed_trees(probe, preparation, &checking).map_err(
-        |error| {
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(probe, preparation, &checking)
+        .map_err(|error| {
             format!(
                 "demanded premise closure checking failed: {}",
                 diagnostics::join_messages(&error)
             )
-        },
-    )?;
-    Ok(true)
+        })?;
+    Ok(checked)
 }
 
 /// The state an invocation of `machine` enters: the one named by the
@@ -290,6 +302,7 @@ pub(crate) fn snapshot_arguments_discharge(
                 diagnostics::join_messages(&diagnostics)
             )
         })?;
+    require_complete_invocation_conditions(&checked, owner)?;
     let causes = typed_trees_to_checked_trees::infer_checked_machine_crash_causes(
         &checked.typed,
         &checked.facts,
@@ -345,4 +358,104 @@ pub(super) fn append_invocation_probe(
     probe.push_machine_state(&mut probe_machine, state);
     probe.push_machine(probe_machine);
     symbol
+}
+
+/// A checked source judgment can retain target conditions for later closure;
+/// it is not yet permission to execute a partial invocation. Only conditions
+/// owned by this demanded declaration closure matter: probes retain unrelated
+/// declarations for visibility, and their outer pending work grants no premise
+/// and need not finish to evaluate this independent call. Unknown ownership
+/// cannot establish independence. The same fence serves every admission route.
+pub(crate) fn require_complete_invocation_conditions(
+    checked: &checked_trees::CheckedTrees,
+    root: SymbolHandle,
+) -> Result<(), String> {
+    let has_pending_boundary_scalars = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .boundary_machines
+        .iter()
+        .any(|plan| {
+            !plan.pending_scalar_requires.is_empty() || !plan.pending_scalar_recipes.is_empty()
+        });
+    let has_pending_recipes = checked
+        .facts
+        .constant_recipe_obligations
+        .iter()
+        .any(|obligation| obligation.is_pending());
+    let has_pending_predicates_or_ranges = checked
+        .facts
+        .constant_predicate_obligations
+        .iter()
+        .any(|obligation| obligation.is_pending())
+        || checked
+            .facts
+            .integer_range_obligations
+            .iter()
+            .any(|obligation| obligation.is_pending());
+    if !has_pending_boundary_scalars && !has_pending_recipes && !has_pending_predicates_or_ranges {
+        return Ok(());
+    }
+
+    let domain = crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(
+        &checked.typed,
+        &[root],
+        &[],
+    );
+    let demanded = |owner: SymbolHandle| !owner.is_valid() || domain.contains(owner);
+    if has_pending_boundary_scalars
+        && checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .boundary_machines
+            .iter()
+            .any(|plan| {
+                (!plan.pending_scalar_requires.is_empty()
+                    || !plan.pending_scalar_recipes.is_empty())
+                    && (demanded(plan.machine)
+                        || demanded(plan.state)
+                        || checked.typed.target_machine_families.iter().any(|family| {
+                            family.canonical == plan.machine
+                                && family.members.iter().any(|member| demanded(member.machine))
+                        }))
+            })
+    {
+        return Err(
+            "constant invocation retains pending scalar contract clauses in its demanded closure"
+                .to_owned(),
+        );
+    }
+
+    if has_pending_recipes
+        && let Some(obligation) = checked
+            .facts
+            .constant_recipe_obligations
+            .iter()
+            .find(|obligation| obligation.is_pending() && demanded(obligation.owner()))
+    {
+        return Err(format!(
+            "constant invocation cannot establish its own pending target condition: {}",
+            obligation.description()
+        ));
+    }
+    if has_pending_predicates_or_ranges
+        && (checked
+            .facts
+            .constant_predicate_obligations
+            .iter()
+            .any(|obligation| obligation.is_pending() && demanded(obligation.caller()))
+            || checked
+                .facts
+                .integer_range_obligations
+                .iter()
+                .any(|obligation| obligation.is_pending() && demanded(obligation.owner())))
+    {
+        return Err(
+            "constant invocation retains a pending target proof condition in its demanded closure"
+                .to_owned(),
+        );
+    }
+    Ok(())
 }

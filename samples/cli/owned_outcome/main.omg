@@ -20,10 +20,10 @@ Provider satisfies Issuer {
             true -> ready()
             false -> empty()
         }
-        state ready() -> Outcome<Token in Issued> {
+        machine ready() -> Outcome<Token in Issued> {
             Outcome::Ready { value: mint(29) }
         }
-        state empty() -> Outcome<Token in Issued> { Outcome::Empty }
+        machine empty() -> Outcome<Token in Issued> { Outcome::Empty }
     }
     machine nested() -> Outcome<Wrapper<Wrapper<Token in Issued>>> {
         Outcome::Ready { value: Wrapper { value: Wrapper { value: mint(41) } } }
@@ -50,6 +50,6 @@ machine main() reaches Issuer + ProcessExit {
         true -> good()
         false -> bad()
     }
-    state good() { ProcessExit::exit_process(0); }
-    state bad() { ProcessExit::exit_process(1); }
+    machine good() { ProcessExit::exit_process(0); }
+    machine bad() { ProcessExit::exit_process(1); }
 }

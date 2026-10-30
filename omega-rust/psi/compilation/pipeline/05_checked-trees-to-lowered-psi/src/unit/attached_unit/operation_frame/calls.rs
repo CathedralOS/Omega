@@ -46,6 +46,8 @@ pub(in crate::unit::attached_unit) struct CallInputs<'i> {
     pub(in crate::unit::attached_unit) byte_places: &'i [PlaceId],
     /// Address operands captured by the same authored schedule as scalar arguments.
     pub(in crate::unit::attached_unit) evaluated_selectors: Option<&'i [ValueDeclaration]>,
+    pub(in crate::unit::attached_unit) completed_structural_arguments:
+        Option<&'i [Option<super::CompletedStructuralArgument>]>,
 }
 
 impl OperationFrame<'_, '_> {
@@ -70,6 +72,7 @@ impl OperationFrame<'_, '_> {
                 argument,
                 self.values,
                 self.structural_types.declarations(),
+                self.calls.domain_declarations,
                 self.next_place,
                 self.operations,
                 self.private_places,
@@ -87,7 +90,9 @@ impl OperationFrame<'_, '_> {
             ) => self.activation_storage(identities, operation, call, *action, *bound, &inputs),
             (
                 CheckedUnitCallRoute::Module { .. },
-                CheckedUnitCallResult::Unit | CheckedUnitCallResult::Structural { .. },
+                CheckedUnitCallResult::Unit
+                | CheckedUnitCallResult::Structural { .. }
+                | CheckedUnitCallResult::NoNormal,
             ) => {
                 self.unit_call(identities, operation, call, &inputs)?;
                 Ok(())
@@ -95,6 +100,9 @@ impl OperationFrame<'_, '_> {
             (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(result)) => {
                 let value = self.scalar_call(identities, operation, call, result, &inputs)?;
                 self.bind_scalar_result(identities, call.coordinate, value)
+            }
+            (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::NoNormal) => {
+                unsupported("boundary calls cannot carry a module no-normal result")
             }
             (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Unit) => {
                 self.boundary_call(identities, call, &inputs)?;
@@ -128,7 +136,52 @@ impl OperationFrame<'_, '_> {
                 _,
             ) => self.dynamic_call(identities, operation, call, interface_identity, &inputs),
         }?;
-        self.publish_loan_completions(identities, call)
+        // A stopping invocation has prepared its entry operands, but control
+        // has not returned to this activation. Keep their homes and loans
+        // intact for the pending terminator; only a normal return authorizes
+        // the completion and private-argument cleanup below.
+        if self.operations.invocation_completion.is_some() {
+            return Ok(());
+        }
+        // Resolve the exact call just committed, including its prepared storage
+        // coordinates. Replaying the checked actuals after result publication
+        // could select a replacement binding; walking prior operations would
+        // borrow consumption from mutually exclusive sibling bodies.
+        if let Some(emitted) = self.operations.source_calls.iter().find(|emitted| {
+            emitted.source_state == self.state
+                && emitted.statement_index == call.coordinate.statement_index as usize
+                && emitted.call_ordinal == call.coordinate.call_ordinal as usize
+        }) {
+            if let lowered_psi::LoweredSourceCallSite::Operation(operation) = emitted.terminal_site
+            {
+                self.evaluation
+                    .retire_structural_operation_operands(operation, self.operations)?;
+            }
+        }
+        self.publish_loan_completions(identities, call)?;
+        if let Some(completed) = inputs.completed_structural_arguments {
+            for captured in completed.iter().flatten().rev() {
+                for place in captured.private_homes.iter().rev() {
+                    let regions = self.evaluation.normal_discard_regions(
+                        *place,
+                        self.structural_types.declarations(),
+                        self.operations,
+                    )?;
+                    self.evaluation.continue_cleanup_regions(
+                        identities,
+                        self.checked,
+                        regions,
+                        self.values,
+                        self.next_value,
+                        self.next_block,
+                        self.next_edge,
+                        self.operations,
+                    )?;
+                    self.evaluation.retire_structural_home(*place);
+                }
+            }
+        }
+        Ok(())
     }
 
     /// A retained scalar call result is the next dense value, so it also
@@ -211,6 +264,9 @@ impl OperationFrame<'_, '_> {
             self.state,
             result.statement_index,
         )?;
+        self.evaluation
+            .current_claims
+            .publish(produced.place, produced.claims.clone())?;
         self.results.push(declaration, discard_on_return);
         // Every performed call publishes its exact expression home, including
         // preparatory calls. A containing value's consumer cannot reconstruct
@@ -218,7 +274,7 @@ impl OperationFrame<'_, '_> {
         // This association carries storage geometry, not another disposal debt.
         let source = operation
             .call()
-            .and_then(CheckedUnitCallPlan::source_site)
+            .map(CheckedUnitCallPlan::source_site)
             .ok_or(LoweringError::Unsupported(
                 "structural call result lost its authored occurrence",
             ))?;
@@ -239,13 +295,14 @@ impl OperationFrame<'_, '_> {
             )?;
         }
         if matches!(self.results, StructuralResults::Dense(_)) {
-            structural_values::bind_local(
+            if let Some(binding) = structural_values::local_binding(
                 operation,
                 declaration,
                 produced.structural_type,
                 self.structural_types.declarations(),
-                &mut self.evaluation.structural_locals,
-            )?;
+            ) {
+                self.evaluation.bind_structural_local(binding);
+            }
             // A view local this call bound joins the view roster: its lengths
             // and element reads resolve through the place the locals join
             // named, and the produced type names which view family it is.
@@ -328,13 +385,11 @@ impl OperationFrame<'_, '_> {
         let id = self.operations.allocate();
         let (returned, declaration) =
             self.prepare_structural_call_result(identities, call, shape, id)?;
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
+        self.operations.push(Operation::unsuspended(
             id,
-            result: OperationResult::Structural(returned.clone()),
+            OperationResult::Structural(returned.clone()),
             kind,
-        });
+        ));
         // The dense route registers the completed value here; a composed
         // state registers it, with its local, when publishing.
         if matches!(self.results, StructuralResults::Dense(_)) {
@@ -403,19 +458,30 @@ impl OperationFrame<'_, '_> {
         let checked = self.checked;
         let coordinate = &call.coordinate;
         let target_machine = &call.target.machine;
-        let target_state = &call.target.state;
         let structural_arguments = &call.structural_arguments;
         let earlier =
             self.results
                 .earlier(structural_arguments, self.operations, self.evaluation)?;
+        let caller_bindings = self.evaluation.completed_bindings(
+            self.operations,
+            self.caller
+                .local_places
+                .iter()
+                .cloned()
+                .chain(earlier.iter().filter_map(|(place, _)| *place))
+                .chain(self.primitive_locals.iter().map(|local| local.declaration))
+                .chain(self.private_places.iter().cloned()),
+        );
         let prepared = ordinary_calls::prepare(
             identities,
             checked,
+            &self.evaluation.scalar_applications,
             self.state,
             operation,
             signatures::find(self.callees.signatures, *target_machine)?.call_target(),
             inputs.evaluated_scalar_arguments,
             inputs.evaluated_selectors,
+            inputs.completed_structural_arguments,
             self.values,
             self.caller.erased_scalar_parameters,
             self.caller.erased_proof_parameters,
@@ -425,15 +491,31 @@ impl OperationFrame<'_, '_> {
             &earlier,
             self.primitive_locals,
             &self.evaluation.structural_locals,
-            &self.evaluation.scalar_bindings,
+            &caller_bindings,
             self.structural_types.declarations(),
             inputs.byte_places,
             self.calls,
             self.next_value,
             self.operations,
+            &mut self.evaluation.current_claims,
         )?;
         drop(earlier);
         let callee = lookup_machine_id(self.calls.machine_ids, *target_machine)?;
+        if *call.result() == CheckedUnitCallResult::NoNormal {
+            if self.operations.invocation_completion.is_some() {
+                return unsupported(
+                    "one execution prefix cannot invoke after its terminal transfer",
+                );
+            }
+            let (coordinate, frontier) = self.source_call_record(*coordinate)?;
+            self.operations.invocation_completion = Some(
+                crate::emission::operation_emission::buffer::PendingInvocationCompletion {
+                    coordinate, frontier, source_site: call.source_site(),
+                    target: call.target.machine,
+                    outcome: crate::emission::operation_emission::buffer::PendingInvocationOutcome::ModuleNoNormal { callee, inputs: prepared },
+                });
+            return Ok(());
+        }
         if let CheckedUnitCallResult::Structural {
             binding: result,
             discard_result_on_return,
@@ -470,10 +552,9 @@ impl OperationFrame<'_, '_> {
         }
         let (coordinate, frontier) = self.source_call_record(*coordinate)?;
         prepared.emit(
+            checked,
             self.operations,
             coordinate,
-            None,
-            *target_state,
             crate::direct_calls::CallRecord::Frontier(&frontier),
             OperationResult::Unit,
             callee,
@@ -500,7 +581,6 @@ impl OperationFrame<'_, '_> {
         let coordinate = &call.coordinate;
         let realization_machine = &call.target.machine;
         let realization_state = &call.target.state;
-        let source_target = call.target.state;
         let target = CheckedScalarCallee::find_for_unit_call(checked, *realization_machine)?;
         if !self.callees.closure.contains(realization_machine) {
             return unsupported("Unit scalar call target is absent from the prepared closure");
@@ -554,14 +634,26 @@ impl OperationFrame<'_, '_> {
         let earlier =
             self.results
                 .earlier(&call.structural_arguments, self.operations, self.evaluation)?;
+        let caller_bindings = self.evaluation.completed_bindings(
+            self.operations,
+            self.caller
+                .local_places
+                .iter()
+                .cloned()
+                .chain(earlier.iter().filter_map(|(place, _)| *place))
+                .chain(self.primitive_locals.iter().map(|local| local.declaration))
+                .chain(self.private_places.iter().cloned()),
+        );
         let prepared = ordinary_calls::prepare(
             identities,
             checked,
+            &self.evaluation.scalar_applications,
             self.state,
             operation,
             signature.call_target(),
             inputs.evaluated_scalar_arguments,
             inputs.evaluated_selectors,
+            inputs.completed_structural_arguments,
             self.values,
             self.caller.erased_scalar_parameters,
             self.caller.erased_proof_parameters,
@@ -571,12 +663,13 @@ impl OperationFrame<'_, '_> {
             &earlier,
             self.primitive_locals,
             &self.evaluation.structural_locals,
-            &self.evaluation.scalar_bindings,
+            &caller_bindings,
             self.structural_types.declarations(),
             inputs.byte_places,
             self.calls,
             self.next_value,
             self.operations,
+            &mut self.evaluation.current_claims,
         )?;
         drop(earlier);
         let value = ValueDeclaration {
@@ -587,10 +680,9 @@ impl OperationFrame<'_, '_> {
         let callee = lookup_machine_id(self.calls.machine_ids, *realization_machine)?;
         let (coordinate, frontier) = self.source_call_record(*coordinate)?;
         prepared.emit(
+            checked,
             self.operations,
             coordinate,
-            None,
-            source_target,
             crate::direct_calls::CallRecord::Frontier(&frontier),
             OperationResult::Scalar(value),
             callee,

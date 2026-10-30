@@ -5,5 +5,5 @@ machine main() -> u64 {
  let view: &Word = &bytes[0] as &Word;
  bytes[0] = 99;
  transition { _ -> read(view) }
- state read(view: &Word) -> u64 { view.value }
+ machine read(view: &Word) -> u64 { view.value }
 }

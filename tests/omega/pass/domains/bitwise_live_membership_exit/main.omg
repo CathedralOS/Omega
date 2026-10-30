@@ -2,19 +2,19 @@
 // the same selected fixed-width predicate, including unsigned and signed edges.
 const MASK: u32 = 2;
 const WRAPPED_MASK: u8 = ((255u8 as u8 in Wrapping) + (3u8 as u8 in Wrapping)) as u8;
-domain u32::Flags(value)
-    requires (value & 2) == 0;
-    (value & MASK) == 0;
-    (value | 1u32) == 129;
-    (value ^ (1 as u32)) == 129;
-domain u64::High(value) requires (value & 9223372036854775808) == 9223372036854775808;
-domain i8::Even(value) requires (value & 1) == 0;
-domain u8::Clear(value) requires (value & WRAPPED_MASK) == 0;
-domain u8::Small(value) requires value <= 10;
-domain i32::Always(value) requires true;
-domain u32::Issued(value) requires (value & 2) == 0 established by Issuer::issue;
+domain u32::Flags
+    requires (self & 2) == 0;
+    (self & MASK) == 0;
+    (self | 1u32) == 129;
+    (self ^ (1 as u32)) == 129;
+domain u64::High requires (self & 9223372036854775808) == 9223372036854775808;
+domain i8::Even requires (self & 1) == 0;
+domain u8::Clear requires (self & WRAPPED_MASK) == 0;
+domain u8::Small requires self <= 10;
+domain i32::Always requires true;
+domain u32::Issued requires (self & 2) == 0 established by Issuer::issue;
 trait Issuer { machine issue() -> u32 ensures result in Issued; }
-domain u32::Nested(value) requires value in Issued;
+domain u32::Nested requires self in Issued;
 
 data Options { flags: u32; }
 data Guarded { value: i8 in Even; }
@@ -31,7 +31,7 @@ machine nested(value: u32 in Nested) -> u32 { value as u32 }
 machine retain(value: u32 in Issued) -> u32 { nested(value) }
 machine arrival(options: &Options, value: u32 in Flags) -> u32 {
     transition { _ -> observed(options, value) }
-    state observed(options: &Options, value: u32 in Flags) -> u32 {
+    machine observed(options: &Options, value: u32 in Flags) -> u32 {
         accept(value)
     }
 }
@@ -59,6 +59,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -15,13 +15,13 @@ macos_arm64 machine CallbackPolicies::initializer(signature: BoundarySignature) 
         true -> accept()
         _ -> reject()
     }
-    state accept() -> BoundaryPlanResult {
+    machine accept() -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         plan.call.parameter_count = 1;
         plan.call.parameters[0] = CallbackPolicies::word(8, 0);
         CallbackPolicies::finish(plan)
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "destructor must be void(pointer)" },
         }
@@ -36,7 +36,7 @@ macos_arm64 machine CallbackPolicies::registration(signature: BoundarySignature)
         true -> accept(signature)
         _ -> reject()
     }
-    state accept(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine accept(signature: BoundarySignature) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         plan.call.parameter_count = signature.native_parameter_count;
         plan.call.parameters[0] = CallbackPolicies::word(8, 0);
@@ -48,7 +48,7 @@ macos_arm64 machine CallbackPolicies::registration(signature: BoundarySignature)
         plan.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
         CallbackPolicies::finish(plan)
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "invalid pthread_key_create telescope" },
         }
@@ -170,8 +170,8 @@ invokes Console;
         true -> done()
         _ -> failed()
     }
-    state done() { }
-    state failed() { Console::exit_process(73); }
+    machine done() { }
+    machine failed() { Console::exit_process(73); }
 }
 
 data Main { key: ThreadKey; status: i32; }
@@ -187,8 +187,8 @@ invokes Console;
     }
     // The native exit primitive uses _exit. It does not run thread destructors:
     // code linkage is exercised, not future-root lifetime or invocation.
-    state done() { Console::exit_process(0); }
-    state failed() { Console::exit_process(71); }
+    machine done() { Console::exit_process(0); }
+    machine failed() { Console::exit_process(71); }
 }
 
 
@@ -270,13 +270,13 @@ linux_x86_64 machine CallbackPolicies::initializer(signature: BoundarySignature)
         true -> accept()
         _ -> reject()
     }
-    state accept() -> BoundaryPlanResult {
+    machine accept() -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         plan.call.parameter_count = 1;
         plan.call.parameters[0] = LinuxCallbackPolicies::word(8, 0);
         LinuxCallbackPolicies::finish(plan)
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "destructor must be void(pointer)" },
         }
@@ -291,7 +291,7 @@ linux_x86_64 machine CallbackPolicies::registration(signature: BoundarySignature
         true -> accept(signature)
         _ -> reject()
     }
-    state accept(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine accept(signature: BoundarySignature) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         plan.call.parameter_count = signature.native_parameter_count;
         plan.call.parameters[0] = LinuxCallbackPolicies::word(8, 0);
@@ -303,7 +303,7 @@ linux_x86_64 machine CallbackPolicies::registration(signature: BoundarySignature
         plan.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
         LinuxCallbackPolicies::finish(plan)
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "invalid pthread_key_create telescope" },
         }

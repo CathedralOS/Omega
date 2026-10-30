@@ -23,7 +23,7 @@ pub const OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION: u16 = 1;
 ///
 /// V1 has exactly one role: the carrier contributes storage only and owns no
 /// independently invoked lifecycle semantics.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum OpaqueRepresentationLifecycleDisposition {
     Inert,
 }
@@ -35,14 +35,14 @@ pub enum OpaqueRepresentationLifecycleDisposition {
 /// linear semantic occurrence. `CheckedSemanticCopy` means the opaque datum is
 /// unrestricted and the complete inert carrier graph is structurally
 /// unrestricted, so a checked semantic copy may create another occurrence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum OpaqueRepresentationCopyDisposition {
     PlacementOnly,
     CheckedSemanticCopy,
 }
 
 /// Closed source of one selected v1 opaque-representation application.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum OpaqueRepresentationApplicationOrigin {
     NamedConformance,
 }
@@ -50,7 +50,7 @@ pub enum OpaqueRepresentationApplicationOrigin {
 /// One exact, build-selected `Name satisfies OpaqueRepresentation<Opaque, Carrier>`
 /// application. The concrete carrier, the implementation's second trait
 /// argument, is the sole source of physical shape.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct OpaqueRepresentationSelection {
     opaque: SymbolHandle,
     carrier: SymbolHandle,

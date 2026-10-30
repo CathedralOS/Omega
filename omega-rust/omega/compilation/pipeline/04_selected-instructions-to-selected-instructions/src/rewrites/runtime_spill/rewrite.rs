@@ -102,21 +102,26 @@ pub fn spill_selected_runtime_value_with_crossing_status(
     budget: OptimizationWorkBudget,
     span_policy: RuntimeSpillSpanPolicy,
 ) -> Result<(ValidatedRuntimeSpill, bool), RuntimeSpillError> {
-    let admitted = derive_runtime_spill(
-        source,
-        function_index,
-        register,
-        environment,
-        span_policy,
-        budget,
-    )?;
-    let crossed_unit_write = admitted.crossed_unit_write;
-    let mut transformed = source.selected_plan().clone();
-    transformed
-        .functions
-        .mutate_preserving_register_prefix(
+    let admitted = phase_profile::scope("06.1.d.05.spill.derive", || {
+        derive_runtime_spill(
+            source,
             function_index,
-            |local_storage_slots, virtual_registers, boundary_settlements, blocks| -> Result<(), RuntimeSpillError> {
+            register,
+            environment,
+            span_policy,
+            budget,
+        )
+    })?;
+    let crossed_unit_write = admitted.crossed_unit_write;
+    let transformed = phase_profile::scope(
+        "06.1.d.05.spill.mutate",
+        || -> Result<_, RuntimeSpillError> {
+            let mut transformed = source.selected_plan().clone();
+            transformed
+            .functions
+            .mutate_preserving_register_prefix(
+                function_index,
+                |local_storage_slots, virtual_registers, boundary_settlements, blocks| -> Result<(), RuntimeSpillError> {
                 // Reused slots are already declared, so their bytes stay charged exactly
                 // once in the function's frame demand; the private slot is appended only
                 // when at least one storage window landed on it.
@@ -188,6 +193,7 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                         virtual_registers.extend(registers);
                         instructions.extend(sequence);
                     }
+                    let mut window_has_interior = true;
                     let active_window = if has_settlements || block.instructions.is_empty() {
                         if block.instructions.is_empty() {
                             None
@@ -198,7 +204,11 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                         let mut window = admitted
                             .function
                             .blocks
-                            .block_register_instruction_span(block_index, register);
+                            .block_register_instruction_span_detail(block_index, register)
+                            .map(|(s, e, interior)| {
+                                window_has_interior = interior;
+                                (s, e)
+                            });
                         for definition in &admitted.definitions {
                             if definition.block_index != block_index {
                                 continue;
@@ -214,8 +224,16 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                                     .instruction_index_in_block(block_index, anchor)
                             {
                                 window = Some(match window {
-                                    Some((s, e)) => (s.min(idx), e.max(idx)),
-                                    None => (idx, idx),
+                                    Some((s, e)) => {
+                                        if idx != s && idx != e {
+                                            window_has_interior = true;
+                                        }
+                                        (s.min(idx), e.max(idx))
+                                    }
+                                    None => {
+                                        window_has_interior = false;
+                                        (idx, idx)
+                                    }
                                 });
                             }
                         }
@@ -239,126 +257,161 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                             definition.block_index == block_index
                                 && !matches!(definition.position, super::StoragePosition::BlockStart)
                         });
-                        for (offset, original) in block.instructions[active_start..=active_end]
-                            .iter()
-                            .enumerate()
-                        {
-                            let instruction_index = active_start + offset;
-                            if has_settlements {
-                                boundaries.push(
-                                    u32::try_from(instructions.len())
-                                        .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
-                                );
-                            }
-                            let mut rewritten = original.clone();
-                            // Uses and `UseDef` operands both read the victim and move to a
-                            // reload register; a `UseDef` additionally writes that register
-                            // back, which the instruction's following store then reads. A
-                            // plain `Def` keeps the victim register so its own store reads
-                            // the post-write value — possibly bound to a tied use's reload
-                            // home, which is the read-modify-write idiom's point.
-                            for operand in &mut rewritten.operands {
-                                if operand.virtual_register != register
-                                    || (has_retained_uses
-                                        && admitted
-                                            .retained_uses
-                                            .contains(&(original.id, operand.operand)))
-                                    || !matches!(
-                                        operand.access,
-                                        RegisterOperandAccess::Use
-                                            | RegisterOperandAccess::UseDef
-                                    )
-                                {
-                                    continue;
+                        let mut rewrite_instruction =
+                            |instruction_index: usize,
+                             original: &selected_instructions::SelectedInstruction,
+                             open_reload: &mut Option<VirtualRegisterId>,
+                             virtual_registers: &mut Vec<VirtualRegister>,
+                             instructions: &mut Vec<selected_instructions::SelectedInstruction>,
+                             next_instruction: &mut u32,
+                             next_register: &mut u32|
+                             -> Result<(), RuntimeSpillError> {
+                                if has_settlements {
+                                    boundaries.push(
+                                        u32::try_from(instructions.len())
+                                            .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
+                                    );
                                 }
-                                // A use admission recorded beside an early-clobber tied write
-                                // takes a pair of its own: the write's tied home must be a
-                                // register the instruction's unpinned co-readers never share.
-                                let dedicated = has_dedicated_ties
-                                    && block_dedicated_ties
-                                        .contains(&(instruction_index, operand.operand));
-                                let reloaded = reload_for_use(
-                                    &admitted,
-                                    admitted
-                                        .assignment
-                                        .load_slot(block_index, instruction_index),
-                                    register,
-                                    shared && operand.fixed_view.is_none() && !dedicated,
+                                let mut rewritten = original.clone();
+                                for operand in &mut rewritten.operands {
+                                    if operand.virtual_register != register
+                                        || (has_retained_uses
+                                            && admitted
+                                                .retained_uses
+                                                .contains(&(original.id, operand.operand)))
+                                        || !matches!(
+                                            operand.access,
+                                            RegisterOperandAccess::Use
+                                                | RegisterOperandAccess::UseDef
+                                        )
+                                    {
+                                        continue;
+                                    }
+                                    let dedicated = has_dedicated_ties
+                                        && block_dedicated_ties
+                                            .contains(&(instruction_index, operand.operand));
+                                    let reloaded = reload_for_use(
+                                        &admitted,
+                                        admitted
+                                            .assignment
+                                            .load_slot(block_index, instruction_index),
+                                        register,
+                                        shared && operand.fixed_view.is_none() && !dedicated,
+                                        open_reload,
+                                        virtual_registers,
+                                        instructions,
+                                        next_instruction,
+                                        next_register,
+                                    )?;
+                                    use_reloads.entry(rewritten.id).or_insert(reloaded);
+                                    operand.virtual_register = reloaded;
+                                }
+                                if has_settlements {
+                                    instruction_positions.push(
+                                        u32::try_from(instructions.len())
+                                            .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
+                                    );
+                                }
+                                instructions.push(rewritten);
+                                if has_span_closes
+                                    && open_reload.is_some()
+                                    && block_span_closes.binary_search(&instruction_index).is_ok()
+                                {
+                                    *open_reload = None;
+                                }
+                                if has_after_defs {
+                                    for (definition_index, definition) in
+                                        admitted
+                                            .definitions
+                                            .iter()
+                                            .enumerate()
+                                            .filter(|(_, definition)| {
+                                                definition.block_index == block_index
+                                                    && match definition.position {
+                                                        super::StoragePosition::AfterInstruction(
+                                                            anchor,
+                                                        )
+                                                        | super::StoragePosition::AfterUseDef {
+                                                            instruction: anchor,
+                                                            ..
+                                                        } => anchor == original.id,
+                                                        super::StoragePosition::BlockStart => false,
+                                                    }
+                                            })
+                                    {
+                                        let stored = match definition.position {
+                                            super::StoragePosition::AfterUseDef {
+                                                operand, ..
+                                            } => instructions
+                                                .last()
+                                                .and_then(|emitted| emitted.operand(operand))
+                                                .map(|operand| operand.virtual_register)
+                                                .ok_or(RuntimeSpillError::SourceMismatch)?,
+                                            _ => definition.register,
+                                        };
+                                        let store = admission::store(
+                                            &admitted,
+                                            admitted.assignment.store_slot(definition_index),
+                                            stored,
+                                            next_instruction,
+                                            next_register,
+                                        )?;
+                                        let (registers, sequence) = store.into_streams();
+                                        virtual_registers.extend(registers);
+                                        instructions.extend(sequence);
+                                    }
+                                }
+                                Ok(())
+                            };
+                        if !has_settlements && !window_has_interior {
+                            rewrite_instruction(
+                                active_start,
+                                &block.instructions[active_start],
+                                &mut open_reload,
+                                virtual_registers,
+                                &mut instructions,
+                                &mut next_instruction,
+                                &mut next_register,
+                            )?;
+                            if active_end > active_start {
+                                if active_start + 1 < active_end {
+                                    instructions.extend_from_slice(
+                                        &block.instructions[active_start + 1..active_end],
+                                    );
+                                    if has_span_closes
+                                        && open_reload.is_some()
+                                        && block_span_closes[block_span_closes
+                                            .partition_point(|&idx| idx <= active_start)..]
+                                            .first()
+                                            .is_some_and(|&idx| idx < active_end)
+                                    {
+                                        open_reload = None;
+                                    }
+                                }
+                                rewrite_instruction(
+                                    active_end,
+                                    &block.instructions[active_end],
                                     &mut open_reload,
                                     virtual_registers,
                                     &mut instructions,
                                     &mut next_instruction,
                                     &mut next_register,
                                 )?;
-                                use_reloads.entry(rewritten.id).or_insert(reloaded);
-                                operand.virtual_register = reloaded;
                             }
-                            if has_settlements {
-                                instruction_positions.push(
-                                    u32::try_from(instructions.len())
-                                        .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
-                                );
-                            }
-                            instructions.push(rewritten);
-                            // A clobber or implicit definition may write any unit, including
-                            // the one hosting the still-open reload, and a redefinition makes
-                            // the held value stale, so the shared interval ends at each
-                            // admitted span-closing instruction and the next flexible use
-                            // opens a fresh pair — unless admission proved a surviving view
-                            // lets the produced interval cross a unit-writing instruction to
-                            // its home.
-                            if has_span_closes
-                                && open_reload.is_some()
-                                && block_span_closes.contains(&instruction_index)
+                        } else {
+                            for (offset, original) in block.instructions[active_start..=active_end]
+                                .iter()
+                                .enumerate()
                             {
-                                open_reload = None;
-                            }
-                            if has_after_defs {
-                                for (definition_index, definition) in
-                                    admitted
-                                        .definitions
-                                        .iter()
-                                        .enumerate()
-                                        .filter(|(_, definition)| {
-                                            definition.block_index == block_index
-                                                && match definition.position {
-                                                    super::StoragePosition::AfterInstruction(
-                                                        anchor,
-                                                    )
-                                                    | super::StoragePosition::AfterUseDef {
-                                                        instruction: anchor,
-                                                        ..
-                                                    } => anchor == original.id,
-                                                    super::StoragePosition::BlockStart => false,
-                                                }
-                                        })
-                                {
-                                    // A `UseDef` write left the new value in the register its
-                                    // operand was redirected to — the emitted instruction's
-                                    // operand names it; the victim register itself was never
-                                    // written. Every other definition stores the recorded
-                                    // register directly.
-                                    let stored = match definition.position {
-                                        super::StoragePosition::AfterUseDef { operand, .. } => {
-                                            instructions
-                                                .last()
-                                                .and_then(|emitted| emitted.operand(operand))
-                                                .map(|operand| operand.virtual_register)
-                                                .ok_or(RuntimeSpillError::SourceMismatch)?
-                                        }
-                                        _ => definition.register,
-                                    };
-                                    let store = admission::store(
-                                        &admitted,
-                                        admitted.assignment.store_slot(definition_index),
-                                        stored,
-                                        &mut next_instruction,
-                                        &mut next_register,
-                                    )?;
-                                    let (registers, sequence) = store.into_streams();
-                                    virtual_registers.extend(registers);
-                                    instructions.extend(sequence);
-                                }
+                                rewrite_instruction(
+                                    active_start + offset,
+                                    original,
+                                    &mut open_reload,
+                                    virtual_registers,
+                                    &mut instructions,
+                                    &mut next_instruction,
+                                    &mut next_register,
+                                )?;
                             }
                         }
                         if active_end + 1 < block.instructions.len() {
@@ -372,6 +425,23 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                     // Terminator operand uses reload after the last block instruction.
                     // Their pairs occupy the end-of-block gap, so the closing boundary and
                     // instruction positions are pushed only after they are appended.
+                    // Every sink below reads the victim at that same closing boundary
+                    // position: one emission step appends each pair after the terminator's
+                    // own, and no closing pair joins a span's shared pair (`unshared`).
+                    let mut unshared = None;
+                    let mut end_of_block_reload = |register: VirtualRegisterId| {
+                        reload_for_use(
+                            &admitted,
+                            admitted.assignment.end_of_block_slot(block_index),
+                            register,
+                            false,
+                            &mut unshared,
+                            virtual_registers,
+                            &mut instructions,
+                            &mut next_instruction,
+                            &mut next_register,
+                        )
+                    };
                     let mut terminator = block.terminator.clone();
                     for operand in &mut super::control_mut(&mut terminator).operands {
                         if operand.virtual_register != register
@@ -379,18 +449,7 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                         {
                             continue;
                         }
-                        let reload = admission::reload(
-                            &admitted,
-                            admitted.assignment.end_of_block_slot(block_index),
-                            register,
-                            &mut next_instruction,
-                            &mut next_register,
-                        )?;
-                        let reloaded = reload.reload_register.id;
-                        let (registers, sequence) = reload.into_streams();
-                        virtual_registers.extend(registers);
-                        instructions.extend(sequence);
-                        operand.virtual_register = reloaded;
+                        operand.virtual_register = end_of_block_reload(register)?;
                     }
                     // Edge-transport arguments read at the same end-of-block position,
                     // after the terminator instruction executes. Their pairs follow any
@@ -408,17 +467,7 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                             {
                                 continue;
                             }
-                            let reload = admission::reload(
-                                &admitted,
-                                admitted.assignment.end_of_block_slot(block_index),
-                                register,
-                                &mut next_instruction,
-                                &mut next_register,
-                            )?;
-                            let reloaded = reload.reload_register.id;
-                            let (registers, sequence) = reload.into_streams();
-                            virtual_registers.extend(registers);
-                            instructions.extend(sequence);
+                            let reloaded = end_of_block_reload(register)?;
                             let SelectedValueTransport::Registers { argument, .. } =
                                 &mut binding.transport
                             else {
@@ -442,17 +491,7 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                                         register,
                                     )
                             {
-                                let reload = admission::reload(
-                                    &admitted,
-                                    admitted.assignment.end_of_block_slot(block_index),
-                                    register,
-                                    &mut next_instruction,
-                                    &mut next_register,
-                                )?;
-                                let reloaded = reload.reload_register.id;
-                                let (registers, sequence) = reload.into_streams();
-                                virtual_registers.extend(registers);
-                                instructions.extend(sequence);
+                                let reloaded = end_of_block_reload(register)?;
                                 *base = selected_instructions::SelectedAddressBase::Register(
                                     reloaded,
                                 );
@@ -484,18 +523,7 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                                 return Err(RuntimeSpillError::SourceMismatch);
                             };
                             let reloaded = if pending.dedicated_reload {
-                                let reload = admission::reload(
-                                    &admitted,
-                                    admitted.assignment.end_of_block_slot(block_index),
-                                    register,
-                                    &mut next_instruction,
-                                    &mut next_register,
-                                )?;
-                                let reloaded = reload.reload_register.id;
-                                let (registers, sequence) = reload.into_streams();
-                                virtual_registers.extend(registers);
-                                instructions.extend(sequence);
-                                reloaded
+                                end_of_block_reload(register)?
                             } else {
                                 pending
                                     .loads
@@ -524,17 +552,7 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                                 {
                                     continue;
                                 }
-                                let reload = admission::reload(
-                                    &admitted,
-                                    admitted.assignment.end_of_block_slot(block_index),
-                                    register,
-                                    &mut next_instruction,
-                                    &mut next_register,
-                                )?;
-                                let reloaded = reload.reload_register.id;
-                                let (registers, sequence) = reload.into_streams();
-                                virtual_registers.extend(registers);
-                                instructions.extend(sequence);
+                                let reloaded = end_of_block_reload(register)?;
                                 let SelectedCasePayloadTransport::Registers { argument, .. } =
                                     &mut payload.transport
                                 else {
@@ -588,6 +606,11 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                 Ok(())
             },
         )?;
-    let sealed = super::validation::seal_runtime_spill_with_span_policy(source, transformed)?;
+            Ok(transformed)
+        },
+    )?;
+    let sealed = phase_profile::scope("06.1.d.05.spill.seal", || {
+        super::validation::seal_runtime_spill_with_span_policy(source, transformed)
+    })?;
     Ok((sealed, crossed_unit_write))
 }

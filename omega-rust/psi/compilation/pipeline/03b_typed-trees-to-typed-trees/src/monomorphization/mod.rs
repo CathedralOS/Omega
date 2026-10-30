@@ -21,6 +21,9 @@
 //! the live generic span. Template commitments protect its stable contract axes;
 //! application commitments also protect each exact retained-call binding.
 
+pub(crate) use body_rewriting::normalize_const_arguments;
+pub(crate) use result_locals::require_complete_dispatch_subjects;
+
 use crate::monomorphization::body_cloning::clone_specialized_machine;
 use crate::monomorphization::body_rewriting::rewrite_selected_call;
 use arena::{Handle, HandleSpan};
@@ -39,7 +42,9 @@ mod application_lifetimes;
 mod applications;
 mod candidate;
 mod captured_rows;
+mod cleanup_applications;
 mod contextual_calls;
+mod domain_applications;
 mod explicit_arguments;
 mod native_query_lifetimes;
 mod placed_primitives;
@@ -58,10 +63,10 @@ mod dynamic_families;
 pub(crate) use dynamic_families::generate_dynamic_family_specializations;
 mod dynamic_slots;
 pub(crate) use dynamic_slots::instantiate_dynamic_slots;
-mod requirement_applications;
+pub(crate) mod requirement_applications;
 pub(crate) use requirement_applications::instantiate_requirement_applications;
 pub(crate) use requirement_providers::generate_requirement_provider_specializations;
-pub(crate) use type_reference_walk::{for_each_type_reference, type_reference_endpoints};
+pub(crate) use type_reference_walk::for_each_type_reference;
 mod const_values;
 pub(crate) use const_values::value as materialize_static_value;
 mod range_arguments;
@@ -137,10 +142,37 @@ struct CalleeState {
     parameter_types: Vec<TypeReferenceHandle>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum CallSite {
     Statement(StatementHandle),
     Expression(ExpressionHandle),
+}
+
+impl CallSite {
+    /// The authored static machine application this site's call node carries:
+    /// the retained application an ordinary call authored, or the zero handle
+    /// when the node authorizes no application. `None` when the site names no
+    /// call node at all, so every caller keeps its own missing-node behaviour.
+    pub(crate) fn authored_machine_application(
+        self,
+        program: &TypedTrees,
+    ) -> Option<typed_trees::static_applications::StaticMachineApplicationHandle> {
+        Some(match self {
+            CallSite::Expression(handle) => {
+                program
+                    .expression_table
+                    .call_node(handle)?
+                    .authored_machine_application
+            }
+            CallSite::Statement(handle) => {
+                program
+                    .statement_table
+                    .statement(handle)
+                    .as_call()?
+                    .authored_machine_application
+            }
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -214,24 +246,49 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
 ) -> Result<typed_trees::references::DeclarationSelection, Vec<Diagnostic>> {
     let mut changed_owners = Vec::new();
     loop {
+        // Typed operands select the ordinary callable before result inference
+        // and specialization consume its signature. A nested call may settle
+        // an outer operand in the next round; every form uses this same owner.
+        let named_owners = validation::resolve_named_result_overloads(program)?;
+        let named_changed = !named_owners.is_empty();
+        changed_owners.extend(named_owners);
         crate::conformance::explicit_requirement_calls::refresh_occurrence_selections(program)?;
         // Provider clones may restore old inferred types even when this round
         // discovers no further ordinary specialization.
-        let unavailable = crate::constructed_results::retain_constructed_result_types(program);
-        changed_owners.extend(result_locals::refresh(program, &unavailable)?);
+        let unavailable = crate::constructed_results::retain_constructed_result_types(program)?;
+        let inferred_owners = result_locals::refresh(program, &unavailable)?;
+        let inferred_changed = !inferred_owners.is_empty();
+        changed_owners.extend(inferred_owners);
+        let subjects = result_locals::materialize_dispatch_subjects(program);
+        if !subjects.is_empty() {
+            changed_owners.extend(subjects);
+            // Recollect consumers only after dispatch value types and place
+            // observations are complete, before selecting calls against them.
+            continue;
+        }
         changed_owners.extend(result_locals::materialize_reference_observations(program)?);
+        domain_applications::materialize(program)?;
+        // Closing domain theories can produce new static cleanup operands.
+        // Inventory their literal/binder payloads before tuple selection, just
+        // as for operands already present on ordinary source calls.
         materialize_static_argument_types(program);
+        changed_owners.extend(cleanup_applications::materialize(program)?);
         native_query_lifetimes::retain(program)?;
         crate::preparation::elaborate_projected_receivers(program)?;
-        changed_owners.extend(contextual_calls::close(program)?);
-        crate::constructed_results::retain_constructed_result_types(program);
+        let contextual_owners = contextual_calls::close(program)?;
+        let contextual_changed = !contextual_owners.is_empty();
+        changed_owners.extend(contextual_owners);
+        crate::constructed_results::retain_constructed_result_types(program)?;
         // Source formation needs the normal typed operand/context inventory,
         // but must precede tuple derivation and canonical const replacement.
-        validation::static_arguments::validate_source_const_recipes(program)?;
-        // Authored closed recipes and recipes closed by caller substitution
-        // enter the same canonical argument operation. A nongeneric caller has
-        // no cloning step to close an inferred aggregate index for selection.
-        // Source formation must succeed above before any recipe is replaced.
+        // This is a provisional source-recipe query, not formation admission.
+        // StaticArgumentCall::arguments retains these exact source operands
+        // through canonical replacement; final program validation judges them
+        // again and publishes their conditional formation obligations.
+        validation::static_arguments::validate_source_const_recipes(program, &mut Vec::new())?;
+        // Closed recipes and recipes closed by caller substitution enter the
+        // same canonical argument operation. Retained source operands above
+        // still carry their conditional formation obligations into final checking.
         body_rewriting::fold_closed_const_machine_arguments(program)
             .map_err(|message| vec![Diagnostic::error(message)])?;
         trait_implementation_arguments::prepare(program)?;
@@ -245,14 +302,29 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         let candidates = candidate::collect(program);
         let callee_states = candidate::callees(program, &candidates);
         if candidates.is_empty() {
-            if captures_changed {
+            if captures_changed || contextual_changed || named_changed || inferred_changed {
                 continue;
             }
             return Ok(typed_trees::references::DeclarationSelection::from_symbols(
                 changed_owners,
             ));
         }
-        let contract_expressions = contract_expression_handles(program);
+        let (contract_expressions, logical_selections) = {
+            let scopes = selection::contract_expression_scopes(program);
+            let expressions = selection::contract_expression_handles(program);
+            let selections = selection::collect_contract_call_selections(
+                program,
+                &scopes,
+                &candidates,
+                &callee_states,
+            );
+            (expressions, selections)
+        };
+        for selection in &logical_selections {
+            let candidate =
+                candidate_for_selection(program, &candidates[selection.candidate_index], selection);
+            applications::retain_call(program, &candidate, selection);
+        }
         let mut selections = selection::collect_call_selections(
             program,
             &candidates,
@@ -275,11 +347,10 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                 candidate_for_selection(program, &candidates[selection.candidate_index], selection);
             applications::retain_call(program, &candidate, selection);
         }
-        changed_owners.extend(result_locals::refresh_generic_call_results(
-            program,
-            &candidates,
-            &selections,
-        )?);
+        let generic_owners =
+            result_locals::refresh_generic_call_results(program, &candidates, &selections)?;
+        let generic_changed = !generic_owners.is_empty();
+        changed_owners.extend(generic_owners);
         let mut diagnostics = Vec::new();
         // A catalog operation selects an installed entry, not a body clone.
         // Its closed tuple may be independent of an enclosing generic API.
@@ -289,11 +360,15 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             &candidates,
             &mut selections,
             &mut changed_owners,
-        )? || captures_changed;
+        )? || captures_changed
+            || contextual_changed
+            || named_changed
+            || inferred_changed
+            || generic_changed;
         for (candidate_index, candidate) in candidates.iter().enumerate() {
-            // Open callers keep their symbolic applications. Concrete applications
-            // of the same template are independent tuples, never evidence with
-            // which to consume the declaration or specialize another caller.
+            // Open tuples stay symbolic. A closed tuple is independent of
+            // the enclosing header and can realize this exact occurrence;
+            // it never specializes another caller or consumes the declaration.
             //
             // A conflicted selection that already holds const, machine, or
             // conformance evidence rejects in every pass: two concrete
@@ -460,6 +535,17 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
             }
         }
     }
+    // Declaration-owned cleanup applications have no ordinary source-call node.
+    for (handle, _) in program.expression_table.static_machine_applications() {
+        collect(
+            program,
+            program
+                .expression_table
+                .static_machine_application_arguments(handle),
+            &mut literals,
+            &mut types,
+        );
+    }
     literals.extend(
         program
             .type_reference_table
@@ -564,7 +650,7 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
 /// never rewritten: it remains the package API and every closed application
 /// is cloned from that stable template.
 mod operator_candidates;
-use crate::monomorphization::selection::{contract_expression_handles, unique_complete_selections};
+use crate::monomorphization::selection::unique_complete_selections;
 pub(crate) use operator_candidates::{OperatorCandidateTemplates, specialize_operator_candidates};
 
 /// Keep the failed occurrence's source context; the callee alone cannot identify
@@ -726,18 +812,12 @@ fn candidate_for_selection<'template>(
 ) -> Candidate<'template> {
     Candidate {
         template: std::borrow::Cow::Borrowed(&template.template),
-        binding_application: match selection.site {
-            CallSite::Expression(handle) => program.expression_table.call_node(handle).map_or(
-                typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),
-                |call| call.authored_machine_application,
+        binding_application: selection
+            .site
+            .authored_machine_application(program)
+            .unwrap_or_else(
+                typed_trees::static_applications::StaticMachineApplicationHandle::invalid,
             ),
-            CallSite::Statement(handle) => {
-                program.statement_table.statement(handle).as_call().map_or(
-                    typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),
-                    |call| call.authored_machine_application,
-                )
-            }
-        },
         type_bindings: selection.type_bindings.clone(),
         const_bindings: selection.const_bindings.clone(),
         runtime_value_bindings: selection.runtime_value_bindings.clone(),
@@ -828,6 +908,13 @@ pub(crate) fn finalize_domain_instance_identities(
     program: &mut TypedTrees,
     declarations: &typed_trees::references::DeclarationSelection,
 ) -> Result<(), Diagnostic> {
+    if program
+        .domain_definitions()
+        .iter()
+        .all(|domain| domain.type_parameters.is_empty())
+    {
+        return Ok(());
+    }
     let references =
         typed_trees::references::collect_selected_program_references(program, declarations);
     finalize_referenced_domain_instance_identities(program, references)
@@ -837,6 +924,13 @@ pub(crate) fn finalize_referenced_domain_instance_identities(
     program: &mut TypedTrees,
     references: typed_trees::references::ProgramReferences,
 ) -> Result<(), Diagnostic> {
+    if program
+        .domain_definitions()
+        .iter()
+        .all(|domain| domain.type_parameters.is_empty())
+    {
+        return Ok(());
+    }
     finalize_type_domain_instance_identities(program, references.type_references)?;
     let mut expressions = references.expressions.into_iter().collect::<Vec<_>>();
     expressions.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));

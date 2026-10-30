@@ -25,6 +25,18 @@ pub(super) struct BlockLocalEvidence {
     pub values: BTreeSet<ValueId>,
 }
 
+fn retain_invocation(site: semantic_vocabulary::InvocationSite, evidence: &mut BlockLocalEvidence) {
+    match site {
+        semantic_vocabulary::InvocationSite::Operation(operation) => {
+            evidence.operations.insert(operation);
+        }
+        semantic_vocabulary::InvocationSite::InvokeNoNormal(edge)
+        | semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
+            evidence.edges.insert(edge);
+        }
+    }
+}
+
 /// Inventory the block-local rows semantic evidence retains across rewrites.
 ///
 /// Every Terminal identity is module-unique, so the carrier that names a row
@@ -51,24 +63,14 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
     machines: impl IntoIterator<Item = &'machine terminal_psi::TerminalMachine>,
 ) -> BlockLocalEvidence {
     let mut evidence = BlockLocalEvidence::default();
-    // These rows stay immutable through cleanup; dropping a named call or
-    // copy would detach its checked adaptation from the executable body.
-    evidence
-        .operations
-        .extend(module.quotients.operations.iter().map(|row| row.call));
-    evidence
-        .operations
-        .extend(module.quotients.adaptations.iter().map(|row| row.copy));
-    evidence
-        .values
-        .extend(crate::retained_identities::quotient_call_results(module));
-
-    evidence.operations.extend(
-        module
-            .boundary_application_demands
-            .iter()
-            .map(|demand| demand.terminal_operation()),
-    );
+    // The shared record carriers — quotient rows, boundary demands,
+    // suspension sites, plans with their loan formations, and float-meaning
+    // projections — keep every row they name: dropping a named call or copy
+    // would detach its checked adaptation from the executable body.
+    let named = crate::retained_identities::record_named_rows(module);
+    evidence.blocks.extend(named.blocks);
+    evidence.operations.extend(named.operations);
+    evidence.values.extend(named.values);
     evidence.operations.extend(
         module
             .callback_applications
@@ -118,58 +120,13 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
             }
         }
     }
-    for site in &module.suspension_call_sites {
-        evidence.operations.insert(site.operation);
-    }
-    for plan in &module.suspension_call_plans {
-        evidence.operations.insert(plan.operation);
-        plan.visit_value_ids(|value| {
-            evidence.values.insert(value);
-        });
-        for (_, loan) in plan.loans.occurrences.iter() {
-            if let terminal_psi::TerminalSuspensionLoanCapture::Reference { formation, .. } =
-                loan.capture
-            {
-                evidence.operations.insert(formation);
-            }
-        }
-    }
     for call in &module.proof_output_calls {
         if let Some(runtime) = &call.runtime_call {
-            evidence.operations.insert(runtime.operation);
+            retain_invocation(runtime.site, &mut evidence);
         }
     }
     for restoration in &module.reborrow_restored_call_uses {
         evidence.operations.insert(restoration.operation);
-    }
-    for projection in &module.float_meaning_projections {
-        match &projection.source {
-            terminal_psi::FloatMeaningSource::DirectMachineParameter(parameter) => {
-                evidence.values.insert(parameter.parameter);
-            }
-            terminal_psi::FloatMeaningSource::DirectMachineResult(result) => {
-                evidence.values.insert(result.result);
-            }
-            terminal_psi::FloatMeaningSource::DirectBlockParameter(parameter) => {
-                evidence.blocks.insert(parameter.block);
-                evidence.values.insert(parameter.parameter);
-            }
-            terminal_psi::FloatMeaningSource::DirectOperationResult(result) => {
-                evidence.operations.insert(result.producer);
-                evidence.values.insert(result.result);
-            }
-            terminal_psi::FloatMeaningSource::DirectCallResult(result) => {
-                evidence.operations.insert(result.producer);
-                evidence.values.insert(result.result);
-            }
-            // A semantic application references only proof-row operands; it
-            // retains no runtime value, operation, or block evidence.
-            terminal_psi::FloatMeaningSource::TransitionalInput(_)
-            | terminal_psi::FloatMeaningSource::DirectStructuralLeaf(_)
-            | terminal_psi::FloatMeaningSource::ExactBinary32Literal(_)
-            | terminal_psi::FloatMeaningSource::ExactBinary64Literal(_)
-            | terminal_psi::FloatMeaningSource::SemanticApplication(_) => {}
-        }
     }
     for machine in machines {
         for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
@@ -183,7 +140,7 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
         }
         if let Some(application) = &machine.closed_reach_application {
             for call in &application.calls {
-                evidence.operations.insert(call.operation);
+                retain_invocation(call.site, &mut evidence);
             }
         }
         for composition in &machine.content_partition_compositions {
@@ -209,58 +166,8 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
     evidence
 }
 
-/// Whether dropping `block` would erase a row module-level evidence still
-/// names, or orphan a machine-level structural place declaration rooted at
-/// this block's parameters or operation results.
-pub(super) fn evidence_bound_block(
-    block: &terminal_psi::Block,
-    evidence: &BlockLocalEvidence,
-) -> bool {
-    if evidence.blocks.contains(&block.id) || !block.structural_parameters.is_empty() {
-        return true;
-    }
-    for operation in &block.operations {
-        if operation.static_reach_binding.is_some()
-            || evidence.operations.contains(&operation.id)
-            || matches!(
-                operation.result,
-                terminal_psi::OperationResult::Structural(_)
-            )
-        {
-            return true;
-        }
-        if operation
-            .result
-            .scalar()
-            .is_some_and(|result| evidence.values.contains(&result.id))
-        {
-            return true;
-        }
-    }
-    if block
-        .parameters
-        .iter()
-        .any(|parameter| evidence.values.contains(&parameter.id))
-    {
-        return true;
-    }
-    block
-        .terminator
-        .edges()
-        .any(|edge| evidence.edges.contains(&edge))
-}
-
-/// Machines surviving rows keep alive independent of intra-machine
-/// reachability: the module entry, every attached or ranked machine, every
-/// provider candidate, and every machine a module-level custody or evidence
-/// row names are roots, and each retained machine then keeps the machines
-/// its call, selected-evidence, cleanup, and closed-reach transitions name.
-pub(super) fn retained_machines(module: &TerminalModule) -> BTreeSet<MachineId> {
-    retained_machines_with_roots(module, Vec::new())
-}
-
-/// `retained_machines` closed over extra roots only a producer can name.
-/// A row the verifier's inventory cannot see — the lowering stage's
+/// The machine-retention closure over extra roots only a producer can name.
+/// A row the module-level evidence inventory cannot see — the lowering stage's
 /// unsealed checked-source and selected-IEEE sidecars — can keep a machine
 /// authored without making it a retention root, and the machines that kept
 /// machine's own surviving transitions name must stay as well.
@@ -299,15 +206,40 @@ pub(super) fn retained_machines_with_roots(
 /// their named machine regardless of call reachability.
 fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
     let mut roots = BTreeSet::new();
+    // Evaluation entries need executable bodies. Proof-condition owners live
+    // in the independent declaration catalog and do not root executable code.
+    for application in module.scalar_applications.declarations() {
+        if let terminal_psi::ScalarApplication::Evaluate {
+            entry: terminal_psi::TargetMachineCallable::Machine(machine),
+            ..
+        } = application
+        {
+            roots.insert(*machine);
+        }
+    }
+    for observation in module.scalar_applications.conditions.observations() {
+        if let terminal_psi::ScalarRangeObservation::EntryResult { machine, .. } = observation {
+            roots.insert(*machine);
+        }
+    }
     for operation in &module.quotients.operations {
         roots.insert(operation.public_machine);
         roots.insert(operation.representative_machine);
     }
     roots.extend(module.quotients.adaptations.iter().map(|row| row.machine));
 
-    if let terminal_psi::TargetMachineCallable::Machine(entry) = module.entry {
+    if let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry {
         roots.insert(entry);
     }
+    // Published dispatch tables retain their callees without a direct call edge.
+    roots.extend(
+        module
+            .dynamic_dispatch
+            .tables
+            .iter()
+            .flat_map(|table| table.rows.iter().flatten())
+            .copied(),
+    );
     roots.extend(module.target_machine_families.iter().flat_map(|family| {
         family
             .members
@@ -417,28 +349,25 @@ fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
 }
 
 /// Machines a retained machine keeps alive through its surviving contents:
-/// every direct call callee, each selected-evidence use target, each nominal
+/// every ordinary invocation callee, each selected-evidence use target, each nominal
 /// cleanup machine, and each callee the closed reach application selects.
 /// Blocks already removed by the rewrite no longer carry their callees.
 fn machine_transitions(machine: &terminal_psi::TerminalMachine) -> Vec<MachineId> {
     let mut targets = Vec::new();
     for block in &machine.blocks {
+        // A no-normal invocation lives on the final edge, not in the operation
+        // list. Retention follows the same invocation inventory as contracts;
+        // whether a callee returns cannot decide whether its body must survive.
+        targets.extend(block.module_invocations().map(|call| call.inputs.callee));
         for operation in &block.operations {
-            match &operation.kind {
-                terminal_psi::OperationKind::Call { callee, .. }
-                | terminal_psi::OperationKind::CallUnit { callee, .. }
-                | terminal_psi::OperationKind::CallStructuralScalar { callee, .. } => {
-                    targets.push(*callee)
-                }
-                terminal_psi::call_structural_pair_pattern!(callee, selected_evidence, ..) => {
-                    targets.push(*callee);
-                    for evidence in selected_evidence {
-                        for evidence_use in &evidence.uses {
-                            targets.push(evidence_use.target);
-                        }
+            if let terminal_psi::call_structural_pair_pattern!(selected_evidence, ..) =
+                &operation.kind
+            {
+                for evidence in selected_evidence {
+                    for evidence_use in &evidence.uses {
+                        targets.push(evidence_use.target);
                     }
                 }
-                _ => {}
             }
         }
         targets.extend(

@@ -31,6 +31,7 @@ pub(crate) fn store_destination_places<'loan>(
             facts::PlaceRoot,
             &'loan [BorrowOwnerSegment],
             arena::Handle<checked_trees::IncomingReferenceIdentity>,
+            &'loan [facts::PlaceSegment],
             facts::PlaceRoot,
             &'loan [facts::PlaceSegment],
         ),
@@ -46,7 +47,7 @@ pub(crate) fn store_destination_places<'loan>(
         },
     );
     let mut destinations = Vec::new();
-    for (owner, owner_path, incoming_reference, source, source_path) in loans {
+    for (owner, owner_path, incoming_reference, incoming_owner_path, source, source_path) in loans {
         if owner != target.root
             || owner_path.len() > target.segments.len()
             || (owner_path.len() == target.segments.len() && !writes_referent)
@@ -67,12 +68,17 @@ pub(crate) fn store_destination_places<'loan>(
         segments.extend_from_slice(&target.segments[owner_path.len()..]);
         let destination = checked_trees::CapturedPlace {
             incoming_reference,
+            incoming_owner_path: if incoming_owner_path.is_empty()
+                && owner_path.contains(&BorrowOwnerSegment::DynamicIndex)
+            {
+                target.segments[..owner_path.len()].to_vec()
+            } else {
+                incoming_owner_path.to_vec()
+            },
             root: source,
             segments,
         };
-        if !destinations.contains(&destination) {
-            destinations.push(destination);
-        }
+        crate::collections::push_unique(&mut destinations, destination);
     }
     if destinations.is_empty() {
         destinations.push(target);
@@ -217,5 +223,27 @@ pub(crate) fn place_path_covers_owner(
                 }
                 (_, facts::PlaceSegment::Field { symbol }) if !symbol.is_valid() => false,
                 _ => owner_segment_matches_place_segment(program, owner, place).unwrap_or(false),
+            })
+}
+
+/// Select one exact descriptor leaf from its declared owner path, including
+/// a collection's abstract leaf family. This is a shape join only: callers
+/// still owe current-storage eligibility, bounds, formation and permission.
+pub(crate) fn owner_path_selects_leaf(
+    program: &dyn ::validation::CheckingInput,
+    owner: &[BorrowOwnerSegment],
+    selected: &[facts::PlaceSegment],
+) -> bool {
+    owner.len() == selected.len()
+        && owner
+            .iter()
+            .zip(selected)
+            .all(|(owner, selected)| match (owner, selected) {
+                (BorrowOwnerSegment::DynamicIndex, facts::PlaceSegment::FixedIndex { .. }) => true,
+                (BorrowOwnerSegment::DynamicIndex, facts::PlaceSegment::Index { expression }) => {
+                    expression.is_valid()
+                }
+                (_, facts::PlaceSegment::Field { symbol }) if !symbol.is_valid() => false,
+                _ => owner_segment_matches_place_segment(program, owner, selected) == Some(true),
             })
 }

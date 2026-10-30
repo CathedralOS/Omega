@@ -7,7 +7,7 @@ use super::StatementTable;
 use crate::name::Identifier;
 use arena::{Handle, HandleSpan};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct AssemblyControlFlow {
     /// The intersection of instruction and register-view catalog demands.
     pub target_requirement: language_core::inline_assembly::AsmTargetApplicability,
@@ -33,13 +33,13 @@ impl Default for AssemblyControlFlow {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum AssemblyControlPoint {
     Entry(Handle<AssemblyControlFlow>),
     Label(Handle<AssemblyBlock>),
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct AssemblyBlock {
     pub label: Identifier,
     /// Relative to the first owned statement after the graph marker.
@@ -48,7 +48,7 @@ pub struct AssemblyBlock {
     pub exit: AssemblyExit,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum AssemblyExit {
     #[default]
     Fallthrough,

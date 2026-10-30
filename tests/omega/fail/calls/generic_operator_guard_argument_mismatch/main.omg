@@ -1,6 +1,6 @@
 operator identity<T>(value: T) -> T;
 machine inspect(value: f64) {
     transition identity<i32>(value) == 37 { true -> done() false -> done() }
-    state done() {}
+    machine done() {}
 }
 machine main() {}

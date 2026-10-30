@@ -87,8 +87,9 @@ pub(crate) fn checked_unit_call_closure_including(
                 closure.push(representative.symbol);
             }
         }
-        for cleanup in crate::unit::unit_cleanup::continuation_cleanups(machine.operations()).chain(
-            crate::unit::unit_cleanup::retained_call_cleanups(checked, Some(machine_symbol)),
+        for cleanup in crate::unit::unit_cleanup::continuation_cleanups(
+            &checked.facts.flow.terminal_unit_effects.cleanup_control,
+            machine.operations(),
         ) {
             if !closure.contains(&cleanup.cleanup_machine) {
                 closure.push(cleanup.cleanup_machine);
@@ -151,6 +152,9 @@ pub(super) fn unique_unit_boundary(
     ))?;
     if matches.next().is_some() {
         return unsupported("attached Unit closure contains duplicate boundary machine plans");
+    }
+    if !plan.pending_scalar_requires.is_empty() || !plan.pending_scalar_recipes.is_empty() {
+        return unsupported("attached Unit boundary retains pending scalar contract clauses");
     }
     Ok(plan)
 }
@@ -219,7 +223,7 @@ pub(crate) fn checked_unit_boundary_identity(
         .flat_map(|definition| {
             checked
                 .typed
-                .trait_machine_instances(definition)
+                .executable_trait_machine_instances(definition)
                 .filter(move |signature| signature.symbol == symbol)
                 .map(move |signature| (definition, signature))
         })
@@ -298,17 +302,19 @@ pub(crate) fn checked_unit_boundary_identity(
 }
 
 /// The machine an ordinary call enters inside the Unit roster: every ordinary
-/// Unit call, and an ordinary structural call whose target has a Unit body.
-/// Scalar and boundary calls reach their targets through other rosters.
+/// Unit call, a no-normal invocation with its full declared result, and an
+/// ordinary structural call whose target has a Unit body. Returning scalar and
+/// boundary calls reach their targets through other rosters.
 fn unit_closure_target(
     plans: UnitPlans<'_>,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Option<symbols::SymbolHandle> {
     let call = operation.call()?;
     match (call.route(), call.result()) {
-        (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Unit) => {
-            Some(call.target.machine)
-        }
+        (
+            CheckedUnitCallRoute::Module { .. },
+            CheckedUnitCallResult::Unit | CheckedUnitCallResult::NoNormal,
+        ) => Some(call.target.machine),
         (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Structural { .. })
             if UnitBody::contains(plans, call.target.machine) =>
         {

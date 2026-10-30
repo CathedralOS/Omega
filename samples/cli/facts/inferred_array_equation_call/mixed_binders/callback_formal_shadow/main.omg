@@ -1,0 +1,11 @@
+// Invalid: a machine binder cannot become a same-named global data type in a formal.
+data Callback [copy] { value: u64; }
+machine marker() -> u64 { 7 }
+machine selected<Length [copy], machine Callback, const Capacity: u64>(items: Length, other: Callback) -> u64
+where machine Callback() -> u64;
+where Length == [u8; Capacity]
+{ Capacity }
+machine main() {
+    let items: [u8; 2] = [7, 11];
+    let observed: u64 = selected<[u8; 2], marker>(items, Callback { value: 0 });
+}

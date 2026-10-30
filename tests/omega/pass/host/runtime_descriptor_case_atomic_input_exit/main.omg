@@ -67,7 +67,7 @@ machine observe(choice: &Choice) -> u32 in Wrapping {
         Choice::Cell { counter as _ } -> cell(choice)
         _ -> (0)
     }
-    state cell(choice: &Choice) -> u32 in Wrapping requires choice in Choice::Cell {
+    machine cell(choice: &Choice) -> u32 in Wrapping requires choice in Choice::Cell {
         let resident: u32 in Wrapping = choice.counter.fetch_or(0, NoOrdering);
         transition { _ -> (resident) }
     }
@@ -82,8 +82,8 @@ machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

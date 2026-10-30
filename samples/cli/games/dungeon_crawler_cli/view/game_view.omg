@@ -92,7 +92,7 @@ machine GameView::write_cell_event(cell: CellId,
         _ -> quiet_event(out_line)
     }
 
-    state maybe_treasure_event(treasure_taken: bool,
+    machine maybe_treasure_event(treasure_taken: bool,
         out_line: &mut TextBuffer) {
         transition treasure_taken {
             false -> treasure_event(out_line)
@@ -100,7 +100,7 @@ machine GameView::write_cell_event(cell: CellId,
         }
     }
 
-    state maybe_enemy_event(enemy_defeated: bool,
+    machine maybe_enemy_event(enemy_defeated: bool,
         out_line: &mut TextBuffer) {
         transition enemy_defeated {
             false -> enemy_event(out_line)
@@ -108,7 +108,7 @@ machine GameView::write_cell_event(cell: CellId,
         }
     }
 
-    state maybe_fountain_event(fountain_used: bool,
+    machine maybe_fountain_event(fountain_used: bool,
         out_line: &mut TextBuffer) {
         transition fountain_used {
             false -> fountain_event(out_line)
@@ -116,7 +116,7 @@ machine GameView::write_cell_event(cell: CellId,
         }
     }
 
-    state maybe_gold_event(gold_taken: bool,
+    machine maybe_gold_event(gold_taken: bool,
         out_line: &mut TextBuffer) {
         transition gold_taken {
             false -> gold_event(out_line)
@@ -124,23 +124,23 @@ machine GameView::write_cell_event(cell: CellId,
         }
     }
 
-    state treasure_event(out_line: &mut TextBuffer) {
+    machine treasure_event(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "A treasure cache rests against the wall. Type use to claim it.");
     }
 
-    state enemy_event(out_line: &mut TextBuffer) {
+    machine enemy_event(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "A dungeon bat blocks the way. Type fight.");
     }
 
-    state fountain_event(out_line: &mut TextBuffer) {
+    machine fountain_event(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "A fountain of life glows here. Type use to drink.");
     }
 
-    state gold_event(out_line: &mut TextBuffer) {
+    machine gold_event(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "Loose gold glitters in the dust. Type use to collect it.");
     }
 
-    state quiet_event(out_line: &mut TextBuffer) {
+    machine quiet_event(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "The room is quiet.");
     }
 }
@@ -160,35 +160,35 @@ machine GameView::write_cell_paths(cell: CellId,
         _ -> no_paths(out_line)
     }
 
-    state gate_paths(out_line: &mut TextBuffer) {
+    machine gate_paths(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "[Paths] north");
     }
 
-    state room_one_paths(out_line: &mut TextBuffer) {
+    machine room_one_paths(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "[Paths] south | north | east");
     }
 
-    state room_two_paths(out_line: &mut TextBuffer) {
+    machine room_two_paths(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "[Paths] south | north | west");
     }
 
-    state room_three_paths(out_line: &mut TextBuffer) {
+    machine room_three_paths(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "[Paths] south | north | east");
     }
 
-    state room_four_paths(out_line: &mut TextBuffer) {
+    machine room_four_paths(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "[Paths] south");
     }
 
-    state side_west_paths(out_line: &mut TextBuffer) {
+    machine side_west_paths(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "[Paths] west");
     }
 
-    state side_east_paths(out_line: &mut TextBuffer) {
+    machine side_east_paths(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "[Paths] east");
     }
 
-    state no_paths(out_line: &mut TextBuffer) {
+    machine no_paths(out_line: &mut TextBuffer) {
         TextBuffer::set(out_line, "[Paths] none");
     }
 }

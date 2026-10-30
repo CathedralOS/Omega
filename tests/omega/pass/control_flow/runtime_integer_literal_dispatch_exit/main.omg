@@ -12,15 +12,15 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> other(main)
     }
 
-    state one(main: &mut Main) {
+    machine one(main: &mut Main) {
         Console::exit_process(21);
     }
 
-    state two(main: &mut Main) {
+    machine two(main: &mut Main) {
         Console::exit_process(22);
     }
 
-    state other(main: &mut Main) {
+    machine other(main: &mut Main) {
         Console::exit_process(29);
     }
 }

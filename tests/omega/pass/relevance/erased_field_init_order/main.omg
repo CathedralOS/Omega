@@ -25,6 +25,6 @@ machine Main::main(main: &mut Main) {
         true -> good(main)
         false -> bad(main)
     }
-    state good(main: &mut Main) { main.observed = true; }
-    state bad(main: &mut Main) { main.observed = false; }
+    machine good(main: &mut Main) { main.observed = true; }
+    machine bad(main: &mut Main) { main.observed = false; }
 }

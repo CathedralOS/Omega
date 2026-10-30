@@ -16,9 +16,17 @@ use typed_trees::expression::{
 #[derive(Clone, Copy)]
 pub(crate) struct DispatchSelection {
     pub(crate) expression: ExpressionHandle,
-    pub(crate) subject: ExpressionHandle,
-    pub(crate) pattern: ExpressionHandle,
+    pub(crate) condition: DispatchCondition,
     pub(crate) matched: bool,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum DispatchCondition {
+    Equality {
+        subject: ExpressionHandle,
+        pattern: ExpressionHandle,
+    },
+    Predicate(ExpressionHandle),
 }
 
 /// Interpret patterns in order. A pattern forms under preceding failures,
@@ -39,15 +47,26 @@ pub(crate) fn dispatch_arm_contexts<Context: Clone>(
         .iter()
         .map(|arm| {
             let mut selected = remaining.clone();
-            if let MatchPattern::Value(pattern) = arm.pattern
-                && form_pattern(&remaining, pattern)
-            {
+            let condition = match arm.pattern {
+                MatchPattern::Value(pattern) if form_pattern(&remaining, pattern) => {
+                    Some(DispatchCondition::Equality {
+                        subject: dispatch.subject,
+                        pattern,
+                    })
+                }
+                MatchPattern::Destructure(pattern)
+                    if form_pattern(&remaining, pattern.condition) =>
+                {
+                    Some(DispatchCondition::Predicate(pattern.condition))
+                }
+                _ => None,
+            };
+            if let Some(condition) = condition {
                 select(
                     &mut selected,
                     DispatchSelection {
                         expression,
-                        subject: dispatch.subject,
-                        pattern,
+                        condition,
                         matched: true,
                     },
                 );
@@ -55,8 +74,7 @@ pub(crate) fn dispatch_arm_contexts<Context: Clone>(
                     &mut remaining,
                     DispatchSelection {
                         expression,
-                        subject: dispatch.subject,
-                        pattern,
+                        condition,
                         matched: false,
                     },
                 );
@@ -87,20 +105,48 @@ pub(crate) fn dispatch_arm_environments(
         environment,
         |_, _| true,
         |selected, selection| {
-            let comparison = TableBinaryExpression {
-                left: selection.subject,
-                operator: BinaryOperator::Equal,
-                right: selection.pattern,
-            };
-            guard_narrowing::narrow_environment_by_comparison(
-                program,
-                machine,
-                state,
-                selected,
-                expression,
-                &comparison,
-                selection.matched,
-            );
+            match selection.condition {
+                DispatchCondition::Equality { subject, pattern } => {
+                    let comparison = TableBinaryExpression {
+                        left: subject,
+                        operator: BinaryOperator::Equal,
+                        right: pattern,
+                    };
+                    guard_narrowing::narrow_environment_by_comparison(
+                        program,
+                        machine,
+                        state,
+                        selected,
+                        expression,
+                        &comparison,
+                        selection.matched,
+                    );
+                }
+                DispatchCondition::Predicate(condition) => {
+                    guard_narrowing::narrow_environment_by_condition(
+                        program,
+                        machine,
+                        state,
+                        selected,
+                        condition,
+                        selection.matched,
+                    );
+                }
+            }
+            // The captured value and its source agree until a write changes
+            // the source. Rebind the predicate's captured paths now; the full
+            // dispatch write frame below then withdraws every unstable source
+            // consequence before an arm can consume it. Capture paths retain
+            // their own identity and never become global source aliases.
+            if dispatch.capture.is_valid()
+                && let Some(source) = super::place_path(program, dispatch.subject)
+            {
+                let anchor = program
+                    .expression_table
+                    .value_capture(dispatch.capture)
+                    .value_anchor;
+                selected.copy_path_facts(&super::place_paths::capture_path(anchor), &source);
+            }
         },
     )
     .into_iter()

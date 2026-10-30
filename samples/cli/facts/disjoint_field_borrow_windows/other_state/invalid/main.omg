@@ -14,7 +14,7 @@ machine exercise(pair: &mut Pair) -> u64
 requires pair.right <= 76u64
 {
     transition { _ -> step(pair) }
-    state step(p: &mut Pair) -> u64
+    machine step(p: &mut Pair) -> u64
     requires p.right <= 76u64
     {
         touch_left(&mut p.left);
@@ -30,6 +30,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -17,19 +17,29 @@ use checked_trees::{
 };
 use terminal_psi::StructuralParameterDeclaration;
 
-mod case_capture;
-pub(super) use case_capture::retire_captured_subjects;
+mod reference_reads;
+pub(super) use reference_reads::{observed_reference_retirements, retire_observed_references};
 
 fn source<'a>(
     state: &'a CheckedComposedUnitControlStatePlan,
     control: &'a checked_trees::CheckedCleanupControlPlans,
 ) -> NormalExitSource<'a> {
     NormalExitSource {
+        completion: state.normal_exit_cleanups.completion,
         cleanups: control.normal_exits(state.normal_exit_cleanups),
         trivial_affine_discards: &[],
         operations: &state.operations,
         parameters: &state.structural_parameters,
     }
+}
+
+pub(super) fn optional_coordinate(
+    control: &checked_trees::CheckedCleanupControlPlans,
+    state: &CheckedComposedUnitControlStatePlan,
+    statement_index: usize,
+    continuation: bool,
+) -> Result<Option<FlowClaimJoinExit>, LoweringError> {
+    completion_cleanup::optional_coordinate(source(state, control), statement_index, continuation)
 }
 
 pub(super) fn destination(

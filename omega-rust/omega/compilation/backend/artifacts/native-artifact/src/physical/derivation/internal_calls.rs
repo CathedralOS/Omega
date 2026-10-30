@@ -30,7 +30,7 @@ use crate::physical::native_byte_span;
 use crate::physical::operator_applications::fragment_call::validate_destination;
 use object_file::SectionKind;
 use optimization_core::NativeOptimizationProjectionIdentity;
-use semantic_vocabulary::BoundaryInvocationSite;
+use semantic_vocabulary::InvocationSite;
 use target::{Architecture, NativeTarget, TargetProfile};
 use target_operations::CallSiteOwner;
 use terminal_psi::OperationKind;
@@ -183,7 +183,12 @@ pub(crate) fn derive_boundary_internal_call_child(
         return Err("selected boundary internal call does not rejoin one Terminal machine");
     };
     let (boundary, completion_receipts, semantic_site) = match occurrence.invocation_site() {
-        BoundaryInvocationSite::Operation(source_operation) => {
+        InvocationSite::InvokeNoNormal(_) => {
+            return Err(
+                "ordinary no-normal invocation cannot acquire boundary selection authority",
+            );
+        }
+        InvocationSite::Operation(source_operation) => {
             let mut operations = machine
                 .operations()
                 .filter(|operation| operation.id == source_operation);
@@ -208,7 +213,7 @@ pub(crate) fn derive_boundary_internal_call_child(
                 machine_code::SemanticCodeSite::Operation(source_operation),
             )
         }
-        BoundaryInvocationSite::ExternalCompletion(source_edge) => {
+        InvocationSite::ExternalCompletion(source_edge) => {
             let mut completions =
                 machine
                     .blocks
@@ -242,10 +247,8 @@ pub(crate) fn derive_boundary_internal_call_child(
         .function_on_machine(occurrence.machine())
         .ok_or("selected boundary internal call names an absent object function")?;
     let retains_owner = match occurrence.invocation_site() {
-        BoundaryInvocationSite::Operation(operation) => {
-            function.provenance.operations.contains(&operation)
-        }
-        BoundaryInvocationSite::ExternalCompletion(edge) => {
+        InvocationSite::Operation(operation) => function.provenance.operations.contains(&operation),
+        InvocationSite::ExternalCompletion(edge) | InvocationSite::InvokeNoNormal(edge) => {
             function.provenance.edges.contains(&edge)
         }
     };

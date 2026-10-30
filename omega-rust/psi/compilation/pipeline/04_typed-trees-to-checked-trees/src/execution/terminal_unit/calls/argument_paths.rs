@@ -222,18 +222,38 @@ pub(crate) fn borrowed_argument_endpoint(
     let Some(requested) = validation::reference_shell(program, formal) else {
         return Some((selected, path));
     };
-    while let Some(shell) = validation::reference_shell(program, selected)
-        && validation::stores_reference_shape(program, selected, &[])
-    {
-        if shell.access != requested.access
-            && shell.access != language_semantics::ReferenceAccess::Mutable
+    let requested_storage =
+        validation::stored_structural_type_identity(program, requested.referee, &[], &[]);
+    if !requested_storage.is_valid() {
+        return None;
+    }
+    for _ in 0..=program.type_reference_table.type_reference_count() {
+        // The requested referent may itself be a descriptor. Stop before
+        // loading it: lending a pointer slot and lending its backing are
+        // different coordinates and different permission obligations.
+        let selected_storage =
+            validation::stored_structural_type_identity(program, selected, &[], &[]);
+        if !selected_storage.is_valid() {
+            return None;
+        }
+        if selected_storage == requested_storage {
+            return Some((selected, path));
+        }
+        let Some(shell) = validation::reference_shell(program, selected)
+            .filter(|_| validation::stores_reference_shape(program, selected, &[]))
+        else {
+            return Some((selected, path));
+        };
+        if !shell.access.is_readable()
+            || (shell.access != requested.access
+                && shell.access != language_semantics::ReferenceAccess::Mutable)
         {
             return None;
         }
         path.push(CheckedUnitStructuralPathSegment::Referent);
         selected = shell.referee;
     }
-    Some((selected, path))
+    None
 }
 
 /// `projected_borrowed_path` for an observation of a runtime-selected
@@ -411,6 +431,9 @@ pub(crate) fn projected_argument_path(
         }
         count
     };
+    // Case selection keeps the same carrier. Remember crossings already
+    // consumed there; a real field/element projection starts a new carrier.
+    let mut consumed_carrier_crossings = inherited_crossings;
     let mut payload_field = None;
     for (position, segment) in place.segments.iter().enumerate() {
         // Parameters already denote their borrowed storage. Below that root,
@@ -423,6 +446,7 @@ pub(crate) fn projected_argument_path(
             && matches!(
                 segment,
                 facts::PlaceSegment::Field { .. }
+                    | facts::PlaceSegment::Case { .. }
                     | facts::PlaceSegment::FixedIndex { .. }
                     | facts::PlaceSegment::Index { .. }
             )
@@ -441,14 +465,13 @@ pub(crate) fn projected_argument_path(
                 crossings += 1;
                 reference = shell.referee;
             }
-            let inherited = place.segments[..position]
-                .iter()
-                .all(|prefix| matches!(prefix, facts::PlaceSegment::Case { .. }))
-                .then_some(inherited_crossings)
-                .unwrap_or(0);
-            for _ in 0..crossings.saturating_sub(inherited) {
+            for _ in 0..crossings.saturating_sub(consumed_carrier_crossings) {
                 path.push(CheckedUnitStructuralPathSegment::Referent);
             }
+            consumed_carrier_crossings = crossings;
+        }
+        if !matches!(segment, facts::PlaceSegment::Case { .. }) {
+            consumed_carrier_crossings = 0;
         }
         match segment {
             facts::PlaceSegment::Field { symbol } => {
@@ -598,8 +621,28 @@ pub(crate) fn projected_argument_path(
             }
         }
     }
-    let projected =
+    let mut projected =
         validation::canonical_place_type_reference(program, state_symbol, statement_index, place)?;
+    // A whole parameter already denotes its ingress storage, just as the
+    // root of a member/index path above does. Its declared reference is not
+    // an extra stored descriptor to cross. Locals and completed values keep
+    // their stored reference shells; their producer owns those descriptors.
+    // View carriers already contain their bounds and backing: only the common
+    // stored-reference classification denotes a shell to peel here.
+    if place.segments.is_empty()
+        && validation::stores_reference_shape(program, projected, &[])
+        && let Some(symbol) = place.root.as_symbol()
+        && let Some(state) = program.state_by_symbol(state_symbol)
+        && program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| super::super::types::parameter_is_root(parameter, symbol))
+    {
+        projected = validation::structural_storage_type(program, projected, &[]);
+        if !projected.is_valid() {
+            return None;
+        }
+    }
     Some((projected, path))
 }
 
@@ -822,18 +865,6 @@ fn runtime_index_field_selector(
 
 /// The shared owner under the ordinary rule: the projected type must carry the
 /// target parameter's exact normalized identity.
-pub(crate) fn projected_argument_path_for_identity(
-    program: &dyn ::validation::CheckingInput,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    place: &validation::CanonicalPlace,
-    target_identity: typed_trees::type_identity::TypeIdentityId,
-) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
-    let (projected, path) =
-        projected_argument_path(program, state_symbol, statement_index, place, None, None)?;
-    (base_type_identity(program, projected, &[], &[])? == target_identity).then_some(path)
-}
-
 /// The literal element count of a fixed array reached through any number of
 /// domain constraints and borrows. A length that is not an authored literal
 /// bounds no fixed index here.
@@ -1251,6 +1282,7 @@ pub(crate) fn byte_sequence_literal_argument(
         _ => return None,
     }
     Some(CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source: CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
             bytes: bytes.to_vec(),
         },

@@ -32,7 +32,7 @@ machine swap(first: u64 in Trapping, second: u64 in Trapping)
 requires first <= second
 {
     transition { _ -> swapped(second, first) }
-    state swapped(first: u64 in Trapping, second: u64 in Trapping)
+    machine swapped(first: u64 in Trapping, second: u64 in Trapping)
     requires second <= first
     { }
 }
@@ -42,7 +42,7 @@ machine decimal(value: u64 in Trapping) {
         true -> loop(value, 0)
         _ -> done()
     }
-    state loop(rest: u64 in Trapping, count: u64 in Trapping)
+    machine loop(rest: u64 in Trapping, count: u64 in Trapping)
     requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
     {
         transition rest >= 10 {
@@ -50,7 +50,7 @@ machine decimal(value: u64 in Trapping) {
             _ -> emit(rest, count)
         }
     }
-    state emit(rest: u64 in Trapping, count: u64 in Trapping)
+    machine emit(rest: u64 in Trapping, count: u64 in Trapping)
     requires rest <= 9 && count <= 9
     {
         let first: u64 in Trapping = 48 + count;
@@ -58,5 +58,5 @@ machine decimal(value: u64 in Trapping) {
         digit(48 + rest);
         transition { _ -> done() }
     }
-    state done() { }
+    machine done() { }
 }

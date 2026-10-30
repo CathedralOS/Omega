@@ -1,0 +1,28 @@
+// An exclusive byte view stored in a fixed array preserves its one-byte extent and byte 19 through owned transport.
+// Place: match_join.
+// Expected exit: 0
+data Bundle<'storage> { windows: [&'storage mut [u8]; 1]; }
+data Wrapper<'bundle, 'storage> { bundle: &'bundle mut Bundle<'storage>; }
+machine capture<'use, 'bundle, 'storage>(wrapper: &'use mut Wrapper<'bundle, 'storage>) -> &'use mut [u8]
+requires wrapper.bundle.windows[0].len == 1
+ensures result.len == 1
+{
+    &mut wrapper.bundle.windows[0][..]
+}
+machine observe(wrapper: &mut Wrapper) -> bool
+requires wrapper.bundle.windows[0].len == 1
+{
+    let captured: &mut [u8] = capture(wrapper);
+    captured.len == 1 && captured[0] == 19
+}
+machine choose() -> bool { true }
+machine main() crashes Trap {
+    let mut backing: [u8; 1] = [19];
+    let mut bundle: Bundle = Bundle { windows: [&mut backing[..0]] };
+    let mut wrapper: Wrapper = Wrapper { bundle: &mut bundle };
+    let mut selected: Wrapper = match choose() { true -> wrapper, false -> wrapper };
+    let observed: bool = observe(&mut selected);
+    transition observed { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

@@ -1,4 +1,4 @@
-domain u64::Positive(value) requires value >= 1;
+domain u64::Positive requires self >= 1;
 
 machine copy(values: &[u64 in Positive]) -> u64 in Positive
 requires values.len == 2
@@ -16,6 +16,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

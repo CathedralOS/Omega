@@ -36,6 +36,7 @@ use checked_trees::{
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build(
     program: &dyn ::validation::CheckingInput,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -72,6 +73,7 @@ pub(super) fn build(
     phase("call operation: dynamic structural arguments");
     let structural_arguments = structural_call_arguments(
         program,
+        shapes,
         facts,
         call,
         machine,
@@ -154,17 +156,16 @@ pub(super) fn build(
     } else {
         Vec::new()
     };
+    let (target_machine, target_state) = super::ResolvedCallTarget::DynamicSlot(slot).identity();
     let parts = CheckedUnitCallParts {
         coordinate,
         completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
-        // Structural completion retains the producer's exact authored
-        // occurrence when nested callers adopt its result namespace.
-        source_site: structural_result.and(source_site),
+        source_site,
         // No single implementation's contract report describes the call;
         // the slot is the target identity.
         target: CheckedUnitCallTarget {
-            machine: slot.symbol,
-            state: slot.symbol,
+            machine: target_machine,
+            state: target_state,
             contract_report_fingerprint: 0,
             service_reach: call.service_reach,
         },

@@ -89,7 +89,9 @@ pub fn validate_boundary_callable(
             identity(module, specialization.template.identity())?;
             if let Some(capture) = &specialization.capture {
                 identity(module, capture.template_identity)?;
-                if capture.template_commitment == [0; 32] || capture.specialization_commitment == [0; 32] {
+                if capture.template_commitment == [0; 32]
+                    || capture.specialization_commitment == [0; 32]
+                {
                     return Err("checked boundary capture has an empty commitment");
                 }
             }
@@ -343,6 +345,7 @@ pub fn validate_closed_conformances(module: &TerminalModule) -> Result<(), &'sta
                 identity(module, schema.public_requirement_identity)?,
             );
             identity(module, schema.requirement_identity)?;
+            identity(module, schema.requirement_declaration.identity())?;
             identity(module, schema.realization_identity)?;
             if previous.is_some_and(|previous| previous >= key) {
                 return Err("conformance schemas are repeated or not canonical");
@@ -356,6 +359,7 @@ pub fn validate_closed_conformances(module: &TerminalModule) -> Result<(), &'sta
                     row.declaring_trait_identity == schema.declaring_trait_identity
                         && row.public_requirement_identity == schema.public_requirement_identity
                         && row.requirement_identity == schema.requirement_identity
+                        && row.requirement_declaration == schema.requirement_declaration
                 })
                 .collect::<Vec<_>>();
             match schema.kind {
@@ -419,6 +423,7 @@ pub fn validate_closed_conformances(module: &TerminalModule) -> Result<(), &'sta
                     schema.declaring_trait_identity == row.declaring_trait_identity
                         && schema.public_requirement_identity == row.public_requirement_identity
                         && schema.requirement_identity == row.requirement_identity
+                        && schema.requirement_declaration == row.requirement_declaration
                 })
                 .count()
                 != 1

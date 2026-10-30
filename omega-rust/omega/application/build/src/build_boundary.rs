@@ -1,12 +1,57 @@
 //! Source guards for the application/compiler ownership boundary.
 
 #[test]
+fn readiness_retains_live_jobs_without_recursive_source_execution() {
+    let source = include_str!("build_execution/source_resolution/readiness.rs");
+    let scheduler = source
+        .split_once("fn drive_work(")
+        .unwrap()
+        .1
+        .split_once("fn build_request(")
+        .unwrap()
+        .0;
+    for recursive in [
+        "self.execute_source(",
+        "self.resolve_graph(",
+        "self.run_work(",
+        "self.drive_work(",
+    ] {
+        assert!(
+            !scheduler.contains(recursive),
+            "recursive dependency scheduling: {recursive}"
+        );
+    }
+    assert!(scheduler.contains("while let Some(work) = pending.pop()"));
+    assert!(scheduler.contains("Work::Run(build)"));
+    assert!(scheduler.contains("self.settle_graph(&graph)?"));
+    assert!(source.contains("activation: build_evaluation::TerminalBuildActivation"));
+}
+
+#[test]
+fn readiness_prepares_helper_products_without_recursive_dependency_calls() {
+    let source = include_str!("build_execution/source_resolution/readiness.rs");
+    let preparation = source
+        .split_once("fn prepare_product(")
+        .expect("helper Product entrance")
+        .1
+        .split_once("fn prepared_product(")
+        .expect("retained Product lookup")
+        .0;
+    assert!(!preparation.contains("self.prepare_product("));
+    assert!(preparation.contains("while let Some(current) = pending.last_mut()"));
+    assert!(preparation.contains("self.complete_product(current)?"));
+    assert!(source.contains(".with_complete_dependency_build_handoffs(generated)"));
+    assert!(source.contains("*source == position && *scope == purpose"));
+}
+
+#[test]
 fn package_audit_owns_session_and_target_execution_in_build() {
     let mut application = include_str!("package_inspection.rs");
     for operation in [
         "PackageInspectionTransaction::open(options)",
-        "PackageBuildSession::create(",
+        "BuildSession::create_retained(",
         "transaction.prepare(None)",
+        "resolve_inspection_sources(&inspection, &mut session)",
         "for target in inspection.targets().to_vec()",
         "inspection.review_target(",
         "inspection.finish()",
@@ -40,10 +85,14 @@ fn review_policy_admits_work_and_application_executes_it() {
     );
     for forbidden in [
         ".prepare_package_build(",
+        ".begin_package_build(",
+        ".complete_package_build(",
         ".review_package_build(",
         ".publish_component(",
         "PendingReviewBuild",
         "run_closure_pass(",
+        "into_execution_request",
+        "reserve_build_directory",
     ] {
         assert!(
             !policy.contains(forbidden),
@@ -55,7 +104,8 @@ fn review_policy_admits_work_and_application_executes_it() {
         "plan.begin_round(",
         "plan.occurrences()",
         "round.admit_occurrence(",
-        ".prepare_package_build(",
+        ".require_execution_contract(",
+        ".prepare_package_product(",
         ".review_package_build(",
         ".publish_component(",
         "round.retain(",
@@ -67,7 +117,7 @@ fn review_policy_admits_work_and_application_executes_it() {
     }
     assert!(execution.contains("pending_builds.push(PendingReviewBuild"));
     assert!(execution.contains("recovered.push(round.into_retained())"));
-    assert!(execution.contains("completion.reserve_build_directory(session)"));
+    assert!(!execution.contains("execute_package_build("));
     let retention = execution.find("round.retain(").unwrap();
     let cache_publication = execution.find("cache_write.component_source()").unwrap();
     assert!(
@@ -84,9 +134,10 @@ fn package_commands_schedule_work_outside_package_policy() {
     for operation in [
         "PackageCommandTransaction::open(options)",
         "transaction.prepare(command, None)",
+        "resolve_command_sources(preparation, session)",
         "for request in prepared.review_requests()",
         "request.review(",
-        "prepared.complete(reviews, session)",
+        "prepared.complete(reviews, &mut session.packages)",
     ] {
         let position = execution
             .find(operation)
@@ -101,7 +152,7 @@ fn package_commands_schedule_work_outside_package_policy() {
         );
     }
     let cli = include_str!("../../cli/src/cli/packages/mod.rs");
-    assert!(cli.contains("use omega_build::execute_package_command;"));
+    assert!(cli.contains("use omega_build::{BuildSession, execute_package_command};"));
 }
 
 #[test]
@@ -135,11 +186,90 @@ fn application_depends_on_facades_not_language_stages() {
 }
 
 #[test]
+fn source_and_package_execution_have_one_application_owner() {
+    let source = include_str!("source_compilation.rs");
+    for operation in [
+        "compiler.begin_compilation(",
+        "compiler.complete_compilation(",
+        "compiler.begin_source_compilation(",
+        "compiler.complete_source_check(",
+        "compiler.complete_source_product(",
+        "crate::build_execution::execute_build(",
+    ] {
+        // rustfmt may put a receiver and its method on different lines.
+        assert!(
+            source
+                .split_whitespace()
+                .collect::<String>()
+                .contains(&operation.split_whitespace().collect::<String>()),
+            "source orchestration lost {operation}"
+        );
+    }
+    for compiler in [
+        include_str!("../../../compilation/driver/src/compiler.rs"),
+        include_str!("../../../compilation/driver/src/checked/checking.rs"),
+        include_str!("../../../compilation/driver/src/checked/compilation_session.rs"),
+    ] {
+        for execution in [
+            ".host()",
+            "host.start(",
+            "activation.advance(",
+            "compile_with_session(",
+        ] {
+            assert!(
+                !compiler.contains(execution),
+                "compiler executes Build: {execution}"
+            );
+        }
+    }
+    let package = include_str!("build_execution.rs");
+    assert!(package.contains("execute_build(invocation.execution(), Some(&mut queries))"));
+}
+
+#[test]
+fn application_completes_native_products_without_source_continuations() {
+    let completion = include_str!("native_completion.rs");
+    assert!(completion.contains("run_on_compile_thread(|| complete_native(*product))"));
+    let compact = completion.split_whitespace().collect::<String>();
+    let mut lifecycle = compact.as_str();
+    for operation in [
+        "native_production::prepare(",
+        "prepared.scalar_completions()",
+        "build_evaluation::scalar_completion::complete(",
+        "completion.complete(completed)",
+        "native_production::compile(prepared)",
+        ".finish_native(",
+        ".with_runtime_provisions(",
+    ] {
+        let position = lifecycle.find(operation).expect("ordered native lifecycle");
+        lifecycle = &lifecycle[position + operation.len()..];
+    }
+    for forbidden in [
+        "CheckedCompilation",
+        "CheckedTrees",
+        "compile_with_session",
+        ".select_build_batch(",
+    ] {
+        assert!(
+            !completion.contains(forbidden),
+            "native completion reopens {forbidden}"
+        );
+    }
+    for source in [
+        include_str!("source_compilation.rs"),
+        include_str!("package_compilation.rs"),
+    ] {
+        assert!(source.contains("crate::native_completion::complete_products"));
+    }
+}
+
+#[test]
 fn build_entrance_shows_the_ordered_project_lifecycle() {
     let mut source = include_str!("build.rs");
     for operation in [
         "build_directory::admit_outputs(",
-        "prepare_local_project_for_targets(",
+        "begin_local_project_preparation(",
+        "crate::resolve_project_sources(",
         "products::compile(",
         "publication::publish_products(",
     ] {
@@ -182,15 +312,56 @@ fn ordinary_package_operations_admit_instead_of_execute() {
     }
     let execution = include_str!("project_compilation.rs");
     let admit = execution
-        .find("admit_project_compilation(request)")
+        .find("package_manager::operations::admit_project_products(")
         .unwrap();
     let compile = execution
-        .find("crate::compile_packages(&mut compiler, admitted.requests)")
+        .find("crate::package_compilation::compile_packages(")
         .unwrap();
     let reconcile = execution
-        .find("admitted.completion.complete(products)")
+        .find(".complete(products, &mut session.packages)")
         .unwrap();
     assert!(admit < compile && compile < reconcile);
+    let preparation =
+        include_str!("../../../packages/package-manager/src/operations/prepare_project.rs");
+    assert!(!preparation.contains("resolve_static_source_closure"));
+    let build_exports = include_str!("lib.rs");
+    for removed in [
+        "mod check_project",
+        "mod native_project",
+        "PreparedLocalProjectNativeRequest",
+        "PreparedLocalProjectCheckRequest",
+    ] {
+        assert!(
+            !build_exports.contains(removed),
+            "obsolete Build facade: {removed}"
+        );
+    }
+    for example in [
+        include_str!("../examples/package_batch.rs"),
+        include_str!("../../cli/examples/qualify_inputs.rs"),
+    ] {
+        assert!(example.contains("build(BuildRequest {"));
+        assert!(!example.contains("prepare_local_project"));
+    }
+}
+
+#[test]
+fn application_owns_the_compiler_separately_from_package_resources() {
+    let resources = include_str!("../../../packages/package-manager/src/build_session.rs");
+    assert!(!resources.contains("CompilationSession"));
+    assert!(!resources.contains("fn compiler("));
+    let owner = include_str!("build_session.rs");
+    assert!(owner.contains("compiler: CompilationSession"));
+    assert!(owner.contains("packages: PackageBuildSession"));
+    for entrance in [
+        include_str!("package_commands.rs"),
+        include_str!("package_inspection.rs"),
+        include_str!("project_compilation.rs"),
+        include_str!("build_execution/source_resolution.rs"),
+    ] {
+        assert!(entrance.contains("BuildSession"));
+        assert!(!entrance.contains("CompilationSession::default()"));
+    }
 }
 
 #[test]
@@ -198,9 +369,21 @@ fn application_schedules_dependencies_without_opening_source_continuations() {
     let execution = include_str!("build_execution.rs");
     assert!(execution.contains("while !frontiers.is_empty()"));
     assert!(execution.contains("join_generated_sources(occurrence, &frontier.products)"));
-    assert!(execution.contains("compiler.prepare_package_build(occurrence)"));
+    assert!(execution.contains("prepare_package_source(occurrence, compiler, completed)"));
+    assert!(execution.contains(
+        "PackageSourceRequest::Execute(request) => execute_package_build(compiler, request)"
+    ));
+    assert!(execution.contains("source.require_execution_contract(&request.execution)?"));
+    assert!(execution.contains("compiler.begin_package_build(request)"));
+    assert!(execution.contains("activation.advance(1024)"));
+    assert!(execution.contains("compiler.complete_package_build(invocation, returned)"));
     assert!(execution.contains("compiler.complete_package_components(builds)"));
-    for source in [execution, include_str!("package_compilation.rs")] {
+    for source in [
+        execution,
+        include_str!("package_compilation.rs"),
+        include_str!("build_execution/source_resolution.rs"),
+        include_str!("build_execution/source_resolution/readiness.rs"),
+    ] {
         for forbidden in [
             "CheckedCompilation",
             "PreparedPackageBuild",

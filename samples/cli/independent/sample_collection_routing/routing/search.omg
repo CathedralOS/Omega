@@ -9,13 +9,13 @@ public machine solve(plan: &Plan, certificate: &mut Certificate) {
     certificate.feasible = 0;
     certificate.ties = 0;
     transition { _ -> enumerate(plan, certificate, 0) }
-    state enumerate(plan: &Plan, certificate: &mut Certificate, code: u64) {
+    machine enumerate(plan: &Plan, certificate: &mut Certificate, code: u64) {
         transition code < 256 {
             true -> candidate(plan, certificate, code)
             false -> done()
         }
     }
-    state candidate(plan: &Plan, certificate: &mut Certificate, code: u64) {
+    machine candidate(plan: &Plan, certificate: &mut Certificate, code: u64) {
         let mut tour: Tour;
         tour.route[0] = code / 64;
         tour.route[1] = (code / 16) % 4;
@@ -27,7 +27,7 @@ public machine solve(plan: &Plan, certificate: &mut Certificate) {
             false -> next(plan, certificate, code)
         }
     }
-    state feasible(plan: &Plan, certificate: &mut Certificate, code: u64, tour: &Tour) {
+    machine feasible(plan: &Plan, certificate: &mut Certificate, code: u64, tour: &Tour) {
         certificate.feasible = certificate.feasible + 1;
         transition certificate.ties == 0 || tour.distance < certificate.best.distance ||
             (tour.distance == certificate.best.distance && tour.time < certificate.best.time) {
@@ -35,40 +35,40 @@ public machine solve(plan: &Plan, certificate: &mut Certificate) {
             false -> compare(plan, certificate, code, tour)
         }
     }
-    state better(plan: &Plan, certificate: &mut Certificate, code: u64, tour: &Tour) {
+    machine better(plan: &Plan, certificate: &mut Certificate, code: u64, tour: &Tour) {
         certificate.ties = 1;
         certificate.code = code;
         copy_tour(tour, &mut certificate.best);
         transition { _ -> next(plan, certificate, code) }
     }
-    state compare(plan: &Plan, certificate: &mut Certificate, code: u64, tour: &Tour) {
+    machine compare(plan: &Plan, certificate: &mut Certificate, code: u64, tour: &Tour) {
         transition tour.distance == certificate.best.distance && tour.time == certificate.best.time {
             true -> tied(plan, certificate, code)
             false -> next(plan, certificate, code)
         }
     }
-    state tied(plan: &Plan, certificate: &mut Certificate, code: u64) {
+    machine tied(plan: &Plan, certificate: &mut Certificate, code: u64) {
         certificate.ties = certificate.ties + 1;
         transition { _ -> next(plan, certificate, code) }
     }
-    state next(plan: &Plan, certificate: &mut Certificate, code: u64) {
+    machine next(plan: &Plan, certificate: &mut Certificate, code: u64) {
         transition code < 256 {
             true -> enumerate(plan, certificate, code + 1)
             false -> done()
         }
     }
-    state done() { }
+    machine done() { }
 }
 
 machine evaluate(plan: &Plan, tour: &mut Tour) -> bool {
     transition { _ -> step(plan, tour, 0) }
-    state step(plan: &Plan, tour: &mut Tour, index: u64) -> bool {
+    machine step(plan: &Plan, tour: &mut Tour, index: u64) -> bool {
         transition index < 4 {
             true -> apply(plan, tour, index)
             false -> finish(plan, tour)
         }
     }
-    state apply(plan: &Plan, tour: &mut Tour, index: u64) -> bool {
+    machine apply(plan: &Plan, tour: &mut Tour, index: u64) -> bool {
         let event: u64 = tour.route[index];
         let valid: bool = visit(plan, tour, event);
         transition valid {
@@ -76,7 +76,7 @@ machine evaluate(plan: &Plan, tour: &mut Tour) -> bool {
             false -> false
         }
     }
-    state service(plan: &Plan, tour: &mut Tour, index: u64) -> bool {
+    machine service(plan: &Plan, tour: &mut Tour, index: u64) -> bool {
         tour.arrivals[index] = tour.time;
         tour.time = tour.time + 1;
         transition index < 4 {
@@ -84,7 +84,7 @@ machine evaluate(plan: &Plan, tour: &mut Tour) -> bool {
             false -> false
         }
     }
-    state finish(plan: &Plan, tour: &mut Tour) -> bool {
+    machine finish(plan: &Plan, tour: &mut Tour) -> bool {
         tour.dropped_a && tour.dropped_b && tour.load == 0 && tour.position == 0 && tour.time <= plan.horizon
     }
 }

@@ -1,5 +1,5 @@
 // A returned reference cannot restore a predicate broken by its indexed write.
-domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 8]::Ascii requires ascii_only(self);
 machine relay(bytes: &mut [u8; 8] in Ascii) -> &mut [u8; 8] in Ascii { bytes }
 machine length(bytes: &[u8; 8] in Ascii) -> u64 { bytes.len }
 machine corrupt() -> u64 {

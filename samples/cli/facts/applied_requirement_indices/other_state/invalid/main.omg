@@ -44,7 +44,7 @@ machine later<Value, Alt>(value: Payload in Tagged<Value>) -> Payload in Tagged<
 reaches Identity
 {
     transition { _ -> selected(value) }
-    state selected(value: Payload in Tagged<Alt>) -> Payload in Tagged<Value> {
+    machine selected(value: Payload in Tagged<Alt>) -> Payload in Tagged<Value> {
         Identity<Value>::stated(value)
     }
 }
@@ -64,5 +64,5 @@ machine main() reaches Identity crashes Trap {
         true -> {}
         false -> bad()
     }
-    state bad() { crash Trap; }
+    machine bad() { crash Trap; }
 }

@@ -80,6 +80,7 @@ fn validate() -> Result<(), String> {
             .as_bytes();
         let expected_exit = case["exit"].as_i64().ok_or("missing expected exit")?;
         let terminal = terminal_runtime::execute(TerminalRuntimeRequest {
+            native_provider: None,
             x86_flags: terminal_runtime::capture_host_x86_flags(target.target_name()).expect("host flags capture"),
             artifact,
             target: Some(target.target_name()),

@@ -32,18 +32,12 @@ pub(crate) fn declared(
         return None;
     }
     let name = program.expression_table.name_path_node(expression)?;
-    if !name.symbol.is_valid()
-        || name.symbol != name.head_symbol
-        || program
-            .expression_table
-            .name_path_members(name.members)
-            .len()
-            != 1
+    if !program.expression_table.name_path_is_single_member(name)
         || program
             .expression_table
             .name_path_member_symbols(name.member_symbols)
             .first()
-            .is_some_and(|symbol| *symbol != name.symbol)
+            .is_some_and(|member| *member != name.symbol)
     {
         return None;
     }

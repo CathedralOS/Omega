@@ -1,6 +1,12 @@
 # provider_const_endpoint
 
-A range endpoint whose const machine invokes a selected boundary machine executes the provider's checked body during const eval: `Provider::remainder` computes `left|right`=7 where builtin `%` folds 1, so `u64 [0..=limit()]` only checks when the provider ran. Includes an f32 rounding-edge private endpoint program.
+An ordinary `requires value <= limit()` clause uses a selected boundary body's
+computed endpoint. Explicit `Remainder` evidence selects the token operation;
+its checked adapter invokes the Build-selected `Math` provider. The provider
+computes `left | right = 7`, while builtin remainder would compute 1. The exact
+f32 rounding-edge guard is retained in the private endpoint program.
 
-Compile-checked only: no standard-library dependency and
-no \`Main::exit\` — run a check target, not native.
+This historical fixture is compile-checked. The corresponding
+[endpoint runtime fixture](../../comptime/provider_boundary_range_endpoint_exit/main.omg)
+retains its native and Terminal exit-70 oracle. The complete nine-place provider
+clause transport row lives in `samples/cli/facts/provider_contract_endpoint`.

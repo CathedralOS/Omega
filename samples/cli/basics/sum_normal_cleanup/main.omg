@@ -21,7 +21,7 @@ data Parcel { token: Token; choice: Choice; }
 machine extract(parcel: Parcel) -> Token { parcel.token }
 machine onward(parcel: Parcel) -> u64 {
     transition { _ -> carry(parcel.token) }
-    state carry(token: Token) -> u64 { token.value }
+    machine carry(token: Token) -> u64 { token.value }
 }
 
 machine main() crashes Trap {
@@ -47,6 +47,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

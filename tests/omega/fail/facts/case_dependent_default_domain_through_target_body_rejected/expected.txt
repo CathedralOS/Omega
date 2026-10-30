@@ -1,0 +1,2 @@
+cannot prove every domain predicate from the checked operand value
+constrain that value with a guarantee or guard

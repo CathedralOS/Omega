@@ -4,46 +4,110 @@
 //! and optimized operations share custody; consumers never parse debug names or
 //! reopen trees. Portable artifact bytes alone do not grant Build authority.
 
-use language_semantics::declaration_selection::RootBindingRequest;
+mod native_formations;
+mod native_locator;
+pub(super) use native_formations::capture as capture_native_formations;
+pub use native_locator::{
+    TerminalBuildNativeLocator, TerminalBuildValueCase, TerminalBuildValueField,
+    TerminalBuildValueShape,
+};
+
+use language_semantics::declaration_selection::{BuildSelectionRequest, ProductDeclarationRequest};
 use semantic_vocabulary::OperationId;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TerminalBuildBindingOperation {
-    Prepare,
-    Bind,
+/// Exact checked application and demanded static slots in this code owner.
+/// This is source-issued companion context, not authority derived from bytes.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct TerminalBuildProviderRequirement {
+    pub declaration: terminal_psi::NominalDeclarationIdentity,
+    pub application: terminal_psi::TerminalIdentityIndex,
+    pub boundaries: Vec<semantic_vocabulary::BoundaryMachineId>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+pub type TerminalBuildSelectionRequest = BuildSelectionRequest<TerminalBuildProviderRequirement>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum TerminalBuildBindingOperation {
+    AwaitProvider,
+    Prepare,
+    Bind,
+    BindNative,
+    Select,
+    SelectProvider,
+    Exclude,
+}
+
+#[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalBuildBindingCall {
     pub operation: OperationId,
     pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub action: TerminalBuildBindingOperation,
-    pub request: RootBindingRequest,
+    pub request: TerminalBuildSelectionRequest,
+    pub selecting_machine: Option<source::SourceSpan>,
+    pub static_environment: Option<
+        std::sync::Arc<
+            language_semantics::declaration_selection::product_operands::ProductStaticEnvironment,
+        >,
+    >,
+    pub native_locator: Option<TerminalBuildNativeLocator>,
 }
 
-/// Source-issued context bound to one canonical semantic artifact. Its private
-/// construction is not reproduced by loading arbitrary external bytes.
+/// Source-issued context bound to exact Terminal semantics and, for private
+/// code, its live invocation owner. Loading bytes cannot recreate this context.
 #[derive(Debug, PartialEq, Eq)]
 pub struct TerminalBuildBindings {
-    identity: terminal_psi::SemanticFingerprint,
-    calls: Vec<TerminalBuildBindingCall>,
+    identity: terminal_codec::TerminalExecutionIdentity,
+    calls: std::sync::Arc<[TerminalBuildBindingCall]>,
+    queries: std::sync::Arc<[crate::TerminalBuildQueryCall]>,
+    declarations: std::sync::Arc<[std::sync::Arc<ProductDeclarationRequest>]>,
+    native_formations:
+        std::sync::Arc<[language_semantics::declaration_selection::NativeBindingFormation]>,
 }
 
 impl TerminalBuildBindings {
+    pub fn queries_for(
+        &self,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
+    ) -> Option<&std::sync::Arc<[crate::TerminalBuildQueryCall]>> {
+        (self.identity == artifact.custody_identity()).then_some(&self.queries)
+    }
     pub fn calls_for(
         &self,
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
-    ) -> Option<&[TerminalBuildBindingCall]> {
-        (self.identity == artifact.manifest().semantic().program_fingerprint).then_some(&self.calls)
+        artifact: terminal_codec::TerminalExecutionView<'_>,
+    ) -> Option<&std::sync::Arc<[TerminalBuildBindingCall]>> {
+        (self.identity == artifact.custody_identity()).then_some(&self.calls)
+    }
+
+    pub fn declarations_for(
+        &self,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
+    ) -> Option<&std::sync::Arc<[std::sync::Arc<ProductDeclarationRequest>]>> {
+        (self.identity == artifact.custody_identity()).then_some(&self.declarations)
+    }
+
+    pub fn native_formations_for(
+        &self,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
+    ) -> Option<&std::sync::Arc<[language_semantics::declaration_selection::NativeBindingFormation]>>
+    {
+        (self.identity == artifact.custody_identity()).then_some(&self.native_formations)
     }
 
     pub(super) fn new(
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
-        calls: Vec<TerminalBuildBindingCall>,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
+        calls: impl Into<std::sync::Arc<[TerminalBuildBindingCall]>>,
+        declarations: impl Into<std::sync::Arc<[std::sync::Arc<ProductDeclarationRequest>]>>,
+        queries: impl Into<std::sync::Arc<[crate::TerminalBuildQueryCall]>>,
+        native_formations: impl Into<
+            std::sync::Arc<[language_semantics::declaration_selection::NativeBindingFormation]>,
+        >,
     ) -> Self {
         Self {
-            identity: artifact.manifest().semantic().program_fingerprint,
-            calls,
+            identity: artifact.custody_identity(),
+            calls: calls.into(),
+            queries: queries.into(),
+            declarations: declarations.into(),
+            native_formations: native_formations.into(),
         }
     }
 }
@@ -53,6 +117,7 @@ pub(super) fn capture(
     lowered: &lowered_psi::LoweredPsi,
 ) -> Result<Vec<TerminalBuildBindingCall>, diagnostics::Diagnostic> {
     let mut calls = Vec::new();
+    let mut native_shapes = std::collections::BTreeMap::new();
     for occurrence in &lowered.source_call_occurrences {
         let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
             occurrence.source_site
@@ -64,54 +129,173 @@ pub(super) fn capture(
         else {
             continue;
         };
-        if !call.root_binding.is_valid() {
+        if !call.build_selection.is_valid() {
             continue;
         }
         let request = checked
             .expression_table
-            .root_binding_request(call.root_binding)
+            .build_selection_request(call.build_selection)
             .ok_or_else(|| {
                 diagnostics::Diagnostic::error(
                     "Build call lost its designated operands before publication",
                 )
             })?;
-        let semantic_vocabulary::BoundaryInvocationSite::Operation(operation) =
-            occurrence.terminal_site
+        let semantic_vocabulary::InvocationSite::Operation(operation) = occurrence.terminal_site
         else {
             return Err(diagnostics::Diagnostic::error(
                 "Build binding lost its ordinary result-producing call",
             ));
         };
         let action = match call.target.as_str() {
+            "await_provider" => TerminalBuildBindingOperation::AwaitProvider,
             "prepare" => TerminalBuildBindingOperation::Prepare,
             "bind" | "bind_description" => TerminalBuildBindingOperation::Bind,
+            "bind_native" => TerminalBuildBindingOperation::BindNative,
+            "select" => TerminalBuildBindingOperation::Select,
+            "select_provider" => TerminalBuildBindingOperation::SelectProvider,
+            "exclude" => TerminalBuildBindingOperation::Exclude,
             _ => {
                 return Err(diagnostics::Diagnostic::error(
                     "checked Build binding has no admitted operation",
                 ));
             }
         };
-        let emitted = lowered
-            .semantic_module
-            .machines
+        let boundary = emitted_boundary(lowered, operation)?;
+        let selecting_machine = if request.requires_lexical_subject() {
+            Some(
+                checked
+                    .machines()
+                    .iter()
+                    .find(|machine| {
+                        checked
+                            .machine_states(machine)
+                            .iter()
+                            .any(|state| state.symbol == occurrence.source_state)
+                    })
+                    .and_then(|machine| {
+                        checked
+                            .symbols
+                            .symbol_source_span(checked.symbols.authored_origin(machine.symbol))
+                    })
+                    .ok_or_else(|| {
+                        diagnostics::Diagnostic::error(
+                            "Build selection lost its authored machine coordinate",
+                        )
+                    })?,
+            )
+        } else {
+            None
+        };
+        let native_locator = if action == TerminalBuildBindingOperation::BindNative {
+            Some(native_locator::capture(
+                checked,
+                lowered,
+                occurrence.source_state,
+                occurrence.statement_index,
+                call,
+                boundary,
+                &mut native_shapes,
+            )?)
+        } else {
+            None
+        };
+        let static_environment = if request
+            .designated_operands()
             .iter()
-            .flat_map(|machine| &machine.blocks)
-            .flat_map(|block| &block.operations)
-            .find(|emitted| emitted.id == operation)
-            .ok_or_else(|| {
-                diagnostics::Diagnostic::error("Build binding lost its emitted operation")
-            })?;
-        let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &emitted.kind else {
-            return Err(diagnostics::Diagnostic::error(
-                "Build binding no longer names a boundary call",
-            ));
+            .any(|operand| operand.application.is_some())
+        {
+            checked
+                .machines()
+                .iter()
+                .find(|machine| {
+                    checked
+                        .machine_states(machine)
+                        .iter()
+                        .any(|state| state.symbol == occurrence.source_state)
+                })
+                .map(|machine| {
+                    typed_trees::product_operand::capture_static_environment(
+                        &checked.typed,
+                        machine.symbol,
+                    )
+                })
+                .transpose()
+                .map_err(diagnostics::Diagnostic::error)?
+                .flatten()
+        } else {
+            None
         };
         calls.push(TerminalBuildBindingCall {
             operation,
-            boundary: *boundary,
+            boundary,
             action,
-            request: request.clone(),
+            request: request.clone().map_requirement(|_| {
+                let selected = lowered
+                    .build_provider_requirements
+                    .iter()
+                    .find(|selected| {
+                        selected.selection == call.build_selection
+                            && selected.source_state == occurrence.source_state
+                    })
+                    .ok_or_else(|| {
+                        diagnostics::Diagnostic::error(
+                            "Build readiness lost its emitted requirement application",
+                        )
+                    })?;
+                Ok::<_, diagnostics::Diagnostic>(TerminalBuildProviderRequirement {
+                    declaration: selected.declaration.clone(),
+                    application: selected.application,
+                    boundaries: selected.boundaries.clone(),
+                })
+            })?,
+            selecting_machine,
+            static_environment,
+            native_locator,
         });
     }
     Ok(calls)
+}
+
+pub(super) fn emitted_boundary(
+    lowered: &lowered_psi::LoweredPsi,
+    operation: OperationId,
+) -> Result<semantic_vocabulary::BoundaryMachineId, diagnostics::Diagnostic> {
+    let emitted = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .find(|emitted| emitted.id == operation)
+        .ok_or_else(|| diagnostics::Diagnostic::error("Build operation lost its emitted call"))?;
+    let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &emitted.kind else {
+        return Err(diagnostics::Diagnostic::error(
+            "Build operation no longer names a boundary call",
+        ));
+    };
+    Ok(*boundary)
+}
+
+/// Formation sees every checked source request, including choices in helpers
+/// and branches that optimization or execution never reaches. Copies of one
+/// authored occurrence do not create another formation obligation.
+pub(super) fn capture_declarations(
+    checked: &checked_trees::CheckedTrees,
+) -> Vec<std::sync::Arc<ProductDeclarationRequest>> {
+    let mut declarations = Vec::new();
+    for (_, node) in checked.expression_table.iter_expressions() {
+        let typed_trees::expression::ExpressionNode::Call(call) = node else {
+            continue;
+        };
+        let Some(BuildSelectionRequest::Declaration(request)) = checked
+            .expression_table
+            .build_selection_request(call.build_selection)
+        else {
+            continue;
+        };
+        if !declarations.contains(request) {
+            declarations.push(request.clone());
+        }
+    }
+    declarations
 }

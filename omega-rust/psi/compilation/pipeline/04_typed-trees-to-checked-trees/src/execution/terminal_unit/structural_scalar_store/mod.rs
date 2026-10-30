@@ -62,6 +62,30 @@ mod selectors;
 mod value;
 mod view_stores;
 
+/// One assignment statement and the checked value source it stores: the
+/// coordinate every store lane reads. Each lane used to restate it as the same
+/// eight positional arguments; one owner carries it instead.
+#[derive(Clone, Copy)]
+pub(super) struct Occurrence<'a, 'program> {
+    pub(super) program: &'program dyn ::validation::CheckingInput,
+    pub(super) facts: &'program CheckFacts,
+    pub(super) machine: &'program typed_trees::machine::Machine,
+    pub(super) state: &'program typed_trees::state::State,
+    pub(super) statement_index: u32,
+    pub(super) assignment: &'program typed_trees::statement::TableAssignment,
+    pub(super) source: AssignmentSource,
+    pub(super) trace: &'a LocalConstructionTrace,
+}
+
+/// The occurrence together with the destination dispatch resolved for it: the
+/// leaf family a lane judges is a property of the resolved place, not of the
+/// statement, so the two travel as one site.
+#[derive(Clone, Copy)]
+struct Site<'a, 'program, 'destination> {
+    occurrence: Occurrence<'a, 'program>,
+    destination: &'a Destination<'destination>,
+}
+
 /// Capture scalar storage through the same destination resolution as its
 /// store. A recast's physical carrier and the authored value's view carrier
 /// are distinct: only the latter belongs to the subsequent conversion.
@@ -122,6 +146,7 @@ pub(in crate::execution::terminal_unit) fn scalar_capture_destination(
         }
     };
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source,
         path: projection.path,
         type_identity: shapes.add_stored_type(projection.type_reference, binders, &[])?,
@@ -378,6 +403,7 @@ fn runtime_index_expression(
             )?;
             Some(
                 checked_trees::CheckedScalarExpression::StructuralParameterField {
+                    observation: Default::default(),
                     parameter_position: selector.parameter_position,
                     path: selector.path.clone(),
                     primitive_type: program.primitive_type_reference(leaf)?,
@@ -425,6 +451,19 @@ fn plan_assignment(
         assignment,
         trace,
     )?;
+    let site = Site {
+        occurrence: Occurrence {
+            program,
+            facts,
+            machine,
+            state,
+            statement_index,
+            assignment,
+            source,
+            trace,
+        },
+        destination: &destination,
+    };
     // A view descriptor is not inline primitive storage. Classify the backing
     // before the scalar leaf: every projection below this root observes the
     // same live view extent and uses the same captured outer selector. Only a
@@ -440,18 +479,7 @@ fn plan_assignment(
         })
     {
         destination.exclusive_authority(program, state, roots, trace)?;
-        return element_stores::store(
-            program,
-            facts,
-            machine,
-            state,
-            &destination,
-            statement_index,
-            assignment,
-            source,
-            trace,
-        )
-        .map(|store| vec![store]);
+        return element_stores::store(&site).map(|store| vec![store]);
     }
     // A byte replacement directly on the root carries its own read-capable
     // authority and byte-domain preservation contract. Replacing the whole
@@ -477,30 +505,11 @@ fn plan_assignment(
             destination::Root::Local { .. } => false,
         })
     {
-        return byte_stores::byte_write(
-            program,
-            facts,
-            machine,
-            state,
-            &destination,
-            statement_index,
-            assignment,
-            source,
-            trace,
-        )
-        .map(|write| vec![write]);
+        return byte_stores::byte_write(&site).map(|write| vec![write]);
     }
     if destination.place.segments.is_empty()
         && destination.dynamic_index.is_none()
-        && let Some(store) = byte_stores::whole_store(
-            program,
-            facts,
-            state,
-            &destination,
-            statement_index,
-            assignment,
-            source,
-        )
+        && let Some(store) = byte_stores::whole_store(&site)
     {
         return Some(vec![store]);
     }
@@ -510,33 +519,11 @@ fn plan_assignment(
     // answers, since the leaf's own primitive is not the stored value's.
     if let Some(view) = destination.recast_view {
         trace.phase("structural field store: representation view");
-        return view_stores::plan(
-            program,
-            facts,
-            machine,
-            state,
-            &destination,
-            view,
-            statement_index,
-            assignment,
-            source,
-            trace,
-        )
-        .map(|store| vec![store]);
+        return view_stores::plan(&site, view).map(|store| vec![store]);
     }
     // Every leaf consumes one resolved storage root and selector roster.
     // Primitive stores must not retry destination recognition independently.
-    if let Some(store) = primitive::store_at(
-        program,
-        facts,
-        machine,
-        state,
-        &destination,
-        statement_index,
-        assignment,
-        source,
-        trace,
-    ) {
+    if let Some(store) = primitive::store_at(&site) {
         return Some(vec![store]);
     }
     trace.phase("structural field store: carrier path");
@@ -590,41 +577,20 @@ fn plan_assignment(
         if !static_carrier {
             return None;
         }
-        return byte_stores::field_store(
-            program,
-            facts,
-            machine,
-            state,
-            &destination,
-            carrier.path,
-            field,
-            capacity,
-            statement_index,
-            assignment,
-            source,
-            trace,
-        )
-        .map(|store| vec![store]);
+        return byte_stores::field_store(&site, carrier.path, field, capacity)
+            .map(|store| vec![store]);
     }
     // Descriptor replacement borrows its actual backing. The operation plan
     // retains that operand; source and receiving loan replay enforce lifetime.
     if is_shared_view_field(program, field.type_reference) {
         return descriptor_store::store(
-            program,
-            facts,
-            machine,
-            state,
+            &site,
             roots,
-            &destination,
             descriptor_store::DescriptorSlot {
                 path: carrier.path,
                 type_reference: field.type_reference,
                 field,
             },
-            statement_index,
-            assignment,
-            source,
-            trace,
         )
         .map(|store| vec![store]);
     }
@@ -647,17 +613,7 @@ fn plan_assignment(
         .is_some()
     {
         let primitive_type = scalar_leaf(program, field)?;
-        let value = value::assignment_value(
-            program,
-            facts,
-            machine,
-            state,
-            statement_index,
-            assignment,
-            source,
-            primitive_type,
-            trace,
-        )?;
+        let value = value::assignment_value(&site.occurrence, primitive_type)?;
         let mut path = carrier.path;
         path.push(CheckedUnitStructuralPathSegment::Field(
             terminal_field_identity(program, field.symbol)?,
@@ -688,33 +644,9 @@ fn plan_assignment(
     if !static_carrier {
         return None;
     }
-    case_field_store(
-        program,
-        state,
-        roots,
-        &destination,
-        carrier.path.clone(),
-        field,
-        field_data,
-        statement_index,
-        assignment,
-        source,
-    )
-    .or_else(|| {
-        case_literal_field_store(
-            program,
-            facts,
-            state,
-            &destination,
-            carrier.path,
-            field,
-            field_data,
-            statement_index,
-            assignment,
-            source,
-        )
-    })
-    .map(|store| vec![store])
+    case_field_store(&site, roots, carrier.path.clone(), field, field_data)
+        .or_else(|| case_literal_field_store(&site, carrier.path, field, field_data))
+        .map(|store| vec![store])
 }
 
 /// The shared field retention judgment keeps every restriction independently
@@ -747,17 +679,21 @@ fn scalar_leaf(
 /// carrier borrow window -- call results, payload sums, records and affine
 /// carriers keep declining.
 fn case_field_store(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
+    site: &Site<'_, '_, '_>,
     roots: StoreRoots<'_>,
-    destination: &Destination<'_>,
     carrier_path: Vec<CheckedUnitStructuralPathSegment>,
     field: &typed_trees::data::DataField,
     field_data: &typed_trees::data::DataDefinition,
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-    source: AssignmentSource,
 ) -> Option<CheckedUnitEffectOperationPlan> {
+    let Occurrence {
+        program,
+        state,
+        statement_index,
+        assignment,
+        source,
+        ..
+    } = site.occurrence;
+    let destination = site.destination;
     let AssignmentSource::Authored = source else {
         return None;
     };
@@ -823,6 +759,7 @@ fn case_field_store(
         field,
         statement_index,
         checked_trees::CheckedStoreValue::Place(checked_trees::CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
             source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: u32::try_from(value_index).ok()?,
             },
@@ -841,17 +778,21 @@ fn case_field_store(
 /// whole-place store proves; only the source's shape differs — construction
 /// operands where a copy named a structural place.
 fn case_literal_field_store(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    state: &typed_trees::state::State,
-    destination: &Destination<'_>,
+    site: &Site<'_, '_, '_>,
     carrier_path: Vec<CheckedUnitStructuralPathSegment>,
     field: &typed_trees::data::DataField,
     field_data: &typed_trees::data::DataDefinition,
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-    source: AssignmentSource,
 ) -> Option<CheckedUnitEffectOperationPlan> {
+    let Occurrence {
+        program,
+        facts,
+        state,
+        statement_index,
+        assignment,
+        source,
+        ..
+    } = site.occurrence;
+    let destination = site.destination;
     if !matches!(source, AssignmentSource::Authored) {
         return None;
     }

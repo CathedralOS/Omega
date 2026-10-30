@@ -27,7 +27,7 @@ machine push_heap<T [copy], machine Less>(h: &mut Heap<T>, value: &T)
 where machine Less(left: &T, right: &T) -> bool;
 {
     transition h.len < 16 { true -> place(h, value, h.len) _ -> full(h) }
-    state place(h: &mut Heap<T>, value: &T, at: u64)
+    machine place(h: &mut Heap<T>, value: &T, at: u64)
         requires at < 16
     {
         let tmp: T = value;
@@ -35,7 +35,7 @@ where machine Less(left: &T, right: &T) -> bool;
         h.len = at + 1;
         transition { _ -> up(h, at) }
     }
-    state up(h: &mut Heap<T>, at: u64)
+    machine up(h: &mut Heap<T>, at: u64)
         requires at < 16
     {
         let parent: u64 = at / 2;
@@ -44,7 +44,7 @@ where machine Less(left: &T, right: &T) -> bool;
             _ -> {}
         }
     }
-    state sift(h: &mut Heap<T>, at: u64, parent: u64)
+    machine sift(h: &mut Heap<T>, at: u64, parent: u64)
         requires at < 16
         requires parent < 16
     {
@@ -54,7 +54,7 @@ where machine Less(left: &T, right: &T) -> bool;
         h.items[parent] = moved;
         transition { _ -> up(h, parent) }
     }
-    state full(h: &mut Heap<T>) {}
+    machine full(h: &mut Heap<T>) {}
 }
 
 machine pop_heap<T [copy], machine Less>(h: &mut Heap<T>, root: &mut Popped<T>)
@@ -63,14 +63,14 @@ where machine Less(left: &T, right: &T) -> bool;
     requires h.len <= 16
 {
     transition h.len >= 2 { true -> lift(h, root) _ -> take(h, root) }
-    state take(h: &mut Heap<T>, root: &mut Popped<T>)
+    machine take(h: &mut Heap<T>, root: &mut Popped<T>)
         requires h.len >= 1
     {
         let top: T = h.items[0];
         root.value = top;
         h.len = 0;
     }
-    state lift(h: &mut Heap<T>, root: &mut Popped<T>)
+    machine lift(h: &mut Heap<T>, root: &mut Popped<T>)
         requires h.len >= 2
         requires h.len <= 16
     {
@@ -84,7 +84,7 @@ where machine Less(left: &T, right: &T) -> bool;
             _ -> finish(h, n)
         }
     }
-    state sink(h: &mut Heap<T>, at: u64, n: u64)
+    machine sink(h: &mut Heap<T>, at: u64, n: u64)
         requires at < n
         requires n <= 16
     {
@@ -94,7 +94,7 @@ where machine Less(left: &T, right: &T) -> bool;
             _ -> finish(h, n)
         }
     }
-    state right_child(h: &mut Heap<T>, at: u64, left: u64, n: u64)
+    machine right_child(h: &mut Heap<T>, at: u64, left: u64, n: u64)
         requires at < n
         requires left < n
         requires n <= 16
@@ -105,7 +105,7 @@ where machine Less(left: &T, right: &T) -> bool;
             _ -> maybe(h, at, left, n)
         }
     }
-    state maybe(h: &mut Heap<T>, at: u64, child: u64, n: u64)
+    machine maybe(h: &mut Heap<T>, at: u64, child: u64, n: u64)
         requires at < n
         requires child < n
         requires n <= 16
@@ -115,7 +115,7 @@ where machine Less(left: &T, right: &T) -> bool;
             _ -> finish(h, n)
         }
     }
-    state swap(h: &mut Heap<T>, at: u64, child: u64, n: u64)
+    machine swap(h: &mut Heap<T>, at: u64, child: u64, n: u64)
         requires at < n
         requires child < n
         requires n <= 16
@@ -126,7 +126,7 @@ where machine Less(left: &T, right: &T) -> bool;
         h.items[at] = moved;
         transition { _ -> sink(h, child, n) }
     }
-    state finish(h: &mut Heap<T>, n: u64)
+    machine finish(h: &mut Heap<T>, n: u64)
         requires n <= 16
     {
         h.len = n;
@@ -156,7 +156,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     main.heap.len = 0;
     transition { _ -> clear(main, 0) }
 
-    state clear(main: &mut Main, i: u64)
+    machine clear(main: &mut Main, i: u64)
         requires i <= 12
     {
         transition i < 12 {
@@ -164,26 +164,26 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
             _ -> boot(main)
         }
     }
-    state wipe(main: &mut Main, i: u64)
+    machine wipe(main: &mut Main, i: u64)
         requires i < 12
     {
         main.dist[i] = 1000000;
         main.prev[i] = 12;
         transition { _ -> clear(main, i + 1) }
     }
-    state boot(main: &mut Main) {
+    machine boot(main: &mut Main) {
         main.dist[0] = 0;
         let e: u64 = 0;
         push_heap<ent_less>(&mut main.heap, &e);
         transition { _ -> step(main) }
     }
-    state step(main: &mut Main) {
+    machine step(main: &mut Main) {
         transition main.heap.len >= 1 && main.heap.len <= 16 {
             true -> take(main)
             _ -> score(main, 0, 0)
         }
     }
-    state take(main: &mut Main)
+    machine take(main: &mut Main)
         requires main.heap.len >= 1
         requires main.heap.len <= 16
     {
@@ -196,7 +196,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
             _ -> step(main)
         }
     }
-    state edges(main: &mut Main, v: u64, vd: u64)
+    machine edges(main: &mut Main, v: u64, vd: u64)
         requires v < 12
         requires vd <= 1000000
     {
@@ -207,7 +207,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
             _ -> step(main)
         }
     }
-    state relax(main: &mut Main, v: u64, vd: u64, edge: u64, after: u64)
+    machine relax(main: &mut Main, v: u64, vd: u64, edge: u64, after: u64)
         requires v < 12
         requires vd <= 1000000
         requires edge <= after
@@ -218,7 +218,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
             _ -> step(main)
         }
     }
-    state visit(main: &mut Main, v: u64, vd: u64, edge: u64, after: u64)
+    machine visit(main: &mut Main, v: u64, vd: u64, edge: u64, after: u64)
         requires v < 12
         requires vd <= 1000000
         requires edge < after
@@ -230,7 +230,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
             _ -> bad(main)
         }
     }
-    state weigh(main: &mut Main, v: u64, vd: u64, w: u64, edge: u64, after: u64)
+    machine weigh(main: &mut Main, v: u64, vd: u64, w: u64, edge: u64, after: u64)
         requires v < 12
         requires vd <= 1000000
         requires w <= 1000000
@@ -244,7 +244,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
             _ -> relax(main, v, vd, edge + 1, after)
         }
     }
-    state improve(main: &mut Main, to: u64, nd: u64, v: u64, edge: u64, after: u64, vd: u64)
+    machine improve(main: &mut Main, to: u64, nd: u64, v: u64, edge: u64, after: u64, vd: u64)
         requires to < 12
         requires v < 12
         requires nd <= 2000000
@@ -258,7 +258,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         push_heap<ent_less>(&mut main.heap, &e);
         transition { _ -> relax(main, v, vd, edge + 1, after) }
     }
-    state score(main: &mut Main, i: u64, sum: u64)
+    machine score(main: &mut Main, i: u64, sum: u64)
         requires i <= 12
         requires sum <= i * 1000000
     {
@@ -267,7 +267,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
             _ -> walk_prev(main, 11, 0, sum)
         }
     }
-    state gather(main: &mut Main, i: u64, sum: u64)
+    machine gather(main: &mut Main, i: u64, sum: u64)
         requires i < 12
         requires sum <= i * 1000000
     {
@@ -277,14 +277,14 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
             _ -> bad(main)
         }
     }
-    state add(main: &mut Main, i: u64, sum: u64, d: u64)
+    machine add(main: &mut Main, i: u64, sum: u64, d: u64)
         requires i < 12
         requires sum <= i * 1000000
         requires d <= 1000000
     {
         transition { _ -> score(main, i + 1, sum + d) }
     }
-    state walk_prev(main: &mut Main, at: u64, hops: u64, sum: u64)
+    machine walk_prev(main: &mut Main, at: u64, hops: u64, sum: u64)
         requires at < 13
         requires hops <= 12
     {
@@ -293,7 +293,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
             _ -> bound_at(main, at, hops, sum)
         }
     }
-    state bound_at(main: &mut Main, at: u64, hops: u64, sum: u64)
+    machine bound_at(main: &mut Main, at: u64, hops: u64, sum: u64)
         requires at < 13
         requires hops < 12
     {
@@ -302,7 +302,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
             _ -> bad(main)
         }
     }
-    state climb(main: &mut Main, at: u64, hops: u64, sum: u64)
+    machine climb(main: &mut Main, at: u64, hops: u64, sum: u64)
         requires at < 12
         requires hops < 12
     {
@@ -312,14 +312,14 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
             _ -> bad(main)
         }
     }
-    state done(main: &mut Main, sum: u64, hops: u64) {
+    machine done(main: &mut Main, sum: u64, hops: u64) {
         transition sum == 150 && hops == 4 {
             true -> good(main, sum + hops)
             _ -> bad(main)
         }
     }
-    state good(main: &mut Main, code: u64) { Console::exit_process(code as i32); }
-    state bad(main: &mut Main) { crash Trap; }
+    machine good(main: &mut Main, code: u64) { Console::exit_process(code as i32); }
+    machine bad(main: &mut Main) { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -494,7 +494,9 @@ pub(crate) fn lower_evidence_interface(
 }
 
 pub(crate) fn lower_evidence_contract_lanes(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    module: &terminal_psi::TerminalModule,
     selected_machine: symbols::SymbolHandle,
     terminal_machine: MachineId,
     term_ids: &[Option<EvidenceTermId>],
@@ -529,6 +531,14 @@ pub(crate) fn lower_evidence_contract_lanes(
                 }
                 checked_trees::ContractProofFactKind::Ensures => EvidenceContractLaneKind::Ensures,
             };
+            let argument_subjects = evidence_argument_subjects(
+                identities,
+                checked,
+                module,
+                selected_machine,
+                terminal_machine,
+                handle,
+            )?;
             Ok(EvidenceContractLane {
                 machine: terminal_machine,
                 kind,
@@ -540,6 +550,7 @@ pub(crate) fn lower_evidence_contract_lanes(
                 term: term_id,
                 output_field: (kind == EvidenceContractLaneKind::Ensures)
                     .then(|| term.name.clone()),
+                argument_subjects,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -561,6 +572,84 @@ fn selected_guarded_evidence_terms(
                 .then_some(guarantee.evidence_term)
                 .flatten()
                 .map(|handle| evidence_term_index(handle))
+        })
+        .collect()
+}
+
+/// Keep declaration projection data separate from invocation substitution.
+/// The source fact and term must belong to this exact machine lane; an input
+/// cannot use another declaration's same-shaped telescope.
+fn evidence_argument_subjects(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    module: &terminal_psi::TerminalModule,
+    source_machine: symbols::SymbolHandle,
+    terminal_machine: MachineId,
+    term: arena::Handle<checked_trees::CheckedEvidenceTerm>,
+) -> Result<Vec<terminal_psi::EvidenceArgumentSubject>, LoweringError> {
+    let mut contracts = checked
+        .facts
+        .proof
+        .contract_facts
+        .iter()
+        .map(|(_, row)| row)
+        .filter(|row| {
+            row.evidence_term == Some(term)
+                && row.owner
+                    == (checked_trees::ContractProofFactOwner::Machine {
+                        machine_symbol: source_machine,
+                    })
+        });
+    let contract = contracts.next().ok_or(LoweringError::Unsupported(
+        "evidence lane has no exact declaration fact",
+    ))?;
+    if contracts.next().is_some() {
+        return Err(LoweringError::Unsupported(
+            "evidence lane declaration fact is ambiguous",
+        ));
+    }
+    let declaration = checked
+        .machine(source_machine)
+        .ok_or(LoweringError::Unsupported(
+            "evidence lane source machine is absent",
+        ))?;
+    let entry = checked
+        .machine_states(declaration)
+        .first()
+        .ok_or(LoweringError::Unsupported(
+            "evidence lane source entry is absent",
+        ))?;
+    let application = checked
+        .proof_facts
+        .get(contract.fact)
+        .as_proposition()
+        .ok_or(LoweringError::Unsupported(
+            "evidence lane fact is not nominal",
+        ))?;
+    let roots = checked
+        .expression_table
+        .expression_handles(application.arguments)
+        .iter()
+        .map(|expression| validation::contract_argument_root(&checked.typed, entry, *expression))
+        .collect::<Vec<_>>();
+    let callee = module
+        .machine(terminal_machine)
+        .ok_or(LoweringError::Unsupported(
+            "evidence lane emitted machine is absent",
+        ))?;
+    roots
+        .iter()
+        .enumerate()
+        .map(|(position, root)| {
+            super::outcome_specific_calls::lower_argument_subject(
+                identities,
+                checked,
+                source_machine,
+                callee,
+                module,
+                position,
+                root,
+            )
         })
         .collect()
 }

@@ -22,7 +22,7 @@ machine scan(numbers: &[i32; 3]) -> i32 {
         _ -> step(numbers, 0, 0)
     }
 
-    state step(numbers: &[i32; 3], index: i32, best: i32) -> i32
+    machine step(numbers: &[i32; 3], index: i32, best: i32) -> i32
     requires index >= 0 {
         transition index < 3 {
             true -> body(numbers, index, best)
@@ -30,7 +30,7 @@ machine scan(numbers: &[i32; 3]) -> i32 {
         }
     }
 
-    state body(numbers: &[i32; 3], index: i32, best: i32) -> i32
+    machine body(numbers: &[i32; 3], index: i32, best: i32) -> i32
     requires index >= 0
     requires index < 3 {
         transition {
@@ -38,7 +38,7 @@ machine scan(numbers: &[i32; 3]) -> i32 {
         }
     }
 
-    state done(best: i32) -> i32 {
+    machine done(best: i32) -> i32 {
         (best)
     }
 }

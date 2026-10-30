@@ -2,9 +2,7 @@
 //! the shared type roster. They describe frame geometry, never claim authority.
 
 use crate::lowering_error::{LoweringError, unsupported};
-use checked_trees::{
-    CheckedUnitCallRoute, CheckedUnitEffectOperationPlan, CheckedUnitLocalBindingPlan,
-};
+use checked_trees::{CheckedUnitCallRoute, CheckedUnitEffectOperationPlan};
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
     ByteSequenceCarrier, StructuralTypeDeclaration, StructuralTypeShape,
@@ -72,17 +70,10 @@ pub(crate) fn prepare_operation(
         }
         backing_type(identities, types, *bound)?;
     }
-    if let CheckedUnitEffectOperationPlan::EstablishLocal(
-        CheckedUnitLocalBindingPlan::StructuralValue { calls, .. },
-    ) = operation
-    {
+    if let Some((_, calls)) = operation.structural_value_evaluation() {
         for call in calls {
-            for operand in call.operands().iter() {
-                prepare_operation(identities, types, operand)?;
-            }
-            prepare_operation(identities, types, call.operation())?;
-            for completion in call.completions().iter() {
-                prepare_operation(identities, types, completion)?;
+            for dependency in call.operation_dependencies() {
+                prepare_operation(identities, types, dependency)?;
             }
         }
     }

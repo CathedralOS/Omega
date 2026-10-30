@@ -98,6 +98,69 @@ class DispatchTests(unittest.TestCase):
                                 env=self.environment, capture_output=True, text=True, check=True)
         return json.loads(result.stdout)
 
+    def board_packet(self):
+        (self.a / 'TASKS.md').write_text(
+            '- **OUTCOME.**\nComplete the original fact.\n\n- **OTHER.**\nOther original work.\n')
+        kit.git(self, self.a, 'add', 'TASKS.md')
+        kit.git(self, self.a, 'commit', '-m', 'record open board outcomes')
+        kit.git(self, self.a, 'push', 'origin', 'main')
+        kit.git(self, self.b, 'pull', '--ff-only', 'origin', 'main')
+        self.base = kit.git(self, self.a, 'rev-parse', 'HEAD')
+        packet = self.packet(names=('first',), sessions=('one',))
+        row = packet['candidates'][0]
+        row.update(item='OUTCOME', board='TASKS.md')
+        row['source_inputs'] = self.module.qualification.source_inputs(
+            self.a, self.base, ['TASKS.md', 'wiki/spec/contract.md'])
+        stream = self.root / 'board-failure.log'
+        stream.write_text('original fact fails on this exact producer\n')
+        binding = dict(path=str(stream), sha256=hashlib.sha256(stream.read_bytes()).hexdigest())
+        row['failure'] = self.binding(self.root / 'board-failure.json',
+            dict(revision=self.base, exit=1, invalidations=[], source_inputs=row['source_inputs'],
+                 stdout=binding, stderr=binding))
+        row['failure_review'] = 'simulated parent confirms the original fact fails'
+        return packet
+
+    def publish_board(self, content):
+        (self.b / 'TASKS.md').write_text(content)
+        kit.git(self, self.b, 'add', 'TASKS.md')
+        kit.git(self, self.b, 'commit', '-m', 'update remaining board acceptance')
+        kit.git(self, self.b, 'push', 'origin', 'main')
+
+    def test_selection_skips_an_outcome_closed_after_qualification(self):
+        packet = self.board_packet()
+        self.publish_board('- **OTHER.**\nOther original work.\n')
+        _, record = self.reserve(packet=packet)
+        self.assertEqual(record['phase'], 'no_work')
+        self.assertIn('closed', record['skipped'][0]['reason'])
+        self.assertEqual(self.registry()['claims'], [])
+
+    def test_selection_skips_changed_acceptance_without_rebuilding(self):
+        packet = self.board_packet()
+        self.publish_board('- **OUTCOME.**\nA different remaining fact.\n\n- **OTHER.**\nOther original work.\n')
+        _, record = self.reserve(packet=packet)
+        self.assertEqual(record['phase'], 'no_work')
+        self.assertIn('acceptance changed', record['skipped'][0]['reason'])
+        self.assertEqual(self.registry()['claims'], [])
+
+    def test_selection_ignores_unrelated_board_changes(self):
+        packet = self.board_packet()
+        self.publish_board('- **OUTCOME.**\nComplete the original fact.\n\n- **OTHER.**\nOther new work.\n')
+        _, record = self.reserve(packet=packet)
+        self.assertEqual(record['phase'], 'reserved')
+        self.assertEqual(record['base'], self.base)
+        self.assertEqual(record['skipped'], [])
+
+    def test_selection_skips_changed_selected_fact_or_contract(self):
+        packet = self.packet(names=('first',), sessions=('one',))
+        (self.b / 'wiki/spec/contract.md').write_text('The canonical rule has changed.\n')
+        kit.git(self, self.b, 'add', '.')
+        kit.git(self, self.b, 'commit', '-m', 'change selected contract')
+        kit.git(self, self.b, 'push', 'origin', 'main')
+        _, record = self.reserve(packet=packet)
+        self.assertEqual(record['phase'], 'no_work')
+        self.assertIn('canonical contract changed', record['skipped'][0]['reason'])
+        self.assertEqual(self.registry()['claims'], [])
+
     def test_concurrent_selection_dispatches_distinct_outcomes_and_sessions(self):
         packet_path = self.root / 'packet.json'
         self.binding(packet_path, self.packet())
@@ -197,7 +260,7 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(next_record['phase'], 'no_work')
         self.assertEqual([r['ticket'] for r in self.registry()['claims']], [record['ticket']])
 
-    def test_reuse_preserves_cache_and_progress_but_refuses_stale_main(self):
+    def test_reserved_dispatch_preserves_base_when_main_advances(self):
         (self.a / 'unpublished-progress').write_text('keep this session branch')
         before = self.probe_row()
         attempt, record = self.reserve()
@@ -209,13 +272,67 @@ class DispatchTests(unittest.TestCase):
         kit.git(self, self.b, 'add', '.')
         kit.git(self, self.b, 'commit', '-m', 'advance main')
         kit.git(self, self.b, 'push', 'origin', 'main')
-        self.arm(attempt, expected=1)
-        self.assertEqual(json.loads(attempt.read_text())['phase'], 'reserved')
+        current_main = kit.git(self, self.b, 'rev-parse', 'HEAD')
+        armed = self.arm(attempt)
+        self.assertEqual(armed['phase'], 'sending')
+        self.assertEqual(armed['base'], self.base)
+        self.assertEqual(armed['dispatch_main'], current_main)
+        self.assertEqual(armed['candidate'], record['candidate'])
+        self.assertEqual(armed['gap'], record['gap'])
         self.assertEqual((self.a / 'unpublished-progress').read_text(), 'keep this session branch')
         self.assertEqual(self.probe_row(), before)
-        self.call(self.a, 'cancel', '--attempt', attempt)
-        self.call(self.a, 'reserve', '--packet', self.root / 'attempt.json', '--attempt',
-                  self.root / 'stale-attempt.json', '--owner', 'parent', expected=1)
+        next_assignment = self.call(self.a, 'reserve', '--packet', self.root / 'attempt.json', '--attempt',
+                                   self.root / 'next-attempt.json', '--owner', 'parent')
+        self.assertEqual(next_assignment['phase'], 'reserved')
+        self.assertEqual(next_assignment['candidate']['item'], 'samples/cli/facts/second')
+        self.assertEqual(next_assignment['session']['session_id'], 'codex:two')
+        self.assertEqual(next_assignment['base'], self.base)
+
+    def test_selection_keeps_its_validated_base_when_main_advances(self):
+        packet = self.packet()
+        (self.b / 'new-main-file').write_text('main advanced during qualification')
+        kit.git(self, self.b, 'add', '.')
+        kit.git(self, self.b, 'commit', '-m', 'advance main during qualification')
+        kit.git(self, self.b, 'push', 'origin', 'main')
+        current_main = kit.git(self, self.b, 'rev-parse', 'HEAD')
+        _, record = self.reserve(packet=packet)
+        self.assertEqual(record['phase'], 'reserved')
+        self.assertEqual(record['base'], self.base)
+        self.assertEqual(record['selection_main'], current_main)
+        self.assertEqual(record['candidate'], packet['candidates'][0])
+
+    def test_selection_refuses_main_that_loses_its_base(self):
+        unrelated_main = kit.git_input(self, self.a, 'commit-tree', self.base + '^{tree}',
+                                       input_text='unrelated selection history\n')
+        with mock.patch.object(self.module, 'main_base', return_value=unrelated_main):
+            with self.assertRaisesRegex(self.module.RecoveryError, 'no longer descends'):
+                self.module.reserve(self.a, self.packet(), self.root / 'lost-base.json', 'parent')
+        self.assertEqual(self.registry()['claims'], [])
+
+    def test_selection_requires_an_exact_recorded_commit(self):
+        packet = self.packet()
+        packet['base'] = 'main'
+        packet_path = self.root / 'symbolic-base.json'
+        self.binding(packet_path, packet)
+        self.call(self.a, 'reserve', '--packet', packet_path, '--attempt',
+                  self.root / 'symbolic-base-attempt.json', '--owner', 'parent', expected=1)
+        self.assertEqual(self.registry()['claims'], [])
+
+    def test_reserved_dispatch_refuses_main_that_loses_its_base(self):
+        attempt, record = self.reserve()
+        row = record['session']['observation']
+        row['observed_utc'] = datetime.now(timezone.utc).isoformat()
+        observation = self.root / 'rewound-refresh.json'
+        self.binding(observation, row)
+        unrelated_main = kit.git_input(self, self.a, 'commit-tree', self.base + '^{tree}',
+                                       input_text='unrelated root history\n')
+        with mock.patch.object(self.module, 'main_base', return_value=unrelated_main):
+            with self.assertRaisesRegex(self.module.RecoveryError, 'no longer descends'):
+                self.module.transition(self.a, attempt, 'arm', session_observation=observation)
+        preserved = json.loads(attempt.read_text())
+        self.assertEqual(preserved['phase'], 'reserved')
+        self.assertEqual(preserved['base'], self.base)
+        self.assertEqual([row['ticket'] for row in self.registry()['claims']], [record['ticket']])
 
     def test_arm_refreshes_expired_observation_and_refuses_running_session(self):
         attempt, record = self.reserve()

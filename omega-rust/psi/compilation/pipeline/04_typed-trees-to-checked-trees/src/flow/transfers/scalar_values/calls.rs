@@ -79,7 +79,11 @@ pub(super) fn capture_call<Value: CapturedValue>(
             _ => None,
         }),
     )?;
-    let (machine_index, entry_state_index) = context.state_location(program, call.target_symbol)?;
+    let entered_target = validation::call_target_entry_symbol(
+        program,
+        validation::call_target_symbol(program, call),
+    );
+    let (machine_index, entry_state_index) = context.state_location(program, entered_target)?;
     let machine = &program.machines()[machine_index];
     if !machine.body_is_present
         || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
@@ -268,7 +272,11 @@ fn exact_call_occurrence<'facts>(
         .iter()
         .filter(|candidate| {
             candidate.statement_index == statement_index
-                && candidate.target_symbol == validation::call_target_symbol(program, call)
+                && candidate.target_symbol
+                    == validation::call_target_entry_symbol(
+                        program,
+                        validation::call_target_symbol(program, call),
+                    )
                 && candidate.has_receiver == call.receiver.is_valid()
                 && candidate.receiver_symbol == receiver_root
                 && matches!(

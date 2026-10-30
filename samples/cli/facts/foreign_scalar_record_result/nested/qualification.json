@@ -1,0 +1,234 @@
+{
+  "schema": "omega-nested-owned-foreign-record-qualification-v1",
+  "parent": "NORMALIZED-ABI-LOWERING",
+  "actual_producer": "77f259b46d0d2da38796a9f00f6a350049c10d34",
+  "baseline": "abfac3bb8812961984f703d77e6cabbcda681ae5",
+  "target": "macos_arm64",
+  "compiler_executables": [
+    {
+      "name": "candidate-omega",
+      "sha256": "657f9fdc953a294756da533d10f37801f0ee1d947c65cf64f06263df80cc5f98",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    {
+      "name": "candidate-corpus_runner",
+      "sha256": "f17e080813ec94436e0a6503d036bbeab1c1525fa5e72bf0ceab380532c100af",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  ],
+  "c_provider": {
+    "host": "macOS-15.7.7-arm64-arm-64bit",
+    "library": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/content/build/foreign-frontier-evidence/provider-v2/libomega_nesteddiv_fixture.dylib",
+    "library_sha256": "2b7866aa3e05eb5240cc44a50171d938ccd0090ac1a8b6bafac3e2deaecd8b06",
+    "provider_sha256": "a808e9b2bdf0dd5653b7f021e9a4f56daf622fc02a60f872419d0ca3f2e165ce",
+    "map_sha256": "3c70bdc83c1c1a74f54fa8cc06dd3b681fbceaea8673c1f0129a32ed54356163",
+    "selftest_sha256": "e35bbb5624d5ed156224f58dacf15aac39834fa08806cd1714d63fe844c55d26",
+    "selftest_exit": 0,
+    "commands": [
+      [
+        "cc",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-O2",
+        "-DNESTED_DIVISION_FIXTURE_TEST",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/content/samples/cli/facts/foreign_scalar_record_result/nested/fixture/provider.c",
+        "-o",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/content/build/foreign-frontier-evidence/provider-v2/provider-test"
+      ],
+      [
+        "cc",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-O2",
+        "-dynamiclib",
+        "-Wl,-install_name,libomega_nesteddiv_fixture.dylib",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/content/samples/cli/facts/foreign_scalar_record_result/nested/fixture/provider.c",
+        "-o",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/content/build/foreign-frontier-evidence/provider-v2/libomega_nesteddiv_fixture.dylib"
+      ],
+      [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/content/build/foreign-frontier-evidence/provider-v2/provider-test"
+      ]
+    ]
+  },
+  "positives": 10,
+  "reject_twins": 9,
+  "canonical_artifacts": 10,
+  "source_comparison_records": 33,
+  "native_terminal_agreements": 43,
+  "lost_outcomes": 0,
+  "rust": {
+    "passed": 67,
+    "preexisting_ignored": 1
+  },
+  "unverified_targets": [
+    "windows_x86_64",
+    "linux_x86_64",
+    "linux_arm64"
+  ],
+  "evidence_directory": "build/foreign-frontier-evidence",
+  "rows": [
+    {
+      "name": "root",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "07a2de5a0f302127e17cc3f767cc4fa58bfb7afde5166a6d6cddcaae1b96e66f"
+    },
+    {
+      "name": "local",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "36e023e2cc82d7f081a66dea79f247b9131022fd9d6e164fb0a300879e335e1e"
+    },
+    {
+      "name": "field",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "f721fcfce670b476df4e17ea2b6f99bb7983db7f5bdc4b1ae99cfdf918fe0af5"
+    },
+    {
+      "name": "parameter",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "3442ab6c517353a383a72461a07326d212ea4f7bf393d0c88b424b165f12f2ef"
+    },
+    {
+      "name": "call_result",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "8a5fb6986878e8a4e44da8baefdb117433781230b33d13eaaedc6a2ae4e7bef2"
+    },
+    {
+      "name": "match_join",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "283413f22ad3c8117b5c61ebd4c1062cb89f0ad721f8b1a2f2c5cd7f703dde27"
+    },
+    {
+      "name": "const_name",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "dee9c4ee085bacc35f83988169d4f2433f7fefaca16fd297747c87c1df66d683"
+    },
+    {
+      "name": "other_state",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "7ce2c412431933da0de9c54f8022de751932f05b10f039985ad1ef85b59766e7"
+    },
+    {
+      "name": "other_machine",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "8cd5e22553303c74377043782dbbc066b62978043e8ea93c57e26a98c021dfc0"
+    },
+    {
+      "name": "target_body",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "1cfa67e2d5acd8b7b58dbea959099b5f6b1ba1c6152f3d69d1208bdb34429126"
+    },
+    {
+      "name": "local-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "c0bbab78ed4bf324d803c68b4ff6a3065aaa2da23e771742f0b1dfc63f59dab5"
+    },
+    {
+      "name": "field-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "c0bbab78ed4bf324d803c68b4ff6a3065aaa2da23e771742f0b1dfc63f59dab5"
+    },
+    {
+      "name": "parameter-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "c0bbab78ed4bf324d803c68b4ff6a3065aaa2da23e771742f0b1dfc63f59dab5"
+    },
+    {
+      "name": "call_result-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "c0bbab78ed4bf324d803c68b4ff6a3065aaa2da23e771742f0b1dfc63f59dab5"
+    },
+    {
+      "name": "match_join-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "c0bbab78ed4bf324d803c68b4ff6a3065aaa2da23e771742f0b1dfc63f59dab5"
+    },
+    {
+      "name": "const_name-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "c0bbab78ed4bf324d803c68b4ff6a3065aaa2da23e771742f0b1dfc63f59dab5"
+    },
+    {
+      "name": "other_state-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "c0bbab78ed4bf324d803c68b4ff6a3065aaa2da23e771742f0b1dfc63f59dab5"
+    },
+    {
+      "name": "other_machine-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "c0bbab78ed4bf324d803c68b4ff6a3065aaa2da23e771742f0b1dfc63f59dab5"
+    },
+    {
+      "name": "target_body-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "c0bbab78ed4bf324d803c68b4ff6a3065aaa2da23e771742f0b1dfc63f59dab5"
+    }
+  ]
+}

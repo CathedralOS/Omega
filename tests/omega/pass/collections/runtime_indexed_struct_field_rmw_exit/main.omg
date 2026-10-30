@@ -16,16 +16,16 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> bump(main)
         false -> full(main)
     }
-    state bump(main: &mut Main) {
+    machine bump(main: &mut Main) {
         main.cells[main.k].v = main.cells[main.k].v + 1;
         transition main.cells[2].v == 5 {
             true -> yes(main)
             false -> no(main)
         }
     }
-    state yes(main: &mut Main) { Console::exit_process(1); }
-    state no(main: &mut Main) { Console::exit_process(2); }
-    state full(main: &mut Main) { Console::exit_process(8); }
+    machine yes(main: &mut Main) { Console::exit_process(1); }
+    machine no(main: &mut Main) { Console::exit_process(2); }
+    machine full(main: &mut Main) { Console::exit_process(8); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

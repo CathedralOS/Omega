@@ -22,7 +22,7 @@ use super::theorem_schema::{ExpectedTheoremSchema, TheoremApplicationSide};
 use super::theorem_schema_verification::VerifiedTheoremSchema;
 use super::transport_schema::VerifiedForwardPreconditionTransportSchema;
 use super::{PlannedQuotientTheoremEvidence, RelationPlanError, RepresentativeTelescope};
-use crate::proof_contracts::contract_entailment::{
+use crate::{
     StrictArithmeticBindingValue, StrictArithmeticImplicationJudgment,
     StrictArithmeticSymbolBinding, strict_arithmetic_expression_implication,
 };

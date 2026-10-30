@@ -34,6 +34,13 @@ use terminal_psi::{
 /// only selects them away after its rule found them empty.
 pub(crate) struct DirectCall {
     pub(crate) callee: MachineId,
+    pub(crate) inputs: ModuleInvocationArguments,
+    pub(crate) result: DirectCallResult,
+}
+
+/// Completed ordinary invocation entry lanes, independent of whether control
+/// returns and of what a normal return would publish in the caller.
+pub(crate) struct ModuleInvocationArguments {
     pub(crate) arguments: Vec<ValueId>,
     pub(crate) erased_arguments: Vec<ScalarTerm>,
     pub(crate) erased_proof_arguments: Vec<ProofTerm>,
@@ -41,7 +48,6 @@ pub(crate) struct DirectCall {
     pub(crate) claim_transfers: Vec<ClaimTransfer>,
     pub(crate) requirement_obligations: Vec<ObligationId>,
     pub(crate) crash_continuations: Vec<CrashRouteBucket>,
-    pub(crate) result: DirectCallResult,
 }
 
 impl DirectCall {
@@ -62,13 +68,15 @@ impl DirectCall {
     ) -> Self {
         DirectCall {
             callee,
-            arguments,
-            erased_arguments,
-            erased_proof_arguments,
-            structural_arguments,
-            claim_transfers,
-            requirement_obligations,
-            crash_continuations,
+            inputs: ModuleInvocationArguments {
+                arguments,
+                erased_arguments,
+                erased_proof_arguments,
+                structural_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            },
             result,
         }
     }
@@ -85,12 +93,16 @@ pub(crate) enum CallRecord<'a> {
 /// its result, prepares the operand lanes and lands here to record the
 /// source-call occurrence and push the operation. The boundary route keeps
 /// its own operation kind — a boundary application is not a machine call.
+/// Ordinary module callers obtain `selected_state` from the exact checked
+/// SourceCallCoordinate through call_sites::checked_source_call. Quotient records
+/// are sealed requests with no ordinary source-call occurrence; that arm does
+/// not read this target. Authored/public spelling stays in the checked flow row.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit_direct_call(
     operations: &mut OperationBuffer,
     coordinate: SourceCallCoordinate,
     source_site: Option<checked_trees::NominalMachineUseSite>,
-    source_target: symbols::SymbolHandle,
+    selected_state: symbols::SymbolHandle,
     record: CallRecord<'_>,
     result: OperationResult,
     call: DirectCall,
@@ -107,17 +119,15 @@ pub(crate) fn emit_direct_call(
             coordinate,
             source_site,
             operation,
-            source_target,
+            selected_state,
             frontier_before_call,
         )?,
     }
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: operation,
+    operations.push(Operation::unsuspended(
+        operation,
         result,
-        kind: call.into_operation_kind(),
-    });
+        call.into_operation_kind(),
+    ));
     Ok(operation)
 }
 
@@ -141,6 +151,10 @@ impl DirectCall {
     pub(crate) fn into_operation_kind(self) -> OperationKind {
         let Self {
             callee,
+            inputs,
+            result,
+        } = self;
+        let ModuleInvocationArguments {
             arguments,
             erased_arguments,
             erased_proof_arguments,
@@ -148,8 +162,7 @@ impl DirectCall {
             claim_transfers,
             requirement_obligations,
             crash_continuations,
-            result,
-        } = self;
+        } = inputs;
         match result {
             DirectCallResult::Unit => OperationKind::CallUnit {
                 callee,
@@ -203,86 +216,4 @@ impl DirectCall {
     }
 }
 
-/// What successful return of an emitted direct call binds.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum DirectCallRole {
-    Unit,
-    Scalar,
-    Structural,
-}
-
-/// A direct call's callee, result role and operand lanes, borrowed from
-/// whichever of the five Terminal operations it took. A lane the operation
-/// does not carry reads as empty.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct DirectCallParts<'a> {
-    pub(crate) callee: MachineId,
-    pub(crate) role: DirectCallRole,
-    pub(crate) arguments: &'a [ValueId],
-    pub(crate) structural_arguments: &'a [StructuralArgument],
-}
-
-/// The direct in-module call `kind` spells, or `None` for any other
-/// operation, including boundary and dynamic calls.
-pub(crate) fn direct_call_parts(kind: &OperationKind) -> Option<DirectCallParts<'_>> {
-    let (callee, role, arguments, structural_arguments) = match kind {
-        OperationKind::Call {
-            callee, arguments, ..
-        } => (
-            callee,
-            DirectCallRole::Scalar,
-            arguments.as_slice(),
-            &[][..],
-        ),
-        OperationKind::CallUnit {
-            callee,
-            arguments,
-            structural_arguments,
-            ..
-        } => (
-            callee,
-            DirectCallRole::Unit,
-            arguments.as_slice(),
-            structural_arguments.as_slice(),
-        ),
-        OperationKind::CallStructuralScalar {
-            callee,
-            arguments,
-            structural_arguments,
-            ..
-        } => (
-            callee,
-            DirectCallRole::Scalar,
-            arguments.as_slice(),
-            structural_arguments.as_slice(),
-        ),
-        OperationKind::CallStructural {
-            callee,
-            structural_arguments,
-            ..
-        } => (
-            callee,
-            DirectCallRole::Structural,
-            &[][..],
-            structural_arguments.as_slice(),
-        ),
-        OperationKind::CallStructuralWithScalarArguments {
-            callee,
-            arguments,
-            structural_arguments,
-            ..
-        } => (
-            callee,
-            DirectCallRole::Structural,
-            arguments.as_slice(),
-            structural_arguments.as_slice(),
-        ),
-        _ => return None,
-    };
-    Some(DirectCallParts {
-        callee: *callee,
-        role,
-        arguments,
-        structural_arguments,
-    })
-}
+pub(crate) use terminal_psi::{DirectCallRole, direct_call_parts};

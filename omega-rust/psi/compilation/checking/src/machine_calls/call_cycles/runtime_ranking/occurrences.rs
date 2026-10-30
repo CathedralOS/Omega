@@ -4,10 +4,7 @@
 //! before the prefix walk can skip a preserving statement. A classified tail
 //! to the same destination cannot cover a call in a prefix, guard or argument.
 
-use crate::machine_calls::calls::{
-    CallSite, collect_call_sites_in_statement, transition_call_target,
-};
-use typed_trees::statement::TransitionTargetNode;
+use crate::machine_calls::calls::{collect_call_sites_in_statement, transition_call_target};
 
 pub(super) fn require_classified_tail_occurrences(
     program: &dyn crate::CheckingInput,
@@ -52,16 +49,7 @@ pub(super) fn require_classified_tail_occurrences(
         if !target_handle.is_valid() {
             return Err("an internal call occurrence lacks a classified tail edge");
         }
-        let is_tail_root = match (
-            call,
-            program.statement_table.transition_target(target_handle),
-        ) {
-            (CallSite::TransitionNamed { .. }, TransitionTargetNode::Named { .. }) => true,
-            (CallSite::Expression { expression, .. }, TransitionTargetNode::Value(value)) => {
-                expression == *value
-            }
-            _ => false,
-        };
+        let is_tail_root = call.completes_transition(program, target_handle);
         if !is_tail_root {
             return Err("an internal call occurrence lacks a classified tail edge");
         }

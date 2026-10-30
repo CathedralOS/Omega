@@ -22,7 +22,7 @@ terminates by (j, i) -> Nat::BoundedDistance;
         true -> count(main, i, j + 1)
         false -> done_leaf(main)
     }
-    state done_leaf(main: &mut Main) -> i32 {
+    machine done_leaf(main: &mut Main) -> i32 {
         let result: i32 = main.hits as i32;
         result
     }
@@ -31,11 +31,11 @@ machine Main::main(main: &mut Main) reaches Console {
     // i = 4: entries at j = 0,1,2,3,4 -> hits == 5; result returns hits (5).
     main.total = Main::count(main, 4, 0) as i32 in Wrapping;
     transition main.total == 5 { true -> ck_hits(main) _ -> bad(main, 71) }
-    state ck_hits(main: &mut Main) {
+    machine ck_hits(main: &mut Main) {
         transition main.hits == 5 { true -> good(main) _ -> bad(main, 72) }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

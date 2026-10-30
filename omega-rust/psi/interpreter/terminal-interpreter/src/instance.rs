@@ -37,6 +37,7 @@ use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
 use crate::program::TerminalProgram;
 use crate::results::TerminalExecutionStatus;
+use crate::values::TerminalScalarValue;
 
 /// Identity only: creating a domain grants no exit authority. Each instance
 /// owns a fresh simulated domain; no host or sibling process belongs to it.
@@ -163,9 +164,8 @@ pub enum TerminalBindingRejection {
 pub enum TerminalInstanceError {
     /// The instance is closed; no new entry is admitted.
     Closed,
-    /// Demanded imports without an established binding. Every demanded import
-    /// must be established before guest code runs — the roster is checked
-    /// whole, before the first operation.
+    /// Demanded imports without a binding or an explicitly deferred component
+    /// route. Ordinary unbound host imports still reject before guest effects.
     UnboundImports { missing: Vec<BoundaryMachineId> },
     UnboundExternalCompletions {
         missing: Vec<crate::capabilities::TerminalExternalCompletionDemand>,
@@ -173,6 +173,17 @@ pub enum TerminalInstanceError {
     /// An execution-level failure from the interpreter.
     Execution(TerminalInterpretError),
 }
+
+impl std::fmt::Display for TerminalInstanceError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Execution(reason) => reason.fmt(formatter),
+            other => write!(formatter, "{other:?}"),
+        }
+    }
+}
+
+impl std::error::Error for TerminalInstanceError {}
 
 /// Why an instance cannot close now.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -202,8 +213,8 @@ pub struct TerminalInstance<'host, 'artifact> {
     /// Exact reachable host slots under this instance's provider installation.
     /// Retained unused declarations impose no binding requirement.
     required_imports: Vec<BoundaryMachineId>,
-    /// Established import bindings by exact slot. Empty at construction;
-    /// `invoke` refuses to start while a demanded import is unbound.
+    /// Established host bindings by exact slot. Empty at construction; deferred
+    /// component routes cannot be fulfilled by a host adapter.
     bindings: BTreeMap<BoundaryMachineId, TerminalImportBinding<'host>>,
     components: ComponentBindings<'host, 'artifact>,
     /// Whether `invoke` has admitted the entry. Close of a paused activation
@@ -287,7 +298,10 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
         if self.execution.as_ref().is_some_and(|execution| {
             matches!(
                 execution.boundary_supplies.get(&slot),
-                Some(crate::effects::AdmittedBoundarySupply::ComponentProvider { .. })
+                Some(
+                    crate::effects::AdmittedBoundarySupply::ComponentProvider { .. }
+                        | crate::effects::AdmittedBoundarySupply::DeferredComponent
+                )
             )
         }) {
             return Err(TerminalBindingRejection::ProviderRealized { boundary: slot });
@@ -334,8 +348,7 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
         let selected = binding.selected();
         let boundary = selected.receiving_boundary();
         if self.closed
-            || self.invoked
-            || selected.receiver() != self.program.terminal_psi()
+            || selected.receiver() != self.program.execution_identity()
             || !self.required_imports.contains(&boundary)
             || self.bindings.contains_key(&boundary)
             || self.components.contains_key(&boundary)
@@ -349,17 +362,35 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
             provider_boundary: selected.provider_boundary(),
             candidate: selected.candidate(),
         };
-        if self
+        let execution = self
             .execution
-            .as_ref()
-            .and_then(|execution| execution.boundary_supplies.get(&boundary))
-            != Some(&expected)
+            .as_mut()
+            .ok_or("component receiver is closed")?;
+        let deferred = execution.boundary_supplies.get(&boundary)
+            == Some(&crate::effects::AdmittedBoundarySupply::DeferredComponent);
+        if self.invoked
+            && (!deferred
+                || !execution
+                    .awaiting_effect
+                    .as_ref()
+                    .is_some_and(|pending| pending.awaiting_provider_readiness)
+                || execution.failure.is_some())
         {
+            return Err(
+                "component installation requires its reserved slot and a checked readiness pause"
+                    .into(),
+            );
+        }
+        if !deferred && execution.boundary_supplies.get(&boundary) != Some(&expected) {
             return Err(
                 "component binding differs from the receiver's exact admitted supply".into(),
             );
         }
         binding.require_ready()?;
+        // Complete the reserved route only after the full producing closure
+        // and exact import/export contract have been admitted. No guest state
+        // or effect cursor is reconstructed by installation.
+        execution.boundary_supplies.insert(boundary, expected);
         self.components.insert(boundary, binding);
         Ok(())
     }
@@ -439,13 +470,12 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
     }
 
     /// Drive the entry invocation until it completes, crashes, or pauses on
-    /// the fuel meter.
+    /// the fuel meter or an explicitly checked host-readiness crossing.
     ///
-    /// The whole demanded-import roster must be established first: a missing
-    /// binding rejects before the first guest operation, so no host effect
-    /// can run for an unbound slot. A fuel pause preserves custody — resume
-    /// by calling `invoke` again with a replenished meter; already-committed
-    /// effects are never replayed.
+    /// Ordinary demanded imports must be established before the first guest
+    /// operation. An explicitly deferred component may remain pending, but
+    /// calling it before admitted installation fails. Both fuel and checked
+    /// readiness pauses preserve the same invocation and committed effects.
     pub fn invoke(
         &mut self,
         meter: &mut TerminalFuelMeter,
@@ -453,7 +483,15 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
         if self.closed {
             return Err(TerminalInstanceError::Closed);
         }
-        let missing = self.unbound_imports().collect::<Vec<_>>();
+        let missing = self
+            .unbound_imports()
+            .filter(|boundary| {
+                self.execution
+                    .as_ref()
+                    .and_then(|execution| execution.boundary_supplies.get(boundary))
+                    != Some(&crate::effects::AdmittedBoundarySupply::DeferredComponent)
+            })
+            .collect::<Vec<_>>();
         if !missing.is_empty() {
             return Err(TerminalInstanceError::UnboundImports { missing });
         }
@@ -532,6 +570,20 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
         self.execution
             .as_ref()
             .and_then(|execution| execution.result())
+    }
+
+    /// Read a requested operation's actual result after successful normal entry
+    /// completion. This is an execution observation, not an admitted proof fact.
+    pub fn observed_entry_result(
+        &self,
+        machine: semantic_vocabulary::MachineId,
+        result: semantic_vocabulary::ValueId,
+    ) -> Result<crate::TerminalScalarValue, TerminalInstanceError> {
+        self.execution
+            .as_ref()
+            .ok_or(TerminalInstanceError::Closed)?
+            .observed_entry_result(machine, result)
+            .map_err(TerminalInstanceError::Execution)
     }
 
     /// Whether the entry invocation has reached a terminal outcome.
@@ -613,6 +665,9 @@ impl<'a, 'host> ImportDispatch<'a, 'host> {
             TerminalEffect::ComponentCall { .. } => Err(TerminalEffectRejection::new(
                 "a component completion receipt is not a host effect request",
             )),
+            TerminalEffect::MemoryFence { .. } => Err(TerminalEffectRejection::new(
+                "completed ordering observations are not host effect requests",
+            )),
             TerminalEffect::PortWrite { .. } => Err(TerminalEffectRejection::new(
                 "port output requires an admitted target-environment provider",
             )),
@@ -621,12 +676,49 @@ impl<'a, 'host> ImportDispatch<'a, 'host> {
 }
 
 impl TerminalEffectHandler for ImportDispatch<'_, '_> {
-    fn storage_arguments(&self, boundary: BoundaryMachineId) -> &[usize] {
-        self.bindings
-            .get(&boundary)
-            .map_or(&[], |binding| binding.adapter.storage_arguments(boundary))
+    fn poll_host_computation(
+        &mut self,
+        effect: &TerminalEffect,
+    ) -> Result<bool, TerminalEffectRejection> {
+        self.adapter_for(effect)?.poll_host_computation(effect)
     }
 
+    fn poll_effect_readiness(
+        &mut self,
+        effect: &TerminalEffect,
+    ) -> Result<bool, TerminalEffectRejection> {
+        self.adapter_for(effect)?.poll_effect_readiness(effect)
+    }
+
+    fn storage_requirements(
+        &self,
+        boundary: BoundaryMachineId,
+        scalar_arguments: &[TerminalScalarValue],
+    ) -> crate::TerminalCallStorageRequirements<'_> {
+        self.bindings.get(&boundary).map_or_else(
+            crate::TerminalCallStorageRequirements::default,
+            |binding| {
+                binding
+                    .adapter
+                    .storage_requirements(boundary, scalar_arguments)
+            },
+        )
+    }
+
+    fn prepare_original_storage(
+        &mut self,
+        boundary: BoundaryMachineId,
+        requests: &[crate::effects::original_storage::TerminalOriginalStorageRequest],
+    ) -> Result<
+        crate::effects::original_storage::TerminalOriginalScalarBackings,
+        TerminalEffectRejection,
+    > {
+        self.bindings
+            .get_mut(&boundary)
+            .ok_or_else(|| TerminalEffectRejection::new("original storage names no bound import"))?
+            .adapter
+            .prepare_original_storage(boundary, requests)
+    }
     fn handle_effect_with_buffers(
         &mut self,
         effect: &TerminalEffect,

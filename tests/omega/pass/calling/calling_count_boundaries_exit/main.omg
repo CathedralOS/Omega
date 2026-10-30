@@ -42,17 +42,17 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> inspect_destination(main, destination)
         false -> bad(main)
     }
-    state inspect_destination(main: &mut Main, destination: NativePlace) {
+    machine inspect_destination(main: &mut Main, destination: NativePlace) {
         transition destination {
             NativePlace::Field { field_path_count, parameter as _, layout as _, field_path as _ } -> inspect_count(main, field_path_count)
             _ -> bad(main)
         }
     }
-    state inspect_count(main: &mut Main, count: u64) {
+    machine inspect_count(main: &mut Main, count: u64) {
         transition count == 16 { true -> good(main) false -> bad(main) }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -1,6 +1,16 @@
 use diagnostics::Diagnostic;
 
-const COMPILE_STACK_SIZE: usize = 256 * 1024 * 1024;
+/// Stack budget for one compile invocation.
+///
+/// Checked lowering keeps whole fact tables, prepared frontends and probes by
+/// value, and a build-time product query lowers a demanded closure inside the
+/// preparation that issued it, so the frames nest. Every compile entry point
+/// provisions this budget explicitly rather than inheriting a host default:
+/// the CLI, this driver's compile thread, the parser stage, checking and proof
+/// admission each name a 256 MiB thread. A host that runs compiler work on a
+/// default-sized thread (2 MiB on macOS, 8 MiB for a process main thread) turns
+/// an ordinary deep fixture into a stack overflow, which no caller can catch.
+pub const COMPILE_STACK_SIZE: usize = 256 * 1024 * 1024;
 
 thread_local! {
     static ON_COMPILER_WORKER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
@@ -24,15 +34,7 @@ where
         return work();
     }
     std::thread::scope(|scope| {
-        std::thread::Builder::new()
-            .name("omega-compile".to_owned())
-            .stack_size(COMPILE_STACK_SIZE)
-            .spawn_scoped(scope, || {
-                // This dedicated thread exits with the invocation, including
-                // unwinding; the marker cannot escape into a reused host thread.
-                ON_COMPILER_WORKER.set(true);
-                work()
-            })
+        spawn_compile_worker(scope, work)
             .map_err(|error| {
                 Failure::from(vec![Diagnostic::error(format!(
                     "failed to spawn compiler thread: {error}"
@@ -41,4 +43,44 @@ where
             .join()
             .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
     })
+}
+
+/// Scoped compiler work uses the same stack and nesting marker as the public entrance.
+pub fn spawn_compile_worker<'scope, 'env, T>(
+    scope: &'scope std::thread::Scope<'scope, 'env>,
+    work: impl FnOnce() -> T + Send + 'scope,
+) -> std::io::Result<std::thread::ScopedJoinHandle<'scope, T>>
+where
+    T: Send + 'scope,
+{
+    std::thread::Builder::new()
+        .name("omega-compile".to_owned())
+        .stack_size(COMPILE_STACK_SIZE)
+        .spawn_scoped(scope, move || {
+            ON_COMPILER_WORKER.set(true);
+            work()
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scoped_worker_keeps_nested_compilation_on_its_large_stack() {
+        std::thread::scope(|scope| {
+            spawn_compile_worker(scope, || -> Result<(), Vec<Diagnostic>> {
+                let worker = std::thread::current().id();
+                let nested = run_on_compile_thread(|| {
+                    Ok::<_, Vec<Diagnostic>>(std::thread::current().id())
+                })?;
+                assert_eq!(worker, nested);
+                Ok(())
+            })
+            .unwrap()
+            .join()
+            .unwrap()
+            .unwrap();
+        });
+    }
 }

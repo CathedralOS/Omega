@@ -8,6 +8,6 @@ machine main() crashes Trap {
     let choice: Choice = Choice::Empty;
     let resident: u32 = observe(&choice);
     transition resident == 3 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

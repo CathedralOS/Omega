@@ -21,6 +21,8 @@ use crate::flow::{
     stored_values::{StoredObservation, StoredOperand},
 };
 
+mod frozen_references;
+
 pub(super) enum CapturedOrigins {
     Incoming,
     Exact(Vec<ProgressSubject>),
@@ -47,6 +49,11 @@ pub(super) fn at_call(
     let Some(epoch) = operands.last() else {
         return CapturedOrigins::Unavailable;
     };
+    // The roster authenticates expressions, not their evaluation epoch. This
+    // query consumes the final operand's completion prefix at this exact call.
+    if epoch.state_symbol != state.state_symbol || epoch.statement_index != call.statement_index {
+        return CapturedOrigins::Unavailable;
+    }
     let observation = validation::canonical_place_type_reference(
         program,
         state.state_symbol,
@@ -63,7 +70,9 @@ pub(super) fn at_call(
         observation,
     ) {
         None => CapturedOrigins::Incoming,
-        Some(StoredOperand::Unavailable) => CapturedOrigins::Unavailable,
+        Some(StoredOperand::Unavailable | StoredOperand::Incoming(_)) => {
+            CapturedOrigins::Unavailable
+        }
         Some(stored @ StoredOperand::Alternatives(_)) => {
             let Some(captures) = stored.captures() else {
                 return CapturedOrigins::Unavailable;
@@ -87,9 +96,7 @@ pub(super) fn at_call(
                     return CapturedOrigins::Unavailable;
                 };
                 for subject in subjects {
-                    if !joined.contains(&subject) {
-                        joined.push(subject);
-                    }
+                    crate::collections::push_unique(&mut joined, subject);
                 }
             }
             CapturedOrigins::Exact(joined)
@@ -98,6 +105,7 @@ pub(super) fn at_call(
             capture,
             reference,
             projection,
+            ..
         }) => {
             if !reference.is_valid() {
                 return CapturedOrigins::Unavailable;
@@ -141,12 +149,7 @@ fn resolve_captures(
             return None;
         }
         let capture = flow.control.operands.get(handle);
-        if !capture.type_reference.is_valid()
-            || !program
-                .expression_table
-                .expression_is_valid(capture.expression)
-            || capture.state_symbol != state.state_symbol
-        {
+        if !capture.type_reference.is_valid() || capture.state_symbol != state.state_symbol {
             return None;
         }
         // Refining a selector consumes one dimension before following a value
@@ -183,6 +186,85 @@ fn resolve_captures(
         let live = validation::reference_shell(program, selected_type).is_some()
             || (!projection.is_empty()
                 && validation::reference_shell(program, capture.type_reference).is_some());
+        // A synthetic returned descriptor is a checked completed value too.
+        // Select it before requiring an authored expression: its exact supplier
+        // association, rather than an invented source spelling, owns lineage.
+        if live {
+            let (operands, _) = flow::captured_call_operands(program, flow, state, call)?;
+            if let Some(stored) = validation::completed_storage::reference_captures_at_path(
+                program,
+                &flow.control,
+                handle,
+                &projection,
+                operands.last()?.storage_snapshot,
+            ) {
+                let selected = stored.captures()?;
+                if selected.is_empty() {
+                    return None;
+                }
+                if selected
+                    .iter()
+                    .any(|selected| selected.capture != handle || selected.projection != projection)
+                {
+                    for selected in selected {
+                        if !selected.reference.is_valid() {
+                            return None;
+                        }
+                        pending.push((selected.capture, selected.projection, ancestry.clone()));
+                    }
+                    continue;
+                }
+            }
+        }
+        // A returned descriptor's exact completed suppliers retain their
+        // own observations, including replacements in an owned input before
+        // the helper ran. Its nominal result and an AST substitution cannot
+        // replace those captured binding histories.
+        if live
+            && let Some(profiles) =
+                validation::completed_storage::captured_retention_profiles_at_path(
+                    program,
+                    &flow.control,
+                    capture,
+                    &projection,
+                )
+        {
+            let suppliers = profiles
+                .iter()
+                .map(|profile| {
+                    validation::completed_storage::descriptor_suppliers(
+                        &flow.control,
+                        *profile,
+                        &mut Vec::new(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            if suppliers.iter().any(Option::is_some) {
+                for suppliers in suppliers {
+                    let suppliers = suppliers?;
+                    if suppliers.is_empty() {
+                        return None;
+                    }
+                    for supplier in suppliers {
+                        pending.push((
+                            supplier.operand,
+                            flow.control
+                                .operand_retained_paths
+                                .span(supplier.projection)?
+                                .to_vec(),
+                            ancestry.clone(),
+                        ));
+                    }
+                }
+                continue;
+            }
+        }
+        if !program
+            .expression_table
+            .expression_is_valid(capture.expression)
+        {
+            return None;
+        }
         let direct = matches!(
             program.expression_table.expression(capture.expression),
             ExpressionNode::Borrow(_) | ExpressionNode::Call(_)
@@ -223,9 +305,7 @@ fn resolve_captures(
             live,
             frames,
         )? {
-            if !subjects.contains(&subject) {
-                subjects.push(subject);
-            }
+            crate::collections::push_unique(&mut subjects, subject);
         }
     }
     (!subjects.is_empty()).then_some(subjects)
@@ -298,15 +378,19 @@ fn resolve_leaf(
                 &resolve,
             )
             .unwrap_or(source);
+            if let Some(subject) = frozen_references::entry_subject(
+                program, flow, machine, state, call, capture, &source, frames,
+            ) {
+                crate::collections::push_unique(&mut subjects, subject);
+                continue;
+            }
             if !bindings_preserved(program, flow, state, call, capture, &source) {
                 return None;
             }
             for subject in
                 super::direct_at_place(program, flow, machine, state, call, source, Some(frames))?
             {
-                if !subjects.contains(&subject) {
-                    subjects.push(subject);
-                }
+                crate::collections::push_unique(&mut subjects, subject);
             }
         } else {
             let source = flow::trace_value_origin_before_statement(
@@ -329,9 +413,7 @@ fn resolve_leaf(
                 source.root,
                 &source.segments,
             )?;
-            if !subjects.contains(&subject) {
-                subjects.push(subject);
-            }
+            crate::collections::push_unique(&mut subjects, subject);
         }
     }
     (!subjects.is_empty()).then_some(subjects)

@@ -38,8 +38,8 @@ machine Main::main(main: &mut Main) reaches ProcessExit {
         true -> passed()
         false -> failed()
     }
-    state passed() { ProcessExit::exit_process(70); }
-    state failed() { ProcessExit::exit_process(77); }
+    machine passed() { ProcessExit::exit_process(70); }
+    machine failed() { ProcessExit::exit_process(77); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

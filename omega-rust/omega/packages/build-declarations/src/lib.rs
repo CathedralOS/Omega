@@ -17,6 +17,7 @@
 //! declarations confer no interpreter authority.
 
 mod build_declaration;
+mod build_request;
 mod declaration_errors;
 mod dependencies;
 mod direct_build_call;
@@ -30,6 +31,7 @@ pub use build_declaration::{
     BuildDeclarationKind, PackageDeclaration, ProjectName, WorkspaceDeclaration,
     WorkspaceMemberPath,
 };
+pub use build_request::{BuildDependencySource, BuildRequest};
 pub use declaration_errors::BuildDeclarationError;
 pub use dependencies::{
     DependencyOperation, DependencyPurpose, DependencyRow, DependencyRowError,

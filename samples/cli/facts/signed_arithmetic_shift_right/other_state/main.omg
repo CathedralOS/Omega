@@ -12,7 +12,7 @@ machine shift_right(val: i64, shift: u32) -> i64
     requires val >= 400i64 && val <= 400i64 && shift >= 2u32 && shift <= 2u32
 {
     transition { _ -> perform_shift(val, shift) }
-    state perform_shift(v: i64, s: u32)
+    machine perform_shift(v: i64, s: u32) -> i64
         requires v >= 400i64 && v <= 400i64 && s >= 2u32 && s <= 2u32
     {
         let shifted: i64 = v >> s;
@@ -35,6 +35,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

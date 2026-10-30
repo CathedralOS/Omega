@@ -9,58 +9,85 @@ machine verify_prod(value: i32) -> i32
     headroom + margin
 }
 
-linux_x86_64 machine target_probe(lhs: i32, rhs: i32) -> i32
-    requires lhs >= 10i32 && lhs <= 20i32 && rhs >= 5i32 && rhs <= 10i32
-{
-    let wl: i32 in Wrapping = lhs as i32 in Wrapping;
-    let wr: i32 in Wrapping = rhs as i32 in Wrapping;
-    let wp: i32 in Wrapping = wl * wr;
-    let prod: i32 = wp as i32;
-    verify_prod(prod)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine target_probe(lhs: i32, rhs: i32) -> i32
-    requires lhs >= 10i32 && lhs <= 20i32 && rhs >= 5i32 && rhs <= 10i32
-{
-    let wl: i32 in Wrapping = lhs as i32 in Wrapping;
-    let wr: i32 in Wrapping = rhs as i32 in Wrapping;
-    let wp: i32 in Wrapping = wl * wr;
-    let prod: i32 = wp as i32;
-    verify_prod(prod)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine target_probe(lhs: i32, rhs: i32) -> i32
-    requires lhs >= 10i32 && lhs <= 20i32 && rhs >= 5i32 && rhs <= 10i32
-{
-    let wl: i32 in Wrapping = lhs as i32 in Wrapping;
-    let wr: i32 in Wrapping = rhs as i32 in Wrapping;
-    let wp: i32 in Wrapping = wl * wr;
-    let prod: i32 = wp as i32;
-    verify_prod(prod)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine target_probe(lhs: i32, rhs: i32) -> i32
-    requires lhs >= 10i32 && lhs <= 20i32 && rhs >= 5i32 && rhs <= 10i32
-{
-    let wl: i32 in Wrapping = lhs as i32 in Wrapping;
-    let wr: i32 in Wrapping = rhs as i32 in Wrapping;
-    let wp: i32 in Wrapping = wl * wr;
-    let prod: i32 = wp as i32;
-    verify_prod(prod)
+boundary trait SelectedProbe {
+    machine target_probe(lhs: i32, rhs: i32) -> i32
+        reaches SelectedBodyCheck crashes Trap
+        requires lhs >= 10i32 && lhs <= 20i32 && rhs >= 5i32 && rhs <= 10i32;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine target_probe(lhs: i32, rhs: i32) -> i32
+        reaches SelectedBodyCheck crashes Trap
+        requires lhs >= 10i32 && lhs <= 20i32 && rhs >= 5i32 && rhs <= 10i32
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let wl: i32 in Wrapping = lhs as i32 in Wrapping;
+        let wr: i32 in Wrapping = rhs as i32 in Wrapping;
+        let wp: i32 in Wrapping = wl * wr;
+        let prod: i32 = wp as i32;
+        verify_prod(prod)
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine target_probe(lhs: i32, rhs: i32) -> i32
+        reaches SelectedBodyCheck crashes Trap
+        requires lhs >= 10i32 && lhs <= 20i32 && rhs >= 5i32 && rhs <= 10i32
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let wl: i32 in Wrapping = lhs as i32 in Wrapping;
+        let wr: i32 in Wrapping = rhs as i32 in Wrapping;
+        let wp: i32 in Wrapping = wl * wr;
+        let prod: i32 = wp as i32;
+        verify_prod(prod)
+    }
 }
 
 machine probe(lhs: i32, rhs: i32) -> i32
+    reaches SelectedProbe, SelectedBodyCheck crashes Trap
     requires lhs >= 10i32 && lhs <= 20i32 && rhs >= 5i32 && rhs <= 10i32
 {
-    target_probe(lhs, rhs)
+    SelectedProbe::target_probe(lhs, rhs)
 }
 
-machine main() crashes Trap {
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
     let combined: i32 = probe(15i32, 8i32);
     transition combined == 150i32 {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

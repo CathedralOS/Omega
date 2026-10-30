@@ -37,7 +37,7 @@ requires value in Tree::Empty;
 terminates;
 {
     transition { _ -> next(other, value) }
-    state next(unknown: Tree, known: Tree) -> Tree {
+    machine next(unknown: Tree, known: Tree) -> Tree {
         transition { _ -> (empty_only(known)) }
     }
 }
@@ -60,7 +60,7 @@ terminates;
     let first: Tree = make_empty(true);
     let second: Tree = preserve_empty(first);
     transition { _ -> next(second) }
-    state next(known: Tree) -> Tree {
+    machine next(known: Tree) -> Tree {
         transition known {
             Tree::Empty -> (empty_only(known))
             Tree::Node { marked as _, child } -> child

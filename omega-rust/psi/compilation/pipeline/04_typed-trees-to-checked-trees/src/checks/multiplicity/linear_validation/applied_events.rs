@@ -198,8 +198,8 @@ fn apply_recorded_consumption(
         // claim currently held at this place; matching a forged
         // outcome receipt cannot substitute another live source.
         diagnostics.push(Diagnostic::error(format!(
-                        "permission transfer for `{}` does not match its established claim identity and provenance",
-                        place.name
+                        "permission transfer for `{}` does not match its established claim identity and provenance: root {:?}, source {:?}, current {:?}/{:?}, transferred {:?}/{:?}",
+                        place.name, event.root, event.source, place.claim_identity, place.provenance, event.claim_identity, event.provenance
                     )));
     } else {
         place.live = false;

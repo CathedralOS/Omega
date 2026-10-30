@@ -1,4 +1,7 @@
-use super::{entry, layout_field_entry, layout_report, post_handoff_context, split_layout};
+use super::{
+    entry, layout_field_entry, layout_report, numbered_layout_field_entry, post_handoff_context,
+    split_layout,
+};
 use crate::{
     AggregateFieldSchema, AggregateFieldValue, ByteOrder, ConventionalSumCaseLayoutReport,
     ConventionalSumLayoutReport, ConventionalSumPayloadFieldLayoutReport, EntryStubId,
@@ -251,16 +254,16 @@ fn materializers_reject_layout_identity_aliases_before_observable_work() {
 
     let aggregate_layout = layout_report(
         vec![
-            LayoutFieldEntryReport {
-                field: "legacy_payload".into(),
-                member_identity: Some(9),
-                placement: LayoutPlacementReport::At { offset: 0 },
-            },
-            LayoutFieldEntryReport {
-                field: "forged_payload_alias".into(),
-                member_identity: Some(9),
-                placement: LayoutPlacementReport::At { offset: 4 },
-            },
+            numbered_layout_field_entry(
+                "legacy_payload".into(),
+                9,
+                LayoutPlacementReport::At { offset: 0 },
+            ),
+            numbered_layout_field_entry(
+                "forged_payload_alias".into(),
+                9,
+                LayoutPlacementReport::At { offset: 4 },
+            ),
         ],
         Some(vec![0, 4]),
         Some(8),
@@ -401,11 +404,11 @@ fn owned_aggregate_materializer_places_complete_values_atomically() {
 #[test]
 fn numbered_aggregate_materialization_rejoins_renamed_fields_by_identity() {
     let layout = layout_report(
-        vec![LayoutFieldEntryReport {
-            field: "legacy_payload".into(),
-            member_identity: Some(7),
-            placement: LayoutPlacementReport::At { offset: 4 },
-        }],
+        vec![numbered_layout_field_entry(
+            "legacy_payload".into(),
+            7,
+            LayoutPlacementReport::At { offset: 4 },
+        )],
         Some(vec![4]),
         Some(12),
         4,
@@ -442,10 +445,12 @@ fn numbered_aggregate_materialization_rejoins_renamed_fields_by_identity() {
         schema_report_fingerprint: 2,
         entries: [0, 8]
             .into_iter()
-            .map(|offset| LayoutFieldEntryReport {
-                field: "legacy_items".into(),
-                member_identity: Some(9),
-                placement: LayoutPlacementReport::At { offset },
+            .map(|offset| {
+                numbered_layout_field_entry(
+                    "legacy_items".into(),
+                    9,
+                    LayoutPlacementReport::At { offset },
+                )
             })
             .collect(),
         offsets: None,
@@ -843,11 +848,6 @@ fn aggregate_materialization_rejects_scalar_placement_misuse_atomically() {
         AggregateFieldValue::new("wide", [7; 16]).expect("wide"),
         AggregateFieldValue::new("zz", [9, 9, 9, 9]).expect("zz"),
     ];
-    let entry = |field: &str, placement| LayoutFieldEntryReport {
-        field: field.to_owned(),
-        member_identity: None,
-        placement,
-    };
     let base = |entries: Vec<LayoutFieldEntryReport>| LayoutPlanReport {
         schema_report_fingerprint: 1,
         entries,
@@ -857,8 +857,8 @@ fn aggregate_materialization_rejects_scalar_placement_misuse_atomically() {
     };
 
     let mixed = base(vec![
-        entry("id", LayoutPlacementReport::At { offset: 0 }),
-        entry(
+        layout_field_entry("id", LayoutPlacementReport::At { offset: 0 }),
+        layout_field_entry(
             "id",
             LayoutPlacementReport::Bits {
                 container: 4,
@@ -868,10 +868,10 @@ fn aggregate_materialization_rejects_scalar_placement_misuse_atomically() {
                 width: 8,
             },
         ),
-        entry("items", LayoutPlacementReport::At { offset: 8 }),
-        entry("items", LayoutPlacementReport::At { offset: 10 }),
-        entry("wide", LayoutPlacementReport::At { offset: 16 }),
-        entry("zz", LayoutPlacementReport::At { offset: 24 }),
+        layout_field_entry("items", LayoutPlacementReport::At { offset: 8 }),
+        layout_field_entry("items", LayoutPlacementReport::At { offset: 10 }),
+        layout_field_entry("wide", LayoutPlacementReport::At { offset: 16 }),
+        layout_field_entry("zz", LayoutPlacementReport::At { offset: 24 }),
     ]);
     let mut unchanged = [0xa5; 32];
     let error = materialize_aggregate_layout_into(
@@ -889,8 +889,8 @@ fn aggregate_materialization_rejects_scalar_placement_misuse_atomically() {
     assert_eq!(unchanged, [0xa5; 32]);
 
     let fragmented_array = base(vec![
-        entry("id", LayoutPlacementReport::At { offset: 0 }),
-        entry(
+        layout_field_entry("id", LayoutPlacementReport::At { offset: 0 }),
+        layout_field_entry(
             "items",
             LayoutPlacementReport::Bits {
                 container: 4,
@@ -900,8 +900,8 @@ fn aggregate_materialization_rejects_scalar_placement_misuse_atomically() {
                 width: 8,
             },
         ),
-        entry("wide", LayoutPlacementReport::At { offset: 16 }),
-        entry("zz", LayoutPlacementReport::At { offset: 24 }),
+        layout_field_entry("wide", LayoutPlacementReport::At { offset: 16 }),
+        layout_field_entry("zz", LayoutPlacementReport::At { offset: 24 }),
     ]);
     let error = materialize_aggregate_layout_into(
         &fragmented_array,
@@ -920,10 +920,10 @@ fn aggregate_materialization_rejects_scalar_placement_misuse_atomically() {
     assert_eq!(unchanged, [0xa5; 32]);
 
     let oversized_scalar = base(vec![
-        entry("id", LayoutPlacementReport::At { offset: 0 }),
-        entry("items", LayoutPlacementReport::At { offset: 8 }),
-        entry("items", LayoutPlacementReport::At { offset: 10 }),
-        entry(
+        layout_field_entry("id", LayoutPlacementReport::At { offset: 0 }),
+        layout_field_entry("items", LayoutPlacementReport::At { offset: 8 }),
+        layout_field_entry("items", LayoutPlacementReport::At { offset: 10 }),
+        layout_field_entry(
             "wide",
             LayoutPlacementReport::Bits {
                 container: 16,
@@ -933,7 +933,7 @@ fn aggregate_materialization_rejects_scalar_placement_misuse_atomically() {
                 width: 64,
             },
         ),
-        entry("zz", LayoutPlacementReport::At { offset: 24 }),
+        layout_field_entry("zz", LayoutPlacementReport::At { offset: 24 }),
     ]);
     let error = materialize_aggregate_layout_into(
         &oversized_scalar,
@@ -952,11 +952,11 @@ fn aggregate_materialization_rejects_scalar_placement_misuse_atomically() {
     // `zz` sorts after `items`, so the array's whole extents claim their bytes
     // before the stored-integer overlap check runs.
     let overlapping_stored = base(vec![
-        entry("id", LayoutPlacementReport::At { offset: 0 }),
-        entry("items", LayoutPlacementReport::At { offset: 8 }),
-        entry("items", LayoutPlacementReport::At { offset: 10 }),
-        entry("wide", LayoutPlacementReport::At { offset: 16 }),
-        entry(
+        layout_field_entry("id", LayoutPlacementReport::At { offset: 0 }),
+        layout_field_entry("items", LayoutPlacementReport::At { offset: 8 }),
+        layout_field_entry("items", LayoutPlacementReport::At { offset: 10 }),
+        layout_field_entry("wide", LayoutPlacementReport::At { offset: 16 }),
+        layout_field_entry(
             "zz",
             LayoutPlacementReport::IntegerAt {
                 offset: 8,
@@ -990,7 +990,7 @@ fn aggregate_materialization_rejects_scalar_placement_misuse_atomically() {
         AggregateFieldValue::new("zz", [9, 9, 9, 9]).expect("zz"),
     ];
     let stored = base(vec![
-        entry(
+        layout_field_entry(
             "id",
             LayoutPlacementReport::IntegerAt {
                 offset: 0,
@@ -998,10 +998,10 @@ fn aggregate_materialization_rejects_scalar_placement_misuse_atomically() {
                 interpretation: IntegerInterpretation::Unsigned,
             },
         ),
-        entry("items", LayoutPlacementReport::At { offset: 8 }),
-        entry("items", LayoutPlacementReport::At { offset: 10 }),
-        entry("wide", LayoutPlacementReport::At { offset: 16 }),
-        entry("zz", LayoutPlacementReport::At { offset: 24 }),
+        layout_field_entry("items", LayoutPlacementReport::At { offset: 8 }),
+        layout_field_entry("items", LayoutPlacementReport::At { offset: 10 }),
+        layout_field_entry("wide", LayoutPlacementReport::At { offset: 16 }),
+        layout_field_entry("zz", LayoutPlacementReport::At { offset: 24 }),
     ]);
     let error = materialize_aggregate_layout_into(
         &stored,
@@ -1022,33 +1022,33 @@ fn aggregate_materialization_rejects_scalar_placement_misuse_atomically() {
 fn numbered_scalar_materialization_and_decode_rejoin_renamed_fields_by_identity() {
     let layout = layout_report(
         vec![
-            LayoutFieldEntryReport {
-                field: "legacy_counter".into(),
-                member_identity: Some(7),
-                placement: LayoutPlacementReport::Bits {
+            numbered_layout_field_entry(
+                "legacy_counter".into(),
+                7,
+                LayoutPlacementReport::Bits {
                     container: 0,
                     container_width: 8,
                     destination_lsb: 0,
                     source_lsb: 0,
                     width: 8,
                 },
-            },
-            LayoutFieldEntryReport {
-                field: "legacy_counter".into(),
-                member_identity: Some(7),
-                placement: LayoutPlacementReport::Bits {
+            ),
+            numbered_layout_field_entry(
+                "legacy_counter".into(),
+                7,
+                LayoutPlacementReport::Bits {
                     container: 1,
                     container_width: 8,
                     destination_lsb: 0,
                     source_lsb: 8,
                     width: 8,
                 },
-            },
-            LayoutFieldEntryReport {
-                field: "legacy_status".into(),
-                member_identity: Some(9),
-                placement: LayoutPlacementReport::At { offset: 2 },
-            },
+            ),
+            numbered_layout_field_entry(
+                "legacy_status".into(),
+                9,
+                LayoutPlacementReport::At { offset: 2 },
+            ),
         ],
         None,
         Some(4),

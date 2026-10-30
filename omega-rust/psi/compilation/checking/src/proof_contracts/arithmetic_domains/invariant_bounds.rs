@@ -21,7 +21,7 @@
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
     PrimitiveType, SignatureContractKind, State, TableCallExpression, TypeReferenceHandle,
-    TypeReferenceNode, enforced_declared_range, literal_i64,
+    enforced_declared_range, literal_i64,
 };
 use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
 use language_core::OperatorSpelling;
@@ -49,12 +49,9 @@ fn exact_integer_primitive(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
-    let mut carrier_type = type_reference;
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(carrier_type)
-    {
-        carrier_type = *base_type;
-    }
+    let carrier_type = program
+        .type_reference_table
+        .unconstrained_type_reference(type_reference);
     let symbol = &program
         .type_reference_table
         .type_reference(carrier_type)
@@ -559,12 +556,9 @@ fn bounds(
                 typed_trees::closed_numeric::land_integer(value, primitive)?;
             }
             // Arithmetic results retain the carrier, not operand refinements.
-            let mut result_type = left.type_reference.or(right.type_reference)?;
-            while let TypeReferenceNode::Constrained { base_type, .. } =
-                program.type_reference_table.type_reference(result_type)
-            {
-                result_type = *base_type;
-            }
+            let result_type = program
+                .type_reference_table
+                .unconstrained_type_reference(left.type_reference.or(right.type_reference)?);
             let carrier = primitive_range(primitive)?;
             // Anonymous operands land at the already-typed operation. A small
             // result is not evidence that an out-of-range operand can land.
@@ -719,12 +713,9 @@ fn unsigned_bitwise_bounds(
         }
         _ => return None,
     };
-    let mut result_type = left.type_reference?;
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(result_type)
-    {
-        result_type = *base_type;
-    }
+    let result_type = program
+        .type_reference_table
+        .unconstrained_type_reference(left.type_reference?);
     Some(Bounds {
         interval,
         constant_value: None,
@@ -831,27 +822,15 @@ fn declared_ensures_result_interval(
     {
         return cached;
     }
-    let mut interval = Interval::UNBOUNDED;
-    let ensures = program
-        .machine_contracts(machine)
-        .iter()
-        .chain(program.state_contracts(entry))
-        .filter(|contract| contract.kind == SignatureContractKind::Ensures)
-        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts));
-    for fact in ensures {
-        let Some(expression) = fact.as_expression() else {
-            continue;
-        };
-        // Literal bounds only: a conjunct naming callee state would compare
-        // against a post-return snapshot the caller cannot see.
-        if let Some(bound) =
-            boolean_subject_interval(program, machine, entry, *expression, true, &|subject| {
-                program.expression_table.names_reserved_result(subject)
-            })
-        {
-            interval = interval.intersect(bound);
-        }
-    }
+    let interval = contract_subject_interval(
+        program,
+        machine,
+        entry,
+        program.machine_contracts(machine),
+        SignatureContractKind::Ensures,
+        true,
+        &|subject| program.expression_table.names_reserved_result(subject),
+    );
     if let Some((memos, key)) = key
         && let Ok(mut guard) = memos.parameter_requires_intervals.lock()
     {
@@ -965,6 +944,99 @@ fn binder_requirement_facts(
         .collect()
 }
 
+/// Fold every Boolean fact of the machine's and the state's contracts of
+/// `kind` into the interval each proves for the subject `names_subject` names.
+/// A fact that does not constrain the subject supplies nothing.
+fn contract_subject_interval(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    machine_contracts: &[typed_trees::signature::SignatureContract],
+    kind: SignatureContractKind,
+    literal_bounds_only: bool,
+    names_subject: &impl Fn(ExpressionHandle) -> bool,
+) -> Interval {
+    let mut interval = Interval::UNBOUNDED;
+    for contract in machine_contracts
+        .iter()
+        .chain(program.state_contracts(state))
+    {
+        if contract.kind != kind {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let Some(expression) = fact.as_expression() else {
+                continue;
+            };
+            if let Some(bound) = boolean_subject_interval(
+                program,
+                machine,
+                state,
+                *expression,
+                literal_bounds_only,
+                names_subject,
+            ) {
+                interval = interval.intersect(bound);
+            }
+        }
+    }
+    interval
+}
+
+/// Integer bound a Boolean proof formula gives one subject: `names_subject`
+/// selects the operand that denotes it and `operand_interval` supplies the
+/// bound that operand's comparison establishes. `None` means the formula does
+/// not constrain the subject. Conjunction keeps a bound from either side.
+/// Disjunction keeps a bound only when both sides constrain the subject, and
+/// then only their convex hull: the hull is sound for overflow, and a
+/// one-sided alternative would invent a bound the other alternative never
+/// proved.
+fn subject_fact_interval(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    names_subject: &impl Fn(ExpressionHandle) -> bool,
+    operand_interval: &impl Fn(ExpressionHandle) -> Option<Interval>,
+) -> Option<Interval> {
+    let (operator, left, right) = {
+        let binary = program.expression_table.binary_node(expression)?;
+        (binary.operator, binary.left, binary.right)
+    };
+    let recurse = |expression| {
+        subject_fact_interval(
+            program,
+            machine,
+            state,
+            expression,
+            names_subject,
+            operand_interval,
+        )
+    };
+    match operator {
+        BinaryOperator::And => match (recurse(left), recurse(right)) {
+            (Some(left_bound), Some(right_bound)) => Some(left_bound.intersect(right_bound)),
+            (Some(bound), None) | (None, Some(bound)) => Some(bound),
+            (None, None) => None,
+        },
+        BinaryOperator::Or => Some(recurse(left)?.union(recurse(right)?)),
+        _ => comparison_subject_interval(
+            program,
+            machine,
+            state,
+            expression,
+            operator,
+            left,
+            right,
+            names_subject,
+            operand_interval,
+        ),
+    }
+}
+
+/// Machine `requires` on an integer binder: the subject is the binder symbol
+/// and an operand bound is a literal, a place whose stores enforce it, or the
+/// binder's interval from the previous round.
 fn binder_fact_interval(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -974,73 +1046,20 @@ fn binder_fact_interval(
     binders: &[(SymbolHandle, Interval)],
     previous: &[Interval],
 ) -> Option<Interval> {
-    let (operator, left, right) = {
-        let binary = program.expression_table.binary_node(expression)?;
-        (binary.operator, binary.left, binary.right)
-    };
-    match operator {
-        BinaryOperator::And => {
-            let left_bound = binder_fact_interval(
-                program,
-                machine,
-                state,
-                left,
-                subject_symbol,
-                binders,
-                previous,
-            );
-            let right_bound = binder_fact_interval(
-                program,
-                machine,
-                state,
-                right,
-                subject_symbol,
-                binders,
-                previous,
-            );
-            match (left_bound, right_bound) {
-                (Some(left_bound), Some(right_bound)) => Some(left_bound.intersect(right_bound)),
-                (Some(bound), None) | (None, Some(bound)) => Some(bound),
-                (None, None) => None,
-            }
-        }
-        BinaryOperator::Or => {
-            let left_bound = binder_fact_interval(
-                program,
-                machine,
-                state,
-                left,
-                subject_symbol,
-                binders,
-                previous,
-            )?;
-            let right_bound = binder_fact_interval(
-                program,
-                machine,
-                state,
-                right,
-                subject_symbol,
-                binders,
-                previous,
-            )?;
-            Some(left_bound.union(right_bound))
-        }
-        _ => binder_comparison_interval(
-            program,
-            machine,
-            state,
-            expression,
-            operator,
-            left,
-            right,
-            subject_symbol,
-            binders,
-            previous,
-        ),
-    }
+    subject_fact_interval(
+        program,
+        machine,
+        state,
+        expression,
+        &|subject| named_symbol(program, subject) == Some(subject_symbol),
+        &|operand| binder_operand_interval(program, machine, state, operand, binders, previous),
+    )
 }
 
-fn binder_comparison_interval(
+/// The comparison leaves of a subject fact walk: only exact builtin orderings
+/// and equalities contribute, and only on an operand the caller names as the
+/// subject.
+fn comparison_subject_interval(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
@@ -1048,9 +1067,8 @@ fn binder_comparison_interval(
     operator: BinaryOperator,
     left: ExpressionHandle,
     right: ExpressionHandle,
-    subject_symbol: SymbolHandle,
-    binders: &[(SymbolHandle, Interval)],
-    previous: &[Interval],
+    names_subject: &impl Fn(ExpressionHandle) -> bool,
+    operand_interval: &impl Fn(ExpressionHandle) -> Option<Interval>,
 ) -> Option<Interval> {
     let builtin = match operator {
         BinaryOperator::Equal => {
@@ -1065,12 +1083,10 @@ fn binder_comparison_interval(
     }
     let mut interval: Option<Interval> = None;
     for (subject, operand, subject_on_left) in [(left, right, true), (right, left, false)] {
-        if named_symbol(program, subject) != Some(subject_symbol) {
+        if !names_subject(subject) {
             continue;
         }
-        let Some(bound) =
-            binder_operand_interval(program, machine, state, operand, binders, previous)
-        else {
+        let Some(bound) = operand_interval(operand) else {
             continue;
         };
         let compared =
@@ -1164,24 +1180,15 @@ fn requires_interval(
     } else {
         &[]
     };
-    let mut interval = Interval::UNBOUNDED;
-    let requires = machine_contracts
-        .iter()
-        .chain(program.state_contracts(state))
-        .filter(|contract| contract.kind == SignatureContractKind::Requires)
-        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts));
-    for fact in requires {
-        let Some(expression) = fact.as_expression() else {
-            continue;
-        };
-        if let Some(bound) =
-            boolean_subject_interval(program, machine, state, *expression, false, &|subject| {
-                names_parameter(program, subject, parameter)
-            })
-        {
-            interval = interval.intersect(bound);
-        }
-    }
+    let interval = contract_subject_interval(
+        program,
+        machine,
+        state,
+        machine_contracts,
+        SignatureContractKind::Requires,
+        false,
+        &|subject| names_parameter(program, subject, parameter),
+    );
     if let Some((memos, key)) = key
         && let Ok(mut guard) = memos.parameter_requires_intervals.lock()
     {
@@ -1201,13 +1208,9 @@ fn names_parameter(
             if path.symbol == parameter && path.head_symbol == path.symbol
     )
 }
-
-/// Integer bound a boolean proof formula gives one subject. `None` means the
-/// formula does not constrain that subject. Conjunction keeps a bound from
-/// either side. Disjunction keeps a bound only when both sides constrain the
-/// subject, and then only their convex hull: the hull is sound for overflow,
-/// and a one-sided alternative would invent a bound the other alternative
-/// never proved.
+/// Integer bound a Boolean proof formula gives one subject. `None` means the
+/// formula does not constrain that subject; `subject_fact_interval` owns the
+/// conjunction/disjunction hull every fact walk shares.
 fn boolean_subject_interval(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -1216,115 +1219,34 @@ fn boolean_subject_interval(
     literal_bounds_only: bool,
     names_subject: &impl Fn(ExpressionHandle) -> bool,
 ) -> Option<Interval> {
-    let (operator, left, right) = {
-        let binary = program.expression_table.binary_node(expression)?;
-        (binary.operator, binary.left, binary.right)
-    };
-    match operator {
-        BinaryOperator::And => {
-            let left_bound = boolean_subject_interval(
-                program,
-                machine,
-                state,
-                left,
-                literal_bounds_only,
-                names_subject,
-            );
-            let right_bound = boolean_subject_interval(
-                program,
-                machine,
-                state,
-                right,
-                literal_bounds_only,
-                names_subject,
-            );
-            match (left_bound, right_bound) {
-                (Some(left_bound), Some(right_bound)) => Some(left_bound.intersect(right_bound)),
-                (Some(bound), None) | (None, Some(bound)) => Some(bound),
-                (None, None) => None,
-            }
-        }
-        BinaryOperator::Or => {
-            let left_bound = boolean_subject_interval(
-                program,
-                machine,
-                state,
-                left,
-                literal_bounds_only,
-                names_subject,
-            )?;
-            let right_bound = boolean_subject_interval(
-                program,
-                machine,
-                state,
-                right,
-                literal_bounds_only,
-                names_subject,
-            )?;
-            Some(left_bound.union(right_bound))
-        }
-        _ => comparison_subject_interval(
-            program,
-            machine,
-            state,
-            expression,
-            operator,
-            left,
-            right,
-            literal_bounds_only,
-            names_subject,
-        ),
-    }
+    subject_fact_interval(
+        program,
+        machine,
+        state,
+        expression,
+        names_subject,
+        &|operand| subject_operand_interval(program, machine, state, operand, literal_bounds_only),
+    )
 }
 
-fn comparison_subject_interval(
+/// A subject comparison's operand bound: a literal end, or -- unless the caller
+/// admits literal ends only -- a place whose stores enforce the bound. A
+/// conjunct naming callee state compares against a post-return snapshot the
+/// caller cannot see, so it supplies no bound.
+fn subject_operand_interval(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    expression: ExpressionHandle,
-    operator: BinaryOperator,
-    left: ExpressionHandle,
-    right: ExpressionHandle,
+    operand: ExpressionHandle,
     literal_bounds_only: bool,
-    names_subject: &impl Fn(ExpressionHandle) -> bool,
 ) -> Option<Interval> {
-    let builtin = match operator {
-        BinaryOperator::Equal => {
-            super::guard_narrowing::has_builtin_equality(program, machine, Some(state), expression)
-        }
-        _ => {
-            super::guard_narrowing::has_builtin_ordering(program, machine, Some(state), expression)
-        }
-    };
-    if !builtin {
-        return None;
-    }
-    let mut interval: Option<Interval> = None;
-    for (subject, operand, subject_on_left) in [(left, right, true), (right, left, false)] {
-        if !names_subject(subject) {
-            continue;
-        }
-        let Some(bound) = literal_i64(program, operand)
-            .map(Interval::constant)
-            .or_else(|| {
-                if literal_bounds_only {
-                    None
-                } else {
-                    stored_place_interval(program, machine, state, operand)
-                }
-            })
-        else {
-            continue;
-        };
-        let compared =
-            super::guard_narrowing::comparison_interval(operator, bound, subject_on_left);
-        if compared.low.is_none() && compared.high.is_none() {
-            continue;
-        }
-        interval = Some(match interval {
-            Some(existing) => existing.intersect(compared),
-            None => compared,
-        });
-    }
-    interval
+    literal_i64(program, operand)
+        .map(Interval::constant)
+        .or_else(|| {
+            if literal_bounds_only {
+                None
+            } else {
+                stored_place_interval(program, machine, state, operand)
+            }
+        })
 }

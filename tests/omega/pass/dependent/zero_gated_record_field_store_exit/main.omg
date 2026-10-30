@@ -28,10 +28,10 @@ machine wound(player: &mut Player) {
         true -> subtracted(player)
         _ -> done()
     }
-    state subtracted(player: &mut Player) {
+    machine subtracted(player: &mut Player) {
         player.health = player.health - 30;
     }
-    state done() {}
+    machine done() {}
 }
 
 // Nested carrier: the gated record sits below a field of the parameter.
@@ -45,10 +45,10 @@ machine rally(team: &mut Team, bonus: i32) {
         true -> raised(team)
         _ -> done()
     }
-    state raised(team: &mut Team) {
+    machine raised(team: &mut Team) {
         team.lead.health = 30;
     }
-    state done() {}
+    machine done() {}
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -65,7 +65,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         _ -> finish(main, 71)
     }
-    state finish(main: &mut Main, code: i32) {
+    machine finish(main: &mut Main, code: i32) {
         Console::exit_process(code);
     }
 }

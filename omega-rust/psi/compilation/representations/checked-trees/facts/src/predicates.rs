@@ -21,7 +21,7 @@ pub use integer_math::{CheckedIntegerMathExpression, CheckedIntegerMathTerm};
 /// another subslice). A view local is an established view place exactly as a whole
 /// view parameter is, so lengths, element reads and subslices take this one
 /// root instead of a parameter-only coordinate plus a local-only twin.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedStorageRoot {
     /// A structural state parameter, numbered in the holder's own parameter
     /// namespace: subslice sources count the dense structural parameter
@@ -49,21 +49,69 @@ impl CheckedStorageRoot {
     }
 }
 
+/// A source selector or a closed coordinate. Closed slice coordinates still
+/// require an observation of their own descriptor extent; they are not static
+/// array geometry and never borrow an unrelated authored indexing occurrence.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedEntryIndexSelector {
+    Expression(typed_trees::expression::ExpressionHandle),
+    Constant(u64),
+}
+
+/// An indexed entry observation whose formation was proved in its own
+/// invocation telescope. Geometry-only queries never produce this record.
+/// The exact selector and collection are retained through rank publication;
+/// lowering consumes the decision without assuming a later branch guard.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedEntryIndexBound {
+    pub state: SymbolHandle,
+    pub parameter: SymbolHandle,
+    pub path_step: u32,
+    pub selector: CheckedEntryIndexSelector,
+    pub collection_path: Vec<crate::PlaceSegment>,
+    pub collection_type: typed_trees::types::TypeReferenceHandle,
+    pub element_type: typed_trees::types::TypeReferenceHandle,
+    /// None denotes the exact collection_path descriptor's checked entry length.
+    pub extent: Option<u64>,
+    pub primitive_type: typed_trees::types::PrimitiveType,
+}
+
+impl Default for CheckedEntryIndexBound {
+    fn default() -> Self {
+        Self {
+            state: SymbolHandle::invalid(),
+            parameter: SymbolHandle::invalid(),
+            path_step: 0,
+            selector: CheckedEntryIndexSelector::Expression(
+                typed_trees::expression::ExpressionHandle::invalid(),
+            ),
+            collection_path: Vec::new(),
+            collection_type: typed_trees::types::TypeReferenceHandle::invalid(),
+            element_type: typed_trees::types::TypeReferenceHandle::invalid(),
+            extent: Some(0),
+            primitive_type: typed_trees::types::PrimitiveType::U64,
+        }
+    }
+}
+
 /// One evaluated selector and the authored indexing occurrence it selects for.
 /// The occurrence names `collection[index]`, not its index operand: equal
 /// operands can select different extents. Generated selectors use the zero
 /// handle and cannot consume an authored bounds decision. Source plans retain
 /// these rows without interning them by value.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarSelector {
     pub expression: CheckedScalarExpression,
     pub occurrence: typed_trees::expression::ExpressionHandle,
+    /// Generated entry observations retain their independently checked bound.
+    /// Authored reads instead use `occurrence`; the two authorities are exclusive.
+    pub entry_bound: Option<CheckedEntryIndexBound>,
 }
 
 /// Scalar read paths retain evaluated selectors beside static member geometry.
 /// This is executable occurrence custody, not the canonical geometry used as
 /// a fact key. Member-separated and consecutive indexes take the same path.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarReadProjection {
     Static(CheckedStructuralPredicatePathSegment),
     RuntimeIndex(CheckedScalarSelector),
@@ -89,8 +137,17 @@ impl CheckedScalarReadProjection {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarExpression {
+    /// An admitted constant application whose value belongs to target closure.
+    /// This is not an unknown runtime value or permission to evaluate source.
+    /// Contract composition preserves the exact recipe and carrier until the
+    /// value owner supplies a closed atom; publication cannot erase this leaf.
+    ConstantApplication {
+        recipe: typed_trees::constant_recipes::ConstantRecipeHandle,
+        owner: symbols::SymbolHandle,
+        primitive_type: typed_trees::types::PrimitiveType,
+    },
     /// Exact u64 live count at one storage projection, never its capacity.
     /// The root counts authored structural positions; selectors keep their
     /// consuming scalar namespace and indexing proof occurrence. Element views
@@ -129,6 +186,9 @@ pub enum CheckedScalarExpression {
     /// program-point value snapshots retain this form; ordinary scalar native
     /// execution plans still reject it.
     StructuralParameterField {
+        /// The actual read occurrence for current Flow binding. Formal and
+        /// generated algebra has no observation and retains declared subjects.
+        observation: typed_trees::expression::ExpressionHandle,
         parameter_position: u32,
         path: Vec<CheckedStructuralPredicatePathSegment>,
         primitive_type: typed_trees::types::PrimitiveType,
@@ -142,6 +202,9 @@ pub enum CheckedScalarExpression {
     /// evaluated selectors. Every selector owns its own `index < extent`
     /// obligation; selectors are never folded into one flattened coordinate.
     StructuralParameterIndexedRead {
+        /// The authored read whose completed address supplies current facts.
+        /// Generated algebra has no source occurrence and cannot seed one.
+        observation: typed_trees::expression::ExpressionHandle,
         root: CheckedStorageRoot,
         path: Vec<CheckedStructuralPredicatePathSegment>,
         index: Box<CheckedScalarSelector>,
@@ -172,8 +235,12 @@ pub enum CheckedScalarExpression {
         /// excluded `MIN / -1` pair; an Exact sum, difference or product's
         /// representability). Lowering marks the emitted operation so its
         /// obligation consumes the decision; false keeps the certificate
-        /// search.
+        /// search. This is independent of permitted runtime traps.
         formation_decided: bool,
+        /// Checking proved this occurrence's Exact counterpart forms over all
+        /// observed arrivals. This excludes runtime Trap while preserving the
+        /// selected Trapping policy and its separate formation obligation.
+        trap_free: bool,
     },
     IntegerBitwiseNot {
         primitive_type: typed_trees::types::PrimitiveType,
@@ -237,44 +304,108 @@ pub fn u64_integer_literal(
 }
 
 impl CheckedScalarExpression {
+    /// The complete declaration-relative geometry of a parameter observation.
+    /// Executable selectors must be literal to become path segments; existing
+    /// static segments retain their identities. Each consumer independently
+    /// admits its path vocabulary, type, access and current-value evidence.
+    /// This does not replace the executable read or its bounds occurrence.
+    pub fn parameter_observation_projection(&self) -> Option<CheckedStructuralParameterField> {
+        let (parameter_position, path) = match self {
+            Self::StructuralParameterField {
+                parameter_position,
+                path,
+                ..
+            } => (*parameter_position, path.clone()),
+            Self::StructuralParameterIndexedRead {
+                root,
+                path,
+                index,
+                element_path,
+                ..
+            } => {
+                let mut projections = path
+                    .iter()
+                    .cloned()
+                    .map(CheckedScalarReadProjection::Static)
+                    .collect::<Vec<_>>();
+                projections.push(CheckedScalarReadProjection::RuntimeIndex(
+                    index.as_ref().clone(),
+                ));
+                projections.extend_from_slice(element_path);
+                (
+                    root.parameter()?,
+                    CheckedScalarReadProjection::static_path(&projections)?,
+                )
+            }
+            _ => return None,
+        };
+        Some(CheckedStructuralParameterField {
+            parameter_position,
+            path,
+        })
+    }
+
     /// Whether evaluating this expression executes any Trapping primitive,
     /// i.e. whether it owns an operation-level `Trap` crash site.
     /// Boolean subterms are inspected through their integer
     /// comparisons.
     pub fn contains_trapping_operation(&self) -> bool {
+        self.contains_trapping_operation_with_certificates(false)
+    }
+
+    /// Runtime trap possibilities after independently checked formation.
+    pub fn contains_possible_trapping_operation(&self) -> bool {
+        self.contains_trapping_operation_with_certificates(true)
+    }
+
+    pub(crate) fn contains_trapping_operation_with_certificates(
+        &self,
+        use_certificates: bool,
+    ) -> bool {
         match self {
             Self::IntegerBinary {
-                kind, left, right, ..
+                kind,
+                left,
+                right,
+                trap_free,
+                ..
             } => {
-                kind.is_trapping()
-                    || left.contains_trapping_operation()
-                    || right.contains_trapping_operation()
+                (kind.is_trapping() && !(use_certificates && *trap_free))
+                    || left.contains_trapping_operation_with_certificates(use_certificates)
+                    || right.contains_trapping_operation_with_certificates(use_certificates)
             }
             Self::IntegerBitwiseNot { operand, .. }
             | Self::IntegerWiden { operand, .. }
             | Self::IntegerExactCast { operand, .. }
-            | Self::RepresentationView { operand, .. } => operand.contains_trapping_operation(),
+            | Self::RepresentationView { operand, .. } => {
+                operand.contains_trapping_operation_with_certificates(use_certificates)
+            }
             Self::StructuralParameterIndexedRead {
                 index,
                 element_path,
                 ..
             } => {
-                index.expression.contains_trapping_operation()
+                index
+                    .expression
+                    .contains_trapping_operation_with_certificates(use_certificates)
                     || element_path.iter().any(|projection| match projection {
                         CheckedScalarReadProjection::Static(_) => false,
-                        CheckedScalarReadProjection::RuntimeIndex(selector) => {
-                            selector.expression.contains_trapping_operation()
-                        }
+                        CheckedScalarReadProjection::RuntimeIndex(selector) => selector
+                            .expression
+                            .contains_trapping_operation_with_certificates(use_certificates),
                     })
             }
-            Self::Boolean(expression) => expression.contains_trapping_operation(),
+            Self::Boolean(expression) => {
+                expression.contains_trapping_operation_with_certificates(use_certificates)
+            }
             Self::StructuralSequenceLength { path, .. } => path.iter().any(|step| match step {
                 CheckedScalarReadProjection::Static(_) => false,
-                CheckedScalarReadProjection::RuntimeIndex(selector) => {
-                    selector.expression.contains_trapping_operation()
-                }
+                CheckedScalarReadProjection::RuntimeIndex(selector) => selector
+                    .expression
+                    .contains_trapping_operation_with_certificates(use_certificates),
             }),
-            Self::StorageRead { .. }
+            Self::ConstantApplication { .. }
+            | Self::StorageRead { .. }
             | Self::Parameter { .. }
             | Self::ErasedParameter { .. }
             | Self::Local { .. }
@@ -291,7 +422,8 @@ impl CheckedScalarExpression {
         use typed_trees::types::PrimitiveType;
         match self {
             Self::StructuralSequenceLength { .. } => Some(PrimitiveType::U64),
-            Self::Parameter { primitive_type, .. }
+            Self::ConstantApplication { primitive_type, .. }
+            | Self::Parameter { primitive_type, .. }
             | Self::ErasedParameter { primitive_type, .. }
             | Self::StorageRead { primitive_type, .. }
             | Self::Local { primitive_type, .. }
@@ -315,7 +447,7 @@ impl CheckedScalarExpression {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedIntegerBinaryKind {
     ExactAdd,
     ExactSubtract,
@@ -373,7 +505,7 @@ impl CheckedIntegerBinaryKind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedBooleanExpression {
     StorageRead {
         symbol: SymbolHandle,
@@ -394,6 +526,8 @@ pub enum CheckedBooleanExpression {
     /// parameter. Terminal production resolves every authored identity to the
     /// canonical structural field ID at that exact type level.
     StructuralParameterField {
+        /// The actual read occurrence; zero denotes formal/generated algebra.
+        observation: typed_trees::expression::ExpressionHandle,
         parameter_position: u32,
         path: Vec<CheckedStructuralPredicatePathSegment>,
     },
@@ -480,17 +614,34 @@ impl CheckedBooleanExpression {
     /// Whether evaluating this condition executes a Trapping primitive in
     /// one of its integer operands.
     pub fn contains_trapping_operation(&self) -> bool {
+        self.contains_trapping_operation_with_certificates(false)
+    }
+
+    /// Runtime trap possibilities after independently checked formation.
+    pub fn contains_possible_trapping_operation(&self) -> bool {
+        self.contains_trapping_operation_with_certificates(true)
+    }
+
+    pub(crate) fn contains_trapping_operation_with_certificates(
+        &self,
+        use_certificates: bool,
+    ) -> bool {
         match self {
-            Self::Not(operand) => operand.contains_trapping_operation(),
+            Self::Not(operand) => {
+                operand.contains_trapping_operation_with_certificates(use_certificates)
+            }
             Self::Equal { left, right } | Self::And { left, right } | Self::Or { left, right } => {
-                left.contains_trapping_operation() || right.contains_trapping_operation()
+                left.contains_trapping_operation_with_certificates(use_certificates)
+                    || right.contains_trapping_operation_with_certificates(use_certificates)
             }
             Self::IntegerComparison { left, right, .. }
             | Self::ScalarIeeeFloatComparison { left, right, .. } => {
-                left.contains_trapping_operation() || right.contains_trapping_operation()
+                left.contains_trapping_operation_with_certificates(use_certificates)
+                    || right.contains_trapping_operation_with_certificates(use_certificates)
             }
             Self::IntegerMathComparison { left, right, .. } => {
-                left.contains_trapping_operation() || right.contains_trapping_operation()
+                left.contains_trapping_operation_with_certificates(use_certificates)
+                    || right.contains_trapping_operation_with_certificates(use_certificates)
             }
             Self::StorageRead { .. }
             | Self::Constant(_)
@@ -509,7 +660,7 @@ impl CheckedBooleanExpression {
 
 pub use semantic_vocabulary::IeeeFloatComparisonKind as CheckedIeeeFloatComparisonKind;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct CheckedStructuralParameterField {
     pub parameter_position: u32,
     pub path: Vec<CheckedStructuralPredicatePathSegment>,
@@ -519,7 +670,7 @@ pub struct CheckedStructuralParameterField {
 /// whether a parameter, local record or local view supplies that storage.
 /// Entry-contract facts can project this to a parameter field; local runtime
 /// observations cannot acquire entry provenance through that conversion.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedByteSequenceOperand {
     pub root: CheckedStorageRoot,
     pub path: Vec<CheckedStructuralPredicatePathSegment>,
@@ -548,13 +699,13 @@ impl CheckedByteSequenceOperand {
 
 /// Case facts name storage, not a dense scalar operand. A normal-return result
 /// has its own declared place; it must never alias an entry parameter ordinal.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum CheckedStructuralCaseRoot {
     Parameter { position: u32 },
     Result,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct CheckedStructuralCaseSubject {
     pub root: CheckedStructuralCaseRoot,
     pub path: Vec<CheckedStructuralPredicatePathSegment>,
@@ -584,8 +735,11 @@ impl CheckedStructuralCaseSubject {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum CheckedStructuralPredicatePathSegment {
+    /// One exact readable stored-reference crossing retained by the producer.
+    /// Borrowed formal entry presentation is carried by the root, separately.
+    Referent,
     Field(typed_trees::data::DataMemberIdentity),
     Case(typed_trees::data::DataMemberIdentity),
     FixedIndex(u64),
@@ -604,7 +758,7 @@ impl Default for CheckedStructuralPredicatePathSegment {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedIntegerComparisonKind {
     Equal,
     LessThan,
@@ -618,7 +772,7 @@ pub enum CheckedIntegerComparisonKind {
 /// before the operation (the caller's published requires for an entry
 /// parameter, a dominating guard, a stored field's snapshot). Restating an
 /// interval here would be a second, trusted copy of that evidence.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum CheckedRuntimeIndex {
     /// Read one established mutable integer home at the selector's program
     /// point. Loan formation snapshots this value; later writes to this home

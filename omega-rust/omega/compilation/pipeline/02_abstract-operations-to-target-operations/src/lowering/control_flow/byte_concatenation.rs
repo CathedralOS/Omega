@@ -3,6 +3,7 @@
 //! Capacity sizes backing storage; only the checked live lengths authorize reads.
 
 use super::RowSite;
+use super::aggregate_results::established_home;
 use crate::LoweringError;
 use crate::lowering::function_signature::PreparedFunctionSignature;
 use abstract_operations::AbstractOperation;
@@ -106,12 +107,11 @@ pub(super) fn lower(
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
     }
-    let home = super::aggregate_results::home(*psi_operation, result, types)?;
-    if live.structural_homes.insert(result.place, home).is_some()
-        || live
-            .views
-            .insert(result.place, (*psi_operation, result.structural_type))
-            .is_some()
+    established_home(live, *psi_operation, result, types, function.machine)?;
+    if live
+        .views
+        .insert(result.place, (*psi_operation, result.structural_type))
+        .is_some()
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }

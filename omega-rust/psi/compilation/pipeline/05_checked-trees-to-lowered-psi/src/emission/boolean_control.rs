@@ -4,7 +4,7 @@ use crate::emission::expression_validation::contains_short_circuit;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::boolean::emit_boolean_expression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use crate::terminal_identities::{block_id, edge_id};
+use crate::terminal_identities::{block_id, edge_id, mint};
 use semantic_vocabulary::{BlockId, ValueId};
 use terminal_psi::{
     Block, StructuralCaseSuccessorEdge, SuccessorEdge, Terminator, ValueDeclaration,
@@ -270,10 +270,7 @@ fn reserve_case_entry(
             )
             .expect("reserved guard block identity advances"),
     );
-    let edge = edge_id(*next_edge_identity);
-    *next_edge_identity = next_edge_identity
-        .checked_add(1)
-        .expect("reserved guard case entry edge identity advances");
+    let edge = mint(next_edge_identity, edge_id);
     blocks.push(Some(Block::plain(
         block,
         parameters,
@@ -307,7 +304,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
 ) -> LoweredBooleanDecisionTarget {
     // These observation-only decisions inherit their parent's scope; neither
     // sibling nor caller may reuse lengths first emitted in a private child.
-    let incoming_lengths = all_operations.length_observations.clone();
+    let incoming_observations = all_operations.storage_observations.clone();
     let target = match decision {
         LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant { value: true }) => {
             when_true_target.clone()
@@ -337,15 +334,8 @@ fn emit_reserved_boolean_guard_decision_blocks(
             let condition =
                 emit_boolean_expression(condition, parameters, next_value_identity, all_operations);
             let operation_end = all_operations.len();
-            let true_edge = edge_id(*next_edge_identity);
-            let false_edge = edge_id(
-                next_edge_identity
-                    .checked_add(1)
-                    .expect("reserved guard false edge identity advances"),
-            );
-            *next_edge_identity = next_edge_identity
-                .checked_add(2)
-                .expect("reserved guard decision edge identities advance");
+            let true_edge = mint(next_edge_identity, edge_id);
+            let false_edge = mint(next_edge_identity, edge_id);
             let when_true = emit_reserved_boolean_guard_decision_blocks(
                 when_true,
                 parameters,
@@ -500,11 +490,9 @@ fn emit_reserved_boolean_guard_decision_blocks(
                         )
                         .block
                     };
-                    let edge = edge_id(*next_edge_identity);
-                    *next_edge_identity = next_edge_identity
-                        .checked_add(1)
-                        .expect("reserved guard case edge identity advances");
+                    let edge = mint(next_edge_identity, edge_id);
                     StructuralCaseSuccessorEdge {
+                        structural_arguments: Vec::new(),
                         edge,
                         target,
                         case: *case,
@@ -532,7 +520,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
             }
         }
     };
-    all_operations.length_observations = incoming_lengths;
+    all_operations.storage_observations = incoming_observations;
     target
 }
 
@@ -593,7 +581,7 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
 ) -> BlockId {
     // These observation-only decisions inherit their parent's scope; neither
     // sibling nor caller may reuse lengths first emitted in a private child.
-    let incoming_lengths = all_operations.length_observations.clone();
+    let incoming_observations = all_operations.storage_observations.clone();
     let block_index = blocks.len();
     let block = block_id(
         first_block_identity
@@ -613,10 +601,7 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
                 next_value_identity,
                 all_operations,
             );
-            let edge = edge_id(*next_edge_identity);
-            *next_edge_identity = next_edge_identity
-                .checked_add(1)
-                .expect("reserved Boolean tuple value edge identity advances");
+            let edge = mint(next_edge_identity, edge_id);
             let mut arguments = carried_arguments.to_vec();
             arguments.push(value);
             (
@@ -643,15 +628,8 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
             let condition =
                 emit_boolean_expression(condition, parameters, next_value_identity, all_operations);
             let operation_end = all_operations.len();
-            let true_edge = edge_id(*next_edge_identity);
-            let false_edge = edge_id(
-                next_edge_identity
-                    .checked_add(1)
-                    .expect("reserved Boolean tuple false edge identity advances"),
-            );
-            *next_edge_identity = next_edge_identity
-                .checked_add(2)
-                .expect("reserved Boolean tuple decision edges advance");
+            let true_edge = mint(next_edge_identity, edge_id);
+            let false_edge = mint(next_edge_identity, edge_id);
             let when_true = emit_reserved_boolean_tuple_stage_blocks(
                 when_true,
                 parameters,
@@ -711,6 +689,6 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
         operations: all_operations[operation_start..operation_end].to_vec(),
         terminator,
     });
-    all_operations.length_observations = incoming_lengths;
+    all_operations.storage_observations = incoming_observations;
     block
 }

@@ -6,7 +6,7 @@
 
 use std::{fmt, ops::Deref, sync::Arc};
 
-#[derive(Clone)]
+#[derive(Clone, compiler_storage::Record)]
 pub struct SourceBytes {
     storage: Arc<Vec<u8>>,
     start: usize,

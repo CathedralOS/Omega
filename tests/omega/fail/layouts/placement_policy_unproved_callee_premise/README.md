@@ -6,7 +6,7 @@ refuse the demanded invocation before evaluating that policy; projecting away
 unrelated runtime declarations does not grant a callee premise.
 
 The positive customer is the unchanged
-`pass/layouts/placed_view_source_access_compile`: its policy calls
+`pass/layouts/placed_view_source_access_exit`: its policy calls
 `AccessPlan::with`, whose private finite search uses ordinary preconditions.
 The early policy probe contains four machines; the later input also contains
 runtime accessors awaiting their authoritative placement plans. Those unrelated
@@ -17,7 +17,7 @@ including every helper contract, for ordinary checking.
 Run the source controls with:
 
 ```sh
-python3 tools/corpus_gate.py --filter layouts/placed_view_source_access_compile,layouts/access_plan_inaccessible_seed,layouts/placement_policy_unproved_callee_premise
+python3 tools/corpus_gate.py --filter layouts/placed_view_source_access_exit,layouts/access_plan_inaccessible_seed,layouts/placement_policy_unproved_callee_premise
 ```
 
 Hosted entry policy execution remains constrained by the unchanged

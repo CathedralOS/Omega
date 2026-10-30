@@ -50,6 +50,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

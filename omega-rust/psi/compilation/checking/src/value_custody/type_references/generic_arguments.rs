@@ -12,6 +12,44 @@ use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, T
 
 mod closed_expressions;
 pub use closed_expressions::normalize_closed_const_expression;
+pub(crate) use closed_expressions::normalize_closed_const_expression_in_carrier;
+
+/// Check the supplying expression before a closed value can specialize another
+/// declaration's theory. The destination supplies a carrier, never assumptions
+/// that discharge the source operation's formation obligations.
+pub fn check_closed_const_expression(
+    program: &dyn crate::CheckingInput,
+    lexical_owner: SymbolHandle,
+    expression: typed_trees::expression::ExpressionHandle,
+    carrier: TypeReferenceHandle,
+) -> Result<Option<CanonicalConstValue>, Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    let mut formation_obligations = Vec::new();
+    crate::proof_contracts::arithmetic_domains::validate_declaration_value_range(
+        program,
+        lexical_owner,
+        &declaration_parameters(program, lexical_owner),
+        &[],
+        None,
+        expression,
+        program.primitive_type_reference(carrier),
+        program.arithmetic_domain_for_type_reference(carrier),
+        "closed const argument",
+        &mut diagnostics,
+        &mut formation_obligations,
+    );
+    if diagnostics.iter().any(Diagnostic::is_error) {
+        return Err(diagnostics);
+    }
+    // A provisional runtime range certificate is not a closed theory premise.
+    // Preserve the original recipe for ordinary checked evaluation instead of
+    // publishing a canonical argument whose source still owes that evidence.
+    if !formation_obligations.is_empty() {
+        return Ok(None);
+    }
+    normalize_closed_const_expression(program, lexical_owner, expression, carrier)
+        .map_err(|message| vec![Diagnostic::error(message)])
+}
 
 pub(crate) fn validate_machine_data_argument(
     program: &dyn crate::CheckingInput,
@@ -103,6 +141,7 @@ pub(super) fn validate_symbolic_array_length(
     type_parameter_scope: TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
     owner: TypeReferenceOwner<'_>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     if let FixedArrayLength::Expression(value) = length {
         let TypeReferenceNode::ConstExpression(root) =
@@ -144,7 +183,14 @@ pub(super) fn validate_symbolic_array_length(
             })
             .unwrap_or_default();
         crate::proof_contracts::contract_entailment::specification_calls::validate_declaration_expression_formation(
-            program, type_parameter_scope.lexical_owner, &parameters, *root, &prior, &owner.to_string(), diagnostics,
+            program,
+            type_parameter_scope.lexical_owner,
+            &parameters,
+            *root,
+            &prior,
+            &owner.to_string(),
+            diagnostics,
+            formation_obligations,
         );
         let natural = crate::parameter_expression_result_type_reference(
             program,
@@ -237,6 +283,8 @@ pub fn validate_closed_const_argument(
     owner: &str,
     parameter: &TypeParameter,
     argument: TypeReferenceHandle,
+    application_parameters: &[TypeParameter],
+    application_arguments: &[TypeReferenceHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     let (TypeParameterKind::Const { type_reference } | TypeParameterKind::Value { type_reference }) =
         parameter.kind
@@ -249,7 +297,8 @@ pub fn validate_closed_const_argument(
     if !argument.is_valid()
         || !matches!(
             program.type_reference_table.type_reference(argument),
-            TypeReferenceNode::Named { symbol, .. } if !symbol.is_valid()
+            TypeReferenceNode::Named { symbol, .. }
+                if !symbol.is_valid() || program.const_declaration_by_symbol(*symbol).is_some()
         )
     {
         return Err(vec![Diagnostic::error(format!(
@@ -258,11 +307,16 @@ pub fn validate_closed_const_argument(
         ))]);
     }
     let mut diagnostics = Vec::new();
+    let mut formation_obligations = Vec::new();
     validate_const_data_argument(
         program,
         owner,
         parameter,
-        AppliedValueCarrier::ordinary(type_reference),
+        AppliedValueCarrier::applied(
+            type_reference,
+            application_parameters,
+            application_arguments,
+        ),
         argument,
         TypeParameterScope {
             operand_lifetime_owner: symbols::SymbolHandle::invalid(),
@@ -273,12 +327,17 @@ pub fn validate_closed_const_argument(
         &[],
         None,
         &mut diagnostics,
+        &mut formation_obligations,
     );
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
+    // This entry admits normalized values only; it owns no declaration in
+    // which a conditional formation obligation could remain pending.
+    if !formation_obligations.is_empty() {
+        diagnostics.push(Diagnostic::error(format!(
+            "const parameter `{}` of `{owner}` has unresolved formation obligations",
+            parameter.name,
+        )));
     }
+    crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
 /// Deriving an ordinary call substitution does not admit a const by shape.
@@ -302,6 +361,7 @@ pub(crate) fn const_argument_matches_parameter(
         return false;
     }
     let mut diagnostics = Vec::new();
+    let mut formation_obligations = Vec::new();
     validate_const_data_argument(
         program,
         "call",
@@ -317,8 +377,9 @@ pub(crate) fn const_argument_matches_parameter(
         &[],
         None,
         &mut diagnostics,
+        &mut formation_obligations,
     );
-    !diagnostics.iter().any(Diagnostic::is_error)
+    formation_obligations.is_empty() && !diagnostics.iter().any(Diagnostic::is_error)
 }
 
 /// A declared carrier and its one simultaneous application scope.
@@ -381,7 +442,11 @@ impl<'application> AppliedValueCarrier<'application> {
         Self { reference, ..self }
     }
 
-    fn matches(self, program: &dyn crate::CheckingInput, actual: TypeReferenceHandle) -> bool {
+    pub(crate) fn matches(
+        self,
+        program: &dyn crate::CheckingInput,
+        actual: TypeReferenceHandle,
+    ) -> bool {
         let substitutions = self
             .parameters
             .iter()
@@ -396,12 +461,13 @@ impl<'application> AppliedValueCarrier<'application> {
             })
             .map(|(parameter, argument)| (parameter.symbol, *argument))
             .collect::<Vec<_>>();
-        program.type_identity_with_simultaneous_substitutions(
+        let expected = program.type_identity_with_simultaneous_substitutions(
             typed_trees::type_identity::TypeIdentityRequest {
                 substitutions: &substitutions,
                 ..typed_trees::type_identity::TypeIdentityRequest::ordinary(self.reference)
             },
-        ) == program.normalized_type_identity(actual)
+        );
+        expected.is_valid() && expected == program.normalized_type_identity(actual)
     }
 
     fn array_length(
@@ -458,6 +524,7 @@ pub(crate) fn validate_const_data_argument(
     prior_facts: &[typed_trees::expression::ExpressionHandle],
     local_formation: Option<crate::proof_contracts::arithmetic_domains::LocalValueFormation<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let carrier = carrier.resolved(program);
     let parameter_type = carrier.reference;
@@ -518,6 +585,7 @@ pub(crate) fn validate_const_data_argument(
             program.arithmetic_domain_for_type_reference(parameter_type),
             &format!("value argument `{}` of `{base_name}`", parameter.name),
             diagnostics,
+            formation_obligations,
         );
         return;
     }
@@ -707,7 +775,9 @@ pub(crate) fn validate_exact_typed_structured_const_argument(
         ));
     }
     let expected_name = program.normalized_type_identity_text(expected_type);
-    if value.type_name != expected_name {
+    let canonical_label =
+        canonical_carrier_label(program, AppliedValueCarrier::ordinary(expected_type));
+    if value.type_name != expected_name && value.type_name != canonical_label {
         return Err(format!(
             "expected carrier `{expected_name}`, but the canonical atom names `{}`",
             value.type_name
@@ -736,7 +806,7 @@ pub(crate) fn validate_exact_const_identity(
     )
 }
 
-fn validate_exact_const_identity_in_carrier(
+pub(crate) fn validate_exact_const_identity_in_carrier(
     program: &dyn crate::CheckingInput,
     carrier: AppliedValueCarrier<'_>,
     identity: &CanonicalConstIdentity,
@@ -1381,6 +1451,7 @@ pub(crate) fn validate_const_binder_carriers(
     parameters: &[TypeParameter],
     scope: TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     for parameter in parameters {
         let (TypeParameterKind::Const {
@@ -1403,6 +1474,7 @@ pub(crate) fn validate_const_binder_carriers(
                 generic_depth: 0,
             },
             scope,
+            formation_obligations,
         );
         let Some(primitive_type) = program
             .type_reference_table

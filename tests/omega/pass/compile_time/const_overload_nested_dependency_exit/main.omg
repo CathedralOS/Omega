@@ -1,0 +1,18 @@
+// Expected exit: 0
+// Typed selection reveals a dependency whose initializer needs its own selected call.
+machine choose(value: u32) -> u32 { LATER }
+machine choose(value: u64) -> u64 { 73u64 }
+machine other(value: u32) -> u32 { value }
+machine other(value: u64) -> u64 { 91u64 }
+
+const ROOT: u32 = choose(1u32);
+const LATER: u32 = other(37u32);
+
+machine main() crashes Trap {
+    transition ROOT == 37u32 && LATER == 37u32 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

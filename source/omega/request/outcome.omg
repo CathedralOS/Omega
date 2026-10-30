@@ -323,7 +323,7 @@ public machine RejectCode::number(code: RejectCode) -> u64 in Trapping {
         RejectCode::ArithmeticOperandOutOfDomain -> value(97)
     }
 
-    state value(value: u64 in Trapping) -> u64 in Trapping {
+    machine value(value: u64 in Trapping) -> u64 in Trapping {
         value
     }
 }
@@ -335,15 +335,15 @@ public machine RejectCode::space(code: RejectCode) -> CoordinateSpace {
         _ -> canonical_source()
     }
 
-    state none() -> CoordinateSpace {
+    machine none() -> CoordinateSpace {
         CoordinateSpace::None
     }
 
-    state request() -> CoordinateSpace {
+    machine request() -> CoordinateSpace {
         CoordinateSpace::Request
     }
 
-    state canonical_source() -> CoordinateSpace {
+    machine canonical_source() -> CoordinateSpace {
         CoordinateSpace::CanonicalSource
     }
 }
@@ -387,7 +387,7 @@ public machine Provision::number(provision: Provision) -> u64 in Trapping {
         Provision::ProofSearchIntegerCertificateWork -> value(35)
     }
 
-    state value(value: u64 in Trapping) -> u64 in Trapping {
+    machine value(value: u64 in Trapping) -> u64 in Trapping {
         value
     }
 }
@@ -431,7 +431,7 @@ public machine Provision::limit(provision: Provision) -> u64 in Trapping {
         Provision::ProofSearchIntegerCertificateWork -> value(65536)
     }
 
-    state value(value: u64 in Trapping) -> u64 in Trapping {
+    machine value(value: u64 in Trapping) -> u64 in Trapping {
         value
     }
 }
@@ -458,23 +458,23 @@ public machine Provision::space(provision: Provision) -> CoordinateSpace {
         _ -> canonical_source()
     }
 
-    state none() -> CoordinateSpace {
+    machine none() -> CoordinateSpace {
         CoordinateSpace::None
     }
 
-    state request() -> CoordinateSpace {
+    machine request() -> CoordinateSpace {
         CoordinateSpace::Request
     }
 
-    state emitted_artifact() -> CoordinateSpace {
+    machine emitted_artifact() -> CoordinateSpace {
         CoordinateSpace::EmittedArtifact
     }
 
-    state internal_row() -> CoordinateSpace {
+    machine internal_row() -> CoordinateSpace {
         CoordinateSpace::InternalRow
     }
 
-    state canonical_source() -> CoordinateSpace {
+    machine canonical_source() -> CoordinateSpace {
         CoordinateSpace::CanonicalSource
     }
 }
@@ -487,7 +487,7 @@ public machine Outcome::frame_length(outcome: Outcome) -> u64 in Trapping {
         _ -> length(40)
     }
 
-    state length(value: u64 in Trapping) -> u64 in Trapping {
+    machine length(value: u64 in Trapping) -> u64 in Trapping {
         value
     }
 }
@@ -504,7 +504,7 @@ crashes Trap
         _ -> header(outcome, index)
     }
 
-    state identity(index: u64 in Trapping) -> u8 {
+    machine identity(index: u64 in Trapping) -> u8 {
         transition index {
             0 -> byte(255)
             1 -> byte(79)
@@ -517,7 +517,7 @@ crashes Trap
         }
     }
 
-    state header(outcome: Outcome, index: u64 in Trapping) -> u8 {
+    machine header(outcome: Outcome, index: u64 in Trapping) -> u8 {
         let tag: u8 = OutcomeTag::value(outcome.tag);
         let space: u8 = CoordinateSpace::value(outcome.space);
         transition index {
@@ -529,14 +529,14 @@ crashes Trap
         }
     }
 
-    state code(outcome: Outcome, index: u64 in Trapping) -> u8 {
+    machine code(outcome: Outcome, index: u64 in Trapping) -> u8 {
         transition index < 16 {
             true -> little_endian(outcome.code, index - 12)
             _ -> coordinate(outcome, index)
         }
     }
 
-    state coordinate(outcome: Outcome, index: u64 in Trapping) -> u8 {
+    machine coordinate(outcome: Outcome, index: u64 in Trapping) -> u8 {
         let coordinate: u64 in Trapping = Outcome::published(outcome.coordinate);
         transition index < 24 {
             true -> little_endian(coordinate, index - 16)
@@ -544,7 +544,7 @@ crashes Trap
         }
     }
 
-    state limit(outcome: Outcome, index: u64 in Trapping) -> u8 {
+    machine limit(outcome: Outcome, index: u64 in Trapping) -> u8 {
         let limit: u64 in Trapping = Outcome::published(outcome.limit);
         transition index < 32 {
             true -> little_endian(limit, index - 24)
@@ -552,7 +552,7 @@ crashes Trap
         }
     }
 
-    state requested(outcome: Outcome, index: u64 in Trapping) -> u8 {
+    machine requested(outcome: Outcome, index: u64 in Trapping) -> u8 {
         let requested: u64 in Trapping = Outcome::published(outcome.requested);
         transition index < 40 {
             true -> little_endian(requested, index - 32)
@@ -560,18 +560,18 @@ crashes Trap
         }
     }
 
-    state tail(outcome: Outcome, index: u64 in Trapping) -> u8 {
+    machine tail(outcome: Outcome, index: u64 in Trapping) -> u8 {
         transition index < 44 {
             true -> little_endian(outcome.package, index - 40)
             _ -> little_endian(outcome.source_unit, index - 44)
         }
     }
 
-    state little_endian(value: u64 in Trapping, position: u64 in Trapping) -> u8 {
+    machine little_endian(value: u64 in Trapping, position: u64 in Trapping) -> u8 {
         Outcome::byte_of(value, position)
     }
 
-    state byte(value: u8) -> u8 {
+    machine byte(value: u8) -> u8 {
         value
     }
 }
@@ -583,11 +583,11 @@ machine Outcome::published(quantity: u64 in Trapping) -> u64 in Trapping {
         _ -> exact(quantity)
     }
 
-    state saturated() -> u64 in Trapping {
+    machine saturated() -> u64 in Trapping {
         2147483647
     }
 
-    state exact(quantity: u64 in Trapping) -> u64 in Trapping {
+    machine exact(quantity: u64 in Trapping) -> u64 in Trapping {
         quantity
     }
 }
@@ -600,7 +600,7 @@ public machine OutcomeTag::value(tag: OutcomeTag) -> u8 {
         OutcomeTag::InternalFailure -> byte(3)
     }
 
-    state byte(value: u8) -> u8 {
+    machine byte(value: u8) -> u8 {
         value
     }
 }
@@ -614,7 +614,7 @@ machine CoordinateSpace::value(space: CoordinateSpace) -> u8 {
         CoordinateSpace::CanonicalSource -> byte(4)
     }
 
-    state byte(value: u8) -> u8 {
+    machine byte(value: u8) -> u8 {
         value
     }
 }
@@ -628,18 +628,18 @@ crashes Trap
         _ -> invalid()
     }
 
-    state shift(remaining: u64 in Trapping, rest: u64 in Trapping) -> u8 {
+    machine shift(remaining: u64 in Trapping, rest: u64 in Trapping) -> u8 {
         transition remaining > 0 {
             true -> shift(remaining - 1, rest / 256)
             _ -> low(rest)
         }
     }
 
-    state low(rest: u64 in Trapping) -> u8 {
+    machine low(rest: u64 in Trapping) -> u8 {
         (rest % 256) as u8
     }
 
-    state invalid() -> u8 {
+    machine invalid() -> u8 {
         crash Trap;
     }
 }

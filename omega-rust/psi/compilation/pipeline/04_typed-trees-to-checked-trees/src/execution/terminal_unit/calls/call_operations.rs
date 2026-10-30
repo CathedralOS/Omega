@@ -130,6 +130,7 @@ pub(super) struct PlannedCall<'p> {
 /// `None` supplies no registered scalar targets; it never consults published catalogs.
 pub(in crate::execution) fn build_call_operation(
     program: &dyn ::validation::CheckingInput,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     facts: &CheckFacts,
     scalar_callees: Option<ScalarCalleeClosure>,
     machine: &typed_trees::machine::Machine,
@@ -237,59 +238,57 @@ pub(in crate::execution) fn build_call_operation(
 
     let selected_realization =
         exact_external_leaf_boundary_requirement(program, call.target_symbol);
-    let requirement = match boundary_requirement(program, call.target_symbol) {
-        BoundaryTarget::Requirement(requirement) => Some(requirement),
-        BoundaryTarget::Body => None,
-        BoundaryTarget::Ambiguous => return None,
-    };
-    if let Some(requirement) = requirement {
-        return super::trait_boundary_call::build(
-            program,
-            facts,
-            machine,
-            state,
-            caller_parameters,
-            call,
-            expected_call_result.as_ref(),
-            caller_structural_results,
-            caller_operations,
-            trace,
-            coordinate,
-            &call_site,
-            source_site,
-            requirement,
-            selected_realization,
-        );
-    }
-
-    if let Some(slot) = program.dynamic_slot_by_symbol(call.target_symbol) {
-        return super::dynamic_call::build(
-            program,
-            facts,
-            machine,
-            state,
-            caller_parameters,
-            caller_trivial_affine_locals,
-            call,
-            expected_call_result.as_ref(),
-            caller_structural_results,
-            caller_operations,
-            trace,
-            coordinate,
-            &call_site,
-            source_site,
-            slot,
-        );
-    }
     phase("call operation: target state");
-    // Resolve the executable pair without rewriting the flow occurrence,
-    // which still authenticates the authored call and operands.
-    let (target_machine, target_state) = executable_target(program, call.target_symbol)?;
+    let destination = super::resolve_call_target(program, call.target_symbol)?;
+    let (target_machine, target_state) = match destination {
+        super::ResolvedCallTarget::Requirement(requirement) => {
+            return super::trait_boundary_call::build(
+                program,
+                shapes,
+                facts,
+                machine,
+                state,
+                caller_parameters,
+                call,
+                expected_call_result.as_ref(),
+                caller_structural_results,
+                caller_operations,
+                trace,
+                coordinate,
+                &call_site,
+                source_site,
+                requirement,
+                selected_realization,
+            );
+        }
+        super::ResolvedCallTarget::DynamicSlot(slot) => {
+            return super::dynamic_call::build(
+                program,
+                shapes,
+                facts,
+                machine,
+                state,
+                caller_parameters,
+                caller_trivial_affine_locals,
+                call,
+                expected_call_result.as_ref(),
+                caller_structural_results,
+                caller_operations,
+                trace,
+                coordinate,
+                &call_site,
+                source_site,
+                slot,
+            );
+        }
+        super::ResolvedCallTarget::Declared { machine, state } => (machine, state),
+    };
+    let (target_machine_identity, target_state_identity) = destination.identity();
     phase("call operation: target contract");
     let target_contract = facts.contract_plans.for_machine(target_machine.symbol)?;
     let call_target = CheckedUnitCallTarget {
-        machine: target_machine.symbol,
-        state: target_state.symbol,
+        machine: target_machine_identity,
+        state: target_state_identity,
         contract_report_fingerprint: target_contract.report_fingerprint,
         service_reach: call.service_reach,
     };
@@ -301,13 +300,17 @@ pub(in crate::execution) fn build_call_operation(
     // Boundary and ordinary results retain the same structural carrier.
     // Installation supplies the checked provider body and its exact return
     // custody; a boundary declaration does not authorize fabricated payloads.
+    let no_normal =
+        !boundary && validation::normal_completion_possible(program, target_state) == Some(false);
     phase("call operation: result shape");
-    if match &expected_call_result {
-        None => !is_unit(program, target_state.return_type),
-        Some(expected) => {
-            !call_value_result_matches(program, target_state.return_type, expected, &[])
+    if !no_normal
+        && match &expected_call_result {
+            None => !is_unit(program, target_state.return_type),
+            Some(expected) => {
+                !call_value_result_matches(program, target_state.return_type, expected, &[])
+            }
         }
-    } {
+    {
         return None;
     }
     phase("call operation: target supply mode");
@@ -317,6 +320,7 @@ pub(in crate::execution) fn build_call_operation(
     phase("call operation: structural arguments");
     let structural_arguments = structural_call_arguments(
         program,
+        shapes,
         facts,
         call,
         machine,
@@ -532,6 +536,7 @@ pub(in crate::execution) fn build_call_operation(
     // storage judgment: the callee's returning edge decides which claim
     // continues at each path.
     if !boundary
+        && !no_normal
         && let Some(ExpectedCallValueResult::Structural(result)) = &expected_call_result
         && !validation::linear_claim_frontier(program, target_state.return_type).is_empty()
     {
@@ -593,7 +598,24 @@ pub(in crate::execution) fn build_call_operation(
         .ok()?
     };
 
-    if boundary {
+    if no_normal {
+        CheckedUnitCallPlan::new(CheckedUnitCallParts {
+            coordinate,
+            source_site,
+            target: call_target,
+            completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+            route: CheckedUnitCallRoute::Module {
+                contract_commitment: Some(target_contract.commitment),
+                erased_scalar_arguments,
+                erased_proof_arguments,
+            },
+            scalar_arguments,
+            structural_arguments,
+            result: CheckedUnitCallResult::NoNormal,
+            transfers: CheckedUnitCallTransfers::Claims(transfers),
+        })
+        .map(CheckedUnitEffectOperationPlan::Call)
+    } else if boundary {
         CheckedUnitCallPlan::new(CheckedUnitCallParts {
             coordinate,
             source_site,
@@ -649,10 +671,9 @@ pub(in crate::execution) fn build_call_operation(
         phase("call operation: scalar result producer");
         None
     } else {
-        // An ordinary Unit call retains no authored site.
         CheckedUnitCallPlan::new(CheckedUnitCallParts {
             coordinate,
-            source_site: None,
+            source_site,
             target: call_target,
             completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
             route: CheckedUnitCallRoute::Module {
@@ -667,73 +688,4 @@ pub(in crate::execution) fn build_call_operation(
         })
         .map(CheckedUnitEffectOperationPlan::Call)
     }
-}
-
-/// What a call's authored target completes through.
-pub(super) enum BoundaryTarget<'program> {
-    /// A boundary requirement's call route.
-    Requirement(super::trait_boundary_call::BoundaryRequirement<'program>),
-    /// More than one boundary requirement declares the target.
-    Ambiguous,
-    /// No boundary requirement: a machine body or a dynamic slot.
-    Body,
-}
-
-/// The boundary requirement a call to `target` invokes. A direct call to a
-/// bodyless external leaf is a boundary call on the leaf's exact satisfied
-/// requirement (see `validation`'s `intrinsic_boundaries` module); the leaf
-/// owns no body to call. A nominal binder describes an obligation, not a
-/// selected boundary body: specialization must replace it with the exact
-/// executable target before a call is planned, and projecting its
-/// requirement here would make an open generic entry executable and bypass
-/// its selected implementation. Both declaration spellings retain a
-/// requirement edge; the planner sees the authored signature, never its
-/// selected provider.
-pub(super) fn boundary_requirement(
-    program: &dyn ::validation::CheckingInput,
-    target: SymbolHandle,
-) -> BoundaryTarget<'_> {
-    let direct = exact_external_leaf_boundary_requirement(program, target)
-        .map(|(requirement, _)| requirement)
-        .unwrap_or(target);
-    let static_boundaries = program
-        .traits()
-        .iter()
-        .filter(|definition| definition.is_boundary)
-        .flat_map(|definition| {
-            program
-                .trait_machine_instances(definition)
-                .filter(move |signature| signature.symbol == direct)
-                .map(move |signature| (definition, signature))
-        })
-        .collect::<Vec<_>>();
-    match static_boundaries.as_slice() {
-        [(definition, signature)] => {
-            BoundaryTarget::Requirement(super::trait_boundary_call::BoundaryRequirement::Trait {
-                definition,
-                signature,
-            })
-        }
-        [] => program
-            .operators()
-            .iter()
-            .find(|operator| operator.is_boundary && operator.symbol == direct)
-            .map_or(BoundaryTarget::Body, |operator| {
-                BoundaryTarget::Requirement(
-                    super::trait_boundary_call::BoundaryRequirement::Operator(operator),
-                )
-            }),
-        _ => BoundaryTarget::Ambiguous,
-    }
-}
-
-/// The machine and state a call to `target` executes. Source custody can name
-/// a machine head or an exact stored state: a machine invokes its entry, and
-/// an explicitly selected state keeps its own signature.
-fn executable_target(
-    program: &dyn ::validation::CheckingInput,
-    target: SymbolHandle,
-) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
-    validation::find_machine_head(program, target)
-        .or_else(|| validation::find_state(program, target))
 }

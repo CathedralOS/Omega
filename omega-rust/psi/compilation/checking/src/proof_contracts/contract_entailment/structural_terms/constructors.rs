@@ -16,6 +16,52 @@ use typed_trees::types::{
 
 use super::StructuralTerm;
 
+/// Read an already carrier-validated canonical value in the structural term
+/// vocabulary. Encoded names retain no declaration authority here: the static
+/// application intake must first replay the value against its resolved carrier.
+pub(in super::super) fn admitted_const_value_term(
+    value: &language_semantics::const_value::CanonicalConstIdentity,
+) -> Option<StructuralTerm> {
+    fn decoded(
+        value: language_semantics::const_value::DecodedCanonicalConstValue,
+    ) -> Option<StructuralTerm> {
+        use language_semantics::const_value::DecodedCanonicalConstValue;
+        let (data, case, fields) = match value {
+            DecodedCanonicalConstValue::Integer { value, .. } => {
+                return Some(StructuralTerm::Integer(BigInt::from_i128(value)));
+            }
+            DecodedCanonicalConstValue::Boolean(value) => {
+                return Some(StructuralTerm::Constructor {
+                    data: "bool".to_owned(),
+                    case: value.to_string(),
+                    fields: Vec::new(),
+                });
+            }
+            DecodedCanonicalConstValue::Record { type_name, fields } => {
+                (type_name, String::new(), fields)
+            }
+            DecodedCanonicalConstValue::Variant {
+                type_name,
+                case_name,
+                fields,
+            } => (type_name, case_name, fields),
+            // These values have separate observation vocabularies; an encoded
+            // array or float is not a record constructor or an integer atom.
+            DecodedCanonicalConstValue::Array { .. } | DecodedCanonicalConstValue::Float { .. } => {
+                return None;
+            }
+        };
+        let mut fields = fields
+            .into_iter()
+            .map(|(name, value)| Some((name, decoded(value)?)))
+            .collect::<Option<Vec<_>>>()?;
+        fields.sort_by(|(left, _), (right, _)| left.cmp(right));
+        Some(StructuralTerm::Constructor { data, case, fields })
+    }
+
+    decoded(value.decode_encoding()?)
+}
+
 /// Exclusion test only: a retained membership occurrence must never be read as
 /// a value equation. Proving the tag fact still requires the exact subject,
 /// carrier and case checks in `has_exact_case_membership_meaning`.
@@ -110,19 +156,22 @@ pub(in super::super) fn case_value_term(
 
 pub(in super::super) fn constructor_literal_term(
     program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
     literal: &TableStructLiteral,
     mut field_term: impl FnMut(&DataField, Option<&TableStructLiteralField>) -> Option<StructuralTerm>,
 ) -> Option<StructuralTerm> {
-    let definition = program.data_definition_by_symbol(literal.type_symbol)?;
+    // Every consumer supplies the original construction occurrence. The
+    // receiving application owns both its case and complete field carriers;
+    // a template's field types cannot decide omitted zeros for an instance.
+    let definition = crate::value_custody::struct_literals::selected_construction_definition(
+        program, expression, literal,
+    )?;
     let variant = match literal.case_symbol {
-        Some(symbol) => Some(program.data_members(definition).iter().find_map(
-            |member| match member {
-                DataMember::Variant(variant) if symbol.is_valid() && variant.symbol == symbol => {
-                    Some(variant)
-                }
-                _ => None,
-            },
-        )?),
+        Some(_) => Some(
+            crate::value_custody::struct_literals::selected_construction_case(
+                program, expression, literal, definition,
+            )?,
+        ),
         None => {
             if literal.case_name.is_some()
                 || program
@@ -137,23 +186,37 @@ pub(in super::super) fn constructor_literal_term(
     };
     let declared = constructor_fields(program, definition, variant);
     let supplied = program.expression_table.struct_fields(literal.fields);
+    let selected_fields = supplied
+        .iter()
+        .map(|field| {
+            crate::value_custody::struct_literals::selected_construction_field(
+                program,
+                expression,
+                literal,
+                field.field_symbol,
+            )
+        })
+        .collect::<Option<Vec<_>>>()?;
     // This forms a value term, not a predicate certificate. Source admission
     // independently checks the owner and selected case at their operand entry,
     // before this value exists. An omitted field still needs its own established
     // zero; the enclosing clause neither blocks normalization nor supplies it.
     // No field may disappear, occur twice, or be rebound by its spelling.
-    if supplied.iter().any(|field| {
+    if selected_fields.iter().any(|field| {
         !declared
             .iter()
-            .any(|declared| field.field_symbol.is_valid() && declared.symbol == field.field_symbol)
+            .any(|declared| field.symbol.is_valid() && declared.symbol == field.symbol)
     }) {
         return None;
     }
-    let mut fields = Vec::with_capacity(declared.len());
-    for field in declared {
-        let mut matches = supplied
-            .iter()
-            .filter(|supplied| supplied.field_symbol == field.symbol);
+    complete_constructor_term(definition, variant, declared.into_iter(), |field| {
+        let mut matches =
+            supplied
+                .iter()
+                .zip(&selected_fields)
+                .filter_map(|(supplied, selected)| {
+                    (selected.symbol == field.symbol).then_some(supplied)
+                });
         let value = if let Some(supplied) = matches.next() {
             if matches.next().is_some() {
                 return None;
@@ -177,7 +240,36 @@ pub(in super::super) fn constructor_literal_term(
             zero_value_structural_term(program, field.type_reference)
                 .or_else(|| field_term(field, None))?
         };
-        fields.push((field.name.as_str().to_owned(), value));
+        Some(value)
+    })
+}
+
+/// A complete unqualified value snapshot from exact declared field captures.
+/// This creates no predicate certificate, omitted zero, or erased inhabitant.
+/// Construction and restoration supply their own independently formed inputs.
+pub(in super::super) fn captured_constructor_term(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+    variant: Option<&DataVariant>,
+    field_value: impl FnMut(&DataField) -> Option<StructuralTerm>,
+) -> Option<StructuralTerm> {
+    complete_constructor_term(
+        definition,
+        variant,
+        constructor_fields(program, definition, variant).into_iter(),
+        field_value,
+    )
+}
+
+fn complete_constructor_term<'field>(
+    definition: &DataDefinition,
+    variant: Option<&DataVariant>,
+    declared: impl ExactSizeIterator<Item = &'field DataField>,
+    mut field_value: impl FnMut(&DataField) -> Option<StructuralTerm>,
+) -> Option<StructuralTerm> {
+    let mut fields = Vec::with_capacity(declared.len());
+    for field in declared {
+        fields.push((field.name.as_str().to_owned(), field_value(field)?));
     }
     Some(constructed_term(definition, variant, fields))
 }
@@ -306,6 +398,27 @@ fn zero_term(
     if crate::value_custody::data::data_requires_establishment(program, definition) {
         return None;
     }
+    active.push(symbol);
+    let value = zero_constructor(program, definition, active);
+    active.pop();
+    value
+}
+
+/// The fixed first case and established zero children, before the owner's
+/// predicate is admitted. This is an operand valuation, not evidence that the
+/// containing value satisfies its default domain.
+pub(in super::super) fn zero_constructor_operands(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+) -> Option<StructuralTerm> {
+    zero_constructor(program, definition, &mut vec![definition.symbol])
+}
+
+fn zero_constructor(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+    active: &mut Vec<SymbolHandle>,
+) -> Option<StructuralTerm> {
     let variant = program
         .data_members(definition)
         .iter()
@@ -313,16 +426,6 @@ fn zero_term(
             DataMember::Variant(variant) => Some(variant),
             DataMember::Field(_) => None,
         });
-    // `zero_gated` is not a positive certificate for the selected case's
-    // predicates. Their general instantiation/proof belongs to establishment;
-    // until it can supply that evidence here, no implicit default may waive
-    // them or choose a later, satisfiable case instead.
-    if !definition.where_facts.is_empty()
-        || variant.is_some_and(|variant| !variant.where_facts.is_empty())
-    {
-        return None;
-    }
-    active.push(symbol);
     let fields = constructor_fields(program, definition, variant)
         .into_iter()
         .map(|field| {
@@ -335,6 +438,5 @@ fn zero_term(
             ))
         })
         .collect::<Option<Vec<_>>>();
-    active.pop();
     Some(constructed_term(definition, variant, fields?))
 }

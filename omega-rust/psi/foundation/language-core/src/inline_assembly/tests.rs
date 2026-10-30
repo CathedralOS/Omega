@@ -5,8 +5,8 @@ use super::{
     AsmFenceKind, AsmFlagsDataFlow, AsmInstructionAvailability, AsmInstructionRefusal,
     AsmInstructionSerializationKind, AsmInstructionShape, AsmInterruptControlKind,
     AsmInterruptFlagEffect, AsmMemoryOrdering, AsmMemoryTransferKind, AsmOperandAccess,
-    AsmSchedulingHintKind, AsmSystemRegister, AsmTargetApplicability, asm_catalog_entry,
-    asm_intrinsic_mnemonic, scratch_register,
+    AsmSchedulingHintKind, AsmSystemRegister, AsmTargetApplicability, X86FlagsEnvironment,
+    asm_catalog_entry, asm_intrinsic_mnemonic, scratch_register,
 };
 
 #[test]
@@ -117,6 +117,25 @@ fn flags_contracts_are_explicit_and_stack_balanced_by_lowering() {
     );
     assert_eq!(restore.operands[0].access, AsmOperandAccess::ReadPlace);
     assert_eq!(restore.clobbers, &["r10", "r15"]);
+}
+
+#[test]
+fn x86_flags_environment_validates_reserved_bits_and_restores_arithmetic_only() {
+    // A captured host image: bit 1 set, IF set, ZF set; RF/VM clear.
+    let image: u64 = 0x246;
+    let mut environment = X86FlagsEnvironment::new(image).expect("valid host image");
+    // PUSHFQ clears RF (16) and VM (17) in the observed image; this image
+    // carries neither, so the snapshot is the supplied bits.
+    assert_eq!(environment.snapshot(), image);
+    assert!(X86FlagsEnvironment::new(image & !2).is_err());
+    assert!(X86FlagsEnvironment::new(image | 8).is_err());
+    assert!(X86FlagsEnvironment::new(image | (1 << 22)).is_err());
+    // A saved image with every bit set moves only CF|PF|AF|ZF|SF|OF.
+    environment.restore_arithmetic_bits(!0u64);
+    assert_eq!(environment.snapshot(), (image & !0x8d5) | 0x8d5);
+    // A zero image clears arithmetic bits while reserved bits stay supplied.
+    environment.restore_arithmetic_bits(0);
+    assert_eq!(environment.snapshot(), image & !0x8d5);
 }
 
 #[test]
@@ -688,7 +707,7 @@ fn catalog_names_semantic_refusal_classes() {
     // Supervisor traps are service-admission candidates, not hidden exits;
     // address arithmetic and ordering barriers access no memory. Each keeps
     // the unknown-mnemonic failure rather than borrowing a semantic refusal.
-    for mnemonic in ["db", "svc", "hvc", "smc", "brk", "lea", "dmb", "dsb"] {
+    for mnemonic in ["db", "svc", "hvc", "smc", "brk", "lea", "dsb"] {
         assert_eq!(
             asm_catalog_entry(mnemonic),
             None,
@@ -1040,4 +1059,33 @@ fn comparison_and_arm_local_edges_retain_catalog_target_demands() {
     );
     assert_eq!(scratch_register("w29"), None);
     assert_eq!(scratch_register("w30"), None);
+}
+
+#[test]
+fn fence_event_identity_keeps_target_mask_and_authority_separate() {
+    use super::AsmRegisterOperation;
+    let mut tags = std::collections::BTreeSet::new();
+    for kind in AsmFenceKind::ALL {
+        let operation = AsmRegisterOperation::MemoryFence(kind);
+        assert!(tags.insert(operation.catalog_tag()));
+        assert_eq!(
+            AsmRegisterOperation::from_catalog_tag(operation.catalog_tag()),
+            Some(operation)
+        );
+        assert_eq!(
+            AsmRegisterOperation::from_intrinsic_name(kind.intrinsic_name()),
+            Some(operation)
+        );
+        assert!(!operation.requires_service_authority());
+        assert!(operation.input_carriers().is_empty() && operation.result_carrier().is_none());
+        assert_eq!(operation.target_applicability(), kind.target());
+        let contract = super::AsmInstructionContract::memory_fence(kind);
+        assert_eq!(contract.memory_ordering, AsmMemoryOrdering::Fence(kind));
+        assert!(contract.clobbers.is_empty() && contract.operands.is_empty());
+        assert_eq!(contract.target, kind.target());
+    }
+    assert_eq!(AsmRegisterOperation::from_catalog_tag(0x506), None);
+    for option in ["ish", "osh", "nsh", "0", "", "SY"] {
+        assert_eq!(AsmFenceKind::from_aarch64_option(option), None);
+    }
 }

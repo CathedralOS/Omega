@@ -21,11 +21,11 @@ machine settle(verdict: &mut Verdict, bad: u64) {
         _ -> invalid(verdict)
     }
 
-    state sound(verdict: &mut Verdict) {
+    machine sound(verdict: &mut Verdict) {
         verdict = Verdict::Sound;
     }
 
-    state invalid(verdict: &mut Verdict) {
+    machine invalid(verdict: &mut Verdict) {
         verdict = Verdict::Invalid;
     }
 }
@@ -37,11 +37,11 @@ machine Main::main(main: &mut Main) reaches Console {
         Verdict::Invalid -> bad(main)
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

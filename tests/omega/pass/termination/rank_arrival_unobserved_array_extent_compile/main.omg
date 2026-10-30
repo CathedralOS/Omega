@@ -11,7 +11,7 @@ terminates by countdown -> Countdown::Remaining in 0..=5;
     transition {
         _ -> iterate(identity(countdown), Countdown { remaining: 4 }, padding)
     }
-    state iterate(held: Countdown, spare: Countdown, padding: &[u8; 65536]) {
+    machine iterate(held: Countdown, spare: Countdown, padding: &[u8; 65536]) -> u64 {
         transition held.remaining > 0 {
             true -> iterate(identity(Countdown { remaining: held.remaining - 1 }), spare, padding)
             false -> held.remaining
@@ -30,6 +30,6 @@ machine run() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

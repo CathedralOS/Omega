@@ -5,6 +5,39 @@ use crate::{data, machine, signature, trait_definition};
 use symbols::SymbolHandle;
 
 impl TypedTrees {
+    /// Read a family's exact member from the retained catalog. A missing target
+    /// never selects another member or treats the bodyless head as executable.
+    pub fn target_family_member(
+        &self,
+        head: SymbolHandle,
+        target: &str,
+    ) -> Option<&machine::Machine> {
+        let family = self
+            .target_machine_families
+            .iter()
+            .find(|family| family.canonical == head)?;
+        let member = family
+            .members
+            .iter()
+            .find(|member| member.target.as_str() == target)?;
+        self.machine_by_symbol(member.machine)
+    }
+
+    /// Resolve a body reference under a canonical target identity supplied by
+    /// its owner. Exact member references stay exact, even for another target.
+    pub fn machine_for_target<'program>(
+        &'program self,
+        machine: &'program machine::Machine,
+        target: &str,
+    ) -> Option<&'program machine::Machine> {
+        if machine.target_family_interface {
+            return self.target_family_member(machine.symbol, target);
+        }
+        self.machine_authored_target(machine)
+            .is_none_or(|declared| declared == target)
+            .then_some(machine)
+    }
+
     super::typed_tree_table! {
         traits => traits(trait_definition::TraitDefinition) [push_trait_definition];
         conformances => conformances(trait_definition::Conformance) [push_conformance];
@@ -30,54 +63,63 @@ impl TypedTrees {
             .find(|conformance| conformance.symbol == symbol)
     }
 
-    pub fn conformance_type_parameters(
-        &self,
-        conformance: &trait_definition::Conformance,
-    ) -> &[data::TypeParameter] {
-        self.data_type_parameters
-            .span_or_empty(conformance.type_parameters)
-    }
-
-    pub fn trait_type_parameters(
-        &self,
-        trait_definition: &trait_definition::TraitDefinition,
-    ) -> &[data::TypeParameter] {
-        self.data_type_parameters
-            .span_or_empty(trait_definition.type_parameters)
-    }
-
-    pub fn push_trait_requirement(
-        &mut self,
-        trait_definition: &mut trait_definition::TraitDefinition,
-        requirement: trait_definition::TraitRequirement,
-    ) {
-        self.trait_requirements
-            .append_to_span(&mut trait_definition.requires, requirement);
-    }
-
-    pub fn trait_requirements(
-        &self,
-        trait_definition: &trait_definition::TraitDefinition,
-    ) -> &[trait_definition::TraitRequirement] {
-        self.trait_requirements
-            .span_or_empty(trait_definition.requires)
-    }
-
-    pub fn push_trait_machine_signature(
-        &mut self,
-        trait_definition: &mut trait_definition::TraitDefinition,
-        signature: signature::StateSignature,
-    ) {
-        self.trait_machine_signatures
-            .append_to_span(&mut trait_definition.machines, signature);
-    }
-
-    pub fn trait_machine_signatures(
-        &self,
-        trait_definition: &trait_definition::TraitDefinition,
-    ) -> &[signature::StateSignature] {
-        self.trait_machine_signatures
-            .span_or_empty(trait_definition.machines)
+    // One entry per declaration column: the node field carrying the rows,
+    // the table column that owns them, and the append for that same column.
+    super::declaration_columns! {
+        conformance_type_parameters(conformance: trait_definition::Conformance)
+            -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+        trait_type_parameters(trait_definition: trait_definition::TraitDefinition)
+            -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+        trait_requirements(trait_definition: trait_definition::TraitDefinition)
+            -> &[trait_definition::TraitRequirement] = trait_requirements.requires
+            [push_trait_requirement];
+        trait_machine_signatures(trait_definition: trait_definition::TraitDefinition)
+            -> &[signature::StateSignature] = trait_machine_signatures.machines
+            [push_trait_machine_signature];
+        #[inline]
+        machine_type_parameters(machine: machine::Machine)
+            -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+        machine_owned_data(machine: machine::Machine)
+            -> &[machine::OwnedData] = machine_owned_data.owned_data
+            [push_machine_owned_data];
+        /// Every conformance this declaration owes, including an unrealized body.
+        ///
+        /// Declaration queries must not observe realization selection: checking,
+        /// inherited proof facts, cloning and lowering all need the same authored
+        /// obligations. A caller choosing implementations owns its execution scope;
+        /// a target marker never erases semantic evidence from its member.
+        machine_trait_conformances(machine: machine::Machine)
+            -> &[machine::TraitConformance] = machine_trait_conformances.satisfies
+            [push_machine_trait_conformance];
+        machine_invokes(machine: machine::Machine)
+            -> &[signature::AuthoredInvocation] = signature_invokes.invokes
+            [push_machine_invoke];
+        machine_contracts(machine: machine::Machine)
+            -> &[signature::SignatureContract] = signature_contracts.contracts
+            [push_machine_contract];
+        #[inline]
+        machine_states(machine: machine::Machine)
+            -> &[crate::state::State] = machine_states.states
+            [push_machine_state];
+        #[inline]
+        state_parameters(state: crate::state::State)
+            -> &[signature::StateParameter] = state_parameters.parameters
+            [push_state_parameter];
+        #[inline]
+        state_contracts(state: crate::state::State)
+            -> &[signature::SignatureContract] = signature_contracts.contracts
+            [push_state_contract];
+        state_signature_parameters(signature: signature::StateSignature)
+            -> &[signature::StateParameter] = state_parameters.parameters
+            [push_state_signature_parameter];
+        state_signature_type_parameters(signature: signature::StateSignature)
+            -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+        state_signature_invokes(signature: signature::StateSignature)
+            -> &[signature::AuthoredInvocation] = signature_invokes.invokes
+            [push_state_signature_invoke];
+        state_signature_contracts(signature: signature::StateSignature)
+            -> &[signature::SignatureContract] = signature_contracts.contracts
+            [push_state_signature_contract];
     }
 
     /// Executable coordinates of the complete authored requirement roster.
@@ -107,6 +149,40 @@ impl TypedTrees {
                     .into_iter()
                     .map(move |handle| self.applied_callable_signatures.get(handle).signature()),
             )
+    }
+
+    /// Runtime catalogs contain completed static applications, not open data
+    /// telescopes. Source/effect checking keeps `trait_machine_instances` and
+    /// its full authored roster; publication must not invent an ABI for an
+    /// unused generic member merely because a sibling of its trait is called.
+    /// Machine callback binders keep their existing explicit callback lane.
+    pub fn executable_trait_machine_instances<'program>(
+        &'program self,
+        definition: &'program trait_definition::TraitDefinition,
+    ) -> impl Iterator<Item = &'program signature::StateSignature> {
+        self.trait_machine_instances(definition)
+            .filter(|signature| self.executable_requirement_telescope(signature))
+    }
+
+    pub fn executable_requirement_machine_instances<'program>(
+        &'program self,
+        signature: &'program signature::StateSignature,
+    ) -> impl Iterator<Item = &'program signature::StateSignature> {
+        self.requirement_machine_instances(signature)
+            .filter(|signature| self.executable_requirement_telescope(signature))
+    }
+
+    fn executable_requirement_telescope(&self, signature: &signature::StateSignature) -> bool {
+        self.state_signature_type_parameters(signature)
+            .iter()
+            .all(|parameter| {
+                !matches!(
+                    parameter.kind,
+                    data::TypeParameterKind::Type
+                        | data::TypeParameterKind::Const { .. }
+                        | data::TypeParameterKind::Value { .. }
+                )
+            })
     }
 
     /// The machine signature keyed `symbol` within `trait_definition`, when declared.
@@ -245,10 +321,47 @@ impl TypedTrees {
         self.tables.machines.span_mut_or_empty(self.roots.machines)
     }
 
-    #[inline]
-    pub fn machine_type_parameters(&self, machine: &machine::Machine) -> &[data::TypeParameter] {
-        self.data_type_parameters
-            .span_or_empty(machine.type_parameters)
+    /// The static telescope owned by this declaration. Enclosing declarations
+    /// are separate scopes; an executable instance carries its substituted one.
+    pub fn declaration_type_parameters(&self, symbol: SymbolHandle) -> &[data::TypeParameter] {
+        use symbols::SymbolKind;
+        match self.symbols.get(symbol).kind {
+            SymbolKind::Data => self
+                .data_definition_by_symbol(symbol)
+                .map(|declaration| self.data_type_parameters(declaration)),
+            SymbolKind::Domain => crate::domain::domain_by_symbol(self, symbol)
+                .map(|declaration| self.domain_type_parameters(declaration)),
+            SymbolKind::Trait => self
+                .trait_definition_by_symbol(symbol)
+                .map(|declaration| self.trait_type_parameters(declaration)),
+            SymbolKind::Conformance => self
+                .conformance_by_symbol(symbol)
+                .map(|declaration| self.conformance_type_parameters(declaration)),
+            SymbolKind::Machine | SymbolKind::State => self
+                .machine_by_own_or_state_symbol(symbol)
+                .map(|declaration| self.machine_type_parameters(declaration))
+                .or_else(|| {
+                    self.trait_machine_signature(symbol)
+                        .map(|(_, signature)| self.state_signature_type_parameters(signature))
+                })
+                .or_else(|| {
+                    self.retained_static_machine_contract(symbol)
+                        .map(|contract| self.state_signature_type_parameters(contract.signature()))
+                })
+                .or_else(|| {
+                    self.prepared_callable_signatures()
+                        .find(|signature| signature.symbol == symbol)
+                        .map(|signature| self.state_signature_type_parameters(signature))
+                }),
+            SymbolKind::Operator => self
+                .operator_definition_by_symbol(symbol)
+                .map(|declaration| {
+                    self.data_type_parameters
+                        .span_or_empty(declaration.type_parameters)
+                }),
+            _ => None,
+        }
+        .unwrap_or_default()
     }
 
     /// The `Machine`-kind entries within `machine`'s type parameters — the
@@ -263,12 +376,10 @@ impl TypedTrees {
             .filter(|parameter| matches!(parameter.kind, data::TypeParameterKind::Machine { .. }))
     }
 
-    /// The declaration scope visible to types in a machine, including source
-    /// regions captured in a specialization's actual type operands. Captures
-    /// belong to the retained application's lexical owner, not new binders on
-    /// the private clone. This query admits their spelling during formation;
-    /// applied identity still resolves regions through that retained owner.
-    pub fn machine_type_reference_scope(
+    /// The machine's declared telescope, including its exact nominal and
+    /// enclosing implementation owners. Method binders retain their original
+    /// prefix coordinates. Captured specialization operands are not binders.
+    pub fn machine_declaration_scope(
         &self,
         machine: &machine::Machine,
         same_type_parameter: impl Fn(&data::TypeParameter, &data::TypeParameter) -> bool,
@@ -279,6 +390,21 @@ impl TypedTrees {
         // visible during formation, not fresh binders of each invocation.
         let mut enclosing = self.declaration_scope_parent(machine.symbol);
         while enclosing.is_valid() {
+            if let Some(declaration) = self.machine_declaration_for_lexical_scope(enclosing) {
+                for parameter in self.machine_type_parameters(declaration) {
+                    if !type_parameters
+                        .iter()
+                        .any(|existing| same_type_parameter(existing, parameter))
+                    {
+                        type_parameters.push(parameter.clone());
+                    }
+                }
+                for parameter in &declaration.lifetime_parameters {
+                    if !lifetime_parameters.contains(parameter) {
+                        lifetime_parameters.push(parameter.clone());
+                    }
+                }
+            }
             if let Some(conformance) = self.conformance_by_symbol(enclosing) {
                 for parameter in self.conformance_type_parameters(conformance) {
                     if !type_parameters
@@ -296,8 +422,8 @@ impl TypedTrees {
             }
             enclosing = self.declaration_scope_parent(enclosing);
         }
-        if let Some(attached_data) = &machine.attached_data
-            && let Some(definition) = self.data_definition_by_name(attached_data)
+        if machine.attached_data_symbol.is_valid()
+            && let Some(definition) = self.data_definition_by_symbol(machine.attached_data_symbol)
         {
             for parameter in self.data_type_parameters(definition) {
                 if !type_parameters
@@ -316,6 +442,21 @@ impl TypedTrees {
                 }
             }
         }
+        (type_parameters, lifetime_parameters)
+    }
+
+    /// The declaration scope visible to types in a machine, including source
+    /// regions captured in a specialization's actual type operands. Captures
+    /// belong to the retained application's lexical owner, not new binders on
+    /// the private clone. This query admits their spelling during formation;
+    /// applied identity still resolves regions through that retained owner.
+    pub fn machine_type_reference_scope(
+        &self,
+        machine: &machine::Machine,
+        same_type_parameter: impl Fn(&data::TypeParameter, &data::TypeParameter) -> bool,
+    ) -> (Vec<data::TypeParameter>, Vec<crate::name::Identifier>) {
+        let (type_parameters, mut lifetime_parameters) =
+            self.machine_declaration_scope(machine, same_type_parameter);
         // A type operand can carry regions arbitrarily deep in its arguments.
         // The nominal head's lifetime roster is not the operand's scope. Follow
         // retained source ownership rather than collecting tags from type text
@@ -341,7 +482,7 @@ impl TypedTrees {
                 break;
             }
             let captured = self
-                .machine_by_symbol(lexical_owner)
+                .machine_declaration_for_lexical_scope(lexical_owner)
                 .map(|machine| &machine.lifetime_parameters)
                 .or_else(|| {
                     self.data_definition_by_symbol(lexical_owner)
@@ -445,19 +586,6 @@ impl TypedTrees {
         })
     }
 
-    pub fn push_machine_owned_data(
-        &mut self,
-        machine: &mut machine::Machine,
-        owned_data: machine::OwnedData,
-    ) {
-        self.machine_owned_data
-            .append_to_span(&mut machine.owned_data, owned_data);
-    }
-
-    pub fn machine_owned_data(&self, machine: &machine::Machine) -> &[machine::OwnedData] {
-        self.machine_owned_data.span_or_empty(machine.owned_data)
-    }
-
     /// The owned-data row keyed `symbol` within `machine`, when declared.
     pub fn machine_owned_data_by_symbol(
         &self,
@@ -467,55 +595,6 @@ impl TypedTrees {
         self.machine_owned_data(machine)
             .iter()
             .find(|candidate| candidate.symbol == symbol)
-    }
-
-    pub fn push_machine_trait_conformance(
-        &mut self,
-        machine: &mut machine::Machine,
-        conformance: machine::TraitConformance,
-    ) {
-        self.machine_trait_conformances
-            .append_to_span(&mut machine.satisfies, conformance);
-    }
-
-    /// Every conformance this declaration owes, including an unrealized body.
-    ///
-    /// Declaration queries must not observe realization selection: checking,
-    /// inherited proof facts, cloning and lowering all need the same authored
-    /// obligations. A caller choosing implementations owns its execution scope;
-    /// a target marker never erases semantic evidence from its member.
-    pub fn machine_trait_conformances(
-        &self,
-        machine: &machine::Machine,
-    ) -> &[machine::TraitConformance] {
-        self.machine_trait_conformances
-            .span_or_empty(machine.satisfies)
-    }
-
-    pub fn push_machine_invoke(
-        &mut self,
-        machine: &mut machine::Machine,
-        invocation: signature::AuthoredInvocation,
-    ) {
-        self.signature_invokes
-            .append_to_span(&mut machine.invokes, invocation);
-    }
-
-    pub fn machine_invokes(&self, machine: &machine::Machine) -> &[signature::AuthoredInvocation] {
-        self.signature_invokes.span_or_empty(machine.invokes)
-    }
-
-    pub fn push_machine_contract(
-        &mut self,
-        machine: &mut machine::Machine,
-        contract: signature::SignatureContract,
-    ) {
-        self.signature_contracts
-            .append_to_span(&mut machine.contracts, contract);
-    }
-
-    pub fn machine_contracts(&self, machine: &machine::Machine) -> &[signature::SignatureContract] {
-        self.signature_contracts.span_or_empty(machine.contracts)
     }
 
     /// Visits each (machine, state) contract frame in program order: the
@@ -587,20 +666,6 @@ impl TypedTrees {
                     signature::SignatureContractKind::Crashes { .. }
                 )
             })
-    }
-
-    pub fn push_machine_state(
-        &mut self,
-        machine: &mut machine::Machine,
-        state: crate::state::State,
-    ) {
-        self.machine_states
-            .append_to_span(&mut machine.states, state);
-    }
-
-    #[inline]
-    pub fn machine_states(&self, machine: &machine::Machine) -> &[crate::state::State] {
-        self.machine_states.span_or_empty(machine.states)
     }
 
     /// The state `symbol` of `machine`, if the machine declares one.
@@ -801,20 +866,6 @@ impl TypedTrees {
             })
     }
 
-    pub fn push_state_parameter(
-        &mut self,
-        state: &mut crate::state::State,
-        parameter: signature::StateParameter,
-    ) {
-        self.state_parameters
-            .append_to_span(&mut state.parameters, parameter);
-    }
-
-    #[inline]
-    pub fn state_parameters(&self, state: &crate::state::State) -> &[signature::StateParameter] {
-        self.state_parameters.span_or_empty(state.parameters)
-    }
-
     /// `state`'s parameter carrying `symbol`, if any.
     pub fn state_parameter_by_symbol(
         &self,
@@ -835,20 +886,6 @@ impl TypedTrees {
         self.state_parameters(state)
             .iter()
             .filter(|parameter| !parameter.is_const)
-    }
-
-    pub fn push_state_contract(
-        &mut self,
-        state: &mut crate::state::State,
-        contract: signature::SignatureContract,
-    ) {
-        self.signature_contracts
-            .append_to_span(&mut state.contracts, contract);
-    }
-
-    #[inline]
-    pub fn state_contracts(&self, state: &crate::state::State) -> &[signature::SignatureContract] {
-        self.signature_contracts.span_or_empty(state.contracts)
     }
 
     /// Whether `machine` itself or any of its states declares a crash
@@ -923,62 +960,6 @@ impl TypedTrees {
                         && self.primitive_type_reference(local.type_reference).is_some())
             })
             .count()
-    }
-
-    pub fn push_state_signature_parameter(
-        &mut self,
-        signature: &mut signature::StateSignature,
-        parameter: signature::StateParameter,
-    ) {
-        self.state_parameters
-            .append_to_span(&mut signature.parameters, parameter);
-    }
-
-    pub fn state_signature_parameters(
-        &self,
-        signature: &signature::StateSignature,
-    ) -> &[signature::StateParameter] {
-        self.state_parameters.span_or_empty(signature.parameters)
-    }
-
-    pub fn state_signature_type_parameters(
-        &self,
-        signature: &signature::StateSignature,
-    ) -> &[data::TypeParameter] {
-        self.data_type_parameters
-            .span_or_empty(signature.type_parameters)
-    }
-
-    pub fn push_state_signature_invoke(
-        &mut self,
-        signature: &mut signature::StateSignature,
-        invocation: signature::AuthoredInvocation,
-    ) {
-        self.signature_invokes
-            .append_to_span(&mut signature.invokes, invocation);
-    }
-
-    pub fn state_signature_invokes(
-        &self,
-        signature: &signature::StateSignature,
-    ) -> &[signature::AuthoredInvocation] {
-        self.signature_invokes.span_or_empty(signature.invokes)
-    }
-
-    pub fn push_state_signature_contract(
-        &mut self,
-        signature: &mut signature::StateSignature,
-        contract: signature::SignatureContract,
-    ) {
-        self.signature_contracts
-            .append_to_span(&mut signature.contracts, contract);
-    }
-
-    pub fn state_signature_contracts(
-        &self,
-        signature: &signature::StateSignature,
-    ) -> &[signature::SignatureContract] {
-        self.signature_contracts.span_or_empty(signature.contracts)
     }
 }
 

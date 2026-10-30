@@ -5,6 +5,6 @@ machine main() crashes Trap {
     let mut counter: Counter = Counter { value: 7 };
     let observed: u64 = address_of(&mut counter);
     transition consume(&counter) && observed == 19 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

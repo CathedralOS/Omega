@@ -1,9 +1,0 @@
-// Package-mode canary: `placed view` retention joins each roster row to
-// hermetic declaration identities, which standalone source cannot carry --
-// `Build::package` gives the fixture the managed-package provenance that
-// `TerminalPlacedViewInput` custody requires.
-
-machine build(builder: &mut Build) {
-    Build::package(builder, "placed_view_source_access_compile");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

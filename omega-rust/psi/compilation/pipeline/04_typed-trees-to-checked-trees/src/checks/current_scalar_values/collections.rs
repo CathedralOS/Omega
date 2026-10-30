@@ -5,9 +5,7 @@
 //! independently establish the range. Returning a descriptor binds its actual
 //! observation to the exact contract owner, never to the backing capacity.
 
-use super::{
-    CurrentScalarValues, Length, LengthSubject, admitted, fixed_length, integer_carrier, scoped,
-};
+use super::{CurrentScalarValues, Length, LengthSubject, fixed_length, integer_carrier};
 use symbols::SymbolHandle;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern, TableMatchExpression,
@@ -26,103 +24,6 @@ pub(super) struct CapturedFieldLength {
 }
 
 impl CurrentScalarValues<'_> {
-    pub(crate) fn prepare_exit_return(&mut self, returned: ExpressionHandle) {
-        if let Some(value) = self.collection_length(returned, 0)
-            && let Some(entry) = self.program.machine_states(self.machine).first()
-        {
-            self.lengths.push(Length {
-                subject: LengthSubject::Result(self.machine.symbol),
-                name: String::new(),
-                stable: true,
-                type_reference: entry.return_type,
-                value: Some(value),
-            });
-        }
-        self.record_returned_field_lengths(returned);
-    }
-
-    pub(crate) fn postcondition(
-        &self,
-        expression: ExpressionHandle,
-        returned: ExpressionHandle,
-        origins: impl Iterator<Item = (SymbolHandle, SymbolHandle)>,
-    ) -> Option<ScopedArithmeticExpression> {
-        // The declaration's postcondition names invocation parameters, while
-        // the live hypotheses name the exit state's parameters. Bind those
-        // namespaces through the independently established incoming origins;
-        // spelling, slot order and a write-free body are not identity evidence.
-        let entry = self.program.machine_states(self.machine).first()?;
-        let mut bindings = self.current.clone();
-        let mut lengths = self.lengths.clone();
-        if entry.symbol != self.state.symbol {
-            bindings.clear();
-            lengths.retain(|length| {
-                matches!(
-                    length.subject,
-                    LengthSubject::Result(_) | LengthSubject::ResultField { .. }
-                )
-            });
-            for (entry_parameter, state_parameter) in origins {
-                if let Some(current) = self
-                    .current
-                    .iter()
-                    .find(|binding| binding.symbol == state_parameter)
-                {
-                    let mut binding = current.clone();
-                    binding.symbol = entry_parameter;
-                    binding.name = self.program.symbols.name(entry_parameter).to_owned();
-                    bindings.push(binding);
-                }
-                if let Some(current) = self
-                    .lengths
-                    .iter()
-                    .find(|length| length.subject == LengthSubject::Storage(state_parameter))
-                {
-                    let mut length = current.clone();
-                    length.subject = LengthSubject::Storage(entry_parameter);
-                    length.name = self.program.symbols.name(entry_parameter).to_owned();
-                    lengths.push(length);
-                }
-            }
-        }
-        let fields = if entry.symbol == self.state.symbol {
-            self.fields.as_slice()
-        } else {
-            &[]
-        };
-        if !admitted(
-            self.program,
-            self.machine,
-            entry,
-            self.statement_index,
-            expression,
-            &bindings,
-            &lengths,
-            fields,
-            0,
-        ) {
-            return None;
-        }
-        let mut goal = scoped(
-            self.machine,
-            entry,
-            self.statement_index,
-            expression,
-            &bindings,
-            &lengths,
-            fields,
-            &self.hypotheses,
-            self.program,
-        )?;
-        if let Some(returned) = self.current(returned) {
-            goal.bindings.push(ScopedArithmeticBinding {
-                binder: ScopedArithmeticBinder::Result,
-                value: ScopedArithmeticValue::Term(returned),
-            });
-        }
-        Some(goal)
-    }
-
     pub(super) fn capture_collection(
         &mut self,
         symbol: SymbolHandle,
@@ -166,6 +67,88 @@ impl CurrentScalarValues<'_> {
             &value,
         )?;
         interval.high?.to_u64()
+    }
+
+    /// The arrival observation remains bound to this formal even if its
+    /// descriptor is subsequently replaced. Current operands use the ordinary
+    /// transfer roster below, so replacement cannot manufacture descent.
+    pub(crate) fn initial_collection_length(
+        &self,
+        parameter: SymbolHandle,
+    ) -> Option<ScopedArithmeticValue> {
+        self.initial_lengths
+            .iter()
+            .find(|length| length.subject == LengthSubject::Storage(parameter))?
+            .value
+            .clone()
+    }
+
+    /// The current frame owns exact descriptor observations. Missing retained
+    /// geometry is not an unknown capacity that can authorize an entry read.
+    pub(super) fn coordinate_collection_length(
+        &self,
+        owner: SymbolHandle,
+        path: &[facts::PlaceSegment],
+    ) -> Option<ScopedArithmeticValue> {
+        let subject = if path.is_empty() {
+            LengthSubject::Storage(owner)
+        } else {
+            LengthSubject::Field {
+                owner,
+                path: super::declaration_field_path(path)?,
+            }
+        };
+        self.lengths
+            .iter()
+            .find(|length| length.subject == subject)?
+            .value
+            .clone()
+    }
+
+    pub(crate) fn current_collection_length(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<ScopedArithmeticValue> {
+        self.collection_length(expression, 0)
+    }
+
+    /// Inline descriptor fields carry their own extent at this invocation.
+    /// The selected frame decides whether this is an entry observation or a
+    /// current association that survived the executed prefix.
+    pub(crate) fn length_field_observations(
+        &self,
+        parameter: SymbolHandle,
+    ) -> impl Iterator<Item = (&[SymbolHandle], &ScopedArithmeticValue)> {
+        self.lengths.iter().filter_map(move |length| {
+            let LengthSubject::Field { owner, path } = &length.subject else {
+                return None;
+            };
+            (*owner == parameter)
+                .then_some(length.value.as_ref())?
+                .map(|value| (path.as_slice(), value))
+        })
+    }
+
+    /// Project the destination's selected descriptor from the completed
+    /// actual. Use the same captured roster as ordinary member reads, so
+    /// copies, constructors, joins and replacement share one extent owner.
+    pub(crate) fn projected_collection_length(
+        &self,
+        actual: ExpressionHandle,
+        path: &[facts::PlaceSegment],
+    ) -> Option<ScopedArithmeticValue> {
+        if path.is_empty() {
+            return self.current_collection_length(actual);
+        }
+        self.captured_field_lengths(actual, 0)
+            .into_iter()
+            .find(|field| {
+                field.path.len() == path.len()
+                    && field.path.iter().zip(path).all(|(field, segment)| {
+                        matches!(segment, facts::PlaceSegment::Field { symbol } if symbol == field)
+                    })
+            })
+            .map(|field| field.value)
     }
 
     pub(super) fn collection_length(
@@ -358,7 +341,10 @@ impl CurrentScalarValues<'_> {
         ))
     }
 
-    fn exact_length(&self, value: &ScopedArithmeticValue) -> Option<numerics::bignum::BigInt> {
+    pub(super) fn exact_length(
+        &self,
+        value: &ScopedArithmeticValue,
+    ) -> Option<numerics::bignum::BigInt> {
         let interval = validation::scoped_arithmetic_value_bounds(
             self.program,
             self.machine,
@@ -372,7 +358,7 @@ impl CurrentScalarValues<'_> {
 
     /// Slice fields of the returned record. A match publishes a field only
     /// when every arm builds that same field with one shared length.
-    fn record_returned_field_lengths(&mut self, returned: ExpressionHandle) {
+    pub(super) fn record_returned_field_lengths(&mut self, returned: ExpressionHandle) {
         for field in self.captured_field_lengths(returned, 0) {
             self.lengths.push(Length {
                 subject: LengthSubject::ResultField {
@@ -601,6 +587,24 @@ impl CurrentScalarValues<'_> {
         subject: Option<&ScopedArithmeticValue>,
         replacement: Option<&ScopedArithmeticValue>,
     ) -> Option<ScopedArithmeticValue> {
+        let (start, end) = self.window_bounds(expression, indexed, depth, subject, replacement)?;
+        Some(ScopedArithmeticValue::IntegerOperation {
+            operator: BinaryOperator::Subtract,
+            left: Box::new(end),
+            right: Box::new(start),
+        })
+    }
+
+    /// The same formation decision supplies both descriptor length and exact
+    /// retained element coordinates; neither consumer grants its own bounds.
+    pub(super) fn window_bounds(
+        &self,
+        expression: ExpressionHandle,
+        indexed: &typed_trees::expression::TableIndexedExpression,
+        depth: usize,
+        subject: Option<&ScopedArithmeticValue>,
+        replacement: Option<&ScopedArithmeticValue>,
+    ) -> Option<(ScopedArithmeticValue, ScopedArithmeticValue)> {
         let range = self.program.expression_table.range_node(indexed.index)?;
         let source = self.collection_length(indexed.collection, depth + 1)?;
         let zero = ScopedArithmeticValue::Integer(numerics::bignum::BigInt::zero());
@@ -647,11 +651,7 @@ impl CurrentScalarValues<'_> {
                 }
             }
         }
-        Some(ScopedArithmeticValue::IntegerOperation {
-            operator: BinaryOperator::Subtract,
-            left: Box::new(end),
-            right: Box::new(start),
-        })
+        Some((start, end))
     }
 
     fn replaced_endpoint(
@@ -885,18 +885,16 @@ impl CurrentScalarValues<'_> {
         &mut self,
         owner: SymbolHandle,
         path: &[SymbolHandle],
-        owner_name: &str,
         initializer: ExpressionHandle,
     ) {
         let fields = self.captured_field_lengths(initializer, 0);
-        self.replace_record_fields(owner, path, owner_name, fields);
+        self.replace_record_fields(owner, path, fields);
     }
 
     pub(super) fn replace_record_fields(
         &mut self,
         owner: SymbolHandle,
         prefix: &[SymbolHandle],
-        owner_name: &str,
         fields: Vec<CapturedFieldLength>,
     ) {
         self.lengths.retain(|length| !matches!(&length.subject,
@@ -904,13 +902,21 @@ impl CurrentScalarValues<'_> {
         for field in fields {
             let mut path = prefix.to_vec();
             path.extend(field.path);
+            let coordinate = path
+                .iter()
+                .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
+                .collect::<Vec<_>>();
+            // Extent belongs to the descriptor binding, not its payload.
+            // Whole/field replacement overlaps `.len`; an element store does
+            // not. Entry seeds and later copies use this same frame owner.
+            let Some(name) =
+                validation::frame_length_coordinate_path(self.program, owner, &coordinate)
+            else {
+                continue;
+            };
             self.lengths.push(Length {
                 subject: LengthSubject::Field { owner, path },
-                name: if field.name.is_empty() {
-                    owner_name.to_owned()
-                } else {
-                    format!("{owner_name}.{}", field.name)
-                },
+                name,
                 stable: false,
                 type_reference: field.type_reference,
                 value: Some(field.value),

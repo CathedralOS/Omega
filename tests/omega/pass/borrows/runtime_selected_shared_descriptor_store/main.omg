@@ -13,7 +13,7 @@ machine first(values: &[Cell]) -> u32 {
         true -> read(values)
         false -> 0
     }
-    state read(values: &[Cell]) -> u32 requires values.len > 0 { values[0].value }
+    machine read(values: &[Cell]) -> u32 requires values.len > 0 { values[0].value }
 }
 
 machine exercise(position: u64) -> bool requires position < 2 {
@@ -37,6 +37,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

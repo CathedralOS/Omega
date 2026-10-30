@@ -26,7 +26,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> done(71)
     }
 
-    state done(code: i32) {
+    machine done(code: i32) {
         Console::exit_process(code);
     }
 }

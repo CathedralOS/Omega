@@ -1,4 +1,4 @@
-domain u64::Upper(value) requires value >= 2;
+domain u64::Upper requires self >= 2;
 
 data WindowBuffer { items: [i32; 4]; }
 
@@ -24,6 +24,6 @@ machine main() crashes Trap {
         true -> passed()
         false -> failed()
     }
-    state passed() {}
-    state failed() { crash Trap; }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }

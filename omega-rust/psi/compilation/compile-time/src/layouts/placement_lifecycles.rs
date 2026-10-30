@@ -87,6 +87,10 @@ pub fn retain_placement_lifecycle_plans(
                 &program,
                 policy_machine,
                 schema_definition,
+                // Lifecycle geometry is evaluated after source completion,
+                // outside its retained accounting ledger. Ordinary evaluation
+                // still enforces admission and its logical work ceiling.
+                &Default::default(),
             )
             .map_err(diagnostic)?,
         };

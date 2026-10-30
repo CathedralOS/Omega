@@ -27,11 +27,11 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> refused(71)
     }
 
-    state done() {
+    machine done() {
         Console::exit_process(70);
     }
 
-    state refused(code: i32) {
+    machine refused(code: i32) {
         Console::exit_process(code);
     }
 }

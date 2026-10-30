@@ -50,8 +50,8 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> failed(main)
     }
 
-    state passed(main: &mut Main) { Console::exit_process(0); }
-    state failed(main: &mut Main) { Console::exit_process(1); }
+    machine passed(main: &mut Main) { Console::exit_process(0); }
+    machine failed(main: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

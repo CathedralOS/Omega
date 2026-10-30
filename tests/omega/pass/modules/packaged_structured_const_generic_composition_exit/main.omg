@@ -1,0 +1,4 @@
+// Expected exit: 0
+// Same actual packaged record const survives a domain and a generic data application.
+use carrier_control_dependency::main;
+machine main() {}

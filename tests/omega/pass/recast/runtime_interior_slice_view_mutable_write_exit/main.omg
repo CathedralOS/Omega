@@ -27,7 +27,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad_tail_length(main)
     }
 
-    state write_tail(main: &mut Main, tail: &mut [u8]) {
+    machine write_tail(main: &mut Main, tail: &mut [u8]) {
     tail[4] = 9;
     transition tail.len == 5 {
         true -> check_tail_backing(main)
@@ -35,14 +35,14 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     }
 
-    state check_tail_backing(main: &mut Main) {
+    machine check_tail_backing(main: &mut Main) {
     transition main.tail_bytes[7] == 9 {
         true -> pair_view(main)
         _ -> bad_tail_write(main)
     }
     }
 
-    state pair_view(main: &mut Main) {
+    machine pair_view(main: &mut Main) {
     let pairs: &mut [Pair] =
         &mut main.pair_bytes[4] as &mut [Pair];
     transition pairs.len > 1 {
@@ -51,7 +51,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     }
 
-    state write_pairs(main: &mut Main, pairs: &mut [Pair]) {
+    machine write_pairs(main: &mut Main, pairs: &mut [Pair]) {
     pairs[0].low = 0x0201;
     pairs[0].high = 0x0403;
     pairs[1].low = 0x0605;
@@ -62,7 +62,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     }
 
-    state check_pair_backing(main: &mut Main) {
+    machine check_pair_backing(main: &mut Main) {
     transition main.pair_bytes[4] == 1 && main.pair_bytes[5] == 2
         && main.pair_bytes[6] == 3 && main.pair_bytes[7] == 4
         && main.pair_bytes[8] == 5 && main.pair_bytes[9] == 6
@@ -72,11 +72,11 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad_tail_length(main: &mut Main) { Console::exit_process(71); }
-    state bad_tail_write(main: &mut Main) { Console::exit_process(72); }
-    state bad_pair_length(main: &mut Main) { Console::exit_process(73); }
-    state bad_pair_write(main: &mut Main) { Console::exit_process(74); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad_tail_length(main: &mut Main) { Console::exit_process(71); }
+    machine bad_tail_write(main: &mut Main) { Console::exit_process(72); }
+    machine bad_pair_length(main: &mut Main) { Console::exit_process(73); }
+    machine bad_pair_write(main: &mut Main) { Console::exit_process(74); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

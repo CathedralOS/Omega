@@ -11,9 +11,9 @@
 // dependency.
 
 
-public domain [u8]::Utf8(bytes)
+public domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 
 public data Folder {
 }

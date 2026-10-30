@@ -20,11 +20,11 @@ requires width == 16 || width == 32;
     let selected: dyn Windowing = Header as dyn Windowing;
     let result: Packet = dispatch(selected, packet, width);
     transition result.bytes.len == 3 { true -> read(result) false -> bad() }
-    state read(result: Packet) requires result.bytes.len == 3 {
+    machine read(result: Packet) requires result.bytes.len == 3 {
         transition result.bytes[0] == 11 { true -> done() false -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 linux_x86_64 machine forward(packet: Packet) crashes Trap { check(&packet, 16); check(&packet, 32); }

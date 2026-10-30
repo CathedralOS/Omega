@@ -7,37 +7,37 @@ machine number(value: i32 in Wrapping) reaches Console {
         true -> higher(value)
         _ -> digit(value)
     }
-    state higher(value: i32 in Wrapping) {
+    machine higher(value: i32 in Wrapping) {
         Console::write_byte(((value / 10) + 48) as i32);
         transition { _ -> digit(value % 10) }
     }
-    state digit(value: i32 in Wrapping) {
+    machine digit(value: i32 in Wrapping) {
         Console::write_byte((value + 48) as i32);
     }
 }
 
 machine grid(values: &[i32 in Wrapping; 25]) reaches Console {
     transition { _ -> cell(values, 0) }
-    state cell(values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
+    machine cell(values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
         transition index >= 0 && index < 25 {
             true -> emit(values, index)
             _ -> done()
         }
     }
-    state emit(values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
+    machine emit(values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
         number(values[index]);
         transition index % 5 == 4 {
             true -> newline(values, index)
             _ -> space(values, index)
         }
     }
-    state newline(values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
+    machine newline(values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
         Console::write_byte(10);
         transition { _ -> cell(values, index + 1) }
     }
-    state space(values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
+    machine space(values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
         Console::write_byte(32);
         transition { _ -> cell(values, index + 1) }
     }
-    state done() {}
+    machine done() {}
 }

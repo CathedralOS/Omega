@@ -44,22 +44,22 @@ machine Main::step(main: &mut Main, target: i32 in Saturating) {
         _ -> not_found(main, mid, target)
     }
 
-    state found(main: &mut Main) {
+    machine found(main: &mut Main) {
         main.search.found = 1;
     }
 
-    state not_found(main: &mut Main, mid: i32 in Saturating, target: i32 in Saturating) {
+    machine not_found(main: &mut Main, mid: i32 in Saturating, target: i32 in Saturating) {
         transition mid < target {
             true -> move_lo(main, mid)
             _ -> move_hi(main, mid)
         }
     }
 
-    state move_lo(main: &mut Main, mid: i32 in Saturating) {
+    machine move_lo(main: &mut Main, mid: i32 in Saturating) {
         main.search.lo = mid + 1;
     }
 
-    state move_hi(main: &mut Main, mid: i32 in Saturating) {
+    machine move_hi(main: &mut Main, mid: i32 in Saturating) {
         main.search.hi = mid - 1;
     }
 }
@@ -88,7 +88,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> not_found_error(main)
     }
 
-    state check_guesses(main: &mut Main) {
+    machine check_guesses(main: &mut Main) {
         // Exactly 7 guesses needed: 7 * 10 = 70.
         transition main.search.guesses == 7 {
             true -> good(main)
@@ -96,21 +96,21 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::write_line("PASS: found 42 in exactly 7 guesses (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(70);
     }
 
-    state not_found_error(main: &mut Main) {
+    machine not_found_error(main: &mut Main) {
         Console::write_line("FAIL: target never found (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(71);
     }
 
-    state bad_guesses(main: &mut Main) {
+    machine bad_guesses(main: &mut Main) {
         Console::write_line("FAIL: wrong guess count (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

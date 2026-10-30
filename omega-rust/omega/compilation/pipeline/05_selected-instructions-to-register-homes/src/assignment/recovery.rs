@@ -126,15 +126,7 @@ pub(crate) fn stage_active_resident_register_allocation(
         budget,
     ).map_err(RegisterAllocationError::Rematerialization)?;
     let environment = pressure.source().register_environment();
-    match crate::assign_register_homes(
-        pressure.legality(),
-        pressure.ranges(),
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
-    ) {
+    match crate::assign_register_homes(pressure.legality(), pressure.ranges(), environment) {
         Ok(homes) => RetainedAllocation::try_from(
             crate::rewrites::complete_optimized_active_resident_rematerialization(pressure, homes)
                 .map_err(RegisterAllocationError::Rematerialization)?,
@@ -164,8 +156,10 @@ pub(crate) fn stage_active_resident_register_allocation(
 pub(crate) fn stage_selected_lowering_register_allocation(
     run: StagedSelectedLoweringOptimizationRun,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
+    let mut home_reuse = crate::assignment::home_assignment::compute::FunctionHomeReuse::default();
     match crate::assignment::transformed::assign_optimized_register_homes_after_selected_lowering(
         &run,
+        Some(&mut home_reuse),
     ) {
         Ok(homes) => RetainedAllocation::try_from(
             crate::assignment::transformed::stage_optimized_register_homes_after_selected_lowering_with_assignment(run, homes)
@@ -173,8 +167,10 @@ pub(crate) fn stage_selected_lowering_register_allocation(
         )
         .map_err(RegisterAllocationError::Admission),
         Err(error) if error.admits_runtime_recovery() => RetainedAllocation::try_from(
-            crate::assignment::runtime_spill::recover_after_selected_lowering(run)
-                .map_err(RegisterAllocationError::RuntimeSpill)?,
+            crate::assignment::runtime_spill::recover_after_selected_lowering_with_reuse(
+                run, home_reuse,
+            )
+            .map_err(RegisterAllocationError::RuntimeSpill)?,
         )
         .map_err(RegisterAllocationError::Admission),
         Err(error) => Err(RegisterAllocationError::TransformedHomes(
@@ -192,16 +188,21 @@ pub(crate) fn stage_selected_lowering_register_allocation(
 pub(crate) fn stage_pre_allocation_register_allocation(
     run: StagedPreAllocationOptimizationRun,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
-    match crate::assignment::transformed::assign_optimized_register_homes_after_pre_allocation(&run)
-    {
+    let mut home_reuse = crate::assignment::home_assignment::compute::FunctionHomeReuse::default();
+    match crate::assignment::transformed::assign_optimized_register_homes_after_pre_allocation(
+        &run,
+        Some(&mut home_reuse),
+    ) {
         Ok(homes) => RetainedAllocation::try_from(
             crate::assignment::transformed::stage_optimized_register_homes_after_pre_allocation_with_assignment(run, homes)
                 .map_err(RegisterAllocationError::PreAllocationHomes)?,
         )
         .map_err(RegisterAllocationError::Admission),
         Err(error) if error.admits_runtime_recovery() => RetainedAllocation::try_from(
-            crate::assignment::runtime_spill::recover_after_pre_allocation(run)
-                .map_err(RegisterAllocationError::RuntimeSpill)?,
+            crate::assignment::runtime_spill::recover_after_pre_allocation_with_reuse(
+                run, home_reuse,
+            )
+            .map_err(RegisterAllocationError::RuntimeSpill)?,
         )
         .map_err(RegisterAllocationError::Admission),
         Err(error) => Err(RegisterAllocationError::PreAllocationHomes(

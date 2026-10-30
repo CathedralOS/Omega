@@ -1,0 +1,32 @@
+// Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
+// Expected exit: 0
+machine bounded(value: i32) -> bool { value <= 60 }
+data Counter [copy] where bounded(self.value) == true {
+    before: i32;
+    value: i32;
+    after: i32;
+}
+machine replace(slot: &mut i32, replacement: i32)
+requires replacement <= 60
+ensures slot <= 60
+{ slot = replacement; }
+machine produce(replacement: i32) -> Counter
+requires replacement <= 60
+{
+    let mut counter: Counter = Counter { before: 17, value: 0, after: 53 };
+    replace(&mut counter.value, replacement);
+    counter
+}
+const NAMED: Counter = produce(60);
+const LOW: Counter = produce(-2147483648);
+const ALIAS: Counter = NAMED;
+machine compute<const VALUE: Counter>() -> i32 { 70 + VALUE.value }
+public machine main() crashes Trap {
+    transition ALIAS.before == 17 && ALIAS.after == 53 && NAMED.before == 17 && NAMED.after == 53 && LOW.before == 17 && LOW.after == 53 && compute<ALIAS>() == 130 && compute<LOW>() == -2147483578 {
+        true -> done()
+        false -> bad()
+    }
+
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

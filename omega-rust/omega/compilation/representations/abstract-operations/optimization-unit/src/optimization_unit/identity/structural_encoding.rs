@@ -14,7 +14,7 @@ use super::{
 };
 use crate::optimization_unit::identity::carrier_encoding::{
     encode_access, encode_ids, encode_integer_type, encode_integer_value, encode_multiplicity,
-    encode_optional, encode_scalar_type, encode_structural_parameter,
+    encode_optional, encode_optional_access, encode_scalar_type, encode_structural_parameter,
     encode_structural_path_segment,
 };
 use crate::optimization_unit::identity::proposition_encoding::{
@@ -26,7 +26,8 @@ mod contract;
 
 pub(super) use contract::{
     encode_crash_cause, encode_crash_predicate, encode_crash_route_bucket,
-    encode_evidence_contract_lane, encode_machine_contract, encode_outcome_specific_call_evidence,
+    encode_evidence_contract_lane, encode_evidence_interface, encode_machine_contract,
+    encode_outcome_specific_call_evidence,
 };
 
 pub(super) fn encode_place_declaration(
@@ -130,6 +131,10 @@ pub(super) fn encode_boundary_machine(
     );
     encode_boundary_result(bytes, &declaration.result);
     bytes.slice(&declaration.requires, encode_domain_requirement);
+    bytes.slice(
+        &declaration.normal_qualifications,
+        encode_domain_requirement,
+    );
     bytes.slice(&declaration.reference_outputs, |bytes, output| {
         match output.destination {
             terminal_psi::BoundaryReferenceDestination::Parameter(position) => {
@@ -259,6 +264,7 @@ pub(super) fn encode_domain_requirement(
     requirement: &StructuralDomainRequirement,
 ) {
     bytes.u32(requirement.argument_index);
+    bytes.slice(&requirement.path, encode_structural_path_segment);
     bytes.id(requirement.domain);
 }
 
@@ -358,7 +364,30 @@ pub(super) fn encode_content_transformation(
     derived: &terminal_psi::ContentTransformationDerivation,
 ) {
     encode_content_conservation(bytes, &derived.conservation);
-    bytes.id(derived.lineage_anchor);
+    bytes.slice(&derived.lineage_roots, |bytes, root| bytes.id(*root));
+    match &derived.custody {
+        terminal_psi::ContentTransformationCustody::Derived => bytes.u8(0),
+        terminal_psi::ContentTransformationCustody::Boundary {
+            requirements,
+            addresses,
+        } => {
+            bytes.u8(1);
+            bytes.slice(requirements, |bytes, requirement| {
+                bytes.id(requirement.boundary);
+                encode_content_conservation_guarantee(bytes, &requirement.guarantee);
+                bytes.slice(&requirement.substitutions, |bytes, substitution| {
+                    encode_content_term(bytes, &substitution.source);
+                    encode_content_term(bytes, &substitution.target);
+                });
+            });
+            bytes.slice(addresses, |bytes, address| {
+                for endpoint in [&address.input, &address.output] {
+                    bytes.id(endpoint.claim);
+                    encode_content_place(bytes, &endpoint.subject);
+                }
+            });
+        }
+    }
     bytes.slice(&derived.ancestry, |bytes, step| {
         bytes.id(step.producer_operation);
         bytes.slice(&step.inputs, |bytes, claim| bytes.id(*claim));
@@ -476,10 +505,7 @@ pub(super) fn encode_structural_type(
         StructuralTypeShape::ElementView { element, access } => {
             bytes.u8(8);
             bytes.id(*element);
-            match access {
-                Some(access) => encode_access(bytes, *access),
-                None => bytes.u8(0),
-            }
+            encode_optional_access(bytes, *access);
         }
         StructuralTypeShape::Record { fields, storage } => {
             match storage {
@@ -519,7 +545,16 @@ pub(super) fn encode_structural_type(
         StructuralTypeShape::FixedArray { element, length } => {
             bytes.u8(3);
             bytes.id(*element);
-            bytes.u64(*length);
+            match length {
+                terminal_psi::ArrayExtent::Literal(length) => {
+                    bytes.u8(0);
+                    bytes.u64(*length);
+                }
+                terminal_psi::ArrayExtent::Application(application) => {
+                    bytes.u8(1);
+                    bytes.id(*application);
+                }
+            }
         }
         StructuralTypeShape::Sum { cases } => {
             bytes.u8(4);
@@ -594,6 +629,21 @@ pub(super) fn encode_structural_domain(
     bytes.id(declaration.semantic_domain);
     bytes.u32(declaration.identity.0);
     bytes.id(declaration.carrier);
+    bytes.boolean(declaration.complete_predicate_theory);
+    encode_optional(
+        bytes,
+        declaration.required_memberships.as_ref(),
+        |bytes, required| encode_ids(bytes, required),
+    );
+    bytes.slice(&declaration.establishment_routes, |bytes, route| {
+        bytes.u8(match route {
+            terminal_psi::StructuralEstablishmentRoute::CheckedRequirement { .. } => 1,
+            terminal_psi::StructuralEstablishmentRoute::ExactMachine { .. } => 2,
+            terminal_psi::StructuralEstablishmentRoute::BoundaryRequirement { .. } => 3,
+        });
+        bytes.u32(route.declaration().identity().0);
+        bytes.u32(route.identity().0);
+    });
     encode_optional(bytes, declaration.predicate.as_ref(), |bytes, predicate| {
         bytes.id(predicate.subject);
         encode_proposition(bytes, &predicate.proposition);
@@ -635,17 +685,11 @@ pub(super) fn encode_byte_carrier(bytes: &mut CanonicalBytes, carrier: ByteSeque
         // carries; a field's access encodes as its own nonzero value.
         ByteSequenceCarrier::BorrowedView { access } => {
             bytes.u8(1);
-            match access {
-                Some(access) => super::carrier_encoding::encode_access(bytes, access),
-                None => bytes.u8(0),
-            }
+            encode_optional_access(bytes, access);
         }
         ByteSequenceCarrier::BoundedView { access, capacity } => {
             bytes.u8(3);
-            match access {
-                Some(access) => super::carrier_encoding::encode_access(bytes, access),
-                None => bytes.u8(0),
-            }
+            encode_optional_access(bytes, access);
             bytes.u64(capacity);
         }
         ByteSequenceCarrier::BoundedOwned { capacity } => {
@@ -936,3 +980,6 @@ pub(super) fn encode_boundary_result(bytes: &mut CanonicalBytes, result: &Bounda
         }
     }
 }
+
+#[cfg(test)]
+mod normal_qualification_tests;

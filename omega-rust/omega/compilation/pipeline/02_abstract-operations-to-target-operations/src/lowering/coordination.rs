@@ -67,9 +67,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
             scalar_abis.insert(function.machine, abi);
         }
     }
-    let structural_types = StructuralTypeLookup::new(&plan.structural_types).with_verified_domains(
-        verified_input.map(|input| input.context().module().structural_domains.as_slice()),
-    );
+    let structural_types = StructuralTypeLookup::new(&plan.structural_types);
     let mut mixed_structural_scalar_abis = BTreeMap::new();
     for function in &plan.functions {
         if let Some(abi) =
@@ -157,7 +155,29 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
                     &settlements_by_boundary,
                     &installed_by_call,
                     &native_callbacks_by_operation,
-                )?;
+                ).map_err(|error| {
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+                        && matches!(&error, LoweringError::InvalidStructuralValueInput { reason, .. }
+                            if *reason == "view discard has no affine descriptor carrier")
+                    {
+                        // Render this exact full-program catalog coordinate;
+                        // focused public inspection can number another graph.
+                        let declaration = verified_input.and_then(|input| {
+                            let module = input.context().module();
+                            let declaration = module.machine(function.machine)?.declaration.as_ref()?;
+                            Some((
+                                module.identities.text(declaration.machine.identity()),
+                                module.identities.text(declaration.state.identity()),
+                                module.identities.text(declaration.callable),
+                            ))
+                        });
+                        eprintln!(
+                            "descriptor-discard catalog machine={:?} entry={:?} declaration={declaration:?} result={:?}",
+                            function.machine, function.entry, function.result,
+                        );
+                    }
+                    error
+                })?;
                 lowered.scalar_abi = scalar_abis.get(&function.machine).cloned();
                 lowered.mixed_structural_scalar_abi =
                     mixed_structural_scalar_abis.get(&function.machine).cloned();

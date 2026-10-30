@@ -20,30 +20,30 @@ machine Clearance::main(clearance: &mut Clearance) reaches Console {
         LineReadResult::EndOfInput { count } -> eof(clearance, count)
         _ -> invalid(clearance)
     }
-    state newline(clearance: &mut Clearance, count: u64) {
+    machine newline(clearance: &mut Clearance, count: u64) {
         transition count == 11 && clearance.input[10] == 10 {
             true -> decode(clearance)
             false -> invalid(clearance)
         }
     }
-    state eof(clearance: &mut Clearance, count: u64) {
+    machine eof(clearance: &mut Clearance, count: u64) {
         transition count == 10 {
             true -> decode(clearance)
             false -> invalid(clearance)
         }
     }
-    state decode(clearance: &mut Clearance) {
+    machine decode(clearance: &mut Clearance) {
         let valid: bool = parse(&clearance.input, &mut clearance.plan);
         transition valid {
             true -> route(clearance)
             false -> invalid(clearance)
         }
     }
-    state route(clearance: &mut Clearance) {
+    machine route(clearance: &mut Clearance) {
         solve(&clearance.plan, &mut clearance.certificate);
         report(&clearance.certificate);
     }
-    state invalid(clearance: &mut Clearance) {
+    machine invalid(clearance: &mut Clearance) {
         Console::write_line("INVALID: expected H0 HE F1 C1 F2 C2 F3 C3 F4 C4, ten digits; each floor<=ceiling");
         Console::exit_process(64);
     }

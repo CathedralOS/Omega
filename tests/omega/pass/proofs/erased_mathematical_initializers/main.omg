@@ -8,5 +8,5 @@ machine main() {
     let payload: Payload = Payload { value: 3, proof: identity(8) };
     forget(identity(9));
     transition { _ -> next(identity(10)) }
-    state next(proof [erased]: u64) {}
+    machine next(proof [erased]: u64) {}
 }

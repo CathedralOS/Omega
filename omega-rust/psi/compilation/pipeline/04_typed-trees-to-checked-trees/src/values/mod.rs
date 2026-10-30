@@ -21,6 +21,10 @@ use proof::obligations::ProofPlan;
 mod evaluation;
 pub(crate) mod float_predicates;
 mod place_intervals;
+mod projection_evaluations;
+pub(crate) use projection_evaluations::{
+    authored_projection_selectors, authored_projection_selectors_below,
+};
 pub(crate) mod reference_sources;
 mod snapshots;
 pub(crate) use evaluation::boolean as evaluate_checked_boolean;
@@ -31,8 +35,8 @@ pub(crate) use evaluation::{
 };
 pub(crate) use place_intervals::LivePlaceIntervals;
 pub(crate) use snapshots::{
-    AssignmentObservation, PlaceScalarValues, ieee_equal_spelling_at_place,
-    immutable_owned_place_root, integer_bounds_at_place, integer_bounds_from_payloads,
+    AssignmentObservation, AssignmentObservationBatch, PlaceScalarValues,
+    ieee_equal_spelling_at_place, immutable_owned_place_root, integer_bounds_at_place,
     is_assignment_literal, literal_assignment_payload, literal_at_place,
     prepare_assignment_observations, scalar_value_at_place, scalar_value_from_payloads,
 };
@@ -76,8 +80,8 @@ pub(crate) use scalar::{
     lower_unit_scalar_argument, lower_unit_scalar_argument_for_places,
     nested_structural_call_return_type, occupies_scalar_position, operator_is_builtin,
     parameter_position, resolve_structural_parameter_path, retain_nested_call_arguments,
-    scalar_expression_type, scalar_parameter_roster, scalar_position_count, structural_data,
-    structural_parameter_place, unit_scalar_binding_symbols, zeroed_scalar_local_initializer,
+    scalar_expression_type, structural_data, structural_parameter_place,
+    unit_scalar_binding_symbols, zeroed_scalar_local_initializer,
 };
 
 pub(crate) fn build_value_facts(

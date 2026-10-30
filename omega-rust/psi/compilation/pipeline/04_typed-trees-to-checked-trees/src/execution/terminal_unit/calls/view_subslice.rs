@@ -121,6 +121,7 @@ impl ViewSubslice {
             site,
         } = self;
         CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
             source: match range.kind {
                 ViewKind::Bytes => CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
                     root: range.root,
@@ -588,7 +589,18 @@ fn collection_storage(
             CheckedStorageRoot::Parameter {
                 index: u32::try_from(parameter_index).ok()?,
             },
-            parameters[parameter_index].type_identity,
+            // The projected path omits every inherited root reference shell.
+            // Its logical root must follow that same source-type contract;
+            // the published parameter may still store an inner descriptor.
+            validation::structural_type_identity(
+                program,
+                program
+                    .state_parameters(state)
+                    .get(position)?
+                    .type_reference,
+                &[],
+                &[],
+            ),
         )
     } else {
         let (_, local) = program

@@ -24,7 +24,7 @@ pub(super) fn close(
     // Executable rewriting consumes nested tuples. Admission always reads
     // the occurrence's retained authored provider, including erased regions,
     // rather than treating a private instance as a new source declaration.
-    let source_selection = program
+    let mut source_selection = program
         .expression_table
         .static_machine_application_arguments(application)
         .iter()
@@ -32,6 +32,16 @@ pub(super) fn close(
         .nth(ordinal)
         .cloned()
         .unwrap_or_else(|| selection.clone());
+    let owner = program
+        .expression_table
+        .static_machine_application(application)
+        .lexical_owner;
+    super::super::body_rewriting::normalize_const_arguments(
+        program,
+        owner,
+        std::slice::from_mut(&mut source_selection),
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])?;
     let source_selected = source_selection.symbol;
     if !program.state_signature_type_parameters(expected).is_empty() {
         return Ok(None);

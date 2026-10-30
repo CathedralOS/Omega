@@ -53,6 +53,12 @@ pub struct TerminalExecutionRequirements {
     /// Closed terminal invocations demand host-delegated domain authority,
     /// independently of normal import adapters and provider selection.
     pub external_completions: Vec<TerminalExternalCompletionDemand>,
+    /// Scalar values and inline storage extents needed by the selected closure. Merely retaining a
+    /// catalog row or a disconnected block does not demand its evaluation.
+    pub scalar_applications: Vec<semantic_vocabulary::ScalarApplicationId>,
+    /// Conditions owned by evaluation entries actually invoked by this closure.
+    /// These create checking demand, not prerequisite reads or self-dependencies.
+    pub scalar_entry_conditions: Vec<semantic_vocabulary::ScalarApplicationId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -86,7 +92,7 @@ pub(crate) fn check_with_private_entry_ram(
         return Err(TerminalInterpretError::TargetLayoutSelectionIdentityMismatch);
     }
     if private_entry_ram.iter().any(|recipe| {
-        recipe.terminal() != program.identity
+        recipe.terminal() != program.identity.semantic()
             || recipe.input().machine != entry
             || !program.catalogs.placed_view_inputs.contains(recipe.input())
     }) {
@@ -98,6 +104,15 @@ pub(crate) fn check_with_private_entry_ram(
     let mut selected_calls = Vec::new();
     let mut external_completion = None;
     let mut external_demands = BTreeSet::new();
+    let mut scalar_applications = BTreeSet::new();
+    // One borrowed index serves the reached operand joins, never an owned copy
+    // of the catalog or a request to evaluate every retained type.
+    let declarations = program
+        .structural_types()
+        .values()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let mut storage_roots = BTreeSet::new();
     let mut pending = vec![entry];
     let mut visited = BTreeSet::new();
     while let Some(machine_id) = pending.pop() {
@@ -105,6 +120,12 @@ pub(crate) fn check_with_private_entry_ram(
             continue;
         }
         let machine = program.verified_machine(machine_id)?;
+        storage_roots.extend(
+            machine
+                .structural_parameters
+                .iter()
+                .map(|parameter| parameter.structural_type),
+        );
         let requirement = machine.assembly_target_requirement;
         if requirement != terminal_psi::RegisterTargetApplicability::Any {
             let selected = installation
@@ -132,7 +153,31 @@ pub(crate) fn check_with_private_entry_ram(
             let block = machine
                 .block(&block_id)
                 .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
+            storage_roots.extend(
+                block
+                    .structural_parameters
+                    .iter()
+                    .map(|parameter| parameter.structural_type),
+            );
             for (operation_index, operation) in block.operations.iter().enumerate() {
+                storage_roots.extend(
+                    operation
+                        .result
+                        .structural()
+                        .map(|result| result.structural_type),
+                );
+                for storage in operation.kind.storage_uses() {
+                    terminal_semantics::storage_operand_dependencies(
+                        machine,
+                        &declarations,
+                        storage,
+                        &mut storage_roots,
+                    )
+                    .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?;
+                }
+                if let OperationKind::ReadScalarApplication { application } = operation.kind {
+                    scalar_applications.insert(application);
+                }
                 let callee = match &operation.kind {
                     OperationKind::EstablishNativeCodeLayout { machine } => {
                         return Err(TerminalInterpretError::UnsupportedCapability(
@@ -150,6 +195,15 @@ pub(crate) fn check_with_private_entry_ram(
                             },
                         ..
                     } if installation.is_some_and(|supplies| supplies.x86_flags.is_some()) => None,
+                    OperationKind::RegisterAccess {
+                        event: terminal_psi::RegisterAccessEvent::MemoryFence { kind },
+                        ..
+                    } if installation
+                        .and_then(|supplies| supplies.memory_ordering)
+                        .is_some_and(|model| model.supports(*kind)) =>
+                    {
+                        None
+                    }
                     OperationKind::RegisterAccess { event, .. } => {
                         return Err(TerminalInterpretError::UnsupportedCapability(
                             TerminalUnsupportedCapability::RegisterAccess {
@@ -250,6 +304,7 @@ pub(crate) fn check_with_private_entry_ram(
                             }
                             Some(
                                 AdmittedBoundarySupply::HostImport
+                                | AdmittedBoundarySupply::DeferredComponent
                                 | AdmittedBoundarySupply::ComponentProvider { .. },
                             ) => {
                                 imports.insert(*boundary);
@@ -271,7 +326,17 @@ pub(crate) fn check_with_private_entry_ram(
                     pending.push(callee);
                 }
             }
+            for storage in block.terminator.storage_uses() {
+                terminal_semantics::storage_operand_dependencies(
+                    machine,
+                    &declarations,
+                    storage.into(),
+                    &mut storage_roots,
+                )
+                .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?;
+            }
             match &block.terminator {
+                Terminator::InvokeNoNormal { callee, .. } => pending.push(*callee),
                 Terminator::ExternalCompletion { boundary, kind, .. } => {
                     let callee = crate::calls::target_families::completion_callee(
                         program,
@@ -357,10 +422,50 @@ pub(crate) fn check_with_private_entry_ram(
             TerminalUnsupportedCapability::ExternalCompletionInvocation { boundary, kind },
         ));
     }
+    scalar_applications.extend(
+        terminal_semantics::inline_storage_extent_dependencies(storage_roots, &declarations)
+            .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?,
+    );
+    let catalog = &program.catalogs.scalar_applications;
+    let mut scalar_entry_conditions = Vec::new();
+    for (position, declaration) in catalog.declarations().iter().enumerate() {
+        let terminal_psi::ScalarApplication::Evaluate { entry, .. } = declaration else {
+            continue;
+        };
+        let callable = match entry {
+            terminal_psi::TargetMachineCallable::Machine(_) => Some(*entry),
+            terminal_psi::TargetMachineCallable::Boundary(_) => installation
+                .and_then(|installation| installation.target_machines.as_ref())
+                .and_then(|targets| {
+                    targets
+                        .selections()
+                        .iter()
+                        .find(|selection| selection.head() == *entry)
+                })
+                .map(|selection| selection.callable()),
+        };
+        let Some(terminal_psi::TargetMachineCallable::Machine(machine)) = callable else {
+            continue;
+        };
+        if !visited.contains(&machine) {
+            continue;
+        }
+        let application = u64::try_from(position)
+            .ok()
+            .and_then(|position| position.checked_add(1))
+            .and_then(semantic_vocabulary::ScalarApplicationId::new)
+            .ok_or_else(crate::errors::malformed)?;
+        let subject = terminal_psi::ScalarConditionSubject::Application(application);
+        if catalog.conditions.contains_subject(subject) {
+            scalar_entry_conditions.push(application);
+        }
+    }
     Ok(TerminalExecutionRequirements {
         imports: imports.into_iter().collect(),
         missing_providers: missing_providers.into_iter().collect(),
         external_completions: external_demands.into_iter().collect(),
+        scalar_applications: scalar_applications.into_iter().collect(),
+        scalar_entry_conditions,
     })
 }
 
@@ -438,6 +543,7 @@ mod tests {
             declaration: None,
             nominal_cleanup_subject: None,
             parameters: Vec::new(),
+            parameter_order: Vec::new(),
             structural_parameters: Vec::new(),
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
@@ -465,13 +571,14 @@ mod tests {
         module.machines.push(machine(0, Vec::new()));
         let identity = terminal_codec::terminal_psi_identity(&module).unwrap();
         let mut program = AdmittedTerminalProgram {
-            identity,
-            catalogs: std::sync::Arc::new(std::borrow::Cow::Owned(module)),
+            identity: terminal_codec::TerminalExecutionIdentity::portable(identity),
+            catalogs: std::sync::Arc::new(crate::program::ProgramStorage::Owned(module)),
             target_layouts: None,
+            scalar_geometry: None,
         };
         set_machine(&mut program, entry, machine(1, Vec::new()));
         let boundary = BoundaryMachineId::new(1).unwrap();
-        let catalogs = std::sync::Arc::make_mut(&mut program.catalogs).to_mut();
+        let catalogs = program.fixture_module_mut();
         let declaration = boundary_declaration(catalogs, boundary);
         catalogs.boundary_machines.push(declaration);
         program
@@ -485,9 +592,7 @@ mod tests {
         mut machine: TerminalMachine,
     ) {
         machine.id = identity;
-        let machines = &mut std::sync::Arc::make_mut(&mut program.catalogs)
-            .to_mut()
-            .machines;
+        let machines = &mut program.fixture_module_mut().machines;
         match machines.binary_search_by_key(&identity, |machine| machine.id) {
             Ok(position) => machines[position] = machine,
             Err(position) => machines.insert(position, machine),
@@ -507,7 +612,7 @@ mod tests {
     }
 
     fn add_provider(program: &mut AdmittedTerminalProgram<'_>, boundary: BoundaryMachineId) {
-        let catalogs = std::sync::Arc::make_mut(&mut program.catalogs).to_mut();
+        let catalogs = program.fixture_module_mut();
         let requirement_identity = intern_identity(catalogs, "graph boundary");
         let provider_identity = intern_identity(catalogs, "graph provider");
         let candidate_identity = intern_identity(catalogs, "graph candidate");
@@ -537,6 +642,8 @@ mod tests {
         boundary: BoundaryMachineId,
     ) -> terminal_psi::BoundaryMachineDeclaration {
         terminal_psi::BoundaryMachineDeclaration {
+            numeric_intrinsic: None,
+            normal_qualifications: Vec::new(),
             scalar_domain_requirements: Vec::new(),
             declaration: None,
             role: terminal_psi::BoundaryDeclarationRole::Callable,
@@ -586,8 +693,8 @@ mod tests {
         boundary: BoundaryMachineId,
         kind: ExternalCompletionKind,
     ) {
-        std::sync::Arc::make_mut(&mut program.catalogs)
-            .to_mut()
+        program
+            .fixture_module_mut()
             .boundary_machines
             .iter_mut()
             .find(|declaration| declaration.id == boundary)
@@ -624,7 +731,7 @@ mod tests {
         let mut program = program();
         let mut demanding = machine(0, Vec::new());
         demanding.assembly_target_requirement = terminal_psi::RegisterTargetApplicability::Aarch64;
-        let catalogs = std::sync::Arc::make_mut(&mut program.catalogs).to_mut();
+        let catalogs = program.fixture_module_mut();
         demanding.id = MachineId::new(2).unwrap();
         catalogs.machines.push(demanding);
         assert!(check(&program, None).is_ok());
@@ -698,8 +805,8 @@ mod tests {
         let mut program = program();
         let external = BoundaryMachineId::new(1).unwrap();
         let missing = BoundaryMachineId::new(2).unwrap();
-        std::sync::Arc::make_mut(&mut program.catalogs)
-            .to_mut()
+        program
+            .fixture_module_mut()
             .boundary_machines
             .iter_mut()
             .find(|declaration| declaration.id == external)
@@ -732,6 +839,37 @@ mod tests {
         }
     }
 
+    #[test]
+    fn capability_graph_collects_scalar_jobs_only_from_reached_execution() {
+        use semantic_vocabulary::ScalarApplicationId;
+        let read = |value| OperationKind::ReadScalarApplication {
+            application: ScalarApplicationId::new(value).unwrap(),
+        };
+        let mut program = program();
+        let mut root = machine(0, vec![read(1), unit_call(MachineId::new(2).unwrap())]);
+        let mut disconnected = machine(0, vec![read(4)]).blocks.remove(0);
+        disconnected.id = BlockId::new(2).unwrap();
+        root.blocks.push(disconnected);
+        set_machine(&mut program, MachineId::new(1).unwrap(), root);
+        set_machine(
+            &mut program,
+            MachineId::new(2).unwrap(),
+            machine(0, vec![read(3), read(1)]),
+        );
+        set_machine(
+            &mut program,
+            MachineId::new(3).unwrap(),
+            machine(0, vec![read(5)]),
+        );
+        assert_eq!(
+            check(&program, None).unwrap().scalar_applications,
+            vec![
+                ScalarApplicationId::new(1).unwrap(),
+                ScalarApplicationId::new(3).unwrap()
+            ]
+        );
+    }
+
     fn dynamic_call(interface: u32, slot: u32) -> OperationKind {
         OperationKind::CallDynamic {
             selector: semantic_vocabulary::ValueId::new(1).unwrap(),
@@ -750,7 +888,7 @@ mod tests {
 
     fn dynamic_program() -> AdmittedTerminalProgram<'static> {
         let mut program = program();
-        let catalogs = std::sync::Arc::make_mut(&mut program.catalogs).to_mut();
+        let catalogs = program.fixture_module_mut();
         let slot =
             |catalogs: &mut terminal_psi::TerminalModule, slot| terminal_psi::TerminalDynamicSlot {
                 slot,
@@ -828,7 +966,7 @@ mod tests {
         );
         let provider = MachineId::new(4).unwrap();
         let provider_import = BoundaryMachineId::new(2).unwrap();
-        let catalogs = std::sync::Arc::make_mut(&mut program.catalogs).to_mut();
+        let catalogs = program.fixture_module_mut();
         let declaration = boundary_declaration(catalogs, provider_import);
         catalogs.boundary_machines.push(declaration);
         set_machine(
@@ -837,8 +975,10 @@ mod tests {
             machine(0, vec![boundary_call(provider_import)]),
         );
         let installation = TerminalRuntimeSupplies {
+            provider_selections: None,
             x86_flags: None,
-            terminal_psi: program.identity,
+            memory_ordering: None,
+            code_identity: program.identity.clone(),
             entry: None,
             supplies: BTreeMap::from([(
                 boundary,
@@ -855,6 +995,8 @@ mod tests {
                 imports: vec![provider_import],
                 missing_providers: Vec::new(),
                 external_completions: Vec::new(),
+                scalar_applications: Vec::new(),
+                scalar_entry_conditions: Vec::new(),
             })
         );
     }
@@ -862,11 +1004,8 @@ mod tests {
     #[test]
     fn capability_graph_dynamic_call_refuses_external_completion_in_later_table() {
         let mut program = dynamic_program();
-        std::sync::Arc::make_mut(&mut program.catalogs)
-            .to_mut()
-            .dynamic_dispatch
-            .tables[0]
-            .rows[0] = Some(program.resolve_entry(None).unwrap());
+        program.fixture_module_mut().dynamic_dispatch.tables[0].rows[0] =
+            Some(program.resolve_entry(None).unwrap());
         let boundary = install_process_exit_caller(&mut program, 2);
         assert_eq!(
             check(&program, None),
@@ -884,8 +1023,8 @@ mod tests {
         let mut program = dynamic_program();
         let boundary = BoundaryMachineId::new(1).unwrap();
         let kind = ExternalCompletionKind::ProcessExit;
-        std::sync::Arc::make_mut(&mut program.catalogs)
-            .to_mut()
+        program
+            .fixture_module_mut()
             .boundary_machines
             .iter_mut()
             .find(|declaration| declaration.id == boundary)
@@ -908,6 +1047,8 @@ mod tests {
                 imports: Vec::new(),
                 missing_providers: Vec::new(),
                 external_completions: vec![TerminalExternalCompletionDemand { boundary, kind }],
+                scalar_applications: Vec::new(),
+                scalar_entry_conditions: Vec::new(),
             })
         );
     }
@@ -921,6 +1062,8 @@ mod tests {
                 imports: Vec::new(),
                 missing_providers: Vec::new(),
                 external_completions: Vec::new(),
+                scalar_applications: Vec::new(),
+                scalar_entry_conditions: Vec::new(),
             })
         );
     }
@@ -962,11 +1105,7 @@ mod tests {
     #[test]
     fn capability_graph_demands_successor_cleanup_import() {
         let (mut program, action) = import_cleanup_program();
-        let entry = std::sync::Arc::make_mut(&mut program.catalogs)
-            .to_mut()
-            .machines
-            .first_mut()
-            .unwrap();
+        let entry = program.fixture_module_mut().machines.first_mut().unwrap();
         let successor = BlockId::new(2).unwrap();
         let mut destination = entry.blocks[0].clone();
         destination.id = successor;
@@ -989,11 +1128,7 @@ mod tests {
     #[test]
     fn capability_graph_ignores_unreachable_cleanup_import() {
         let (mut program, action) = import_cleanup_program();
-        let entry = std::sync::Arc::make_mut(&mut program.catalogs)
-            .to_mut()
-            .machines
-            .first_mut()
-            .unwrap();
+        let entry = program.fixture_module_mut().machines.first_mut().unwrap();
         let mut unreachable = entry.blocks[0].clone();
         unreachable.id = BlockId::new(2).unwrap();
         unreachable.terminator = Terminator::ReturnUnit {
@@ -1073,8 +1208,10 @@ mod tests {
         assert_eq!(requirements.missing_providers, vec![boundary]);
         set_machine(&mut program, target, machine(2, Vec::new()));
         let mut installation = TerminalRuntimeSupplies {
+            provider_selections: None,
             x86_flags: None,
-            terminal_psi: program.identity,
+            memory_ordering: None,
+            code_identity: program.identity.clone(),
             entry: None,
             supplies: BTreeMap::from([(boundary, AdmittedBoundarySupply::CheckedProvider(target))]),
             assumed_bindings: Vec::new(),
@@ -1091,10 +1228,14 @@ mod tests {
                 imports: Vec::new(),
                 missing_providers: Vec::new(),
                 external_completions: Vec::new(),
+                scalar_applications: Vec::new(),
+                scalar_entry_conditions: Vec::new(),
             }
         );
-        installation.terminal_psi.program_fingerprint =
-            terminal_psi::SemanticFingerprint::from_bytes([1; 32]);
+        let mut wrong_identity = installation.code_identity.semantic();
+        wrong_identity.program_fingerprint = terminal_psi::SemanticFingerprint::from_bytes([1; 32]);
+        installation.code_identity =
+            terminal_codec::TerminalExecutionIdentity::portable(wrong_identity);
         assert_eq!(
             check(&program, Some(&installation)),
             Err(TerminalInterpretError::ProviderInstallationIdentityMismatch)

@@ -5,11 +5,12 @@ use super::{
 };
 use crate::LegalizationError;
 use semantic_vocabulary::{
-    IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralTypeId,
+    BlockId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralPlaceKind,
+    StructuralTypeId,
 };
 use terminal_psi::{
-    StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape, find_structural_type,
+    StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape, find_structural_type,
 };
 
 pub(in crate::legalization) fn source_result(
@@ -25,6 +26,44 @@ pub(in crate::legalization) fn source_result(
         return Err(LegalizationError::custody());
     }
     Ok(result)
+}
+
+/// Whether the caller's place inventory records the exact operation-result
+/// root `producer` established for `result`. A place of the same structural
+/// type under another producer is a different custody claim, so the producer
+/// and declared type are compared as one row.
+pub(in crate::legalization) fn records_operation_result(
+    function: &PsiOptimizationFunction,
+    producer: OperationId,
+    result: &StructuralOperationResult,
+) -> bool {
+    function
+        .structural_place(result.place)
+        .is_some_and(|place| {
+            place.kind
+                == StructuralPlaceKind::OperationResult {
+                    producer,
+                    structural_type: result.structural_type,
+                }
+        })
+}
+
+/// Whether the caller's place inventory records this declaration's block-local
+/// structural binding at the exact block and dense position it names.
+pub(in crate::legalization) fn block_parameter_declared(
+    function: &PsiOptimizationFunction,
+    block: BlockId,
+    declaration: &StructuralParameterDeclaration,
+) -> bool {
+    function
+        .structural_place(declaration.place)
+        .is_some_and(|place| {
+            place.kind
+                == StructuralPlaceKind::BlockParameter {
+                    block,
+                    position: declaration.position,
+                }
+        })
 }
 
 pub(in crate::legalization) fn source_owner(
@@ -282,14 +321,13 @@ pub(in crate::legalization) fn structural_transport_layout(
     }
     let (endpoint, byte_offset, indices) = match path {
         abstract_operations::StructuralCopyPath::Case(path) => {
-            let (endpoint, offset) =
-                crate::structural_inputs::structural_reference_input::case_projection(
-                    identity,
-                    path,
-                    &plan.structural_types,
-                )
-                .ok_or(LegalizationError::custody())?;
-            (endpoint, offset, Vec::new())
+            let geometry = crate::structural_inputs::structural_reference_input::case_projection(
+                identity,
+                path,
+                &plan.structural_types,
+            )
+            .ok_or(LegalizationError::custody())?;
+            (geometry.selected, geometry.byte_offset, geometry.elements)
         }
         abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty() => {
             (identity, 0, Vec::new())
@@ -424,7 +462,11 @@ fn byte_carrier_leaf_copy(
     let Some(declaration) = find_structural_type(declarations, parent) else {
         return false;
     };
-    let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
+    let StructuralTypeShape::FixedArray {
+        element,
+        length: terminal_psi::ArrayExtent::Literal(length),
+    } = &declaration.shape
+    else {
         return false;
     };
     let byte_type =
@@ -465,7 +507,7 @@ pub(super) fn validate(
         if edge.psi_edge != case.psi_edge
             || edge.target != case.target
             || !edge.bindings.is_empty()
-            || !edge.structural_bindings.is_empty()
+            || edge.structural_bindings != case.structural_bindings
             || edge.cleanup_actions != case.cleanup_actions
             || edge.provenance != [PsiProvenance::Edge(case.psi_edge)]
             || edge.fuel.is_empty()

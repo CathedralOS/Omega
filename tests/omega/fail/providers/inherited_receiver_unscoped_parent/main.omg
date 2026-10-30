@@ -18,10 +18,10 @@ machine value_plan(signature: BoundarySignature, allow_vectors: bool) -> Boundar
         true -> select_result(signature, signature.result, allow_vectors)
         _ -> reject()
     }
-    state select_result(signature: BoundarySignature, result: u64, allow_vectors: bool) -> BoundaryPlanResult {
+    machine select_result(signature: BoundarySignature, result: u64, allow_vectors: bool) -> BoundaryPlanResult {
         transition result < 256 { true -> accept(signature, result, allow_vectors) _ -> reject() }
     }
-    state accept(signature: BoundarySignature, result: u64, allow_vectors: bool) -> BoundaryPlanResult {
+    machine accept(signature: BoundarySignature, result: u64, allow_vectors: bool) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         plan.call.convention = CallingConvention::SystemVAMD64;
         plan.call.has_result = true;
@@ -42,7 +42,7 @@ machine value_plan(signature: BoundarySignature, allow_vectors: bool) -> Boundar
         plan.state.preemption = Preemption::NotApplicable;
         BoundaryPlanResult::Accepted { plan: plan }
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one scalar result" } }
     }
 }
@@ -57,11 +57,11 @@ machine Main::main(main: &mut Main) reaches FirstRoot + SecondRoot crashes Trap 
     main.first = first_observation();
     let second: u64 = SecondRoot::selected();
     transition { _ -> check(main, second) }
-    state check(main: &mut Main, second: u64) {
+    machine check(main: &mut Main, second: u64) {
         transition main.first == 17 && second == 29 { true -> done() _ -> bad() }
     }
-    state done() { }
-    state bad() { crash Trap; }
+    machine done() { }
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

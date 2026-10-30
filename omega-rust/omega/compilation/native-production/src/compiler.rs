@@ -3,7 +3,7 @@
 //! The representation transformations are sequenced in `pipeline.rs`; this
 //! entrance owns request recovery and the inputs needed for native admission.
 
-use crate::NativeCompileRequest;
+use crate::PreparedNativeCompilation;
 use diagnostics::Diagnostic;
 use terminal_psi_to_abstract_operations::RetainedNativeProviderInputs;
 
@@ -12,8 +12,7 @@ use terminal_psi_to_abstract_operations::RetainedNativeProviderInputs;
 /// independently rejoined by provider preparation and admission. Rejection
 /// returns the original complete image request, including its interpreter.
 pub fn compile(
-    retained: terminal_psi_to_abstract_operations::RetainedTerminalArtifact,
-    request: NativeCompileRequest<'_>,
+    prepared: PreparedNativeCompilation<'_>,
 ) -> Result<
     crate::RealizedNativeProduct,
     (
@@ -21,76 +20,51 @@ pub fn compile(
         Vec<Diagnostic>,
     ),
 > {
-    compile_with_components(retained, request, &[])
-}
-
-/// Compile the receiver with explicitly retained separately emitted component
-/// calls. Their producers remain independent object/image owners; only exact
-/// symbolic call settlements enter this program's ordinary native pipeline.
-pub fn compile_with_components(
-    retained: terminal_psi_to_abstract_operations::RetainedTerminalArtifact,
-    mut request: NativeCompileRequest<'_>,
-    components: &[crate::ComponentNativeCall<'_>],
-) -> Result<
-    crate::RealizedNativeProduct,
-    (
-        image_emission::ExecutableImageEmissionRequest,
-        Vec<Diagnostic>,
-    ),
-> {
-    let recoverable_image_request = request.image_request.clone();
+    let PreparedNativeCompilation {
+        retained,
+        request,
+        recovery: recoverable_image_request,
+        work,
+        scalars,
+        components: prepared_components,
+    } = prepared;
     let result = (|| {
-        let (artifact, proposal) = request.prepare_terminal(retained)?;
-        let selections = terminal_installation::admit_target_machine_selections(
-            artifact.view(),
-            proposal.target_profile().target_name(),
-        );
-        let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
-            .map_err(|reason| vec![Diagnostic::error(format!("entry RAM layout: {reason:?}"))])?;
-        let entry = proposal.program_entry().checked_entry().terminal_entry();
-        let mut recipes = Vec::with_capacity(request.private_entry_ram.len());
-        for initializer in request.private_entry_ram {
-            let row = artifact
-                .semantic_module()
-                .placed_view_inputs
-                .iter()
-                .find(|row| row.machine == entry && row.position == initializer.position)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "private entry RAM initializer answers no declared entry position",
-                    )]
-                })?;
-            let recipe = terminal_installation::admit_private_entry_ram(
-                artifact.view(),
-                &layouts,
-                entry,
-                &terminal_installation::PrivateEntryRamRecipe {
-                    input: row.clone(),
-                    contents: initializer.contents.clone(),
+        // Completion is a prerequisite for every group, not merely whichever
+        // component happens to emit first.
+        let scalar_input = scalars.native_input()?;
+        for component in &prepared_components {
+            component.scalars.native_input()?;
+        }
+        let artifact = retained.shared_artifact();
+        let proposal = retained.native_realization_proposal().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "prepared native work lost its original proposal",
+            )]
+        })?;
+        let emitted_components = crate::components::emit_components(
+            prepared_components,
+            &request.terminal_authority_policy,
+            &request.terminal_authority_permission_policy,
+        )?;
+        let components = emitted_components
+            .iter()
+            .map(crate::components::EmittedComponent::admit_call)
+            .collect::<Result<Vec<_>, _>>()?;
+        let (input, execution) = phase_profile::scope("06.1.c1_prepare_native_execution", || {
+            work.lower(scalar_input)
+        })?;
+        let prepared = phase_profile::scope("06.1.c2_prepare_native_providers", || {
+            proposal.prepare_native_providers(
+                &artifact,
+                RetainedNativeProviderInputs {
+                    execution: &execution,
+                    optimization_selections: request.optimization_selections,
+                    accepted_package_permissions: &request
+                        .accepted_package_terminal_authority_permission_policy,
+                    imports: request.imports,
                 },
             )
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            recipes.push(recipe);
-        }
-        let component_selections = components
-            .iter()
-            .map(|component| component.call())
-            .collect::<Vec<_>>();
-        let (input, execution) = proposal.prepare_native_execution_with_components(
-            &artifact,
-            &recipes,
-            &component_selections,
-        )?;
-        let prepared = proposal.prepare_native_providers(
-            &artifact,
-            RetainedNativeProviderInputs {
-                execution: &execution,
-                optimization_selections: request.optimization_selections,
-                accepted_package_permissions: &request
-                    .accepted_package_terminal_authority_permission_policy,
-                imports: request.imports,
-            },
-        )?;
+        })?;
         let mut native_settlements = prepared.program_settlements();
         native_settlements.extend(components.iter().map(|component| component.settlement()));
         let admission = prepared.admission_request(
@@ -98,11 +72,13 @@ pub fn compile_with_components(
             &request.terminal_authority_policy,
             &request.terminal_authority_permission_policy,
         );
-        crate::realization::realize_native_artifact(
-            artifact,
+        let mut produced = crate::realization::realize_native_artifact(
+            std::sync::Arc::clone(artifact),
             input,
             crate::request::NativeRealizationRequest {
-                calling_applications: &proposal.boundary_applications().calling,
+                proposal,
+                execution: &execution,
+                scalar_applications: scalars.native_input()?,
                 program_entry: proposal.program_entry().as_settlement(),
                 admission,
                 image_request: request.image_request,
@@ -111,7 +87,25 @@ pub fn compile_with_components(
                 callback_thunks: &prepared.callback_thunks,
                 target_provider_proposals: proposal.target_provider_proposals(),
             },
-        )
+        )?;
+        drop(components);
+        let component_products = emitted_components
+            .into_iter()
+            .map(crate::components::EmittedComponent::into_product)
+            .collect::<Result<Vec<_>, _>>()?;
+        if !component_products.is_empty() {
+            let runtime = produced.runtime_provisions.take().ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "component native production lost its admitted runtime companions",
+                )]
+            })?;
+            produced.runtime_provisions = Some(
+                runtime
+                    .with_component_products(component_products)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?,
+            );
+        }
+        Ok(produced)
     })();
     result.map_err(|diagnostics| (recoverable_image_request, diagnostics))
 }

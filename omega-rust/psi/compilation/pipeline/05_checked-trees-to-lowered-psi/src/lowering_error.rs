@@ -12,12 +12,45 @@ use semantic_vocabulary::{
 
 use crate::proofs::float_meaning_projection::FloatMeaningProjectionLoweringError;
 
+/// The actual emitted observation which encountered an incomplete owner.
+/// Declaration rows remain diagnostic context, never an availability premise.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectedCustodyObservation {
+    pub operation: semantic_vocabulary::OperationId,
+    pub kind: &'static str,
+    pub root_declarations: Vec<semantic_vocabulary::StructuralTypeId>,
+}
+
+/// A real entry jump encountered while authenticating one selected cleanup
+/// scope. These rows explain a failed join; they grant no transfer authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedCleanupEntrySite {
+    pub block: semantic_vocabulary::BlockId,
+    pub target: semantic_vocabulary::BlockId,
+    pub structural_arguments: Vec<terminal_psi::StructuralArgument>,
+    pub cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedCleanupEntryMismatch {
+    pub machine: semantic_vocabulary::MachineId,
+    pub edge: semantic_vocabulary::EdgeId,
+    pub region: terminal_psi::StructuralArgument,
+    pub sites: Vec<SelectedCleanupEntrySite>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    TaskActivation(Vec<Diagnostic>),
     MachineNotFound(String),
     AmbiguousMachineName(String),
     /// A closure names storage absent from its retained type catalog.
     MissingUnitStructuralType(String),
+    /// A demanded domain has no retained theory for any selected carrier.
+    MissingUnitDomainPlan {
+        domain: language_semantics::SemanticDomainId,
+        name: String,
+    },
     MissingUnitStructuralDomainCarrier {
         domain: language_semantics::SemanticDomainId,
         carrier: semantic_vocabulary::StructuralTypeId,
@@ -44,8 +77,10 @@ pub enum LoweringError {
     DebugSemanticCodec(terminal_codec::CodecError),
     InvalidDebugMap(terminal_codec::DebugMapError),
     InvalidControlGraph(terminal_semantics::control_graph::ControlGraphError),
-    InvalidServiceParameterShape(checked_trees::CheckedServiceParameterError),
     InvalidServiceIdentity(String),
+    /// Preserve the declaration and provenance reason from source identity closure.
+    InvalidDeclarationIdentity(String),
+    InvalidBoundaryApplication(String),
     InvalidFloatMeaningProjection(FloatMeaningProjectionLoweringError),
     InvalidQuotientCorrespondence(Vec<String>),
     InvalidUnitMachinePlan {
@@ -56,7 +91,58 @@ pub enum LoweringError {
         /// source span, when the checked record names one.
         gap: Option<Diagnostic>,
     },
+    /// Every live owner needs an emitted home before a selection can retain it.
+    MissingSelectionOwner {
+        machine: String,
+        state: String,
+        statement_index: u32,
+        local: String,
+    },
+    /// Selection sources and the current ownership frontier must name the
+    /// same physical homes before any arm can transfer their custody.
+    MissingSelectionSources {
+        machine: String,
+        state: String,
+        statement_index: u32,
+        source_places: Vec<PlaceId>,
+        live_places: Vec<PlaceId>,
+    },
+    InvalidFieldObservationStoragePath(validation::StorageObservationTypePathError),
     Unsupported(&'static str),
+    /// Preserve the two actual descriptor shapes at a failed state-owner join.
+    CapturedLoanDescriptorMismatch {
+        source_state: usize,
+        target_state: usize,
+        target_parameter: u32,
+        earlier: terminal_psi::StructuralTypeShape,
+        incoming: terminal_psi::StructuralTypeShape,
+        source_access: checked_trees::CheckedStructuralAccess,
+        target_access: checked_trees::CheckedStructuralAccess,
+    },
+    /// Retained conditional arithmetic must preserve the failed source join.
+    UnpublishedScalarCondition {
+        owner: symbols::SymbolHandle,
+        expression: typed_trees::expression::ExpressionHandle,
+        reason: String,
+    },
+    /// Crash substitution must identify the exact completed caller home.
+    /// Preserve its namespace and path when the emitting owner is incomplete.
+    MissingCrashArgumentSource {
+        argument: terminal_psi::StructuralArgument,
+    },
+    ConflictingStructuralPlaceType {
+        place: PlaceId,
+        first: semantic_vocabulary::StructuralTypeId,
+        second: semantic_vocabulary::StructuralTypeId,
+    },
+    /// Preserve the actual graph entry rather than merging duplicate edge,
+    /// argument-frame, and ordered-cleanup failures into one static message.
+    InvalidSelectedCleanupEntry(Box<SelectedCleanupEntryMismatch>),
+    MissingScalarParameterQualification {
+        state: String,
+        source_position: u32,
+        prepared_positions: Vec<u32>,
+    },
     MissingSelectionFrontier {
         machine: String,
         state: String,
@@ -80,6 +166,17 @@ pub enum LoweringError {
         requested_type: semantic_vocabulary::StructuralTypeId,
         producer_file: &'static str,
         producer_line: u32,
+    },
+    /// A completed nominal construction lacks its exact checked introduction.
+    /// Keep the producer coordinate so a nested operand can be traced without
+    /// replacing the failed correspondence with a receiver's claim.
+    MissingConstructionClaim {
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
+        statement_index: u32,
+        expression: typed_trees::expression::ExpressionHandle,
+        structural_type: semantic_vocabulary::StructuralTypeId,
+        root_candidates: usize,
     },
     /// A checked operation's failed join, retaining its exact source coordinate
     /// even when the machine has a complete plan and no earlier plan gap.
@@ -113,6 +210,7 @@ pub enum LoweringError {
         place: PlaceId,
         earlier: Vec<terminal_psi::StructuralPathSegment>,
         requested: Vec<terminal_psi::StructuralPathSegment>,
+        observation: Option<Box<ProjectedCustodyObservation>>,
     },
     /// A borrowed-storage restoration window the checked facts do not pin to
     /// one exact place, or whose restoration is missing on a path. `place` is

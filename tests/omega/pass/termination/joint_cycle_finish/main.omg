@@ -10,7 +10,7 @@ requires remaining <= 9
         true -> right(remaining)
         false -> finish()
     }
-    state finish() -> u64 { 70 }
+    machine finish() -> u64 { 70 }
 }
 machine right(remaining: u64)
 terminates by remaining in 0..=9;

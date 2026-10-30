@@ -69,7 +69,10 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
     match initializer.kind {
-        BorrowedInitializerKind::Reference { access } => {
+        BorrowedInitializerKind::Reference {
+            access,
+            type_reference,
+        } => {
             let kind = checked_trees::BorrowAccessKind::from(access);
             if let Some(mut loans) = super::returned_carriers::result_loans(
                 program,
@@ -101,7 +104,7 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
             // arguments. A leaf may itself be a view-producing helper call;
             // routing it through the call-aware resolver keeps the selected
             // input loan instead of treating the call expression as no place.
-            let Some(place) = argument_borrow_loan_place(
+            let Some(geometry) = argument_borrow_loan_geometry(
                 program,
                 state_symbol,
                 statement_index,
@@ -110,13 +113,25 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
             ) else {
                 return Vec::new();
             };
-            let rebased = rebase_borrow_places_through_local_loans(program, place, loan_trackers);
+            let retained_access = geometry.retained_access(program, &kind);
+            let rebased = rebase_reference_formation_geometry(
+                program,
+                state_symbol,
+                statement_index,
+                initializer.expression,
+                type_reference,
+                geometry,
+                loan_trackers,
+            );
             rebased
                 .iter()
                 .map(|source| StatementBorrowLoan {
-                    formation_owner_path: None,
+                    // This expression forms the descriptor root; owner_path
+                    // is its later installation prefix, not its identity.
+                    formation_owner_path: Some(Vec::new()),
                     incoming_origin: None,
                     formation_expression: initializer.expression,
+                    representation_address: source.representation_address.clone(),
                     owner_symbol: local_data.symbol,
                     storage_owner: facts::PlaceRoot::Symbol(local_data.symbol),
                     owner_name: local_data.name.clone(),
@@ -131,7 +146,7 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
                         source,
                         &rebased,
                     ),
-                    kind: kind.clone(),
+                    kind: retained_access.clone(),
                     call_result: false,
                 })
                 .collect()
@@ -181,6 +196,15 @@ pub(super) fn stored_reference_loans(
         expression,
         machine_symbol,
     )?;
+    if !source.incoming_reference.is_valid()
+        && source.segments.is_empty()
+        && accesses::is_borrowed_parameter_root(program, source.root)
+    {
+        // The outer reference is the incoming formal itself. Do not transfer
+        // an interior ingress leaf merely because its owner path is also empty.
+        // Ordinary reference formation below retains the formal's own grant.
+        return None;
+    }
     // Only the selected descriptor leaf supplies this value. An enclosing
     // reference's loan does not describe a descriptor stored in its referent.
     // Resolve containing references using the same current-storage traversal
@@ -248,9 +272,10 @@ pub(super) fn aggregate_expression_borrow_loans(
             rebased
                 .iter()
                 .map(|source| StatementBorrowLoan {
-                    formation_owner_path: None,
+                    formation_owner_path: Some(Vec::new()),
                     incoming_origin: None,
                     formation_expression: expression,
+                    representation_address: None,
                     owner_symbol: local_data.symbol,
                     storage_owner: facts::PlaceRoot::Symbol(local_data.symbol),
                     owner_name: local_data.name.clone(),
@@ -293,14 +318,30 @@ pub(super) fn aggregate_expression_borrow_loans(
             ) else {
                 return Vec::new();
             };
-            transferred_aggregate_loans(
-                program,
-                local_data,
-                expression,
-                &source,
-                owner_path_prefix,
-                loan_trackers.iter(),
-            )
+            // Copy the selected aggregate's descriptor leaves, not the
+            // containing pointer's whole-reference loan. Rebase every checked
+            // containing boundary before selecting leaf owner paths; each leaf
+            // keeps its historical supplier and independent activation below.
+            // A lifetime-only dependency is not a pointer to follow: preserve
+            // its original source occurrence for ordinary custody checking.
+            rebase_borrow_places_through_local_loans(program, source, loan_trackers)
+                .iter()
+                .flat_map(|source| {
+                    let storage = if source.lifetime_access.is_some() {
+                        &source.source_place
+                    } else {
+                        &source.place
+                    };
+                    transferred_aggregate_loans(
+                        program,
+                        local_data,
+                        expression,
+                        storage,
+                        owner_path_prefix,
+                        loan_trackers.iter(),
+                    )
+                })
+                .collect()
         }
         checked_trees::expression::ExpressionNode::Cast(cast) if !cast.form.is_recast() => {
             // A same-carrier value cast preserves denotation and can erase only
@@ -350,130 +391,151 @@ pub(super) fn result_source_loans(
 ) -> Vec<StatementBorrowLoan> {
     let mut carried_arguments = Vec::new();
 
-    let sources = super::returned_carriers::completed_sources(program, target, fields);
+    let sources = super::returned_carriers::completed_sources(program, target, fields, arguments);
     sources
         .into_iter()
-        .flat_map(|(field, projection)| {
-            let mut owner_path = owner_path_prefix.to_vec();
-            owner_path.extend(field.owner_path.iter().copied());
-            let Some(argument) = arguments.get(field.parameter_index).copied() else {
-                return Vec::new();
-            };
-            let source_type = CallViewReturnContract::carrier_reference(
-                program,
-                field.source_type,
-                substitutions,
-            );
-            if !is_reference_type(program, source_type) {
-                return super::returned_carriers::argument_loans(
+        .flat_map(|source| {
+            source.capture_loans(local_data, owner_path_prefix, |field, projection| {
+                let mut owner_path = owner_path_prefix.to_vec();
+                owner_path.extend(field.owner_path.iter().copied());
+                let Some(argument) = arguments.get(field.parameter_index).copied() else {
+                    return Vec::new();
+                };
+                let source_type = CallViewReturnContract::carrier_reference(
                     program,
-                    state_symbol,
-                    statement_index,
-                    machine_symbol,
-                    local_data,
-                    argument,
-                    &field,
-                    &owner_path,
-                    loan_trackers,
+                    field.source_type,
                     substitutions,
-                    &mut carried_arguments,
                 );
-            }
-            if field.source == ViewReturnInputSource::Referent
-                && let Some(mut loans) = super::returned_carriers::relative_result_loans(
+                if !is_reference_type(program, source_type) {
+                    return super::returned_carriers::argument_loans(
+                        program,
+                        state_symbol,
+                        statement_index,
+                        machine_symbol,
+                        local_data,
+                        argument,
+                        &field,
+                        &owner_path,
+                        loan_trackers,
+                        substitutions,
+                        &mut carried_arguments,
+                    );
+                }
+                if field.source == ViewReturnInputSource::Referent
+                    && let Some(mut loans) = super::returned_carriers::relative_result_loans(
+                        program,
+                        state_symbol,
+                        statement_index,
+                        machine_symbol,
+                        local_data,
+                        argument,
+                        loan_trackers,
+                    )
+                {
+                    // A lifetime debt retains its supplier's access; only a
+                    // physical reference result may attenuate observation.
+                    if !field.lifetime_only {
+                        super::returned_carriers::attenuate(&mut loans, &field.kind);
+                    }
+                    for loan in &mut loans {
+                        loan.owner_path = owner_path.clone();
+                        if field.lifetime_only {
+                            loan.lineage = checked_trees::BorrowLoanLineage::LifetimeDependency;
+                        }
+                        loan.retained_operand
+                            .get_or_insert(checked_trees::BorrowRetainedOperand {
+                                formation_expression: Default::default(),
+                                depth: loan.place.segments.len(),
+                            });
+                        if !projection.is_empty() {
+                            // The logical result suffix needs its own representation
+                            // translation; the supplied descriptor's address alone
+                            // cannot describe the projected result's footprint.
+                            loan.representation_address = None;
+                        }
+                        loan.place.segments.extend_from_slice(&projection);
+                    }
+                    return loans;
+                }
+                let Some(mut place) = argument_borrow_loan_place(
                     program,
                     state_symbol,
                     statement_index,
                     machine_symbol,
-                    local_data,
                     argument,
-                    loan_trackers,
-                )
-            {
-                super::returned_carriers::attenuate(&mut loans, &field.kind);
-                for loan in &mut loans {
-                    loan.owner_path = owner_path.clone();
-                    if field.lifetime_only {
-                        loan.lineage = checked_trees::BorrowLoanLineage::LifetimeDependency;
-                    }
-                    loan.retained_operand
-                        .get_or_insert(checked_trees::BorrowRetainedOperand {
-                            formation_expression: Default::default(),
-                            depth: loan.place.segments.len(),
-                        });
-                    loan.place.segments.extend_from_slice(&projection);
-                }
-                return loans;
-            }
-            let Some(mut place) = argument_borrow_loan_place(
-                program,
-                state_symbol,
-                statement_index,
-                machine_symbol,
-                argument,
-            ) else {
-                return Vec::new();
-            };
-            // A stored descriptor supplies its backing loan, not a new loan of
-            // its container home. Select it before rebasing through captured
-            // storage; a referent result instead projects after that rebase.
-            if field.source == ViewReturnInputSource::Stored {
-                if projection.is_empty() {
-                    place
-                        .segments
-                        .extend(super::owner_paths::owner_place_segments(&field.source_path));
-                } else {
-                    place.segments.extend_from_slice(&projection);
-                }
-            }
-            let rebased = rebase_borrow_places_through_local_loans(program, place, loan_trackers);
-            rebased
-                .iter()
-                .map(|source| {
-                    let mut place = source.place.clone();
-                    if field.source == ViewReturnInputSource::Referent {
+                ) else {
+                    return Vec::new();
+                };
+                // A stored descriptor supplies its backing loan, not a new loan of
+                // its container home. Select it before rebasing through captured
+                // storage; a referent result instead projects after that rebase.
+                if field.source == ViewReturnInputSource::Stored {
+                    if projection.is_empty() {
+                        place
+                            .segments
+                            .extend(super::owner_paths::owner_place_segments(&field.source_path));
+                    } else {
                         place.segments.extend_from_slice(&projection);
                     }
-                    StatementBorrowLoan {
-                        formation_owner_path: None,
-                        incoming_origin: None,
-                        formation_expression: argument,
-                        owner_symbol: local_data.symbol,
-                        storage_owner: facts::PlaceRoot::Symbol(local_data.symbol),
-                        owner_name: local_data.name.clone(),
-                        owner_path: owner_path.clone(),
-                        place,
-                        retained_operand: Some(source.retained_operand.unwrap_or(
-                            checked_trees::BorrowRetainedOperand {
-                                formation_expression: Default::default(),
-                                depth: source.place.segments.len(),
+                }
+                let rebased =
+                    rebase_borrow_places_through_local_loans(program, place, loan_trackers);
+                rebased
+                    .iter()
+                    .map(|source| {
+                        let mut place = source.place.clone();
+                        if field.source == ViewReturnInputSource::Referent {
+                            place.segments.extend_from_slice(&projection);
+                        }
+                        StatementBorrowLoan {
+                            formation_owner_path: None,
+                            incoming_origin: None,
+                            formation_expression: argument,
+                            representation_address: None,
+                            owner_symbol: local_data.symbol,
+                            storage_owner: facts::PlaceRoot::Symbol(local_data.symbol),
+                            owner_name: local_data.name.clone(),
+                            owner_path: owner_path.clone(),
+                            place,
+                            retained_operand: Some(source.retained_operand.unwrap_or(
+                                checked_trees::BorrowRetainedOperand {
+                                    formation_expression: Default::default(),
+                                    depth: source.place.segments.len(),
+                                },
+                            )),
+                            source_owner_symbol: source.source_owner_symbol,
+                            // A stored leaf or an unprojected referent result
+                            // transports this exact actual descriptor. Preserve its
+                            // supplier even when computed captured selectors cannot
+                            // prove spatial containment later. A projected referent
+                            // creates a child instead; backing coincidence cannot
+                            // turn that child into a descriptor transfer.
+                            supplying_loans: if source.parent_loan.is_valid()
+                                && (field.source == ViewReturnInputSource::Stored
+                                    || projection.is_empty())
+                            {
+                                vec![source.parent_loan]
+                            } else {
+                                Vec::new()
                             },
-                        )),
-                        source_owner_symbol: source.source_owner_symbol,
-                        // A stored leaf or an unprojected referent result
-                        // transports this exact actual descriptor. Preserve its
-                        // supplier even when computed captured selectors cannot
-                        // prove spatial containment later. A projected referent
-                        // creates a child instead; backing coincidence cannot
-                        // turn that child into a descriptor transfer.
-                        supplying_loans: if source.parent_loan.is_valid()
-                            && (field.source == ViewReturnInputSource::Stored
-                                || projection.is_empty())
-                        {
-                            vec![source.parent_loan]
-                        } else {
-                            Vec::new()
-                        },
-                        lineage: if field.lifetime_only {
-                            checked_trees::BorrowLoanLineage::LifetimeDependency
-                        } else {
-                            retained_reference_lineage(program, argument, source, &rebased)
-                        },
-                        kind: field.kind.clone(),
-                        call_result: false,
-                    }
-                })
-                .collect::<Vec<_>>()
+                            lineage: if field.lifetime_only {
+                                checked_trees::BorrowLoanLineage::LifetimeDependency
+                            } else {
+                                retained_reference_lineage(program, argument, source, &rebased)
+                            },
+                            kind: if field.lifetime_only {
+                                source
+                                    .lifetime_access
+                                    .clone()
+                                    .unwrap_or_else(|| field.kind.clone())
+                            } else {
+                                field.kind.clone()
+                            },
+                            call_result: false,
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            })
         })
         .collect()
 }
@@ -504,12 +566,17 @@ fn transferred_aggregate_loans<'loan>(
                     return None;
                 };
 
+            // Retain the source value's leaf before adding its receiving
+            // prefix. Readers select formation identity independently from
+            // where the descriptor was subsequently stored or returned.
+            let formation_owner_path = Some(owner_path.clone());
             let mut prefixed_owner_path = owner_path_prefix.to_vec();
             prefixed_owner_path.extend(owner_path);
             Some(StatementBorrowLoan {
-                formation_owner_path: None,
+                formation_owner_path,
                 incoming_origin: None,
                 formation_expression: expression,
+                representation_address: None,
                 owner_symbol: local_data.symbol,
                 storage_owner: facts::PlaceRoot::Symbol(local_data.symbol),
                 owner_name: local_data.name.clone(),

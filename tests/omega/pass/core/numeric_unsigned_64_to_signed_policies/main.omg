@@ -1,8 +1,8 @@
 // u64-to-signed conversion through the public numeric_conversion surface:
 // u64 into i8, i16, i32 and i64 under Exact, Wrapping, Saturating and
-// Trapping, with sources above i64::MAX. Those values must stay unsigned
-// until a policy selects the result: Wrapping maps 2^63 to i64::MIN and
-// u64::MAX to -1, and Saturating maps every value from 2^63 upward to the
+// Trapping, with sources above i64 maximum. Those values must stay unsigned
+// until a policy selects the result: Wrapping maps 2^63 to i64 minimum and
+// u64 maximum to -1, and Saturating maps every value from 2^63 upward to the
 // target maximum rather than reading the high bit as a sign.
 // `literal_checks` passes constants, `runtime_checks` reads the
 // boundaries through a borrowed record, and `named_conversion_checks` checks conversions
@@ -12,6 +12,7 @@
 // `main` takes no arguments and reaches no service, so the Terminal
 // interpreter runs the same program beside the native product.
 use omega::language::core::numeric_conversion;
+use omega::language::core::integer;
 
 data Inputs {
     max_u64: u64;
@@ -106,7 +107,7 @@ machine named_conversion_checks(inputs: &Inputs) -> bool {
 
 machine main() crashes Trap {
     let inputs: Inputs = Inputs {
-        max_u64: 18446744073709551615,
+        max_u64: integer::max<u64>(),
         past_i64_in_u64: 9223372036854775808,
         max_i64_in_u64: 9223372036854775807,
         zero_u64: 0,
@@ -119,6 +120,6 @@ machine main() crashes Trap {
         _ -> failed()
     }
 
-    state passed() {}
-    state failed() { crash Trap; }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }

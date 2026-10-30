@@ -167,7 +167,8 @@ fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffect
                     .flat_map(|edge| edge.provenance.iter().copied()),
             );
             match &node.operation {
-                abstract_operations::call_or_call_structural_pattern!(..) => {
+                abstract_operations::call_or_call_structural_pattern!(..)
+                | O::InvokeNoNormal { .. } => {
                     let callees = unit
                         .call_machine_references(&node.operation)
                         .collect::<Vec<_>>();
@@ -342,6 +343,7 @@ fn operation_effect(
         }
         abstract_operations::call_or_call_structural_pattern!(..) => (EffectClass::InternalCall, May, May, May, May),
         O::BoundaryCall { .. } => (EffectClass::BoundaryCall, Yes, May, May, May),
+        O::InvokeNoNormal { .. } => (EffectClass::InternalCall, Yes, May, May, May),
         O::ExternalCompletion { .. } => (EffectClass::BoundaryCall, Yes, May, No, No),
         O::PortWrite { .. } => (EffectClass::Service, Yes, No, No, No),
         // A control-register write can change how later memory is interpreted.

@@ -6,11 +6,11 @@ machine overwrite<'storage>(input: &mut Input<'storage>) {
         true -> store(input)
         false -> done()
     }
-    state store(input: &mut Input<'storage>)
+    machine store(input: &mut Input<'storage>)
     requires input.values.len > 0 {
         input.values[0] = 9;
     }
-    state done() {}
+    machine done() {}
 }
 
 machine main() {

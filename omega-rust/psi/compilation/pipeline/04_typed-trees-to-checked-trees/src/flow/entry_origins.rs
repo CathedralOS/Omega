@@ -102,14 +102,7 @@ fn tracked_source_parameter<'a>(
     let mut visible = locals.len();
     loop {
         let name = program.expression_table.name_path_node(expression)?;
-        if !name.head_symbol.is_valid()
-            || name.symbol != name.head_symbol
-            || program
-                .expression_table
-                .name_path_members(name.members)
-                .len()
-                != 1
-        {
+        if !program.expression_table.name_path_is_single_member(name) {
             return None;
         }
         match locals[..visible]
@@ -133,10 +126,17 @@ fn tracked_source_parameter<'a>(
     }
 }
 
+type DestinationIndex = fn(
+    &dyn validation::CheckingInput,
+    &typed_trees::machine::Machine,
+    SymbolHandle,
+) -> Option<usize>;
+
 fn parameter_edges<'program>(
     program: &'program dyn ::validation::CheckingInput,
     machine: &'program typed_trees::machine::Machine,
     frames: Option<&CallFrameResolver<'program>>,
+    destination_index: DestinationIndex,
 ) -> Vec<ParameterEdge> {
     let states = program.machine_states(machine);
     let mut edges = Vec::new();
@@ -165,12 +165,10 @@ fn parameter_edges<'program>(
                 else {
                     continue;
                 };
-                // A machine-entry target is a recursive invocation whose
-                // activation owns fresh formals, not an arrival carrying this
-                // activation's values: only subordinate states join the edges.
-                let Some(target_index) =
-                    validation::internal_state_index(program, machine, path.symbol)
-                else {
+                // The consumer chooses its graph: logical invocation origins
+                // traverse subordinate states; whole-activation invariants also
+                // follow constant-stack recursive transfers into the entry.
+                let Some(target_index) = destination_index(program, machine, path.symbol) else {
                     continue;
                 };
                 let arguments = program.statement_table.expression_handles(arguments);
@@ -246,7 +244,22 @@ pub(crate) fn machine_parameter_origins(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> MachineParameterOrigins {
-    solve_parameter_origins(program, machine, None)
+    solve_parameter_origins(program, machine, None, validation::internal_state_index)
+}
+
+/// Whole-activation invariants keep the initial invocation's values distinct
+/// from entry slots replaced by constant-stack recursion. This graph is not
+/// the fresh-formal namespace used to check one logical invocation locally.
+pub(crate) fn activation_parameter_origins(
+    program: &dyn validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+) -> MachineParameterOrigins {
+    solve_parameter_origins(
+        program,
+        machine,
+        None,
+        validation::activation_target_state_index,
+    )
 }
 
 /// Prepare once for all writes/calls in this machine. Values and addresses
@@ -257,13 +270,19 @@ pub(crate) fn machine_storage_origins<'program>(
     frames: &CallFrameResolver<'program>,
     machine: &'program typed_trees::machine::Machine,
 ) -> MachineParameterOrigins {
-    solve_parameter_origins(program, machine, Some(frames))
+    solve_parameter_origins(
+        program,
+        machine,
+        Some(frames),
+        validation::internal_state_index,
+    )
 }
 
 fn solve_parameter_origins<'program>(
     program: &'program dyn ::validation::CheckingInput,
     machine: &'program typed_trees::machine::Machine,
     frames: Option<&CallFrameResolver<'program>>,
+    destination_index: DestinationIndex,
 ) -> MachineParameterOrigins {
     let states = program.machine_states(machine);
     if states.is_empty() {
@@ -272,7 +291,7 @@ fn solve_parameter_origins<'program>(
             storage_available: frames.is_some(),
         };
     }
-    let edges = parameter_edges(program, machine, frames);
+    let edges = parameter_edges(program, machine, frames, destination_index);
     // Reuse the storage substitution owner's SCC law. Recursive selector
     // growth is unknown, rather than truncated by an arbitrary iteration cap.
     let bindings = edges
@@ -386,6 +405,7 @@ fn solve_parameter_origins<'program>(
 
 fn root_storage(program: &dyn ::validation::CheckingInput, root: SymbolHandle) -> LocalWriteSource {
     LocalWriteSource {
+        invocation_output: None,
         is_image_storage: false,
         recasts: Vec::new(),
         root,
@@ -656,6 +676,58 @@ pub(super) fn rebase_contexts(
                             entry_parameter: root,
                             state_parameter: target,
                             retained_referent_type,
+                        },
+                    );
+                }
+            }
+            // A result predicate need not spell the input whose exact value
+            // is returned. Retain every available immutable scalar origin,
+            // independently of names mentioned in this guarantee. Missing
+            // optional correspondences grant nothing and do not create new
+            // obligations for unrelated parameters; demanded roots above keep
+            // their existing explicit missing-origin rows.
+            if !assumptions
+                && matches!(fact.payload, FactPayload::ContractBooleanExpression { .. })
+                && let Some(contract) = contract
+            {
+                for (original, current) in &origins {
+                    let Some(parameter) = program
+                        .state_parameter_by_symbol(entry, *original)
+                        .filter(|parameter| immutable_value(program, parameter))
+                    else {
+                        continue;
+                    };
+                    let Some(primitive) =
+                        program.primitive_type_reference(parameter.type_reference)
+                    else {
+                        continue;
+                    };
+                    if !current.is_valid()
+                        || !program
+                            .state_parameter_by_symbol(state, *current)
+                            .is_some_and(|parameter| {
+                                immutable_value(program, parameter)
+                                    && program.primitive_type_reference(parameter.type_reference)
+                                        == Some(primitive)
+                            })
+                        || build
+                            .control
+                            .exit_parameter_origins
+                            .span_or_empty(parameter_origins)
+                            .iter()
+                            .any(|origin| {
+                                origin.contract == contract && origin.entry_parameter == *original
+                            })
+                    {
+                        continue;
+                    }
+                    build.control.exit_parameter_origins.append_to_span(
+                        &mut parameter_origins,
+                        checked_trees::FlowExitParameterOrigin {
+                            contract,
+                            entry_parameter: *original,
+                            state_parameter: *current,
+                            retained_referent_type: Default::default(),
                         },
                     );
                 }

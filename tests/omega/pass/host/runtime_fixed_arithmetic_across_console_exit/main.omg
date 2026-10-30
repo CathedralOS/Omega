@@ -13,11 +13,11 @@ machine Main::main(main: &mut Main) reaches Console {
         ByteRead::Byte { value } -> report(main, value)
         ByteRead::Eof -> fallback(main)
     }
-    state report(main: &mut Main, value: i32) requires 0 <= value && value <= 255; {
+    machine report(main: &mut Main, value: i32) requires 0 <= value && value <= 255; {
         Main::number(main, value as u64);
         Console::exit_process(0);
     }
-    state fallback(main: &mut Main) {
+    machine fallback(main: &mut Main) {
         Main::number(main, 73);
         Console::exit_process(0);
     }

@@ -1,13 +1,14 @@
 //! Direct synchronous boundary-invocation inference.
 //!
-//! `reaches` is deliberately transitive and service-shaped. This plan keeps
-//! the separate `invokes` axis precise enough to substitute callable binding
-//! parameters through checked helpers: `Parameter(n)` always denotes the
-//! nth non-`self` entry parameter of the machine whose summary carries it.
+//! `reaches` is deliberately transitive and service-shaped. Public `invokes`
+//! ceilings constrain implementations independently of the exact calls those
+//! implementations make. Infer both in the same call walk: refinement follows
+//! published ceilings, while provider-cycle realization follows checked bodies
+//! and retains complete requirement applications through local/helper calls.
 
 use crate::declarations::data_queries::data_definition_by_symbol;
 use arena::HandleSpan;
-use symbols::SymbolHandle;
+use symbols::{SymbolHandle, SymbolMap};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::signature::{StateParameter, StateSignature};
@@ -15,7 +16,9 @@ use typed_trees::state::State;
 use typed_trees::statement::{TableCall, TableNamePath};
 
 use super::call_sites::{CallSiteVisitor, visit_state_calls};
-use flow_effects::{InvocationInferencePlan, InvocationTarget, MachineInvocationInference};
+use flow_effects::{
+    InvocationInferencePlan, InvocationTarget, MachineInvocationInference, RealizedInvocationTarget,
+};
 
 use crate::proof_contracts::default_domains::call_summaries::{
     StateToMachine, state_to_machine_index,
@@ -29,6 +32,8 @@ struct MachineWork {
     uses_published: bool,
     direct: Vec<InvocationTarget>,
     transitive: Vec<InvocationTarget>,
+    realized_direct: Vec<RealizedInvocationTarget>,
+    realized: Vec<RealizedInvocationTarget>,
     calls: Vec<CallWork>,
 }
 
@@ -37,6 +42,13 @@ struct CallWork {
     target_machine: SymbolHandle,
     arguments: Vec<Option<InvocationTarget>>,
     declared: Vec<InvocationTarget>,
+}
+
+/// Resolve the immutable invocation roster once. Inference changes target sets,
+/// never machine identities, family membership or the captured actuals.
+struct MachineInvocationLinks {
+    family_targets: Vec<usize>,
+    call_targets: Vec<Option<usize>>,
 }
 
 pub fn infer_synchronous_invocations(
@@ -48,14 +60,17 @@ pub fn infer_synchronous_invocations(
         .iter()
         .map(|machine| build_machine_work(program, machine, &state_to_machine))
         .collect::<Vec<_>>();
+    let mut machine_indices = SymbolMap::default();
+    for (index, machine) in work.iter().enumerate() {
+        // Preserve the original first-match resolution even for malformed
+        // duplicate identities; ordinary formation owns their diagnostic.
+        machine_indices.entry(machine.symbol).or_insert(index);
+    }
 
     let operational = super::infer_operational_may(program);
     for (_, dependency) in operational.cleanup_dependencies.iter() {
-        if let Some(caller) = work
-            .iter_mut()
-            .find(|machine| machine.symbol == dependency.caller_machine)
-        {
-            caller.calls.push(CallWork {
+        if let Some(&caller) = machine_indices.get(&dependency.caller_machine) {
+            work[caller].calls.push(CallWork {
                 target_machine: dependency.target_machine,
                 // The hook borrows its nominal subject; it does not receive
                 // a callable Binding parameter from an authored argument.
@@ -64,32 +79,53 @@ pub fn infer_synchronous_invocations(
             });
         }
     }
+    // Cleanup hooks are part of the same graph. Build links only after their
+    // calls are present, retaining one optional target for every call row.
+    let links = work
+        .iter()
+        .map(|machine| MachineInvocationLinks {
+            family_targets: machine
+                .family_members
+                .iter()
+                .filter_map(|member| machine_indices.get(member).copied())
+                .collect(),
+            call_targets: machine
+                .calls
+                .iter()
+                .map(|call| machine_indices.get(&call.target_machine).copied())
+                .collect(),
+        })
+        .collect::<Vec<_>>();
 
     loop {
         let previous = work
             .iter()
-            .map(|machine| machine.transitive.clone())
+            .map(|machine| (machine.transitive.clone(), machine.realized.clone()))
             .collect::<Vec<_>>();
         for index in 0..work.len() {
             let mut transitive = work[index].direct.clone();
-            for member in &work[index].family_members {
-                if let Some(callee) = work.iter().find(|candidate| candidate.symbol == *member) {
-                    let effective = if callee.uses_published {
-                        &callee.published
-                    } else {
-                        &callee.transitive
-                    };
-                    // Invocation parameters are positional, so the family
-                    // signature already supplies their shared identity.
-                    extend_targets(&mut transitive, effective);
-                }
+            let mut realized = work[index].realized_direct.clone();
+            for &member in &links[index].family_targets {
+                let callee = &work[member];
+                let effective = if callee.uses_published {
+                    &callee.published
+                } else {
+                    &callee.transitive
+                };
+                // Invocation parameters are positional, so the family
+                // signature already supplies their shared identity.
+                extend_targets(&mut transitive, effective);
+                extend_realized(&mut realized, &callee.realized);
             }
-            for call in work[index].calls.clone() {
+            for (call, callee) in work[index].calls.iter().zip(&links[index].call_targets) {
                 extend_targets(&mut transitive, &call.declared);
-                let Some(callee) = work
-                    .iter()
-                    .find(|candidate| candidate.symbol == call.target_machine)
-                else {
+                let Some(callee) = callee.map(|callee| &work[callee]) else {
+                    for target in &call.declared {
+                        extend_realized(
+                            &mut realized,
+                            &[RealizedInvocationTarget::Abstract(*target)],
+                        );
+                    }
                     continue;
                 };
                 let effective = if callee.uses_published {
@@ -102,13 +138,28 @@ pub fn infer_synchronous_invocations(
                         typed_trees::invocations::insert_target(&mut transitive, target);
                     }
                 }
+                for target in &callee.realized {
+                    let target = match *target {
+                        RealizedInvocationTarget::Abstract(target) => {
+                            substitute_target(target, &call.arguments)
+                                .map(RealizedInvocationTarget::Abstract)
+                        }
+                        target => Some(target),
+                    };
+                    if let Some(target) = target {
+                        extend_realized(&mut realized, &[target]);
+                    }
+                }
             }
             work[index].transitive = transitive;
+            work[index].realized = realized;
         }
         if work
             .iter()
-            .map(|machine| &machine.transitive)
-            .eq(previous.iter())
+            .zip(&previous)
+            .all(|(machine, (transitive, realized))| {
+                machine.transitive == *transitive && machine.realized == *realized
+            })
         {
             break;
         }
@@ -138,6 +189,7 @@ pub fn infer_synchronous_invocations(
                     inferred_direct: machine.direct,
                     inferred_transitive: machine.transitive,
                     effective,
+                    realized: machine.realized,
                 }
             })
             .collect(),
@@ -250,6 +302,16 @@ fn build_machine_work(
         Vec::new()
     };
     let mut direct = Vec::new();
+    let mut realized_direct =
+        if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
+            published
+                .iter()
+                .copied()
+                .map(RealizedInvocationTarget::Abstract)
+                .collect()
+        } else {
+            Vec::new()
+        };
     let mut calls = Vec::new();
     for state in program.machine_states(machine) {
         let mut sites = InvocationCallSites {
@@ -258,6 +320,7 @@ fn build_machine_work(
             state,
             state_to_machine,
             direct: &mut direct,
+            realized: &mut realized_direct,
             calls: &mut calls,
         };
         visit_state_calls(program, machine.symbol, state, &mut sites);
@@ -272,6 +335,8 @@ fn build_machine_work(
         published: published.clone(),
         direct: direct.clone(),
         transitive: direct,
+        realized: realized_direct.clone(),
+        realized_direct,
         calls,
     }
 }
@@ -284,6 +349,7 @@ struct InvocationCallSites<'a> {
     state: &'a State,
     state_to_machine: &'a StateToMachine,
     direct: &'a mut Vec<InvocationTarget>,
+    realized: &'a mut Vec<RealizedInvocationTarget>,
     calls: &'a mut Vec<CallWork>,
 }
 
@@ -314,7 +380,7 @@ impl CallSiteVisitor for InvocationCallSites<'_> {
         if self
             .program
             .expression_table
-            .root_binding_request(call.root_binding)
+            .build_selection_request(call.build_selection)
             .is_some()
         {
             return;
@@ -376,6 +442,7 @@ impl CallSiteVisitor for InvocationCallSites<'_> {
             receiver,
             arguments,
             direct,
+            self.realized,
             calls,
             self.state_to_machine,
         );
@@ -408,6 +475,7 @@ impl InvocationCallSites<'_> {
             receiver,
             arguments,
             direct,
+            self.realized,
             calls,
             self.state_to_machine,
         );
@@ -504,11 +572,17 @@ fn push_call(
     receiver: Option<InvocationTarget>,
     arguments: Vec<Option<InvocationTarget>>,
     direct: &mut Vec<InvocationTarget>,
+    realized: &mut Vec<RealizedInvocationTarget>,
     calls: &mut Vec<CallWork>,
     state_to_machine: &StateToMachine,
 ) {
     let boundary_signature = boundary_trait_for_signature(program, target);
     let crosses_boundary = receiver.is_some() || boundary_signature.is_some();
+    if boundary_signature.is_some() {
+        extend_realized(realized, &[RealizedInvocationTarget::Requirement(target)]);
+    } else if let Some(receiver) = receiver {
+        extend_realized(realized, &[RealizedInvocationTarget::Abstract(receiver)]);
+    }
     if let Some(receiver) = receiver {
         typed_trees::invocations::insert_target(direct, receiver);
     } else if let Some(service) = boundary_signature {
@@ -574,6 +648,9 @@ fn boundary_trait_for_signature(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
+    let symbol = program
+        .closed_requirement_application(symbol)
+        .map_or(symbol, |application| application.template);
     program
         .traits()
         .iter()
@@ -681,3 +758,35 @@ fn extend_targets(targets: &mut Vec<InvocationTarget>, source: &[InvocationTarge
         typed_trees::invocations::insert_target(targets, *target);
     }
 }
+
+fn extend_realized(
+    targets: &mut Vec<RealizedInvocationTarget>,
+    source: &[RealizedInvocationTarget],
+) {
+    let previous_length = targets.len();
+    for target in source {
+        if !targets.contains(target) {
+            targets.push(*target);
+        }
+    }
+    if targets.len() != previous_length {
+        // Realized calls form a set, just like abstract invocation targets.
+        // Discovery order can oscillate forever around a recursive component
+        // even after membership stops changing. Retain every exact identity in
+        // a deterministic order before the fixed-point comparison.
+        targets.sort_unstable_by_key(|target| match *target {
+            RealizedInvocationTarget::Requirement(symbol) => {
+                (0u8, symbol.arena_index(), symbol.generation())
+            }
+            RealizedInvocationTarget::Abstract(InvocationTarget::Parameter(ordinal)) => {
+                (1, ordinal, 0)
+            }
+            RealizedInvocationTarget::Abstract(InvocationTarget::Service(symbol)) => {
+                (2, symbol.arena_index(), symbol.generation())
+            }
+        });
+    }
+}
+
+#[cfg(test)]
+mod tests;

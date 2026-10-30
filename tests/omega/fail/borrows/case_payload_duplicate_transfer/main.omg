@@ -6,7 +6,7 @@ machine inspect(choice: Choice) -> bool {
         Choice::Present { value } -> observe(value, value)
         _ -> (false)
     }
-    state observe(first: Token, second: Token) -> bool {
+    machine observe(first: Token, second: Token) -> bool {
         first.value == second.value
     }
 }
@@ -14,6 +14,6 @@ machine inspect(choice: Choice) -> bool {
 machine main() crashes Trap {
     let result: bool = inspect(Choice::Present { value: Token { value: 42 } });
     transition result { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

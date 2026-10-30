@@ -72,7 +72,10 @@ fn prove(
         validation::CallSite::Expression {
             call: source_call, ..
         } => {
-            if source_call.target_symbol != call.target_symbol
+            if validation::call_target_entry_symbol(
+                program,
+                validation::call_target_symbol(program, source_call),
+            ) != call.target_symbol
                 || (source_call.receiver.is_valid()
                     && validation::canonical_place_from_expression(program, source_call.receiver)
                         .is_none())
@@ -364,13 +367,7 @@ fn immutable_capture_bounds(
     expression: ExpressionHandle,
 ) -> Option<(i64, i64)> {
     let path = program.expression_table.name_path_node(expression)?;
-    if path.head_symbol != path.symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-    {
+    if !program.expression_table.name_path_is_single_member(path) {
         return None;
     }
     let (_, local) = program.state_local_declaration(state, path.symbol)?;

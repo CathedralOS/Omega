@@ -1,7 +1,7 @@
 //! Build-entry declaration rejection mapping for dependency projection.
 
 use super::super::error::DependencyProjectionError;
-use crate::declarations::roles::BuildDeclarationError;
+use crate::declarations::BuildDeclarationError;
 
 pub(super) fn map_build_declaration_error(
     error: BuildDeclarationError,

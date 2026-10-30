@@ -9,8 +9,11 @@
 //! Host buffers never name mutable interpreter storage; scalar restrictions
 //! and endpoint queries remain owned by `scalar_loans.rs`.
 
+pub(crate) mod boundary_predicates;
 pub(crate) mod byte_buffers;
 pub(crate) mod crash_outcome;
+pub(crate) mod normal_qualifications;
+pub(crate) mod original_storage;
 pub(crate) mod results;
 pub(crate) mod scalar_loans;
 pub(crate) mod storage_inputs;
@@ -27,6 +30,12 @@ use terminal_psi::{BoundaryMachineResult, CompletionReceipt};
 /// One externally observable terminal-Psi effect in semantic execution order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalEffect {
+    /// A completed compiler-defined ordering event in the supplied private
+    /// sequential model. This is an observation, never a host callback.
+    MemoryFence {
+        operation: OperationId,
+        kind: terminal_psi::MemoryFenceKind,
+    },
     BoundaryCall {
         operation: OperationId,
         boundary: BoundaryMachineId,
@@ -64,15 +73,66 @@ pub enum TerminalEffect {
     },
 }
 
+/// Storage presentation selected once for an invocation's frozen scalar actuals.
+/// Selection requests observation/residence; it grants no additional access.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TerminalCallStorageRequirements<'handler> {
+    pub arguments: &'handler [usize],
+    pub original: bool,
+}
+
 /// Injected semantic effect sink used by the oracle and tests. Native provider
 /// selection and hardware realization remain outside the Psi interpreter.
 pub trait TerminalEffectHandler {
-    /// Request captured semantic storage of these structural arguments before
-    /// host dispatch. Owned arguments supply immutable payload snapshots;
-    /// reading borrows retain their existing restoration protocol. This selects
-    /// observations, never access or authority.
-    fn storage_arguments(&self, _boundary: semantic_vocabulary::BoundaryMachineId) -> &[usize] {
-        &[]
+    /// Yield the executor while a synchronous host operation is being computed.
+    /// This is not program suspension: no guest task runs, storage is not lent
+    /// away, and no suspension evidence is created or consumed. As with a fuel
+    /// slice, the full invocation stays live until the same host computation
+    /// completes. External provider readiness must use `poll_effect_readiness`
+    /// instead, which requires the source's checked suspension crossing.
+    /// Polling must not repeat effects or mutate argument storage.
+    fn poll_host_computation(
+        &mut self,
+        _effect: &TerminalEffect,
+    ) -> Result<bool, TerminalEffectRejection> {
+        Ok(true)
+    }
+
+    /// Poll readiness without invoking the operation or changing lent storage.
+    /// A false answer parks only a checked suspending call. The interpreter
+    /// retains its prepared arguments and polls this same invocation on resume;
+    /// `handle_effect_with_buffers` runs exactly once after readiness succeeds.
+    /// Scheduling work here must be idempotent for this retained effect.
+    fn poll_effect_readiness(
+        &mut self,
+        _effect: &TerminalEffect,
+    ) -> Result<bool, TerminalEffectRejection> {
+        Ok(true)
+    }
+
+    /// Select the complete presentation once, before capture. A hybrid import
+    /// can retain modeled streams for standard descriptors while selecting
+    /// original native storage for explicitly supplied filesystem descriptors.
+    fn storage_requirements(
+        &self,
+        _boundary: BoundaryMachineId,
+        _scalar_arguments: &[TerminalScalarValue],
+    ) -> TerminalCallStorageRequirements<'_> {
+        TerminalCallStorageRequirements::default()
+    }
+    /// Realize the already checked invocation's original allocations. The
+    /// returned rows match requests and their scalar cells exactly. Preparing
+    /// backing performs no provider call and supplies no claims or lifetimes.
+    /// An actual original route must reject unsupported geometry before
+    /// dispatching native code.
+    fn prepare_original_storage(
+        &mut self,
+        _boundary: BoundaryMachineId,
+        _requests: &[original_storage::TerminalOriginalStorageRequest],
+    ) -> Result<original_storage::TerminalOriginalScalarBackings, TerminalEffectRejection> {
+        Err(TerminalEffectRejection::new(
+            "handler does not supply original storage homes",
+        ))
     }
 
     fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection>;
@@ -142,7 +202,8 @@ pub use terminal_installation::{
     admit_target_machine_selections,
 };
 
-/// Admitted supply selection bound to one exact Terminal-Psi identity.
+/// Admitted supply selection bound to exact execution code custody: semantic
+/// content and, for invocation-only code, its retained live owner.
 /// Private fields preserve checked-provider custody; receiving hosts may add
 /// normal import choices through `TerminalProgram::admit_runtime_supplies`.
 /// Shared catalog admission supplies checked selections; this runtime carrier
@@ -150,9 +211,11 @@ pub use terminal_installation::{
 /// adapters or external-completion authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalRuntimeSupplies {
+    pub(crate) provider_selections: Option<terminal_installation::AdmittedProviderSelections>,
     pub(crate) x86_flags: Option<TerminalX86FlagsEnvironment>,
+    pub(crate) memory_ordering: Option<crate::TerminalMemoryOrderingEnvironment>,
     pub(crate) entry: Option<terminal_psi::TargetMachineCallable>,
-    pub(crate) terminal_psi: terminal_psi::TerminalPsiIdentity,
+    pub(crate) code_identity: terminal_codec::TerminalExecutionIdentity,
     pub(crate) supplies: BTreeMap<BoundaryMachineId, AdmittedBoundarySupply>,
     pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
     pub(crate) folded_constant_target: Option<String>,
@@ -170,6 +233,9 @@ pub(crate) enum AdmittedBoundarySupply {
         provider_boundary: BoundaryMachineId,
         candidate: MachineId,
     },
+    /// The host schedules an independently checked component. This reserves
+    /// a route, not a callable implementation or a host-adapter permission.
+    DeferredComponent,
     HostImport,
 }
 
@@ -180,6 +246,8 @@ pub(crate) enum AdmittedBoundarySupply {
 pub struct TerminalRuntimeSupplyRequest<'installation> {
     /// Explicit modeled processor state. Absence supplies no PUSHFQ capability.
     pub x86_flags: Option<TerminalX86FlagsEnvironment>,
+    /// Explicit scoped memory model; absence supplies no catalog fence semantics.
+    pub memory_ordering: Option<crate::TerminalMemoryOrderingEnvironment>,
     /// Requested retained callable; absence selects the artifact's default.
     /// This supplies no parameter backing or host/provider authority.
     pub entry: Option<terminal_psi::TargetMachineCallable>,
@@ -194,8 +262,12 @@ pub struct TerminalRuntimeSupplyRequest<'installation> {
 impl From<&terminal_installation::AdmittedProviderSelections> for TerminalRuntimeSupplies {
     fn from(selected: &terminal_installation::AdmittedProviderSelections) -> Self {
         Self {
+            provider_selections: Some(selected.clone()),
             x86_flags: None,
-            terminal_psi: selected.terminal_psi(),
+            memory_ordering: None,
+            code_identity: terminal_codec::TerminalExecutionIdentity::portable(
+                selected.terminal_psi(),
+            ),
             entry: None,
             supplies: selected
                 .providers()
@@ -228,7 +300,7 @@ impl TerminalRuntimeSupplies {
         selected: &terminal_installation::AdmittedComponentProvider,
     ) -> Result<Self, TerminalInterpretError> {
         let boundary = selected.receiving_boundary();
-        if selected.receiver() != self.terminal_psi || self.supplies.contains_key(&boundary) {
+        if selected.receiver() != &self.code_identity || self.supplies.contains_key(&boundary) {
             return Err(TerminalInterpretError::RuntimeSupplySelectionRejected {
                 boundary,
                 reason: "component selection names another receiver or an already selected slot",
@@ -246,7 +318,7 @@ impl TerminalRuntimeSupplies {
     }
 
     pub const fn terminal_psi(&self) -> terminal_psi::TerminalPsiIdentity {
-        self.terminal_psi
+        self.code_identity.semantic()
     }
 
     /// The root-authorized assumed binding contracts admitted alongside the

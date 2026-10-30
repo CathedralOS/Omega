@@ -1,208 +1,209 @@
-//! Executes one admitted build activation and settles its captured outputs.
-mod machine_evaluation;
+//! Prepare one admitted Terminal Build and settle its exact normal-return output.
+//! The caller owns execution stepping and dependency work between those operations.
 
 use crate::{AdmittedBuildProgram, BuildConfig, ComputedBuildConfig};
-use build_time_evaluation::harvest_wire_compatibility_demands;
 use diagnostics::Diagnostic;
-use package_compilation::{CapturedBuildObservations, SelectedBuildMachine};
-use provider_planning::program_entry::collect_root_bindings;
-use trust_model::{
-    harvest_behavior_exclusions, harvest_component_assumption_acceptances, harvest_root_grants,
-};
+use evaluation_accounting::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
+use std::sync::Arc;
 
-/// Consume one admitted build activation and extract its durable configuration
-/// and evaluation evidence.
-pub(crate) fn execute_admitted_build_program(
-    admitted: AdmittedBuildProgram,
-) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
-    let AdmittedBuildProgram {
-        prepared,
-        machine,
-        filesystem_scope,
-        evaluation_sponsor,
-        artifact_only,
-    } = admitted;
-    let SelectedBuildMachine {
-        entry: machine_entry,
-        symbol: machine_symbol,
-        name: machine_name,
-        normalized_callable_identity: _,
-        value_admission,
-        filesystem_reachable,
-        execution_mode,
-        initial_build,
-    } = machine;
-    let typed = prepared.typed();
-    let machine = typed
-        .machine(machine_symbol)
-        .expect("admitted build entry remains in its owned prepared program");
-    let initial_arguments = vec![initial_build];
-    let evaluation_sponsor = evaluation_sponsor.as_ref();
-
-    // Phase 1: run the admitted machine once in its admitted execution mode.
-    artifacts::compile_timings::counters::record_build_execution();
-    let measured = machine_evaluation::evaluate_admitted_machine(
-        &prepared,
-        &machine_entry,
-        initial_arguments,
-        execution_mode,
-        evaluation_sponsor,
-        &machine_name,
-    )?;
-    let usage = measured.usage();
-
-    // Phase 2: project the retained observations into their durable rows.
-    let observations = CapturedBuildObservations::capture(
-        measured.observations(),
-        &filesystem_scope,
-        &machine_name,
-    )?;
-    let root_bindings = collect_root_bindings(typed, measured.executed_root_bindings())?;
-    let executed_exclusions = measured.executed_behavior_exclusions().to_vec();
-    let wire_compatibility_demands =
-        harvest_wire_compatibility_demands(typed, measured.executed_wire_demands())?;
-    let provider_selections =
-        build_time_evaluation::provider_declarations::collect_executed_provider_selections(
-            provider_planning::ProviderPlanningContext::new(
-                typed,
-                source::DependencyScope::Product,
-            ),
-            measured.executed_build_selections(),
-        )?;
-
-    let assumed_bindings =
-        build_time_evaluation::assumed_bindings::collect_executed_assumed_bindings(
-            typed,
-            machine_symbol,
-            measured.executed_build_selections(),
-        )?;
-
-    // Phase 3: join the augmented Build and declared grants/demands with
-    // the selections and exclusions recorded by this execution.
-    let service_audits = collect_service_audits(typed, measured.executed_build_selections())?;
-    let mut arguments = measured.into_value();
-    let augmented = arguments.pop().ok_or_else(|| {
-        vec![Diagnostic::error(format!(
-            "`{machine_name}` returned no argument values (expected the augmented Build)"
-        ))]
-    })?;
-
-    let (settings, optimization_report) =
-        value_admission.extract(&augmented).map_err(|reason| {
-            vec![Diagnostic::error(format!(
-                "`{machine_name}` produced an invalid Build: {reason}"
-            ))]
-        })?;
-    let mut config = BuildConfig {
-        settings,
-        ..Default::default()
-    };
-    config.grants = harvest_root_grants(typed, machine).map_err(|diagnostic| vec![diagnostic])?;
-    config.provider_selections = provider_selections;
-    config.assumed_bindings = assumed_bindings;
-    config.opaque_representation_selections =
-        representation_planning::harvest_opaque_representation_selections(typed, machine)?;
-    config.wire_compatibility_demands = wire_compatibility_demands;
-    config.behavior_exclusions = harvest_behavior_exclusions(typed, &executed_exclusions)?;
-    config.service_audits = service_audits;
-    config.accepted_component_assumptions =
-        harvest_component_assumption_acceptances(typed, machine)?;
-    config.root_bindings = root_bindings;
-
-    // Phase 4: settle outputs before artifact admission or source selection.
-    let observation_summary = observations.settle(filesystem_reachable, &machine_name)?;
-    if artifact_only {
-        if !config.root_bindings.is_empty()
-            || !config.provider_selections.is_empty()
-            || !config.assumed_bindings.is_empty()
-        {
-            return Err(vec![Diagnostic::error(format!(
-                "artifact-only build `{machine_name}` may not bind executable roots or select boundary providers"
-            ))]);
-        }
-        if observation_summary.required_output_settlements().is_empty() {
-            return Err(vec![Diagnostic::error(format!(
-                "artifact-only build `{machine_name}` completed no required output"
-            ))]);
-        }
-    }
-    let generated_sources = observation_summary.select_generated_sources(&machine_name)?;
-
-    // Phase 5: retain only the actual engine's measured usage. A sponsor for
-    // another measurement family cannot give this legacy tree run its units.
-    let evaluation_usage =
-        checked_interpreter::capture_checked_build_evaluation_usage(usage, evaluation_sponsor)
-            .map_err(|error| {
-                vec![Diagnostic::error(format!(
-                    "build `{machine_name}` evaluation accounting is inconsistent: {error:?}"
-                ))]
-            })?;
-    Ok(ComputedBuildConfig {
-        config,
-        optimization_report_request: optimization_report,
-        evaluation_usage: Some(evaluation_usage),
-        observation_summary: Some(observation_summary),
-        selected_build_machine_symbol: Some(machine.symbol),
-        generated_sources,
-    })
+/// An independently owned invocation. Preparing dependencies may use the compiler
+/// again while this code, sponsor account and admitted host scope remain alive.
+pub struct PreparedBuildExecution {
+    produced: Arc<psi_compiler::ProducedTerminalProgram>,
+    account: evaluation_accounting::EvaluationInvocationAccount,
+    machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
+    filesystem_scope: package_compilation::BuildMachineFilesystemScope,
+    host_issued: bool,
+    execution_profile: Option<target::TargetProfile>,
 }
 
-fn collect_service_audits(
-    typed: &typed_trees::TypedTrees,
-    selections: &[checked_interpreter::ExecutedBuildSelection],
-) -> Result<Vec<compilation_products::ServiceAuditRegistration>, Vec<Diagnostic>> {
-    use language_semantics::declaration_selection::BuildOperation;
-    let mut registrations = Vec::new();
-    for selection in selections
-        .iter()
-        .filter(|selection| selection.operation == BuildOperation::ServiceAudit)
-    {
-        let span = typed.expression_table.source_span(selection.expression);
-        let selected = validation::compiler_operations::resolve_build_static_operand(
-            typed,
-            selection.expression,
-            0,
-            span,
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(span)])?;
-        let validation::selection_resolution::AuthoredSelectionResolutionTarget::Declaration(
-            symbol,
-        ) = selected
-        else {
-            return Err(vec![
-                Diagnostic::error("service audit registration has no exact product declaration")
-                    .with_source_span(span),
-            ]);
+impl PreparedBuildExecution {
+    pub(crate) fn prepare(admitted: AdmittedBuildProgram) -> Result<Self, Vec<Diagnostic>> {
+        let AdmittedBuildProgram {
+            prepared,
+            machine,
+            filesystem_scope,
+            evaluation_sponsor,
+            execution_profile,
+            artifact_only: _,
+        } = admitted;
+        let refuse = |reason: String| {
+            vec![Diagnostic::error(format!(
+                "Terminal Build `{}` failed: {reason}",
+                machine.name
+            ))]
         };
-        let definition = typed
-            .product_declarations()
-            .trait_definition_by_symbol(symbol)
-            .filter(|definition| definition.is_boundary)
-            .ok_or_else(|| {
-                vec![
-                    Diagnostic::error("service audit registration must select a boundary trait")
-                        .with_source_span(span),
-                ]
-            })?;
-        let identity = typed
-            .normalized_hermetic_symbol_identity(definition.symbol)
-            .map_err(|reason| {
-                vec![
-                    Diagnostic::error(format!("service audit identity: {reason}"))
-                        .with_source_span(span),
-                ]
-            })?;
-        if !registrations.iter().any(
-            |registration: &compilation_products::ServiceAuditRegistration| {
-                registration.identity == identity
-            },
-        ) {
-            registrations.push(compilation_products::ServiceAuditRegistration {
-                identity,
-                name: definition.name.to_string(),
-            });
-        }
+        let checked = prepared
+            .checked_trees()
+            .ok_or_else(|| refuse("Build has no admitted source judgment".into()))?;
+        let toolchain =
+            source::source_identity::toolchain_source_identities(checked.symbols.source_files())
+                .map_err(&refuse)?;
+        let mut production = psi_compiler::TerminalProductionRequest::new(
+            checked,
+            psi_compiler::TerminalMachineSelection::Symbol(machine.symbol),
+            &toolchain,
+        );
+        production.publication = terminal_codec::TerminalPublication::Invocation;
+        let produced = production
+            .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
+            .map_err(|error| error.diagnostics())?;
+
+        // These are Terminal units. An existing tree-measured sponsor is never
+        // relabeled or silently replaced by a fresh account.
+        let measurement = crate::terminal_execution::measurement();
+        const INVOCATION_FUEL: u64 = 100_000;
+        let sponsor = match evaluation_sponsor {
+            Some(sponsor) => sponsor,
+            None => {
+                // Standalone compilation previously had only a per-invocation work
+                // ceiling. Its private account adds measurement, not filesystem grants.
+                let limits = BuildEvaluationSponsorLimits::new(
+                    INVOCATION_FUEL,
+                    u64::MAX,
+                    u64::MAX,
+                    u64::MAX,
+                    u64::MAX,
+                    u64::MAX,
+                    u64::MAX,
+                    u64::MAX,
+                )
+                .ok_or_else(|| refuse("invalid standalone Build limits".into()))?;
+                BuildEvaluationSponsor::new_with_measurement(limits, measurement)
+                    .map_err(|error| refuse(error.to_string()))?
+            }
+        };
+        let account = sponsor
+            .begin_invocation(measurement, INVOCATION_FUEL)
+            .map_err(|error| refuse(error.to_string()))?;
+        Ok(Self {
+            produced: Arc::new(produced),
+            account,
+            machine: Arc::new(machine),
+            filesystem_scope,
+            host_issued: false,
+            execution_profile,
+        })
     }
-    registrations.sort_by(|left, right| left.identity.cmp(&right.identity));
-    Ok(registrations)
+
+    /// Issue this invocation's host once. It cannot be replaced to restart effects
+    /// after the caller drops a paused or failed activation.
+    pub fn host(&mut self) -> Result<Arc<crate::TerminalBuildHost>, Vec<Diagnostic>> {
+        if self.host_issued {
+            return Err(self.refuse("Build invocation already issued its execution host"));
+        }
+        self.host_issued = true;
+        crate::TerminalBuildHost::new(
+            Arc::clone(&self.produced),
+            &self.account,
+            Arc::clone(&self.machine),
+            &self.filesystem_scope,
+            self.execution_profile,
+        )
+        .map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "Terminal Build `{}` failed: {reason}",
+                self.machine.name
+            ))]
+        })
+    }
+
+    pub(crate) fn validate_return(
+        &self,
+        returned: &crate::ReturnedBuild,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if !self.host_issued || returned.identity != self.produced.view().custody_identity() {
+            return Err(self.refuse("Build completion belongs to another invocation"));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn complete(
+        self,
+        completed: crate::ReturnedBuild,
+    ) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
+        self.validate_return(&completed)?;
+        let declaration = &completed.declaration;
+        // A graph is not settlement by itself. The retained return must carry
+        // the exact join of its issued requests and acquired selections.
+        if completed.source_join.is_none()
+            && completed.requests.iter().any(|issued| {
+                matches!(
+                    issued.request(),
+                    build_declarations::BuildRequest::Dependency { .. }
+                )
+            })
+        {
+            return Err(self.refuse(
+                "dependency requests require coordinator settlement before Product compilation",
+            ));
+        }
+        let artifact_only = matches!(declaration, build_declarations::BuildDeclaration::Application(application) if application.artifact_only);
+        if artifact_only && !completed.root_bindings.is_empty() {
+            return Err(
+                self.refuse("artifact-only Build cannot select executable entries or providers")
+            );
+        }
+        let mut observations =
+            package_compilation::CapturedBuildObservations::new(&self.filesystem_scope);
+        if let Some(filesystem) = completed.filesystem {
+            observations.retain_filesystem_effects(filesystem)?;
+        }
+        observations.retain_build_log(
+            completed
+                .log
+                .publish(&self.account)
+                .map_err(|reason| self.refuse(&reason))?,
+        )?;
+        let observation_summary =
+            observations.settle(self.machine.filesystem_reachable, &self.machine.name)?;
+        if artifact_only && observation_summary.required_output_settlements().is_empty() {
+            return Err(self.refuse("artifact-only Build requires at least one completed output"));
+        }
+        let generated_sources = observation_summary.select_generated_sources(&self.machine.name)?;
+        let usage = *self
+            .account
+            .snapshot()
+            .map_err(|error| self.refuse(&error.to_string()))?
+            .record();
+        let native_binding_evaluation = if completed.native_bindings.is_empty() {
+            None
+        } else {
+            Some(Arc::new(
+                provider_planning::native_bindings::NativeBuildEvaluation::from_execution(
+                    completed.identity.semantic(),
+                    usage,
+                    &observation_summary,
+                )
+                .map_err(|reason| self.refuse(&reason))?,
+            ))
+        };
+        let config = BuildConfig {
+            settings: completed.settings,
+            native_binding_evaluation,
+            ..Default::default()
+        };
+        Ok(ComputedBuildConfig {
+            config,
+            root_binding_requests: completed.root_bindings,
+            declared_product_selections: completed.declared_product_selections,
+            product_selection_requests: completed.product_selections,
+            native_binding_requests: completed.native_bindings,
+            native_formations: completed.native_formations,
+            behavior_exclusion_requests: completed.exclusions,
+            project_declaration: Some(completed.declaration),
+            optimization_report_request: completed.optimization_report,
+            evaluation_usage: Some(usage),
+            observation_summary: Some(observation_summary),
+            selected_build_machine_symbol: Some(self.machine.symbol),
+            generated_sources,
+        })
+    }
+
+    fn refuse(&self, reason: &str) -> Vec<Diagnostic> {
+        vec![Diagnostic::error(format!(
+            "Terminal Build `{}` failed: {reason}",
+            self.machine.name
+        ))]
+    }
 }

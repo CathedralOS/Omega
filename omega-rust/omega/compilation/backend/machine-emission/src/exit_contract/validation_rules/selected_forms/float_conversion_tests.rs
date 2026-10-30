@@ -1,5 +1,5 @@
 //! A private conversion guard may crash without becoming a function exit edge.
-use super::validate_non_return;
+use super::assert_non_return_refused;
 use selected_instructions::{
     IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatFormat,
     IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain, MachineAlternativeFamily,
@@ -9,10 +9,7 @@ use selected_instructions::{
 
 #[test]
 fn float_conversion_exit_admission_retains_only_its_selected_policy_control() {
-    let physical = register_model::validate_physical_register_model(
-        isa_aarch64::aarch64_physical_register_model(),
-    )
-    .unwrap();
+    let physical = super::aarch64_physical_register_model();
     let registers = ["x3", "x4"].map(|name| physical.model().view_named(name).unwrap().id);
     for domain in [
         IeeeFloatToIntegerDomain::Exact,
@@ -47,17 +44,13 @@ fn float_conversion_exit_admission_retains_only_its_selected_policy_control() {
                 } else {
                     MachineEncodedControlEffect::FallThroughOrTrapV1
                 };
-                assert!(
-                    validate_non_return(
-                        target::Architecture::Aarch64,
-                        instruction,
-                        kind,
-                        &encoding,
-                        &layout,
-                        &changed
-                    )
-                    .is_err(),
-                    "{form:?}"
+                assert_non_return_refused(
+                    &format!("{form:?}"),
+                    instruction,
+                    kind,
+                    &encoding,
+                    &layout,
+                    &changed,
                 );
             }
         }

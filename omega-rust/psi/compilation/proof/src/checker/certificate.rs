@@ -1315,8 +1315,8 @@ fn transitivity_leg(
 }
 
 /// Encode the anonymous integer expressions the producer understands as one
-/// closed mathematical term: integer literals, the `u32::MAX` constant name
-/// the engine lands, and `+`/`-`/`*` trees whose operators carry builtin
+/// closed mathematical term: integer literals, admitted closed constant values,
+/// and `+`/`-`/`*` trees whose operators carry builtin
 /// meaning. Division, modulo, shifts and every named value stay unencoded.
 fn closed_math_term(
     proof_plan: &ProofPlan,

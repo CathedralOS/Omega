@@ -49,19 +49,20 @@
 //! layout may provide the encoded value.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use diagnostics::Diagnostic;
 use language_core::constant_value::EvaluatedConstant;
 use language_semantics::const_value::DecodedCanonicalConstValue;
-use source::{SourceMap, SourceSpan};
-use symbols::SourceScopedTopLevelBinding;
+use source::SourceSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::item::{
     ConstDefinition, ConstInitializerCustody, ConstInitializerNormalization, Item, ItemHandle,
 };
 use syntax_trees::types::ConstArgumentOrigin;
+use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
+    ConstInitializerSelection, InitializerCustodyPurpose,
+};
 
 mod invocations;
 mod materialize;
@@ -70,40 +71,206 @@ mod target_observations;
 
 pub(crate) use invocations::CheckedInitializers;
 pub(crate) use replay::validate as validate_retained_invocations;
+pub(crate) use target_observations::retain_entries as retain_deferred_entries;
 pub(crate) use target_observations::settle as settle_target_observations;
 
-struct PendingLeaf {
+/// Dependency identity is independent of pending syntax work. A predecessor
+/// supplies its immutable declaration/value graph; only current declarations
+/// acquire work ordinals or get rewritten by this evaluation.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Dependency<'input> {
+    Current(usize),
+    Retained {
+        declaration: &'input symbol_resolved_trees::constant::ConstDeclaration,
+        source: SourceSpan,
+    },
+}
+
+impl Dependency<'_> {
+    fn current(self) -> Option<usize> {
+        match self {
+            Self::Current(ordinal) => Some(ordinal),
+            Self::Retained { .. } => None,
+        }
+    }
+
+    fn is_ready(self, declarations: &[Declaration<'_>]) -> bool {
+        match self {
+            Self::Current(ordinal) => {
+                declarations[ordinal].leaves.is_empty()
+                    && declarations[ordinal].evaluated_value.is_some()
+            }
+            Self::Retained { declaration, .. } => declaration.evaluated_value.is_some(),
+        }
+    }
+
+    fn origin(
+        self,
+        reference: SourceSpan,
+        syntax: &SyntaxTrees,
+        declarations: &[Declaration<'_>],
+    ) -> Result<ConstArgumentOrigin, Vec<Diagnostic>> {
+        let (declaration, initializer, value) = match self {
+            Self::Current(ordinal) => {
+                let input = &declarations[ordinal];
+                (
+                    input.definition.name.source_span(),
+                    syntax.expressions.source_span(input.definition.value),
+                    &input.evaluated_value,
+                )
+            }
+            Self::Retained {
+                declaration,
+                source,
+            } => (
+                source,
+                declaration.initializer_source_span,
+                &declaration.evaluated_value,
+            ),
+        };
+        Ok(ConstArgumentOrigin {
+            reference,
+            declaration,
+            initializer,
+            evaluated_value: value
+                .clone()
+                .ok_or_else(|| failure(reference, "custody dependency has no completed value"))?,
+        })
+    }
+
+    fn custody(
+        self,
+        declarations: &[Declaration<'_>],
+        preparation: &ConstInitializerSelection,
+        purpose: InitializerCustodyPurpose,
+    ) -> Result<ConstInitializerCustody, Vec<Diagnostic>> {
+        match self {
+            Self::Retained { declaration, .. } => {
+                preparation.retained_constant_custody(declaration.symbol, purpose)
+            }
+            Self::Current(ordinal) => Ok(match &declarations[ordinal].definition.normalization {
+                None => ConstInitializerCustody::default(),
+                Some(receipt) => match purpose {
+                    InitializerCustodyPurpose::Authored => receipt.authored_custody.clone(),
+                    InitializerCustodyPurpose::Declaration => receipt.declaration_custody.clone(),
+                    InitializerCustodyPurpose::Value => ConstInitializerCustody {
+                        selections: receipt.selections.clone(),
+                        builtin_operators: receipt.builtin_operators.clone(),
+                        call_selections: receipt.call_selections.clone(),
+                    },
+                },
+            }),
+        }
+    }
+}
+
+fn dependency<'input>(
+    declarations: &[Declaration<'input>],
+    preparation: &'input ConstInitializerSelection,
+    source: SourceSpan,
+    reference: SourceSpan,
+) -> Result<Dependency<'input>, Vec<Diagnostic>> {
+    if let Some(ordinal) = declarations
+        .iter()
+        .position(|candidate| candidate.definition.name.source_span() == source)
+    {
+        return Ok(Dependency::Current(ordinal));
+    }
+    let selected = preparation
+        .trees()
+        .const_declaration_at_source_span(source)
+        .ok_or_else(|| {
+            failure(
+                reference,
+                "selected constant dependency lost its declaration",
+            )
+        })?;
+    let declaration = preparation.retained_constant(selected.symbol)?;
+    if !declaration.is_public
+        && !preparation
+            .trees()
+            .symbols
+            .same_source_package(reference, source)
+    {
+        return Err(failure(
+            reference,
+            "dependency selects a private foreign declaration",
+        ));
+    }
+    Ok(Dependency::Retained {
+        declaration,
+        source,
+    })
+}
+
+struct PendingLeaf<'input> {
     expression: ExpressionHandle,
     destination: syntax_trees::types::TypeReferenceHandle,
     /// Structured leaves are aggregate-producing expressions evaluated through
     /// the checked interpreter; scalar leaves keep the exact probe evaluator.
     structured: bool,
-    dependencies: Vec<(SourceSpan, usize)>,
+    dependencies: Vec<(SourceSpan, Dependency<'input>)>,
     calls: Vec<(SourceSpan, SourceSpan)>,
 }
 
-struct Declaration {
+struct Declaration<'input> {
     item: ItemHandle,
     definition: ConstDefinition,
     evaluated_value: Option<EvaluatedConstant>,
-    leaves: Vec<PendingLeaf>,
-    dependencies: Vec<(SourceSpan, usize)>,
+    leaves: Vec<PendingLeaf<'input>>,
+    dependencies: Vec<(SourceSpan, Dependency<'input>)>,
     calls: Vec<(SourceSpan, SourceSpan)>,
-    authored_dependencies: Vec<(SourceSpan, usize)>,
+    authored_dependencies: Vec<(SourceSpan, Dependency<'input>)>,
     authored_calls: Vec<(SourceSpan, SourceSpan)>,
     authored_operators: Vec<SourceSpan>,
     readiness_operators: Vec<SourceSpan>,
     normalization_owners: Vec<SourceSpan>,
 }
 
+fn propagate_target_observations(
+    declarations: &mut [Declaration<'_>],
+    syntax: &mut SyntaxTrees,
+    target_observations: &mut [bool],
+) {
+    loop {
+        let mut changed = false;
+        for (ordinal, declaration) in declarations.iter().enumerate() {
+            if !target_observations[ordinal]
+                && declaration.dependencies.iter().any(|(_, dependency)| {
+                    dependency
+                        .current()
+                        .is_some_and(|ordinal| target_observations[ordinal])
+                })
+            {
+                target_observations[ordinal] = true;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    for (ordinal, declaration) in declarations.iter_mut().enumerate() {
+        declaration.definition.pending_target_observation = target_observations[ordinal];
+        if target_observations[ordinal] {
+            syntax.items.replace_item(
+                declaration.item,
+                Item::Const(declaration.definition.clone()),
+            );
+        }
+    }
+}
+
 pub(crate) fn evaluate(
     mut syntax: SyntaxTrees,
-    sources: Option<Arc<SourceMap>>,
-    bindings: &[SourceScopedTopLevelBinding],
-    authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    context: &crate::BuildTimeSources<'_>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+    let _profile = phase_profile::guard("pre_resolution.constant_initializers");
+    let sources = context.sources.clone();
+    let bindings = context.source_scoped_top_level_bindings;
+    let authority = context.selection_authority.clone();
     use syntax_trees_to_symbol_resolved_trees::pre_resolution::requires_const_initializer_evaluation;
-    syntax = super::const_qualifications::prove_ready(syntax, sources.clone(), bindings)?;
+    syntax = super::const_qualifications::prove_ready(syntax, context)?;
     if !syntax.root_items().any(|item| {
         matches!(item, Item::Const(definition)
         if requires_const_initializer_evaluation(&syntax, definition))
@@ -118,9 +285,10 @@ pub(crate) fn evaluate(
     super::const_qualifications::defer_unproved(&mut selection_syntax);
     let selection_arguments =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
-            &syntax,
+            &mut syntax,
             sources.clone(),
             bindings.to_vec(),
+            context.retained_base(), context.declaration_syntax,
         )?;
     crate::syntax_probes::defer_pending_const_qualifications(
         &mut selection_syntax,
@@ -131,11 +299,7 @@ pub(crate) fn evaluate(
     );
     let preparation =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::prepare_const_initializer_selection(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: selection_syntax,
-                sources: sources.clone(),
-                top_level_bindings: bindings.to_vec(),
-            },
+            context.resolution_request(selection_syntax),
         )?;
     let resolved = preparation.trees();
     let mut declarations = Vec::new();
@@ -186,17 +350,12 @@ pub(crate) fn evaluate(
         let selected =
             preparation.initializer_dependencies(&syntax, &declarations[ordinal].definition)?;
         target_observations[ordinal] = selected.pending_target_observation;
-        let authored =
-            preparation.initializer_authored_dependencies(&declarations[ordinal].definition)?;
+        let authored = preparation
+            .initializer_authored_dependencies(&declarations[ordinal].definition, None)?;
         declarations[ordinal].authored_calls = authored.calls;
         declarations[ordinal].authored_operators = authored.initializer_operators;
         for (reference, source) in authored.constants {
-            let dependency = declarations
-                .iter()
-                .position(|candidate| candidate.definition.name.source_span() == source)
-                .ok_or_else(|| {
-                    failure(reference, "authored dependency lost its exact declaration")
-                })?;
+            let dependency = dependency(&declarations, &preparation, source, reference)?;
             declarations[ordinal]
                 .authored_dependencies
                 .push((reference, dependency));
@@ -205,12 +364,7 @@ pub(crate) fn evaluate(
         declarations[ordinal].calls = selected.calls;
         declarations[ordinal].normalization_owners = selected.normalization_owners;
         for (reference, declaration) in selected.constants {
-            let dependency = declarations
-                .iter()
-                .position(|candidate| candidate.definition.name.source_span() == declaration)
-                .ok_or_else(|| {
-                    failure(reference, "selected declaration dependency lost its owner")
-                })?;
+            let dependency = dependency(&declarations, &preparation, declaration, reference)?;
             let selected = (reference, dependency);
             if !declarations[ordinal].dependencies.contains(&selected) {
                 declarations[ordinal].dependencies.push(selected);
@@ -222,22 +376,15 @@ pub(crate) fn evaluate(
         let leaf_count = declarations[ordinal].leaves.len();
         for leaf_ordinal in 0..leaf_count {
             let expression = declarations[ordinal].leaves[leaf_ordinal].expression;
-            let selected = preparation.initializer_expression_dependencies(
+            let selected = preparation.pending_leaf_dependencies(
                 &syntax,
                 &declarations[ordinal].definition,
                 expression,
+                None,
             )?;
             let mut dependencies = Vec::new();
             for (reference, declaration) in selected.constants {
-                let dependency = declarations
-                    .iter()
-                    .position(|candidate| candidate.definition.name.source_span() == declaration)
-                    .ok_or_else(|| {
-                        failure(
-                            reference,
-                            "selected initializer dependency lost its declaration",
-                        )
-                    })?;
+                let dependency = dependency(&declarations, &preparation, declaration, reference)?;
                 dependencies.push((reference, dependency));
             }
             declarations[ordinal].leaves[leaf_ordinal].dependencies = dependencies;
@@ -247,32 +394,8 @@ pub(crate) fn evaluate(
     // Readiness follows the complete selected dependency closure, including
     // aliases and helper bodies. Keep whole expressions symbolic, rather than
     // trying to evaluate a nested observation as an ordinary machine call.
-    loop {
-        let mut changed = false;
-        for (ordinal, declaration) in declarations.iter().enumerate() {
-            if !target_observations[ordinal]
-                && declaration
-                    .dependencies
-                    .iter()
-                    .any(|(_, dependency)| target_observations[*dependency])
-            {
-                target_observations[ordinal] = true;
-                changed = true;
-            }
-        }
-        if !changed {
-            break;
-        }
-    }
-    for (ordinal, declaration) in declarations.iter_mut().enumerate() {
-        declaration.definition.pending_target_observation = target_observations[ordinal];
-        if target_observations[ordinal] {
-            syntax.items.replace_item(
-                declaration.item,
-                Item::Const(declaration.definition.clone()),
-            );
-        }
-    }
+    propagate_target_observations(&mut declarations, &mut syntax, &mut target_observations);
+    reject_dependency_cycles(&declarations)?;
     // Evaluation roots demand their complete declaration graph. A leafless
     // literal is not ready merely because it has nothing to execute: its
     // declared geometry may still depend on a pending computation. Keep that
@@ -290,13 +413,15 @@ pub(crate) fn evaluate(
         .collect::<Vec<_>>();
     while let Some(ordinal) = pending.pop() {
         for (_, dependency) in &declarations[ordinal].dependencies {
-            if !demanded[*dependency] {
-                demanded[*dependency] = true;
-                pending.push(*dependency);
+            if let Some(dependency) = dependency.current()
+                && !demanded[dependency]
+            {
+                demanded[dependency] = true;
+                pending.push(dependency);
             }
         }
     }
-    while declarations
+    'evaluation: while declarations
         .iter()
         .enumerate()
         .any(|(ordinal, declaration)| {
@@ -310,10 +435,10 @@ pub(crate) fn evaluate(
             .filter_map(|(ordinal, declaration)| {
                 (demanded[ordinal]
                     && (!declaration.leaves.is_empty() || declaration.evaluated_value.is_none())
-                    && declaration.dependencies.iter().all(|(_, dependency)| {
-                        declarations[*dependency].leaves.is_empty()
-                            && declarations[*dependency].evaluated_value.is_some()
-                    }))
+                    && declaration
+                        .dependencies
+                        .iter()
+                        .all(|(_, dependency)| dependency.is_ready(&declarations)))
                 .then_some(ordinal)
             })
             .collect::<Vec<_>>();
@@ -341,11 +466,16 @@ pub(crate) fn evaluate(
         for ordinal in &ready {
             if declarations[*ordinal].leaves.is_empty() {
                 let value = preparation
-                    .canonicalize_initializer_value(&syntax, &declarations[*ordinal].definition)
+                    .canonicalize_initializer_payload(&syntax, &declarations[*ordinal].definition)
                     .map_err(|reason| {
                         failure(declarations[*ordinal].definition.name.source_span(), reason)
                     })?;
-                declarations[*ordinal].evaluated_value = Some(value.encoding.into());
+                declarations[*ordinal].definition.pending_qualification = value.pending_destination;
+                syntax.items.replace_item(
+                    declarations[*ordinal].item,
+                    Item::Const(declarations[*ordinal].definition.clone()),
+                );
+                declarations[*ordinal].evaluated_value = Some(value.value.encoding.into());
             }
         }
         ready.retain(|ordinal| !declarations[*ordinal].leaves.is_empty());
@@ -384,33 +514,196 @@ pub(crate) fn evaluate(
             probe,
             sources.clone(),
             bindings,
-            None,
+            context.retained_base(),
             &probe_declarations,
         )?;
         let frontier = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_initializer_probe(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: probe,
-                sources: sources.clone(),
-                top_level_bindings: bindings.to_vec(),
-            },
+            context.resolution_request(probe),
         )?;
         // Ready values still need real helper implementations and their type,
         // proof and operator dependencies. Reuse the scalar probe's retained
         // body demand; unrelated implementations remain with their owners and
         // never enter the private execution program or its ordinary checks.
-        let (typed, domain) =
-            crate::syntax_probes::prepare_evaluation(frontier, &probe_sources, &[], &[])?;
-        let mut authored_probes = Vec::new();
+        let (typed, domain) = crate::syntax_probes::prepare_evaluation(
+            frontier,
+            &probe_sources,
+            &[],
+            &[],
+            context.predecessor.clone(),
+        )?;
+        // Static arguments must close before querying executable dependencies.
+        // This is readiness only: no relation, result, or provider is admitted.
+        let prepared = crate::PreparedBuildMachineProgram::prepare_in(&typed, &domain)?;
+        let execution = prepared.typed();
+        let operator_facts = validation::derive_pre_flow_operator_selections(execution);
+        let admission = domain.admission(execution, authority.clone());
+        let mut observations = Vec::new();
+        let mut pending_choices = Vec::new();
         for ordinal in &ready {
+            let mut choices = Vec::new();
             for leaf in &declarations[*ordinal].leaves {
-                let expected =
-                    dependency_origins(&syntax, &declarations, &leaf.dependencies, true)?;
                 let reference = syntax.expressions.source_span(leaf.expression);
-                let custody = crate::const_evaluation::const_generic_expressions::validate_authored_probe_custody(
-                    &typed, reference, &expected, &leaf.calls, &syntax,
-                ).map_err(|reason| failure(reference, reason))?;
-                authored_probes.push((leaf.expression, custody));
+                let mut probes = execution.machines().iter().filter(|machine| {
+                    execution.symbols.symbol_source_span(machine.symbol) == Some(reference)
+                });
+                let (Some(probe), None) = (probes.next(), probes.next()) else {
+                    return Err(failure(
+                        reference,
+                        "initializer probe lost its unique source owner",
+                    ));
+                };
+                target_observations[*ordinal] |= admission.closure_needs_execution_preparation(
+                    execution,
+                    probe.symbol,
+                    &operator_facts,
+                );
+                let observation = super::const_generic_expressions::observe_authored_probe(
+                    &typed, reference, &syntax,
+                )
+                .map_err(|reason| failure(reference, reason))?;
+                for choice in observation.calls() {
+                    if !choices.contains(choice) {
+                        choices.push(*choice);
+                    }
+                }
+                observations.push((leaf.expression, observation));
             }
+            // Source lookup independently authenticates every typed choice.
+            // Only this selected closure can add mandatory readiness edges;
+            // merely retaining another overload never introduces its constants.
+            let definition = &declarations[*ordinal].definition;
+            let selected = preparation.selected_initializer_dependencies(definition, &choices)?;
+            let authored =
+                preparation.initializer_authored_dependencies(definition, Some(&choices))?;
+            target_observations[*ordinal] |= selected.pending_target_observation;
+            if !selected.pending_calls.is_empty() || !authored.pending_calls.is_empty() {
+                pending_choices.push(*ordinal);
+            }
+            let dependencies = selected
+                .constants
+                .iter()
+                .map(|(reference, source)| {
+                    dependency(&declarations, &preparation, *source, *reference)
+                        .map(|dependency| (*reference, dependency))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let authored_dependencies = authored
+                .constants
+                .iter()
+                .map(|(reference, source)| {
+                    dependency(&declarations, &preparation, *source, *reference)
+                        .map(|dependency| (*reference, dependency))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            declarations[*ordinal].dependencies = dependencies;
+            declarations[*ordinal].authored_dependencies = authored_dependencies;
+            declarations[*ordinal].calls = selected.calls;
+            declarations[*ordinal].readiness_operators = selected.initializer_operators;
+            declarations[*ordinal].normalization_owners = selected.normalization_owners;
+            declarations[*ordinal].authored_calls = authored.calls;
+            declarations[*ordinal].authored_operators = authored.initializer_operators;
+            for leaf_ordinal in 0..declarations[*ordinal].leaves.len() {
+                let leaf = &declarations[*ordinal].leaves[leaf_ordinal];
+                let selected = preparation.pending_leaf_dependencies(
+                    &syntax,
+                    &declarations[*ordinal].definition,
+                    leaf.expression,
+                    Some(&choices),
+                )?;
+                let dependencies = selected
+                    .constants
+                    .iter()
+                    .map(|(reference, source)| {
+                        dependency(&declarations, &preparation, *source, *reference)
+                            .map(|dependency| (*reference, dependency))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let leaf = &mut declarations[*ordinal].leaves[leaf_ordinal];
+                leaf.dependencies = dependencies;
+                leaf.calls = selected.calls;
+            }
+        }
+        propagate_target_observations(&mut declarations, &mut syntax, &mut target_observations);
+        reject_dependency_cycles(&declarations)?;
+        for (ordinal, target_observation) in target_observations.iter().enumerate() {
+            if *target_observation {
+                demanded[ordinal] = false;
+            }
+        }
+        ready.retain(|ordinal| demanded[*ordinal]);
+        if ready.is_empty() {
+            continue 'evaluation;
+        }
+        // A typed choice can reveal a previously unavailable constant edge.
+        // Re-enter the same readiness scheduler before any checked invocation.
+        // Keeping the selected graph also makes real cycles diagnose normally.
+        let mut discovered = Vec::new();
+        for ordinal in &ready {
+            for (_, dependency) in &declarations[*ordinal].dependencies {
+                if let Some(dependency) = dependency.current() {
+                    discovered.push(dependency);
+                }
+            }
+        }
+        while let Some(ordinal) = discovered.pop() {
+            if !demanded[ordinal] {
+                demanded[ordinal] = true;
+                discovered.extend(
+                    declarations[ordinal]
+                        .dependencies
+                        .iter()
+                        .filter_map(|(_, dependency)| dependency.current()),
+                );
+            }
+        }
+        if ready.iter().any(|ordinal| {
+            declarations[*ordinal]
+                .dependencies
+                .iter()
+                .any(|(_, dependency)| !dependency.is_ready(&declarations))
+        }) {
+            continue 'evaluation;
+        }
+        if pending_choices
+            .iter()
+            .any(|ordinal| ready.contains(ordinal))
+        {
+            return Err(failure(
+                SourceSpan::default(),
+                "typed initializer did not settle its exact source call choices",
+            ));
+        }
+        let mut authored_probes = Vec::new();
+        for (expression, observation) in observations {
+            if !ready.iter().any(|ordinal| {
+                declarations[*ordinal]
+                    .leaves
+                    .iter()
+                    .any(|leaf| leaf.expression == expression)
+            }) {
+                continue;
+            }
+            let leaf = ready
+                .iter()
+                .flat_map(|ordinal| &declarations[*ordinal].leaves)
+                .find(|leaf| leaf.expression == expression)
+                .ok_or_else(|| {
+                    failure(
+                        syntax.expressions.source_span(expression),
+                        "initializer lost its authored leaf",
+                    )
+                })?;
+            let expected = dependency_origins(
+                &syntax,
+                &declarations,
+                &preparation,
+                &leaf.dependencies,
+                InitializerCustodyPurpose::Authored,
+            )?;
+            let custody = observation
+                .validate(&expected, &leaf.calls)
+                .map_err(|reason| failure(syntax.expressions.source_span(expression), reason))?;
+            authored_probes.push((expression, custody));
         }
         let checked = ready
             .iter()
@@ -441,8 +734,18 @@ pub(crate) fn evaluate(
                         symbols.push(machine.symbol);
                     }
                 }
-                let prepared = crate::PreparedBuildMachineProgram::prepare_in(&typed, &domain)?;
-                invocations::CheckedInitializers::prepare(&prepared, authority.clone(), &symbols)
+                // Deferred siblings remain authored; their private probes are
+                // not checked or executed by this independent batch.
+                let independent = domain.demanded_roots(&typed, &symbols);
+                let prepared =
+                    crate::PreparedBuildMachineProgram::prepare_in(&typed, &independent)?;
+                invocations::CheckedInitializers::prepare(
+                    &prepared,
+                    authority.clone(),
+                    &symbols,
+                    &domain.accounting,
+                    &[],
+                )
             })
             .transpose()?;
         let typed = checked
@@ -464,31 +767,13 @@ pub(crate) fn evaluate(
                         failure(reference, "initializer lost its checked source custody")
                     })?
                     .1;
-                let mut expected = Vec::new();
-                for (reference, dependency) in &leaf.dependencies {
-                    let dependency = &declarations[*dependency];
-                    let origin = ConstArgumentOrigin {
-                        reference: *reference,
-                        declaration: dependency.definition.name.source_span(),
-                        initializer: syntax.expressions.source_span(dependency.definition.value),
-                        evaluated_value: dependency.evaluated_value.clone().ok_or_else(|| {
-                            failure(
-                                *reference,
-                                "initializer selected a dependency without an evaluated value",
-                            )
-                        })?,
-                    };
-                    if !expected.contains(&origin) {
-                        expected.push(origin);
-                    }
-                    if let Some(normalization) = &dependency.definition.normalization {
-                        for origin in &normalization.selections {
-                            if !expected.contains(origin) {
-                                expected.push(origin.clone());
-                            }
-                        }
-                    }
-                }
+                let expected = dependency_origins(
+                    &syntax,
+                    &declarations,
+                    &preparation,
+                    &leaf.dependencies,
+                    InitializerCustodyPurpose::Value,
+                )?;
                 if leaf.structured {
                     let checked = checked
                         .as_ref()
@@ -582,15 +867,11 @@ pub(crate) fn evaluate(
                 let literal = match result.value {
                     ScalarValue::UndeterminedNaN(format) => ExpressionNode::UndeterminedNaN(format),
                     ScalarValue::Float { format, bits } => {
-                        let spelling = match format {
-                            numerics::literals::FloatFormat::F32 => {
-                                format!("{:?}f32", f32::from_bits(bits as u32))
-                            }
-                            numerics::literals::FloatFormat::F64 => {
-                                format!("{:?}f64", f64::from_bits(bits))
-                            }
-                        };
-                        ExpressionNode::Float(syntax_trees::FloatSpelling::new(spelling, reference))
+                        let literal = numerics::literals::FloatLiteral::from_bits(format, bits)
+                            .ok_or_else(|| failure(reference, "invalid floating representation"))?;
+                        ExpressionNode::Float(syntax_trees::FloatSpelling::materialized(
+                            literal, reference,
+                        ))
                     }
                     ScalarValue::Index(value) => match value.decode_encoding() {
                         Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
@@ -632,6 +913,7 @@ pub(crate) fn evaluate(
                 materialize_value(&mut syntax, authored_expression, &replacements)?
             };
             let mut definition = declarations[ordinal].definition.clone();
+            let mut pending_destination = None;
             // A scalar leaf retains its evaluated meaning without demanding bits; a
             // structured or multi-leaf value currently encodes from the complete
             // materialized literal instead.
@@ -648,13 +930,13 @@ pub(crate) fn evaluate(
             } else {
                 let mut materialized_definition = definition.clone();
                 materialized_definition.value = value;
-                preparation
-                    .canonicalize_initializer_value(&syntax, &materialized_definition)
+                let payload = preparation
+                    .canonicalize_initializer_payload(&syntax, &materialized_definition)
                     .map_err(|reason| {
                         failure(syntax.expressions.source_span(authored_expression), reason)
-                    })?
-                    .encoding
-                    .into()
+                    })?;
+                pending_destination = payload.pending_destination;
+                payload.value.encoding.into()
             };
             // A declaration's geometry is part of its normalization custody,
             // even when a scalar payload leaf never reads that extent. Keep
@@ -662,36 +944,28 @@ pub(crate) fn evaluate(
             // leaf evaluator's value-use expectations. Only already evaluated
             // dependency receipts can contribute transitive operator meaning.
             for (reference, dependency) in &declarations[ordinal].authored_dependencies {
-                let dependency = &declarations[*dependency];
-                let origin = ConstArgumentOrigin {
-                    reference: *reference,
-                    declaration: dependency.definition.name.source_span(),
-                    initializer: syntax.expressions.source_span(dependency.definition.value),
-                    evaluated_value: dependency.evaluated_value.clone().ok_or_else(|| {
-                        failure(
-                            *reference,
-                            "declaration geometry selected an unfinished dependency",
-                        )
-                    })?,
-                };
+                let origin = dependency.origin(*reference, &syntax, &declarations)?;
                 if !selections.contains(&origin) {
                     selections.push(origin);
                 }
-                if let Some(normalization) = &dependency.definition.normalization {
-                    for origin in &normalization.selections {
-                        if !selections.contains(origin) {
-                            selections.push(origin.clone());
-                        }
+                let custody = dependency.custody(
+                    &declarations,
+                    &preparation,
+                    InitializerCustodyPurpose::Value,
+                )?;
+                for origin in custody.selections {
+                    if !selections.contains(&origin) {
+                        selections.push(origin);
                     }
-                    for operator in &normalization.builtin_operators {
-                        if !builtin_operators.contains(operator) {
-                            builtin_operators.push(*operator);
-                        }
+                }
+                for operator in custody.builtin_operators {
+                    if !builtin_operators.contains(&operator) {
+                        builtin_operators.push(operator);
                     }
-                    for call in &normalization.call_selections {
-                        if !call_selections.contains(call) {
-                            call_selections.push(*call);
-                        }
+                }
+                for call in custody.call_selections {
+                    if !call_selections.contains(&call) {
+                        call_selections.push(call);
                     }
                 }
             }
@@ -699,8 +973,9 @@ pub(crate) fn evaluate(
                 selections: dependency_origins(
                     &syntax,
                     &declarations,
+                    &preparation,
                     &declarations[ordinal].authored_dependencies,
-                    true,
+                    InitializerCustodyPurpose::Authored,
                 )?,
                 builtin_operators: declarations[ordinal].authored_operators.clone(),
                 call_selections: declarations[ordinal].authored_calls.clone(),
@@ -709,8 +984,9 @@ pub(crate) fn evaluate(
                 selections: dependency_origins(
                     &syntax,
                     &declarations,
+                    &preparation,
                     &declarations[ordinal].dependencies,
-                    false,
+                    InitializerCustodyPurpose::Declaration,
                 )?,
                 builtin_operators: declarations[ordinal].readiness_operators.clone(),
                 call_selections: declarations[ordinal].calls.clone(),
@@ -726,6 +1002,16 @@ pub(crate) fn evaluate(
             });
             definition.value = value;
             definition.qualification = None;
+            if pending_destination.is_none()
+                && preparation.initializer_requires_destination_proof(&syntax, &definition)
+            {
+                pending_destination = Some(syntax_trees::item::ConstDestinationObligation {
+                    declaration: definition.name.source_span(),
+                    destination: definition.type_reference,
+                    initializer: value,
+                });
+            }
+            definition.pending_qualification = pending_destination;
             syntax
                 .items
                 .replace_item(declarations[ordinal].item, Item::Const(definition.clone()));
@@ -741,7 +1027,7 @@ pub(crate) fn evaluate(
             );
             declarations[ordinal].leaves.clear();
         }
-        syntax = super::const_qualifications::prove_ready(syntax, sources.clone(), bindings)?;
+        syntax = super::const_qualifications::prove_ready(syntax, context)?;
         for declaration in &mut declarations {
             if let Item::Const(definition) = syntax.root_item(declaration.item) {
                 declaration.definition = definition.clone();
@@ -751,37 +1037,80 @@ pub(crate) fn evaluate(
     Ok(syntax)
 }
 
+/// Target readiness may defer a value, never a known cycle in its selected
+/// dependency graph. Diagnose that graph before pending initializer entries
+/// enter ordinary checking, where recursive substitution would otherwise
+/// leave an unbound name and obscure the actual dependency failure. Retained
+/// completed values are leaves; no body or source expression is replayed here.
+fn reject_dependency_cycles(declarations: &[Declaration<'_>]) -> Result<(), Vec<Diagnostic>> {
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Visit {
+        Unseen,
+        Active,
+        Complete,
+    }
+    let mut visits = vec![Visit::Unseen; declarations.len()];
+    let mut path = Vec::new();
+    for root in 0..declarations.len() {
+        if visits[root] != Visit::Unseen || declarations[root].evaluated_value.is_some() {
+            continue;
+        }
+        visits[root] = Visit::Active;
+        path.push((root, 0usize));
+        while let Some((owner, next_dependency)) = path.last_mut() {
+            let Some((_, dependency)) = declarations[*owner].dependencies.get(*next_dependency)
+            else {
+                visits[*owner] = Visit::Complete;
+                path.pop();
+                continue;
+            };
+            *next_dependency += 1;
+            let Some(dependency) = dependency.current() else {
+                continue;
+            };
+            if declarations[dependency].evaluated_value.is_some() {
+                continue;
+            }
+            match visits[dependency] {
+                Visit::Complete => {}
+                Visit::Unseen => {
+                    visits[dependency] = Visit::Active;
+                    path.push((dependency, 0));
+                }
+                Visit::Active => {
+                    let declaration = &declarations[dependency].definition;
+                    return Err(failure(
+                        declaration.name.source_span(),
+                        if declaration.pending_target_observation {
+                            "target constant dependency cycle or unavailable canonical input"
+                        } else {
+                            "constant initializer dependency cycle"
+                        },
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 fn dependency_origins(
     syntax: &SyntaxTrees,
-    declarations: &[Declaration],
-    dependencies: &[(SourceSpan, usize)],
-    authored: bool,
+    declarations: &[Declaration<'_>],
+    preparation: &ConstInitializerSelection,
+    dependencies: &[(SourceSpan, Dependency<'_>)],
+    purpose: InitializerCustodyPurpose,
 ) -> Result<Vec<ConstArgumentOrigin>, Vec<Diagnostic>> {
     let mut origins = Vec::new();
-    for (reference, ordinal) in dependencies {
-        let dependency = &declarations[*ordinal];
-        let origin = ConstArgumentOrigin {
-            reference: *reference,
-            declaration: dependency.definition.name.source_span(),
-            initializer: syntax.expressions.source_span(dependency.definition.value),
-            evaluated_value: dependency
-                .evaluated_value
-                .clone()
-                .ok_or_else(|| failure(*reference, "custody dependency has no completed value"))?,
-        };
+    for (reference, dependency) in dependencies {
+        let origin = dependency.origin(*reference, syntax, declarations)?;
         if !origins.contains(&origin) {
             origins.push(origin);
         }
-        if let Some(receipt) = &dependency.definition.normalization {
-            let custody = if authored {
-                &receipt.authored_custody
-            } else {
-                &receipt.declaration_custody
-            };
-            for origin in &custody.selections {
-                if !origins.contains(origin) {
-                    origins.push(origin.clone());
-                }
+        let custody = dependency.custody(declarations, preparation, purpose)?;
+        for origin in custody.selections {
+            if !origins.contains(&origin) {
+                origins.push(origin);
             }
         }
     }

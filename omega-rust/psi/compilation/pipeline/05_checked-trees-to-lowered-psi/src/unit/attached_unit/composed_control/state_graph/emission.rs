@@ -31,6 +31,7 @@ use std::collections::BTreeMap;
 
 mod captured_loans;
 mod conditional_return;
+mod dispatch_copies;
 mod guarded_chain;
 mod loan_chains;
 mod loaned_local_homes;
@@ -86,6 +87,10 @@ pub(super) struct StateGraphEmission<'a, 'c> {
     occurrences: super::super::ComposedOccurrences,
     block_ranks: BTreeMap<BlockId, ValueId>,
     rank_edges: BTreeMap<EdgeId, (ValueId, terminal_psi::TerminalNaturalRankComparison)>,
+    owners: Vec<symbols::SymbolHandle>,
+    record_fields: Vec<crate::scalar_lowering::computations::fields::Binding>,
+    produced_values: Vec<crate::scalar_lowering::computations::produced_values::Slot>,
+    dynamic_dispatch: std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
 }
 
 pub(in crate::unit::attached_unit::composed_control) fn emit(
@@ -107,6 +112,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     ),
     LoweringError,
 > {
+    let _setup_guard = phase_profile::guard("05.01.g1.1_setup");
     let result_places_start = catalogs.result_places.len();
     let mut structural_places = parameters
         .iter()
@@ -177,14 +183,28 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             }
         }
     }
-    for event in checked
-        .facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .map(|(_, event)| event)
-    {
+    let mut unique_states = Vec::with_capacity(state_owners.len());
+    for (state, _) in &state_owners {
+        if !unique_states.contains(state) {
+            unique_states.push(*state);
+        }
+    }
+    let mut permission_handles = Vec::new();
+    for &state in &unique_states {
+        checked
+            .facts
+            .flow
+            .ownership
+            .with_state_permissions(state, |handles| {
+                permission_handles.extend_from_slice(handles);
+            });
+    }
+    if unique_states.len() > 1 {
+        permission_handles.sort_unstable_by_key(|handle| handle.arena_index());
+        permission_handles.dedup();
+    }
+    for handle in permission_handles {
+        let event = checked.facts.flow.ownership.permissions.get(handle);
         let statement_index = match event.source {
             language_semantics::PermissionEventSource::Statement { statement_index }
             | language_semantics::PermissionEventSource::Call {
@@ -213,46 +233,27 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         let claim = claim_id(allocate_dense(&mut next_claim)?);
         claims.source_claims.push((event.claim_identity, claim));
     }
-    // Selected block arrivals own destination-local names too. Reserve the
-    // checked roster before emitting a graph's fixed namespace; actual arms
-    // bind incoming obligations and never introduce resources at these names.
-    for (_, receipt) in checked.facts.flow.ownership.owned_selections.iter() {
-        if !state_owners
-            .iter()
-            .any(|(state, machine)| *state == receipt.state && *machine == receipt.machine)
-        {
-            continue;
-        }
-        for identity in checked
+    let mut selection_binding_handles = Vec::new();
+    for &state in &unique_states {
+        checked
             .facts
             .flow
             .ownership
-            .selection_result_claims
-            .span_or_empty(receipt.result_claims)
-            .iter()
-            .map(|claim| claim.claim_identity)
-            .chain(
-                checked
-                    .facts
-                    .flow
-                    .ownership
-                    .selection_produced_claims
-                    .span_or_empty(receipt.produced_claims)
-                    .iter()
-                    .map(|claim| claim.claim_identity),
-            )
-        {
-            if !claims
-                .source_claims
-                .iter()
-                .any(|(existing, _)| *existing == identity)
-            {
-                let claim = claim_id(allocate_dense(&mut next_claim)?);
-                claims.source_claims.push((identity, claim));
-            }
-        }
+            .with_state_selection_place_bindings(state, |handles| {
+                selection_binding_handles.extend_from_slice(handles);
+            });
     }
-    for (_, binding) in checked.facts.flow.ownership.selection_place_bindings.iter() {
+    if unique_states.len() > 1 {
+        selection_binding_handles.sort_unstable_by_key(|handle| handle.arena_index());
+        selection_binding_handles.dedup();
+    }
+    for handle in selection_binding_handles {
+        let binding = checked
+            .facts
+            .flow
+            .ownership
+            .selection_place_bindings
+            .get(handle);
         if state_owners
             .iter()
             .any(|(state, machine)| *state == binding.state && *machine == binding.machine)
@@ -330,6 +331,43 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             }
         }
     }
+    // Private result joins share the published namespace of ordinary calls.
+    // Reserving a typed path is not establishment; arrivals transport actual IDs.
+    let mut structural_node_handles = Vec::new();
+    for &state in &unique_states {
+        checked
+            .facts
+            .values
+            .structural_values
+            .with_state_nodes(state, |handles| {
+                structural_node_handles.extend_from_slice(handles);
+            });
+    }
+    if unique_states.len() > 1 {
+        structural_node_handles.sort_unstable_by_key(|handle| handle.arena_index());
+        structural_node_handles.dedup();
+    }
+    for value in structural_node_handles {
+        let node = checked.facts.values.structural_values.nodes.get(value);
+        if !plan.states.iter().any(|state| state.state == node.state)
+            || !matches!(
+                node.kind,
+                checked_trees::CheckedStructuralValueKind::Dispatch { .. }
+                    | checked_trees::CheckedStructuralValueKind::Projection { .. }
+            )
+        {
+            continue;
+        }
+        for path in crate::emission::claim_bindings::completed_value_paths(checked, value)? {
+            claims
+                .completed_values
+                .push(crate::emission::claim_bindings::CompletedValueClaim {
+                    value,
+                    path,
+                    claim: claim_id(allocate_dense(&mut next_claim)?),
+                });
+        }
+    }
     // Proven invocation storage aliases have no block argument or new name.
     for (successor, root) in &admitted.claim_transport.aliases {
         let claim = lookup_claim_id(&claims.source_claims, *root)?;
@@ -363,7 +401,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         .zip(&admitted.live)
         .filter_map(|(state, live)| live.then_some(state))
         .flat_map(successors)
-        .any(|successor| successor.target_state == plan.states[0].state);
+        .any(|successor| plan.successor_position(successor) == Some(0));
     // Invocation parameters are immutable. Reentering the authored entry
     // therefore uses an ordinary parameterized block behind a one-shot jump.
     let invocation_entry = if entry_reentered {
@@ -516,6 +554,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             block_entry_claims.push(binding);
         }
     }
+    block_entry_claims.sort_by_key(|binding| binding.claim);
     let mut blocks = Vec::new();
     let mut arrival_edges = BTreeMap::new();
     if let Some(entry) = invocation_entry {
@@ -648,6 +687,30 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     )?;
     let block_ranks = std::collections::BTreeMap::new();
     let rank_edges = std::collections::BTreeMap::new();
+    let mut owners = Vec::with_capacity(admitted.authored.len());
+    for (owner, _) in &admitted.authored {
+        if !owners.contains(&owner.symbol) {
+            owners.push(owner.symbol);
+        }
+    }
+    let record_fields = crate::scalar_lowering::computations::fields::prepare(
+        identities,
+        checked,
+        plan.machine,
+        &owners,
+        &catalogs.structural_types,
+    )?;
+    let produced_values = crate::scalar_lowering::computations::produced_values::prepare(
+        identities,
+        checked,
+        &owners,
+        &catalogs.structural_types,
+    )?;
+    let dynamic_dispatch = catalogs.dynamic_dispatch.clone().unwrap_or_else(|| {
+        std::sync::Arc::new(crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(
+            checked,
+        ))
+    });
     let mut emission = StateGraphEmission {
         checked,
         plan,
@@ -682,13 +745,22 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         qualification_coercions: Vec::new(),
         block_ranks,
         rank_edges,
+        owners,
+        record_fields,
+        produced_values,
+        dynamic_dispatch,
     };
+    drop(_setup_guard);
+    let _emit_states_guard = phase_profile::guard("05.01.g1.2_emit_states");
     for position in 0..plan.states.len() {
         if !emission.admitted.live[position] {
             continue;
         }
         emission.emit_state(identities, position)?;
     }
+    drop(_emit_states_guard);
+    let _finish_guard = phase_profile::guard("05.01.g1.3_finish");
+    let _req_guard = phase_profile::guard("05.01.g1.3a_requires");
     let live_states = std::mem::take(&mut emission.admitted.live);
     let StateGraphEmission {
         parameters,
@@ -725,6 +797,56 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     // runs. A plain entry publishes its clauses on the machine contract
     // instead — invocation is an arrival without an edge proof.
     for (position, state) in plan.states.iter().enumerate() {
+        let declaration =
+            checked
+                .state_by_symbol(state.state)
+                .ok_or(LoweringError::Unsupported(
+                    "state requirement has no source declaration",
+                ))?;
+        let owner =
+            checked
+                .machine_holding_state(state.state)
+                .ok_or(LoweringError::Unsupported(
+                    "state requirement has no machine owner",
+                ))?;
+        let expected = checked
+            .state_contracts(declaration)
+            .iter()
+            .filter(|contract| {
+                contract.kind == checked_trees::signature::SignatureContractKind::Requires
+            })
+            .flat_map(|contract| contract.facts.handles())
+            .filter(|fact| {
+                matches!(
+                    checked.proof_facts.get(*fact),
+                    checked_trees::domain::ProofFact::Proposition(_)
+                )
+            })
+            .collect::<Vec<_>>();
+        let actual = state
+            .requires
+            .iter()
+            .filter_map(|requirement| match requirement {
+                checked_trees::CheckedStateContractRequirement::SourceFact(fact) => Some(*fact),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if expected != actual
+            || actual.iter().any(|fact| {
+                checked
+                    .facts
+                    .proof
+                    .state_requires_fact(&checked.typed, owner.symbol, state.state, *fact)
+                    .is_none()
+            })
+        {
+            return unsupported("state source requirement lost its exact declared proof roster");
+        }
+        if position == 0 && !actual.is_empty() {
+            return unsupported(
+                "source invocation requirement needs its invocation evidence owner",
+            );
+        }
         if state.requires.is_empty()
             || (position == 0 && !entry_reentered)
             || !live_states[position]
@@ -743,17 +865,18 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             return unsupported("Unit graph requires header reached by case dispatch");
         }
         let incoming_edges = arrival_edges.get(&header).cloned().unwrap_or_default();
-        let has_source_expression = state.requires.iter().any(|requirement| {
+        let requires_source_decision = state.requires.iter().any(|requirement| {
             matches!(
                 requirement,
                 checked_trees::CheckedStateContractRequirement::SourceExpression(_)
+                    | checked_trees::CheckedStateContractRequirement::SourceFact(_)
             )
         });
         // Source checking owns the complete authored contract, including
         // predicates outside this scalar vocabulary. Consume its exact call
         // decision at every actual arrival; never replace an unrepresented
         // requirement with Truth or infer its discharge from its spelling.
-        if has_source_expression
+        if requires_source_decision
             && (incoming_edges.is_empty()
                 || incoming_edges
                     .iter()
@@ -768,7 +891,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                 checked_trees::CheckedStateContractRequirement::Closed(clause) => {
                     Some(Some(clause.clone()))
                 }
-                checked_trees::CheckedStateContractRequirement::SourceExpression(_) => None,
+                checked_trees::CheckedStateContractRequirement::SourceExpression(_)
+                | checked_trees::CheckedStateContractRequirement::SourceFact(_) => None,
             })
             .collect::<Vec<_>>();
         // A state's `requires` cites its own parameter positions; the roster
@@ -776,20 +900,17 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         // seal (the receiver entry points at the original invocation
         // storage).
         let view_roster = &state_contract_rosters[position];
-        let element_views = crate::expression_preparation::bindings::element_views(
-            view_roster,
-            &catalogs.structural_types,
-        );
         let Some(predicate) = crate::scalar_lowering::contracts::clauses(
             identities,
             &projected_requires,
             &state_values[position],
             &state_erased[position],
             &crate::scalar_lowering::contracts::ContractViewNamespace {
+                scalar_applications: catalogs.scalar_applications,
+                constant_values: &checked.typed.constant_recipe_closure.values,
                 result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
                 parameters: view_roster,
                 structural_types: &catalogs.structural_types,
-                element_views: &element_views,
             },
         )?
         else {
@@ -829,7 +950,16 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             arrivals,
         });
     }
+    drop(_req_guard);
+    let _places_guard = phase_profile::guard("05.01.g1.3b_places");
     blocks.sort_by_key(|block| block.id);
+    let existing_result_and_temp_places: std::collections::HashSet<semantic_vocabulary::PlaceId> =
+        catalogs
+            .result_places
+            .iter()
+            .chain(&catalogs.temporary_places)
+            .map(|existing| existing.id)
+            .collect();
     structural_places.extend(
         blocks
             .iter()
@@ -838,13 +968,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                     crate::scalar_lowering::computations::cases::declarations(&block.operations),
                 )
             })
-            .filter(|place| {
-                !catalogs
-                    .result_places
-                    .iter()
-                    .chain(&catalogs.temporary_places)
-                    .any(|existing| existing.id == place.id)
-            }),
+            .filter(|place| !existing_result_and_temp_places.contains(&place.id)),
     );
     structural_places.append(&mut catalogs.temporary_places);
     structural_places.extend(catalogs.result_places.drain(result_places_start..));
@@ -854,10 +978,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     )?;
     crate::emission::operation_emission::place_declarations::retain_operation_results(
         blocks.iter().flat_map(|block| &block.operations),
-        &mut structural_places,
-    )?;
-    crate::emission::operation_emission::place_declarations::retain_block_parameters(
-        blocks.iter(),
         &mut structural_places,
     )?;
     structural_places.sort_by_key(|place| place.id);
@@ -890,6 +1010,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             )?,
         );
     }
+    crate::emission::claim_bindings::seal_block_entry_claims(&mut block_entry_claims)?;
     let mut machine = TerminalMachine {
         assembly_target_requirement: checked
             .typed
@@ -909,13 +1030,16 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         declaration: None,
         nominal_cleanup_subject: None,
         parameters: scalar_parameters,
+        parameter_order: crate::unit::attached_unit::signatures::find(
+            &catalogs.signatures,
+            plan.machine,
+        )?
+        .parameter_order
+        .clone(),
         structural_places,
         structural_parameters: parameters,
         entry_claims: claims.entry_claims,
-        block_entry_claims: {
-            block_entry_claims.sort_by_key(|binding| binding.claim);
-            block_entry_claims
-        },
+        block_entry_claims,
         loan_completions,
         ranked_scc: None,
         result: machine_result,
@@ -947,6 +1071,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             outcome_specific_ensures: Vec::new(),
         },
     };
+    drop(_places_guard);
+    let _loans_guard = phase_profile::guard("05.01.g1.3c_loans");
     captured_loans.finish(&mut machine, &state_ids)?;
     let retained_entry_homes =
         loaned_local_homes::finish(&mut machine, &loaned_local_homes, &retained_loan_parents)?;
@@ -960,6 +1086,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &retained_loan_parents,
         &mut catalogs.scalar_calls.next_call_obligation,
     )?;
+    drop(_loans_guard);
+    let _cont_guard = phase_profile::guard("05.01.g1.3d_continuations");
     let continuation_value_uses = machine
         .blocks
         .iter()
@@ -1031,6 +1159,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             }
         }
     }
+    drop(_cont_guard);
+    let _affine_guard = phase_profile::guard("05.01.g1.3e_affine_cleanup");
     // Authored entry/local cleanup already belongs to the composed emitter.
     // Complete checked no-code carrier frontiers after private loans and their
     // continuations have reached their final emitted graph. Plain owned type
@@ -1045,6 +1175,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &mut machine.blocks,
         &catalogs.structural_types,
     )?;
+    drop(_affine_guard);
+    let _rank_guard = phase_profile::guard("05.01.g1.3f_crash_and_ranking");
     // Crash ceilings live in the invocation signature, independent of the
     // state's block-local value roster. Predicate parameters retain authored
     // structural positions and scalar formals retain their dense coordinates.
@@ -1069,6 +1201,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         )?
     };
     ranking::retain(&mut machine, &block_ranks, &rank_edges)?;
+    drop(_rank_guard);
     Ok((
         machine,
         occurrences,

@@ -11,7 +11,7 @@ machine Carried::code(carried: Carried) -> u64 in Wrapping {
         Carried::Value { handle } if handle == 70 -> value(handle)
     }
 
-    state value(code: u64 in Wrapping) -> u64 in Wrapping {
+    machine value(code: u64 in Wrapping) -> u64 in Wrapping {
         code
     }
 }

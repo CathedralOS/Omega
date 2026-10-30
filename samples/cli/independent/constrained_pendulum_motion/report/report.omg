@@ -13,21 +13,21 @@ invokes Console;
         true -> negative(integer)
         false -> positive(integer)
     }
-    state negative(integer: i32 in Wrapping) {
+    machine negative(integer: i32 in Wrapping) {
         Console::write_byte(45);
         transition { _ -> digits(0 - integer, 1000000000) }
     }
-    state positive(integer: i32 in Wrapping) {
+    machine positive(integer: i32 in Wrapping) {
         Console::write_byte(43);
         transition { _ -> digits(integer, 1000000000) }
     }
-    state digits(integer: i32 in Wrapping, divisor: i32 in Wrapping) {
+    machine digits(integer: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition divisor > 0 {
             true -> emit(integer, divisor)
             false -> done()
         }
     }
-    state emit(integer: i32 in Wrapping, divisor: i32 in Wrapping)
+    machine emit(integer: i32 in Wrapping, divisor: i32 in Wrapping)
     requires divisor > 0
     {
         let digit: i32 in Wrapping = integer / divisor;
@@ -35,5 +35,5 @@ invokes Console;
         Console::write_byte((digit + 48) as i32);
         transition { _ -> digits(remaining, divisor / 10) }
     }
-    state done() { }
+    machine done() { }
 }

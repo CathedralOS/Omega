@@ -30,6 +30,23 @@ pub(in crate::flow) struct CallStorageWrites {
     pub(in crate::flow) contributions: Vec<ObservedCallMutation>,
 }
 
+impl CallStorageWrites {
+    /// A content region has a dependency anchor, not a descriptor store. Until
+    /// physical storage coordinates are available for that region, descriptor
+    /// association remains unknown rather than treating the anchor as a write.
+    pub(in crate::flow) fn descriptor_stores(&self) -> Option<Vec<CanonicalPlace>> {
+        self.contributions
+            .iter()
+            .map(|contribution| match &contribution.write.region {
+                crate::flow::mutation::StorageRegion::Declared(place) => Some(place.clone()),
+                crate::flow::mutation::StorageRegion::ResidentContent { .. }
+                | crate::flow::mutation::StorageRegion::NonresidentContent { .. }
+                | crate::flow::mutation::StorageRegion::UnresolvedContent { .. } => None,
+            })
+            .collect()
+    }
+}
+
 #[derive(Clone)]
 pub(in crate::flow) struct ObservedCallMutation {
     pub(in crate::flow) write: CallMutationWrite,
@@ -47,9 +64,7 @@ impl CallStorageWrites {
         if let Some(arguments) = arguments {
             for contribution in &mut observed.contributions {
                 for alias in arguments.mutation_observation_aliases(&contribution.write) {
-                    if !contribution.observations.contains(&alias) {
-                        contribution.observations.push(alias);
-                    }
+                    crate::collections::push_unique(&mut contribution.observations, alias);
                 }
             }
             observed.observation_places = observed
@@ -113,15 +128,17 @@ fn call_storage_mutations(
     state: &typed_trees::state::State,
     borrow_call: &BorrowCallFact,
 ) -> Option<Vec<ObservedCallMutation>> {
-    let writes = call_mutation_writes(
-        program,
-        machine.symbol,
-        state.symbol,
-        borrow,
-        borrow_call,
-        build.state_mutation_summary_cache,
-        build.call_frames,
-    )?;
+    let writes = phase_profile::scope("05.d.3.b.flow.invoke.1a_mutation_writes", || {
+        call_mutation_writes(
+            program,
+            machine.symbol,
+            state.symbol,
+            borrow,
+            borrow_call,
+            build.state_mutation_summary_cache,
+            build.call_frames,
+        )
+    })?;
     let mut result = Vec::new();
     for mut write in writes {
         // Unresolved content names the carrier the capability is attached to.
@@ -129,6 +146,15 @@ fn call_storage_mutations(
         // same owner is a different place, so this footprint stays partial
         // instead of withdrawing every caller fact.
         if let crate::flow::mutation::StorageRegion::UnresolvedContent { .. } = &write.region {
+            // An output namespace identifies a performed reference, not a
+            // spatially separate allocation. Its anchor alone cannot close
+            // aliases in caller storage: retain full unknown invalidation.
+            if matches!(
+                write.region.anchor().root,
+                facts::PlaceRoot::InvocationOutput(_)
+            ) {
+                return None;
+            }
             let carrier = write.region.anchor().clone();
             result.push(ObservedCallMutation {
                 write,
@@ -140,46 +166,53 @@ fn call_storage_mutations(
         // reference local of finite candidate origins is such a state),
         // borrow exclusivity already forbids a second live alias of the
         // written storage, so the places stand without the closure.
-        let mut observations = close_storage_places_over_aliases(
-            program,
-            machine.symbol,
-            state.symbol,
-            borrow_call.statement_index,
-            vec![write.region.anchor().clone()],
-            build.call_frames,
-        )
-        .or_else(|| match &write.region {
-            crate::flow::mutation::StorageRegion::Declared(place) => Some(vec![place.clone()]),
-            // Do not lose content aliases when the inventory cannot be
-            // reconstructed. Unknown remains full invalidation.
-            crate::flow::mutation::StorageRegion::ResidentContent { .. } => None,
-            crate::flow::mutation::StorageRegion::NonresidentContent { .. } => None,
-            crate::flow::mutation::StorageRegion::UnresolvedContent { .. } => None,
-        })?;
+        let mut observations =
+            phase_profile::scope("05.d.3.b.flow.invoke.1b_close_aliases", || {
+                close_storage_places_over_aliases(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    borrow_call.statement_index,
+                    vec![write.region.anchor().clone()],
+                    build.call_frames,
+                )
+                .or_else(|| match &write.region {
+                    crate::flow::mutation::StorageRegion::Declared(place) => {
+                        Some(vec![place.clone()])
+                    }
+                    // Do not lose content aliases when the inventory cannot be
+                    // reconstructed. Unknown remains full invalidation.
+                    crate::flow::mutation::StorageRegion::ResidentContent { .. } => None,
+                    crate::flow::mutation::StorageRegion::NonresidentContent { .. } => None,
+                    crate::flow::mutation::StorageRegion::UnresolvedContent { .. } => None,
+                })
+            })?;
         // Keep the current state's observation coordinates even when a
         // transported view proves that the physical store is content, not
         // descriptor replacement. Both namespaces must see invalidation.
-        if let crate::flow::mutation::StorageRegion::Declared(place) = &write.region {
-            if let Some(region) = crate::flow::entry_origins::nonresident_content_region(
+        phase_profile::scope("05.d.3.b.flow.invoke.1c_entry_origins", || {
+            if let crate::flow::mutation::StorageRegion::Declared(place) = &write.region {
+                if let Some(region) = crate::flow::entry_origins::nonresident_content_region(
+                    program,
+                    build,
+                    machine,
+                    state,
+                    borrow_call.statement_index,
+                    place,
+                ) {
+                    observations.push(region.anchor().clone());
+                    write.region = region;
+                }
+            }
+            crate::flow::entry_origins::extend_invocation_observations(
                 program,
                 build,
                 machine,
                 state,
                 borrow_call.statement_index,
-                place,
-            ) {
-                observations.push(region.anchor().clone());
-                write.region = region;
-            }
-        }
-        crate::flow::entry_origins::extend_invocation_observations(
-            program,
-            build,
-            machine,
-            state,
-            borrow_call.statement_index,
-            &mut observations,
-        );
+                &mut observations,
+            );
+        });
         result.push(ObservedCallMutation {
             write,
             observations,

@@ -26,14 +26,14 @@ machine Main::main(main: &mut Main) {
         Token::Number { value } -> number(value, main)
         Token::End -> fail(main)
     }
-    state number(value: i32, main: &mut Main) {
+    machine number(value: i32, main: &mut Main) {
         transition value == 0 {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

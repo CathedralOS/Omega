@@ -22,6 +22,7 @@ use terminal_psi::{
     ScalarQualificationSet,
 };
 
+mod domain_predicates;
 mod fields;
 mod parameters;
 pub(crate) use fields::FieldType;
@@ -49,11 +50,17 @@ impl PreparedScalarQualifications {
     pub(crate) fn prepare(
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
+        scalar_applications: &crate::unit::attached_unit::scalar_applications::SourceScalarApplications,
         signatures: &[SymbolHandle],
         bodies: &[SymbolHandle],
         boundaries: &[&checked_trees::CheckedBoundaryMachinePlan],
         fields: &[FieldType],
     ) -> Result<Self, LoweringError> {
+        let constant_views = crate::scalar_lowering::contracts::ContractViewNamespace {
+            scalar_applications,
+            constant_values: &checked.typed.constant_recipe_closure.values,
+            ..crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY
+        };
         let mut references = fields
             .iter()
             .map(|(_, reference)| *reference)
@@ -143,12 +150,19 @@ impl PreparedScalarQualifications {
             let scalar_type = terminal_scalar_type(primitive)?;
             let mut atom_identities = Vec::new();
             for (symbol, semantic_id) in atoms {
-                let predicate =
-                    domain_predicate(identities, checked, reference, symbol, semantic_id)?;
+                let predicate = domain_predicate(
+                    identities,
+                    checked,
+                    &constant_views,
+                    reference,
+                    symbol,
+                    semantic_id,
+                )?;
                 atom_identities.push(retain_domain(
                     &mut catalog,
                     identities,
                     checked,
+                    &constant_views,
                     symbol,
                     semantic_id,
                     scalar_type,
@@ -172,6 +186,7 @@ impl PreparedScalarQualifications {
                 let predicate = if routed {
                     Some(retained_domain_predicate(
                         identities,
+                        &constant_views,
                         &requirement.predicate,
                         scalar_type,
                     )?)
@@ -182,6 +197,7 @@ impl PreparedScalarQualifications {
                     &mut catalog,
                     identities,
                     checked,
+                    &constant_views,
                     requirement.domain_symbol,
                     requirement.domain,
                     scalar_type,
@@ -202,8 +218,15 @@ impl PreparedScalarQualifications {
                 }
             }
         }
-        let parameter_atoms =
-            parameters::prepare(identities, checked, bodies, &mut catalog, &mut atom_sets)?;
+        let parameter_atoms = parameters::prepare(
+            identities,
+            checked,
+            &constant_views,
+            bodies,
+            &mut catalog,
+            &mut atom_sets,
+        )?;
+        domain_predicates::complete_value_components(&mut catalog.domains);
         catalog.domains.sort_by(|left, right| {
             identities
                 .text(left.identity)
@@ -375,6 +398,7 @@ impl PreparedScalarQualifications {
             })
             .map(|(position, _)| {
                 self.parameter_value_type(
+                    checked,
                     state.symbol,
                     u32::try_from(position).map_err(|_| {
                         LoweringError::Unsupported("scalar formal position exceeds u32")
@@ -392,6 +416,7 @@ fn retain_domain(
     catalog: &mut ScalarQualificationCatalog,
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    constant_views: &crate::scalar_lowering::contracts::ContractViewNamespace<'_>,
     symbol: SymbolHandle,
     semantic_id: SemanticDomainId,
     scalar_type: semantic_vocabulary::ScalarType,
@@ -408,6 +433,55 @@ fn retain_domain(
         LoweringError::Unsupported("scalar qualification has an invalid semantic identity"),
     )?;
     let establishment_routes = scalar_domain_establishment_routes(identities, checked, symbol)?;
+    let definition = checked
+        .typed
+        .domain_definition_for_instance(symbol, semantic_id)
+        .or_else(|| checked.domain_definition(symbol))
+        .ok_or(LoweringError::Unsupported(
+            "scalar qualification lost its required-domain declaration",
+        ))?;
+    let requirements =
+        typed_trees::domain::required_subject_memberships(&checked.typed, definition);
+    let required_memberships = requirements
+        .as_ref()
+        .map(|requirements| {
+            let mut domains = requirements
+                .iter()
+                .map(|membership| {
+                    DomainSemanticId::new(u64::from(membership.semantic_domain.0))
+                        .ok_or(LoweringError::InvalidContentDomainIdentity)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            domains.sort();
+            domains.dedup();
+            Ok::<_, LoweringError>(domains)
+        })
+        .transpose()?;
+    let predicate = if required_memberships.is_some() {
+        if definition.establishment_routes.is_empty()
+            && checked.typed.proof_facts(definition).is_empty()
+        {
+            None
+        } else {
+            let local = validation::scalar_domain_local_predicate(&checked.typed, definition)
+                .ok_or(LoweringError::Unsupported(
+                    "scalar required-domain theory has no complete local predicate",
+                ))?;
+            Some(retained_domain_predicate(
+                identities,
+                constant_views,
+                &local,
+                scalar_type,
+            )?)
+        }
+    } else {
+        validation::scalar_domain_definition_predicate(&checked.typed, symbol, semantic_id)
+            .map(|predicate| {
+                retained_domain_predicate(identities, constant_views, &predicate, scalar_type)
+            })
+            .transpose()?
+            .or(predicate)
+    };
     let retained_identity = identities.intern(&identity);
     if let Some(existing) = catalog
         .domains
@@ -417,12 +491,15 @@ fn retain_domain(
         if existing.carrier != scalar_type
             || existing.semantic_domain != semantic_domain
             || existing.establishment_routes != establishment_routes
+            || existing.required_memberships != required_memberships
             || existing.predicate != predicate
         {
             return unsupported("scalar qualification identity has conflicting declarations");
         }
+        return Ok(identity);
     } else {
         catalog.domains.push(ScalarDomainDeclaration {
+            required_memberships,
             predicate,
             id: ScalarDomainId::new(1).ok_or(LoweringError::Unsupported(
                 "invalid initial scalar domain identity",
@@ -433,11 +510,75 @@ fn retain_domain(
             establishment_routes,
         });
     }
+    if let Some(requirements) = requirements {
+        for membership in requirements {
+            let parent = checked
+                .typed
+                .domain_definition_for_instance(
+                    membership.domain_symbol,
+                    membership.semantic_domain,
+                )
+                .or_else(|| checked.domain_definition(membership.domain_symbol))
+                .ok_or(LoweringError::Unsupported(
+                    "required scalar domain is absent",
+                ))?;
+            let predicate = if parent.establishment_routes.is_empty()
+                && checked.typed.proof_facts(parent).is_empty()
+            {
+                None
+            } else {
+                let local = validation::scalar_domain_local_predicate(&checked.typed, parent)
+                    .or_else(|| {
+                        let primitive_type =
+                            checked.primitive_type_reference(parent.target_type)?;
+                        let predicates = validation::scalar_membership_value_predicates(
+                            &checked.typed,
+                            membership,
+                            &checked_trees::CheckedScalarExpression::Parameter {
+                                position: 0,
+                                primitive_type,
+                            },
+                        )?;
+                        Some(
+                            predicates
+                                .into_iter()
+                                .reduce(|left, right| {
+                                    checked_trees::CheckedBooleanExpression::And {
+                                        left: Box::new(left),
+                                        right: Box::new(right),
+                                    }
+                                })
+                                .unwrap_or(checked_trees::CheckedBooleanExpression::Constant(true)),
+                        )
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "required scalar domain has no complete local predicate",
+                    ))?;
+                Some(retained_domain_predicate(
+                    identities,
+                    constant_views,
+                    &local,
+                    scalar_type,
+                )?)
+            };
+            retain_domain(
+                catalog,
+                identities,
+                checked,
+                constant_views,
+                membership.domain_symbol,
+                membership.semantic_domain,
+                scalar_type,
+                predicate,
+            )?;
+        }
+    }
     Ok(identity)
 }
 
 fn retained_domain_predicate(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    constant_views: &crate::scalar_lowering::contracts::ContractViewNamespace<'_>,
     predicate: &checked_trees::CheckedBooleanExpression,
     carrier: semantic_vocabulary::ScalarType,
 ) -> Result<terminal_psi::ScalarDomainPredicate, LoweringError> {
@@ -451,7 +592,7 @@ fn retained_domain_predicate(
             qualifications: ScalarQualificationSetId::ZERO,
         }],
         &[],
-        &crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY,
+        constant_views,
     )?;
     Ok(terminal_psi::ScalarDomainPredicate {
         subject,
@@ -542,16 +683,25 @@ fn scalar_value_type(
     })
 }
 
-fn establishment_route(
+pub(crate) fn establishment_route(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     route: &DomainEstablishmentRoute,
 ) -> Result<ScalarDomainEstablishmentRoute, LoweringError> {
+    let declaration = terminal_psi::NominalDeclarationIdentity::new(
+        crate::machine_lowering::declarations::semantic_identity(
+            identities,
+            checked,
+            route.established_declaration(),
+        )
+        .map_err(|_| LoweringError::Unsupported("domain issuer has no exact declaration owner"))?,
+    );
     Ok(match *route {
         DomainEstablishmentRoute::CheckedRequirement {
             trait_definition,
             requirement,
         } => ScalarDomainEstablishmentRoute::CheckedRequirement {
+            declaration,
             requirement_identity: identities.intern(
                 &crate::proofs::evidence_lowering::checked_evidence_requirement_identity(
                     checked,
@@ -564,6 +714,7 @@ fn establishment_route(
             boundary_trait,
             requirement,
         } => ScalarDomainEstablishmentRoute::BoundaryRequirement {
+            declaration,
             requirement_identity: identities.intern(
                 &crate::proofs::evidence_lowering::checked_evidence_requirement_identity(
                     checked,
@@ -574,6 +725,7 @@ fn establishment_route(
         },
         DomainEstablishmentRoute::ExactMachine { machine } => {
             ScalarDomainEstablishmentRoute::ExactMachine {
+                declaration,
                 machine_identity: identities.intern(
                     &crate::proofs::evidence_lowering::checked_evidence_machine_identity(
                         checked, machine,
@@ -595,6 +747,7 @@ fn carries_scalar_qualifications(checked: &CheckedTrees, reference: TypeReferenc
 fn domain_predicate(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    constant_views: &crate::scalar_lowering::contracts::ContractViewNamespace<'_>,
     mut reference: TypeReferenceHandle,
     symbol: SymbolHandle,
     semantic_id: SemanticDomainId,
@@ -646,7 +799,7 @@ fn domain_predicate(
                     qualifications: ScalarQualificationSetId::ZERO,
                 }],
                 &[],
-                &crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY,
+                constant_views,
             )?;
             return Ok(Some(terminal_psi::ScalarDomainPredicate {
                 subject,
@@ -662,20 +815,7 @@ pub(crate) fn type_atoms(
     checked: &CheckedTrees,
     reference: TypeReferenceHandle,
 ) -> Result<(PrimitiveType, Vec<(SymbolHandle, SemanticDomainId)>), LoweringError> {
-    let primitive = checked
-        .primitive_type_reference(reference)
-        .or_else(|| {
-            // A retained scalar field read can name its borrowed source.
-            // Classify exactly that observation's referee, while the full
-            // traversal below still checks the original reference type and
-            // refuses transporting semantic atoms through it. Permission to
-            // observe remains owned by the checked storage-read operation.
-            validation::reference_shell(&checked.typed, reference)
-                .and_then(|shell| checked.primitive_type_reference(shell.referee))
-        })
-        .ok_or(LoweringError::Unsupported(
-            "scalar qualification has no primitive carrier",
-        ))?;
+    let primitive = observed_scalar_carrier(checked, reference)?;
     let mut current = reference;
     let mut active = Vec::new();
     let mut atoms = Vec::new();
@@ -760,7 +900,7 @@ pub(crate) fn type_atoms(
                         // contracts, just like an interval. It is never a
                         // predicate-free membership atom in this catalog.
                         TypeConstraintNode::Domain(domain)
-                            if domain.predicate_body.is_present()
+                            if domain.predicate_presence.is_present()
                                 && checked
                                     .facts
                                     .values
@@ -768,7 +908,7 @@ pub(crate) fn type_atoms(
                                     .is_some() => {}
                         TypeConstraintNode::Domain(domain)
                             if domain.subject == DomainConstraintSubject::Declared
-                                && !domain.predicate_body.is_present() =>
+                                && !domain.predicate_presence.is_present() =>
                         {
                             declared_atoms(
                                 checked,
@@ -807,6 +947,62 @@ pub(crate) fn type_atoms(
     Ok((primitive, atoms))
 }
 
+/// A scalar observation can follow a stored readable reference without making
+/// the descriptor itself a scalar value. Resolve only its payload carrier here;
+/// `type_atoms` still checks every original shell and rejects transporting
+/// nominal scalar memberships through a reference without its own judgment.
+fn observed_scalar_carrier(
+    checked: &CheckedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Result<PrimitiveType, LoweringError> {
+    for _ in 0..checked.type_reference_table.type_reference_count() {
+        if !checked
+            .type_reference_table
+            .contains_type_reference(reference)
+        {
+            return unsupported("scalar qualification has a stale type");
+        }
+        match checked.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference {
+                referee, access, ..
+            } if access.is_readable() => reference = *referee,
+            TypeReferenceNode::Reference { .. } => {
+                return unsupported("scalar qualification cannot observe write-only storage");
+            }
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            _ => {
+                return checked.primitive_type_reference(reference).ok_or(
+                    LoweringError::Unsupported("scalar qualification has no primitive carrier"),
+                );
+            }
+        }
+    }
+    unsupported("scalar qualification has a cyclic type")
+}
+
+/// The source checker retained the complete receiving restriction before its
+/// temporary mathematical view expired. Its exact source type identity includes
+/// every qualification; equal primitive layout alone supplies no restriction.
+pub(crate) fn retained_scalar_restriction(
+    checked: &CheckedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<&checked_trees::CheckedUnitStructuralFieldType> {
+    let primitive = checked.primitive_type_reference(reference)?;
+    let identity = validation::structural_type_identity(&checked.typed, reference, &[], &[]);
+    checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .structural_types
+        .iter()
+        .find(|plan| {
+            plan.identity == identity
+                && plan.shape
+                    == checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive)
+        })
+        .and_then(|plan| plan.scalar_restriction.as_ref())
+}
+
 pub(crate) fn declared_atoms(
     checked: &CheckedTrees,
     symbol: symbols::SymbolHandle,
@@ -827,7 +1023,7 @@ pub(crate) fn declared_atoms(
         "scalar qualification has no domain definition",
     ))?;
     if declarations.next().is_some()
-        || domain.predicate_body.is_present()
+        || domain.predicate_presence.is_present()
         || !domain.facts.is_empty()
         || (!checked_trees::domain::has_generic_carrier(checked, domain)
             && checked.primitive_type_reference(domain.target_type) != Some(primitive))

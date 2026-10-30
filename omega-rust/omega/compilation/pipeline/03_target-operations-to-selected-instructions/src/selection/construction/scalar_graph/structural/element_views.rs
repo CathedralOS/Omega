@@ -1,14 +1,16 @@
 //! Select element observations from descriptor and derived value homes.
 use super::{
     Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
-    LegalizedScalarInstructionKind, PlaceId, ScalarType, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory,
+    LegalizedScalarInstructionKind, PlaceId, ScalarType, SelectedInstructionProvenance,
+    SelectedMemoryAccessRole, VirtualRegisterId, memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::scaled_element_index;
 use crate::selection::construction::scalar_graph::structural::transport_register;
+use crate::selection::scalar_call_abi::load_transfer;
 use terminal_psi::StructuralTypeShape;
 
 /// The byte stride of the view's element. A derived view home already carries
@@ -25,11 +27,8 @@ pub(super) fn element_stride(
     }
     let view_type = crate::selection::established_view_input::element_view_type(function, source)?;
     let signature = function.structural.as_ref()?;
-    let declaration = signature
-        .structural_types
-        .as_slice()
-        .iter()
-        .find(|declaration| declaration.id == view_type)?;
+    let declaration =
+        terminal_psi::find_structural_type(signature.structural_types.as_slice(), view_type)?;
     let StructuralTypeShape::ElementView { element, .. } = &declaration.shape else {
         return None;
     };
@@ -111,16 +110,13 @@ fn element_view_read(
     else {
         return Err(invalid());
     };
-    let element = signature
-        .structural_types
-        .as_slice()
-        .iter()
-        .find(|declaration| declaration.id == view_type)
-        .and_then(|declaration| match declaration.shape {
-            StructuralTypeShape::ElementView { element, .. } => Some(element),
-            _ => None,
-        })
-        .ok_or_else(|| invalid())?;
+    let element =
+        terminal_psi::find_structural_type(signature.structural_types.as_slice(), view_type)
+            .and_then(|declaration| match declaration.shape {
+                StructuralTypeShape::ElementView { element, .. } => Some(element),
+                _ => None,
+            })
+            .ok_or_else(|| invalid())?;
     let (byte_offset, byte_count, elements) =
         crate::structural_inputs::structural_reference_input::element_leaf_projection(
             element,
@@ -201,43 +197,13 @@ fn element_view_read(
             super::runtime_address::Written::None,
         )?;
     }
-    let (kind, constraint) = match byte_count {
-        1 => (
-            SelectedInstructionKind::Load8 {
-                byte_offset: displacement,
-            },
-            builder.constraints.keys.load8.ok_or_else(|| invalid())?,
-        ),
-        2 => (
-            SelectedInstructionKind::Load16 {
-                byte_offset: displacement,
-            },
-            builder.constraints.keys.load16.ok_or_else(|| invalid())?,
-        ),
-        4 => (
-            SelectedInstructionKind::Load32 {
-                byte_offset: displacement,
-            },
-            builder.constraints.keys.load32.ok_or_else(|| invalid())?,
-        ),
-        8 => (
-            SelectedInstructionKind::Load64 {
-                byte_offset: displacement,
-            },
-            builder.constraints.keys.load64.ok_or_else(|| invalid())?,
-        ),
-        _ => return Err(invalid()),
-    };
+    let (kind, constraint) =
+        load_transfer(&builder.constraints.keys, byte_count, displacement).ok_or_else(invalid)?;
     builder.emit(
         kind,
-        constraint,
+        constraint.ok_or_else(|| invalid())?,
         &[address, output],
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![index, length, definition.value],
-            fuel: row.fuel.clone(),
-            ..Default::default()
-        },
+        operation_provenance(row, vec![index, length, definition.value]),
     )?;
     // A narrow signed element loads zero-extended; the register carrier is
     // sign-extended, so a signed compare of `-5` would otherwise see 2^32 - 5.
@@ -285,7 +251,7 @@ fn element_view_length(
 /// freshly established 16-byte descriptor.
 pub(super) fn element_backing_pointer(
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     source: PlaceId,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     if let Some(view) = builder.transport.element_view(source) {

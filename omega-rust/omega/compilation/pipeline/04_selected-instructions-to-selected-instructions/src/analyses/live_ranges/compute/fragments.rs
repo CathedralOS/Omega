@@ -254,30 +254,40 @@ pub(super) fn interference(rows: &[super::VirtualLiveRange]) -> Vec<super::Virtu
     if rows.is_empty() {
         return Vec::new();
     }
-    let mut by_block =
-        std::collections::BTreeMap::<SelectedBlockId, Vec<(u32, u32, u32, VirtualRegisterId)>>::new(
-        );
-    for (row, range) in rows.iter().enumerate() {
-        let vreg = range.virtual_register;
-        for fragment in &range.fragments {
-            if fragment.start < fragment.end {
-                by_block.entry(fragment.block).or_default().push((
-                    fragment.start.0,
-                    fragment.end.0,
-                    row as u32,
-                    vreg,
-                ));
-            }
-        }
-    }
     let rows_monotonic = rows
         .windows(2)
         .all(|pair| pair[0].virtual_register < pair[1].virtual_register);
-    if rows_monotonic {
+    let mut max_block_id = 0usize;
+    for range in rows {
+        for fragment in &range.fragments {
+            if fragment.start < fragment.end {
+                max_block_id = max_block_id.max(fragment.block.0 as usize);
+            }
+        }
+    }
+    if rows_monotonic && max_block_id < 65536 {
+        let mut dense_by_block =
+            vec![Vec::<(u32, u32, u32, VirtualRegisterId)>::new(); max_block_id + 1];
+        for (row, range) in rows.iter().enumerate() {
+            let vreg = range.virtual_register;
+            for fragment in &range.fragments {
+                if fragment.start < fragment.end {
+                    dense_by_block[fragment.block.0 as usize].push((
+                        fragment.start.0,
+                        fragment.end.0,
+                        row as u32,
+                        vreg,
+                    ));
+                }
+            }
+        }
         let mut raw_pairs: Vec<(u32, VirtualRegisterId)> = Vec::with_capacity(rows.len() * 2);
         let mut bucket_counts = vec![0u32; rows.len()];
         let mut active: Vec<(u32, u32, VirtualRegisterId)> = Vec::new();
-        for fragments in by_block.values_mut() {
+        for fragments in &mut dense_by_block {
+            if fragments.len() < 2 {
+                continue;
+            }
             fragments.sort_unstable_by_key(|&(start, _, row, _)| (start, row));
             active.clear();
             for &(start, end, row, vreg) in fragments.iter() {
@@ -363,6 +373,22 @@ pub(super) fn interference(rows: &[super::VirtualLiveRange]) -> Vec<super::Virtu
             }
         }
         return pairs;
+    }
+    let mut by_block =
+        std::collections::BTreeMap::<SelectedBlockId, Vec<(u32, u32, u32, VirtualRegisterId)>>::new(
+        );
+    for (row, range) in rows.iter().enumerate() {
+        let vreg = range.virtual_register;
+        for fragment in &range.fragments {
+            if fragment.start < fragment.end {
+                by_block.entry(fragment.block).or_default().push((
+                    fragment.start.0,
+                    fragment.end.0,
+                    row as u32,
+                    vreg,
+                ));
+            }
+        }
     }
     let mut pairs = Vec::new();
     let mut active: Vec<(u32, u32, VirtualRegisterId)> = Vec::new();

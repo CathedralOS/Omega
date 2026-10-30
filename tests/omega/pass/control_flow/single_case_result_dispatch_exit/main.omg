@@ -20,11 +20,11 @@ machine build_pair(seed: u64 in Wrapping) -> Pair {
         _ -> small(seed)
     }
 
-    state large(seed: u64 in Wrapping) -> Pair {
+    machine large(seed: u64 in Wrapping) -> Pair {
         Pair::Both { left: seed, right: 1 }
     }
 
-    state small(seed: u64 in Wrapping) -> Pair {
+    machine small(seed: u64 in Wrapping) -> Pair {
         Pair::Both { left: seed + 100, right: 2 }
     }
 }
@@ -35,32 +35,32 @@ machine Main::main(main: &mut Main) reaches Console {
         Pair::Both { left, right } -> carried(main, left, right)
     }
 
-    state carried(main: &mut Main, left: u64 in Wrapping, right: i32 in Wrapping) {
+    machine carried(main: &mut Main, left: u64 in Wrapping, right: i32 in Wrapping) {
         let joined: Pair = build_pair(left + 1);
         transition { _ -> arrival(main, joined) }
     }
 
-    state arrival(main: &mut Main, joined: Pair) {
+    machine arrival(main: &mut Main, joined: Pair) {
         transition joined {
             Pair::Both { left, right } -> local(main, left, right)
         }
     }
 
-    state local(main: &mut Main, left: u64 in Wrapping, right: i32 in Wrapping) {
+    machine local(main: &mut Main, left: u64 in Wrapping, right: i32 in Wrapping) {
         let kept: Pair = build_pair(left - 9);
         transition kept {
             Pair::Both { left as more, right as other } -> check(main, left + more, right + other)
         }
     }
 
-    state check(main: &mut Main, left: u64 in Wrapping, right: i32 in Wrapping) {
+    machine check(main: &mut Main, left: u64 in Wrapping, right: i32 in Wrapping) {
         transition left == 111 && right == 3 {
             true -> done(main, 70)
             _ -> done(main, 71)
         }
     }
 
-    state done(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine done(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -19,7 +19,7 @@ pub(super) fn collect_assignment_calls(
     statement_index: usize,
     assignment: &typed_trees::statement::TableAssignment,
     calls: &[checked_trees::FlowCallFact],
-    consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
+    consumed: &mut super::CallOccurrenceLedger,
 ) -> Option<()> {
     let owner = program.machine_by_symbol(machine)?;
     // A scalar computation owns its call occurrences whether its value
@@ -112,7 +112,7 @@ pub(super) fn collect_constructor_calls(
     statement_index: usize,
     statement: &StatementNode,
     calls: &[checked_trees::FlowCallFact],
-    consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
+    consumed: &mut super::CallOccurrenceLedger,
 ) -> Option<()> {
     let construction_destination = match statement {
         StatementNode::LocalData(local) if !local.is_mutable => {
@@ -169,9 +169,18 @@ pub(super) fn collect_constructor_calls(
             continue;
         };
         let plans = &facts.values.scalar_computations;
-        for (element_index, (expression, primitive_type)) in
-            elements.elements.into_iter().enumerate()
-        {
+        for (element_index, element) in elements.elements.into_iter().enumerate() {
+            let (expression, primitive_type) = match element {
+                validation::ScalarArrayElement::Authored {
+                    expression,
+                    primitive_type,
+                }
+                | validation::ScalarArrayElement::Projected {
+                    row: expression,
+                    primitive_type,
+                    ..
+                } => (expression, primitive_type),
+            };
             let role = CheckedScalarExpressionRole::ArrayElement {
                 source,
                 element_ordinal: u32::try_from(element_index).ok()?,
@@ -226,7 +235,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
         call.call_ordinal,
     )?;
     let arguments = validation::call_site_argument_expressions(program, &site);
-    let mut consumed = Vec::new();
+    let mut consumed = super::CallOccurrenceLedger::default();
     let owner = program.machine_by_symbol(machine)?;
     let source_state = program
         .machine_states(owner)
@@ -453,7 +462,7 @@ pub(super) fn scheduled_dispatch_subject(
         ) else {
             return false;
         };
-        let mut consumed = Vec::new();
+        let mut consumed = super::CallOccurrenceLedger::default();
         if collect_argument_calls(
             program,
             facts,
@@ -486,7 +495,7 @@ pub(super) fn collect_argument_calls(
     call: &checked_trees::FlowCallFact,
     arguments: &[typed_trees::expression::ExpressionHandle],
     calls: &[checked_trees::FlowCallFact],
-    consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
+    consumed: &mut super::CallOccurrenceLedger,
 ) -> Option<()> {
     let register_operation = program
         .symbols
@@ -593,16 +602,9 @@ pub(super) fn collect_argument_calls(
                 expression,
             } if call_ordinal as usize == call.call_ordinal => {
                 let argument = *structural_arguments.get(argument_ordinal as usize)?;
-                let place = validation::canonical_place_from_expression_in_state(
-                    program,
-                    state,
-                    call.statement_index,
-                    argument,
-                )?;
-                if !place.segments.iter().any(|segment| {
-                    matches!(segment, facts::PlaceSegment::Index { expression: source }
-                        if *source == expression)
-                }) || !plans.nodes.is_valid(root.root)
+                if !crate::values::authored_projection_selectors(program, argument)?
+                    .contains(&expression)
+                    || !plans.nodes.is_valid(root.root)
                 {
                     return None;
                 }
@@ -655,7 +657,7 @@ pub(super) fn collect_range_calls(
     site: checked_trees::CheckedSubsliceSite,
     calls: &[checked_trees::FlowCallFact],
     minimum_call_ordinal: u32,
-    consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
+    consumed: &mut super::CallOccurrenceLedger,
 ) -> Option<bool> {
     let plans = &facts.values.scalar_computations;
     let statement_ordinal = u32::try_from(statement).ok()?;
@@ -702,7 +704,7 @@ pub(super) fn collect_structural_argument_calls(
     calls: &[checked_trees::FlowCallFact],
     minimum_call_ordinal: u32,
     visits: &mut Vec<ComputationVisit>,
-    consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
+    consumed: &mut super::CallOccurrenceLedger,
 ) -> Option<()> {
     // Formation and argument admission already own storage, type and access.
     // This collector owns only executable projection operands. Anonymous
@@ -711,7 +713,7 @@ pub(super) fn collect_structural_argument_calls(
     // Requiring another root here rejects nested borrowed results and would
     // duplicate constructor accounting. Exact occurrence and unconsumed-call
     // checks still prevent losing or scheduling a call twice.
-    for handle in argument.computation_operands() {
+    for handle in argument.computation_operands(&facts.values.scalar_computations.operands) {
         collect(
             program,
             facts,
@@ -737,7 +739,7 @@ pub(super) fn collect_owned_root_calls(
     statement_index: usize,
     root: &checked_trees::CheckedScalarComputationRoot,
     calls: &[checked_trees::FlowCallFact],
-    consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
+    consumed: &mut super::CallOccurrenceLedger,
 ) -> Option<()> {
     if root.machine != machine {
         return None;
@@ -763,7 +765,7 @@ pub(super) fn collect_root_calls(
     root: CheckedScalarComputationHandle,
     calls: &[checked_trees::FlowCallFact],
     minimum_call_ordinal: u32,
-    consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
+    consumed: &mut super::CallOccurrenceLedger,
 ) -> Option<()> {
     collect(
         program,
@@ -787,11 +789,21 @@ pub(super) fn collect(
     calls: &[checked_trees::FlowCallFact],
     minimum_call_ordinal: u32,
     visits: &mut Vec<ComputationVisit>,
-    consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
+    consumed: &mut super::CallOccurrenceLedger,
 ) -> Option<()> {
     let plans = &facts.values.scalar_computations;
     if !plans.nodes.is_valid(handle) {
         return None;
+    }
+    if let Some(minimum) = consumed.accounted_computations.iter().find_map(|entry| {
+        (entry.state == state && entry.statement == statement && entry.computation == handle)
+            .then_some(entry.minimum_call_ordinal)
+    }) {
+        if minimum.is_some_and(|ordinal| ordinal < minimum_call_ordinal) {
+            return None;
+        }
+        consumed.record_minimum(minimum);
+        return Some(());
     }
     // A computation is a DAG value, not one invocation per incoming edge.
     // Reuse a completed node's accounting; an unfinished visit is a cycle.
@@ -804,6 +816,8 @@ pub(super) fn collect(
         computation: handle,
         completed: false,
     });
+    let pending_index = consumed.pending_minima.len();
+    consumed.pending_minima.push(None);
     match &plans.nodes.get(handle).kind {
         CheckedScalarComputationKind::CaseMembership {
             subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(subject),
@@ -879,7 +893,7 @@ pub(super) fn collect(
             )?;
         }
         CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
-            for operand in subject.scalar_operands() {
+            for operand in subject.scalar_operands(&plans.operands) {
                 collect(
                     program,
                     facts,
@@ -920,8 +934,39 @@ pub(super) fn collect(
             }
         }
         CheckedScalarComputationKind::RetainedConstant { .. }
-        | CheckedScalarComputationKind::Value(_)
-        | CheckedScalarComputationKind::StructuralField { .. } => {}
+        | CheckedScalarComputationKind::Value(_) => {}
+        CheckedScalarComputationKind::StructuralField {
+            subject,
+            receiver_value,
+            ..
+        } => {
+            collect_structural_argument_calls(
+                program,
+                facts,
+                state,
+                statement,
+                subject,
+                calls,
+                minimum_call_ordinal,
+                visits,
+                consumed,
+            )?;
+            if receiver_value.is_valid() {
+                let machine = facts.flow.control.state_by_symbol(state)?.machine_symbol;
+                super::structural_values::collect(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    statement,
+                    *receiver_value,
+                    calls,
+                    minimum_call_ordinal,
+                    consumed,
+                    &mut Vec::new(),
+                )?;
+            }
+        }
         CheckedScalarComputationKind::ByteSequencePredicate {
             predicate,
             source_expression,
@@ -957,12 +1002,14 @@ pub(super) fn collect(
                 if occurrences.next().is_some()
                     || call.statement_index != statement
                     || call.call_ordinal < minimum_call_ordinal as usize
-                    || call.target_symbol != authored.target_symbol
+                    || call.target_symbol
+                        != validation::call_target_entry_symbol(program, authored.target_symbol)
                     || consumed.contains(&handle)
                     || facts.flow.control.is_retired(state, call)
                 {
                     return None;
                 }
+                consumed.record_minimum(Some(u32::try_from(call.call_ordinal).ok()?));
                 consumed.push(handle);
             }
         }
@@ -983,15 +1030,14 @@ pub(super) fn collect(
             if *call_ordinal < minimum_call_ordinal
                 || call.call_ordinal != *call_ordinal as usize
                 || call.statement_index != statement
-                || validation::exact_external_leaf_boundary_requirement(program, call.target_symbol)
-                    .map_or(call.target_symbol, |(requirement, _)| requirement)
-                    != callee.called_signature()
+                || call.target_symbol != callee.called_signature()
                 || !call.authored_expression.is_valid()
                 || !calls.iter().any(|candidate| std::ptr::eq(candidate, call))
                 || facts.flow.control.is_retired(state, call)
             {
                 return None;
             }
+            consumed.record_minimum(Some(*call_ordinal));
             consumed.push(*source_call);
             // A runtime implementation selector evaluates before every data operand.
             for operand in callee
@@ -1046,6 +1092,52 @@ pub(super) fn collect(
                 }
             }
         }
+        CheckedScalarComputationKind::WithOperands {
+            operands, operand, ..
+        } => {
+            for dependency in plans.evaluation_operands.span(*operands)? {
+                if let checked_trees::CheckedScalarEvaluationOperand::Scalar(value) = dependency {
+                    collect(
+                        program,
+                        facts,
+                        state,
+                        statement,
+                        *value,
+                        calls,
+                        minimum_call_ordinal,
+                        visits,
+                        consumed,
+                    )?;
+                }
+                if let checked_trees::CheckedScalarEvaluationOperand::Structural(value) = dependency
+                {
+                    let machine = facts.flow.control.state_by_symbol(state)?.machine_symbol;
+                    super::structural_values::collect(
+                        program,
+                        facts,
+                        machine,
+                        state,
+                        statement,
+                        *value,
+                        calls,
+                        minimum_call_ordinal,
+                        consumed,
+                        &mut Vec::new(),
+                    )?;
+                }
+            }
+            collect(
+                program,
+                facts,
+                state,
+                statement,
+                *operand,
+                calls,
+                minimum_call_ordinal,
+                visits,
+                consumed,
+            )?;
+        }
         CheckedScalarComputationKind::Apply { operands, .. }
         | CheckedScalarComputationKind::StorageObservation { operands, .. } => {
             for operand in plans.operands.span(*operands)? {
@@ -1084,5 +1176,17 @@ pub(super) fn collect(
         }
     }
     visits[visit_index].completed = true;
+    let minimum = consumed.pending_minima.pop()?;
+    if consumed.pending_minima.len() != pending_index {
+        return None;
+    }
+    consumed
+        .accounted_computations
+        .push(super::AccountedComputation {
+            state,
+            statement,
+            computation: handle,
+            minimum_call_ordinal: minimum,
+        });
     Some(())
 }

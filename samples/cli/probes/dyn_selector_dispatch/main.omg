@@ -49,5 +49,5 @@ machine dyn_selector_dispatch() {
         _ -> done(71)
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

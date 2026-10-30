@@ -1,4 +1,4 @@
-// RUN CANARY: `in Trapping` actually TRAPS at runtime. x = i32::MAX, then
+// RUN CANARY: `in Trapping` actually TRAPS at runtime. x = i32 maximum, then
 // x + 1 -- the emitted overflow check executes the target trap (`ud2` on x86_64,
 // `brk #0` on AArch64). The process dies (Windows x86_64 reports
 // STATUS_ILLEGAL_INSTRUCTION; Unix hosts terminate by signal), so exit_process(70)

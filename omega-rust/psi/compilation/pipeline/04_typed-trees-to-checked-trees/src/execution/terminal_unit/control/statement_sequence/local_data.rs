@@ -21,12 +21,10 @@
 //! established by lowering; admitting the read does not fabricate that home.
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
-    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, ExpressionNode,
-    LocalConstructionTrace, Multiplicity, ScalarCalleeClosure, ShapeCollector, SymbolHandle,
-    checked_structural_result_type, is_record_pattern_marker, scalar_computation_local_at,
-    structural_operands,
+    CheckedUnitEffectOperationPlan, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, Construction,
+    ExpressionNode, Multiplicity, ShapeCollector, SymbolHandle, checked_structural_result_type,
+    is_record_pattern_marker, scalar_computation_local_at, structural_operands,
 };
 use crate::execution::terminal_unit::initialized_locals::initialized_local;
 use crate::execution::terminal_unit::types::{
@@ -35,17 +33,7 @@ use crate::execution::terminal_unit::types::{
 
 /// The sequence state a `let` statement reads and extends.
 pub(super) struct Planner<'a, 'program, 'shapes> {
-    pub(super) program: &'program dyn ::validation::CheckingInput,
-    pub(super) facts: &'program CheckFacts,
-    pub(super) scalar_callees: ScalarCalleeClosure,
-    pub(super) shapes: &'a mut ShapeCollector<'shapes>,
-    pub(super) machine: &'program typed_trees::machine::Machine,
-    pub(super) state: &'program typed_trees::state::State,
-    pub(super) structural_parameters: &'a mut [CheckedUnitStructuralParameterPlan],
-    pub(super) entry_claims: &'a [CheckedUnitEntryClaimPlan],
-    pub(super) trivial_affine_locals:
-        &'a [(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
-    pub(super) trace: &'a LocalConstructionTrace,
+    pub(super) construction: Construction<'a, 'program, 'shapes>,
     pub(super) binders: &'a [(SymbolHandle, String)],
     pub(super) erased_locals: &'a [SymbolHandle],
     pub(super) operations: &'a mut Vec<CheckedUnitEffectOperationPlan>,
@@ -87,7 +75,7 @@ pub(super) fn plan(
     statement_index: u32,
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<LocalPlan> {
-    let trace = planner.trace;
+    let trace = planner.construction.trace;
     let entry = trace.mark();
     let planned = plan_inner(planner, index, statement_index, local);
     if planned.is_none() {
@@ -108,16 +96,19 @@ fn plan_inner(
         return Some(LocalPlan::Planned);
     }
     let Planner {
-        program,
-        facts,
-        scalar_callees,
-        shapes,
-        machine,
-        state,
-        structural_parameters,
-        entry_claims,
-        trivial_affine_locals,
-        trace,
+        construction:
+            Construction {
+                program,
+                facts,
+                scalar_callees,
+                shapes,
+                machine,
+                state,
+                structural_parameters,
+                entry_claims,
+                trivial_affine_locals,
+                trace,
+            },
         binders,
         erased_locals,
         operations,
@@ -447,7 +438,7 @@ fn plan_inner(
         // A recast's backing is a separate catalog root from its logical
         // reference type. Enroll the actual projected endpoint even when no
         // signature otherwise names it (for example a byte inside an array).
-        shapes.add_type(capture.backing_type, binders, &[])?;
+        shapes.add_stored_type(capture.backing_type, binders, &[])?;
         let result = CheckedUnitStructuralResultBindingPlan {
             statement_index,
             binding_ordinal: u32::try_from(*structural_count).ok()?,
@@ -513,7 +504,7 @@ fn plan_inner(
             return None;
         }
         local_phase("statement sequence: local data: structural value: operand custody");
-        let calls = super::prepare_value_operands(
+        let (calls, completion) = super::prepare_value_operands(
             program,
             facts,
             scalar_callees,
@@ -531,6 +522,15 @@ fn plan_inner(
             trace,
             windows,
         )?;
+        if completion == checked_trees::CheckedValueCompletion::NoNormal {
+            operations.push(CheckedUnitEffectOperationPlan::EvaluateStructuralValue {
+                statement_index,
+                value: root.root,
+                calls,
+                operand_source: None,
+            });
+            return Some(LocalPlan::Planned);
+        }
         local_phase("statement sequence: local data: structural value: type shape");
         // A stored loan retains its reference shell, unlike argument
         // presentation of its referent. Slice views are different carriers:
@@ -576,13 +576,14 @@ fn plan_inner(
             // A call-valued local owns the same normal operand continuation
             // as a statement call. The result remains with the local; only
             // the exact anonymous argument owners retire here.
-            super::super::super::cleanup::anonymous::append_continuation(
+            super::super::super::cleanup::anonymous::insert_continuation(
                 program,
                 facts,
                 shapes,
                 machine,
                 state,
                 coordinate,
+                operations.len(),
                 structural_results,
                 operations,
                 trace,

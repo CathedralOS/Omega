@@ -7,7 +7,7 @@ public machine append(polygon: &mut Polygon, x: f64, y: f64) -> bool {
         true -> store(polygon, x, y)
         false -> (false)
     }
-    state store(polygon: &mut Polygon, x: f64, y: f64) -> bool {
+    machine store(polygon: &mut Polygon, x: f64, y: f64) -> bool {
         polygon.x[polygon.count] = x;
         polygon.y[polygon.count] = y;
         polygon.count = polygon.count + 1;
@@ -17,14 +17,14 @@ public machine append(polygon: &mut Polygon, x: f64, y: f64) -> bool {
 public machine clip(input: &Polygon, output: &mut Polygon, a: f64, b: f64, c: f64) -> bool {
     output.count = 0;
     transition { _ -> edge(input, output, a, b, c, 0) }
-    state edge(input: &Polygon, output: &mut Polygon, a: f64, b: f64, c: f64, index: u64) -> bool {
+    machine edge(input: &Polygon, output: &mut Polygon, a: f64, b: f64, c: f64, index: u64) -> bool {
         let count: u64 = input.count;
         transition count > 0 && count <= 32 && index < count && index < 32 {
             true -> classify(input, output, a, b, c, index, (index + 1) % count)
             false -> (true)
         }
     }
-    state classify(input: &Polygon, output: &mut Polygon, a: f64, b: f64, c: f64, index: u64, next: u64) -> bool
+    machine classify(input: &Polygon, output: &mut Polygon, a: f64, b: f64, c: f64, index: u64, next: u64) -> bool
     requires index < 32 && next < 32
     {
         let start: f64 = a * input.x[index] + b * input.y[index] - c;
@@ -34,7 +34,7 @@ public machine clip(input: &Polygon, output: &mut Polygon, a: f64, b: f64, c: f6
             false -> endpoint(input, output, a, b, c, index, next, finish)
         }
     }
-    state crossing(input: &Polygon, output: &mut Polygon, a: f64, b: f64, c: f64, index: u64, next: u64, start: f64, finish: f64) -> bool
+    machine crossing(input: &Polygon, output: &mut Polygon, a: f64, b: f64, c: f64, index: u64, next: u64, start: f64, finish: f64) -> bool
     requires index < 32 && next < 32
     {
         let fraction: f64 = start / (start - finish);
@@ -46,7 +46,7 @@ public machine clip(input: &Polygon, output: &mut Polygon, a: f64, b: f64, c: f6
             false -> (false)
         }
     }
-    state endpoint(input: &Polygon, output: &mut Polygon, a: f64, b: f64, c: f64, index: u64, next: u64, finish: f64) -> bool
+    machine endpoint(input: &Polygon, output: &mut Polygon, a: f64, b: f64, c: f64, index: u64, next: u64, finish: f64) -> bool
     requires index < 32 && next < 32
     {
         transition finish <= 0.0 {
@@ -54,7 +54,7 @@ public machine clip(input: &Polygon, output: &mut Polygon, a: f64, b: f64, c: f6
             false -> edge(input, output, a, b, c, index + 1)
         }
     }
-    state keep(input: &Polygon, output: &mut Polygon, a: f64, b: f64, c: f64, index: u64, next: u64) -> bool
+    machine keep(input: &Polygon, output: &mut Polygon, a: f64, b: f64, c: f64, index: u64, next: u64) -> bool
     requires index < 32 && next < 32
     {
         let stored: bool = append(output, input.x[next], input.y[next]);
@@ -66,19 +66,19 @@ public machine clip(input: &Polygon, output: &mut Polygon, a: f64, b: f64, c: f6
 }
 public machine construct(partition: &mut Partition) {
     transition { _ -> cell(partition, 0) }
-    state cell(partition: &mut Partition, index: u64) {
+    machine cell(partition: &mut Partition, index: u64) {
         transition index < partition.site_count && index < 8 {
             true -> initialize(partition, index)
             false -> done()
         }
     }
-    state initialize(partition: &mut Partition, index: u64)
+    machine initialize(partition: &mut Partition, index: u64)
     requires index < 8
     {
         partition.cells[index] = partition.boundary;
         transition { _ -> competitor(partition, index, 0) }
     }
-    state competitor(partition: &mut Partition, index: u64, other: u64)
+    machine competitor(partition: &mut Partition, index: u64, other: u64)
     requires index < 8
     {
         transition other < partition.site_count && other < 8 {
@@ -86,7 +86,7 @@ public machine construct(partition: &mut Partition) {
             false -> cell(partition, index + 1)
         }
     }
-    state select(partition: &mut Partition, index: u64, other: u64)
+    machine select(partition: &mut Partition, index: u64, other: u64)
     requires index < 8
     {
         transition index == other {
@@ -94,7 +94,7 @@ public machine construct(partition: &mut Partition) {
             false -> bisector(partition, index, other)
         }
     }
-    state bisector(partition: &mut Partition, index: u64, other: u64)
+    machine bisector(partition: &mut Partition, index: u64, other: u64)
     requires index < 8
     {
         let a: f64 = 2.0 * (partition.site_x[other] - partition.site_x[index]);
@@ -109,6 +109,6 @@ public machine construct(partition: &mut Partition) {
             false -> fail(partition)
         }
     }
-    state fail(partition: &mut Partition) { partition.valid = false; }
-    state done() { }
+    machine fail(partition: &mut Partition) { partition.valid = false; }
+    machine done() { }
 }

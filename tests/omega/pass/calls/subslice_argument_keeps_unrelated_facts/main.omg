@@ -24,7 +24,7 @@ reaches Read
         true -> compare(this, providers, position, &buffer[0 .. n])
         _ -> (0)
     }
-    state compare(this: &mut Table, providers: &mut Providers, position: u64, current: &[u8]) -> u64
+    machine compare(this: &mut Table, providers: &mut Providers, position: u64, current: &[u8]) -> u64
         requires position < this.count && position < 4;
     {
         (this.items[position] as u64)
@@ -36,6 +36,6 @@ machine Main::main(this: &mut Main) reaches Read {
     let mut providers: Providers = Providers { reads: 0 };
     let value: u64 = Table::restore(&mut table, &mut providers, 1, 2);
     transition { _ -> done() }
-    state done() {}
+    machine done() {}
 }
 data Main { }

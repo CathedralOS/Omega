@@ -4,6 +4,6 @@ machine bit(count: u32, ceiling: u32) -> u64 {
         true -> calculate(count)
         false -> empty()
     }
-    state calculate(count: u32) -> u64 { 1u64 << count }
-    state empty() -> u64 { 0u64 }
+    machine calculate(count: u32) -> u64 { 1u64 << count }
+    machine empty() -> u64 { 0u64 }
 }

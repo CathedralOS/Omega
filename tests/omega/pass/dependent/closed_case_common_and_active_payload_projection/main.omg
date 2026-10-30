@@ -10,6 +10,6 @@ machine Main::main(main: &mut Main) {
         Interval::Point { marker as _, lo, hi } -> take(lo, hi, main)
         Interval::Other { marker as _, lo as _, hi as _ } -> done()
     }
-    state take(lo: u64, hi: u64, main: &mut Main) { main.width = hi - lo; }
-    state done() {}
+    machine take(lo: u64, hi: u64, main: &mut Main) { main.width = hi - lo; }
+    machine done() {}
 }

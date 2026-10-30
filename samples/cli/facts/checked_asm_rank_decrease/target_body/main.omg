@@ -14,8 +14,8 @@ linux_x86_64 machine countdown(seed: u32) requires seed == 2 terminates by eax -
   mov output, eax
  }
  transition output == 0 { true -> done() false -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }
 
 windows_x86_64 machine countdown(seed: u32) requires seed == 2 terminates by eax -> Nat::Descending; crashes Trap {
@@ -31,8 +31,8 @@ windows_x86_64 machine countdown(seed: u32) requires seed == 2 terminates by eax
   mov output, eax
  }
  transition output == 0 { true -> done() false -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }
 
 macos_x86_64 machine countdown(seed: u32) requires seed == 2 terminates by eax -> Nat::Descending; crashes Trap {
@@ -48,6 +48,6 @@ macos_x86_64 machine countdown(seed: u32) requires seed == 2 terminates by eax -
   mov output, eax
  }
  transition output == 0 { true -> done() false -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }

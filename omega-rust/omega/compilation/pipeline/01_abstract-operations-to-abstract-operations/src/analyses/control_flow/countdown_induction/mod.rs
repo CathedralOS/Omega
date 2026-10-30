@@ -1,10 +1,7 @@
 //! Optimizer module role: executable entrance. Validated countdown-loop analysis coordination.
 
 use abstract_operations::AbstractOperation as O;
-use optimization_core::OptimizationUnitIdentity;
-use optimization_unit::{
-    PsiOptimizationFunction, PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
-};
+use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
 
 use crate::validation::ValidatedOptimizerCycleComponents;
 use optimization_unit::{
@@ -12,7 +9,7 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{IntegerType, MachineId, ScalarType, ValueId};
 
-use super::LoopRegion;
+use super::{AnalysisRoot, AnalysisRootError, LoopRegion, validate_analysis_root};
 
 mod compute;
 mod region;
@@ -51,8 +48,7 @@ pub(crate) struct UnsignedCountdownLoopSummary {
 /// Replayable counted-loop facts without authority to transform or execute.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CountedLoopAnalysisSnapshot {
-    pub revision: OptimizationUnitIdentity,
-    pub terminal_psi: terminal_psi::TerminalPsiIdentity,
+    pub root: AnalysisRoot,
     pub loops: Vec<UnsignedCountdownLoopSummary>,
 }
 
@@ -77,23 +73,13 @@ impl ValidatedCountedLoopAnalysis {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CountedLoopAnalysisError {
-    StaleUnitIdentity {
-        stored: OptimizationUnitIdentity,
-        recomputed: OptimizationUnitIdentity,
-    },
-    TerminalIdentityMismatch,
+    Root(AnalysisRootError),
     CertificateComponentRosterMismatch,
-    UnsupportedCountdownShape {
-        machine: MachineId,
-    },
+    UnsupportedCountdownShape { machine: MachineId },
     SnapshotMismatch,
 }
 
-impl std::fmt::Display for CountedLoopAnalysisError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "counted-loop analysis failure: {self:?}")
-    }
-}
+failed_display!(CountedLoopAnalysisError, "counted-loop analysis failure");
 
 impl std::error::Error for CountedLoopAnalysisError {}
 

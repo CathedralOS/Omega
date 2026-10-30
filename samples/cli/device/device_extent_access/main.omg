@@ -117,21 +117,21 @@ reaches DeviceLoanProvider
         DeviceCompletionAttempt::Pending { loan } -> retry(dma_harness, loan)
     }
 
-    state retry(dma_harness: &DmaHarness, pending: DeviceLoan) {
+    machine retry(dma_harness: &DmaHarness, pending: DeviceLoan) {
         let retry: DeviceCompletionAttempt = DeviceLoanProvider::complete(pending);
         transition retry {
             DeviceCompletionAttempt::Completed { completion } -> acquire(dma_harness, completion)
             DeviceCompletionAttempt::Pending { loan } -> retry(dma_harness, loan)
         }
     }
-    state acquire(dma_harness: &DmaHarness, completion: DeviceOrderingEvent in DeviceOrderingEvent::Completion) {
+    machine acquire(dma_harness: &DmaHarness, completion: DeviceOrderingEvent in DeviceOrderingEvent::Completion) {
         let acquired: DeviceAcquisitionAttempt = DeviceLoanProvider::acquire(completion);
         transition acquired {
             DeviceAcquisitionAttempt::Acquired { extent } -> release(dma_harness, extent)
             DeviceAcquisitionAttempt::Pending { completion } -> acquire(dma_harness, completion)
         }
     }
-    state release(dma_harness: &DmaHarness, restored: Extent in Granted) {
+    machine release(dma_harness: &DmaHarness, restored: Extent in Granted) {
         DeviceLoanProvider::release(restored);
     }
 }
@@ -155,21 +155,21 @@ reaches DeviceLoanProvider
         DeviceCompletionAttempt::Pending { loan } -> retry(dma_harness, loan)
     }
 
-    state retry(dma_harness: &DmaHarness, pending: DeviceLoan) {
+    machine retry(dma_harness: &DmaHarness, pending: DeviceLoan) {
         let retry: DeviceCompletionAttempt = DeviceLoanProvider::complete(pending);
         transition retry {
             DeviceCompletionAttempt::Completed { completion } -> acquire(dma_harness, completion)
             DeviceCompletionAttempt::Pending { loan } -> retry(dma_harness, loan)
         }
     }
-    state acquire(dma_harness: &DmaHarness, completion: DeviceOrderingEvent in DeviceOrderingEvent::Completion) {
+    machine acquire(dma_harness: &DmaHarness, completion: DeviceOrderingEvent in DeviceOrderingEvent::Completion) {
         let acquired: DeviceAcquisitionAttempt = DeviceLoanProvider::acquire(completion);
         transition acquired {
             DeviceAcquisitionAttempt::Acquired { extent } -> release(dma_harness, extent)
             DeviceAcquisitionAttempt::Pending { completion } -> acquire(dma_harness, completion)
         }
     }
-    state release(dma_harness: &DmaHarness, restored: Extent in Granted) {
+    machine release(dma_harness: &DmaHarness, restored: Extent in Granted) {
         DeviceLoanProvider::release(restored);
     }
 }

@@ -1,1 +1,1 @@
-RETAIN_1.0 { global: retention_acquire; retention_register; retention_complete; retention_release; local: *; };
+RETAIN_1.0 { global: retention_acquire; retention_register; retention_complete; retention_release; retention_same; local: *; };

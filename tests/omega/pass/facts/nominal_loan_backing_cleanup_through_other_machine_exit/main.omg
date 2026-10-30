@@ -79,18 +79,18 @@ reaches Console
 }
 machine report(room: &mut Room) reaches Console crashes Trap {
  transition room.count == 10 { true -> seen() false -> bad() }
- state seen() { Console::write_byte(79); }
- state bad() { crash Trap; }
+ machine seen() { Console::write_byte(79); }
+ machine bad() { crash Trap; }
 }
 machine scope() reaches Console crashes Trap {
  let room: Room = Room { count: 10 };
  transition { _ -> observe(&mut room) }
- state observe(room: &mut Room) {
+ machine observe(room: &mut Room) {
   report(room);
   transition room.count == 10 { true -> seen() false -> bad() }
  }
- state seen() {}
- state bad() { crash Trap; }
+ machine seen() {}
+ machine bad() { crash Trap; }
 
 }
 data Main {}

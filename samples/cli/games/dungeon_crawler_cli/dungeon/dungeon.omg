@@ -54,7 +54,7 @@ machine Dungeon::use_event(
         _ -> no_usable_event(line)
     }
 
-    state try_take_treasure(
+    machine try_take_treasure(
         dungeon: &mut Dungeon,
         line: &mut TextBuffer
     ) {
@@ -64,7 +64,7 @@ machine Dungeon::use_event(
         }
     }
 
-    state take_treasure(
+    machine take_treasure(
         dungeon: &mut Dungeon,
         line: &mut TextBuffer
     ) {
@@ -73,7 +73,7 @@ machine Dungeon::use_event(
         TextBuffer::set(line, "You take the treasure.");
     }
 
-    state try_use_fountain(
+    machine try_use_fountain(
         dungeon: &mut Dungeon,
         line: &mut TextBuffer
     ) {
@@ -83,7 +83,7 @@ machine Dungeon::use_event(
         }
     }
 
-    state use_fountain(
+    machine use_fountain(
         dungeon: &mut Dungeon,
         line: &mut TextBuffer
     ) {
@@ -92,7 +92,7 @@ machine Dungeon::use_event(
         TextBuffer::set(line, "The fountain heals your wounds.");
     }
 
-    state try_take_gold(
+    machine try_take_gold(
         dungeon: &mut Dungeon,
         line: &mut TextBuffer
     ) {
@@ -102,7 +102,7 @@ machine Dungeon::use_event(
         }
     }
 
-    state take_gold(
+    machine take_gold(
         dungeon: &mut Dungeon,
         line: &mut TextBuffer
     ) {
@@ -111,7 +111,7 @@ machine Dungeon::use_event(
         TextBuffer::set(line, "You collect the loose gold.");
     }
 
-    state no_usable_event(line: &mut TextBuffer) {
+    machine no_usable_event(line: &mut TextBuffer) {
         TextBuffer::set(line, "There is nothing here to use.");
     }
 }
@@ -127,7 +127,7 @@ machine Dungeon::fight(
         _ -> no_enemy(line)
     }
 
-    state try_defeat_enemy(
+    machine try_defeat_enemy(
         dungeon: &mut Dungeon,
         line: &mut TextBuffer
     ) {
@@ -137,7 +137,7 @@ machine Dungeon::fight(
         }
     }
 
-    state defeat_enemy(
+    machine defeat_enemy(
         dungeon: &mut Dungeon,
         line: &mut TextBuffer
     ) {
@@ -147,7 +147,7 @@ machine Dungeon::fight(
         TextBuffer::set(line, "The enemy collapses. You find a little gold.");
     }
 
-    state no_enemy(line: &mut TextBuffer) {
+    machine no_enemy(line: &mut TextBuffer) {
         TextBuffer::set(line, "There is no enemy here.");
     }
 }

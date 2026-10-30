@@ -109,6 +109,8 @@ fn lower_statement_node(
             )?;
             let expression = lowerer.typed_trees.expression_table.insert(
                 typed::expression::ExpressionNode::Call(typed::expression::TableCallExpression {
+                    authored_call_selection: call.authored_call_selection,
+                    authored_call_binding: None,
                     authored_machine_application: Default::default(),
                     exact_coercion_target: Default::default(),
                     requirement_application: Default::default(),
@@ -122,7 +124,7 @@ fn lower_statement_node(
                     private_layout_operation: None,
                     layout_query: None,
                     native_code_layout: Some(request),
-                    root_binding: Default::default(),
+                    build_selection: Default::default(),
                     arguments: Default::default(),
                     evidence_arguments: Box::default(),
                     operational_acknowledgement: call.operational_acknowledgement,
@@ -138,9 +140,7 @@ fn lower_statement_node(
                 .set_source_span(expression, call.target.source_span());
             Ok(typed::statement::StatementNode::Expression(expression))
         }
-        resolved::statement::StatementNode::Call(call) => Ok(
-            typed::statement::StatementNode::Call(lower_call_statement(lowerer, call)?),
-        ),
+        resolved::statement::StatementNode::Call(call) => lower_call_statement(lowerer, call),
         resolved::statement::StatementNode::ProofOutputBindingStatement(_) => {
             unreachable!("evidence packages are classified out before runtime statement lowering")
         }
@@ -175,7 +175,7 @@ fn lower_statement_node(
             let type_reference = if declared_is_unit
                 && local_data.initial_value.is_valid()
                 && local_data.type_is_inferred
-                && local_data.role == language_core::LocalBindingRole::Value
+                && local_data.role.has_ordinary_initializer()
             {
                 infer_hoist_temp_type(lowerer, attached_data, state, local_data.initial_value)?
             } else {

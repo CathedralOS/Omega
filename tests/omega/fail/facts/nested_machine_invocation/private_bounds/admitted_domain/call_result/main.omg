@@ -1,0 +1,20 @@
+// Every private arrival carries index < table.bytes.len, so the helper can read table.bytes[index].
+// Expected exit: 0
+data Table [copy] where count <= 4 { bytes: [u8; 4]; count: u64; canary: u64; }
+machine lookup(table: &Table, index: u64 in Trapping) -> u8 {
+    transition index <= table.count { true -> read(table, index) false -> (0) }
+    machine read(table: &Table, index: u64 in Trapping) -> u8 { table.bytes[index] }
+}
+machine seed() -> Table { Table { bytes: [11, 23, 37, 41], count: 4, canary: 33 } }
+machine main() crashes Trap {
+    let table: Table = seed();
+    let empty: Table = Table { bytes: [5,6,7,8], count: 0, canary: 19 };
+    let first: u8 = lookup(&table, 2);
+    let last: u8 = lookup(&table, 3);
+    let outside: u8 = lookup(&table, 4);
+    let absent: u8 = lookup(&empty, 0);
+    transition first == 37 && last == 41 && outside == 0 && absent == 0 && table.canary == 33 && empty.canary == 19 {
+        true -> {} false -> bad()
+    }
+    machine bad() crashes Trap { crash Trap; }
+}

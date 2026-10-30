@@ -22,7 +22,7 @@ machine reconstruct_through_state(result: Outcome) -> Outcome {
         Outcome::Error { kind } -> forwarded(kind)
         Outcome::Ok -> Outcome::Ok
     }
-    state forwarded(kind: Kind) -> Outcome { Outcome::Error { kind: kind } }
+    machine forwarded(kind: Kind) -> Outcome { Outcome::Error { kind: kind } }
 }
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
@@ -31,33 +31,33 @@ machine Main::main(main: &mut Main) reaches Console {
         Outcome::Error { kind } -> verify(main, kind)
         Outcome::Ok -> fail(main)
     }
-    state verify(main: &mut Main, kind: Kind) {
+    machine verify(main: &mut Main, kind: Kind) {
         transition kind { Kind::NotFound -> record(main) _ -> fail(main) }
     }
-    state record(main: &mut Main) {
+    machine record(main: &mut Main) {
         let wrapped: Wrapped = wrap(Outcome::Error { kind: Kind::NotFound });
         transition wrapped.kind { Kind::NotFound -> forwarded(main) _ -> fail(main) }
     }
-    state forwarded(main: &mut Main) {
+    machine forwarded(main: &mut Main) {
         let result: Outcome = reconstruct_through_state(Outcome::Error { kind: Kind::NotFound });
         transition result { Outcome::Error { kind } -> forwarded_kind(main, kind) _ -> fail(main) }
     }
-    state forwarded_kind(main: &mut Main, kind: Kind) {
+    machine forwarded_kind(main: &mut Main, kind: Kind) {
         transition kind { Kind::NotFound -> other(main) _ -> fail(main) }
     }
-    state other(main: &mut Main) {
+    machine other(main: &mut Main) {
         let result: Outcome = reconstruct(Outcome::Error { kind: Kind::Other });
         transition result { Outcome::Error { kind } -> other_kind(main, kind) _ -> fail(main) }
     }
-    state other_kind(main: &mut Main, kind: Kind) {
+    machine other_kind(main: &mut Main, kind: Kind) {
         transition kind { Kind::Other -> empty(main) _ -> fail(main) }
     }
-    state empty(main: &mut Main) {
+    machine empty(main: &mut Main) {
         let result: Outcome = reconstruct(Outcome::Ok);
         transition result { Outcome::Ok -> finish(main) _ -> fail(main) }
     }
-    state finish(main: &mut Main) { Console::exit_process(70); }
-    state fail(main: &mut Main) { Console::exit_process(71); }
+    machine finish(main: &mut Main) { Console::exit_process(70); }
+    machine fail(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

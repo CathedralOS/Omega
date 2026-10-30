@@ -1,0 +1,11 @@
+// A file name does not declare a logical module.
+use routines;
+machine probe(value: u64) -> u64 requires value > 0; {
+    transition { _ -> routines::entry(value) }
+}
+machine main() crashes Trap {
+    let first: u64 = probe(7);
+    let second: u64 = probe(9);
+    transition first == 7 && second == 9 { true -> done() false -> bad() }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}

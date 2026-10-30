@@ -1,0 +1,26 @@
+// Every private arrival carries a positive value, so the helper can form value - 1.
+data Storage { touched: u64; canary: u64; }
+data Note { value: u64; tag: u64; }
+const FIRST: u64 = 7;
+const SECOND: u64 = 9;
+machine probe(select: bool, output: &mut Storage) -> Note {
+    transition select {
+        true -> apply(FIRST, select, output)
+        false -> apply(0, select, output)
+    }
+    machine apply(value: u64, select: bool, output: &mut Storage) -> Note {
+        output.touched = 5;
+        let result: u64 = value - 1;
+        let tag: u64 = match select { true -> 11, false -> 13 };
+        Note { value: result, tag: tag }
+    }
+}
+machine main() crashes Trap {
+    let mut output: Storage = Storage { touched: 0, canary: 33 };
+    let first: Note = probe(true, &mut output);
+    let second: Note = probe(false, &mut output);
+    transition output.touched == 5 && output.canary == 33 && first.value == 6 && first.tag == 11 && second.value == 8 && second.tag == 13 {
+        true -> done() false -> bad()
+    }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}

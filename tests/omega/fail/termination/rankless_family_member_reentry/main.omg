@@ -3,5 +3,5 @@ macos_arm64 machine selected() -> u32 { 37 }
 linux_x86_64 machine selected() -> u32 { count(0) }
 machine count(remaining: u32) terminates by remaining; -> u32 {
     transition remaining > 0 { true -> count(remaining - 1) false -> finish() }
-    state finish() -> u32 { selected() }
+    machine finish() -> u32 { selected() }
 }

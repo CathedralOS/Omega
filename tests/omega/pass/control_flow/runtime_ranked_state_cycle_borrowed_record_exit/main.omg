@@ -14,7 +14,7 @@ requires remaining <= 5
         true -> step(remaining - 1, tally)
         false -> finish(tally)
     }
-    state step(left: u32, counted: &mut Tally)
+    machine step(left: u32, counted: &mut Tally)
     requires left <= 5
     {
         counted.count = (left as u64) * 10 + 5;
@@ -23,7 +23,7 @@ requires remaining <= 5
             false -> finish(counted)
         }
     }
-    state finish(done: &mut Tally) {}
+    machine finish(done: &mut Tally) {}
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -32,8 +32,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         false -> bad(main)
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(1); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

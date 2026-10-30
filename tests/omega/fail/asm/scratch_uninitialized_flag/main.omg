@@ -8,6 +8,6 @@ done:
  mov output, eax
  }
  transition output == 0 { true -> done() false -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }

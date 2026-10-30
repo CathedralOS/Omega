@@ -6,10 +6,8 @@
 use super::Aarch64SelectedFormEncodingError;
 use register_model::RegisterConstraintKey;
 use selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedEffects, MachineEncodedTrapBehavior,
-    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
+    MachineAlternativeFamily, MachineBarrier, MachineEffectDeclaration, MachineEncodedEffects,
+    MachineEncodedTrapBehavior, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
     MachineTrapBehavior, RegisterOperation, SystemRegister,
 };
 
@@ -47,33 +45,24 @@ pub(crate) fn declaration(
     read: bool,
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
-        semantic: if read {
+    MachineEffectDeclaration::single(
+        if read {
             MachineSemanticKind::SystemRegisterRead
         } else {
             MachineSemanticKind::SystemRegisterWrite
         },
         constraint,
-        memory: MachineMemoryEffect::NoneV1,
-        trap: MachineTrapBehavior::MayArchitecturalFaultV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: if read {
-                    MachineAlternativeFamily::SystemRegisterRead
-                } else {
-                    MachineAlternativeFamily::SystemRegisterWrite
-                },
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(4),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(read),
-        }],
-    }
+        MachineMemoryEffect::NoneV1,
+        MachineTrapBehavior::MayArchitecturalFaultV1,
+        MachineBarrier::ExternalEffect,
+        if read {
+            MachineAlternativeFamily::SystemRegisterRead
+        } else {
+            MachineAlternativeFamily::SystemRegisterWrite
+        },
+        MachineSizeKnowledge::ExactBytes(4),
+        effects(read),
+    )
 }
 
 pub(crate) fn encode(
@@ -142,7 +131,7 @@ pub(crate) fn decode(word: u32) -> Option<(RegisterOperation, u8)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use selected_instructions::SelectedInstructionKind;
+    use selected_instructions::{MachineAlternativeKey, SelectedInstructionKind};
 
     #[test]
     fn system_register_transfers_match_llvm_and_reject_changed_instruction_fields() {

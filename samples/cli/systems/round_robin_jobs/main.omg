@@ -37,7 +37,7 @@ terminates by remaining;
 requires remaining <= 5
 {
     transition { _ -> cycle(first, second, remaining) }
-    state cycle(current: Job, waiting: Job, left: u32) -> u32
+    machine cycle(current: Job, waiting: Job, left: u32) -> u32
     requires left <= 5
     {
         let returned: Job = hand_over(current);
@@ -53,7 +53,7 @@ terminates by remaining;
 requires remaining > 0 && remaining <= 5
 {
     transition { _ -> cycle(first, second, remaining) }
-    state cycle(current: &mut Worker, waiting: &mut Worker, left: u32)
+    machine cycle(current: &mut Worker, waiting: &mut Worker, left: u32)
     requires left > 0 && left <= 5
     {
         current.last_round = left;
@@ -62,7 +62,7 @@ requires remaining > 0 && remaining <= 5
             false -> done()
         }
     }
-    state done() {}
+    machine done() {}
 }
 
 machine main() crashes Trap {
@@ -85,6 +85,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

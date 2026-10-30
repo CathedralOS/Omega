@@ -272,6 +272,7 @@ impl Expansion<'_> {
                 | CheckedScalarComputationKind::Value(_)
                 | CheckedScalarComputationKind::StructuralField { .. }
                 | CheckedScalarComputationKind::CaseMembership { .. }
+                | CheckedScalarComputationKind::WithOperands { .. }
                 | CheckedScalarComputationKind::Select { .. }
                 | CheckedScalarComputationKind::Dispatch { .. }
                 | CheckedScalarComputationKind::Call { .. } => {}

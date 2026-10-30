@@ -1,0 +1,37 @@
+// Each completed wrapping child retains its policy and bounded result through the outer sum.
+// Expected exit: 0
+data Window { bytes: [u8; 512]; offset: u64 in Wrapping; index: u64 in Wrapping; canary: u64; }
+machine probe(window: &mut Window, enabled: bool) -> u8 {
+    let ready: bool = window.offset < 495;
+    transition enabled && ready { true -> read(window) false -> 0 }
+    machine read(window: &mut Window) -> u8 {
+        window.index = (window.offset + 8) + 9;
+        window.bytes[window.index]
+    }
+}
+machine main() crashes Trap {
+    let mut window: Window;
+    window.canary = 33;
+    window.bytes[511] = 37;
+    window.bytes[17] = 11;
+    window.offset = 494;
+    let value_0: u8 = probe(&mut window, true);
+    let index_0: u64 in Wrapping = window.index;
+    window.offset = 0;
+    let value_1: u8 = probe(&mut window, true);
+    let index_1: u64 in Wrapping = window.index;
+    window.offset = 495;
+    let value_2: u8 = probe(&mut window, true);
+    let index_2: u64 in Wrapping = window.index;
+    window.offset = 18446744073709551615;
+    let value_3: u8 = probe(&mut window, true);
+    let index_3: u64 in Wrapping = window.index;
+    window.offset = 494;
+    let value_4: u8 = probe(&mut window, false);
+    let index_4: u64 in Wrapping = window.index;
+    transition value_0 == 37 && index_0 == 511 && value_1 == 11 && index_1 == 17 && value_2 == 0 && index_2 == 17 && value_3 == 0 && index_3 == 17 && value_4 == 0 && index_4 == 17 && window.canary == 33 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

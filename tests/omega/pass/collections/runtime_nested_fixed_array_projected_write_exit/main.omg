@@ -18,8 +18,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> passed()
         false -> failed()
     }
-    state passed() { Console::exit_process(70); }
-    state failed() { Console::exit_process(77); }
+    machine passed() { Console::exit_process(70); }
+    machine failed() { Console::exit_process(77); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

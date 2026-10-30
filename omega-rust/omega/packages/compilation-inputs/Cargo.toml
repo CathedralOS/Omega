@@ -9,6 +9,8 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+compiler-storage = { path = "../../../psi/foundation/compiler-storage" }
+language-semantics = { path = "../../../psi/foundation/language-semantics" }
 cap-fs-ext = "4.0.3"
 cap-std = "4.0.3"
 package-source = { path = "../source-acquisition" }
@@ -28,7 +30,6 @@ effects = { path = "../../compilation/backend/plans/provider-evidence" }
 target = { path = "../../compilation/backend/target" }
 checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
 build-time-evaluation = { path = "../../../psi/compilation/compile-time" }
-checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 filesystem-authority = { path = "../../../psi/foundation/filesystem-authority" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }

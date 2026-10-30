@@ -7,6 +7,6 @@ machine main() crashes Trap {
     let ticket: Ticket = issue();
     let observed: u64 = read(forward(ticket));
     transition observed == 73 { true -> done() _ -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -1,0 +1,8 @@
+{
+  "workload_revision": "f8f4b83177c969d3bdc95256f8ab28be98bdefad",
+  "original_main_sha256": "4ac5a421a4f12d66a8ae658a98ce5e12ec9c2159a7a8a382ee7da38bf26a1b4b",
+  "migrated_main_sha256": "b43b18e7759dfe0a3701105fcc70de58db03e5875ea4808a161f420d00c8f4ad",
+  "migration": "18 required block acknowledgements only",
+  "producer_rust_revision": "12e446dac0026ed89e85cf7d2517e3b7311fdb42",
+  "baseline_revision": "ad7c6890a8971c1609006e1965ba4e4626f30591"
+}

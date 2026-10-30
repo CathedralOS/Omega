@@ -3,7 +3,7 @@
 machine count(values: &[u8], other: &[u8]) -> u64
 ensures result <= values.len {
     transition { _ -> later(values, other) }
-    state later(mut values: &[u8], other: &[u8]) -> u64 {
+    machine later(mut values: &[u8], other: &[u8]) -> u64 {
         values = other;
         values.len
     }

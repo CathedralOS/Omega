@@ -12,10 +12,10 @@ ensures result == 0u64
         true -> ok(diff)
         _ -> bad()
     }
-    state ok(d: u64) {
+    machine ok(d: u64) -> u64 {
         d
     }
-    state bad() {
+    machine bad() -> u64 {
         crash Trap;
     }
 }
@@ -25,7 +25,7 @@ machine main() crashes Trap {
     transition {
         _ -> step(bytes)
     }
-    state step(forwarded: &[u8])
+    machine step(forwarded: &[u8])
     requires forwarded.len >= 5u64 && forwarded.len <= 5u64
     {
         transition inspect_bytes(forwarded) == 0 {
@@ -33,6 +33,6 @@ machine main() crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

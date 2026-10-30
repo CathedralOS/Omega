@@ -11,27 +11,27 @@ data Context { }
 machine main(context: &mut Context) reaches Console {
     transition { _ -> prepare(context) }
 
-    state prepare(context: &mut Context) {
+    machine prepare(context: &mut Context) {
         let mut stream: Stream;
         stream.values[0] = 3;
         stream.values[1] = 4;
         stream.count = 2;
         transition { _ -> scan(context, &stream) }
     }
-    state scan(context: &mut Context, stream: &Stream) {
+    machine scan(context: &mut Context, stream: &Stream) {
         transition stream.count == 2 {
             true -> compare(context, stream, stream)
             _ -> bad(context)
         }
     }
-    state compare(context: &mut Context, left: &Stream, right: &Stream) {
+    machine compare(context: &mut Context, left: &Stream, right: &Stream) {
         transition left.values[0] == 3 && right.values[1] == 4 {
             true -> good(context)
             _ -> bad(context)
         }
     }
-    state good(context: &mut Context) { Console::exit_process(70); }
-    state bad(context: &mut Context) { Console::exit_process(71); }
+    machine good(context: &mut Context) { Console::exit_process(70); }
+    machine bad(context: &mut Context) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

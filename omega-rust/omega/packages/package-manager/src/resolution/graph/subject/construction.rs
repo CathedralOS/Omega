@@ -10,9 +10,9 @@ use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedSourceId
 use crate::resolution::source::PackageSourceNavigation;
 use target::TargetProfile;
 
-use super::encoding::{encode_subject_with_budget, fingerprint};
+use super::encoding::{encode_subject, fingerprint};
 use super::usage::Budget;
-use super::validation::{canonical_root_request, validate_subject_with_budget};
+use super::validation::{canonical_root_request, validate_subject};
 
 impl CanonicalSourceClosureSubject {
     /// Recheck caller limits over retained typed fields without recovering or
@@ -27,18 +27,30 @@ impl CanonicalSourceClosureSubject {
                 "source-closure subject exceeds its record-byte limit",
             ));
         }
-        validate_subject_with_budget(
+        let mut budget = Budget::new(usize::MAX);
+        validate_subject(
             &self.root,
             &self.packages,
             &self.package_navigations,
             &self.package_dependency_projections,
             &self.dependency_requests,
             limits,
-            &mut Budget::new(usize::MAX),
-        )
+            &mut budget,
+        )?;
+        super::catalog::validate(self, &self.catalog_dependencies, limits, &mut budget)
     }
 
     pub(crate) fn from_resolved(
+        target_closure: &ExactTargetPackageSourceClosure<'_>,
+        limits: CanonicalSourceClosureSubjectLimits,
+    ) -> Result<Self, CanonicalSourceClosureSubjectError> {
+        let limits = limits.compiler_bounded();
+        let subject = Self::from_resolved_without_catalog(target_closure, limits)?;
+        let dependencies = super::catalog::project(target_closure, limits)?;
+        subject.with_catalog_dependencies(dependencies, limits, &mut Budget::new(usize::MAX))
+    }
+
+    pub(super) fn from_resolved_without_catalog(
         target_closure: &ExactTargetPackageSourceClosure<'_>,
         limits: CanonicalSourceClosureSubjectLimits,
     ) -> Result<Self, CanonicalSourceClosureSubjectError> {
@@ -94,39 +106,8 @@ impl CanonicalSourceClosureSubject {
                 .then(left.purpose.cmp(&right.purpose))
                 .then(left.dependency_index.cmp(&right.dependency_index))
         });
-        Self::finish_with_projections(
+        Self::finish(
             target_closure.target_profile(),
-            root,
-            packages,
-            package_navigations,
-            package_dependency_projections,
-            dependency_requests,
-            limits,
-        )
-    }
-
-    /// Require a recovered subject to equal a fresh projection from the exact
-    /// current resolver custody. Decode or fingerprint equality alone is never
-    /// enough for this comparison.
-    pub(crate) fn matches_resolved(
-        &self,
-        target_closure: &ExactTargetPackageSourceClosure<'_>,
-        limits: CanonicalSourceClosureSubjectLimits,
-    ) -> Result<bool, CanonicalSourceClosureSubjectError> {
-        Ok(self == &Self::from_resolved(target_closure, limits)?)
-    }
-
-    pub(super) fn finish_with_projections(
-        target_profile: TargetProfile,
-        root: CanonicalRootSourceSelection,
-        packages: Vec<ResolvedSourceIdentity>,
-        package_navigations: Vec<PackageSourceNavigation>,
-        package_dependency_projections: Vec<DependencyProjections>,
-        dependency_requests: Vec<CanonicalDependencySourceSelection>,
-        limits: CanonicalSourceClosureSubjectLimits,
-    ) -> Result<Self, CanonicalSourceClosureSubjectError> {
-        Self::finish_with_budget(
-            target_profile,
             root,
             packages,
             package_navigations,
@@ -137,7 +118,7 @@ impl CanonicalSourceClosureSubject {
         )
     }
 
-    pub(super) fn finish_with_budget(
+    pub(super) fn finish(
         target_profile: TargetProfile,
         root: CanonicalRootSourceSelection,
         packages: Vec<ResolvedSourceIdentity>,
@@ -148,7 +129,7 @@ impl CanonicalSourceClosureSubject {
         budget: &mut Budget,
     ) -> Result<Self, CanonicalSourceClosureSubjectError> {
         let limits = limits.compiler_bounded();
-        validate_subject_with_budget(
+        validate_subject(
             &root,
             &packages,
             &package_navigations,
@@ -157,21 +138,17 @@ impl CanonicalSourceClosureSubject {
             limits,
             budget,
         )?;
-        let canonical_bytes = encode_subject_with_budget(
+        let canonical_bytes = encode_subject(
             target_profile,
             &root,
             &packages,
             &package_navigations,
             &package_dependency_projections,
             &dependency_requests,
+            &[],
             limits,
             budget,
         )?;
-        if canonical_bytes.len() > limits.maximum_record_bytes {
-            return Err(CanonicalSourceClosureSubjectError::new(
-                "source-closure subject exceeds its record-byte limit",
-            ));
-        }
         let fingerprint = fingerprint(&canonical_bytes);
         Ok(Self {
             target_profile,
@@ -180,8 +157,36 @@ impl CanonicalSourceClosureSubject {
             package_navigations,
             package_dependency_projections,
             dependency_requests,
+            catalog_dependencies: Vec::new(),
             canonical_bytes,
             fingerprint,
         })
+    }
+
+    pub(super) fn with_catalog_dependencies(
+        mut self,
+        dependencies: Vec<super::CanonicalCatalogDependency>,
+        limits: CanonicalSourceClosureSubjectLimits,
+        budget: &mut Budget,
+    ) -> Result<Self, CanonicalSourceClosureSubjectError> {
+        super::catalog::validate(&self, &dependencies, limits, budget)?;
+        if dependencies.is_empty() {
+            return Ok(self);
+        }
+        let bytes = encode_subject(
+            self.target_profile,
+            &self.root,
+            &self.packages,
+            &self.package_navigations,
+            &self.package_dependency_projections,
+            &self.dependency_requests,
+            &dependencies,
+            limits,
+            budget,
+        )?;
+        self.fingerprint = fingerprint(&bytes);
+        self.canonical_bytes = bytes;
+        self.catalog_dependencies = dependencies;
+        Ok(self)
     }
 }

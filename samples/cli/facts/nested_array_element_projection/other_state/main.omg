@@ -10,7 +10,7 @@ machine read_and_sub(row: Row, idx: u64) -> u64
 requires idx < 4 && row.cells[idx] <= 80
 {
     transition { _ -> compute(row, idx) }
-    state compute(r: Row, i: u64) -> u64
+    machine compute(r: Row, i: u64) -> u64
     requires i < 4 && r.cells[i] <= 80
     {
         let elem: u64 = r.cells[i];
@@ -31,13 +31,13 @@ machine main() crashes Trap {
         true -> run(row)
         _ -> bad()
     }
-    state run(r: Row) {
+    machine run(r: Row) {
         let spare: u64 = probe(r, 2);
         transition spare == 30 {
             true -> done()
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

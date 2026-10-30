@@ -3,8 +3,8 @@
 use crate::{
     AbstractAtomicEvent, AbstractBoundaryResult, AbstractCallTarget, AbstractResult,
     AbstractStructuralCallResult, AbstractStructuralCaseSuccessor, AbstractSuccessor,
-    AtomicModificationAfter, AtomicReadsFrom, CompletionClaimSource, IntegerArithmetic,
-    IntegerArithmeticOperator, ValueBinding,
+    AtomicResidencyEdge, CompletionClaimSource, IntegerArithmetic, IntegerArithmeticOperator,
+    ValueBinding,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType,
@@ -26,6 +26,20 @@ pub struct StructuralStorageDeclaration {
     pub structural_type: semantic_vocabulary::StructuralTypeId,
     pub access: terminal_psi::StructuralAccess,
     pub multiplicity: terminal_psi::StructuralMultiplicity,
+}
+
+/// Input-only projection shared by returning and no-normal module calls.
+/// The real operation or edge retains identity; no result shape is invented
+/// merely to reuse entry, transfer or proof correspondence.
+#[derive(Clone, Copy)]
+pub struct ModuleInvocation<'a> {
+    pub site: semantic_vocabulary::InvocationSite,
+    pub callee: MachineId,
+    pub arguments: &'a [ValueId],
+    pub structural_arguments: &'a [StructuralArgument],
+    pub claim_transfers: &'a [ClaimTransfer],
+    pub requirement_obligations: &'a [semantic_vocabulary::ObligationId],
+    pub crash_continuations: &'a [CrashRouteBucket],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -407,8 +421,8 @@ pub enum AbstractOperation {
         event: AbstractAtomicEvent,
         /// Distinct atomic resident establishment, retained through refinements.
         resident_obligation: Option<semantic_vocabulary::ObligationId>,
-        reads_from: Option<AtomicReadsFrom>,
-        modification_after: Option<AtomicModificationAfter>,
+        reads_from: Option<AtomicResidencyEdge>,
+        modification_after: Option<AtomicResidencyEdge>,
     },
     /// Atomically establish one exact case of a declared structural sum from
     /// scalar values and whole owned structural payloads.
@@ -786,6 +800,17 @@ pub enum AbstractOperation {
         source: PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
     },
+    /// An ordinary module invocation with no normal result or continuation.
+    /// The declared callee ABI remains independent of result custody.
+    InvokeNoNormal {
+        psi_edge: EdgeId,
+        callee: MachineId,
+        arguments: Vec<ValueId>,
+        structural_arguments: Vec<StructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
     /// An external invocation that settles the activation without a successor.
     /// Data arguments and the authored frontier retain the completion edge,
     /// independently of ordinary operation identity.
@@ -808,6 +833,107 @@ pub enum AbstractOperation {
 }
 
 impl AbstractOperation {
+    pub fn module_invocation(&self) -> Option<ModuleInvocation<'_>> {
+        let (
+            site,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        ) = match self {
+            Self::Call {
+                psi_operation,
+                callee,
+                arguments,
+                requirement_obligations,
+                crash_continuations,
+                ..
+            } => (
+                (*psi_operation).into(),
+                *callee,
+                arguments.as_slice(),
+                &[][..],
+                &[][..],
+                requirement_obligations.as_slice(),
+                crash_continuations.as_slice(),
+            ),
+            Self::CallStructural {
+                psi_operation,
+                callee: AbstractCallTarget::Machine(callee),
+                arguments,
+                structural_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+                ..
+            } => (
+                (*psi_operation).into(),
+                *callee,
+                arguments.as_slice(),
+                structural_arguments.as_slice(),
+                claim_transfers.as_slice(),
+                requirement_obligations.as_slice(),
+                crash_continuations.as_slice(),
+            ),
+            Self::InvokeNoNormal {
+                psi_edge,
+                callee,
+                arguments,
+                structural_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            } => (
+                semantic_vocabulary::InvocationSite::InvokeNoNormal(*psi_edge),
+                *callee,
+                arguments.as_slice(),
+                structural_arguments.as_slice(),
+                claim_transfers.as_slice(),
+                requirement_obligations.as_slice(),
+                crash_continuations.as_slice(),
+            ),
+            _ => return None,
+        };
+        Some(ModuleInvocation {
+            site,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        })
+    }
+
+    /// The structural arguments this operation hands to another activation:
+    /// the exact caller-local places a direct, dynamic, boundary or no-normal
+    /// call passes, in Terminal call order. Establishment rows that merely
+    /// share the field name (`EstablishStructuralArray`) are not invocations
+    /// and carry none here.
+    pub fn invocation_arguments(&self) -> &[StructuralArgument] {
+        match self {
+            Self::CallStructural {
+                structural_arguments,
+                ..
+            }
+            | Self::BoundaryCall {
+                structural_arguments,
+                ..
+            }
+            | Self::ExternalCompletion {
+                structural_arguments,
+                ..
+            }
+            | Self::InvokeNoNormal {
+                structural_arguments,
+                ..
+            } => structural_arguments,
+            _ => &[],
+        }
+    }
+
     /// Cleanup belongs to a selected semantic edge, not to the containing
     /// block. Enumerating these rosters does not execute conditional siblings.
     pub fn cleanup_rosters(
@@ -877,8 +1003,7 @@ impl AbstractOperation {
     }
 
     /// The owned structural transfer through `edge`: the successor target
-    /// and its bound structural arguments. Case successors bind scalar
-    /// payloads only, so they transfer nothing owned through this query.
+    /// and its bound structural arguments, independent of scalar payload capture.
     pub fn owned_transfer(
         &self,
         edge: EdgeId,
@@ -896,6 +1021,10 @@ impl AbstractOperation {
                 ..
             } => [when_true, when_false]
                 .into_iter()
+                .find(|successor| successor.psi_edge == edge)
+                .map(|successor| (successor.target, successor.structural_bindings.as_slice())),
+            Self::StructuralCase { cases, .. } => cases
+                .iter()
                 .find(|successor| successor.psi_edge == edge)
                 .map(|successor| (successor.target, successor.structural_bindings.as_slice())),
             _ => None,
@@ -1028,7 +1157,6 @@ impl AbstractOperation {
             | Self::WriteOnlyPrimitiveStore { path, .. }
             | Self::StructuralScalarFieldStore { path, .. }
             | Self::StructuralCaseMembership { path, .. }
-            | Self::StructuralCase { path, .. }
             | Self::StructuralByteSequenceFieldByteStore { path, .. }
             | Self::StructuralByteSequenceFieldStore { path, .. }
             | Self::StructuralByteViewFieldStore { path, .. }
@@ -1090,6 +1218,13 @@ impl AbstractOperation {
                 .chain(&when_false.structural_bindings)
                 .map(|binding| binding.argument.path.as_slice())
                 .collect(),
+            Self::StructuralCase { path, cases, .. } => std::iter::once(path.as_slice())
+                .chain(cases.iter().flat_map(|case| {
+                    case.structural_bindings
+                        .iter()
+                        .map(|binding| binding.argument.path.as_slice())
+                }))
+                .collect(),
             Self::EstablishReference { source, .. }
             | Self::EstablishPlacedReference { source, .. }
             | Self::EstablishElementView { source, .. }
@@ -1102,24 +1237,20 @@ impl AbstractOperation {
             Self::EstablishStructuralArray {
                 elements: structural_arguments,
                 ..
-            }
-            | Self::CallStructural {
-                structural_arguments,
-                ..
-            }
-            | Self::BoundaryCall {
-                structural_arguments,
-                ..
-            }
-            | Self::ExternalCompletion {
-                structural_arguments,
-                ..
             } => structural_arguments
                 .iter()
                 .map(|argument| argument.path.as_slice())
                 .collect(),
             _ => Vec::new(),
         };
+        // Invocations hand their structural arguments over in Terminal call
+        // order whatever form names the call; this is their only operand path
+        // roster, and non-invocations contribute none.
+        paths.extend(
+            self.invocation_arguments()
+                .iter()
+                .map(|argument| argument.path.as_slice()),
+        );
         // A terminator's cleanup invokes real receivers. Their selectors are
         // scalar uses even when no later store mentions the captured place.
         paths.extend(
@@ -1216,6 +1347,7 @@ impl AbstractOperation {
             | Self::ReturnUnit { .. }
             | Self::ReturnStructural { .. }
             | Self::ExternalCompletion { .. }
+            | Self::InvokeNoNormal { .. }
             | Self::Crash { .. } => None,
         }
     }
@@ -1391,7 +1523,10 @@ macro_rules! return_structural_or_crash_pattern {
 #[macro_export]
 macro_rules! call_structural_or_boundary_call_pattern {
     ($structural_arguments:ident) => {
-        $crate::AbstractOperation::CallStructural {
+        $crate::AbstractOperation::InvokeNoNormal {
+            $structural_arguments,
+            ..
+        } | $crate::AbstractOperation::CallStructural {
             $structural_arguments,
             ..
         } | $crate::AbstractOperation::BoundaryCall {

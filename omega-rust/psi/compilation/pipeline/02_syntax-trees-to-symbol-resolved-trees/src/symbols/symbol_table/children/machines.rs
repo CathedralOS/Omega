@@ -2,23 +2,19 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
 use super::insert_machine_type_parameter_children;
-use crate::symbols::symbol_table::names::{machine_symbol_seed, symbol_seed, type_parameter_seed};
+use crate::symbols::symbol_table::names::{parameter_seeds, symbol_seed, type_parameter_seeds};
 
 pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
     builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     machine_symbol: SymbolHandle,
     machine: &symbol_resolved_trees::machine::Machine,
-    ordinal: usize,
     has_sources: bool,
     sources: Option<&source::SourceMap>,
 ) {
     let machine_children = builder.insert_children(
         machine_symbol,
-        program
-            .machine_type_parameters(machine)
-            .iter()
-            .map(|parameter| type_parameter_seed(parameter, false, has_sources))
+        type_parameter_seeds(program.machine_type_parameters(machine), false, has_sources)
             .chain(machine.conformance_bounds.iter().map(|bound| {
                 symbol_seed(
                     SymbolKind::ConformanceParameter,
@@ -40,13 +36,6 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
                     .iter()
                     .map(|state| program.machine_state(*state))
                     .map(|state| symbol_seed(SymbolKind::State, &state.name, has_sources)),
-            )
-            .chain(
-                program
-                    .machines
-                    .iter()
-                    .filter(|nested| nested.lexical_parent == Some(ordinal))
-                    .map(|nested| machine_symbol_seed(nested, has_sources)),
             ),
     );
     let mut machine_children = SymbolTableBuilder::child_handles(machine_children);
@@ -88,24 +77,6 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
         if let Some(state_symbol) = machine_children.next() {
             let state = program.machine_state(*state);
             insert_state_symbol_children(builder, program, state_symbol, state, has_sources);
-        }
-    }
-    for (nested_ordinal, nested) in program
-        .machines
-        .iter()
-        .enumerate()
-        .filter(|(_, nested)| nested.lexical_parent == Some(ordinal))
-    {
-        if let Some(symbol) = machine_children.next() {
-            insert_machine_symbol_children(
-                builder,
-                program,
-                symbol,
-                nested,
-                nested_ordinal,
-                has_sources,
-                sources,
-            );
         }
     }
 }
@@ -195,9 +166,6 @@ fn insert_state_symbol_children(
 ) {
     builder.insert_children(
         state_symbol,
-        program
-            .state_parameters(state.parameters)
-            .iter()
-            .map(|parameter| symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)),
+        parameter_seeds(program.state_parameters(state.parameters), has_sources),
     );
 }

@@ -1,6 +1,6 @@
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProofFactKind {
     #[default]
     BoundedAssignment,
@@ -12,7 +12,7 @@ pub enum ProofFactKind {
     GuardedTransition,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProofObligationFact {
     pub kind: ProofFactKind,
     pub machine_symbol: SymbolHandle,
@@ -20,7 +20,7 @@ pub struct ProofObligationFact {
     pub owner: ProofObligationOwner,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProofObligationOwner {
     #[default]
     Unknown,
@@ -57,7 +57,7 @@ pub enum ProofObligationOwner {
 /// A completed integer assignment judgment, before the authored store occurs.
 /// Retains the exact source occurrence and range; deferred invariant windows
 /// and non-integer constraints confer no authority through this row.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedIntegerAssignmentDecision {
     /// This judgment establishes an atomic resident, not an ordinary store.
     pub atomic_resident: bool,

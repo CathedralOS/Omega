@@ -17,7 +17,7 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad(main)
     }
 
-    state check_literal(main: &mut Main) {
+    machine check_literal(main: &mut Main) {
         main.v = -5;
         transition main.v < 0 {
             true -> good(main)
@@ -25,11 +25,11 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

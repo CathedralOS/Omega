@@ -43,7 +43,7 @@ fn hook_sites(module: &terminal_psi::TerminalModule, machine: MachineId) -> Vec<
 fn exercise(artifact: &CanonicalTerminalArtifact) {
     let program = TerminalProgram::borrow(artifact.view());
     let module = artifact.semantic_module();
-    let terminal_psi::TargetMachineCallable::Machine(entry) = module.entry else {
+    let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry else {
         panic!("cleanup helper has an ordinary entry");
     };
     let cleanup_edges = module
@@ -144,6 +144,7 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
     assert_eq!(
         TerminalImportSignature::from(declaration),
         TerminalImportSignature {
+            normal_qualifications: Vec::new(),
             completion: terminal_psi::BoundaryCompletion::NormalReturn,
             scalar_parameters: vec![ScalarType::Integer(
                 IntegerType::new(IntegerSign::Signed, 32).unwrap()
@@ -161,6 +162,7 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags: None,
+            memory_ordering: None,
             entry: None,
             installation: None,
             host_imports: std::slice::from_ref(slot),

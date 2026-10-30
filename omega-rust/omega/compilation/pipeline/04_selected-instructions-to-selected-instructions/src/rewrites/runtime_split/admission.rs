@@ -225,27 +225,9 @@ pub(super) fn copy_row<'environment>(
     environment: &'environment ValidatedTargetRegisterEnvironment,
     victim: &VirtualRegister,
 ) -> Result<&'environment RegisterInstructionConstraint, RuntimeSplitError> {
-    let row = environment
-        .constraint(environment.selected_keys().copy_i64)
-        .ok_or(RuntimeSplitError::ConstraintMismatch)?;
-    let flexible = |operand: &register_model::RegisterOperandConstraint,
-                    access: RegisterOperandAccess| {
-        operand.access == access
-            && operand.class == victim.class
-            && operand.fixed_view.is_none()
-            && operand.tied_to.is_none()
-            && !operand.early_clobber
-    };
-    if row.operands.len() != 2
-        || !flexible(&row.operands[0], RegisterOperandAccess::Use)
-        || !flexible(&row.operands[1], RegisterOperandAccess::Def)
-        || !row.implicit_uses.is_empty()
-        || !row.implicit_defs.is_empty()
-        || !row.clobbers.is_empty()
-    {
-        return Err(RuntimeSplitError::ConstraintMismatch);
-    }
-    Ok(row)
+    crate::rewrites::integer_copy_row(environment, victim.class, victim.class, || {
+        RuntimeSplitError::ConstraintMismatch
+    })
 }
 
 pub(super) fn copy_instruction(

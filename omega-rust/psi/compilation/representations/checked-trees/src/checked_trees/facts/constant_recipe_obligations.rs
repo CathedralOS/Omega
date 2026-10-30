@@ -13,7 +13,7 @@ use typed_trees::TypedTrees;
 use typed_trees::constant_recipes::ConstantRecipeHandle;
 
 /// The relation a closed recipe value must satisfy.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum ConstantRecipeRequirement {
     /// `bound < recipe`: an index whose proven upper bound is `bound` reads
     /// inside the recipe extent.
@@ -22,26 +22,85 @@ pub enum ConstantRecipeRequirement {
     AtLeast(BigInt),
     /// `recipe <= bound`: a membership lower bound against an upper endpoint.
     AtMost(BigInt),
+    /// Both closed operands must independently form and agree in this target.
+    EqualRecipe(ConstantRecipeHandle),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ConstantRecipeObligation {
-    pub recipe: ConstantRecipeHandle,
-    pub requirement: ConstantRecipeRequirement,
-    pub source_span: source::SourceSpan,
+    owner: symbols::SymbolHandle,
+    /// Lexical scope of the operands, separate from the caller that owes the
+    /// relation. Invalid for genuinely unscoped type-position recipes.
+    recipe_owner: symbols::SymbolHandle,
+    recipe: ConstantRecipeHandle,
+    requirement: ConstantRecipeRequirement,
+    source_span: source::SourceSpan,
     /// The checked occurrence, for the refusal a closure reports.
-    pub description: String,
+    description: String,
+    discharged: bool,
 }
 
 impl ConstantRecipeObligation {
+    /// Retain an unproved target condition. Only successful discharge can
+    /// mark it publishable, and its subjects cannot mutate afterward.
+    pub fn retain(
+        owner: symbols::SymbolHandle,
+        recipe: ConstantRecipeHandle,
+        requirement: ConstantRecipeRequirement,
+        source_span: source::SourceSpan,
+        description: String,
+    ) -> Self {
+        Self {
+            owner,
+            recipe_owner: symbols::SymbolHandle::invalid(),
+            recipe,
+            requirement,
+            source_span,
+            description,
+            discharged: false,
+        }
+    }
+
+    pub fn owner(&self) -> symbols::SymbolHandle {
+        self.owner
+    }
+
+    pub fn with_recipe_owner(mut self, owner: symbols::SymbolHandle) -> Self {
+        self.recipe_owner = owner;
+        self
+    }
+
+    pub fn recipe_owner(&self) -> symbols::SymbolHandle {
+        self.recipe_owner
+    }
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    /// Both sides remain authored requirements. Publication cannot replace an
+    /// equality by a comparison against only the first observed operand.
+    pub fn recipe(&self) -> ConstantRecipeHandle {
+        self.recipe
+    }
+    pub fn requirement(&self) -> &ConstantRecipeRequirement {
+        &self.requirement
+    }
+
+    pub fn is_pending(&self) -> bool {
+        !self.discharged
+    }
+
     /// Discharge every obligation against the closure `program` carries.
     /// Rows are independent; every failure is reported.
     pub fn discharge_all(
-        obligations: &[Self],
+        obligations: &mut [Self],
         program: &TypedTrees,
     ) -> Result<(), Vec<Diagnostic>> {
+        for obligation in obligations.iter_mut() {
+            obligation.discharged = false;
+        }
         let mut diagnostics = Vec::new();
-        for obligation in obligations {
+        for obligation in obligations.iter() {
             let recipe = program.constant_recipes.get(obligation.recipe);
             let Some(value) = program.closed_constant_recipe_value(obligation.recipe) else {
                 diagnostics.push(
@@ -54,16 +113,32 @@ impl ConstantRecipeObligation {
                 );
                 continue;
             };
+            if let ConstantRecipeRequirement::EqualRecipe(other) = &obligation.requirement {
+                let other_value = program.closed_constant_recipe_value(*other);
+                if other_value != Some(value) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{}: contract endpoint equality requires both admitted recipe values to agree; selected values are {} and {:?}",
+                        obligation.description, value, other_value,
+                    )).with_source_span(obligation.source_span));
+                }
+                continue;
+            }
             let (holds, relation) = match &obligation.requirement {
                 ConstantRecipeRequirement::ExceedsBound(bound) => (bound < value, "<"),
                 ConstantRecipeRequirement::AtLeast(bound) => (bound <= value, "<="),
                 ConstantRecipeRequirement::AtMost(bound) => (value <= bound, ">="),
+                ConstantRecipeRequirement::EqualRecipe(_) => {
+                    unreachable!("handled both-recipe relation above")
+                }
             };
             if !holds {
                 let bound = match &obligation.requirement {
                     ConstantRecipeRequirement::ExceedsBound(bound)
                     | ConstantRecipeRequirement::AtLeast(bound)
                     | ConstantRecipeRequirement::AtMost(bound) => bound,
+                    ConstantRecipeRequirement::EqualRecipe(_) => {
+                        unreachable!("handled both-recipe relation above")
+                    }
                 };
                 diagnostics.push(
                     Diagnostic::error(format!(
@@ -80,6 +155,9 @@ impl ConstantRecipeObligation {
             }
         }
         if diagnostics.is_empty() {
+            for obligation in obligations {
+                obligation.discharged = true;
+            }
             Ok(())
         } else {
             Err(diagnostics)

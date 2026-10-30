@@ -11,6 +11,9 @@ use super::{
     ProvenanceRewrite, PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch,
     PsiRewriteWitness, ScalarSubstitution,
 };
+#[macro_use]
+mod rule_constructors;
+
 mod access;
 mod common_invariants;
 mod control_flow;

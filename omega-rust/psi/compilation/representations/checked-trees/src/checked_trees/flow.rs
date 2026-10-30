@@ -22,6 +22,7 @@ mod borrow_lifetimes;
 mod boundaries;
 mod contexts;
 mod control;
+mod descriptor_observations;
 mod invalidations;
 mod operand;
 mod storage;
@@ -55,12 +56,14 @@ pub use self::terminal::{
     CheckedControlResultPlan, CheckedDynamicClaimPath, CheckedDynamicSlotPlan, CheckedExtent,
     CheckedGuardedExitPlans, CheckedGuardedJumpArmPlan, CheckedGuardedJumpFallbackPlan,
     CheckedGuardedJumpPlan, CheckedGuardedJumpReturnPlan, CheckedInitializedLocal,
-    CheckedMemberIdentity, CheckedNaturalRankMeasure, CheckedNominalAffineUnitCleanupMachinePlan,
-    CheckedNominalAffineUnitCleanupPlans, CheckedNormalCleanupAction, CheckedNormalExitCleanupPlan,
-    CheckedOperandSequence, CheckedPartialAffineUnitCleanupMachinePlan,
-    CheckedPartialAffineUnitCleanupPlans, CheckedPlaceLoanPlan, CheckedPlaceLoanRoot,
-    CheckedProviderAttachmentRequirementPlan, CheckedRankEdgeCoordinate,
-    CheckedReferenceOriginProjection, CheckedReferenceOriginRoot, CheckedReferenceOriginSourcePlan,
+    CheckedLayoutObservation, CheckedMemberIdentity, CheckedNaturalRankFunction,
+    CheckedNaturalRankMeasure, CheckedNominalAffineUnitCleanupMachinePlan,
+    CheckedNominalAffineUnitCleanupPlans, CheckedNormalCleanupAction, CheckedNormalCompletion,
+    CheckedNormalExitCleanupPlan, CheckedNormalExitCleanups, CheckedOperandSequence,
+    CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
+    CheckedPlaceLoanPlan, CheckedPlaceLoanRoot, CheckedProviderAttachmentRequirementPlan,
+    CheckedRankEdgeCoordinate, CheckedReferenceOriginProjection, CheckedReferenceOriginRoot,
+    CheckedReferenceOriginSourcePlan, CheckedReferenceOwnerCleanup,
     CheckedReferenceResultSourcePlan, CheckedReferenceStorage, CheckedReturnedReferencePlan,
     CheckedRuntimeIndex, CheckedScalarBranchDestination, CheckedScalarCaseFieldPlan,
     CheckedScalarGuardedExit, CheckedScalarGuardedTail, CheckedScalarReturnPlan,
@@ -72,8 +75,8 @@ pub use self::terminal::{
     CheckedStructuralPathQualification, CheckedStructuralResultClaimPlan,
     CheckedStructuralResultPlan, CheckedStructuralReturnCompletion,
     CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarArgumentSourcePlan,
-    CheckedStructuralScalarParameterPlan, CheckedStructuralValueCall, CheckedTerminalDebugPlans,
-    CheckedTerminalMachineDebugPlan, CheckedTerminalMachineSelection,
+    CheckedStructuralScalarParameterPlan, CheckedStructuralValueCall, CheckedSuccessorCompletion,
+    CheckedTerminalDebugPlans, CheckedTerminalMachineDebugPlan, CheckedTerminalMachineSelection,
     CheckedTerminalMachineSelections, CheckedTerminalSignatureEligibility,
     CheckedTerminalStateDebugPlan, CheckedTrivialAffineStructuralLocalPlan,
     CheckedUnitCallCoordinate, CheckedUnitCallParts, CheckedUnitCallPlan, CheckedUnitCallResult,
@@ -105,21 +108,25 @@ pub use control::{
     FlowExitParameterOrigin, FlowOperatorInvocationFact, FlowStateFact, FlowStateOutgoingFact,
     FlowStatementFact, RetiredFlowCall,
 };
+pub use descriptor_observations::FlowDescriptorObservationTable;
 pub use invalidations::{FlowInvalidationFact, FlowInvalidationSource};
 pub use operand::{
-    FlowAtomicExecutionFact, FlowCaseAccessFact, FlowOperandChild, FlowOperandFact,
-    FlowOperandReferent, FlowOperandRetainedLeaf, FlowOperandRetainedRegion,
-    FlowOperandRetainedSupplier, FlowOperandRetention, FlowValueObservationFact,
+    FlowAtomicExecutionFact, FlowCapturedReferenceLeaf, FlowCaseAccessFact, FlowCopiedValue,
+    FlowCopiedValueUse, FlowDescriptorContextObservation, FlowOperandAlternative, FlowOperandChild,
+    FlowOperandCompletion, FlowOperandFact, FlowOperandLifetimeContract, FlowOperandReferent,
+    FlowOperandRetainedLeaf, FlowOperandRetainedRegion, FlowOperandRetainedSupplier,
+    FlowOperandRetention, FlowOutputLifetimeSources, FlowReferentFormation,
+    FlowValueObservationFact, ViewReturnInputSource,
 };
 pub use ownership::{
     FlowBorrowClaimFact, FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource,
-    FlowClaimJoinExit, FlowClaimJoinExitKind, FlowClaimJoinReceipt, FlowClaimOutcomeEntryFact,
-    FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, FlowInstructionDispositionFact,
-    FlowInstructionEffectReceiptFact, FlowLoanCompletionFact, FlowOwnedSelectionClaim,
-    FlowOwnedSelectionProducedClaim, FlowOwnedSelectionReceipt, FlowOwnedSelectionResultClaim,
-    FlowOwnedSelectionSource, FlowOwnedSelectionTransfer, FlowPermissionEvaluation,
-    FlowPermissionEventFact, FlowSelectionPlaceArrival, FlowSelectionPlaceBinding,
-    FlowStorageTransferFact, FlowStorageTransferSource,
+    FlowClaimJoinCapture, FlowClaimJoinExit, FlowClaimJoinExitKind, FlowClaimJoinReceipt,
+    FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowClaimOutcomeSource,
+    FlowInstructionDispositionFact, FlowInstructionEffectReceiptFact, FlowLoanCompletionFact,
+    FlowOwnedSelectionClaim, FlowOwnedSelectionReceipt, FlowOwnedSelectionSource,
+    FlowOwnedSelectionTransfer, FlowPermissionEvaluation, FlowPermissionEventFact,
+    FlowSelectionPlaceArrival, FlowSelectionPlaceBinding, FlowStorageTransferFact,
+    FlowStorageTransferSource,
 };
 pub use roots::{
     FlowBorrowLifetimeFacts, FlowBoundaryFacts, FlowContextFacts, FlowControlFacts, FlowFacts,

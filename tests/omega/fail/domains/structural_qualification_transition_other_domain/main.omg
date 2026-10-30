@@ -10,6 +10,6 @@ machine main() -> u64 {
         true -> later(x as Counter in Other)
         false -> done()
     }
-    state later(c: Counter in Ready) -> u64 { c.code }
-    state done() -> u64 { 0 }
+    machine later(c: Counter in Ready) -> u64 { c.code }
+    machine done() -> u64 { 0 }
 }

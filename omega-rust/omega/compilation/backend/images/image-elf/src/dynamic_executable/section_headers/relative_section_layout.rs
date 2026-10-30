@@ -7,8 +7,6 @@
 //! absolute file offset or virtual address, resolve a section-header fixup,
 //! emit a program header, or mutate an image.
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
 use crate::dynamic_executable::checked::require;
 use crate::dynamic_executable::dynamic_table::dynamic_table_descriptor::ValidatedElfDynamicTableSectionDescriptorPlan;
@@ -165,25 +163,12 @@ struct Candidate {
 pub(crate) fn plan_elf_relative_section_payload_layout(
     payloads: ValidatedElfIndexedSectionPayloadPlan,
 ) -> Result<ValidatedElfRelativeSectionPayloadLayout, Box<ElfRelativeSectionPayloadLayoutError>> {
-    checked::plan_candidate(
-        payloads,
-        derive_contents,
-        |payloads, contents| {
-            non_authoritative_layout_compatibility_fingerprint(&payloads, &contents)
-        },
-        |payloads, contents, fingerprint| Candidate {
-            payloads: payloads,
-            contents: contents,
-            non_authoritative_layout_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.payloads,
-        |payloads, diagnostic| {
-            Box::new(ElfRelativeSectionPayloadLayoutError {
-                payloads: payloads,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: payloads,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_layout_compatibility_fingerprint,
+        error: ElfRelativeSectionPayloadLayoutError,
     )
 }
 
@@ -235,27 +220,13 @@ fn derive_contents(
     Ok(ElfRelativeSectionPayloadLayoutContents { rows, region_spans })
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfRelativeSectionPayloadLayout, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.payloads, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_layout_compatibility_fingerprint
-                == non_authoritative_layout_compatibility_fingerprint(
-                    &candidate.payloads,
-                    &candidate.contents,
-                )
-        },
-        "relative ELF payload-layout compatibility fingerprint does not replay",
-        |candidate| ValidatedElfRelativeSectionPayloadLayout {
-            payloads: candidate.payloads,
-            contents: candidate.contents,
-            non_authoritative_layout_compatibility_fingerprint: candidate
-                .non_authoritative_layout_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: payloads,
+    contents: contents,
+    validated: ValidatedElfRelativeSectionPayloadLayout,
+    validate: validate_contents,
+    fingerprint: non_authoritative_layout_compatibility_fingerprint,
+    message: "relative ELF payload-layout compatibility fingerprint does not replay",
 }
 
 fn validate_contents(
@@ -359,12 +330,9 @@ fn non_authoritative_layout_compatibility_fingerprint(
     payloads: &ValidatedElfIndexedSectionPayloadPlan,
     contents: &ElfRelativeSectionPayloadLayoutContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-relative-section-payload-layout.v1");
-    hash.bytes(
-        &payloads
-            .non_authoritative_payload_roster_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf-relative-section-payload-layout.v1",
+        payloads.non_authoritative_payload_roster_compatibility_fingerprint(),
     );
     for row in &contents.rows {
         hash.bytes(&row.index.to_le_bytes());

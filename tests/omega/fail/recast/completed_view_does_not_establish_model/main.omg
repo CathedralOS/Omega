@@ -7,7 +7,7 @@ requires addr::Bound == 18446744073709551616 && offset <= 8 && retry <= 1
         true -> finish(word.value, retry)
         _ -> finish(0, retry)
     }
-    state finish(value: u64, retry: u64) -> u64
+    machine finish(value: u64, retry: u64) -> u64
     requires addr::Bound == 4294967296 && retry <= 1
     { value }
 }

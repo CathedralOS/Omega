@@ -1,0 +1,20 @@
+// Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
+// Expected exit: 0
+machine bounded(value: i32) -> bool { value <= 60 }
+data Counter [copy] where bounded(self.value) == true {
+    before: i32;
+    value: i32;
+    after: i32;
+}
+const NAMED: Counter = Counter { before: 17, value: 60, after: 53 };
+const LOW: Counter = Counter { before: 17, value: -2147483648, after: 53 };
+machine compute<const VALUE: Counter>() -> i32 { 70 + VALUE.value }
+public machine main() crashes Trap {
+    transition NAMED.before == 17 && NAMED.after == 53 && LOW.before == 17 && LOW.after == 53 && compute<NAMED>() == 130 && compute<LOW>() == -2147483578 {
+        true -> done()
+        false -> bad()
+    }
+
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

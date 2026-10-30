@@ -13,6 +13,6 @@ invokes Console;
 {
     let value: i32 = Reader::read();
     transition value == 37 { true -> deliver(runner, value) _ -> wrong(runner, value) }
-    state deliver(runner: &mut Runner, observed: i32) { Console::exit_process(observed); }
-    state wrong(runner: &mut Runner, observed: i32) { Console::exit_process(65); }
+    machine deliver(runner: &mut Runner, observed: i32) { Console::exit_process(observed); }
+    machine wrong(runner: &mut Runner, observed: i32) { Console::exit_process(65); }
 }

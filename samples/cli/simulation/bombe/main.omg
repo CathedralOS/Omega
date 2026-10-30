@@ -136,14 +136,14 @@ machine step3(main: &mut Main, l: i32, m: i32, r: i32)
         true -> s_dbl(main, l, m, r)
         _ -> s_chk(main, l, m, r)
     }
-    state s_dbl(main: &mut Main, l: i32, m: i32, r: i32)
+    machine s_dbl(main: &mut Main, l: i32, m: i32, r: i32)
         requires 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         main.sl = (l + 1) % 26;
         main.sm = (m + 1) % 26;
         main.sr = (r + 1) % 26;
     }
-    state s_chk(main: &mut Main, l: i32, m: i32, r: i32)
+    machine s_chk(main: &mut Main, l: i32, m: i32, r: i32)
         requires 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         transition r == 21 {
@@ -151,14 +151,14 @@ machine step3(main: &mut Main, l: i32, m: i32, r: i32)
             _ -> s_rgt(main, l, m, r)
         }
     }
-    state s_mid(main: &mut Main, l: i32, m: i32, r: i32)
+    machine s_mid(main: &mut Main, l: i32, m: i32, r: i32)
         requires 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         main.sl = l;
         main.sm = (m + 1) % 26;
         main.sr = (r + 1) % 26;
     }
-    state s_rgt(main: &mut Main, l: i32, m: i32, r: i32)
+    machine s_rgt(main: &mut Main, l: i32, m: i32, r: i32)
         requires 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         main.sl = l;
@@ -179,7 +179,7 @@ machine core_perm(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
 {
     transition { _ -> pf_r(main, v, l, m, r) }
 
-    state pf_r(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
+    machine pf_r(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
         requires 0 <= v && v < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         let j: i32 = (v + r) % 26;
@@ -189,7 +189,7 @@ machine core_perm(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
             _ -> pdrop_r(main)
         }
     }
-    state pf_m(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
+    machine pf_m(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
         requires 0 <= w && w < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         let j: i32 = ((w - r + 26) % 26 + m) % 26;
@@ -199,7 +199,7 @@ machine core_perm(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
             _ -> pdrop_m(main)
         }
     }
-    state pf_l(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
+    machine pf_l(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
         requires 0 <= w && w < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         let j: i32 = ((w - m + 26) % 26 + l) % 26;
@@ -209,7 +209,7 @@ machine core_perm(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
             _ -> pdrop_l(main)
         }
     }
-    state pf_b(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
+    machine pf_b(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
         requires 0 <= w && w < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         let j: i32 = (w - l + 26) % 26;
@@ -219,7 +219,7 @@ machine core_perm(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
             _ -> pdrop_b(main)
         }
     }
-    state pb_l(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
+    machine pb_l(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
         requires 0 <= w && w < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         let j: i32 = (w + l) % 26;
@@ -229,7 +229,7 @@ machine core_perm(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
             _ -> pdrop_il(main)
         }
     }
-    state pb_m(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
+    machine pb_m(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
         requires 0 <= w && w < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         let j: i32 = ((w - l + 26) % 26 + m) % 26;
@@ -239,7 +239,7 @@ machine core_perm(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
             _ -> pdrop_im(main)
         }
     }
-    state pb_r(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
+    machine pb_r(main: &mut Main, w: i32, l: i32, m: i32, r: i32)
         requires 0 <= w && w < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         let j: i32 = ((w - m + 26) % 26 + r) % 26;
@@ -249,7 +249,7 @@ machine core_perm(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
             _ -> pdrop_ir(main)
         }
     }
-    state pfin(main: &mut Main, w2: i32, r: i32)
+    machine pfin(main: &mut Main, w2: i32, r: i32)
         requires 0 <= w2 && w2 < 26 && 0 <= r && r < 26
     {
         main.pout = (w2 - r + 26) % 26;
@@ -257,13 +257,13 @@ machine core_perm(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
     // The guard-fail arms are unreachable -- the published tables hold only
     // letter values -- so each returns early through its own private dead end
     // rather than converging on a shared exit state.
-    state pdrop_r(main: &mut Main) {}
-    state pdrop_m(main: &mut Main) {}
-    state pdrop_l(main: &mut Main) {}
-    state pdrop_b(main: &mut Main) {}
-    state pdrop_il(main: &mut Main) {}
-    state pdrop_im(main: &mut Main) {}
-    state pdrop_ir(main: &mut Main) {}
+    machine pdrop_r(main: &mut Main) {}
+    machine pdrop_m(main: &mut Main) {}
+    machine pdrop_l(main: &mut Main) {}
+    machine pdrop_b(main: &mut Main) {}
+    machine pdrop_il(main: &mut Main) {}
+    machine pdrop_im(main: &mut Main) {}
+    machine pdrop_ir(main: &mut Main) {}
 }
 
 // One keypress end to end: plugboard in, scrambler, plugboard out. Writes
@@ -273,7 +273,7 @@ machine enc_char(main: &mut Main, key: i32, l: i32, m: i32, r: i32)
 {
     transition { _ -> e_pin(main, key, l, m, r) }
 
-    state e_pin(main: &mut Main, key: i32, l: i32, m: i32, r: i32)
+    machine e_pin(main: &mut Main, key: i32, l: i32, m: i32, r: i32)
         requires 0 <= key && key < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         let pin: i32 = main.plug[key];
@@ -282,7 +282,7 @@ machine enc_char(main: &mut Main, key: i32, l: i32, m: i32, r: i32)
             _ -> edrop_pin(main)
         }
     }
-    state e_mid(main: &mut Main, pin: i32, l: i32, m: i32, r: i32)
+    machine e_mid(main: &mut Main, pin: i32, l: i32, m: i32, r: i32)
         requires 0 <= pin && pin < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         core_perm(main, pin, l, m, r);
@@ -292,7 +292,7 @@ machine enc_char(main: &mut Main, key: i32, l: i32, m: i32, r: i32)
             _ -> edrop_mid(main)
         }
     }
-    state e_out(main: &mut Main, mid: i32)
+    machine e_out(main: &mut Main, mid: i32)
         requires 0 <= mid && mid < 26
     {
         let q: i32 = main.plug[mid];
@@ -301,12 +301,12 @@ machine enc_char(main: &mut Main, key: i32, l: i32, m: i32, r: i32)
             _ -> edrop_out(main)
         }
     }
-    state estore(main: &mut Main, t: i32) {
+    machine estore(main: &mut Main, t: i32) {
         main.eout = t;
     }
-    state edrop_pin(main: &mut Main) {}
-    state edrop_mid(main: &mut Main) {}
-    state edrop_out(main: &mut Main) {}
+    machine edrop_pin(main: &mut Main) {}
+    machine edrop_mid(main: &mut Main) {}
+    machine edrop_out(main: &mut Main) {}
 }
 
 // Identity plugboard, cleared menu flags, and the derived inverse wirings.
@@ -316,13 +316,13 @@ machine init_tables(main: &mut Main) {
     main.x = 0;
     transition { _ -> it_loop(main) }
 
-    state it_loop(main: &mut Main) {
+    machine it_loop(main: &mut Main) {
         transition main.x >= 0 && main.x < 26 {
             true -> it_read(main)
             _ -> it_done(main)
         }
     }
-    state it_read(main: &mut Main) {
+    machine it_read(main: &mut Main) {
         main.plug[main.x] = main.x;
         main.ismenu[main.x] = 0;
         main.il = main.fwd_left[main.x];
@@ -335,16 +335,16 @@ machine init_tables(main: &mut Main) {
             _ -> it_bad(main)
         }
     }
-    state it_write(main: &mut Main) {
+    machine it_write(main: &mut Main) {
         main.inv_left[main.il] = main.x;
         main.inv_mid[main.im] = main.x;
         main.inv_right[main.ir] = main.x;
         main.x = main.x + 1;
         transition { _ -> it_loop(main) }
     }
-    state it_done(main: &mut Main) {}
+    machine it_done(main: &mut Main) {}
     // Unreachable: the published rotor tables hold only letter values.
-    state it_bad(main: &mut Main) {}
+    machine it_bad(main: &mut Main) {}
 }
 
 // Menu edges and letter flags from the crib/cipher segment: edge e connects
@@ -353,13 +353,13 @@ machine build_edges(main: &mut Main) {
     main.e = 0;
     transition { _ -> be_loop(main) }
 
-    state be_loop(main: &mut Main) {
+    machine be_loop(main: &mut Main) {
         transition main.e >= 0 && main.e < 17 {
             true -> be_read(main)
             _ -> be_done(main)
         }
     }
-    state be_read(main: &mut Main) {
+    machine be_read(main: &mut Main) {
         main.pe = main.crib[main.e];
         main.pc = main.cseg[main.e];
         transition main.pe >= 0 && main.pe < 26 && main.pc >= 0 && main.pc < 26 && main.e >= 0 && main.e < 17 {
@@ -367,7 +367,7 @@ machine build_edges(main: &mut Main) {
             _ -> be_bad(main)
         }
     }
-    state be_store(main: &mut Main) {
+    machine be_store(main: &mut Main) {
         main.ep[main.e] = main.pe;
         main.ec[main.e] = main.pc;
         main.ismenu[main.pe] = 1;
@@ -375,9 +375,9 @@ machine build_edges(main: &mut Main) {
         main.e = main.e + 1;
         transition { _ -> be_loop(main) }
     }
-    state be_done(main: &mut Main) {}
+    machine be_done(main: &mut Main) {}
     // Unreachable: crib and cipher segment tables hold only letter values.
-    state be_bad(main: &mut Main) {}
+    machine be_bad(main: &mut Main) {}
 }
 
 // Demo phase: encrypt the plaintext at REL under AW ER MT CQ IK and check it
@@ -400,13 +400,13 @@ machine demo_press(main: &mut Main) reaches Console {
     Console::write_line("demo: KEINEBESONDERENEREIGNISSE at REL, plug AW ER MT CQ IK");
     transition { _ -> dp_letter(main) }
 
-    state dp_letter(main: &mut Main) {
+    machine dp_letter(main: &mut Main) {
         transition main.i >= 0 && main.i < 25 {
             true -> dp_press(main)
             _ -> dp_cmp_init(main)
         }
     }
-    state dp_press(main: &mut Main) {
+    machine dp_press(main: &mut Main) {
         main.c = main.msg[main.i];
         let c: i32 = main.c;
         let l: i32 = main.l;
@@ -417,13 +417,13 @@ machine demo_press(main: &mut Main) reaches Console {
             _ -> dp_bad(main)
         }
     }
-    state dp_call(main: &mut Main, c: i32, l: i32, m: i32, r: i32)
+    machine dp_call(main: &mut Main, c: i32, l: i32, m: i32, r: i32)
         requires 0 <= c && c < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         step3(main, l, m, r);
         transition { _ -> dp_enc(main, c) }
     }
-    state dp_enc(main: &mut Main, c: i32)
+    machine dp_enc(main: &mut Main, c: i32)
         requires 0 <= c && c < 26
     {
         let l: i32 = main.sl;
@@ -437,38 +437,38 @@ machine demo_press(main: &mut Main) reaches Console {
             _ -> dp_bad2(main)
         }
     }
-    state dp_enc2(main: &mut Main, c: i32, l: i32, m: i32, r: i32)
+    machine dp_enc2(main: &mut Main, c: i32, l: i32, m: i32, r: i32)
         requires 0 <= c && c < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         enc_char(main, c, l, m, r);
         transition { _ -> dp_emit(main) }
     }
-    state dp_emit(main: &mut Main) {
+    machine dp_emit(main: &mut Main) {
         transition main.eout >= 0 && main.eout < 26 && main.i >= 0 && main.i < 25 {
             true -> dp_emit_go(main)
             _ -> dp_bad3(main)
         }
     }
-    state dp_emit_go(main: &mut Main) {
+    machine dp_emit_go(main: &mut Main) {
         main.cipher[main.i] = main.eout;
         Console::write_byte(main.eout + 65);
         main.i = main.i + 1;
         transition { _ -> dp_letter(main) }
     }
-    state dp_cmp_init(main: &mut Main) {
+    machine dp_cmp_init(main: &mut Main) {
         Console::write_byte(10);
     }
     // Unreachable guard fails -- the demo tables hold only letter values.
     // Each exits through its own state so no merge join forms.
-    state dp_bad(main: &mut Main) {
+    machine dp_bad(main: &mut Main) {
         Console::write_line("FAIL: an index left its guarded range (exit 4)");
         Console::exit_process(4);
     }
-    state dp_bad2(main: &mut Main) {
+    machine dp_bad2(main: &mut Main) {
         Console::write_line("FAIL: an index left its guarded range (exit 4)");
         Console::exit_process(4);
     }
-    state dp_bad3(main: &mut Main) {
+    machine dp_bad3(main: &mut Main) {
         Console::write_line("FAIL: an index left its guarded range (exit 4)");
         Console::exit_process(4);
     }
@@ -479,27 +479,27 @@ machine check_demo(main: &mut Main) reaches Console {
     main.i = 0;
     transition { _ -> dp_cmp(main) }
 
-    state dp_cmp(main: &mut Main) {
+    machine dp_cmp(main: &mut Main) {
         transition main.i >= 0 && main.i < 25 {
             true -> dp_cmp_one(main)
             _ -> dp_done(main)
         }
     }
-    state dp_cmp_one(main: &mut Main) {
+    machine dp_cmp_one(main: &mut Main) {
         transition main.cipher[main.i] == main.cexp[main.i] && main.i >= 0 {
             true -> dp_cmp_next(main)
             _ -> dp_fail(main)
         }
     }
-    state dp_cmp_next(main: &mut Main) {
+    machine dp_cmp_next(main: &mut Main) {
         main.i = main.i + 1;
         transition { _ -> dp_cmp(main) }
     }
-    state dp_fail(main: &mut Main) {
+    machine dp_fail(main: &mut Main) {
         Console::write_line("FAIL: ciphertext differs from the expected vector (exit 1)");
         Console::exit_process(1);
     }
-    state dp_done(main: &mut Main) {}
+    machine dp_done(main: &mut Main) {}
 }
 
 // Build all seventeen edge permutations at the position in cl/cm/cr: for each
@@ -513,7 +513,7 @@ machine perm_build(main: &mut Main) {
     main.pj = 0;
     transition { _ -> pb_step(main) }
 
-    state pb_step(main: &mut Main) {
+    machine pb_step(main: &mut Main) {
         let l: i32 = main.cl;
         let m: i32 = main.cm;
         let r: i32 = main.cr;
@@ -522,7 +522,7 @@ machine perm_build(main: &mut Main) {
             _ -> pb_drop_l(main)
         }
     }
-    state pb_sgo(main: &mut Main, l: i32, m: i32, r: i32)
+    machine pb_sgo(main: &mut Main, l: i32, m: i32, r: i32)
         requires 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         step3(main, l, m, r);
@@ -532,13 +532,13 @@ machine perm_build(main: &mut Main) {
         main.x = 0;
         transition { _ -> pb_fill(main) }
     }
-    state pb_fill(main: &mut Main) {
+    machine pb_fill(main: &mut Main) {
         transition main.x >= 0 && main.x < 26 {
             true -> pb_perm(main)
             _ -> pb_next(main)
         }
     }
-    state pb_perm(main: &mut Main) {
+    machine pb_perm(main: &mut Main) {
         let v: i32 = main.x;
         let l: i32 = main.cl;
         let m: i32 = main.cm;
@@ -548,43 +548,43 @@ machine perm_build(main: &mut Main) {
             _ -> pb_drop_v(main)
         }
     }
-    state pb_call(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
+    machine pb_call(main: &mut Main, v: i32, l: i32, m: i32, r: i32)
         requires 0 <= v && v < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         core_perm(main, v, l, m, r);
         transition { _ -> pb_store(main) }
     }
-    state pb_store(main: &mut Main) {
+    machine pb_store(main: &mut Main) {
         transition main.pout >= 0 && main.pout < 26 && main.pj >= 0 && main.pj < 442 && main.x >= 0 && main.x < 26 {
             true -> pb_wr(main)
             _ -> pb_drop_w(main)
         }
     }
-    state pb_wr(main: &mut Main) {
+    machine pb_wr(main: &mut Main) {
         main.perm[main.pj] = main.pout;
         main.pj = main.pj + 1;
         main.x = main.x + 1;
         transition { _ -> pb_fill(main) }
     }
-    state pb_next(main: &mut Main) {
+    machine pb_next(main: &mut Main) {
         transition main.e >= 0 && main.e < 17 {
             true -> pb_einc(main)
             _ -> pb_done(main)
         }
     }
-    state pb_einc(main: &mut Main) {
+    machine pb_einc(main: &mut Main) {
         main.e = main.e + 1;
         transition main.e >= 0 && main.e < 17 {
             true -> pb_step(main)
             _ -> pb_done2(main)
         }
     }
-    state pb_done(main: &mut Main) {}
-    state pb_done2(main: &mut Main) {}
+    machine pb_done(main: &mut Main) {}
+    machine pb_done2(main: &mut Main) {}
     // Unreachable: wheel positions and permutations stay within letter range.
-    state pb_drop_v(main: &mut Main) {}
-    state pb_drop_w(main: &mut Main) {}
-    state pb_drop_l(main: &mut Main) {}
+    machine pb_drop_v(main: &mut Main) {}
+    machine pb_drop_w(main: &mut Main) {}
+    machine pb_drop_l(main: &mut Main) {}
 }
 
 // Image of the live-wire mask in main.imask through the edge permutation
@@ -597,48 +597,48 @@ machine image(main: &mut Main) {
     main.pj = main.pi;
     transition { _ -> ig_loop(main) }
 
-    state ig_loop(main: &mut Main) {
+    machine ig_loop(main: &mut Main) {
         transition main.x >= 0 && main.x < 26 && main.pj >= 0 && main.pj < 442 {
             true -> ig_read(main)
             _ -> ig_done(main)
         }
     }
-    state ig_read(main: &mut Main) {
+    machine ig_read(main: &mut Main) {
         main.t = main.perm[main.pj];
         transition main.t >= 0 && main.t < 26 && ((main.imask >> (main.x & 31)) & 1) == 1 {
             true -> ig_set(main)
             _ -> ig_next(main)
         }
     }
-    state ig_set(main: &mut Main) {
+    machine ig_set(main: &mut Main) {
         main.iout = main.iout | (1i32 << main.t);
         transition { _ -> ig_next2(main) }
     }
-    state ig_next(main: &mut Main) {
+    machine ig_next(main: &mut Main) {
         transition main.x >= 0 && main.x < 26 && main.pj >= 0 && main.pj < 442 {
             true -> ig_inc(main)
             _ -> ig_done3(main)
         }
     }
-    state ig_next2(main: &mut Main) {
+    machine ig_next2(main: &mut Main) {
         transition main.x >= 0 && main.x < 26 && main.pj >= 0 && main.pj < 442 {
             true -> ig_inc2(main)
             _ -> ig_done2(main)
         }
     }
-    state ig_inc(main: &mut Main) {
+    machine ig_inc(main: &mut Main) {
         main.x = main.x + 1;
         main.pj = main.pj + 1;
         transition { _ -> ig_loop(main) }
     }
-    state ig_inc2(main: &mut Main) {
+    machine ig_inc2(main: &mut Main) {
         main.x = main.x + 1;
         main.pj = main.pj + 1;
         transition { _ -> ig_loop(main) }
     }
-    state ig_done(main: &mut Main) {}
-    state ig_done2(main: &mut Main) {}
-    state ig_done3(main: &mut Main) {}
+    machine ig_done(main: &mut Main) {}
+    machine ig_done2(main: &mut Main) {}
+    machine ig_done3(main: &mut Main) {}
 }
 
 // Fixed-point propagation of the live-wire masks in main.wires over the menu
@@ -650,18 +650,18 @@ machine image(main: &mut Main) {
 machine propagate(main: &mut Main) {
     transition { _ -> pr_round(main) }
 
-    state pr_round(main: &mut Main) {
+    machine pr_round(main: &mut Main) {
         main.changed = 0;
         main.e = 0;
         transition { _ -> pr_edge(main) }
     }
-    state pr_edge(main: &mut Main) {
+    machine pr_edge(main: &mut Main) {
         transition main.e >= 0 && main.e < 17 {
             true -> pr_read(main)
             _ -> pr_board(main)
         }
     }
-    state pr_read(main: &mut Main) {
+    machine pr_read(main: &mut Main) {
         main.pe = main.ep[main.e];
         main.pc = main.ec[main.e];
         main.pi = main.e * 26;
@@ -670,18 +670,18 @@ machine propagate(main: &mut Main) {
             _ -> pr_drop1(main)
         }
     }
-    state pr_fwd(main: &mut Main) {
+    machine pr_fwd(main: &mut Main) {
         main.imask = main.wires[main.pe];
         image(main);
         transition { _ -> pr_fcmp(main) }
     }
-    state pr_fcmp(main: &mut Main) {
+    machine pr_fcmp(main: &mut Main) {
         transition main.pc >= 0 && main.pc < 26 {
             true -> pr_fwr(main)
             _ -> pr_drop2(main)
         }
     }
-    state pr_fwr(main: &mut Main) {
+    machine pr_fwr(main: &mut Main) {
         main.acc = main.wires[main.pc];
         main.wires[main.pc] = main.acc | main.iout;
         main.changed = main.changed | (main.acc ^ main.wires[main.pc]);
@@ -689,13 +689,13 @@ machine propagate(main: &mut Main) {
         image(main);
         transition { _ -> pr_bcmp(main) }
     }
-    state pr_bcmp(main: &mut Main) {
+    machine pr_bcmp(main: &mut Main) {
         transition main.pe >= 0 && main.pe < 26 && main.e >= 0 && main.e < 17 {
             true -> pr_bwr(main)
             _ -> pr_drop3(main)
         }
     }
-    state pr_bwr(main: &mut Main) {
+    machine pr_bwr(main: &mut Main) {
         main.acc = main.wires[main.pe];
         main.wires[main.pe] = main.acc | main.iout;
         main.changed = main.changed | (main.acc ^ main.wires[main.pe]);
@@ -703,33 +703,33 @@ machine propagate(main: &mut Main) {
         transition { _ -> pr_edge(main) }
     }
 
-    state pr_board(main: &mut Main) {
+    machine pr_board(main: &mut Main) {
         board_mirror(main);
         transition { _ -> pr_check(main) }
     }
-    state pr_check(main: &mut Main) {
+    machine pr_check(main: &mut Main) {
         transition main.changed == 0 || main.rounds >= 64 {
             true -> pr_done(main)
             _ -> pr_next(main)
         }
     }
-    state pr_next(main: &mut Main) {
+    machine pr_next(main: &mut Main) {
         transition main.rounds >= 0 && main.rounds < 64 {
             true -> pr_rinc(main)
             _ -> pr_drop4(main)
         }
     }
-    state pr_rinc(main: &mut Main) {
+    machine pr_rinc(main: &mut Main) {
         main.rounds = main.rounds + 1;
         transition { _ -> pr_round(main) }
     }
-    state pr_done(main: &mut Main) {}
+    machine pr_done(main: &mut Main) {}
     // Unreachable guard fails: menu tables hold letter values, and pr_next
     // is only reached while rounds < 64.
-    state pr_drop1(main: &mut Main) {}
-    state pr_drop2(main: &mut Main) {}
-    state pr_drop3(main: &mut Main) {}
-    state pr_drop4(main: &mut Main) {}
+    machine pr_drop1(main: &mut Main) {}
+    machine pr_drop2(main: &mut Main) {}
+    machine pr_drop3(main: &mut Main) {}
+    machine pr_drop4(main: &mut Main) {}
 }
 
 // Clear the wire registers.
@@ -740,23 +740,23 @@ machine board_mirror(main: &mut Main) {
     main.j = 0;
     transition { _ -> bx_loop(main) }
 
-    state bx_loop(main: &mut Main) {
+    machine bx_loop(main: &mut Main) {
         transition main.j >= 0 && main.j < 26 {
             true -> bx_iinit(main)
             _ -> bm_done4(main)
         }
     }
-    state bx_iinit(main: &mut Main) {
+    machine bx_iinit(main: &mut Main) {
         main.d = 0;
         transition { _ -> bx_inner(main) }
     }
-    state bx_inner(main: &mut Main) {
+    machine bx_inner(main: &mut Main) {
         transition main.d >= 0 && main.d < 26 && main.j >= 0 && main.j < 26 {
             true -> bx_chk(main)
             _ -> bx_jnxt3(main)
         }
     }
-    state bx_chk(main: &mut Main) {
+    machine bx_chk(main: &mut Main) {
         transition main.ismenu[main.d] == 1 && main.ismenu[main.j] == 1
                 && ((main.wires[main.d] >> (main.j & 31)) & 1) == 1
                 && main.j >= 0 && main.j < 26 && main.d >= 0 && main.d < 32 {
@@ -764,66 +764,66 @@ machine board_mirror(main: &mut Main) {
             _ -> bx_next(main)
         }
     }
-    state bx_set(main: &mut Main) {
+    machine bx_set(main: &mut Main) {
         main.acc = main.wires[main.j];
         main.wires[main.j] = main.acc | (1i32 << main.d);
         main.changed = main.changed | (main.acc ^ main.wires[main.j]);
         transition { _ -> bx_next2(main) }
     }
-    state bx_next(main: &mut Main) {
+    machine bx_next(main: &mut Main) {
         transition main.d >= 0 && main.d < 26 {
             true -> bx_dinc(main)
             _ -> bx_jnxt(main)
         }
     }
-    state bx_next2(main: &mut Main) {
+    machine bx_next2(main: &mut Main) {
         transition main.d >= 0 && main.d < 26 {
             true -> bx_dinc2(main)
             _ -> bx_jnxt2(main)
         }
     }
-    state bx_dinc(main: &mut Main) {
+    machine bx_dinc(main: &mut Main) {
         main.d = main.d + 1;
         transition { _ -> bx_inner(main) }
     }
-    state bx_dinc2(main: &mut Main) {
+    machine bx_dinc2(main: &mut Main) {
         main.d = main.d + 1;
         transition { _ -> bx_inner(main) }
     }
-    state bx_jnxt(main: &mut Main) {
+    machine bx_jnxt(main: &mut Main) {
         transition main.j >= 0 && main.j < 26 {
             true -> bx_jinc(main)
             _ -> bm_done(main)
         }
     }
-    state bx_jnxt2(main: &mut Main) {
+    machine bx_jnxt2(main: &mut Main) {
         transition main.j >= 0 && main.j < 26 {
             true -> bx_jinc2(main)
             _ -> bm_done2(main)
         }
     }
-    state bx_jnxt3(main: &mut Main) {
+    machine bx_jnxt3(main: &mut Main) {
         transition main.j >= 0 && main.j < 26 {
             true -> bx_jinc3(main)
             _ -> bm_done3(main)
         }
     }
-    state bx_jinc(main: &mut Main) {
+    machine bx_jinc(main: &mut Main) {
         main.j = main.j + 1;
         transition { _ -> bx_loop(main) }
     }
-    state bx_jinc2(main: &mut Main) {
+    machine bx_jinc2(main: &mut Main) {
         main.j = main.j + 1;
         transition { _ -> bx_loop(main) }
     }
-    state bx_jinc3(main: &mut Main) {
+    machine bx_jinc3(main: &mut Main) {
         main.j = main.j + 1;
         transition { _ -> bx_loop(main) }
     }
-    state bm_done(main: &mut Main) {}
-    state bm_done2(main: &mut Main) {}
-    state bm_done3(main: &mut Main) {}
-    state bm_done4(main: &mut Main) {}
+    machine bm_done(main: &mut Main) {}
+    machine bm_done2(main: &mut Main) {}
+    machine bm_done3(main: &mut Main) {}
+    machine bm_done4(main: &mut Main) {}
 }
 
 // Clear the wire registers.
@@ -831,18 +831,18 @@ machine clear_wires(main: &mut Main) {
     main.x = 0;
     transition { _ -> cw_loop(main) }
 
-    state cw_loop(main: &mut Main) {
+    machine cw_loop(main: &mut Main) {
         transition main.x >= 0 && main.x < 26 {
             true -> cw_clr(main)
             _ -> cw_done(main)
         }
     }
-    state cw_clr(main: &mut Main) {
+    machine cw_clr(main: &mut Main) {
         main.wires[main.x] = 0;
         main.x = main.x + 1;
         transition { _ -> cw_loop(main) }
     }
-    state cw_done(main: &mut Main) {}
+    machine cw_done(main: &mut Main) {}
 }
 
 // The scan: every one of the 17,576 start positions gets its permutations
@@ -859,7 +859,7 @@ machine scan(main: &mut Main) reaches Console {
     Console::write_line("scan: 17576 positions, test letter E, seed E->A");
     transition { _ -> sc_pos(main) }
 
-    state sc_pos(main: &mut Main) {
+    machine sc_pos(main: &mut Main) {
         main.cl = main.l;
         main.cm = main.m;
         main.cr = main.r;
@@ -870,45 +870,45 @@ machine scan(main: &mut Main) reaches Console {
         propagate(main);
         transition { _ -> sc_verdict(main) }
     }
-    state sc_verdict(main: &mut Main) {
+    machine sc_verdict(main: &mut Main) {
         transition main.wires[4] == 67108863 {
             true -> sc_next(main)
             _ -> sc_stop(main)
         }
     }
-    state sc_stop(main: &mut Main) {
+    machine sc_stop(main: &mut Main) {
         transition main.stop_count >= 0 && main.stop_count < 20000 {
             true -> sc_ct(main)
             _ -> sc_next(main)
         }
     }
-    state sc_ct(main: &mut Main) {
+    machine sc_ct(main: &mut Main) {
         main.stop_count = main.stop_count + 1;
         transition main.stop_used >= 0 && main.stop_used < 64 {
             true -> sc_store(main)
             _ -> sc_print(main)
         }
     }
-    state sc_store(main: &mut Main) {
+    machine sc_store(main: &mut Main) {
         main.stops_l[main.stop_used] = main.l;
         main.stops_m[main.stop_used] = main.m;
         main.stops_r[main.stop_used] = main.r;
         main.stop_used = main.stop_used + 1;
         transition { _ -> sc_print2(main) }
     }
-    state sc_print(main: &mut Main) {
+    machine sc_print(main: &mut Main) {
         transition main.l >= 0 && main.l < 26 && main.m >= 0 && main.m < 26 && main.r >= 0 && main.r < 26 {
             true -> sc_prt(main)
             _ -> sc_next(main)
         }
     }
-    state sc_print2(main: &mut Main) {
+    machine sc_print2(main: &mut Main) {
         transition main.l >= 0 && main.l < 26 && main.m >= 0 && main.m < 26 && main.r >= 0 && main.r < 26 {
             true -> sc_prt2(main)
             _ -> sc_next(main)
         }
     }
-    state sc_prt(main: &mut Main) {
+    machine sc_prt(main: &mut Main) {
         Console::write_line("stop:");
         Console::write_byte(main.l + 65);
         Console::write_byte(main.m + 65);
@@ -916,7 +916,7 @@ machine scan(main: &mut Main) reaches Console {
         Console::write_byte(10);
         transition { _ -> sc_next(main) }
     }
-    state sc_prt2(main: &mut Main) {
+    machine sc_prt2(main: &mut Main) {
         Console::write_line("stop:");
         Console::write_byte(main.l + 65);
         Console::write_byte(main.m + 65);
@@ -924,39 +924,39 @@ machine scan(main: &mut Main) reaches Console {
         Console::write_byte(10);
         transition { _ -> sc_next(main) }
     }
-    state sc_next(main: &mut Main) {
+    machine sc_next(main: &mut Main) {
         transition main.r >= 0 && main.r < 25 {
             true -> sc_inc_r(main)
             _ -> sc_carry_m(main)
         }
     }
-    state sc_inc_r(main: &mut Main) {
+    machine sc_inc_r(main: &mut Main) {
         main.r = main.r + 1;
         transition { _ -> sc_pos(main) }
     }
-    state sc_carry_m(main: &mut Main) {
+    machine sc_carry_m(main: &mut Main) {
         main.r = 0;
         transition main.m >= 0 && main.m < 25 {
             true -> sc_inc_m(main)
             _ -> sc_carry_l(main)
         }
     }
-    state sc_inc_m(main: &mut Main) {
+    machine sc_inc_m(main: &mut Main) {
         main.m = main.m + 1;
         transition { _ -> sc_pos(main) }
     }
-    state sc_carry_l(main: &mut Main) {
+    machine sc_carry_l(main: &mut Main) {
         main.m = 0;
         transition main.l >= 0 && main.l < 25 {
             true -> sc_inc_l(main)
             _ -> sc_done(main)
         }
     }
-    state sc_inc_l(main: &mut Main) {
+    machine sc_inc_l(main: &mut Main) {
         main.l = main.l + 1;
         transition { _ -> sc_pos(main) }
     }
-    state sc_done(main: &mut Main) {
+    machine sc_done(main: &mut Main) {
         Console::write_line("scan complete; verifying recorded stops");
     }
 }
@@ -970,72 +970,72 @@ machine deduce_board(main: &mut Main) {
     main.boardbad = 0;
     transition { _ -> pl_loop(main) }
 
-    state pl_loop(main: &mut Main) {
+    machine pl_loop(main: &mut Main) {
         transition main.x >= 0 && main.x < 26 {
             true -> pl_class(main)
             _ -> pl_done(main)
         }
     }
-    state pl_class(main: &mut Main) {
+    machine pl_class(main: &mut Main) {
         transition main.ismenu[main.x] == 1 {
             true -> pl_menu(main)
             _ -> pl_nm_init(main)
         }
     }
-    state pl_menu(main: &mut Main) {
+    machine pl_menu(main: &mut Main) {
         main.d = 0;
         transition { _ -> pl_lowbit(main) }
     }
-    state pl_lowbit(main: &mut Main) {
+    machine pl_lowbit(main: &mut Main) {
         transition main.d >= 0 && main.d < 26 && main.x >= 0 && main.x < 26 {
             true -> pl_bit(main)
             _ -> pl_self(main)
         }
     }
-    state pl_bit(main: &mut Main) {
+    machine pl_bit(main: &mut Main) {
         transition ((main.wires[main.x] >> (main.d & 31)) & 1) == 1 && main.x >= 0 && main.x < 26 {
             true -> pl_set(main)
             _ -> pl_lownext(main)
         }
     }
-    state pl_lownext(main: &mut Main) {
+    machine pl_lownext(main: &mut Main) {
         transition main.d >= 0 && main.d < 26 {
             true -> pl_dinc(main)
             _ -> pl_self2(main)
         }
     }
-    state pl_dinc(main: &mut Main) {
+    machine pl_dinc(main: &mut Main) {
         main.d = main.d + 1;
         transition { _ -> pl_lowbit(main) }
     }
-    state pl_set(main: &mut Main) {
+    machine pl_set(main: &mut Main) {
         main.plug[main.x] = main.d;
         main.x = main.x + 1;
         transition { _ -> pl_loop(main) }
     }
-    state pl_self(main: &mut Main) {
+    machine pl_self(main: &mut Main) {
         transition main.x >= 0 && main.x < 26 {
             true -> pl_selfwr(main)
             _ -> pl_dead(main)
         }
     }
-    state pl_selfwr(main: &mut Main) {
+    machine pl_selfwr(main: &mut Main) {
         main.plug[main.x] = main.x;
         main.x = main.x + 1;
         transition { _ -> pl_loop(main) }
     }
-    state pl_self2(main: &mut Main) {
+    machine pl_self2(main: &mut Main) {
         transition main.x >= 0 && main.x < 26 {
             true -> pl_selfwr2(main)
             _ -> pl_dead2(main)
         }
     }
-    state pl_selfwr2(main: &mut Main) {
+    machine pl_selfwr2(main: &mut Main) {
         main.plug[main.x] = main.x;
         main.x = main.x + 1;
         transition { _ -> pl_loop(main) }
     }
-    state pl_nm_init(main: &mut Main) {
+    machine pl_nm_init(main: &mut Main) {
         main.j = 0;
         main.v = 0;
         main.b = 0;
@@ -1045,58 +1045,58 @@ machine deduce_board(main: &mut Main) {
             _ -> pl_dead3(main)
         }
     }
-    state pl_nm_call(main: &mut Main, letter: i32)
+    machine pl_nm_call(main: &mut Main, letter: i32)
         requires 0 <= letter && letter < 26
     {
         nonmenu_wire(main, letter);
         transition { _ -> pl_nm_done(main) }
     }
-    state pl_nm_done(main: &mut Main) {
+    machine pl_nm_done(main: &mut Main) {
         transition main.v == 0 {
             true -> pl_self3(main)
             _ -> pl_nm_set(main)
         }
     }
-    state pl_self3(main: &mut Main) {
+    machine pl_self3(main: &mut Main) {
         transition main.x >= 0 && main.x < 26 {
             true -> pl_selfwr3(main)
             _ -> pl_dead4(main)
         }
     }
-    state pl_selfwr3(main: &mut Main) {
+    machine pl_selfwr3(main: &mut Main) {
         main.plug[main.x] = main.x;
         main.x = main.x + 1;
         transition { _ -> pl_loop(main) }
     }
-    state pl_nm_set(main: &mut Main) {
+    machine pl_nm_set(main: &mut Main) {
         transition main.b >= 0 && main.b < 26 && main.x >= 0 && main.x < 26 {
             true -> pl_nm_go(main)
             _ -> pl_nm_bad(main)
         }
     }
-    state pl_nm_go(main: &mut Main) {
+    machine pl_nm_go(main: &mut Main) {
         main.plug[main.x] = main.b;
         main.x = main.x + 1;
         transition { _ -> pl_loop(main) }
     }
-    state pl_nm_bad(main: &mut Main) {
+    machine pl_nm_bad(main: &mut Main) {
         main.boardbad = 1;
         transition main.x >= 0 && main.x < 26 {
             true -> pl_binc(main)
             _ -> pl_dead5(main)
         }
     }
-    state pl_binc(main: &mut Main) {
+    machine pl_binc(main: &mut Main) {
         main.x = main.x + 1;
         transition { _ -> pl_loop(main) }
     }
-    state pl_done(main: &mut Main) {}
+    machine pl_done(main: &mut Main) {}
     // Unreachable counter-overflow arms.
-    state pl_dead(main: &mut Main) {}
-    state pl_dead2(main: &mut Main) {}
-    state pl_dead3(main: &mut Main) {}
-    state pl_dead4(main: &mut Main) {}
-    state pl_dead5(main: &mut Main) {}
+    machine pl_dead(main: &mut Main) {}
+    machine pl_dead2(main: &mut Main) {}
+    machine pl_dead3(main: &mut Main) {}
+    machine pl_dead4(main: &mut Main) {}
+    machine pl_dead5(main: &mut Main) {}
 }
 
 // One non-menu letter's partner search: count the menu registers carrying a
@@ -1107,7 +1107,7 @@ machine nonmenu_wire(main: &mut Main, letter: i32)
 {
     transition { _ -> pl_nm_loop(main, letter) }
 
-    state pl_nm_loop(main: &mut Main, letter: i32)
+    machine pl_nm_loop(main: &mut Main, letter: i32)
         requires 0 <= letter && letter < 26
     {
         transition main.j >= 0 && main.j < 26 {
@@ -1115,7 +1115,7 @@ machine nonmenu_wire(main: &mut Main, letter: i32)
             _ -> pl_nm_end(main)
         }
     }
-    state pl_nm_bit(main: &mut Main, letter: i32)
+    machine pl_nm_bit(main: &mut Main, letter: i32)
         requires 0 <= letter && letter < 26
     {
         transition main.ismenu[main.j] == 1 && ((main.wires[main.j] >> (letter & 31)) & 1) == 1
@@ -1124,14 +1124,14 @@ machine nonmenu_wire(main: &mut Main, letter: i32)
             _ -> pl_nm_next(main, letter)
         }
     }
-    state pl_nm_hit(main: &mut Main, letter: i32)
+    machine pl_nm_hit(main: &mut Main, letter: i32)
         requires 0 <= letter && letter < 26
     {
         main.v = main.v + 1;
         main.b = main.b + main.j;
         transition { _ -> pl_nm_next2(main, letter) }
     }
-    state pl_nm_next(main: &mut Main, letter: i32)
+    machine pl_nm_next(main: &mut Main, letter: i32)
         requires 0 <= letter && letter < 26
     {
         transition main.j >= 0 && main.j < 26 {
@@ -1139,7 +1139,7 @@ machine nonmenu_wire(main: &mut Main, letter: i32)
             _ -> pl_nm_end2(main)
         }
     }
-    state pl_nm_next2(main: &mut Main, letter: i32)
+    machine pl_nm_next2(main: &mut Main, letter: i32)
         requires 0 <= letter && letter < 26
     {
         transition main.j >= 0 && main.j < 26 {
@@ -1147,21 +1147,21 @@ machine nonmenu_wire(main: &mut Main, letter: i32)
             _ -> pl_nm_end3(main)
         }
     }
-    state pl_nm_ji(main: &mut Main, letter: i32)
+    machine pl_nm_ji(main: &mut Main, letter: i32)
         requires 0 <= letter && letter < 26
     {
         main.j = main.j + 1;
         transition { _ -> pl_nm_loop(main, letter) }
     }
-    state pl_nm_ji2(main: &mut Main, letter: i32)
+    machine pl_nm_ji2(main: &mut Main, letter: i32)
         requires 0 <= letter && letter < 26
     {
         main.j = main.j + 1;
         transition { _ -> pl_nm_loop(main, letter) }
     }
-    state pl_nm_end(main: &mut Main) {}
-    state pl_nm_end2(main: &mut Main) {}
-    state pl_nm_end3(main: &mut Main) {}
+    machine pl_nm_end(main: &mut Main) {}
+    machine pl_nm_end2(main: &mut Main) {}
+    machine pl_nm_end3(main: &mut Main) {}
 }
 
 // Decrypt the 17-letter cipher segment with the deduced board at the stop
@@ -1174,13 +1174,13 @@ machine dec_crib(main: &mut Main) {
     main.acc = 0;
     transition { _ -> dc_loop(main) }
 
-    state dc_loop(main: &mut Main) {
+    machine dc_loop(main: &mut Main) {
         transition main.e >= 0 && main.e < 17 {
             true -> dc_read(main)
             _ -> dc_hit(main)
         }
     }
-    state dc_read(main: &mut Main) {
+    machine dc_read(main: &mut Main) {
         main.c = main.cseg[main.e];
         main.b = main.crib[main.e];
         let c: i32 = main.c;
@@ -1192,13 +1192,13 @@ machine dec_crib(main: &mut Main) {
             _ -> dc_dead(main)
         }
     }
-    state dc_call(main: &mut Main, c: i32, l: i32, m: i32, r: i32)
+    machine dc_call(main: &mut Main, c: i32, l: i32, m: i32, r: i32)
         requires 0 <= c && c < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         step3(main, l, m, r);
         transition { _ -> dc_enc(main, c) }
     }
-    state dc_enc(main: &mut Main, c: i32)
+    machine dc_enc(main: &mut Main, c: i32)
         requires 0 <= c && c < 26
     {
         let l: i32 = main.sl;
@@ -1212,30 +1212,30 @@ machine dec_crib(main: &mut Main) {
             _ -> dc_dead2(main)
         }
     }
-    state dc_enc2(main: &mut Main, c: i32, l: i32, m: i32, r: i32)
+    machine dc_enc2(main: &mut Main, c: i32, l: i32, m: i32, r: i32)
         requires 0 <= c && c < 26 && 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         enc_char(main, c, l, m, r);
         transition { _ -> dc_cmp(main) }
     }
-    state dc_cmp(main: &mut Main) {
+    machine dc_cmp(main: &mut Main) {
         transition main.eout == main.b && main.e >= 0 && main.e < 17 {
             true -> dc_next(main)
             _ -> dc_miss(main)
         }
     }
-    state dc_next(main: &mut Main) {
+    machine dc_next(main: &mut Main) {
         main.e = main.e + 1;
         transition { _ -> dc_loop(main) }
     }
-    state dc_hit(main: &mut Main) {
+    machine dc_hit(main: &mut Main) {
         main.acc = 1;
     }
     // Unreachable: segment tables and wheel positions stay in letter range;
     // dc_miss is the ordinary mismatch exit.
-    state dc_dead(main: &mut Main) {}
-    state dc_dead2(main: &mut Main) {}
-    state dc_miss(main: &mut Main) {}
+    machine dc_dead(main: &mut Main) {}
+    machine dc_dead2(main: &mut Main) {}
+    machine dc_miss(main: &mut Main) {}
 }
 
 // The deduced plugboard is usable only as an involution over 0..25; every
@@ -1243,36 +1243,36 @@ machine dec_crib(main: &mut Main) {
 machine involution(main: &mut Main) {
     transition { _ -> vr_chk_loop(main) }
 
-    state vr_chk_loop(main: &mut Main) {
+    machine vr_chk_loop(main: &mut Main) {
         transition main.x >= 0 && main.x < 26 {
             true -> vr_chk_a(main)
             _ -> vr_chk_ok(main)
         }
     }
-    state vr_chk_a(main: &mut Main) {
+    machine vr_chk_a(main: &mut Main) {
         main.t = main.plug[main.x];
         transition main.t >= 0 && main.t < 26 {
             true -> vr_chk_b(main)
             _ -> vr_chk_bad(main)
         }
     }
-    state vr_chk_b(main: &mut Main) {
+    machine vr_chk_b(main: &mut Main) {
         transition main.plug[main.t] == main.x && main.x < 26 {
             true -> vr_chk_next(main)
             _ -> vr_chk_bad2(main)
         }
     }
-    state vr_chk_next(main: &mut Main) {
+    machine vr_chk_next(main: &mut Main) {
         main.x = main.x + 1;
         transition { _ -> vr_chk_loop(main) }
     }
-    state vr_chk_bad(main: &mut Main) {
+    machine vr_chk_bad(main: &mut Main) {
         main.boardbad = 1;
     }
-    state vr_chk_bad2(main: &mut Main) {
+    machine vr_chk_bad2(main: &mut Main) {
         main.boardbad = 1;
     }
-    state vr_chk_ok(main: &mut Main) {}
+    machine vr_chk_ok(main: &mut Main) {}
 }
 
 // Verify each recorded stop: walk the stop list and ask verify_stop to test
@@ -1284,32 +1284,32 @@ machine verify(main: &mut Main) {
     main.hit_sfm = 0;
     transition { _ -> vr_loop(main) }
 
-    state vr_loop(main: &mut Main) {
+    machine vr_loop(main: &mut Main) {
         transition main.s >= 0 && main.s < 64 && main.s < main.stop_used {
             true -> vr_unpack(main)
             _ -> vr_done(main)
         }
     }
-    state vr_unpack(main: &mut Main) {
+    machine vr_unpack(main: &mut Main) {
         main.vl = main.stops_l[main.s];
         main.vm = main.stops_m[main.s];
         main.vr = main.stops_r[main.s];
         verify_stop(main);
         transition { _ -> vr_next_stop(main) }
     }
-    state vr_next_stop(main: &mut Main) {
+    machine vr_next_stop(main: &mut Main) {
         transition main.s >= 0 && main.s < 64 {
             true -> vr_sinc(main)
             _ -> vr_done2(main)
         }
     }
-    state vr_sinc(main: &mut Main) {
+    machine vr_sinc(main: &mut Main) {
         main.s = main.s + 1;
         transition { _ -> vr_loop(main) }
     }
-    state vr_done(main: &mut Main) {}
+    machine vr_done(main: &mut Main) {}
     // Unreachable: s < 64 is already established at the loop head.
-    state vr_done2(main: &mut Main) {}
+    machine vr_done2(main: &mut Main) {}
 }
 
 // One stop position: rebuild its permutations, record the seed-0 test row,
@@ -1323,63 +1323,63 @@ machine verify_stop(main: &mut Main) {
     main.k = 0;
     transition { _ -> vr_dead(main) }
 
-    state vr_dead(main: &mut Main) {
+    machine vr_dead(main: &mut Main) {
         transition main.k >= 0 && main.k < 26 {
             true -> vr_gate(main)
             _ -> vr_done(main)
         }
     }
-    state vr_gate(main: &mut Main) {
+    machine vr_gate(main: &mut Main) {
         transition main.k == 0 || ((main.srow >> (main.k & 31)) & 1) == 0 {
             true -> vr_prop_call(main)
             _ -> vr_next(main)
         }
     }
-    state vr_prop_call(main: &mut Main) {
+    machine vr_prop_call(main: &mut Main) {
         try_hypothesis(main);
         transition main.k == 0 {
             true -> vr_srow(main)
             _ -> vr_next2(main)
         }
     }
-    state vr_srow(main: &mut Main) {
+    machine vr_srow(main: &mut Main) {
         main.srow = main.wires[4];
         transition { _ -> vr_next3(main) }
     }
-    state vr_next(main: &mut Main) {
+    machine vr_next(main: &mut Main) {
         transition main.k >= 0 && main.k < 26 {
             true -> vr_kinc(main)
             _ -> vr_done2(main)
         }
     }
-    state vr_next2(main: &mut Main) {
+    machine vr_next2(main: &mut Main) {
         transition main.k >= 0 && main.k < 26 {
             true -> vr_kinc2(main)
             _ -> vr_done3(main)
         }
     }
-    state vr_next3(main: &mut Main) {
+    machine vr_next3(main: &mut Main) {
         transition main.k >= 0 && main.k < 26 {
             true -> vr_kinc3(main)
             _ -> vr_done4(main)
         }
     }
-    state vr_kinc3(main: &mut Main) {
+    machine vr_kinc3(main: &mut Main) {
         main.k = main.k + 1;
         transition { _ -> vr_dead(main) }
     }
-    state vr_kinc(main: &mut Main) {
+    machine vr_kinc(main: &mut Main) {
         main.k = main.k + 1;
         transition { _ -> vr_dead(main) }
     }
-    state vr_kinc2(main: &mut Main) {
+    machine vr_kinc2(main: &mut Main) {
         main.k = main.k + 1;
         transition { _ -> vr_dead(main) }
     }
-    state vr_done(main: &mut Main) {}
-    state vr_done2(main: &mut Main) {}
-    state vr_done3(main: &mut Main) {}
-    state vr_done4(main: &mut Main) {}
+    machine vr_done(main: &mut Main) {}
+    machine vr_done2(main: &mut Main) {}
+    machine vr_done3(main: &mut Main) {}
+    machine vr_done4(main: &mut Main) {}
 }
 
 // One hypothesis at the current stop: seed the test wire, propagate, and on
@@ -1390,7 +1390,7 @@ machine try_hypothesis(main: &mut Main)
 {
     transition { _ -> th_prop(main) }
 
-    state th_prop(main: &mut Main) {
+    machine th_prop(main: &mut Main) {
         clear_wires(main);
         main.rounds = 0;
         transition main.k >= 0 && main.k < 26 {
@@ -1398,25 +1398,25 @@ machine try_hypothesis(main: &mut Main)
             _ -> th_drop0(main)
         }
     }
-    state th_seed(main: &mut Main) {
+    machine th_seed(main: &mut Main) {
         main.wires[4] = 1i32 << main.k;
         propagate(main);
         transition { _ -> th_full(main) }
     }
-    state th_full(main: &mut Main) {
+    machine th_full(main: &mut Main) {
         transition main.wires[4] == 67108863 {
             true -> th_drop1(main)
             _ -> th_board(main)
         }
     }
-    state th_board(main: &mut Main) {
+    machine th_board(main: &mut Main) {
         deduce_board(main);
         transition main.boardbad == 1 {
             true -> th_drop2(main)
             _ -> th_inv(main)
         }
     }
-    state th_inv(main: &mut Main) {
+    machine th_inv(main: &mut Main) {
         main.x = 0;
         involution(main);
         transition main.boardbad == 1 {
@@ -1424,21 +1424,21 @@ machine try_hypothesis(main: &mut Main)
             _ -> th_dec(main)
         }
     }
-    state th_dec(main: &mut Main) {
+    machine th_dec(main: &mut Main) {
         dec_crib(main);
         transition main.acc == 1 {
             true -> th_hit(main)
             _ -> th_drop4(main)
         }
     }
-    state th_hit(main: &mut Main) {
+    machine th_hit(main: &mut Main) {
         transition main.verified >= 0 && main.verified < 64 && main.vl >= 0 && main.vl < 26
                 && main.vm >= 0 && main.vm < 26 && main.vr >= 0 && main.vr < 26 {
             true -> th_hgo(main)
             _ -> th_drop5(main)
         }
     }
-    state th_hgo(main: &mut Main) {
+    machine th_hgo(main: &mut Main) {
         main.verified = main.verified + 1;
         Console::write_line("verified:");
         Console::write_byte(main.vl + 65);
@@ -1450,20 +1450,20 @@ machine try_hypothesis(main: &mut Main)
             _ -> th_drop6(main)
         }
     }
-    state th_sfm(main: &mut Main) {
+    machine th_sfm(main: &mut Main) {
         main.hit_sfm = 1;
     }
     // Early exits: hypothesis flooded the register, board deduction failed,
     // the involution check failed, the crib did not decrypt, or the position
     // was not SFM. Each returns through its own single-arrival state so the
     // lowering proof search never sees a merge join here.
-    state th_drop1(main: &mut Main) {}
-    state th_drop2(main: &mut Main) {}
-    state th_drop3(main: &mut Main) {}
-    state th_drop4(main: &mut Main) {}
-    state th_drop0(main: &mut Main) {}
-    state th_drop5(main: &mut Main) {}
-    state th_drop6(main: &mut Main) {}
+    machine th_drop1(main: &mut Main) {}
+    machine th_drop2(main: &mut Main) {}
+    machine th_drop3(main: &mut Main) {}
+    machine th_drop4(main: &mut Main) {}
+    machine th_drop0(main: &mut Main) {}
+    machine th_drop5(main: &mut Main) {}
+    machine th_drop6(main: &mut Main) {}
 }
 
 // The published tables as decoded letter literals.
@@ -1482,40 +1482,40 @@ machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("bombe: Turing/Welchman attack on Enigma I, rotors I II III, reflector B");
     transition { _ -> m_load(main) }
 
-    state m_load(main: &mut Main) {
+    machine m_load(main: &mut Main) {
         load_consts(main);
         transition { _ -> m_init(main) }
     }
 
-    state m_init(main: &mut Main) {
+    machine m_init(main: &mut Main) {
         init_tables(main);
         build_edges(main);
         transition { _ -> m_demo(main) }
     }
-    state m_demo(main: &mut Main) {
+    machine m_demo(main: &mut Main) {
         demo_press(main);
         check_demo(main);
         transition { _ -> m_scan(main) }
     }
-    state m_scan(main: &mut Main) {
+    machine m_scan(main: &mut Main) {
         scan(main);
         transition { _ -> m_verify(main) }
     }
-    state m_verify(main: &mut Main) {
+    machine m_verify(main: &mut Main) {
         verify(main);
         transition { _ -> m_final(main) }
     }
-    state m_final(main: &mut Main) {
+    machine m_final(main: &mut Main) {
         transition main.hit_sfm == 1 && main.verified >= 1 {
             true -> m_pass(main)
             _ -> m_fail(main)
         }
     }
-    state m_pass(main: &mut Main) {
+    machine m_pass(main: &mut Main) {
         Console::write_line("bombe: position SFM recovered with plugboard from the menu (exit 0)");
         Console::exit_process(0);
     }
-    state m_fail(main: &mut Main) {
+    machine m_fail(main: &mut Main) {
         Console::write_line("FAIL: the true setting was not among the verified stops (exit 1)");
         Console::exit_process(1);
     }

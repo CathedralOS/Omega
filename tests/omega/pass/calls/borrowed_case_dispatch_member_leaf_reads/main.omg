@@ -26,41 +26,41 @@ machine Main::main(main: &mut Main) reaches Console {
         tag: 9,
     };
     transition { _ -> inspect(main, &main.shape) }
-    state after_inspect(main: &mut Main) {
+    machine after_inspect(main: &mut Main) {
         transition main.shape {
             Shape::Line { inner, tag } -> use_inner(main, inner)
             _ -> bad(main, 72)
         }
     }
-    state use_inner(main: &mut Main, inner: Inner) {
+    machine use_inner(main: &mut Main, inner: Inner) {
         transition inner.leaf.v == 7 {
             true -> loaned(main, inner)
             _ -> bad(main, 73)
         }
     }
-    state loaned(main: &mut Main, inner: Inner) {
+    machine loaned(main: &mut Main, inner: Inner) {
         transition { _ -> read_leaf(main, &inner.leaf) }
     }
-    state read_leaf(main: &mut Main, leaf: &Leaf) {
+    machine read_leaf(main: &mut Main, leaf: &Leaf) {
         transition leaf.v == 7 {
             true -> good(main)
             _ -> bad(main, 74)
         }
     }
-    state inspect(main: &mut Main, shape: &Shape) {
+    machine inspect(main: &mut Main, shape: &Shape) {
         transition shape {
             Shape::Line { inner, tag } -> via_loan(main, inner, tag)
             _ -> bad(main, 75)
         }
     }
-    state via_loan(main: &mut Main, inner: Inner, tag: i32 in Wrapping) {
+    machine via_loan(main: &mut Main, inner: Inner, tag: i32 in Wrapping) {
         transition inner.leaf.v == 7 && tag == 9 {
             true -> good(main)
             _ -> bad(main, 76)
         }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 

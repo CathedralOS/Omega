@@ -6,6 +6,6 @@ data Holder { token: Token; }
 machine transported() -> u8 { let holder: Holder = Holder { token: Token { value: 7 } }; read(holder.token) }
 machine main() crashes Trap {
     transition transported() == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

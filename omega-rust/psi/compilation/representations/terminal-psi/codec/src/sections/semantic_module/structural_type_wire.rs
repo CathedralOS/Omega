@@ -78,10 +78,7 @@ pub(crate) fn encode_structural_type(
                 writer.u64(storage.byte_size);
                 writer.u64(storage.byte_alignment);
             }
-            writer.len("structural fields", fields.len())?;
-            for field in fields {
-                encode_structural_field(writer, field)?;
-            }
+            writer.counted("structural fields", fields, encode_structural_field)?;
             if matches!(
                 storage,
                 StructuralRecordStorage::Authored(_)
@@ -96,7 +93,16 @@ pub(crate) fn encode_structural_type(
         StructuralTypeShape::FixedArray { element, length } => {
             writer.u8(2);
             writer.id(*element);
-            writer.u64(*length);
+            match length {
+                terminal_psi::ArrayExtent::Literal(length) => {
+                    writer.u8(0);
+                    writer.u64(*length);
+                }
+                terminal_psi::ArrayExtent::Application(application) => {
+                    writer.u8(1);
+                    writer.id(*application);
+                }
+            }
         }
         StructuralTypeShape::Sum { cases } => {
             writer.u8(3);
@@ -112,10 +118,7 @@ pub(crate) fn encode_structural_type(
         }
         StructuralTypeShape::Mixed { fields, cases } => {
             writer.u8(5);
-            writer.len("mixed structural fields", fields.len())?;
-            for field in fields {
-                encode_structural_field(writer, field)?;
-            }
+            writer.counted("mixed structural fields", fields, encode_structural_field)?;
             writer.len("mixed structural cases", cases.len())?;
             for case in cases {
                 writer.id(case.id);
@@ -213,7 +216,11 @@ pub(crate) fn decode_structural_type(
         },
         2 => StructuralTypeShape::FixedArray {
             element: reader.id("StructuralTypeId")?,
-            length: reader.u64()?,
+            length: match reader.u8()? {
+                0 => terminal_psi::ArrayExtent::Literal(reader.u64()?),
+                1 => terminal_psi::ArrayExtent::Application(reader.id("ScalarApplicationId")?),
+                tag => return Err(CodecError::InvalidTag("ArrayExtent", tag)),
+            },
         },
         3 => StructuralTypeShape::Sum {
             cases: decode_counted(reader, |reader| {

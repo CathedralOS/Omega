@@ -10,11 +10,11 @@ machine Main::classify(input: u64) -> u64 {
         _ -> some(input)
     }
 
-    state none() -> u64 {
+    machine none() -> u64 {
         0
     }
 
-    state some(value: u64) -> u64 {
+    machine some(value: u64) -> u64 {
         value
     }
 }

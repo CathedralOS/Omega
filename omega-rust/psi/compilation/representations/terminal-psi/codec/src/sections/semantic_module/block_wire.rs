@@ -60,6 +60,7 @@ fn decode_scalar_field_path(
         3 => Ok(CanonicalStructuralPathSegment::Case(
             reader.id("StructuralCaseId")?,
         )),
+        4 => Ok(CanonicalStructuralPathSegment::Referent),
         tag => Err(CodecError::InvalidTag("scalar field carrier path", tag)),
     })
 }
@@ -74,10 +75,7 @@ pub(crate) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
     )?;
     encode_proof_formals(writer, &block.erased_proof_formals)?;
     encode_structural_parameters(writer, &block.structural_parameters)?;
-    writer.len("operations", block.operations.len())?;
-    for operation in &block.operations {
-        encode_operation(writer, operation)?;
-    }
+    writer.counted("operations", &block.operations, encode_operation)?;
     terminator_wire::encode_terminator(writer, &block.terminator)
 }
 
@@ -102,6 +100,10 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         }
     }
     match operation.kind.clone() {
+        OperationKind::ReadScalarApplication { application } => {
+            writer.u8(operation_tags::READ_SCALAR_APPLICATION);
+            writer.id(application);
+        }
         OperationKind::StorageAddress { source } => {
             writer.u8(operation_tags::STORAGE_ADDRESS);
             writer.id(source.place);
@@ -861,6 +863,9 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         tag => return Err(CodecError::InvalidTag("OperationResult", tag)),
     };
     let kind = match reader.u8()? {
+        operation_tags::READ_SCALAR_APPLICATION => OperationKind::ReadScalarApplication {
+            application: reader.id("ScalarApplicationId")?,
+        },
         operation_tags::ESTABLISH_NATIVE_CODE_LAYOUT => OperationKind::EstablishNativeCodeLayout {
             machine: reader.id("native code layout machine")?,
         },

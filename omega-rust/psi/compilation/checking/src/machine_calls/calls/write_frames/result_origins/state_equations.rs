@@ -3,12 +3,16 @@
 //! A backedge reads a provisional relation, never an active body's partial
 //! proof. Only actual normal returns seed the least fixed point. Unknown
 //! origins remain leaves and cannot disappear as though that route diverged.
+//! Selected terminal invocations participate in the same equations as internal
+//! edges. Lexical declaration boundaries do not break a runtime tail component;
+//! each equation and substitution uses its own authenticated declaration owner.
 
 use super::super::cycle_substitutions::Substitutions;
 use super::super::path_instantiation::aggregate_arguments::AggregateMove;
+use super::ReferenceSource;
 use super::{
     AggregateOrigins, CollectedStatementPrefix, ExpressionHandle, FrameInference,
-    FramePathPrecision, FramePlaceOrigin, Machine, ReferenceLeaf, State, TopLevelSymbols,
+    FramePathPrecision, FramePlaceOrigin, ReferenceLeaf, State, TopLevelSymbols,
     TypeReferenceHandle, instantiate_edge_origins, state_equation,
 };
 use crate::machine_calls::graph_components::component_ids;
@@ -29,7 +33,6 @@ pub(super) struct Equation<'program> {
 
 pub(super) fn solve<'program>(
     program: &'program dyn crate::CheckingInput,
-    machine: &'program Machine,
     entry: &'program State,
     expected_result: TypeReferenceHandle,
     symbols: &TopLevelSymbols<'_>,
@@ -40,11 +43,17 @@ pub(super) fn solve<'program>(
     let mut equations = Vec::new();
     let mut index = 0;
     while index < states.len() {
+        let state = states[index];
+        let owner = program.machine_holding_state(state.symbol)?;
         let equation = state_equation(
             program,
-            machine,
-            states[index],
-            expected_result,
+            owner,
+            state,
+            if state.return_type.is_valid() {
+                state.return_type
+            } else {
+                expected_result
+            },
             symbols,
             inference,
             include_shared,
@@ -76,7 +85,6 @@ pub(super) fn solve<'program>(
         .collect::<Option<Vec<_>>>()?;
     finite_substitutions(
         program,
-        machine,
         &equations,
         &successors,
         symbols,
@@ -101,7 +109,6 @@ pub(super) fn solve<'program>(
     #[allow(clippy::too_many_arguments)]
     fn instantiate_into(
         program: &dyn crate::CheckingInput,
-        machine: &Machine,
         equations: &[Equation<'_>],
         source: usize,
         edge: &Edge<'_>,
@@ -113,7 +120,6 @@ pub(super) fn solve<'program>(
         let mut output = AggregateOrigins::default();
         instantiate(
             program,
-            machine,
             &equations[source],
             edge,
             target,
@@ -132,7 +138,6 @@ pub(super) fn solve<'program>(
         |source, edge, target| {
             let mut output = instantiate_into(
                 program,
-                machine,
                 &equations,
                 source,
                 edge,
@@ -163,7 +168,6 @@ pub(super) fn solve<'program>(
     let complete = propagate(&equations, &successors, seeds, |source, edge, target| {
         let output = instantiate_into(
             program,
-            machine,
             &equations,
             source,
             edge,
@@ -285,7 +289,6 @@ fn append_new(held: &mut AggregateOrigins, incoming: AggregateOrigins) {
 #[allow(clippy::too_many_arguments)]
 fn instantiate(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
     equation: &Equation<'_>,
     edge: &Edge<'_>,
     target: &mut AggregateOrigins,
@@ -299,7 +302,7 @@ fn instantiate(
         .statement_at(equation.state, edge.statement_index)?;
     instantiate_edge_origins(
         program,
-        machine,
+        program.machine_holding_state(equation.state.symbol)?,
         equation.state,
         edge.target,
         boundary,
@@ -321,7 +324,6 @@ fn instantiate(
 #[allow(clippy::too_many_arguments)]
 fn finite_substitutions(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
     equations: &[Equation<'_>],
     successors: &[Vec<usize>],
     symbols: &TopLevelSymbols<'_>,
@@ -359,11 +361,11 @@ fn finite_substitutions(
                                 local_suffix: String::new(),
                                 local_segments: Vec::new(),
                                 may_select: false,
-                                origin: Some(FramePlaceOrigin {
+                                origin: Some(ReferenceSource::Symbolic(FramePlaceOrigin {
                                     path: { parameter.name.as_str().to_owned() },
                                     precision: FramePathPrecision::Exact,
                                     source,
-                                }),
+                                })),
                                 lifetime_dependencies: Vec::new(),
                             }],
                             ..Default::default()
@@ -385,7 +387,7 @@ fn finite_substitutions(
                                     local_suffix: leaf.local_path,
                                     local_segments: leaf.local_segments,
                                     may_select: leaf.may_select,
-                                    origin: leaf.origin,
+                                    origin: leaf.origin.map(ReferenceSource::Symbolic),
                                     lifetime_dependencies: leaf.lifetime_dependencies,
                                 })
                                 .collect(),
@@ -400,7 +402,6 @@ fn finite_substitutions(
                 let mut actual = AggregateOrigins::default();
                 instantiate(
                     program,
-                    machine,
                     equation,
                     edge,
                     &mut basis,
@@ -482,7 +483,7 @@ fn finite_substitutions(
                     Some(())
                 };
                 for leaf in actual.references {
-                    let origin = leaf.origin?;
+                    let origin = leaf.origin?.into_symbolic_place()?;
                     record(
                         Some(&leaf.local_segments),
                         &origin.source,

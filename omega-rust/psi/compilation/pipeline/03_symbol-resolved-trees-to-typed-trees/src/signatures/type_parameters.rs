@@ -23,7 +23,7 @@ pub(crate) fn lower_type_parameters(
         .insert_many(parameters))
 }
 
-fn lower_type_parameter(
+pub(crate) fn lower_type_parameter(
     lowerer: &mut Lowerer,
     parameter: &resolved::data::TypeParameter,
 ) -> Result<typed::data::TypeParameter, Diagnostic> {

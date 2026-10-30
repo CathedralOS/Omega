@@ -29,7 +29,7 @@ satisfies CallingPolicy::plan
         true -> accept()
         _ -> reject()
     }
-    state accept() -> BoundaryPlanResult {
+    machine accept() -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         let mut callback: BoundaryEntryPlan = CallbackPolicies::finish(plan);
         // Placement is identical to the ordinary void(void) body, but its
@@ -39,7 +39,7 @@ satisfies CallingPolicy::plan
         callback.call.ordinary_clobbers.register_count = 40;
         BoundaryPlanResult::Accepted { plan: callback }
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "initializer must be void(void)" },
         }
@@ -55,7 +55,7 @@ satisfies CallingPolicy::plan
         true -> accept(signature)
         _ -> reject()
     }
-    state accept(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine accept(signature: BoundarySignature) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         plan.call.parameter_count = signature.native_parameter_count;
         plan.call.parameters[0] = CallbackPolicies::word(8, 0);
@@ -67,7 +67,7 @@ satisfies CallingPolicy::plan
         plan.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
         BoundaryPlanResult::Accepted { plan: CallbackPolicies::finish(plan) }
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "invalid pthread_once telescope" },
         }
@@ -203,8 +203,8 @@ machine emit(character: i32) reaches Console + ProcessId requires character >= 0
         true -> write(character)
         _ -> failed()
     }
-    state write(character: i32) requires character >= 0 && character <= 255 { Console::write_byte(character); }
-    state failed() { Console::exit_process(73); }
+    machine write(character: i32) requires character >= 0 && character <= 255 { Console::write_byte(character); }
+    machine failed() { Console::exit_process(73); }
 }
 
 public data Initialization { }
@@ -243,8 +243,8 @@ invokes Console;
         true -> done()
         _ -> failed()
     }
-    state done() { }
-    state failed() { Console::exit_process(71); }
+    machine done() { }
+    machine failed() { Console::exit_process(71); }
 }
 
 
@@ -324,7 +324,7 @@ linux_x86_64 machine CallbackPolicies::initializer(signature: BoundarySignature)
         true -> accept()
         _ -> reject()
     }
-    state accept() -> BoundaryPlanResult {
+    machine accept() -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         let mut callback: BoundaryEntryPlan = LinuxCallbackPolicies::finish(plan);
         // Preserve R10 across this callback; the ordinary helper still has
@@ -333,7 +333,7 @@ linux_x86_64 machine CallbackPolicies::initializer(signature: BoundarySignature)
         callback.call.ordinary_clobbers.register_count = 24;
         BoundaryPlanResult::Accepted { plan: callback }
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "initializer must be void(void)" },
         }
@@ -348,7 +348,7 @@ linux_x86_64 machine CallbackPolicies::once(signature: BoundarySignature) -> Bou
         true -> accept(signature)
         _ -> reject()
     }
-    state accept(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine accept(signature: BoundarySignature) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         plan.call.parameter_count = signature.native_parameter_count;
         plan.call.parameters[0] = LinuxCallbackPolicies::word(8, 0);
@@ -360,7 +360,7 @@ linux_x86_64 machine CallbackPolicies::once(signature: BoundarySignature) -> Bou
         plan.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
         BoundaryPlanResult::Accepted { plan: LinuxCallbackPolicies::finish(plan) }
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "invalid pthread_once telescope" },
         }

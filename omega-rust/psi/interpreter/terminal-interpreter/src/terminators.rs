@@ -42,6 +42,42 @@ struct SelectedSuccessor<'edge> {
 }
 
 impl TerminalExecution<'_> {
+    /// A no-normal invocation still evaluates its ordinary actuals and enters
+    /// the callee. The callee owns its crash or external outcome; this edge
+    /// creates neither a second event nor a normal result or cleanup receipt.
+    pub(crate) fn settle_invoke_no_normal(
+        &mut self,
+        terminator: &Terminator,
+        meter: &mut TerminalFuelMeter,
+    ) -> Result<TerminatorFlow, TerminalInterpretError> {
+        let Terminator::InvokeNoNormal {
+            edge,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            ..
+        } = terminator
+        else {
+            return Err(malformed());
+        };
+        let scalar_arguments = arguments
+            .iter()
+            .map(|argument| self.scalar_value(*argument))
+            .collect::<Result<Vec<_>, _>>()?;
+        if let Err(error) = meter.charge_terminator(terminator) {
+            return meter_status(error).map(TerminatorFlow::Yield);
+        }
+        self.begin_no_normal_call(
+            *callee,
+            *edge,
+            &scalar_arguments,
+            structural_arguments,
+            claim_transfers,
+        )?;
+        Ok(TerminatorFlow::Continue)
+    }
+
     /// Claim paths under one live place — every terminator-side frontier
     /// walk reads the same projection.
     fn live_claim_paths_at(
@@ -121,10 +157,21 @@ impl TerminalExecution<'_> {
         terminator: &Terminator,
         meter: &mut TerminalFuelMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
+        let scalars = self.scalar_values_at(successor.arguments)?;
+        self.settle_successor_with_scalars(successor, &scalars, terminator, meter)
+    }
+
+    fn settle_successor_with_scalars(
+        &mut self,
+        successor: SelectedSuccessor<'_>,
+        scalars: &[TerminalScalarValue],
+        terminator: &Terminator,
+        meter: &mut TerminalFuelMeter,
+    ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let SelectedSuccessor {
             edge,
             target,
-            arguments,
+            arguments: _,
             structural_arguments,
             cleanup_actions,
         } = successor;
@@ -148,7 +195,7 @@ impl TerminalExecution<'_> {
         }
         let structural_arguments = selected_arguments.as_slice();
         let bindings = self
-            .prepare_block_bindings(target, arguments, structural_arguments)
+            .prepare_block_bindings(target, scalars, structural_arguments)
             .map_err(|error| {
                 error.in_argument_preparation("state arrival storage and memberships")
             })?;
@@ -261,26 +308,24 @@ impl TerminalExecution<'_> {
                     payload_root.clone(),
                     *field,
                 ))
-                .copied()
-                .ok_or(malformed())?;
+                .ok_or(malformed())?
+                .read()?;
             if scalar.scalar_type() != parameter.scalar_type {
                 return Err(malformed());
             }
-            bindings.push((parameter.id, scalar));
+            bindings.push(scalar);
         }
-        let bindings =
-            block_bindings::BlockBindings::from_scalars(bindings, self.account.as_ref())?;
-        let cleanup_actions =
-            bindings.prepare_cleanup_actions(self, &[], &successor.cleanup_actions)?;
-        if let Err(error) = meter.charge_edge(successor.edge, terminator) {
-            return meter_status(error).map(TerminatorFlow::Yield);
-        }
-        self.continue_cleanup_actions(
-            cleanup_actions.into_iter(),
-            CleanupContinuation::Successor {
+        self.settle_successor_with_scalars(
+            SelectedSuccessor {
+                edge: successor.edge,
                 target: successor.target,
-                bindings,
+                arguments: &[],
+                structural_arguments: &successor.structural_arguments,
+                cleanup_actions: &successor.cleanup_actions,
             },
+            &bindings,
+            terminator,
+            meter,
         )
     }
 
@@ -289,6 +334,7 @@ impl TerminalExecution<'_> {
         terminator: &Terminator,
         meter: &mut TerminalFuelMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
+        self.reject_no_normal_return()?;
         let Terminator::Return {
             value,
             cleanup_actions,
@@ -323,6 +369,7 @@ impl TerminalExecution<'_> {
         terminator: &Terminator,
         meter: &mut TerminalFuelMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
+        self.reject_no_normal_return()?;
         let Terminator::ReturnUnit {
             cleanup_actions, ..
         } = terminator
@@ -441,7 +488,11 @@ impl TerminalExecution<'_> {
             .external_bindings
             .get(boundary)
             .is_some_and(|admission| {
-                admission.answers(self.program.identity, self.process_domain.as_ref(), demand)
+                admission.answers(
+                    self.program.identity.semantic(),
+                    self.process_domain.as_ref(),
+                    demand,
+                )
             })
         {
             return Err(TerminalInterpretError::UnboundExternalCompletions {

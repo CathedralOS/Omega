@@ -1,0 +1,15 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "selected_applied_synchronous_cycle");
+    Build::select_provider<Stage<1u64>, FirstStage<1u64>>(builder, macos_arm64);
+    Build::select_provider<Stage<2u64>, SecondStage<2u64>>(builder, macos_arm64);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::select_provider<Stage<1u64>, FirstStage<1u64>>(builder, windows_x86_64);
+    Build::select_provider<Stage<2u64>, SecondStage<2u64>>(builder, windows_x86_64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::select_provider<Stage<1u64>, FirstStage<1u64>>(builder, linux_x86_64);
+    Build::select_provider<Stage<2u64>, SecondStage<2u64>>(builder, linux_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::select_provider<Stage<1u64>, FirstStage<1u64>>(builder, linux_arm64);
+    Build::select_provider<Stage<2u64>, SecondStage<2u64>>(builder, linux_arm64);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+}

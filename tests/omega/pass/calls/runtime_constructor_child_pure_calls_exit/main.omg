@@ -12,8 +12,8 @@ requires value.first == value.second {
 machine exercise(value: i32) crashes Trap {
     let same: bool = observe(Pair { first: identity(value), second: identity(value) });
     transition same { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine Main::main(main: &mut Main) crashes Trap { exercise(42); }

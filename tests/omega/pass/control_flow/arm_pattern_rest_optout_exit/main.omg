@@ -5,11 +5,10 @@
 // spec 2026-07-18): `dx as step` renames the binding (uses of `step`
 // rewrite to the subject's payload read), `dy as _` waives the field
 // (spelled, no binding). Case arm keeps its tag guard; the `if` guard and
-// target arguments see the renamed binding. The runtime self-check accepts only 30 + 40 = 70.
+// target arguments see the renamed binding.
 use omega_language_std::console;
-domain i32::Step(value) requires 0 <= value && value <= 50;
-data Msg {
-    case Move(dx: i32 in Step, dy: i32 in Step);
+data Msg requires (self in Msg::Stop) || ((self in Msg::Move) && 0 <= self.dx && self.dx <= 50 && 0 <= self.dy && self.dy <= 50) {
+    case Move(dx: i32, dy: i32);
     case Stop(code: i32);
 }
 data Main { }
@@ -21,8 +20,8 @@ machine Main::apply(main: &mut Main, m: Msg) reaches Console {
         Msg::Move { dx as step, .. } if step == 30 -> good(main, step)
         _ -> bad(main)
     }
-    state good(main: &mut Main, step: i32 in Step) { let code: i32 = step + 40; Console::exit_process(code); }
-    state bad(main: &mut Main) { Console::exit_process(1); }
+    machine good(main: &mut Main, step: i32) requires 0 <= step && step <= 50 { let code: i32 = step + 40; Console::exit_process(code); }
+    machine bad(main: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

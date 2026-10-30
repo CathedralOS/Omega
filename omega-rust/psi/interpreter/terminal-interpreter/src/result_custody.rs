@@ -9,7 +9,6 @@ use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{CompletedReturn, TerminalExecution};
 use crate::provider_storage::{ProviderStorageBinding, ProviderStorageSlot, ResidentStorageSlot};
 use crate::results::TerminalExecutionResult;
-use crate::runtime_rows::RuntimeRows;
 use crate::structural_storage::{StorageKey, cells};
 use crate::values::StructuralRuntimePlace;
 use evaluation_accounting::{EvaluationAccountingError, EvaluationResource};
@@ -49,7 +48,7 @@ impl<'storage> ResultCustody<'storage> {
 
     pub(crate) fn rows<K: StorageKey, Value>(
         &mut self,
-        rows: &RuntimeRows<K, Value>,
+        rows: &impl std::borrow::Borrow<std::collections::BTreeMap<K, Value>>,
         root: &StructuralRuntimePlace,
     ) -> Result<(), TerminalInterpretError> {
         self.add_cells(cells(rows, root).count())
@@ -208,15 +207,17 @@ impl TerminalExecution<'_> {
         custody.rows(&self.structural_primitive_storage, root)?;
         custody.rows(&self.structural_cases, root)?;
         custody.rows(&self.structural_host_atoms, root)?;
+        custody.rows(&self.original_storage_roots, root)?;
         custody.rows(&self.provider_storage.completed_profiles, root)?;
         custody.rows(&self.structural_byte_storage, root)?;
+        custody.rows(&self.empty_array_storage.rows, root)?;
         custody.rows(&self.structural_byte_sequence_fields, root)?;
         custody.rows(&self.structural_byte_descriptors, root)?;
         custody.rows(&self.structural_element_view_fields, root)?;
         custody.rows(&self.reference_referents, root)?;
         custody.rows(&self.provider_storage.descriptors, root)?;
-        for (_, view) in cells(&self.structural_byte_storage, root) {
-            custody.bytes(view)?;
+        for (_, storage) in cells(&self.structural_byte_storage, root) {
+            storage.measure_result_custody(custody)?;
         }
         for (_, binding) in cells(&self.structural_byte_sequence_fields, root) {
             custody.binding(binding)?;

@@ -1,0 +1,1 @@
+not permitted by the declared result lifetime relation

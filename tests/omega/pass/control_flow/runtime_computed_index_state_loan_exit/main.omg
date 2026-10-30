@@ -19,7 +19,7 @@ machine report(value:u32 in Wrapping,cursor:&Cursor)->u32 in Wrapping {
 machine pack(prefix:u32 in Wrapping,value:u32 in Wrapping)->u32 in Wrapping {prefix*10000+value}
 machine update(cells:&mut [Cell;2],cursor:&mut Cursor)->u32 in Wrapping {
  transition { _ -> apply(&mut cells[select(cursor)],cursor) }
- state apply(cell:&mut Cell,cursor:&Cursor)->u32 in Wrapping {
+ machine apply(cell:&mut Cell,cursor:&Cursor)->u32 in Wrapping {
   observe(mark(cell,5),cell,cursor)
  }
 }
@@ -28,5 +28,5 @@ machine main() crashes Trap {
  let mut cursor:Cursor=Cursor{position:0,calls:0};
  let observed:u32 in Wrapping=update(&mut cells,&mut cursor);
  transition observed==1321 && cells[0].value==12 && cells[1].value==3 && cursor.calls==1 && cursor.position==1 {true->done() _->bad()}
- state done(){} state bad(){crash Trap;}
+ machine done(){} machine bad(){crash Trap;}
 }

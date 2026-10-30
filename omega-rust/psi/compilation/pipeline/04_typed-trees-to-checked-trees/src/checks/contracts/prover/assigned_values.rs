@@ -182,7 +182,12 @@ pub(in crate::checks::contracts) fn prove_domain_at_place(
             semantic,
             contexts,
         }
-        .domain(subject, domain, &mut Vec::new())
+        .domain(
+            subject,
+            domain,
+            language_semantics::SemanticDomainId::NULL,
+            &mut Vec::new(),
+        )
 }
 
 /// Membership of `subject` in one EXACT indexed (const-generic) instance.
@@ -366,12 +371,20 @@ impl AssignedValues<'_> {
         &self,
         subject: &CanonicalPlace,
         symbol: SymbolHandle,
+        instance: language_semantics::SemanticDomainId,
         active: &mut Vec<SymbolHandle>,
     ) -> bool {
         if !symbol.is_valid() || active.contains(&symbol) {
             return false;
         }
-        let Some(domain) = self.program.domain_definition(symbol) else {
+        // A nested membership names its complete applied view, never the bare
+        // family: `self in Held<7>` unfolds `Held<7>`'s substituted predicates,
+        // while an unindexed member resolves to its own declaration.
+        let Some(domain) = self
+            .program
+            .domain_definition_for_instance(symbol, instance)
+            .or_else(|| self.program.domain_definition(symbol))
+        else {
             return false;
         };
         if let Some(literal) = self.literal(subject)
@@ -387,6 +400,8 @@ impl AssignedValues<'_> {
             return true;
         }
         if !domain.type_parameters.is_empty() || !domain.index_arguments.is_empty() {
+            // The applied view has already consumed its telescope; an
+            // unresolved family template can never mint an exact membership.
             return false;
         }
         // Integer predicates share qualification's typed, declaration-scoped
@@ -450,7 +465,12 @@ impl AssignedValues<'_> {
                         self.contexts,
                         &nested,
                         membership.domain_symbol,
-                    ) || self.domain(&nested, membership.domain_symbol, active)
+                    ) || self.domain(
+                        &nested,
+                        membership.domain_symbol,
+                        membership.semantic_domain,
+                        active,
+                    )
                 }),
             ProofFact::Proposition(_) => false,
         });
@@ -466,7 +486,11 @@ impl AssignedValues<'_> {
                 .context_view(self.semantic.contexts.get(*context))
                 .facts()
                 .find_map(|fact| {
-                    let FactPayload::AssignedCase { variant } = fact.payload else {
+                    let FactPayload::CaseValue {
+                        variant,
+                        value: true,
+                    } = fact.payload
+                    else {
                         return None;
                     };
                     let place = fact.place.as_place()?;

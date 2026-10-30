@@ -39,9 +39,7 @@ pub fn resolve(
     if calls.next().is_some() {
         return None;
     }
-    if let semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) =
-        record.invocation_site
-    {
+    if let semantic_vocabulary::InvocationSite::ExternalCompletion(edge) = record.invocation_site {
         if !matches!(
             record.call.result,
             target_operations::TargetBoundaryResult::Unit

@@ -7,7 +7,7 @@ machine calculate(flag: bool, value: u64 in Wrapping) -> u64 in Wrapping {
         true -> sum(fraction, fraction)
         false -> sum(fraction, fraction)
     }
-    state sum(first: Fraction, second: Fraction) -> u64 in Wrapping {
+    machine sum(first: Fraction, second: Fraction) -> u64 in Wrapping {
         first.numerator + second.denominator
     }
 }
@@ -18,12 +18,12 @@ machine Main::main(context: &mut Main) reaches Console {
         ByteRead::Eof -> finish(context, 7)
         ByteRead::Byte { value } -> finish(context, value as u64 in Wrapping)
     }
-    state finish(context: &mut Main, value: u64 in Wrapping) {
+    machine finish(context: &mut Main, value: u64 in Wrapping) {
         let result: u64 in Wrapping = calculate(value > 70, value);
         transition result == value + 3 { true -> correct(context) false -> incorrect(context) }
     }
-    state correct(context: &mut Main) { Console::exit_process(0); }
-    state incorrect(context: &mut Main) { Console::exit_process(1);
+    machine correct(context: &mut Main) { Console::exit_process(0); }
+    machine incorrect(context: &mut Main) { Console::exit_process(1);
     }
 }
 

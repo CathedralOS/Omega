@@ -156,6 +156,7 @@ impl SelectedProgramEntryCall {
         // The selected source declaration receives exactly these two existing
         // roots. Application-local storage is ordinary authored code and its
         // frame demand already belongs to the checked call closure.
+        terminal_semantics::validate_empty_erased_invocation_inputs(module, callee)?;
         Ok(Some(Self {
             boundary: boundary.id,
             entry: entry.checked_entry().clone(),

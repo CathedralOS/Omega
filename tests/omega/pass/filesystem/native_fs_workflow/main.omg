@@ -45,7 +45,7 @@ machine Main::main_linux(main: &mut Main) reaches FilesystemContentRead + Filesy
     // 1. working directory
     main.rc = PosixFilesystemHost::create_dir("/tmp/omega_wf", main.dir_mode);
     transition main.rc == 0 { true -> makefile(main) _ -> fail(main) }
-    state makefile(main: &mut Main) {
+    machine makefile(main: &mut Main) {
         // 2. create + write + close
         main.fd = PosixFilesystemHost::create("/tmp/omega_wf/a.txt", main.mode);
         main.n = PosixFilesystemHost::write(main.fd, "hello world");
@@ -54,26 +54,26 @@ machine Main::main_linux(main: &mut Main) reaches FilesystemContentRead + Filesy
         main.rc = PosixFilesystemHost::read_metadata("/tmp/omega_wf/a.txt", &mut main.buffer);
         transition main.rc == 0 { true -> checktype(main) _ -> fail(main) }
     }
-    state checktype(main: &mut Main) {
+    machine checktype(main: &mut Main) {
         main.fmt =
             (widen_u8_to_i32(main.buffer[24]) | (widen_u8_to_i32(main.buffer[25]) << 8))
                 & 61440;
         transition main.fmt == 32768 { true -> checksize(main) _ -> fail(main) }
     }
-    state checksize(main: &mut Main) {
+    machine checksize(main: &mut Main) {
         main.size = widen_u8_to_i32(main.buffer[48]); // st_size low byte (11 < 256)
         transition main.size == 11 { true -> link(main) _ -> fail(main) }
     }
-    state link(main: &mut Main) {
+    machine link(main: &mut Main) {
         // 4. hard link, then 5. rename it
         main.rc = PosixFilesystemHost::hard_link("/tmp/omega_wf/a.txt", "/tmp/omega_wf/b.txt");
         transition main.rc == 0 { true -> renameit(main) _ -> fail(main) }
     }
-    state renameit(main: &mut Main) {
+    machine renameit(main: &mut Main) {
         main.rc = PosixFilesystemHost::rename("/tmp/omega_wf/b.txt", "/tmp/omega_wf/c.txt");
         transition main.rc == 0 { true -> lockread(main) _ -> fail(main) }
     }
-    state lockread(main: &mut Main) {
+    machine lockread(main: &mut Main) {
         // 6. open, flock, read back, unlock, close
         main.fd = PosixFilesystemHost::open("/tmp/omega_wf/c.txt", main.rdonly);
         main.rc = PosixFilesystemHost::lock_file(main.fd, 2); // LOCK_EX
@@ -83,27 +83,27 @@ machine Main::main_linux(main: &mut Main) reaches FilesystemContentRead + Filesy
         main.discard = PosixFilesystemHost::close(main.fd);
         transition main.first == 104 { true -> chmod(main) _ -> fail(main) }
     }
-    state chmod(main: &mut Main) {
+    machine chmod(main: &mut Main) {
         // 7. chmod read-only, re-stat, assert write bits cleared
         main.rc = PosixFilesystemHost::set_permissions("/tmp/omega_wf/a.txt", main.ro_mode);
         main.rc = PosixFilesystemHost::read_metadata("/tmp/omega_wf/a.txt", &mut main.buffer);
         transition main.rc == 0 { true -> checkro(main) _ -> fail(main) }
     }
-    state checkro(main: &mut Main) {
+    machine checkro(main: &mut Main) {
         main.wbits =
             (widen_u8_to_i32(main.buffer[24]) | (widen_u8_to_i32(main.buffer[25]) << 8))
                 & 146; // 0o222
         transition main.wbits == 0 { true -> cleanup(main) _ -> fail(main) }
     }
-    state cleanup(main: &mut Main) {
+    machine cleanup(main: &mut Main) {
         // 8. remove everything
         main.discard = PosixFilesystemHost::remove("/tmp/omega_wf/a.txt");
         main.discard = PosixFilesystemHost::remove("/tmp/omega_wf/c.txt");
         main.rc = PosixFilesystemHost::remove_dir("/tmp/omega_wf");
         transition main.rc == 0 { true -> good(main) _ -> fail(main) }
     }
-    state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: fs workflow (mkdir/create/write/stat/link/rename/flock/read/chmod/cleanup)\n"); }
-    state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: fs workflow\n"); }
+    machine good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: fs workflow (mkdir/create/write/stat/link/rename/flock/read/chmod/cleanup)\n"); }
+    machine fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: fs workflow\n"); }
 }
 
 machine Main::main_macos(main: &mut Main) reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
@@ -115,7 +115,7 @@ machine Main::main_macos(main: &mut Main) reaches FilesystemContentRead + Filesy
     // 1. working directory
     main.rc = PosixFilesystemHost::create_dir("/tmp/omega_wf", main.dir_mode);
     transition main.rc == 0 { true -> makefile(main) _ -> fail(main) }
-    state makefile(main: &mut Main) {
+    machine makefile(main: &mut Main) {
         // 2. create + write + close
         main.fd = PosixFilesystemHost::create("/tmp/omega_wf/a.txt", main.mode);
         main.n = PosixFilesystemHost::write(main.fd, "hello world");
@@ -124,26 +124,26 @@ machine Main::main_macos(main: &mut Main) reaches FilesystemContentRead + Filesy
         main.rc = PosixFilesystemHost::read_metadata("/tmp/omega_wf/a.txt", &mut main.buffer);
         transition main.rc == 0 { true -> checktype(main) _ -> fail(main) }
     }
-    state checktype(main: &mut Main) {
+    machine checktype(main: &mut Main) {
         main.fmt =
             (widen_u8_to_i32(main.buffer[4]) | (widen_u8_to_i32(main.buffer[5]) << 8))
                 & 61440;
         transition main.fmt == 32768 { true -> checksize(main) _ -> fail(main) }
     }
-    state checksize(main: &mut Main) {
+    machine checksize(main: &mut Main) {
         main.size = widen_u8_to_i32(main.buffer[96]); // st_size low byte (11 < 256)
         transition main.size == 11 { true -> link(main) _ -> fail(main) }
     }
-    state link(main: &mut Main) {
+    machine link(main: &mut Main) {
         // 4. hard link, then 5. rename it
         main.rc = PosixFilesystemHost::hard_link("/tmp/omega_wf/a.txt", "/tmp/omega_wf/b.txt");
         transition main.rc == 0 { true -> renameit(main) _ -> fail(main) }
     }
-    state renameit(main: &mut Main) {
+    machine renameit(main: &mut Main) {
         main.rc = PosixFilesystemHost::rename("/tmp/omega_wf/b.txt", "/tmp/omega_wf/c.txt");
         transition main.rc == 0 { true -> lockread(main) _ -> fail(main) }
     }
-    state lockread(main: &mut Main) {
+    machine lockread(main: &mut Main) {
         // 6. open, flock, read back, unlock, close
         main.fd = PosixFilesystemHost::open("/tmp/omega_wf/c.txt", main.rdonly);
         main.rc = PosixFilesystemHost::lock_file(main.fd, 2); // LOCK_EX
@@ -153,27 +153,27 @@ machine Main::main_macos(main: &mut Main) reaches FilesystemContentRead + Filesy
         main.discard = PosixFilesystemHost::close(main.fd);
         transition main.first == 104 { true -> chmod(main) _ -> fail(main) }
     }
-    state chmod(main: &mut Main) {
+    machine chmod(main: &mut Main) {
         // 7. chmod read-only, re-stat, assert write bits cleared
         main.rc = PosixFilesystemHost::set_permissions("/tmp/omega_wf/a.txt", main.ro_mode);
         main.rc = PosixFilesystemHost::read_metadata("/tmp/omega_wf/a.txt", &mut main.buffer);
         transition main.rc == 0 { true -> checkro(main) _ -> fail(main) }
     }
-    state checkro(main: &mut Main) {
+    machine checkro(main: &mut Main) {
         main.wbits =
             (widen_u8_to_i32(main.buffer[4]) | (widen_u8_to_i32(main.buffer[5]) << 8))
                 & 146; // 0o222
         transition main.wbits == 0 { true -> cleanup(main) _ -> fail(main) }
     }
-    state cleanup(main: &mut Main) {
+    machine cleanup(main: &mut Main) {
         // 8. remove everything
         main.discard = PosixFilesystemHost::remove("/tmp/omega_wf/a.txt");
         main.discard = PosixFilesystemHost::remove("/tmp/omega_wf/c.txt");
         main.rc = PosixFilesystemHost::remove_dir("/tmp/omega_wf");
         transition main.rc == 0 { true -> good(main) _ -> fail(main) }
     }
-    state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: fs workflow (mkdir/create/write/stat/link/rename/flock/read/chmod/cleanup)\n"); }
-    state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: fs workflow\n"); }
+    machine good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: fs workflow (mkdir/create/write/stat/link/rename/flock/read/chmod/cleanup)\n"); }
+    machine fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: fs workflow\n"); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

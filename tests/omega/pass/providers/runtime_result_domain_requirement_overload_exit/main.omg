@@ -31,8 +31,8 @@ reaches Console, Convert
         _ -> bad(main)
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(77); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(77); }
 }
 
 ConvertProviderConvertImplementation satisfies Convert {

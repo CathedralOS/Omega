@@ -29,7 +29,7 @@ machine two_hop(value: i32) -> u8 {
         true -> upper(value)
         _ -> (0)
     }
-    state upper(value: i32) -> u8 {
+    machine upper(value: i32) -> u8 {
         transition value <= 255 {
             true -> (value as u8)
             _ -> (0)
@@ -48,8 +48,8 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

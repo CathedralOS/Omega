@@ -64,7 +64,7 @@ machine routed(prefix: i32, mut pair: Pair, selected: bool) -> i32 {
         true -> finish(pair, old, prefix)
         false -> total(pair)
     }
-    state finish(pair: Pair, old: i32, prefix: i32) -> i32 {
+    machine finish(pair: Pair, old: i32, prefix: i32) -> i32 {
         let current: i32 = total(pair);
         (((current as i32 in Wrapping) + (old as i32 in Wrapping))
             + (prefix as i32 in Wrapping)) as i32
@@ -78,7 +78,7 @@ machine routed_field(prefix: i32, mut pair: Pair) -> i32 {
     pair.left = Receipt { code: 3 };
     let old: i32 = consume(previous);
     transition { _ -> finish(pair, old, prefix) }
-    state finish(pair: Pair, old: i32, prefix: i32) -> i32 {
+    machine finish(pair: Pair, old: i32, prefix: i32) -> i32 {
         let current: i32 = total(pair);
         (((current as i32 in Wrapping) + (old as i32 in Wrapping))
             + (prefix as i32 in Wrapping)) as i32
@@ -131,6 +131,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

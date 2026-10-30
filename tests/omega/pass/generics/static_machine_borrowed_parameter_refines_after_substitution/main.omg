@@ -31,7 +31,7 @@ terminates by items;
         )
     }
 
-    state choose(keep: bool, head: T, tail: Seq<T>) -> Seq<T> {
+    machine choose(keep: bool, head: T, tail: Seq<T>) -> Seq<T> {
         transition keep {
             true -> Seq::Cons { head: head, tail: tail }
             false -> tail
@@ -52,7 +52,7 @@ terminates by items;
         )
     }
 
-    state choose(keep: bool, head: T, tail: Seq<T>) -> Seq<T> {
+    machine choose(keep: bool, head: T, tail: Seq<T>) -> Seq<T> {
         transition keep {
             true -> Seq::Cons { head: head, tail: tail }
             false -> tail
@@ -69,13 +69,13 @@ terminates by items;
         Seq::Cons { head, tail } -> step(head, tail)
     }
 
-    state step(head: T, tail: Seq<T>) -> Seq<T> {
+    machine step(head: T, tail: Seq<T>) -> Seq<T> {
         let current: T = head;
         let keep: bool = Touch(&mut current);
         transition { _ -> choose(keep, current, filter_touch<Touch>(tail)) }
     }
 
-    state choose(keep: bool, head: T, tail: Seq<T>) -> Seq<T> {
+    machine choose(keep: bool, head: T, tail: Seq<T>) -> Seq<T> {
         transition keep {
             true -> Seq::Cons { head: head, tail: tail }
             false -> tail
@@ -126,8 +126,8 @@ machine clear_negative(value: &mut i32) -> bool {
         true -> kept()
         false -> cleared(value)
     }
-    state kept() -> bool { true }
-    state cleared(value: &mut i32) -> bool {
+    machine kept() -> bool { true }
+    machine cleared(value: &mut i32) -> bool {
         value = 0;
         transition { _ -> false }
     }

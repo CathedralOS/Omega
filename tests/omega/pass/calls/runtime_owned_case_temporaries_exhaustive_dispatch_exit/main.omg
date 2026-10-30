@@ -27,7 +27,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> report(main, 70)
         _ -> report(main, 71)
     }
-    state report(main: &mut Main, code: i32 in Wrapping) {
+    machine report(main: &mut Main, code: i32 in Wrapping) {
         Console::exit_process(code as i32);
     }
 }
@@ -37,10 +37,10 @@ machine Main::apply(main: &mut Main, event: Event) {
         Event::Add { amount } -> add(main, amount)
         Event::Bonus -> bonus(main)
     }
-    state add(main: &mut Main, amount: i32 in Wrapping) {
+    machine add(main: &mut Main, amount: i32 in Wrapping) {
         main.tally.total = main.tally.total + amount;
     }
-    state bonus(main: &mut Main) {
+    machine bonus(main: &mut Main) {
         main.tally.total = main.tally.total + 10;
     }
 }

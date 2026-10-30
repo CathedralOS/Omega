@@ -12,8 +12,8 @@ machine Probe::classify(probe: &mut Probe, flag: bool) -> Res {
         true -> pc_empty(probe)
         _ -> pc_err(probe, Kind::NotFound)
     }
-    state pc_empty(probe: &mut Probe) -> Res { Res::Empty }
-    state pc_err(probe: &mut Probe, kind: Kind) -> Res { Res::Error { kind: kind } }
+    machine pc_empty(probe: &mut Probe) -> Res { Res::Empty }
+    machine pc_err(probe: &mut Probe, kind: Kind) -> Res { Res::Error { kind: kind } }
 }
 data Main { probe: Probe; result: Res; }
 machine Main::main(main: &mut Main) {
@@ -22,6 +22,6 @@ machine Main::main(main: &mut Main) {
         Res::Empty -> bad()
         _ -> good()
     }
-    state good() { }
-    state bad() { crash Trap; }
+    machine good() { }
+    machine bad() { crash Trap; }
 }

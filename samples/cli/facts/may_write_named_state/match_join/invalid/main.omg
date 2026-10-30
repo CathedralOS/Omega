@@ -14,7 +14,7 @@ machine relay<'storage>(chosen: &'storage mut u64, other: &'storage mut u64, pic
     transition {
         _ -> hand(chosen, other, pick_chosen)
     }
-    state hand(chosen: &'storage mut u64, other: &'storage mut u64, pick_chosen: bool) -> &'storage mut u64 {
+    machine hand(chosen: &'storage mut u64, other: &'storage mut u64, pick_chosen: bool) -> &'storage mut u64 {
         choose(chosen, other, pick_chosen)
     }
 }
@@ -47,6 +47,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

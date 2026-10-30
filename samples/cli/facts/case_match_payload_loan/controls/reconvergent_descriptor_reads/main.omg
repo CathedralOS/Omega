@@ -42,6 +42,6 @@ machine exercise(flag: bool) -> bool {
 }
 machine main() crashes Trap {
     transition exercise(true) { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

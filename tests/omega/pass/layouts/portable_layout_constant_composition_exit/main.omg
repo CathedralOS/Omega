@@ -1,0 +1,18 @@
+// Expected exit: 0.
+// Layout-derived values retain one meaning through a helper, an array extent,
+// a named initializer and a ground contract before target realization.
+data Cell { code: u64; tag: u64; }
+machine extent() -> u64 { size_of<Cell>() }
+data Envelope { bytes: [u8; extent()]; }
+const TOTAL: u64 = size_of<Envelope>() + align_of<Cell>();
+machine require_layout() requires TOTAL == 24 {}
+
+machine main() crashes Trap {
+    require_layout();
+    let remainder: u64 = TOTAL - 24u64;
+    transition remainder == 0u64 {
+        true -> {}
+        _ -> bad()
+    }
+    machine bad() { crash Trap; }
+}

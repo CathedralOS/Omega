@@ -7,77 +7,101 @@ machine verify_xored(v: i32) -> i32
     let headroom: i32 = 63i32 - v;
     let margin: i32 = v - 40i32;
     let sum: i32 = headroom + margin;
-    sum - 23i32
+    let checked: i32 = sum - 23i32;
+    // Observe the transported value after the original bound-dependent operations.
+    transition v == 52i32 {
+        true -> checked
+        false -> 1i32
+    }
 }
 
-linux_x86_64 machine target_probe(raw: i32) -> i32
-    requires raw >= 59i32 && raw <= 59i32
-{
-    let xored: i32 = raw ^ 15i32;
-    transition xored >= 40i32 {
-        true -> check(xored)
-        false -> bad()
-    }
-    state check(res: i32) {
-        verify_xored(res)
-    }
-    state bad() -> i32 { 1i32 }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine target_probe(raw: i32) -> i32
-    requires raw >= 59i32 && raw <= 59i32
-{
-    let xored: i32 = raw ^ 15i32;
-    transition xored >= 40i32 {
-        true -> check(xored)
-        false -> bad()
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    state check(res: i32) {
-        verify_xored(res)
-    }
-    state bad() -> i32 { 1i32 }
 }
 
-macos_arm64 machine target_probe(raw: i32) -> i32
-    requires raw >= 59i32 && raw <= 59i32
-{
-    let xored: i32 = raw ^ 15i32;
-    transition xored >= 40i32 {
-        true -> check(xored)
-        false -> bad()
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    state check(res: i32) {
-        verify_xored(res)
-    }
-    state bad() -> i32 { 1i32 }
 }
 
-windows_x86_64 machine target_probe(raw: i32) -> i32
-    requires raw >= 59i32 && raw <= 59i32
-{
-    let xored: i32 = raw ^ 15i32;
-    transition xored >= 40i32 {
-        true -> check(xored)
-        false -> bad()
+boundary trait SelectedProbe {
+    machine target_probe(raw: i32) -> i32
+        reaches SelectedBodyCheck crashes Trap
+        requires raw >= 59i32 && raw <= 59i32;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine target_probe(raw: i32) -> i32
+        reaches SelectedBodyCheck crashes Trap
+        requires raw >= 59i32 && raw <= 59i32
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let xored: i32 = raw ^ 15i32;
+        transition xored >= 40i32 {
+            true -> check(xored)
+            false -> bad()
+        }
+        machine check(res: i32) -> i32 {
+            verify_xored(res)
+        }
+        machine bad() -> i32 { 1i32 }
     }
-    state check(res: i32) {
-        verify_xored(res)
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine target_probe(raw: i32) -> i32
+        reaches SelectedBodyCheck crashes Trap
+        requires raw >= 59i32 && raw <= 59i32
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let xored: i32 = raw ^ 15i32;
+        transition xored >= 40i32 {
+            true -> check(xored)
+            false -> bad()
+        }
+        machine check(res: i32) -> i32 {
+            verify_xored(res)
+        }
+        machine bad() -> i32 { 1i32 }
     }
-    state bad() -> i32 { 1i32 }
 }
 
 machine probe(raw: i32) -> i32
+    reaches SelectedProbe, SelectedBodyCheck crashes Trap
     requires raw >= 59i32 && raw <= 59i32
 {
-    target_probe(raw)
+    SelectedProbe::target_probe(raw)
 }
 
-machine main() crashes Trap {
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
     let res: i32 = probe(59i32);
     transition res == 0i32 {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

@@ -9,10 +9,10 @@ public data Posterior [copy] { alpha: i32 in Wrapping; beta: i32 in Wrapping; me
 machine tail(alpha: i32 in Wrapping, beta: i32 in Wrapping, value: f64) -> f64 {
     let length: i32 in Wrapping = alpha + beta - 1;
     transition { _ -> initial(alpha, length, value, 0, 1.0) }
-    state initial(alpha: i32 in Wrapping, length: i32 in Wrapping, value: f64, position: i32 in Wrapping, mass: f64) -> f64 {
+    machine initial(alpha: i32 in Wrapping, length: i32 in Wrapping, value: f64, position: i32 in Wrapping, mass: f64) -> f64 {
         transition position < length { true -> initial(alpha, length, value, position + 1, mass * (1.0 - value)) _ -> terms(alpha, length, value, 0, mass, 0.0) }
     }
-    state terms(alpha: i32 in Wrapping, length: i32 in Wrapping, value: f64, position: i32 in Wrapping, mass: f64, total: f64) -> f64 {
+    machine terms(alpha: i32 in Wrapping, length: i32 in Wrapping, value: f64, position: i32 in Wrapping, mass: f64, total: f64) -> f64 {
         let next: f64 = match position >= alpha { true -> total + mass _ -> total };
         transition position < length {
             true -> terms(alpha, length, value, position + 1, mass * F64::from_i32((length - position) as i32) * value / (F64::from_i32((position + 1) as i32) * (1.0 - value)), next)
@@ -25,11 +25,11 @@ public machine beta_cdf(alpha: i32 in Wrapping, beta: i32 in Wrapping, value: f6
 }
 machine quantile(alpha: i32 in Wrapping, beta: i32 in Wrapping, probability: f64) -> f64 {
     transition { _ -> bisect(alpha, beta, probability, 0, 0.0, 1.0) }
-    state bisect(alpha: i32 in Wrapping, beta: i32 in Wrapping, probability: f64, iteration: i32 in Wrapping, lower: f64, upper: f64) -> f64 {
+    machine bisect(alpha: i32 in Wrapping, beta: i32 in Wrapping, probability: f64, iteration: i32 in Wrapping, lower: f64, upper: f64) -> f64 {
         let midpoint: f64 = (lower + upper) * 0.5;
         transition iteration < 48 { true -> classify(alpha, beta, probability, iteration, lower, upper, midpoint) _ -> midpoint }
     }
-    state classify(alpha: i32 in Wrapping, beta: i32 in Wrapping, probability: f64, iteration: i32 in Wrapping, lower: f64, upper: f64, midpoint: f64) -> f64 {
+    machine classify(alpha: i32 in Wrapping, beta: i32 in Wrapping, probability: f64, iteration: i32 in Wrapping, lower: f64, upper: f64, midpoint: f64) -> f64 {
         let observed: f64 = beta_cdf(alpha, beta, midpoint);
         transition observed < probability { true -> bisect(alpha, beta, probability, iteration + 1, midpoint, upper) _ -> bisect(alpha, beta, probability, iteration + 1, lower, midpoint) }
     }
@@ -47,17 +47,17 @@ public machine posterior(alpha: i32 in Wrapping, beta: i32 in Wrapping) -> Poste
 // All denominators are positive for a,b>=1 and 0<=K<m<=32.
 public machine predict(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33]) {
     transition { _ -> zero(alpha, beta, future, bins, 0, 1.0) }
-    state zero(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33], position: i32 in Wrapping, mass: f64) {
+    machine zero(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33], position: i32 in Wrapping, mass: f64) {
         transition position < future { true -> zero(alpha, beta, future, bins, position + 1, mass * F64::from_i32((beta + position) as i32) / F64::from_i32((alpha + beta + position) as i32)) _ -> first(alpha, beta, future, bins, mass) }
     }
-    state first(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33], mass: f64) {
+    machine first(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33], mass: f64) {
         bins[0] = mass;
         transition { _ -> next(alpha, beta, future, bins, 0, mass) }
     }
-    state next(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33], position: i32 in Wrapping, mass: f64) {
+    machine next(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33], position: i32 in Wrapping, mass: f64) {
         transition position >= 0 && position < 32 && position < future { true -> bin(alpha, beta, future, bins, position, mass) _ -> {} }
     }
-    state bin(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33], position: i32 in Wrapping, mass: f64) {
+    machine bin(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33], position: i32 in Wrapping, mass: f64) {
         let following: f64 = mass * F64::from_i32((future - position) as i32) / F64::from_i32((position + 1) as i32) * F64::from_i32((alpha + position) as i32) / F64::from_i32((beta + future - position - 1) as i32);
         bins[position + 1] = following;
         transition { _ -> next(alpha, beta, future, bins, position + 1, following) }

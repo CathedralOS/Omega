@@ -6,25 +6,52 @@
 //! Optional arguments select another corpus root followed by its target names.
 //! Prefix `--check` or `--terminal` to measure those stops. `--reject TARGET`
 //! expects that target to refuse while its siblings still produce their outputs.
+//! `--reason TEXT` pins a different refusal than the default missing ProgramEntry.
+//! `--run` also executes the host native product and its reloaded Terminal image.
+//! `--expected-terminal-productions 1` measures a Check requiring shared scalar
+//! evaluation; ordinary debt-free Check defaults to zero productions.
+//! `--compare-single-targets` compares native bytes with independent requests.
 
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
+#[path = "../tests/support/joined_product_execution.rs"]
+mod joined_product_execution;
 
 use artifacts::compile_timings::counters;
 use compiler::{CompileOutputKind, CompileRequest, RequestedCompileProduct};
 
 fn main() {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--build-profile")) {
+        println!("{}", compiler::compiler_build_profile());
+        return;
+    }
     let mut arguments = std::env::args().skip(1).peekable();
+    let mut execute_host = false;
+    let mut compare_single_targets = false;
     let mut product = RequestedCompileProduct::NativeArtifact;
     let mut rejected_target = None;
+    let mut expected_terminal_productions = None;
+    let mut rejection_reason = "ProgramEntry".to_owned();
     while arguments
         .peek()
         .is_some_and(|argument| argument.starts_with("--"))
     {
         match arguments.next().as_deref() {
+            Some("--run") => execute_host = true,
+            Some("--compare-single-targets") => compare_single_targets = true,
             Some("--check") => product = RequestedCompileProduct::Check,
             Some("--terminal") => product = RequestedCompileProduct::TerminalArtifact,
+            Some("--expected-terminal-productions") => {
+                expected_terminal_productions = Some(
+                    arguments
+                        .next()
+                        .expect("expected Terminal production count")
+                        .parse::<u64>()
+                        .expect("numeric Terminal production count"),
+                );
+            }
             Some("--reject") => rejected_target = Some(arguments.next().expect("rejected target")),
+            Some("--reason") => rejection_reason = arguments.next().expect("refusal diagnostic"),
             flag => panic!("unknown measurement flag: {flag:?}"),
         }
     }
@@ -58,23 +85,25 @@ fn main() {
         })
         .collect();
     let mut request = CompileRequest::for_targets(
-        prepared.root_path,
+        prepared.root_path.clone(),
         std::env::temp_dir().join(format!("omega-terminal-sharing-{}", std::process::id())),
         targets,
     )
     .with_requested_product(product);
-    if let Some(inputs) = prepared.package_inputs {
-        request = request.with_package_inputs(inputs);
+    if let Some(inputs) = &prepared.package_inputs {
+        request = request.with_package_inputs(inputs.clone());
     }
     let sources_before = counters::product_source_completion_count();
     let builds_before = counters::build_execution_count();
     let checks_before = counters::settled_check_totals().0;
     let terminals_before = counters::terminal_production_count();
-    let outcomes = compiler::compile(request)
-        .expect("request admission")
-        .into_outcomes();
+    let outcomes =
+        omega_build::compile_sources(&mut compiler::CompilationSession::default(), request)
+            .expect("request admission")
+            .into_outcomes();
     assert_eq!(outcomes.len(), target_names.len());
     let mut reports = Vec::new();
+    let mut host_report = None;
     let mut rejections = 0;
     for (outcome, name) in outcomes.into_iter().zip(&target_names) {
         assert_eq!(
@@ -85,15 +114,23 @@ fn main() {
         );
         let result = outcome.into_result();
         if rejected_target.as_ref() == Some(name) {
-            let diagnostics = result.expect_err("target must refuse");
+            let diagnostics = match result {
+                Err(diagnostics) => diagnostics,
+                Ok(_) => panic!("target {name} must refuse with {rejection_reason:?}"),
+            };
             assert!(
                 diagnostics
                     .iter()
-                    .any(|diagnostic| diagnostic.message.contains("ProgramEntry")),
-                "expected missing-entry refusal, got {diagnostics:?}"
+                    .any(|diagnostic| diagnostic.message.contains(&rejection_reason)),
+                "expected {rejection_reason:?} refusal, got {diagnostics:?}"
             );
             rejections += 1;
         } else {
+            if Some(name.as_str())
+                == target::TargetProfile::host_if_supported().map(|profile| profile.target_name())
+            {
+                host_report = Some(reports.len());
+            }
             reports.push(result.expect("requested product"));
         }
     }
@@ -142,11 +179,68 @@ fn main() {
             1,
             1,
             2,
-            u64::from(product != RequestedCompileProduct::Check)
+            expected_terminal_productions
+                .unwrap_or_else(|| u64::from(product != RequestedCompileProduct::Check))
         )
     );
     println!(
         "product={product:?} products={} rejected={rejections} source_completions={sources} builds={builds} checks={checks} terminal_productions={terminals}",
         reports.len()
     );
+    // Measure the shared invocation before these independent compilations.
+    // Allocation identity proves sharing; byte equality separately checks that
+    // sharing has not changed either target's realized program.
+    if compare_single_targets {
+        assert_eq!(product, RequestedCompileProduct::NativeArtifact);
+        let admitted_targets = target_names
+            .iter()
+            .filter(|name| rejected_target.as_ref() != Some(*name));
+        for (name, shared) in admitted_targets.zip(&reports) {
+            let profile = target::TargetProfile::from_omega_target_name(Some(name))
+                .expect("single target profile");
+            let mut request = CompileRequest::for_targets(
+                prepared.root_path.clone(),
+                std::env::temp_dir().join(format!(
+                    "omega-terminal-sharing-{}-{name}-single",
+                    std::process::id()
+                )),
+                vec![Some(profile)],
+            )
+            .with_requested_product(product);
+            if let Some(inputs) = &prepared.package_inputs {
+                request = request.with_package_inputs(inputs.clone());
+            }
+            let single =
+                omega_build::compile_sources(&mut compiler::CompilationSession::default(), request)
+                    .expect("single target admission")
+                    .into_single_report()
+                    .expect("single target production");
+            let shared = &shared
+                .retained_native_artifact()
+                .expect("shared native")
+                .image()
+                .output()
+                .bytes;
+            let single = &single
+                .retained_native_artifact()
+                .expect("single native")
+                .image()
+                .output()
+                .bytes;
+            assert!(
+                shared == single,
+                "{name}: shared and single-target bytes differ"
+            );
+            println!("target={name} single_target_bytes_agree={}", shared.len());
+        }
+    }
+    if execute_host {
+        assert_eq!(product, RequestedCompileProduct::NativeArtifact);
+        let report = reports.swap_remove(host_report.expect("one successful host target"));
+        joined_product_execution::execute_report(
+            report,
+            &fixture_package_inputs::repo_root().join("build/shared-terminal-native"),
+        );
+        println!("host_native_exit=0 reloaded_terminal=Unit");
+    }
 }

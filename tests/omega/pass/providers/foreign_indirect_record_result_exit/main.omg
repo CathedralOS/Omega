@@ -51,8 +51,8 @@ machine Main::main(main: &mut Main) {
         true -> passed(main)
         _ -> failed(main)
     }
-    state passed(main: &mut Main) { AllocationProbe::exit_with(70); }
-    state failed(main: &mut Main) { AllocationProbe::exit_with(71); }
+    machine passed(main: &mut Main) { AllocationProbe::exit_with(70); }
+    machine failed(main: &mut Main) { AllocationProbe::exit_with(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

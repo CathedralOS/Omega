@@ -120,7 +120,9 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         O::ElementViewLength { source, .. } | O::ByteSequenceLength { source, .. } => {
             places.insert(source.place);
         }
-        O::ReleaseActivationClaim { source, .. } => { places.insert(source.place); }
+        O::ReleaseActivationClaim { source, .. } => {
+            places.insert(source.place);
+        }
         O::ReleaseReference { source, .. } => {
             places.insert(*source);
         }
@@ -141,12 +143,20 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         abstract_operations::primitive_storage_observation_pattern!(source, ..)
         | O::ByteSequenceRead { source, .. }
         | abstract_operations::byte_sequence_write_pair_pattern!(destination: source, ..)
-        | O::StructuralCase { source, .. }
         | O::ElementViewRead { source, .. }
         | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
         | O::StructuralScalarFieldRead { source, .. }
         | O::ReturnStructural { source, .. } => {
             places.insert(*source);
+        }
+        O::StructuralCase { source, cases, .. } => {
+            places.insert(*source);
+            places.extend(
+                cases
+                    .iter()
+                    .flat_map(|case| &case.structural_bindings)
+                    .flat_map(|binding| [binding.parameter, binding.argument.place]),
+            );
         }
         O::AtomicEvent { event, .. } => {
             // The accessed atomic location joins place custody; a fence
@@ -232,10 +242,17 @@ pub(super) fn collect_operation_structural_places(
     }
 }
 
-pub(super) fn operation_ownership(operation: &AbstractOperation) -> Vec<OwnershipEvent> {
+/// The ownership events one operation publishes, in custody order. This is a
+/// projection of the operation's own rows, so unit construction, a moved
+/// node's replay and the independent validator all rebuild them through this
+/// owner instead of a second spelling that could drift from it.
+pub fn operation_ownership(operation: &AbstractOperation) -> Vec<OwnershipEvent> {
     use AbstractOperation as O;
     match operation {
         O::CallStructural {
+            claim_transfers, ..
+        }
+        | O::InvokeNoNormal {
             claim_transfers, ..
         } => vec![OwnershipEvent::ClaimTransfer(
             claim_transfers

@@ -33,11 +33,12 @@ pub(crate) mod call_views;
 mod calls;
 pub(crate) mod cases;
 pub(crate) mod comparisons;
-pub(crate) mod copies;
 mod dispatch;
 pub(crate) mod fields;
 pub(crate) mod literals;
+mod observation_completion;
 pub(crate) mod observations;
+mod operand_scope;
 pub(crate) mod operand_types;
 pub(crate) mod produced_values;
 mod returns;
@@ -87,7 +88,12 @@ pub(crate) struct PreparedClaimEdge {
 }
 
 pub(crate) struct Expansion<'a> {
+    /// Private places are allocated when the actual prepared path is known,
+    /// from the enclosing emission's one place namespace.
+    next_place: &'a mut u64,
     checked: &'a CheckedTrees,
+    scalar_applications:
+        &'a crate::unit::attached_unit::scalar_applications::SourceScalarApplications,
     structural_types: &'a [terminal_psi::StructuralTypeDeclaration],
     qualifications: &'a PreparedScalarQualifications,
     /// Authored owner of the current source state. Fused graphs retain each
@@ -110,7 +116,6 @@ pub(crate) struct Expansion<'a> {
         terminal_psi::StructuralMultiplicity,
     )>,
     literals: Vec<literals::Slot>,
-    copies: Vec<copies::Slot>,
     cases: Vec<cases::Slot>,
     fields: &'a [fields::Binding],
     /// Computations already carried in the current ordered input prefix.
@@ -122,14 +127,27 @@ pub(crate) struct Expansion<'a> {
 }
 
 impl<'a> Expansion<'a> {
+    pub(crate) fn has_established_value(
+        &self,
+        value: checked_trees::CheckedStructuralValueHandle,
+    ) -> bool {
+        self.established_values.iter().any(|established| {
+            matches!(established, EstablishedValue::Produced { root } if *root == value)
+        })
+    }
+
     pub(crate) fn new(
         checked: &'a CheckedTrees,
+        scalar_applications: &'a crate::unit::attached_unit::scalar_applications::SourceScalarApplications,
         qualifications: &'a PreparedScalarQualifications,
         machine: symbols::SymbolHandle,
         base: usize,
+        next_place: &'a mut u64,
     ) -> Self {
         Self {
+            next_place,
             checked,
+            scalar_applications,
             structural_types: &[],
             qualifications,
             machine,
@@ -144,7 +162,6 @@ impl<'a> Expansion<'a> {
             observations: Vec::new(),
             source_carriers: Vec::new(),
             literals: Vec::new(),
-            copies: Vec::new(),
             cases: Vec::new(),
             fields: &[],
             completed: Vec::new(),
@@ -239,11 +256,6 @@ impl<'a> Expansion<'a> {
 
     pub(crate) fn with_literals(mut self, literals: &[literals::Slot]) -> Self {
         self.literals = literals.to_vec();
-        self
-    }
-
-    pub(crate) fn with_copies(mut self, copies: &[copies::Slot]) -> Self {
-        self.copies = copies.to_vec();
         self
     }
 
@@ -421,20 +433,11 @@ impl<'a> Expansion<'a> {
             statement: root.statement_ordinal,
             bindings,
         };
-        if self
-            .checked
-            .facts
-            .proof
-            .proof_output_calls
-            .iter()
-            .any(|(_, call)| {
-                call.caller_machine_symbol == self.machine && call.runtime_call.is_some()
-            })
-        {
-            return unsupported(
-                "scalar computation calls need exact named proof-output operation custody",
-            );
-        }
+        // Each retained call node rejoins its exact FlowCall occurrence in
+        // calls::call. The proof invocation subsequently joins that emitted
+        // operation by the same state/statement/ordinal, including nested
+        // scalar calls. A different proof-bearing call in this machine cannot
+        // invalidate this operand's operation custody.
         if let CheckedScalarExpressionRole::LocalInitializer { binding_ordinal } = root.role {
             calls::consume_pure_call_arguments(
                 identities,
@@ -850,16 +853,35 @@ impl<'a> Expansion<'a> {
                 active,
             )?,
             CheckedScalarComputationKind::RetainedConstant { expression } => {
-                let Some(literal) = self.checked.landed_integer_constant(expression) else {
-                    return unsupported("retained scalar constant is not closed for the target");
-                };
-                let expression = site.bindings.expression(
-                    identities,
-                    &self.checked.facts.proven_scalar_indexes,
-                    &checked_trees::CheckedScalarExpression::IntegerLiteral {
-                        literal: literal.clone(),
-                    },
-                )?;
+                let expression =
+                    if let Some(literal) = self.checked.landed_integer_constant(expression) {
+                        site.bindings.expression(
+                            identities,
+                            &self.checked.facts.proven_scalar_indexes,
+                            &checked_trees::CheckedScalarExpression::IntegerLiteral {
+                                literal: literal.clone(),
+                            },
+                        )?
+                    } else {
+                        let application = self
+                            .scalar_applications
+                            .expression_in(expression, self.machine)
+                            .ok_or(LoweringError::Unsupported(
+                                "retained scalar constant has no portable application",
+                            ))?;
+                        let scalar_type = self.scalar_applications.scalar_type(application).ok_or(
+                            LoweringError::Unsupported(
+                                "retained scalar application lost its result carrier",
+                            ),
+                        )?;
+                        LoweredDirectExpression::ScalarApplication {
+                            application,
+                            scalar_type,
+                        }
+                    };
+                if expression.value_type(input_types)? != result_type {
+                    return unsupported("retained scalar application carrier disagrees");
+                }
                 self.binding(
                     input_types,
                     input_types.len(),
@@ -999,6 +1021,17 @@ impl<'a> Expansion<'a> {
                 collections,
                 input_types,
                 result_type,
+                target,
+                site,
+                active,
+            )?,
+            CheckedScalarComputationKind::WithOperands {
+                operands, operand, ..
+            } => self.operand_scope(
+                identities,
+                operands,
+                operand,
+                input_types,
                 target,
                 site,
                 active,

@@ -29,15 +29,15 @@ machine Main::main(main: &mut Main) {
         true -> first(main)
         false -> second(main)
     }
-    state first(main: &mut Main) { main.hits = 1; }
-    state second(main: &mut Main) {
+    machine first(main: &mut Main) { main.hits = 1; }
+    machine second(main: &mut Main) {
         transition main.tally.calls == 41 {
             true -> good(main)
             _ -> bad(main)
         }
     }
-    state good(main: &mut Main) { main.hits = 2; }
-    state bad(main: &mut Main) { main.hits = -1; }
+    machine good(main: &mut Main) { main.hits = 2; }
+    machine bad(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

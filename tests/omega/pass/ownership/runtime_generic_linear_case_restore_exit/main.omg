@@ -13,7 +13,7 @@ machine try_transform<'storage>(token: Token<&'storage i32>, succeed: bool) -> A
         true -> success(token)
         false -> Attempt::Failure { token: token }
     }
-    state success(token: Token<&'storage i32>) -> Attempt<&'storage i32> {
+    machine success(token: Token<&'storage i32>) -> Attempt<&'storage i32> {
         let value: u64 = token.value;
         let reference: &'storage i32 = token.reference;
         drop(token);
@@ -56,6 +56,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

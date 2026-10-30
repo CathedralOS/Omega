@@ -4,8 +4,10 @@ Historical proposal, superseded by the [pipeline route](../../../TASKS.md#pipeli
 and [multi-target contract](../../spec/build/configuration.md#multi-target-compilation).
 The measurements and alternatives below are retained as history, not execution
 instructions: Build runs once without observing the realized target, every
-family body survives in one Terminal artifact, and the existing stage boundaries
-remain. The duplicate board item was consolidated into the pipeline owners;
+supplied ordinary implementation is checked and retained in one Terminal artifact,
+and Build provider rows select implementations per target. Target-prefixed
+machine families in the measurements below are retired migration inputs, not
+the current language model. The duplicate board item was consolidated into the pipeline owners;
 **PCC-PRODUCT-PUBLICATION** owns Terminal-only command publication. Delete this
 note when the pipeline migration closes and its historical comparisons are no
 longer useful.

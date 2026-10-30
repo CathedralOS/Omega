@@ -36,7 +36,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.cells[3].level = 9;
     transition { _ -> inspect(main, 0) }
 
-    state inspect(main: &mut Main, k: u64) requires k <= 3 {
+    machine inspect(main: &mut Main, k: u64) requires k <= 3 {
         let level: u8 = main.cells[k].level;
         transition level >= 7 {
             true -> finish(main, (level as i32) * 10)
@@ -44,14 +44,14 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state advance(main: &mut Main, k: u64) requires k <= 3 {
+    machine advance(main: &mut Main, k: u64) requires k <= 3 {
         transition k < 3 {
             true -> inspect(main, k + 1)
             false -> finish(main, 1)
         }
     }
 
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

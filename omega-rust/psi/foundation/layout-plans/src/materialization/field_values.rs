@@ -4,6 +4,21 @@
 use crate::materialization::MaterializationDiagnostic;
 use crate::materialization::stored_integer_writes::low_mask;
 
+/// The authored scalar carrier width vocabulary: one to 64 bits, named by the
+/// value kind whose constructor rejected it. A scalar value, a decode schema,
+/// and a symbolic field all read this one rule.
+pub(crate) fn validate_authored_width(
+    kind: &str,
+    width_bits: u16,
+) -> Result<(), MaterializationDiagnostic> {
+    if width_bits == 0 || width_bits > 64 {
+        return Err(MaterializationDiagnostic(format!(
+            "{kind} field width {width_bits} is outside 1..=64 bits"
+        )));
+    }
+    Ok(())
+}
+
 /// One ordinary scalar supplied to a validated dictated-layout materializer.
 /// Positional fields select compiler-validated plan entries by name; numbered
 /// fields use their stable member identity. Callers never provide a byte
@@ -22,11 +37,7 @@ impl ScalarFieldValue {
         width_bits: u16,
         value: u64,
     ) -> Result<Self, MaterializationDiagnostic> {
-        if width_bits == 0 || width_bits > 64 {
-            return Err(MaterializationDiagnostic(format!(
-                "scalar field width {width_bits} is outside 1..=64 bits"
-            )));
-        }
+        validate_authored_width("scalar", width_bits)?;
         if width_bits < 64 && value > low_mask(width_bits) {
             return Err(MaterializationDiagnostic(format!(
                 "scalar value {value:#x} does not fit its {width_bits}-bit field"
@@ -40,18 +51,11 @@ impl ScalarFieldValue {
         })
     }
 
-    /// Constructs a scalar value carrying its compiler-retained stable member
-    /// identity. The field spelling remains diagnostic presentation.
-    pub fn new_numbered(
-        field: impl Into<String>,
-        member_identity: u64,
-        width_bits: u16,
-        value: u64,
-    ) -> Result<Self, MaterializationDiagnostic> {
-        let mut value = Self::new(field, width_bits, value)?;
-        value.member_identity = Some(member_identity);
-        Ok(value)
-    }
+    numbered_constructor!(
+        /// Constructs a scalar value carrying its compiler-retained stable member
+        /// identity. The field spelling remains diagnostic presentation.
+        new_numbered(field, width_bits: u16, value: u64) -> new
+    );
 }
 
 /// One complete aggregate supplied to a validated dictated-layout
@@ -105,17 +109,11 @@ impl AggregateFieldSchema {
         })
     }
 
-    /// Constructs one whole aggregate field with its compiler-retained stable
-    /// member identity. The field spelling remains diagnostic presentation.
-    pub fn new_numbered(
-        field: impl Into<String>,
-        member_identity: u64,
-        byte_size: u64,
-    ) -> Result<Self, MaterializationDiagnostic> {
-        let mut schema = Self::new(field, byte_size)?;
-        schema.member_identity = Some(member_identity);
-        Ok(schema)
-    }
+    numbered_constructor!(
+        /// Constructs one whole aggregate field with its compiler-retained stable
+        /// member identity. The field spelling remains diagnostic presentation.
+        new_numbered(field, byte_size: u64) -> new
+    );
 
     /// Constructs the compiler-derived shape of one outer fixed array. A
     /// validated layout may retain one whole-field `At`, or use exactly one
@@ -156,20 +154,11 @@ impl AggregateFieldSchema {
         })
     }
 
-    /// Constructs one numbered outer fixed array. Element geometry remains
-    /// compiler-derived while the stable identity rejoins renamed layout rows.
-    pub fn new_repeated_numbered(
-        field: impl Into<String>,
-        member_identity: u64,
-        element_byte_size: u64,
-        element_align: u64,
-        element_count: u64,
-    ) -> Result<Self, MaterializationDiagnostic> {
-        let mut schema =
-            Self::new_repeated(field, element_byte_size, element_align, element_count)?;
-        schema.member_identity = Some(member_identity);
-        Ok(schema)
-    }
+    numbered_constructor!(
+        /// Constructs one numbered outer fixed array. Element geometry remains
+        /// compiler-derived while the stable identity rejoins renamed layout rows.
+        new_repeated_numbered(field, element_byte_size: u64, element_align: u64, element_count: u64) -> new_repeated
+    );
 }
 
 impl AggregateFieldValue {
@@ -214,11 +203,7 @@ impl ScalarFieldSchema {
         field: impl Into<String>,
         width_bits: u16,
     ) -> Result<Self, MaterializationDiagnostic> {
-        if width_bits == 0 || width_bits > 64 {
-            return Err(MaterializationDiagnostic(format!(
-                "scalar field width {width_bits} is outside 1..=64 bits"
-            )));
-        }
+        validate_authored_width("scalar", width_bits)?;
         Ok(Self {
             field: field.into(),
             member_identity: None,
@@ -226,15 +211,9 @@ impl ScalarFieldSchema {
         })
     }
 
-    /// Constructs a decode schema carrying its compiler-retained stable member
-    /// identity. Decoded values use the current schema spelling.
-    pub fn new_numbered(
-        field: impl Into<String>,
-        member_identity: u64,
-        width_bits: u16,
-    ) -> Result<Self, MaterializationDiagnostic> {
-        let mut schema = Self::new(field, width_bits)?;
-        schema.member_identity = Some(member_identity);
-        Ok(schema)
-    }
+    numbered_constructor!(
+        /// Constructs a decode schema carrying its compiler-retained stable member
+        /// identity. Decoded values use the current schema spelling.
+        new_numbered(field, width_bits: u16) -> new
+    );
 }

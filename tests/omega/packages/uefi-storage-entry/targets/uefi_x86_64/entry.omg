@@ -40,7 +40,7 @@ machine UefiX86_64::plan(
         _ -> reject()
     }
 
-    state select_surface(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine select_surface(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.has_result {
             true -> accept_physical(
                 signature,
@@ -56,7 +56,7 @@ machine UefiX86_64::plan(
         }
     }
 
-    state accept_semantic(
+    machine accept_semantic(
         signature: BoundarySignature,
         image: u64,
         initial_storage: u64
@@ -67,7 +67,7 @@ machine UefiX86_64::plan(
         }
     }
 
-    state build(
+    machine build(
         signature: BoundarySignature,
         image: u64,
         initial_storage: u64
@@ -124,7 +124,7 @@ machine UefiX86_64::plan(
         BoundaryPlanResult::Accepted { plan: output }
     }
 
-    state accept_physical(
+    machine accept_physical(
         signature: BoundarySignature,
         image_handle: u64,
         system_table: u64,
@@ -136,7 +136,7 @@ machine UefiX86_64::plan(
         }
     }
 
-    state build_physical(
+    machine build_physical(
         signature: BoundarySignature,
         image_handle: u64,
         system_table: u64,
@@ -197,7 +197,7 @@ machine UefiX86_64::plan(
         BoundaryPlanResult::Accepted { plan: output }
     }
 
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection {
                 reason: "UefiApplication requires two program-storage roots",

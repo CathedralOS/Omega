@@ -38,26 +38,15 @@ pub(crate) fn encode_physical(
     encoder.field("parameters", |encoder| {
         encoder.sequence(physical.parameters(), encode_value_placement)
     })?;
-    encoder.field("result", |encoder| {
-        encoder.option(physical.result(), encode_value_placement)
-    })?;
+    encoder.option_field("result", physical.result(), encode_value_placement)?;
     encoder.field("ordinary_clobbers", |encoder| {
         encoder.sequence(physical.ordinary_clobbers(), |encoder, register| {
-            encoder.field("register", |encoder| {
-                encode_machine_register(encoder, *register);
-                Ok(())
-            })?;
+            encoder.field_by("register", *register, encode_machine_register)?;
             Ok(())
         })
     })?;
-    encoder.field("stack_alignment", |encoder| {
-        encoder.u16(physical.stack_alignment());
-        Ok(())
-    })?;
-    encoder.field("shadow_bytes", |encoder| {
-        encoder.u16(physical.shadow_bytes());
-        Ok(())
-    })?;
+    encoder.u16_field("stack_alignment", physical.stack_alignment())?;
+    encoder.u16_field("shadow_bytes", physical.shadow_bytes())?;
     encoder.field("entry_control", |encoder| {
         match physical.entry_control() {
             PackagePolicyEntryControl::CallReturn => encoder.tag("call_return", 0),
@@ -66,14 +55,8 @@ pub(crate) fn encode_physical(
                 immediate,
             } => {
                 encoder.tag("supervisor_call", 1);
-                encoder.field("number_register", |encoder| {
-                    encode_machine_register(encoder, number_register);
-                    Ok(())
-                })?;
-                encoder.field("immediate", |encoder| {
-                    encoder.u16(immediate);
-                    Ok(())
-                })?;
+                encoder.field_by("number_register", number_register, encode_machine_register)?;
+                encoder.u16_field("immediate", immediate)?;
             }
             PackagePolicyEntryControl::InterruptReturn => encoder.tag("interrupt_return", 2),
         };
@@ -91,35 +74,29 @@ fn encode_state(
             PackagePolicyMachineRegime::X86Long64 => encoder.tag("x86_long64", 0),
             PackagePolicyMachineRegime::Aarch64A64 { exception_level } => {
                 encoder.tag("aarch64_a64", 1);
-                encoder.field("exception_level", |encoder| {
-                    encoder.byte(exception_level);
-                    Ok(())
-                })?;
+                encoder.byte_field("exception_level", exception_level)?;
             }
         };
         Ok(())
     })?;
-    encoder.field("interrupted_state", |encoder| {
-        encode_state_set(encoder, state.interrupted_state())
-    })?;
-    encoder.field("saved_state", |encoder| {
-        encode_state_set(encoder, state.saved_state())
-    })?;
-    encoder.field("restored_state", |encoder| {
-        encode_state_set(encoder, state.restored_state())
-    })?;
-    encoder.field("permitted_transitive_use", |encoder| {
-        encode_state_set(encoder, state.permitted_transitive_use())
-    })?;
+    encoder.field_by(
+        "interrupted_state",
+        state.interrupted_state(),
+        encode_state_set,
+    )?;
+    encoder.field_by("saved_state", state.saved_state(), encode_state_set)?;
+    encoder.field_by("restored_state", state.restored_state(), encode_state_set)?;
+    encoder.field_by(
+        "permitted_transitive_use",
+        state.permitted_transitive_use(),
+        encode_state_set,
+    )?;
     encoder.field("stack", |encoder| {
         match state.stack() {
             PackagePolicyEntryStack::Interrupted => encoder.tag("interrupted", 0),
             PackagePolicyEntryStack::Dedicated { class } => {
                 encoder.tag("dedicated", 1);
-                encoder.field("class", |encoder| {
-                    encoder.u16(class);
-                    Ok(())
-                })?;
+                encoder.u16_field("class", class)?;
             }
             PackagePolicyEntryStack::ProviderSelected => encoder.tag("provider_selected", 2),
         };
@@ -131,10 +108,7 @@ fn encode_state(
             PackagePolicyPreemption::Masked => encoder.tag("masked", 1),
             PackagePolicyPreemption::Nestable { maximum_depth } => {
                 encoder.tag("nestable", 2);
-                encoder.field("maximum_depth", |encoder| {
-                    encoder.u16(maximum_depth);
-                    Ok(())
-                })?;
+                encoder.u16_field("maximum_depth", maximum_depth)?;
             }
             PackagePolicyPreemption::ProviderDefined => encoder.tag("provider_defined", 3),
         };

@@ -1,4 +1,4 @@
-domain u32::Small(value) requires value <= 10;
+domain u32::Small requires self <= 10;
 machine corrupt(values: &write [u32 in Small; 2]) {
     let view: &write u32 = values[0] as &write u32;
     view = 73;

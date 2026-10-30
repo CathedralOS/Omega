@@ -28,6 +28,7 @@ mod ownership;
 mod proof;
 mod range;
 mod rewrite;
+mod runtime_evidence;
 mod structural_places;
 
 pub use attachment::{
@@ -36,7 +37,7 @@ pub use attachment::{
     canonical_ownership_frontier_snapshot,
 };
 pub use construction::{
-    OptimizationUnitBuildError, operation_definition, operation_uses,
+    OptimizationUnitBuildError, operation_definition, operation_ownership, operation_uses,
     reconstruct_psi_optimization_function_seed, reconstruct_psi_optimization_unit_seed,
 };
 pub use cycles::{
@@ -81,6 +82,7 @@ pub(crate) use proof::{ProofQuestion, ProofQuestionAdmissionKind, ProofQuestionC
 pub use range::{
     ValueRangeFact, ValueRangeRegion, ValueRangeScope, ValueRangeSupport, value_range_fact_identity,
 };
+pub use runtime_evidence::{RuntimeEvidenceCatalog, validate_runtime_evidence_context};
 
 pub use rewrite::{
     AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
@@ -142,6 +144,10 @@ pub struct PsiOptimizationUnit {
     /// against — the sealed module table, retained after the module itself
     /// is discarded.
     pub identities: terminal_psi::TerminalIdentityTable,
+    /// Immutable declaration/evidence context from verified Terminal admission.
+    /// Rewrites share these catalogs, but re-authenticate all runtime operands
+    /// against their current bodies through the common evidence reader.
+    pub runtime_evidence: Option<Arc<RuntimeEvidenceCatalog>>,
     pub functions: Vec<PsiOptimizationFunction>,
 }
 
@@ -191,7 +197,8 @@ impl PsiOptimizationUnit {
         operation: &'a AbstractOperation,
     ) -> impl Iterator<Item = MachineId> + 'a {
         let (machine, dynamic) = match operation {
-            AbstractOperation::Call { callee, .. } => (Some(*callee), None),
+            AbstractOperation::Call { callee, .. }
+            | AbstractOperation::InvokeNoNormal { callee, .. } => (Some(*callee), None),
             AbstractOperation::CallStructural { callee, .. } => match callee {
                 abstract_operations::AbstractCallTarget::Machine(machine) => (Some(*machine), None),
                 abstract_operations::AbstractCallTarget::Dynamic {
@@ -247,12 +254,13 @@ impl PsiOptimizationUnit {
     }
 }
 pub use structural_places::{
-    DispatchCondition, Establishment, FieldEvidence, FunctionAnalysis, Position, admit_field_node,
+    DispatchCondition, Establishment, FieldEvidence, FunctionAnalysis, Position,
     argument_rewrites_place, bound_place, bound_value, declared_structural_type, dominators,
-    established_case_at, field_evidence, function_analysis, integer_comparison_condition,
-    observed_field_declaration, proof_basis, reachable_blocks_after_conditional_fold,
-    resolved_sole_case, root_producer, scalar_value_definition, shape, sole_case_at_path,
-    structural_child,
+    established_case_at, field_evidence, field_value_accounting, field_value_reads,
+    function_analysis, integer_comparison_condition, observed_field_declaration,
+    operation_result_placement, proof_basis, reachable_blocks_after_conditional_fold,
+    receiver_custody_distinct, resolved_sole_case, retirable_scalar_node, root_producer,
+    scalar_value_definition, shape, sole_case_at_path, structural_child,
 };
 
 pub use integer_intervals::{IntervalExtraction, extract_integer_intervals, proof_range_goal};

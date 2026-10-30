@@ -22,7 +22,7 @@ machine main() crashes Trap {
     let sample: Blob = Blob { bytes: source[0..2] };
     Blob::encode(&sample, &mut buffer, choose(&mut chosen, &mut other, true));
     transition { _ -> read(items, other, chosen) }
-    state read(items: [u8; 4], index: u64, chosen: u64)
+    machine read(items: [u8; 4], index: u64, chosen: u64)
     requires index < 4
     {
         transition chosen == 5 && items[index] == 7 {
@@ -30,6 +30,6 @@ machine main() crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

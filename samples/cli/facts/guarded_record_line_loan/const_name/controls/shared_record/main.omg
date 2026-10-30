@@ -18,7 +18,7 @@ machine receive(line: &mut [u8; 64], end: bool) -> ReadOutcome {
 }
 machine exercise(application: &Application, end: bool) -> bool {
     transition { _ -> read(application, end) }
-    state read(application: &Application, end: bool) -> bool {
+    machine read(application: &Application, end: bool) -> bool {
         let mut line: [u8; 64];
         let result: ReadOutcome = receive(&mut line, end);
         transition result {
@@ -28,7 +28,7 @@ machine exercise(application: &Application, end: bool) -> bool {
             ReadOutcome::Invalid -> (false)
         }
     }
-    state observe(application: &Application, line: &[u8; 64], count: u64) -> bool {
+    machine observe(application: &Application, line: &[u8; 64], count: u64) -> bool {
         application.ledger.count = count as u64 in Wrapping;
         (line[INDEX] as u64 in Wrapping + application.ledger.count) == 42
     }
@@ -44,6 +44,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

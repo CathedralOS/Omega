@@ -1,0 +1,17 @@
+// Expected exit: 0
+public domain [u8; 4]::Ascii requires ascii_only(self);
+data Cell [copy] { storage: [u8; 4] in Ascii; }
+machine read(cells: &[Cell], index: u64, output: &mut u8) {
+    transition index < cells.len {
+        true -> received(cells[index], output)
+        false -> {}
+    }
+    machine received(cell: Cell, output: &mut u8) { output = cell.storage[0]; }
+}
+machine main() crashes Trap {
+    let cells: [Cell; 2] = [Cell { storage: [65u8, 0u8, 0u8, 0u8] }, Cell { storage: [66u8, 0u8, 0u8, 0u8] }];
+    let mut result: u8 = 0;
+    read(&cells[..], 1, &mut result);
+    transition result == 66 { true -> {} false -> bad() }
+    machine bad() crashes Trap { crash Trap; }
+}

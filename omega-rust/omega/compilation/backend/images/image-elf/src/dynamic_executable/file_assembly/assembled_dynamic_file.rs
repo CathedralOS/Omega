@@ -54,18 +54,22 @@ pub(crate) struct ElfDynamicFileFragmentPlacement {
 }
 
 impl ElfDynamicFileFragmentPlacement {
+    #[cfg(test)]
     pub const fn ordinal(&self) -> u32 {
         self.ordinal
     }
 
+    #[cfg(test)]
     pub const fn kind(&self) -> ElfDynamicFileFragmentKind {
         self.kind
     }
 
+    #[cfg(test)]
     pub const fn file_offset(&self) -> u64 {
         self.file_offset
     }
 
+    #[cfg(test)]
     pub const fn byte_count(&self) -> u64 {
         self.byte_count
     }
@@ -89,6 +93,7 @@ impl ValidatedElfAssembledDynamicFile {
         &self.contents.bytes
     }
 
+    #[cfg(test)]
     pub(crate) fn fragment_placements(&self) -> &[ElfDynamicFileFragmentPlacement] {
         &self.contents.fragment_placements
     }
@@ -180,25 +185,12 @@ struct Candidate {
 pub(crate) fn assemble_elf_dynamic_file(
     resolved_linkage: ValidatedElfResolvedProcedureLinkage,
 ) -> Result<ValidatedElfAssembledDynamicFile, Box<ElfDynamicFileAssemblyError>> {
-    checked::plan_candidate(
-        resolved_linkage,
-        derive_contents,
-        |resolved_linkage, contents| {
-            non_authoritative_assembled_file_compatibility_fingerprint(&resolved_linkage, &contents)
-        },
-        |resolved_linkage, contents, fingerprint| Candidate {
-            resolved_linkage: resolved_linkage,
-            contents: contents,
-            non_authoritative_assembled_file_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.resolved_linkage,
-        |resolved_linkage, diagnostic| {
-            Box::new(ElfDynamicFileAssemblyError {
-                resolved_linkage: resolved_linkage,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: resolved_linkage,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_assembled_file_compatibility_fingerprint,
+        error: ElfDynamicFileAssemblyError,
     )
 }
 
@@ -486,28 +478,14 @@ fn derive_contents(
     })
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfAssembledDynamicFile, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.resolved_linkage, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_assembled_file_compatibility_fingerprint != 0
-                && candidate.non_authoritative_assembled_file_compatibility_fingerprint
-                    == non_authoritative_assembled_file_compatibility_fingerprint(
-                        &candidate.resolved_linkage,
-                        &candidate.contents,
-                    )
-        },
-        "assembled dynamic ELF compatibility fingerprint does not replay",
-        |candidate| ValidatedElfAssembledDynamicFile {
-            resolved_linkage: candidate.resolved_linkage,
-            contents: candidate.contents,
-            non_authoritative_assembled_file_compatibility_fingerprint: candidate
-                .non_authoritative_assembled_file_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: resolved_linkage,
+    contents: contents,
+    validated: ValidatedElfAssembledDynamicFile,
+    validate: validate_contents,
+    fingerprint: non_authoritative_assembled_file_compatibility_fingerprint,
+    nonzero,
+    message: "assembled dynamic ELF compatibility fingerprint does not replay",
 }
 
 fn validate_contents(

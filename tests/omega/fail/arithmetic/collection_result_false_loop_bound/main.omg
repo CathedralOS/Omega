@@ -1,14 +1,14 @@
 machine count(values: &mut [u8]) -> u64
 ensures result < values.len {
     transition { _ -> scan(values, 0) }
-    state scan(values: &mut [u8], position: u64) -> u64
+    machine scan(values: &mut [u8], position: u64) -> u64
     requires position <= values.len {
         transition position < values.len {
             true -> write(values, position)
             _ -> (position)
         }
     }
-    state write(values: &mut [u8], position: u64) -> u64
+    machine write(values: &mut [u8], position: u64) -> u64
     requires position < values.len {
         values[position] = 7;
         transition { _ -> scan(values, position + 1) }

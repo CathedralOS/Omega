@@ -105,30 +105,27 @@ pub(crate) fn normalize_closed_conformance_blocks(
         })
         .collect::<Vec<_>>();
     let mut ordinals = Vec::with_capacity(program.machines.len());
-    let mut retained_machines = Vec::with_capacity(program.machines.len());
-    for machine in program.machines.iter() {
-        if !synthesized_default_candidates.contains(&machine.symbol)
-            || selected_realizations.contains(&machine.symbol)
-        {
-            ordinals.push(Some(retained_machines.len()));
-            retained_machines.push(machine.clone());
-        } else {
-            ordinals.push(None);
+    let mut discarded = Vec::new();
+    let mut retained_count = 0;
+    program.machines.retain(|machine| {
+        let retain = !synthesized_default_candidates.contains(&machine.symbol)
+            || selected_realizations.contains(&machine.symbol);
+        ordinals.push(retain.then_some(retained_count));
+        retained_count += usize::from(retain);
+        if !retain {
+            discarded.push(machine.symbol);
         }
+        retain
+    });
+    for declaration in discarded {
+        program.symbols.clear_declaration_owner(declaration);
     }
-    program.machines = Default::default();
-    for mut machine in retained_machines {
-        // Every ordinal-keyed source sidecar follows the retained roster.
-        // Lexical ancestry is declaration context, never a new root slot.
-        if let Some(parent) = machine.lexical_parent {
-            machine.lexical_parent = ordinals.get(parent).copied().flatten();
-            if machine.lexical_parent.is_none() {
-                return Err(Diagnostic::error(
-                    "retained nested machine lost its enclosing declaration",
-                ));
-            }
+    for machine in program.machines.iter() {
+        if machine.lexical_parent.is_valid() && !program.machines.contains(machine.lexical_parent) {
+            return Err(Diagnostic::error(
+                "retained nested machine lost its enclosing declaration",
+            ));
         }
-        program.machines.push(machine);
     }
     Ok(ordinals)
 }
@@ -212,6 +209,7 @@ impl DefaultBodyScope {
 pub(crate) fn route_named_implementation_calls(
     program: &mut SymbolResolvedTrees,
     inputs: &[super::body_calls::CallSelectionInput],
+    work: &[SymbolHandle],
 ) {
     let implementation_rows = program
         .conformances
@@ -238,7 +236,10 @@ pub(crate) fn route_named_implementation_calls(
         .iter()
         .map(|machine| machine.symbol)
         .collect::<Vec<_>>();
-    for machine in machines {
+    for machine in machines
+        .into_iter()
+        .filter(|machine| work.contains(machine))
+    {
         super::body_calls::retarget_machine_calls(
             program,
             machine,
@@ -260,7 +261,7 @@ fn named_implementation_requirement(
         .find(|(conformance, _)| *conformance == site.receiver_symbol)?;
     let mut matches = rows
         .iter()
-        .filter(|(requirement, _)| requirement.as_str() == site.target.as_str());
+        .filter(|(requirement, _)| requirement.as_str() == site.member.as_str());
     let selected = matches.next().map(|(_, state)| *state);
     if matches.next().is_some() {
         return Some(SymbolHandle::invalid());
@@ -285,6 +286,7 @@ fn named_implementation_requirement(
 pub(crate) fn route_conformance_requirement_calls(
     program: &mut SymbolResolvedTrees,
     inputs: &[super::body_calls::CallSelectionInput],
+    work: &[SymbolHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     let trait_catalog = build_trait_catalog(program);
     let default_body_trait = |machine: SymbolHandle| {
@@ -341,15 +343,25 @@ pub(crate) fn route_conformance_requirement_calls(
     }
 
     let mut hidden_calls = Vec::new();
-    for plan in plans {
+    for plan in plans
+        .into_iter()
+        .filter(|plan| work.contains(&plan.machine))
+    {
         crate::selection::body_calls::retarget_machine_calls(
             program,
             plan.machine,
             inputs,
             &mut |site| {
+                // A qualified application names its complete public slot, not
+                // whichever application this lexical map supplies. Preserve
+                // that requirement for typed application formation; equality
+                // of declaration symbols alone cannot authorize rerouting.
+                if site.requirement_application.is_valid() {
+                    return None;
+                }
                 let routed = routed_target(
                     site.target_symbol,
-                    site.target,
+                    site.member,
                     site.argument_count,
                     plan.routes_by_name && site.local_receiver,
                     &plan.routes,
@@ -361,12 +373,12 @@ pub(crate) fn route_conformance_requirement_calls(
                     && scope
                         .hidden_names
                         .iter()
-                        .any(|hidden| hidden.as_str() == site.target.as_str())
+                        .any(|hidden| hidden.as_str() == site.member.as_str())
                 {
                     hidden_calls.push((
                         scope.declaring_trait,
                         scope.implementation.clone(),
-                        site.target.clone(),
+                        site.member.clone(),
                     ));
                 }
                 routed
@@ -795,7 +807,7 @@ fn collect_declared_result_dispatch(
         alias_stack.pop();
         return;
     }
-    if definition.predicate_body.is_present()
+    if definition.predicate_presence.is_present()
         && definition.semantic_roles.is_empty()
         && definition.establishment_routes.is_empty()
     {

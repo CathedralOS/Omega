@@ -12,7 +12,7 @@ machine snapshot_plan(signature: BoundarySignature) -> BoundaryPlanResult {
         true -> accept()
         _ -> reject()
     }
-    state accept() -> BoundaryPlanResult {
+    machine accept() -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         plan.call.parameter_count = 2;
         plan.call.parameters[0] = LinuxScalarResultPolicies::word(8, 1);
@@ -31,7 +31,7 @@ machine snapshot_plan(signature: BoundarySignature) -> BoundaryPlanResult {
         };
         BoundaryPlanResult::Accepted { plan: LinuxScalarResultPolicies::finish(plan) }
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "copy expects source and byte count" } }
     }
 }
@@ -56,7 +56,7 @@ machine main() crashes Trap {
     let second: ByteHolder = make_holder([177, 104, 222, 58, 0, 0, 0, 0]);
     let other: u64 = Snapshot::copy(&second.value, 8);
     transition { _ -> verify(copied, other) }
-    state verify(copied: ScalarHolder, other: u64) {
+    machine verify(copied: ScalarHolder, other: u64) {
         let joined: [u8; 8] = match copied.value == 123456789 {
             true -> [177, 104, 222, 58, 0, 0, 0, 0],
             false -> [0, 0, 0, 0, 0, 0, 0, 0]
@@ -67,8 +67,8 @@ machine main() crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine ScalarResultPolicies::placed_word(bytes: u64, register: MachineRegister) -> ValuePlacement {
     let mut value: ValuePlacement;

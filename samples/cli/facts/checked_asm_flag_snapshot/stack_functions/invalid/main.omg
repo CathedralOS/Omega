@@ -12,8 +12,8 @@ machine flags() crashes Trap {
         pushfq snapshot;
     }
     transition (snapshot & 2u64) == 2u64 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine directed() crashes Trap {
@@ -24,8 +24,8 @@ machine directed() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -33,6 +33,6 @@ machine main() crashes Trap {
     flags();
     directed();
     transition plain == 7u64 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

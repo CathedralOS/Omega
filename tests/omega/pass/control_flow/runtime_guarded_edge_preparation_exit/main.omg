@@ -8,7 +8,7 @@ requires right.len >= 1 {
         true -> count(left[0].values)
         false -> count(right[0].values)
     }
-    state count(values: &[Cell]) -> u64 { values.len }
+    machine count(values: &[Cell]) -> u64 { values.len }
 }
 
 machine main() crashes Trap {
@@ -23,6 +23,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

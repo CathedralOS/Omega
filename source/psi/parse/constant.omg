@@ -28,7 +28,7 @@ crashes Trap
         _ -> reject(parser, input, ParseDiagnosticCode::ConstantCapacityExceeded)
     }
 
-    state keyword(parser: &mut Parser, input: &TokenStream) {
+    machine keyword(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
         Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedConstantName);
         transition parser.output.accepted {
@@ -37,7 +37,7 @@ crashes Trap
         }
     }
 
-    state first_name(parser: &mut Parser, input: &TokenStream) {
+    machine first_name(parser: &mut Parser, input: &TokenStream) {
         parser.declaration_name_start = parser.name_start;
         parser.declaration_name_end = parser.name_end;
         let owned: bool = Parser::at_punctuation(parser, input, PunctuationKind::ColonColon);
@@ -47,7 +47,7 @@ crashes Trap
         }
     }
 
-    state owned_name(parser: &mut Parser, input: &TokenStream) {
+    machine owned_name(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
         parser.declaration_has_owner = true;
         parser.declaration_owner_start = parser.declaration_name_start;
@@ -59,13 +59,13 @@ crashes Trap
         }
     }
 
-    state owned_named(parser: &mut Parser, input: &TokenStream) {
+    machine owned_named(parser: &mut Parser, input: &TokenStream) {
         parser.declaration_name_start = parser.name_start;
         parser.declaration_name_end = parser.name_end;
         transition { _ -> colon(parser, input) }
     }
 
-    state colon(parser: &mut Parser, input: &TokenStream) {
+    machine colon(parser: &mut Parser, input: &TokenStream) {
         Parser::expect_punctuation(parser, input, PunctuationKind::Colon, ParseDiagnosticCode::ExpectedConstantColon);
         transition parser.output.accepted {
             true -> constant_type(parser, input)
@@ -73,7 +73,7 @@ crashes Trap
         }
     }
 
-    state constant_type(parser: &mut Parser, input: &TokenStream) {
+    machine constant_type(parser: &mut Parser, input: &TokenStream) {
         Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedConstantType);
         transition parser.output.accepted {
             true -> equals(parser, input, parser.type_result)
@@ -81,7 +81,7 @@ crashes Trap
         }
     }
 
-    state equals(parser: &mut Parser, input: &TokenStream, type_reference: u64 in Trapping) {
+    machine equals(parser: &mut Parser, input: &TokenStream, type_reference: u64 in Trapping) {
         Parser::expect_punctuation(parser, input, PunctuationKind::Equal, ParseDiagnosticCode::ExpectedConstantEquals);
         transition parser.output.accepted {
             true -> initializer(parser, input, type_reference)
@@ -89,7 +89,7 @@ crashes Trap
         }
     }
 
-    state initializer(parser: &mut Parser, input: &TokenStream, type_reference: u64 in Trapping) {
+    machine initializer(parser: &mut Parser, input: &TokenStream, type_reference: u64 in Trapping) {
         Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedConstantValue, true, true);
         transition parser.output.accepted {
             true -> end(parser, input, type_reference, parser.expression_result)
@@ -97,7 +97,7 @@ crashes Trap
         }
     }
 
-    state end(parser: &mut Parser, input: &TokenStream, type_reference: u64 in Trapping, value: u64 in Trapping) {
+    machine end(parser: &mut Parser, input: &TokenStream, type_reference: u64 in Trapping, value: u64 in Trapping) {
         Parser::expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedConstantEnd);
         transition parser.output.accepted {
             true -> retain_capacity(parser, input, type_reference, value)
@@ -105,21 +105,21 @@ crashes Trap
         }
     }
 
-    state retain_capacity(parser: &mut Parser, input: &TokenStream, type_reference: u64 in Trapping, value: u64 in Trapping) {
+    machine retain_capacity(parser: &mut Parser, input: &TokenStream, type_reference: u64 in Trapping, value: u64 in Trapping) {
         transition parser.output.constant_count < 512 {
             true -> root_capacity(parser, input, type_reference, value)
             _ -> reject(parser, input, ParseDiagnosticCode::ConstantCapacityExceeded)
         }
     }
 
-    state root_capacity(parser: &mut Parser, input: &TokenStream, type_reference: u64 in Trapping, value: u64 in Trapping) {
+    machine root_capacity(parser: &mut Parser, input: &TokenStream, type_reference: u64 in Trapping, value: u64 in Trapping) {
         transition parser.output.root_count < 4096 {
             true -> retain(parser, type_reference, value)
             _ -> reject(parser, input, ParseDiagnosticCode::RootCapacityExceeded)
         }
     }
 
-    state retain(parser: &mut Parser, type_reference: u64 in Trapping, value: u64 in Trapping) {
+    machine retain(parser: &mut Parser, type_reference: u64 in Trapping, value: u64 in Trapping) {
         let constant: u64 in Trapping = parser.output.constant_count as u64 in Trapping;
         let span: SourceSpan = Parser::source_span(parser, parser.declaration_start, parser.token_end);
         parser.output.constants[parser.output.constant_count] = ConstantItem {
@@ -140,9 +140,9 @@ crashes Trap
         parser.output.root_count = parser.output.root_count + 1;
     }
 
-    state reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+    machine reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
         Parser::reject_current(parser, input, code);
     }
 
-    state done() {}
+    machine done() {}
 }

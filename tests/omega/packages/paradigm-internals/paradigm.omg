@@ -27,7 +27,7 @@ public uefi_x86_64 machine Helper::paradigm_internal(helper: &Helper) -> i32 {
 
 public uefi_x86_64 machine Helper::record_paradigm_event(helper: &mut Helper) {
     transition { _ -> done() }
-    state done() { }
+    machine done() { }
 }
 
 public uefi_x86_64 machine Helper::paradigm_caller(helper: &Helper) -> i32 {

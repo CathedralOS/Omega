@@ -17,7 +17,7 @@ data Circuit [copy] {
 machine exponential(value: f64) -> f64 {
     let reduced: f64 = value / 128.0;
     transition { _ -> term(reduced, 1.0, 1.0, 1.0, 1) }
-    state term(reduced: f64, sum: f64, previous: f64, denominator: f64,
+    machine term(reduced: f64, sum: f64, previous: f64, denominator: f64,
         count: i32 in Wrapping) -> f64 {
         let product: f64 = previous * reduced;
         let next: f64 = product / denominator;
@@ -27,7 +27,7 @@ machine exponential(value: f64) -> f64 {
             false -> square(total)
         }
     }
-    state square(value: f64) -> f64 {
+    machine square(value: f64) -> f64 {
         let power2: f64 = value * value;
         let power4: f64 = power2 * power2;
         let power8: f64 = power4 * power4;
@@ -54,6 +54,6 @@ machine circuit_residual(circuit: &Circuit, voltage: f64, source: f64) -> f64 {
 
 machine magnitude(value: f64) -> f64 {
     transition value < 0.0 { true -> negative(value) false -> positive(value) }
-    state negative(value: f64) -> f64 { 0.0 - value }
-    state positive(value: f64) -> f64 { value }
+    machine negative(value: f64) -> f64 { 0.0 - value }
+    machine positive(value: f64) -> f64 { value }
 }

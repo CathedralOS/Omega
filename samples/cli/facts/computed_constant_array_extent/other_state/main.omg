@@ -6,9 +6,9 @@ const ALIAS: [u64; 1] = SOURCE;
 machine main() crashes Trap {
     let local_arr: [u64; SIZE] = ALIAS;
     transition { _ -> inspect(local_arr[0]) }
-    state inspect(v: u64) {
+    machine inspect(v: u64) {
         transition v == 3 { true -> done() _ -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -1,5 +1,5 @@
 // Expected exit: 0
-domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 4]::Utf8 requires valid_utf8(self);
 data Buffer { bytes: [u8; 4] in Utf8; }
 data PlainBuffer { bytes: [u8; 4]; }
 // Extent is fixed metadata, available without observing old referent bytes.
@@ -20,6 +20,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

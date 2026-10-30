@@ -49,6 +49,9 @@ pub(crate) fn bind_scalar_call_result(
     let CheckedUnitEffectOperationPlan::Call(call) = operation else {
         return None;
     };
+    if *call.result() == CheckedUnitCallResult::NoNormal {
+        return Some(CheckedUnitEffectOperationPlan::Call(call));
+    }
     let mut parts = call.into_parts();
     if parts.result != CheckedUnitCallResult::Unit {
         return None;
@@ -89,6 +92,9 @@ pub(crate) fn bind_structural_call_result(
     let CheckedUnitEffectOperationPlan::Call(call) = operation else {
         return None;
     };
+    if *call.result() == CheckedUnitCallResult::NoNormal {
+        return Some(CheckedUnitEffectOperationPlan::Call(call));
+    }
     match (call.route(), call.result()) {
         (
             CheckedUnitCallRoute::Module { .. }

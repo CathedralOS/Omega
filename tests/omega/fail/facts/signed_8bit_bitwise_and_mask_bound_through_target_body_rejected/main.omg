@@ -15,8 +15,8 @@ requires raw >= 116i8 && raw <= 116i8 && mask == 127i8
         true -> pass()
         _ -> fail()
     }
-    state pass() -> i32 { 0 }
-    state fail() -> i32 { 1 }
+    machine pass() -> i32 { 0 }
+    machine fail() -> i32 { 1 }
 }
 
 linux_arm64 machine mask_target(raw: i8, mask: i8) -> i32
@@ -31,8 +31,8 @@ requires raw >= 116i8 && raw <= 116i8 && mask == 127i8
         true -> pass()
         _ -> fail()
     }
-    state pass() -> i32 { 0 }
-    state fail() -> i32 { 1 }
+    machine pass() -> i32 { 0 }
+    machine fail() -> i32 { 1 }
 }
 
 macos_arm64 machine mask_target(raw: i8, mask: i8) -> i32
@@ -47,8 +47,8 @@ requires raw >= 116i8 && raw <= 116i8 && mask == 127i8
         true -> pass()
         _ -> fail()
     }
-    state pass() -> i32 { 0 }
-    state fail() -> i32 { 1 }
+    machine pass() -> i32 { 0 }
+    machine fail() -> i32 { 1 }
 }
 
 windows_x86_64 machine mask_target(raw: i8, mask: i8) -> i32
@@ -63,8 +63,8 @@ requires raw >= 116i8 && raw <= 116i8 && mask == 127i8
         true -> pass()
         _ -> fail()
     }
-    state pass() -> i32 { 0 }
-    state fail() -> i32 { 1 }
+    machine pass() -> i32 { 0 }
+    machine fail() -> i32 { 1 }
 }
 
 machine probe() -> i32 {
@@ -76,6 +76,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

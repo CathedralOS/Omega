@@ -11,10 +11,38 @@ use terminal_psi::BoundaryMachineDeclaration;
 use terminal_psi::BoundaryMachineResult;
 use terminal_psi::CrashCause;
 use terminal_psi::OperationResult;
-use terminal_psi::StructuralAffineDiscard;
 use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralTypeDeclaration;
 use terminal_psi::StructuralTypeShape;
+
+#[cfg(test)]
+#[path = "results_tests.rs"]
+mod tests;
+
+/// An immutable host result owns accounted storage. It carries no source
+/// identity, qualification or permission to return a mutable reference.
+#[derive(Clone, PartialEq, Eq)]
+pub struct TerminalByteSequenceValue(crate::byte_sequences::ByteSequenceView);
+
+impl std::fmt::Debug for TerminalByteSequenceValue {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TerminalByteSequenceValue")
+            .field("length", &self.0.bytes().len())
+            .finish()
+    }
+}
+
+impl TerminalByteSequenceValue {
+    /// Copy a stable read-only snapshot, reserving its payload before allocation.
+    pub fn copy(
+        bytes: &[u8],
+        account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+    ) -> Result<Self, TerminalInterpretError> {
+        let storage = crate::byte_sequences::storage::ByteSequenceStorage::copy(bytes, account)?;
+        Ok(Self(crate::byte_sequences::ByteSequenceView::new(storage)))
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalEffectResult {
     /// A no-successor outcome, permitted only by the boundary's published
@@ -22,12 +50,15 @@ pub enum TerminalEffectResult {
     Crash(CrashCause),
     Unit,
     Scalar(TerminalScalarValue),
-    /// An exact scalar record or selected sum case and its actual scalar payload. No opaque
-    /// host allocation identity, grants, claims or qualifications are inferred.
+    /// An exact scalar record or selected sum case and its actual scalar
+    /// payload. The payload supplies no authority: normal completion and the
+    /// admitted boundary declaration own any result claims or qualifications.
     ScalarAggregate(TerminalScalarAggregateValue),
     /// The same opaque, target-neutral value used for structural entry inputs.
     /// This does not provide a sum discriminator or materialized payload fields.
     Structural(TerminalStructuralValue),
+    /// An immutable, storage-backed byte view, not an opaque structural atom.
+    ByteSequence(TerminalByteSequenceValue),
 }
 
 impl TerminalExecution<'_> {
@@ -51,20 +82,7 @@ impl TerminalExecution<'_> {
         }
         // Use the already evaluated invocation snapshot, not caller value IDs
         // that happen to equal the declaration's positional scalar formal IDs.
-        let arguments = arguments
-            .iter()
-            .map(|argument| match *argument {
-                TerminalScalarValue::Boolean(value) => {
-                    semantic_vocabulary::ScalarTerm::Boolean(value)
-                }
-                TerminalScalarValue::Integer { scalar_type, value } => {
-                    semantic_vocabulary::ScalarTerm::Integer { scalar_type, value }
-                }
-                TerminalScalarValue::IeeeFloat(value) => {
-                    semantic_vocabulary::ScalarTerm::IeeeFloatLiteral(value)
-                }
-            })
-            .collect::<Vec<_>>();
+        let arguments = super::boundary_predicates::scalar_literals(arguments);
         super::crash_outcome::validate_boundary_crash_outcome(declaration, &arguments, cause)
             .map_err(|reason| TerminalInterpretError::BoundaryCrashNotPermitted {
                 operation: *operation,
@@ -101,7 +119,8 @@ impl TerminalExecution<'_> {
         }
         if let Some(result) = result.as_structural()
             && ((requires_materialized_host_custody(&self.program.structural_types(), result.structural_type)
-                && !self.supports_scalar_aggregate_result(result))
+                && !self.supports_scalar_aggregate_result(result)
+                && !self.supports_byte_sequence_result(result))
                 || self.structural_values.contains_key(&result.place)
                 || self
                     .live_affine_frontier
@@ -118,7 +137,7 @@ impl TerminalExecution<'_> {
         Ok(())
     }
 
-    fn supports_scalar_aggregate_result(
+    fn supports_byte_sequence_result(
         &self,
         result: &terminal_psi::StructuralOperationResult,
     ) -> bool {
@@ -126,9 +145,24 @@ impl TerminalExecution<'_> {
             && result.projected_qualifications.is_empty()
             && result.claims.is_empty()
             && matches!(
-                result.multiplicity,
-                terminal_psi::nonlinear_multiplicity_pair_pattern!()
+                self.program
+                    .structural_types()
+                    .get(&result.structural_type)
+                    .map(|definition| &definition.shape),
+                Some(StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    }
+                ))
             )
+    }
+
+    fn supports_scalar_aggregate_result(
+        &self,
+        result: &terminal_psi::StructuralOperationResult,
+    ) -> bool {
+        result.projected_qualifications.is_empty()
+            && (result.claims.is_empty() || result.multiplicity == StructuralMultiplicity::Linear)
             && self
                 .program
                 .structural_types()
@@ -140,7 +174,14 @@ impl TerminalExecution<'_> {
                         })
                     };
                     match &declaration.shape {
-                        StructuralTypeShape::Record { fields, .. } => scalar_fields(fields),
+                        StructuralTypeShape::Record { .. }
+                        | StructuralTypeShape::FixedArray { .. }
+                        | StructuralTypeShape::PrimitiveScalar(_) => {
+                            crate::values::ScalarAggregatePlan::new(declaration, |identity| {
+                                self.program.structural_types().get(&identity)
+                            })
+                            .is_ok()
+                        }
                         StructuralTypeShape::Sum { cases } => {
                             cases.iter().all(|case| scalar_fields(&case.fields))
                         }
@@ -176,7 +217,8 @@ pub(crate) fn requires_materialized_host_custody(
             StructuralTypeShape::Reference { .. } | StructuralTypeShape::BindingCarrier => {
                 return true;
             }
-            StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
+            StructuralTypeShape::ByteSequence(_) => return true,
+            StructuralTypeShape::PrimitiveScalar(_) => {}
             StructuralTypeShape::FixedArray { element, .. }
             | StructuralTypeShape::ElementView { element, .. } => pending.push(*element),
             StructuralTypeShape::Record {
@@ -202,9 +244,9 @@ pub(crate) fn requires_materialized_host_custody(
                 | terminal_psi::StructuralFieldType::Atomic(_)
                 | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
                 | terminal_psi::StructuralFieldType::IeeeFloat(_)
-                | terminal_psi::StructuralFieldType::ByteSequence(_)
-                | terminal_psi::StructuralFieldType::PredicateByteSequence { .. }
                 | terminal_psi::StructuralFieldType::Erased { .. } => {}
+                terminal_psi::StructuralFieldType::ByteSequence(_)
+                | terminal_psi::StructuralFieldType::PredicateByteSequence { .. } => return true,
             }
         }
     }
@@ -219,6 +261,32 @@ impl TerminalExecution<'_> {
         returned: TerminalEffectResult,
     ) -> Result<(), TerminalInterpretError> {
         match (result, expected, returned) {
+            (
+                OperationResult::Structural(declaration),
+                BoundaryMachineResult::Structural(expected),
+                TerminalEffectResult::ByteSequence(bytes),
+            ) if declaration.structural_type == expected.structural_type
+                && declaration.multiplicity == expected.multiplicity
+                && expected.qualifications.is_empty()
+                && expected.projected_qualifications.is_empty()
+                && self.supports_byte_sequence_result(declaration) =>
+            {
+                if self.byte_sequence_values.contains_key(&declaration.place) {
+                    return Err(malformed());
+                }
+                let bytes = bytes.0.into_account(self.account.as_ref())?;
+                let value = TerminalStructuralValue::minted(
+                    self.local_structural_identities.allocate()?,
+                    declaration.structural_type,
+                    Vec::new(),
+                );
+                self.byte_sequence_values.insert(
+                    declaration.place,
+                    crate::byte_sequences::binding::ByteSequenceBinding::Immutable(bytes),
+                )?;
+                self.structural_values.insert(declaration.place, value)?;
+                self.track_affine_result(declaration);
+            }
             (OperationResult::Unit, BoundaryMachineResult::Unit, TerminalEffectResult::Unit) => {}
             (
                 OperationResult::Scalar(declaration),
@@ -270,13 +338,7 @@ impl TerminalExecution<'_> {
                     crate::structural_storage::HostStructuralPayload::Opaque(value.opaque_identity),
                 )?;
                 self.structural_values.insert(declaration.place, value)?;
-                if declaration.multiplicity == StructuralMultiplicity::Affine {
-                    self.live_affine_frontier.insert(StructuralAffineDiscard {
-                        place: declaration.place,
-                        path: Vec::new(),
-                        structural_type: declaration.structural_type,
-                    });
-                }
+                self.track_affine_result(declaration);
             }
             _ => return Err(malformed()),
         }

@@ -13,5 +13,5 @@ requires slot in Slot::Empty;
 machine main() {
     let mut slot: Slot = Slot::Empty;
     transition { _ -> done(install(&mut slot)) }
-    state done(installed: bool) {}
+    machine done(installed: bool) {}
 }

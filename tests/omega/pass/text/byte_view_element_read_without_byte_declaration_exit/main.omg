@@ -21,8 +21,8 @@ machine last(text: &[u8]) -> bool {
         true -> check(text)
         false -> no()
     }
-    state check(view: &[u8]) -> bool { view.len == 3 && view[2] == 119 }
-    state no() -> bool { false }
+    machine check(view: &[u8]) -> bool { view.len == 3 && view[2] == 119 }
+    machine no() -> bool { false }
 }
 
 machine Main::main() crashes Trap {
@@ -32,6 +32,6 @@ machine Main::main() crashes Trap {
         true -> passed()
         false -> failed()
     }
-    state passed() {}
-    state failed() { crash Trap; }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }

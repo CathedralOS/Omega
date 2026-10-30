@@ -6,7 +6,7 @@ use validation::collect_statement_expression_trees;
 
 use crate::monomorphization::body_cloning::copy_type_reference;
 use crate::monomorphization::body_rewriting::const_substitution::{
-    fixed_array_const_replacements, fold_closed_const_machine_arguments,
+    fixed_array_const_replacements, fold_closed_const_machine_arguments_in,
     substitute_const_index_expression_parameters, substitute_fixed_array_const_parameters,
 };
 use crate::monomorphization::body_rewriting::machine_arguments::substitute_machine_parameter_type_references;
@@ -20,62 +20,80 @@ pub(crate) fn substitute_cloned_type_parameters(
     program: &mut TypedTrees,
     candidate: &Candidate,
     type_start: usize,
+    expression_start: usize,
+    cloned_states: &[arena::HandleSpan<typed_trees::state::State>],
     instance: SymbolHandle,
 ) -> Result<(), Diagnostic> {
+    // Equations belong to the declaration, while supplied types belong to its
+    // callers. Prefer the proved formal definition before substituting actuals:
+    // replacing `Value == &'storage mut T` with an anonymous actual would erase
+    // the result-to-input relation when another reference parameter is present.
+    // Copy all replacements first. Their dependent binders participate in the
+    // same substitution regardless of telescope order; supplied operands retain
+    // their own scope and are never interpreted as declaration equations.
+    let mut replacements = Vec::new();
     for ((parameter_symbol, _), binding) in candidate
         .template
         .type_parameters
         .iter()
         .zip(candidate.type_bindings.iter())
     {
-        let occurrences: Vec<_> = program
-            .type_reference_table
-            .named_references()
-            .filter(|(handle, symbol, _)| {
-                handle.arena_index() as usize >= type_start && symbol == parameter_symbol
-            })
-            .map(|(handle, _, _)| handle)
-            .collect();
-        let replacement_handle = copy_type_reference(
-            source,
-            program,
-            binding.expect("complete specialization"),
-            &[],
-        );
-        let owner = source
-            .unwrap_or(program)
-            .expression_table
-            .static_machine_application(candidate.binding_application)
-            .lexical_owner;
+        let input = source.unwrap_or(program);
+        let definition = input
+            .machine_by_symbol(candidate.template.template_symbol)
+            .and_then(|machine| {
+                input
+                    .declared_type_equations
+                    .span_or_empty(machine.declared_type_equations)
+                    .iter()
+                    .find_map(|equation| {
+                        matches!(input.type_reference_table.type_reference(equation.parameter),
+                        TypeReferenceNode::Named { symbol, .. } if symbol == parameter_symbol)
+                        .then_some(equation.definition)
+                    })
+            });
+        let replacement = definition.unwrap_or(binding.expect("complete specialization"));
+        let replacement_handle = copy_type_reference(source, program, replacement, &[])?;
+        let owner = if definition.is_some() {
+            candidate.template.template_symbol
+        } else {
+            source
+                .unwrap_or(program)
+                .expression_table
+                .static_machine_application(candidate.binding_application)
+                .lexical_owner
+        };
         program
             .type_reference_table
             .retain_operand_lifetime_owner(replacement_handle, owner)
             .map_err(Diagnostic::error)?;
-        // A shared body's binder must rejoin every supplying call. An
-        // occurrence-local inferred result already belongs to its caller:
-        // preserve the actual operand's origin, rather than retaining a call
-        // handle that would need a second copy/substitution correspondence.
-        if instance.is_valid() {
-            let origin = typed_trees::types::TypeOperandOrigin::MachineParameter {
-                instance,
-                parameter: *parameter_symbol,
-            };
-            program
-                .type_reference_table
-                .set_operand_origin(replacement_handle, origin);
+        if instance.is_valid() && definition.is_none() {
+            program.type_reference_table.set_operand_origin(
+                replacement_handle,
+                typed_trees::types::TypeOperandOrigin::MachineParameter {
+                    instance,
+                    parameter: *parameter_symbol,
+                },
+            );
         }
+        replacements.push((*parameter_symbol, replacement_handle));
+    }
+    for (parameter_symbol, replacement_handle) in replacements {
+        let occurrences: Vec<_> = program
+            .type_reference_table
+            .named_references_from(type_start)
+            .filter(|(_, symbol, _)| *symbol == parameter_symbol)
+            .map(|(handle, _, _)| handle)
+            .collect();
         for occurrence in occurrences {
             program
                 .type_reference_table
                 .substitute_from(occurrence, replacement_handle)
                 .map_err(Diagnostic::error)?;
         }
-        // Clone-owned compounds whose child still names the binder point at
-        // the template's interned leaf — out of the occurrence scan's reach.
-        // Repoint those fields at the argument's fresh node.
         program.type_reference_table.substitute_shared_children(
             type_start,
-            *parameter_symbol,
+            parameter_symbol,
             replacement_handle,
         );
     }
@@ -93,10 +111,8 @@ pub(crate) fn substitute_cloned_type_parameters(
     {
         let occurrences: Vec<_> = program
             .type_reference_table
-            .named_references()
-            .filter(|(handle, symbol, _)| {
-                handle.arena_index() as usize >= type_start && symbol == parameter_symbol
-            })
+            .named_references_from(type_start)
+            .filter(|(_, symbol, _)| symbol == parameter_symbol)
             .map(|(handle, _, _)| handle)
             .collect();
         let replacement_handle = copy_type_reference(
@@ -104,7 +120,7 @@ pub(crate) fn substitute_cloned_type_parameters(
             program,
             binding.expect("complete const specialization"),
             &[],
-        );
+        )?;
         for occurrence in occurrences {
             program
                 .type_reference_table
@@ -126,7 +142,8 @@ pub(crate) fn substitute_cloned_type_parameters(
     // Binder substitution rewrites `Degree` to a decimal spelling inside the
     // cloned call. Fold that closed arithmetic before the next selection, or
     // `step<Degree - 1>` never becomes `step<1>`.
-    fold_closed_const_machine_arguments(program).map_err(Diagnostic::error)?;
+    fold_closed_const_machine_arguments_in(program, expression_start, cloned_states)
+        .map_err(Diagnostic::error)?;
     Ok(())
 }
 
@@ -143,6 +160,18 @@ pub(crate) fn reject_runtime_bound_static_occurrences(
         return Ok(());
     }
     let mut roots = Vec::new();
+    for &predicate in program
+        .expression_table
+        .expression_handles(cloned.declared_type_predicates)
+    {
+        collect_expression_type_roots(program, predicate, &mut roots);
+    }
+    for equation in program
+        .declared_type_equations
+        .span_or_empty(cloned.declared_type_equations)
+    {
+        roots.extend([equation.parameter, equation.definition]);
+    }
     roots.extend(
         program
             .machine_owned_data(cloned)
@@ -337,7 +366,26 @@ pub(crate) fn cloned_expression_roots(
     program: &dyn ::validation::CheckingInput,
     cloned: &typed_trees::machine::Machine,
 ) -> Vec<ExpressionHandle> {
-    let mut roots = Vec::new();
+    let mut roots = program
+        .expression_table
+        .expression_handles(cloned.declared_type_predicates)
+        .to_vec();
+    for equation in program
+        .declared_type_equations
+        .span_or_empty(cloned.declared_type_equations)
+    {
+        for reference in [equation.parameter, equation.definition] {
+            crate::monomorphization::for_each_type_reference(
+                program,
+                &[reference],
+                |_, _| false,
+                |_, minimum, maximum| {
+                    roots.extend([minimum, maximum]);
+                    false
+                },
+            );
+        }
+    }
     for item in program.machine_owned_data(cloned) {
         roots.push(item.initial_value);
     }
@@ -413,7 +461,8 @@ pub(crate) fn collect_expression_type_roots(
                     collect_static_argument_type_roots(std::slice::from_ref(&query.operand), roots);
                 }
             }
-            ExpressionNode::ZeroValue(type_reference) => roots.push(*type_reference),
+            ExpressionNode::TypeExpression(type_reference)
+            | ExpressionNode::ZeroValue(type_reference) => roots.push(*type_reference),
             _ => {}
         }
     }

@@ -33,12 +33,41 @@ pub(crate) fn validate(
     typed: &TypedTrees,
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &crate::build_time_evaluation::EvaluationDomain,
+    selected: crate::SelectedBuildTimeOperators<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
+    // Syntax work and receiving value validation have different domains. New
+    // values carry exact constant dependencies, including call-produced values
+    // from a completed predecessor. Close those recorded edges before creating
+    // the independently checked replay batch; omission must still hit the
+    // missing-owner fence below, never authorize trusting a capsule by itself.
+    let mut replay_domain = typed_trees::references::DeclarationSelection::from_symbols(
+        typed
+            .const_declarations()
+            .iter()
+            .filter(|declaration| domain.contains(declaration.symbol))
+            .map(|declaration| declaration.symbol),
+    );
+    loop {
+        let references =
+            typed_trees::references::collect_selected_program_references(typed, &replay_domain);
+        let mut changed = false;
+        for declaration in typed.const_declarations() {
+            if references.symbols.contains(&declaration.symbol)
+                && !replay_domain.contains(declaration.symbol)
+            {
+                replay_domain.include(declaration.symbol);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
     let mut leaves = Vec::new();
     let mut replay_declarations = Vec::new();
     let mut floating_declarations = Vec::new();
     for declaration in typed.const_declarations() {
-        if !domain.contains(declaration.symbol) {
+        if !replay_domain.contains(declaration.symbol) {
             continue;
         }
         let reference = declaration.initializer_source_span;
@@ -183,7 +212,9 @@ pub(crate) fn validate(
     if leaves.is_empty() && floating_declarations.is_empty() {
         return Ok(());
     }
-    let mut probe = domain.execution_program(typed);
+    // Retain the source declaration roster until ordinary typed selection has
+    // rebound detached calls. Only the derived execution closure is projected.
+    let mut probe = typed.clone();
     let mut owners = Vec::new();
     for (ordinal, leaf) in leaves.iter().enumerate() {
         let original = super::invocations::append_probe(
@@ -193,17 +224,15 @@ pub(crate) fn validate(
             leaf.original,
             leaf.destination,
         );
-        // Structured leaves interpret each root as a whole value: the scalar
-        // probe only reaches leaves whose declared carrier is scalar.
-        let materialized = leaf.structured.then(|| {
-            super::invocations::append_probe(
-                &mut probe,
-                leaf.owner,
-                format!("@const-replay-materialized-{ordinal}"),
-                leaf.materialized,
-                leaf.destination,
-            )
-        });
+        // Both source roots own a prepared value exit. Scalar recipes can
+        // contain generic calls too; their untouched handles are not executable.
+        let materialized = super::invocations::append_probe(
+            &mut probe,
+            leaf.owner,
+            format!("@const-replay-materialized-{ordinal}"),
+            leaf.materialized,
+            leaf.destination,
+        );
         owners.push((original, materialized));
     }
     let mut replay_owners = Vec::new();
@@ -217,12 +246,7 @@ pub(crate) fn validate(
     }
     let mut probe_symbols = owners
         .iter()
-        .flat_map(|(original, materialized)| {
-            materialized.map_or_else(
-                || vec![*original],
-                |materialized| vec![*original, materialized],
-            )
-        })
+        .flat_map(|(original, materialized)| [*original, *materialized])
         .collect::<Vec<_>>();
     for (ordinal, (declaration, _)) in floating_declarations.iter().enumerate() {
         let owner = super::invocations::append_probe(
@@ -235,6 +259,9 @@ pub(crate) fn validate(
         replay_owners.push((declaration.symbol, owner));
         probe_symbols.push(owner);
     }
+    while !validation::resolve_named_result_overloads(&mut probe)?.is_empty() {}
+    typed_trees_to_typed_trees::bind_pre_specialization_authored_selections(&mut probe)
+        .map_err(|diagnostic| vec![diagnostic])?;
     // The actual source recipe must precede specialization. Prepared target
     // custody alone cannot distinguish another valid instance of one template.
     for declaration in &replay_declarations {
@@ -251,11 +278,27 @@ pub(crate) fn validate(
         validate_authored_custody(&probe, owner, declaration)
             .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
     }
-    let prepared = crate::PreparedBuildMachineProgram::prepare(&probe)?;
+    // Rejoin supplied execution only after authenticating authored custody.
+    // Selected providers then enter the same actual call closure as settlement.
+    let probe = crate::machine_execution::selected_operators::prepare_selected_execution(
+        &probe,
+        selected.provider_bodies,
+        selected.operators,
+    )
+    .map_err(|reason| super::failure(source::SourceSpan::default(), reason))?
+    .unwrap_or(probe);
+    let replay_execution = crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(
+        &probe,
+        &probe_symbols,
+        &[],
+    );
+    let prepared = crate::PreparedBuildMachineProgram::prepare_in(&probe, &replay_execution)?;
     let checked = super::invocations::CheckedInitializers::prepare(
         &prepared,
         authority.clone(),
         &probe_symbols,
+        &domain.accounting,
+        selected.operators,
     )?;
     let program = checked.typed();
     // A dependency capsule names a separate declaration job. Validate every
@@ -342,15 +385,16 @@ pub(crate) fn validate(
     for (leaf, (original_owner, materialized_owner)) in leaves.iter().zip(owners) {
         let result = (|| {
             let calls = checked.calls_for_symbol(original_owner)?;
+            let materialized_calls = checked.calls_for_symbol(materialized_owner)?;
             if let Some(destination) =
                 crate::const_evaluation::const_generic_expressions::scalar_probe_destination(
                     program,
                     leaf.destination,
                 )
             {
-                let original = decode_scalar(calls.evaluate_scalar(leaf.original, destination)?.0)?;
+                let original = decode_scalar(calls.evaluate_probe_scalar(destination)?.0)?;
                 let materialized =
-                    decode_scalar(calls.evaluate_scalar(leaf.materialized, destination)?.0)?;
+                    decode_scalar(materialized_calls.evaluate_probe_scalar(destination)?.0)?;
                 if original != leaf.expected || materialized != leaf.expected {
                     return Err(
                         "retained constant invocation, materialized value, or canonical result drifted"
@@ -362,10 +406,6 @@ pub(crate) fn validate(
             // Structured leaf: both roots interpret as whole values against
             // the declared carrier and re-encode independently.
             let (original, _) = calls.evaluate_value()?;
-            let materialized_calls = checked.calls_for_symbol(
-                materialized_owner
-                    .ok_or("structured initializer leaf lost its materialized probe")?,
-            )?;
             let (materialized, _) = materialized_calls.evaluate_value()?;
             let original =
                 super::materialize::canonical_value(program, leaf.destination, &original)?;
@@ -1125,13 +1165,7 @@ fn pair(
                     program
                         .data_members(definition)
                         .iter()
-                        .filter_map(|member| {
-                            if let Some(field) = member.as_field() {
-                                Some(field)
-                            } else {
-                                None
-                            }
-                        })
+                        .filter_map(|member| member.as_field())
                         .collect::<Vec<_>>(),
                     fields,
                 ),

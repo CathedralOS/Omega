@@ -6,25 +6,67 @@
 //! Project observed integer terms into the existing arithmetic engine, with a
 //! query-local atom per complete value identity. No source expression is replayed,
 //! no caller state is reread, and no future call guarantee enters the premises.
-//! Wrapping/saturating operations remain opaque values rather than integer laws;
+//! Completed policy values retain wrapping/clamping before entering integer laws;
 //! Each expanded operation retains its carrier formation obligation until the
 //! authenticated premises establish it, independently of the requested goal.
 
+use super::super::arithmetic_judgment::{LowerBoundQueries, PreparedLowerBoundIndex};
 use super::super::{BigInt, Engine, Polynomial};
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
+use numerics::arithmetic::ArithmeticDomain;
 use std::ops::Range;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::types::PrimitiveType;
 
 type Comparison = (BinaryOperator, Polynomial, Polynomial);
 
+/// A noninteger predicate has not entered numeric projection. A selected
+/// comparison with an unavailable operand may already have registered facts;
+/// optional shared queries must discard that entire preparation.
+enum IntegerComparisonProjection {
+    NotInteger,
+    UnavailableOperand,
+    Comparison(Comparison),
+}
+
+struct ProjectedIntegerPremises {
+    comparisons: Vec<(Comparison, Range<usize>)>,
+    complete: bool,
+}
+
+#[derive(PartialEq, Eq)]
+struct IntegerProjectionRegistrations {
+    atoms: usize,
+    operations: usize,
+    carrier_bounds: usize,
+    engine: (usize, usize, usize, usize),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum OperationFormation {
+    Required,
+    /// The whole value already completed; only its mathematical expansion is
+    /// optional. Required children retain their own formation obligations.
+    CompletedValue,
+}
+
+#[derive(Clone)]
 struct ObservedOperation {
     operator: BinaryOperator,
-    primitives: [PrimitiveType; 2],
+    meaning: [(PrimitiveType, ArithmeticDomain); 2],
     operands: [Polynomial; 2],
     value: Polynomial,
     children: Range<usize>,
+    formation: OperationFormation,
     admitted: bool,
+}
+
+/// Intrinsic bounds retain exact selected carrier and polynomial identity.
+#[derive(Clone)]
+struct ObservedCarrierBounds {
+    primitive: PrimitiveType,
+    value: Polynomial,
+    comparisons: [Comparison; 2],
 }
 
 /// Query-local preparation is deliberately separate from admission. Only a
@@ -32,19 +74,176 @@ struct ObservedOperation {
 /// establish its own nonzero divisor. The requested comparison never enters
 /// this premise worklist. Children are admitted before their consuming node,
 /// including nodes whose normalized value cancelled out of the comparison.
+#[derive(Clone)]
 struct IntegerObservations<'program> {
     engine: Engine<'program>,
     atoms: Vec<StructuralTerm>,
     operations: Vec<ObservedOperation>,
-    carrier_facts: Vec<Comparison>,
+    carrier_bounds: Vec<ObservedCarrierBounds>,
+    installed_carrier_bounds: usize,
+    next_operation_id: usize,
+    // Only one immutable judge's goal batch may share resolved operand payloads.
+    operand_resolutions: Option<Vec<(StructuralTerm, StructuralTerm)>>,
 }
 
-impl IntegerObservations<'_> {
+/// Every retained comparison and operation has been independently admitted.
+/// Cloning the entire semantic engine preserves substitutions, opaque terms,
+/// selected meanings and interval state. Requested goals never modify this owner.
+pub(super) struct PreparedIntegerPremises<'program> {
+    observations: IntegerObservations<'program>,
+    lower_bounds: std::sync::OnceLock<PreparedLowerBoundIndex>,
+    contradictory: std::sync::OnceLock<bool>,
+    goal_work: std::sync::Mutex<Option<IntegerObservations<'program>>>,
+}
+
+type PreparedIntegerPremisesCacheKey = (usize, usize, usize, usize, bool, bool);
+
+#[derive(Default)]
+pub(super) struct PreparedIntegerPremisesCache<'program> {
+    entries: Vec<(
+        PreparedIntegerPremisesCacheKey,
+        Option<std::sync::Arc<PreparedIntegerPremises<'program>>>,
+    )>,
+}
+
+impl<'program> PreparedIntegerPremisesCache<'program> {
+    fn get(
+        &mut self,
+        state: PreparedIntegerPremisesCacheKey,
+    ) -> Option<Option<std::sync::Arc<PreparedIntegerPremises<'program>>>> {
+        let index = self.entries.iter().position(|(key, _)| *key == state)?;
+        let entry = self.entries.remove(index);
+        let result = entry.1.clone();
+        self.entries.push(entry);
+        Some(result)
+    }
+
+    fn insert(
+        &mut self,
+        state: PreparedIntegerPremisesCacheKey,
+        prepared: Option<std::sync::Arc<PreparedIntegerPremises<'program>>>,
+    ) {
+        if let Some(index) = self.entries.iter().position(|(key, _)| *key == state) {
+            self.entries.remove(index);
+        } else if self.entries.len() >= 8 {
+            self.entries.remove(0);
+        }
+        self.entries.push((state, prepared));
+    }
+}
+
+impl<'program> PreparedIntegerPremises<'program> {
+    fn take_goal_work(&self) -> IntegerObservations<'program> {
+        if let Ok(mut guard) = self.goal_work.lock()
+            && let Some(mut work) = guard.take()
+        {
+            self.reset_goal_work(&mut work);
+            return work;
+        }
+        self.observations.clone()
+    }
+
+    fn put_goal_work(&self, mut work: IntegerObservations<'program>) {
+        self.reset_goal_work(&mut work);
+        work.operand_resolutions = None;
+        if let Ok(mut guard) = self.goal_work.lock() {
+            *guard = Some(work);
+        }
+    }
+
+    fn reset_goal_work(&self, work: &mut IntegerObservations<'program>) {
+        let base_atoms = self.observations.atoms.len();
+        let base_bounds = self.observations.carrier_bounds.len();
+        let base_engine = self.observations.engine.integer_projection_registrations();
+        work.atoms.truncate(base_atoms);
+        work.carrier_bounds.truncate(base_bounds);
+        work.operations.clear();
+        work.installed_carrier_bounds = self.observations.installed_carrier_bounds;
+        work.engine.parameter_atoms.truncate(base_engine.0);
+        if work.engine.bounds.len() != base_engine.3 {
+            work.engine.bounds.truncate(base_engine.3);
+            work.engine.restore_matrix_from(&self.observations.engine);
+        }
+        let removed_existing = work.engine.truncate_opaque_terms_since(base_engine.1);
+        if removed_existing || work.engine.integer_projection_registrations().2 != base_engine.2 {
+            work.engine
+                .restore_intervals_from(&self.observations.engine);
+        }
+    }
+
+    fn lower_bound_queries(&self) -> LowerBoundQueries<'_, 'program> {
+        let index = self
+            .lower_bounds
+            .get_or_init(|| PreparedLowerBoundIndex::new(&self.observations.engine));
+        LowerBoundQueries::from_prepared_index(&self.observations.engine, index)
+    }
+
+    fn is_contradictory(&self) -> bool {
+        *self.contradictory.get_or_init(|| {
+            self.observations.engine.requires_unsatisfiable
+                || (!self.observations.engine.bounds.is_empty()
+                    && self.lower_bound_queries().prove_at_least(
+                        &Polynomial::constant(BigInt::from_i64(-1)),
+                        &BigInt::zero(),
+                    ))
+        })
+    }
+}
+
+impl<'program> IntegerObservations<'program> {
+    fn operation_placeholder(&mut self) -> Option<Polynomial> {
+        let identity = self.next_operation_id;
+        self.next_operation_id = identity.checked_add(1)?;
+        Some(Polynomial::atom(format!("\0integer-operation:{identity}")))
+    }
+
+    fn observed_atom(
+        &mut self,
+        value: StructuralTerm,
+        primitive: PrimitiveType,
+    ) -> Option<Polynomial> {
+        let position = if let Some(position) = self.atoms.iter().position(|atom| atom == &value) {
+            position
+        } else {
+            self.atoms.push(value);
+            let position = self.atoms.len() - 1;
+            self.engine.parameter_atoms.push(atom_name(position));
+            position
+        };
+        let value = Polynomial::atom(atom_name(position));
+        self.install_observed_carrier_bounds(primitive, &value)?;
+        Some(value)
+    }
+
+    fn projection_registrations(&self) -> IntegerProjectionRegistrations {
+        IntegerProjectionRegistrations {
+            atoms: self.atoms.len(),
+            operations: self.operations.len(),
+            carrier_bounds: self.carrier_bounds.len(),
+            engine: self.engine.integer_projection_registrations(),
+        }
+    }
+
     fn install_observed_carrier_bounds(
         &mut self,
         primitive: PrimitiveType,
         value: &Polynomial,
     ) -> Option<()> {
+        if primitive != PrimitiveType::Addr
+            && let Some(constant) = value.constant_value()
+            && let Some((minimum, maximum)) = primitive.integer_bounds()
+            && constant >= BigInt::from_i128(minimum)
+            && constant <= BigInt::from_i128(maximum)
+        {
+            return Some(());
+        }
+        if self
+            .carrier_bounds
+            .iter()
+            .any(|bounds| bounds.primitive == primitive && bounds.value == *value)
+        {
+            return Some(());
+        }
         let (minimum, maximum, upper_operator) = if primitive == PrimitiveType::Addr {
             (
                 BigInt::zero(),
@@ -59,43 +258,99 @@ impl IntegerObservations<'_> {
                 BinaryOperator::LessOrEqual,
             )
         };
-        self.carrier_facts.extend([
+        let comparisons = [
             (
                 BinaryOperator::GreaterOrEqual,
                 value.clone(),
                 Polynomial::constant(minimum),
             ),
             (upper_operator, value.clone(), maximum),
-        ]);
+        ];
+        self.carrier_bounds.push(ObservedCarrierBounds {
+            primitive,
+            value: value.clone(),
+            comparisons,
+        });
         Some(())
     }
 
     fn admitted(&self, operations: Range<usize>) -> bool {
-        self.operations[operations]
-            .iter()
-            .all(|operation| operation.admitted)
+        self.operations[operations].iter().all(|operation| {
+            operation.admitted || operation.formation == OperationFormation::CompletedValue
+        })
+    }
+
+    /// Positive evidence and tri-valued judgment share this exact proof body.
+    /// Requesting evidence does not require proving the unused opposite.
+    fn comparison_holds(
+        queries: &LowerBoundQueries<'_, '_>,
+        operator: BinaryOperator,
+        left: &Polynomial,
+        right: &Polynomial,
+    ) -> bool {
+        let engine = queries.engine();
+        let proves = |difference: Polynomial, minimum| {
+            queries.prove_at_least(&engine.substituted(&difference), &BigInt::from_i64(minimum))
+        };
+        match operator {
+            BinaryOperator::Less => proves(right.sub(left), 1),
+            BinaryOperator::LessOrEqual => proves(right.sub(left), 0),
+            BinaryOperator::Greater => proves(left.sub(right), 1),
+            BinaryOperator::GreaterOrEqual => proves(left.sub(right), 0),
+            BinaryOperator::Equal => proves(left.sub(right), 0) && proves(right.sub(left), 0),
+            BinaryOperator::NotEqual => {
+                engine.is_known_nonzero(&engine.substituted(&left.sub(right)))
+                    || proves(left.sub(right), 1)
+                    || proves(right.sub(left), 1)
+            }
+            _ => false,
+        }
+    }
+
+    fn judge_comparison(
+        queries: &LowerBoundQueries<'_, '_>,
+        (operator, left, right): Comparison,
+    ) -> StructuralJudgment {
+        if Self::comparison_holds(queries, operator, &left, &right) {
+            StructuralJudgment::Proven
+        } else if operator
+            .complement()
+            .is_some_and(|complement| Self::comparison_holds(queries, complement, &left, &right))
+        {
+            StructuralJudgment::Refuted
+        } else {
+            StructuralJudgment::Unknown
+        }
     }
 
     fn install_premises(&mut self, premises: &mut Vec<(Comparison, Range<usize>)>) -> bool {
-        if !self
-            .engine
-            .install_hypotheses(std::mem::take(&mut self.carrier_facts))
-        {
-            return false;
+        if self.installed_carrier_bounds < self.carrier_bounds.len() {
+            let comparisons = self.carrier_bounds[self.installed_carrier_bounds..]
+                .iter()
+                .flat_map(|bounds| bounds.comparisons.clone())
+                .collect();
+            if !self.engine.install_hypotheses(comparisons) {
+                return false;
+            }
+            // A failed installation never advances this context's frontier.
+            self.installed_carrier_bounds = self.carrier_bounds.len();
         }
         loop {
             let mut changed = false;
-            let mut index = 0;
-            while index < premises.len() {
-                if self.admitted(premises[index].1.clone()) {
-                    let (comparison, _) = premises.remove(index);
-                    if !self.engine.install_hypotheses(vec![comparison]) {
-                        return false;
-                    }
-                    changed = true;
-                } else {
-                    index += 1;
+            // Admission stays fixed throughout this premise round. Install
+            // its already-formed comparisons together, in existing intake order,
+            // so every fact does not rebuild the retained difference matrix.
+            // Only the later operation pass can admit another child or parent;
+            // neither an unformed premise nor the goal joins this batch.
+            let admitted_comparisons = premises
+                .extract_if(.., |(_, operations)| self.admitted(operations.clone()))
+                .map(|(comparison, _)| comparison)
+                .collect::<Vec<_>>();
+            if !admitted_comparisons.is_empty() {
+                if !self.engine.install_hypotheses(admitted_comparisons) {
+                    return false;
                 }
+                changed = true;
             }
             self.engine.refresh_opaque_intervals();
             for index in 0..self.operations.len() {
@@ -104,23 +359,26 @@ impl IntegerObservations<'_> {
                     continue;
                 }
                 let [left, right] = &operation.operands;
-                if operation.admitted
-                    || self.engine.integer_operation_lands(
-                        operation.operator,
-                        operation.primitives,
-                        left,
-                        right,
-                        &operation.value,
-                    )
-                {
+                if operation.admitted {
                     changed |= self.engine.install_integer_operation_bounds(
                         operation.operator,
                         left,
                         right,
                         &operation.value,
                     );
-                    changed |= !operation.admitted;
+                } else if self
+                    .engine
+                    .admit_selected_integer_operation(
+                        operation.operator,
+                        operation.meaning,
+                        left,
+                        right,
+                        Some(&operation.value),
+                    )
+                    .is_some()
+                {
                     self.operations[index].admitted = true;
+                    changed = true;
                 }
             }
             if !changed {
@@ -130,7 +388,40 @@ impl IntegerObservations<'_> {
     }
 }
 
-impl StructuralJudge<'_> {
+impl<'program> StructuralJudge<'program> {
+    pub(in crate::proof_contracts::contract_entailment) fn integer_premise_revision(
+        &self,
+    ) -> usize {
+        self.rewrites.integer_premise_revision()
+    }
+
+    /// Refute this prefix from independently formed live premises alone.
+    /// A requested operation or its result never contributes to this query.
+    /// Incomplete projection or admission means unknown, not an impossible path.
+    pub(in crate::proof_contracts::contract_entailment) fn integer_premises_contradictory(
+        &self,
+    ) -> bool {
+        if !self.runtime_body_values
+            || self.case_facts_only
+            || !self.rewrites.has_potential_integer_premises()
+        {
+            return false;
+        }
+        if let Some(prepared) = self.cached_prepared_integer_premises() {
+            return prepared.is_contradictory();
+        }
+        let observations = IntegerObservations {
+            engine: Engine::for_explicit_bindings(self.program),
+            atoms: Vec::new(),
+            operations: Vec::new(),
+            carrier_bounds: Vec::new(),
+            installed_carrier_bounds: 0,
+            next_operation_id: 0,
+            operand_resolutions: None,
+        };
+        self.independent_integer_premises(observations).is_some()
+    }
+
     /// Ask about one completed operand, before introducing its cast result.
     /// The address ceiling remains the builtin symbolic model bound; the
     /// hosted producer's current Addr64 representation is not a premise.
@@ -144,70 +435,197 @@ impl StructuralJudge<'_> {
             reference: source_reference,
             value: Box::new(value),
         };
-        self.observed_mathematical_integer_fits(value, target)
+        self.integer_term_fits(value, target)
     }
 
-    pub(in crate::proof_contracts::contract_entailment) fn observed_integer_operation_fits(
+    /// An unrelated, unavailable arithmetic premise cannot hide an already
+    /// formed contradiction. Admit each retained rewrite in an isolated fork;
+    /// failed projection or formation discards all of that fork's registrations.
+    /// Only independently formed comparisons join the next fork. This query has
+    /// no requested goal, and a partial operand cannot prove its own formation.
+    fn independent_integer_premises(
         &self,
-        operator: BinaryOperator,
-        values: [StructuralTerm; 2],
-        references: [typed_trees::types::TypeReferenceHandle; 2],
-        target: PrimitiveType,
-    ) -> bool {
-        let [left, right] = values;
-        self.observed_mathematical_integer_fits(
-            StructuralTerm::MathematicalBinary {
-                operator,
-                left: Box::new(StructuralTerm::IntegerEmbedding {
-                    reference: references[0],
-                    value: Box::new(left),
-                }),
-                right: Box::new(StructuralTerm::IntegerEmbedding {
-                    reference: references[1],
-                    value: Box::new(right),
-                }),
-            },
-            target,
-        )
+        mut observations: IntegerObservations<'program>,
+    ) -> Option<PreparedIntegerPremises<'program>> {
+        for premise in self.rewrites.iter() {
+            let mut candidate = observations.clone();
+            let mut projected =
+                self.project_integer_premises(&mut candidate, std::iter::once(premise));
+            if projected.comparisons.is_empty()
+                || !projected.complete
+                || !candidate.install_premises(&mut projected.comparisons)
+                || !projected.comparisons.is_empty()
+                || !candidate.admitted(0..candidate.operations.len())
+            {
+                continue;
+            }
+            if candidate.engine.requires_unsatisfiable
+                || candidate
+                    .engine
+                    .lower_bound_queries()
+                    .prove_at_least(&Polynomial::constant(BigInt::from_i64(-1)), &BigInt::zero())
+            {
+                candidate.operations.clear();
+                return Some(PreparedIntegerPremises {
+                    observations: candidate,
+                    lower_bounds: std::sync::OnceLock::new(),
+                    contradictory: std::sync::OnceLock::from(true),
+                    goal_work: std::sync::Mutex::new(None),
+                });
+            }
+            candidate.operations.clear();
+            observations = candidate;
+        }
+        None
     }
 
-    fn observed_mathematical_integer_fits(
+    /// The caller supplies an independently formed mathematical integer. This
+    /// does not create a runtime carrier or acquire fit from an operation's own
+    /// result. Both observed casts and anonymous operand landing share it.
+    pub(in crate::proof_contracts::contract_entailment) fn integer_term_fits(
         &self,
         value: StructuralTerm,
         target: PrimitiveType,
     ) -> bool {
-        let (minimum, maximum, upper_operator) = if target == PrimitiveType::Addr {
+        matches!(
+            self.integer_term_fit_judgment(value, target),
+            super::super::operand_fits::CarrierFit::Proven
+        )
+    }
+
+    /// Compose bounds of completed operands, retaining their admitted producer
+    /// observations. This consumes captured values, never their source places.
+    /// Each operation entry supplies both operands before paths are joined.
+    pub(in crate::proof_contracts::contract_entailment) fn completed_integer_range_recipe(
+        &self,
+        value: &StructuralTerm,
+    ) -> Option<checked_trees::IntegerRangeRecipe> {
+        self.completed_integer_range_recipe_at(value, 0)
+    }
+
+    fn completed_integer_range_recipe_at(
+        &self,
+        value: &StructuralTerm,
+        depth: usize,
+    ) -> Option<checked_trees::IntegerRangeRecipe> {
+        use checked_trees::IntegerRangeRecipe;
+        if depth >= 64 || !self.runtime_body_values || self.case_facts_only {
+            return None;
+        }
+        let value = self.resolved_completed_semantic_value(value);
+        match value {
+            StructuralTerm::Integer(value) => {
+                Some(IntegerRangeRecipe::bounds(value.clone(), value))
+            }
+            StructuralTerm::CapturedValue { integer_range, .. } => {
+                integer_range.as_deref().cloned()
+            }
+            StructuralTerm::IntegerEmbedding { reference, value } => {
+                let primitive = self.program.primitive_type_reference(reference)?;
+                let (low, high) = primitive.integer_bounds()?;
+                let carrier =
+                    IntegerRangeRecipe::bounds(BigInt::from_i128(low), BigInt::from_i128(high));
+                Some(
+                    self.completed_integer_range_recipe_at(&value, depth + 1)
+                        .map_or_else(|| carrier.clone(), |recipe| recipe.intersect(&carrier)),
+                )
+            }
+            StructuralTerm::MathematicalBinary {
+                operator,
+                left,
+                right,
+            } => self
+                .completed_integer_range_recipe_at(&left, depth + 1)?
+                .binary(
+                    operator,
+                    &self.completed_integer_range_recipe_at(&right, depth + 1)?,
+                ),
+            StructuralTerm::ScalarBinary {
+                operator,
+                left,
+                right,
+                meaning,
+                ..
+            } if meaning
+                .iter()
+                .all(|(_, domain)| *domain == ArithmeticDomain::Exact) =>
+            {
+                self.completed_integer_range_recipe_at(&left, depth + 1)?
+                    .binary(
+                        operator,
+                        &self.completed_integer_range_recipe_at(&right, depth + 1)?,
+                    )
+            }
+            StructuralTerm::ScalarRepresentation {
+                source,
+                target,
+                value,
+            } if source == target => self.completed_integer_range_recipe_at(&value, depth + 1),
+            _ => None,
+        }
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn integer_term_fit_judgment(
+        &self,
+        value: StructuralTerm,
+        target: PrimitiveType,
+    ) -> super::super::operand_fits::CarrierFit {
+        use super::super::operand_fits::CarrierFit;
+        if !self.runtime_body_values || self.case_facts_only {
+            return CarrierFit::Unknown;
+        }
+        let mut observations = IntegerObservations {
+            engine: Engine::for_explicit_bindings(self.program),
+            atoms: Vec::new(),
+            operations: Vec::new(),
+            carrier_bounds: Vec::new(),
+            installed_carrier_bounds: 0,
+            next_operation_id: 0,
+            operand_resolutions: None,
+        };
+        let Some(value) = self.mathematical_value(&value, &mut observations, 0) else {
+            return CarrierFit::Unknown;
+        };
+        let (minimum, maximum, exclusive) = if target == PrimitiveType::Addr {
             let Some(bound) = self
                 .program
                 .symbols
                 .builtin_type_member_symbol(symbols::BuiltinTypeMember::AddressBound)
             else {
-                return false;
+                return CarrierFit::Unknown;
             };
-            (
-                BigInt::zero(),
-                StructuralTerm::BoundValue(bound),
-                BinaryOperator::Less,
-            )
+            // Resolve the bound in this captured judge before projecting it.
+            // Recreating a fresh raw model atom here would lose an already
+            // authenticated replacement such as the prior `addr::Bound == 16`.
+            let Some(bound) =
+                self.mathematical_value(&StructuralTerm::BoundValue(bound), &mut observations, 0)
+            else {
+                return CarrierFit::Unknown;
+            };
+            (BigInt::zero(), bound, true)
         } else {
             let Some((minimum, maximum)) = target.integer_bounds() else {
-                return false;
+                return CarrierFit::Unknown;
             };
             (
                 BigInt::from_i128(minimum),
-                StructuralTerm::Integer(BigInt::from_i128(maximum)),
-                BinaryOperator::LessOrEqual,
+                Polynomial::constant(BigInt::from_i128(maximum)),
+                false,
             )
         };
-        self.proves_observed_integer_predicate(&StructuralTerm::MathematicalBinary {
-            operator: BinaryOperator::LessOrEqual,
-            left: Box::new(StructuralTerm::Integer(minimum)),
-            right: Box::new(value.clone()),
-        }) && self.proves_observed_integer_predicate(&StructuralTerm::MathematicalBinary {
-            operator: upper_operator,
-            left: Box::new(value),
-            right: Box::new(maximum),
-        })
+        let goal_operations = 0..observations.operations.len();
+        let mut premises = self.observed_integer_premises(&mut observations);
+        if !observations.install_premises(&mut premises) || !observations.admitted(goal_operations)
+        {
+            return CarrierFit::Unknown;
+        }
+        observations.engine.integer_value_fit(
+            &value,
+            &minimum,
+            &maximum,
+            exclusive,
+            target == PrimitiveType::Addr,
+        )
     }
 
     pub(in crate::proof_contracts::contract_entailment) fn judge_observed_predicate(
@@ -215,85 +633,966 @@ impl StructuralJudge<'_> {
         predicate: StructuralTerm,
         depth: usize,
     ) -> StructuralJudgment {
+        self.completed_predicate(predicate, depth, |judge, predicate| {
+            judge.judge_observed_predicate_uncached(predicate, depth)
+        })
+    }
+
+    fn judge_observed_predicate_uncached(
+        &self,
+        predicate: StructuralTerm,
+        depth: usize,
+    ) -> StructuralJudgment {
+        let resolved = self.resolve_at(predicate.clone(), depth + 1);
         match self.judge_equation(
-            self.resolve_at(predicate.clone(), depth + 1),
+            resolved.clone(),
             super::value_predicates::boolean_term(true),
             depth + 1,
         ) {
-            StructuralJudgment::Unknown => self
-                .observed_float_predicate_judgment(&predicate, depth)
-                .unwrap_or_else(|| self.observed_integer_predicate_judgment(&predicate)),
+            StructuralJudgment::Unknown => {
+                if let Some(judgment) = self.observed_float_predicate_judgment(&predicate, depth) {
+                    return if matches!(judgment, StructuralJudgment::Unknown)
+                        && self.proves_observed_integer_boolean(&resolved, depth) == Some(true)
+                    {
+                        StructuralJudgment::Proven
+                    } else {
+                        judgment
+                    };
+                }
+                if let Some((observations, comparison, admitted)) =
+                    self.integer_predicate_observations(&predicate)
+                {
+                    let queries = observations.engine.lower_bound_queries();
+                    let direct =
+                        IntegerObservations::judge_comparison(&queries, comparison.clone());
+                    if !matches!(direct, StructuralJudgment::Unknown) {
+                        return direct;
+                    }
+                    if let Some(complement) = comparison.0.complement() {
+                        let mut comparisons = admitted;
+                        comparisons.push((complement, comparison.1, comparison.2));
+                        let mut engine = observations.engine.clone();
+                        if engine.integer_comparisons_unsatisfiable(comparisons) {
+                            return StructuralJudgment::Proven;
+                        }
+                    }
+                    return StructuralJudgment::Unknown;
+                }
+                if self.proves_observed_integer_boolean(&resolved, depth) == Some(true) {
+                    StructuralJudgment::Proven
+                } else {
+                    StructuralJudgment::Unknown
+                }
+            }
             judgment => judgment,
         }
     }
 
-    fn proves_observed_integer_predicate(&self, predicate: &StructuralTerm) -> bool {
-        matches!(
-            self.observed_integer_predicate_judgment(predicate),
-            StructuralJudgment::Proven
-        )
-    }
-
-    /// Refutation owes the same admitted operations and captured premises as
-    /// proof. An unknown relation is never converted to its opposite.
-    fn observed_integer_predicate_judgment(
+    /// Branch-wise truth is incomplete for alternatives such as x < y or
+    /// y < x under an already observed disequality. Deny the complete formed
+    /// question in a private integer query, and discharge every alternative.
+    /// Denial never contributes to operation formation or another proof goal.
+    fn proves_observed_integer_boolean(
         &self,
         predicate: &StructuralTerm,
-    ) -> StructuralJudgment {
-        if !self.runtime_body_values || self.case_facts_only {
-            return StructuralJudgment::Unknown;
+        depth: usize,
+    ) -> Option<bool> {
+        if !self.runtime_body_values || self.case_facts_only || depth >= 32 {
+            return None;
         }
         let mut observations = IntegerObservations {
             engine: Engine::for_explicit_bindings(self.program),
             atoms: Vec::new(),
             operations: Vec::new(),
-            carrier_facts: Vec::new(),
+            carrier_bounds: Vec::new(),
+            installed_carrier_bounds: 0,
+            next_operation_id: 0,
+            operand_resolutions: None,
         };
-        let Some((operator, left, right)) = self.integer_comparison(predicate, &mut observations)
+        let mut remaining = 64usize;
+        let alternatives =
+            self.integer_boolean_alternatives(predicate, false, &mut observations, &mut remaining)?;
+        let goal_operations = 0..observations.operations.len();
+        let mut premises = self.observed_integer_premises(&mut observations);
+        let retained = premises.clone();
+        // Only real prefix facts may admit a partial operand. Install the
+        // denied question below, after all of its operations have formed.
+        if !observations.install_premises(&mut premises) || !observations.admitted(goal_operations)
+        {
+            return None;
+        }
+        let admitted = retained
+            .into_iter()
+            .filter(|(comparison, operations)| {
+                matches!(
+                    comparison.0,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                ) && observations.admitted(operations.clone())
+            })
+            .map(|(comparison, _)| comparison)
+            .collect::<Vec<_>>();
+        for alternative in alternatives {
+            let mut comparisons = admitted.clone();
+            comparisons.extend(alternative);
+            // Intake the complete batch together: an unoriented prior NE must
+            // see the denied branch's bounds, without gaining a direction in
+            // the original context. The admitted engine keeps operation laws
+            // and the exact private captured-value atom namespace.
+            let mut engine = observations.engine.clone();
+            if !engine.integer_comparisons_unsatisfiable(comparisons) {
+                return Some(false);
+            }
+        }
+        Some(true)
+    }
+
+    fn integer_boolean_alternatives(
+        &self,
+        predicate: &StructuralTerm,
+        holds: bool,
+        observations: &mut IntegerObservations<'_>,
+        remaining: &mut usize,
+    ) -> Option<Vec<Vec<Comparison>>> {
+        *remaining = remaining.checked_sub(1)?;
+        let predicate = predicate.semantic_value();
+        let truth = super::value_predicates::boolean_term(holds);
+        if *predicate == truth {
+            return Some(vec![Vec::new()]);
+        }
+        if *predicate == super::value_predicates::boolean_term(!holds) {
+            return Some(Vec::new());
+        }
+        if let Some((operand, truth)) = self.boolean_equality_operand(predicate, &truth) {
+            return self.integer_boolean_alternatives(
+                &operand,
+                truth == super::value_predicates::boolean_term(true),
+                observations,
+                remaining,
+            );
+        }
+        if let StructuralTerm::ScalarBinary {
+            references,
+            operator,
+            meaning,
+            left,
+            right,
+        } = predicate
+            && matches!(operator, BinaryOperator::And | BinaryOperator::Or)
+        {
+            if !meaning.iter().all(|(primitive, domain)| {
+                *primitive == PrimitiveType::Bool
+                    && *domain == numerics::arithmetic::ArithmeticDomain::Exact
+            }) || ![left, right]
+                .into_iter()
+                .zip(references)
+                .all(|(operand, reference)| {
+                    super::super::structural_terms::scalar_operand_is_observed(
+                        self.program,
+                        *reference,
+                        operand,
+                    )
+                })
+            {
+                return None;
+            }
+            let left = self.integer_boolean_alternatives(left, holds, observations, remaining)?;
+            let right = self.integer_boolean_alternatives(right, holds, observations, remaining)?;
+            if (*operator == BinaryOperator::And) == holds {
+                if left.len().checked_mul(right.len())? > 32 {
+                    return None;
+                }
+                let mut alternatives = Vec::new();
+                for first in &left {
+                    for second in &right {
+                        if first.len().checked_add(second.len())? > 64 {
+                            return None;
+                        }
+                        let mut combined = first.clone();
+                        combined.extend(second.iter().cloned());
+                        alternatives.push(combined);
+                    }
+                }
+                return Some(alternatives);
+            }
+            if left.len().checked_add(right.len())? > 32 {
+                return None;
+            }
+            let mut alternatives = left;
+            alternatives.extend(right);
+            return Some(alternatives);
+        }
+        let (operator, left, right) = self.integer_comparison(predicate, observations)?;
+        Some(vec![vec![(
+            if holds {
+                operator
+            } else {
+                operator.complement()?
+            },
+            left,
+            right,
+        )]])
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn prove_observed_integer_ordering_minimum(
+        &self,
+        left_reference: typed_trees::types::TypeReferenceHandle,
+        left: &StructuralTerm,
+        right_reference: typed_trees::types::TypeReferenceHandle,
+        right: &StructuralTerm,
+    ) -> Option<i64> {
+        let comparison = |operator| StructuralTerm::MathematicalBinary {
+            operator,
+            left: Box::new(StructuralTerm::IntegerEmbedding {
+                reference: left_reference,
+                value: Box::new(left.clone()),
+            }),
+            right: Box::new(StructuralTerm::IntegerEmbedding {
+                reference: right_reference,
+                value: Box::new(right.clone()),
+            }),
+        };
+        let greater = comparison(BinaryOperator::Greater);
+        let has_math_greater_rewrite = self.rewrites.iter().any(|(pattern, _)| {
+            matches!(
+                pattern,
+                StructuralTerm::MathematicalBinary {
+                    operator: BinaryOperator::Greater,
+                    ..
+                }
+            )
+        });
+        let (resolved_greater, greater_eq_judgment) = if has_math_greater_rewrite {
+            let resolved = self.resolve_at(greater.clone(), 1);
+            let judgment = if matches!(resolved, StructuralTerm::MathematicalBinary { .. })
+                && self.disequalities.is_empty()
+            {
+                StructuralJudgment::Unknown
+            } else {
+                self.judge_equation(
+                    resolved.clone(),
+                    super::value_predicates::boolean_term(true),
+                    1,
+                )
+            };
+            (Some(resolved), judgment)
+        } else {
+            (None, StructuralJudgment::Unknown)
+        };
+        if matches!(greater_eq_judgment, StructuralJudgment::Proven) {
+            return Some(1);
+        }
+        let greater_or_equal = comparison(BinaryOperator::GreaterOrEqual);
+        let has_math_ge_rewrite = self.rewrites.iter().any(|(pattern, _)| {
+            matches!(
+                pattern,
+                StructuralTerm::MathematicalBinary {
+                    operator: BinaryOperator::GreaterOrEqual,
+                    ..
+                }
+            )
+        });
+        let (resolved_ge, ge_eq_judgment) = if has_math_ge_rewrite {
+            let resolved = self.resolve_at(greater_or_equal.clone(), 1);
+            let judgment = if matches!(resolved, StructuralTerm::MathematicalBinary { .. })
+                && self.disequalities.is_empty()
+            {
+                StructuralJudgment::Unknown
+            } else {
+                self.judge_equation(
+                    resolved.clone(),
+                    super::value_predicates::boolean_term(true),
+                    1,
+                )
+            };
+            (Some(resolved), judgment)
+        } else {
+            (None, StructuralJudgment::Unknown)
+        };
+        let Some((observations, (_, left_poly, right_poly), admitted_premises)) =
+            self.integer_predicate_observations(&greater)
         else {
-            return StructuralJudgment::Unknown;
+            if matches!(greater_eq_judgment, StructuralJudgment::Unknown) {
+                let resolved =
+                    resolved_greater.unwrap_or_else(|| self.resolve_at(greater.clone(), 1));
+                if self.proves_observed_integer_boolean(&resolved, 1) == Some(true) {
+                    return Some(1);
+                }
+            }
+            if matches!(ge_eq_judgment, StructuralJudgment::Proven) {
+                return Some(0);
+            }
+            if matches!(ge_eq_judgment, StructuralJudgment::Unknown) {
+                let resolved = resolved_ge.unwrap_or_else(|| self.resolve_at(greater_or_equal, 1));
+                if self.proves_observed_integer_boolean(&resolved, 1) == Some(true) {
+                    return Some(0);
+                }
+            }
+            return None;
         };
+        let denial_holds = |complement: BinaryOperator| {
+            if admitted_premises.is_empty() && !observations.engine.has_opaque_terms() {
+                return false;
+            }
+            let mut comparisons = admitted_premises.clone();
+            if comparisons.is_empty() && observations.engine.bounds.is_empty() {
+                return false;
+            }
+            comparisons.push((complement, left_poly.clone(), right_poly.clone()));
+            let mut engine = observations.engine.clone();
+            engine.integer_comparisons_unsatisfiable(comparisons)
+        };
+        let queries = observations.engine.lower_bound_queries();
+        if IntegerObservations::comparison_holds(
+            &queries,
+            BinaryOperator::Greater,
+            &left_poly,
+            &right_poly,
+        ) || (matches!(greater_eq_judgment, StructuralJudgment::Unknown)
+            && !IntegerObservations::comparison_holds(
+                &queries,
+                BinaryOperator::LessOrEqual,
+                &left_poly,
+                &right_poly,
+            )
+            && denial_holds(BinaryOperator::LessOrEqual))
+        {
+            Some(1)
+        } else if matches!(ge_eq_judgment, StructuralJudgment::Proven)
+            || IntegerObservations::comparison_holds(
+                &queries,
+                BinaryOperator::GreaterOrEqual,
+                &left_poly,
+                &right_poly,
+            )
+            || (matches!(ge_eq_judgment, StructuralJudgment::Unknown)
+                && !IntegerObservations::comparison_holds(
+                    &queries,
+                    BinaryOperator::Less,
+                    &left_poly,
+                    &right_poly,
+                )
+                && denial_holds(BinaryOperator::Less))
+        {
+            Some(0)
+        } else {
+            None
+        }
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn has_no_rewrites(&self) -> bool {
+        self.rewrites.iter().next().is_none()
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn has_no_rewrites_or_substitutions(
+        &self,
+    ) -> bool {
+        self.rewrites.iter().next().is_none()
+            && self.substitutions.is_empty()
+            && self.captured_result_equations.is_empty()
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn resolved_completed_semantic_value(
+        &self,
+        value: &StructuralTerm,
+    ) -> StructuralTerm {
+        self.resolve(self.completed_value_identity(value.clone()))
+            .into_semantic_value()
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn prepared_integer_premise_atoms_when_consistent(
+        &self,
+    ) -> Option<Vec<StructuralTerm>> {
+        if !self.runtime_body_values || self.case_facts_only {
+            return None;
+        }
+        if !self.rewrites.has_potential_integer_premises() {
+            return Some(Vec::new());
+        }
+        let prepared = self.cached_prepared_integer_premises()?;
+        (!prepared.is_contradictory()).then(|| prepared.observations.atoms.clone())
+    }
+
+    /// Prepare independently formed premises once, then fork their exact
+    /// captured-value namespace for each goal. Goal operations and opaque
+    /// registrations remain private to that fork; no requested truth enters
+    /// another goal's premises. Preparation without goal-supplied leaf bounds
+    /// may lose a sufficient proof, so absent shared evidence retains the
+    /// original individual proof. Association consumers do not use refutation.
+    pub(in crate::proof_contracts::contract_entailment) fn prove_observed_predicates(
+        &self,
+        predicates: &[StructuralTerm],
+        depth: usize,
+    ) -> Vec<bool> {
+        let _eq_guard = phase_profile::guard("05.num.prove.1_eq_loop");
+        let mut proofs = Vec::with_capacity(predicates.len());
+        let mut unresolved = Vec::new();
+        let has_mathematical_binary_rewrite = self.rewrites.has_mathematical_binary_pattern();
+        let has_mathematical_equal_rewrite = self.rewrites.has_mathematical_equal_pattern();
+        for (position, predicate) in predicates.iter().enumerate() {
+            if let StructuralTerm::MathematicalBinary { operator, .. } = predicate {
+                let can_match = match operator {
+                    BinaryOperator::Equal => has_mathematical_equal_rewrite,
+                    _ => {
+                        has_mathematical_binary_rewrite
+                            && self.rewrites.iter().any(|(pattern, _)| {
+                                matches!(
+                                    pattern,
+                                    StructuralTerm::MathematicalBinary {
+                                        operator: pat_op,
+                                        ..
+                                    } if pat_op == operator
+                                )
+                            })
+                    }
+                };
+                if !can_match {
+                    unresolved.push(position);
+                    proofs.push(false);
+                    continue;
+                }
+            }
+            let resolved = self.resolve_at(predicate.clone(), depth + 1);
+            let judgment = if matches!(resolved, StructuralTerm::MathematicalBinary { .. })
+                && self.disequalities.is_empty()
+            {
+                StructuralJudgment::Unknown
+            } else {
+                self.judge_equation(
+                    resolved,
+                    super::value_predicates::boolean_term(true),
+                    depth + 1,
+                )
+            };
+            if matches!(judgment, StructuralJudgment::Unknown) {
+                unresolved.push(position);
+            }
+            proofs.push(matches!(judgment, StructuralJudgment::Proven));
+        }
+        drop(_eq_guard);
+        let shared = phase_profile::scope("05.num.prove.2_shared", || {
+            self.prepared_predicate_proofs(predicates, &unresolved)
+        });
+        for (index, position) in unresolved.into_iter().enumerate() {
+            // Shared false grants no negative fact. Preserve the original
+            // goal-first sufficient proof when the goal registered operations.
+            proofs[position] = match shared
+                .as_ref()
+                .and_then(|values| values.get(index))
+                .copied()
+                .flatten()
+            {
+                Some(proven) => proven,
+                None => phase_profile::scope("05.num.prove.3_fallback", || {
+                    self.proves_observed_integer_predicate(&predicates[position])
+                }),
+            };
+        }
+        proofs
+    }
+
+    fn prepared_predicate_proofs(
+        &self,
+        predicates: &[StructuralTerm],
+        unresolved: &[usize],
+    ) -> Option<Vec<Option<bool>>> {
+        if !self.runtime_body_values || self.case_facts_only || unresolved.is_empty() {
+            return None;
+        }
+        let prepared = phase_profile::scope("05.num.prove.2a_prep", || {
+            self.cached_prepared_integer_premises()
+        })?;
+        let base_atoms = prepared.observations.atoms.len();
+        let base_bounds = prepared.observations.carrier_bounds.len();
+        let base_engine_reg = prepared
+            .observations
+            .engine
+            .integer_projection_registrations();
+        let has_premises = prepared.observations.engine.requires_unsatisfiable
+            || !prepared.observations.engine.bounds.is_empty();
+        let mut work = prepared.take_goal_work();
+        work.operand_resolutions = Some(Vec::new());
+        let results = unresolved
+            .iter()
+            .map(|position| {
+                prepared.reset_goal_work(&mut work);
+                let comparison = match phase_profile::scope("05.num.prove.2b_project", || {
+                    self.project_integer_comparison(&predicates[*position], &mut work)
+                }) {
+                    IntegerComparisonProjection::Comparison(comparison) => comparison,
+                    IntegerComparisonProjection::NotInteger
+                    | IntegerComparisonProjection::UnavailableOperand => {
+                        return Some(false);
+                    }
+                };
+                let (operator, left, right) = comparison;
+                let goal_only_linear_ops = work.operations.iter().all(|op| {
+                    matches!(
+                        op.operator,
+                        BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+                    )
+                });
+                let goal_has_addr_bound =
+                    work.engine.bounds[base_engine_reg.3..]
+                        .iter()
+                        .any(|(poly, _)| {
+                            poly.terms.keys().any(|monomial| {
+                                monomial
+                                    .keys()
+                                    .any(|atom| atom.starts_with("\0address-model-bound:"))
+                            })
+                        })
+                        || work.carrier_bounds[base_bounds..].iter().any(|bound| {
+                            bound.primitive == PrimitiveType::Addr
+                                && (has_premises || bound.value.constant_value().is_some())
+                        });
+                if !goal_has_addr_bound
+                    && operator == BinaryOperator::Equal
+                    && work.atoms.len() > base_atoms
+                {
+                    let diff = left.sub(&right);
+                    if (base_atoms..work.atoms.len()).any(|index| {
+                        let name = atom_name(index);
+                        diff.terms
+                            .keys()
+                            .any(|monomial| monomial.contains_key(&name))
+                            && !work
+                                .engine
+                                .opaque_terms_since_mention(base_engine_reg.1, &name)
+                            && !work.operations.iter().any(|op| {
+                                matches!(
+                                    op.operator,
+                                    BinaryOperator::Divide
+                                        | BinaryOperator::Modulo
+                                        | BinaryOperator::ShiftRight
+                                ) && (op.operands[0]
+                                    .terms
+                                    .keys()
+                                    .any(|monomial| monomial.contains_key(&name))
+                                    || op.operands[1]
+                                        .terms
+                                        .keys()
+                                        .any(|monomial| monomial.contains_key(&name))
+                                    || op
+                                        .value
+                                        .terms
+                                        .keys()
+                                        .any(|monomial| monomial.contains_key(&name)))
+                            })
+                    }) && !(has_premises && prepared.is_contradictory())
+                    {
+                        return Some(false);
+                    }
+                }
+                if !goal_has_addr_bound
+                    && operator == BinaryOperator::Equal
+                    && work.engine.integer_projection_registrations().1 > base_engine_reg.1
+                    && left != right
+                {
+                    let diff = left.sub(&right);
+                    let queries = (work.atoms.len() == base_atoms)
+                        .then(|| {
+                            let q = prepared.lower_bound_queries();
+                            let bounds_hold =
+                                work.carrier_bounds[base_bounds..].iter().all(|bound| {
+                                    bound.comparisons.iter().all(|(op, l, r)| {
+                                        IntegerObservations::comparison_holds(&q, *op, l, r)
+                                    })
+                                });
+                            bounds_hold.then_some(q)
+                        })
+                        .flatten();
+                    if (base_engine_reg.1..work.engine.integer_projection_registrations().1).any(
+                        |opaque_idx| {
+                            let name_opt = if let Some(ref q) = queries {
+                                work.engine
+                                    .opaque_term_name_if_uncorrelated_with_queries(opaque_idx, q)
+                            } else {
+                                work.engine.opaque_term_name_if_uncorrelated(opaque_idx)
+                            };
+                            let Some(name) = name_opt else {
+                                return false;
+                            };
+                            diff.terms
+                                .keys()
+                                .any(|monomial| monomial.contains_key(name))
+                                && !work.engine.opaque_terms_since_mention(opaque_idx + 1, name)
+                                && !work.operations.iter().any(|op| {
+                                    matches!(
+                                        op.operator,
+                                        BinaryOperator::Divide
+                                            | BinaryOperator::Modulo
+                                            | BinaryOperator::ShiftRight
+                                    ) && (op.operands[0]
+                                        .terms
+                                        .keys()
+                                        .any(|monomial| monomial.contains_key(name))
+                                        || op.operands[1]
+                                            .terms
+                                            .keys()
+                                            .any(|monomial| monomial.contains_key(name)))
+                                })
+                        },
+                    ) && !(has_premises && prepared.is_contradictory())
+                    {
+                        return Some(false);
+                    }
+                }
+                if !goal_has_addr_bound
+                    && operator == BinaryOperator::Equal
+                    && goal_only_linear_ops
+                    && work.engine.integer_projection_registrations().1 > base_engine_reg.1
+                    && left != right
+                {
+                    let diff = left.sub(&right);
+                    let only_policy_wrapping_or_bitwise = work
+                        .engine
+                        .opaque_terms_since_only_wrapping_or_bitwise(base_engine_reg.1);
+                    if only_policy_wrapping_or_bitwise
+                        && diff.terms.keys().any(|monomial| !monomial.is_empty())
+                        && !(has_premises && prepared.is_contradictory())
+                    {
+                        return Some(false);
+                    }
+                }
+                if work.engine.integer_projection_registrations().1 == base_engine_reg.1
+                    && !goal_has_addr_bound
+                {
+                    if work.operations.is_empty()
+                        && matches!(
+                            operator,
+                            BinaryOperator::Equal
+                                | BinaryOperator::LessOrEqual
+                                | BinaryOperator::GreaterOrEqual
+                        )
+                        && left == right
+                    {
+                        return Some(true);
+                    }
+                    if operator == BinaryOperator::Equal
+                        && goal_only_linear_ops
+                        && left
+                            .sub(&right)
+                            .constant_value()
+                            .is_some_and(|constant| !constant.is_zero())
+                        && !(has_premises && prepared.is_contradictory())
+                    {
+                        return Some(false);
+                    }
+                    if !has_premises
+                        && operator == BinaryOperator::Equal
+                        && goal_only_linear_ops
+                        && left != right
+                    {
+                        return Some(false);
+                    }
+                    if work.carrier_bounds.len() == base_bounds && goal_only_linear_ops {
+                        let queries = prepared.lower_bound_queries();
+                        let holds = IntegerObservations::comparison_holds(
+                            &queries, operator, &left, &right,
+                        );
+                        if !holds || work.operations.is_empty() {
+                            return Some(holds);
+                        }
+                        let admitted = work.operations.iter().all(|op| {
+                            work.engine.linear_integer_operation_lands_with_queries(
+                                &queries,
+                                op.operator,
+                                op.meaning.map(|(primitive, _)| primitive),
+                                &op.operands[0],
+                                &op.operands[1],
+                                &op.value,
+                            )
+                        });
+                        if admitted {
+                            return Some(true);
+                        }
+                        let no_rewrites = self.has_no_rewrites();
+                        let goal_bounds_disjoint =
+                            !has_premises || prepared.observations.engine.substitutions.is_empty();
+                        return (no_rewrites || goal_bounds_disjoint).then_some(false);
+                    }
+                    if goal_only_linear_ops {
+                        let queries = prepared.lower_bound_queries();
+                        let carrier_bounds_already_hold =
+                            work.carrier_bounds[base_bounds..].iter().all(|bound| {
+                                bound.comparisons.iter().all(|(op, l, r)| {
+                                    IntegerObservations::comparison_holds(&queries, *op, l, r)
+                                })
+                            });
+                        if carrier_bounds_already_hold {
+                            let holds = IntegerObservations::comparison_holds(
+                                &queries, operator, &left, &right,
+                            );
+                            if !holds || work.operations.is_empty() {
+                                return Some(holds);
+                            }
+                            let admitted = work.operations.iter().all(|op| {
+                                work.engine.linear_integer_operation_lands_with_queries(
+                                    &queries,
+                                    op.operator,
+                                    op.meaning.map(|(primitive, _)| primitive),
+                                    &op.operands[0],
+                                    &op.operands[1],
+                                    &op.value,
+                                )
+                            });
+                            if admitted {
+                                return Some(true);
+                            }
+                        }
+                    }
+                }
+                let _fork_guard = phase_profile::guard("05.num.prove.2c_fork");
+                let operations = 0..work.operations.len();
+                let goal_has_no_operations = operations.is_empty();
+                let no_rewrites = self.has_no_rewrites();
+                let goal_bounds_disjoint_from_premises = !has_premises
+                    || (prepared.observations.engine.substitutions.is_empty()
+                        && work.carrier_bounds[base_bounds..].iter().all(|bound| {
+                            (base_atoms..work.atoms.len())
+                                .any(|index| bound.value == Polynomial::atom(atom_name(index)))
+                        }));
+                if goal_bounds_disjoint_from_premises
+                    && operator == BinaryOperator::Equal
+                    && left != right
+                {
+                    let diff = left.sub(&right);
+                    if (base_atoms..work.atoms.len()).any(|index| {
+                        let name = atom_name(index);
+                        diff.terms
+                            .keys()
+                            .any(|monomial| monomial.contains_key(&name))
+                            && !work.engine.opaque_terms_since_mention(0, &name)
+                            && !work.operations.iter().any(|op| {
+                                matches!(
+                                    op.operator,
+                                    BinaryOperator::Divide
+                                        | BinaryOperator::Modulo
+                                        | BinaryOperator::ShiftRight
+                                ) && (op.operands[0]
+                                    .terms
+                                    .keys()
+                                    .any(|monomial| monomial.contains_key(&name))
+                                    || op.operands[1]
+                                        .terms
+                                        .keys()
+                                        .any(|monomial| monomial.contains_key(&name))
+                                    || op
+                                        .value
+                                        .terms
+                                        .keys()
+                                        .any(|monomial| monomial.contains_key(&name)))
+                            })
+                    }) && !(has_premises && prepared.is_contradictory())
+                    {
+                        return Some(false);
+                    }
+                }
+                if operator != BinaryOperator::Equal {
+                    phase_profile::count("05.num.prove.2c_fork.non_equal", 1);
+                } else if goal_has_addr_bound {
+                    phase_profile::count("05.num.prove.2c_fork.addr_bound", 1);
+                } else if work.atoms.len() == base_atoms {
+                    phase_profile::count("05.num.prove.2c_fork.existing_atoms", 1);
+                    if work.engine.integer_projection_registrations().1 != base_engine_reg.1 {
+                        phase_profile::count("05.num.prove.2c_fork.existing_atoms.opaque", 1);
+                    } else if !goal_only_linear_ops {
+                        phase_profile::count("05.num.prove.2c_fork.existing_atoms.non_linear", 1);
+                    } else if work.carrier_bounds.len() != base_bounds {
+                        phase_profile::count(
+                            "05.num.prove.2c_fork.existing_atoms.carrier_bounds",
+                            1,
+                        );
+                    }
+                } else {
+                    phase_profile::count("05.num.prove.2c_fork.new_atoms_correlated", 1);
+                }
+                let mut observations = work.clone();
+                // Only this goal has registered since the sealed premise context.
+                // Even an unavailable projection is discarded with this whole fork.
+                if !observations.install_premises(&mut Vec::new())
+                    || !observations.admitted(operations)
+                {
+                    return (no_rewrites || goal_bounds_disjoint_from_premises).then_some(false);
+                }
+                let queries = observations.engine.lower_bound_queries();
+                if IntegerObservations::comparison_holds(&queries, operator, &left, &right) {
+                    Some(true)
+                } else if goal_has_no_operations
+                    || no_rewrites
+                    || goal_bounds_disjoint_from_premises
+                {
+                    Some(false)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        prepared.put_goal_work(work);
+        Some(results)
+    }
+
+    fn cached_prepared_integer_premises(
+        &self,
+    ) -> Option<std::sync::Arc<PreparedIntegerPremises<'program>>> {
+        let potential_len = self.rewrites.potential_integer_premises_len();
+        let state = if potential_len == 0 {
+            (0, 0, 0, 0, self.runtime_body_values, self.case_facts_only)
+        } else {
+            (
+                self.rewrites.integer_premise_revision(),
+                potential_len,
+                self.substitutions.len(),
+                0,
+                self.runtime_body_values,
+                self.case_facts_only,
+            )
+        };
+        if let Ok(mut cache) = self.prepared_integer_premises_cache.lock()
+            && let Some(cached) = cache.get(state)
+        {
+            phase_profile::count("05.num.prove.2a_prep.hit", 1);
+            return cached;
+        }
+        phase_profile::count("05.num.prove.2a_prep.miss", 1);
+        let prepared = self.prepare_integer_premises().map(std::sync::Arc::new);
+        if let Ok(mut cache) = self.prepared_integer_premises_cache.lock() {
+            cache.insert(state, prepared.clone());
+        }
+        prepared
+    }
+
+    fn prepare_integer_premises(&self) -> Option<PreparedIntegerPremises<'program>> {
+        let mut observations = IntegerObservations {
+            engine: Engine::for_explicit_bindings(self.program),
+            atoms: Vec::new(),
+            operations: Vec::new(),
+            carrier_bounds: Vec::new(),
+            installed_carrier_bounds: 0,
+            next_operation_id: 0,
+            operand_resolutions: None,
+        };
+        let mut premises = self.project_observed_integer_premises(&mut observations);
+        if !premises.complete {
+            return None;
+        }
+        if premises.comparisons.is_empty() && observations.operations.is_empty() {
+            observations.atoms.clear();
+            observations.carrier_bounds.clear();
+            observations.engine.parameter_atoms.clear();
+            return Some(PreparedIntegerPremises {
+                observations,
+                lower_bounds: std::sync::OnceLock::new(),
+                contradictory: std::sync::OnceLock::from(false),
+                goal_work: std::sync::Mutex::new(None),
+            });
+        }
+        if !observations.install_premises(&mut premises.comparisons)
+            || !premises.comparisons.is_empty()
+            || !observations.admitted(0..observations.operations.len())
+        {
+            return None;
+        }
+        // The engine retains the laws of these independently formed operations.
+        // A goal starts a fresh admission worklist and cannot refresh another
+        // requested goal's provisional denotation or opaque consequences.
+        observations.operations.clear();
+        Some(PreparedIntegerPremises {
+            observations,
+            lower_bounds: std::sync::OnceLock::new(),
+            contradictory: std::sync::OnceLock::new(),
+            goal_work: std::sync::Mutex::new(None),
+        })
+    }
+
+    fn proves_observed_integer_predicate(&self, predicate: &StructuralTerm) -> bool {
+        let Some((observations, (operator, left, right), _)) =
+            self.integer_predicate_observations(predicate)
+        else {
+            return false;
+        };
+        let queries = observations.engine.lower_bound_queries();
+        IntegerObservations::comparison_holds(&queries, operator, &left, &right)
+    }
+
+    /// Keep one goal-first projection and admission route for positive evidence
+    /// and tri-valued consumers. Neither wrapper can skip child formation.
+    fn integer_predicate_observations(
+        &self,
+        predicate: &StructuralTerm,
+    ) -> Option<(IntegerObservations<'_>, Comparison, Vec<Comparison>)> {
+        // Numeric consequences depend on the already formed observed terms,
+        // not on whether their owner is a runtime prefix or a declaration.
+        // Declaration callers retain their own telescope and ordered premises;
+        // enabling this query must never switch them into runtime scope.
+        if self.case_facts_only {
+            return None;
+        }
+        let mut observations = IntegerObservations {
+            engine: Engine::for_explicit_bindings(self.program),
+            atoms: Vec::new(),
+            operations: Vec::new(),
+            carrier_bounds: Vec::new(),
+            installed_carrier_bounds: 0,
+            next_operation_id: 0,
+            operand_resolutions: None,
+        };
+        let comparison = self.integer_comparison(predicate, &mut observations)?;
         let goal_operations = 0..observations.operations.len();
         let mut comparisons = self.observed_integer_premises(&mut observations);
+        let retained = comparisons.clone();
         if !observations.install_premises(&mut comparisons)
             || !observations.admitted(goal_operations)
         {
-            return StructuralJudgment::Unknown;
+            return None;
         }
-        let engine = &observations.engine;
-        let proves = |difference: Polynomial, minimum| {
-            engine.prove_at_least(&engine.substituted(&difference), &BigInt::from_i64(minimum))
-        };
-        let holds = |operator| match operator {
-            BinaryOperator::Less => proves(right.sub(&left), 1),
-            BinaryOperator::LessOrEqual => proves(right.sub(&left), 0),
-            BinaryOperator::Greater => proves(left.sub(&right), 1),
-            BinaryOperator::GreaterOrEqual => proves(left.sub(&right), 0),
-            BinaryOperator::Equal => proves(left.sub(&right), 0) && proves(right.sub(&left), 0),
-            BinaryOperator::NotEqual => {
-                engine.is_known_nonzero(&engine.substituted(&left.sub(&right)))
-                    || proves(left.sub(&right), 1)
-                    || proves(right.sub(&left), 1)
-            }
-            _ => false,
-        };
-        if holds(operator) {
-            StructuralJudgment::Proven
-        } else if holds(operator.complement().unwrap_or(operator)) {
-            StructuralJudgment::Refuted
-        } else {
-            StructuralJudgment::Unknown
-        }
+        let admitted = retained
+            .into_iter()
+            .filter(|(comparison, operations)| {
+                matches!(
+                    comparison.0,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                ) && observations.admitted(operations.clone())
+            })
+            .map(|(comparison, _)| comparison)
+            .collect();
+        Some((observations, comparison, admitted))
     }
 
     fn observed_integer_premises(
         &self,
         observations: &mut IntegerObservations<'_>,
     ) -> Vec<(Comparison, Range<usize>)> {
+        // Preserve the general query's existing successful-premise intake.
+        // Only optional sharing requires complete numeric projection.
+        self.project_observed_integer_premises(observations)
+            .comparisons
+    }
+
+    fn project_observed_integer_premises(
+        &self,
+        observations: &mut IntegerObservations<'_>,
+    ) -> ProjectedIntegerPremises {
+        self.project_integer_premises(observations, self.rewrites.potential_integer_premises())
+    }
+
+    fn project_integer_premises<'premise>(
+        &self,
+        observations: &mut IntegerObservations<'_>,
+        premises: impl IntoIterator<Item = &'premise (StructuralTerm, StructuralTerm)>,
+    ) -> ProjectedIntegerPremises {
         let mut comparisons = Vec::new();
-        for (predicate, truth) in self.rewrites.iter() {
-            let truth = self.resolve(truth.clone());
-            let StructuralTerm::Constructor { data, case, fields } = truth.semantic_value() else {
+        let mut complete = true;
+        for (predicate, truth) in premises {
+            let resolved_truth;
+            let truth_sem = match truth.semantic_value() {
+                sem @ StructuralTerm::Constructor { .. } => sem,
+                _ => {
+                    resolved_truth = self.resolve(truth.clone());
+                    resolved_truth.semantic_value()
+                }
+            };
+            let StructuralTerm::Constructor { data, case, fields } = truth_sem else {
                 // Selected normal guarantees also retain equations between
                 // mathematical values, not just predicates equated to true.
                 // Read both sides in the same captured-value namespace: a
@@ -302,14 +1601,31 @@ impl StructuralJudge<'_> {
                 // Keep each side's operation obligations on this premise so
                 // the equation cannot establish its own formation.
                 let start = observations.operations.len();
+                let before_atoms = observations.atoms.len();
+                let before_bounds = observations.carrier_bounds.len();
+                let before_param_atoms = observations.engine.parameter_atoms.len();
+                let before_engine = observations.engine.integer_projection_registrations();
                 if let (Some(left), Some(right)) = (
                     self.mathematical_value(predicate, observations, 0),
-                    self.mathematical_value(&truth, observations, 0),
+                    self.mathematical_value(truth_sem, observations, 0),
                 ) {
                     comparisons.push((
                         (BinaryOperator::Equal, left, right),
                         start..observations.operations.len(),
                     ));
+                } else if observations.operations.len() == start
+                    && observations.engine.integer_projection_registrations().1 == before_engine.1
+                    && observations.engine.integer_projection_registrations().2 == before_engine.2
+                    && observations.engine.integer_projection_registrations().3 == before_engine.3
+                {
+                    observations.atoms.truncate(before_atoms);
+                    observations.carrier_bounds.truncate(before_bounds);
+                    observations
+                        .engine
+                        .parameter_atoms
+                        .truncate(before_param_atoms);
+                } else {
+                    complete = false;
                 }
                 continue;
             };
@@ -321,10 +1637,35 @@ impl StructuralJudge<'_> {
                 continue;
             };
             let start = observations.operations.len();
-            let Some((operator, left, right)) = self.integer_comparison(predicate, observations)
-            else {
-                continue;
-            };
+            let before_atoms = observations.atoms.len();
+            let before_bounds = observations.carrier_bounds.len();
+            let before_param_atoms = observations.engine.parameter_atoms.len();
+            let before_engine = observations.engine.integer_projection_registrations();
+            let (operator, left, right) =
+                match self.project_integer_comparison(predicate, observations) {
+                    IntegerComparisonProjection::Comparison(comparison) => comparison,
+                    IntegerComparisonProjection::NotInteger => continue,
+                    IntegerComparisonProjection::UnavailableOperand => {
+                        if observations.operations.len() == start
+                            && observations.engine.integer_projection_registrations().1
+                                == before_engine.1
+                            && observations.engine.integer_projection_registrations().2
+                                == before_engine.2
+                            && observations.engine.integer_projection_registrations().3
+                                == before_engine.3
+                        {
+                            observations.atoms.truncate(before_atoms);
+                            observations.carrier_bounds.truncate(before_bounds);
+                            observations
+                                .engine
+                                .parameter_atoms
+                                .truncate(before_param_atoms);
+                        } else {
+                            complete = false;
+                        }
+                        continue;
+                    }
+                };
             comparisons.push((
                 (
                     if holds {
@@ -338,7 +1679,10 @@ impl StructuralJudge<'_> {
                 start..observations.operations.len(),
             ));
         }
-        comparisons
+        ProjectedIntegerPremises {
+            comparisons,
+            complete,
+        }
     }
 
     /// Prepared calculus captures are rebound to completed values in the same
@@ -369,7 +1713,10 @@ impl StructuralJudge<'_> {
             engine: Engine::for_explicit_bindings(self.program),
             atoms: Vec::new(),
             operations: Vec::new(),
-            carrier_facts: Vec::new(),
+            carrier_bounds: Vec::new(),
+            installed_carrier_bounds: 0,
+            next_operation_id: 0,
+            operand_resolutions: None,
         };
         for capture in view
             .applications
@@ -423,7 +1770,19 @@ impl StructuralJudge<'_> {
         &self,
         predicate: &StructuralTerm,
         observations: &mut IntegerObservations<'_>,
-    ) -> Option<(BinaryOperator, Polynomial, Polynomial)> {
+    ) -> Option<Comparison> {
+        match self.project_integer_comparison(predicate, observations) {
+            IntegerComparisonProjection::Comparison(comparison) => Some(comparison),
+            IntegerComparisonProjection::NotInteger
+            | IntegerComparisonProjection::UnavailableOperand => None,
+        }
+    }
+
+    fn project_integer_comparison(
+        &self,
+        predicate: &StructuralTerm,
+        observations: &mut IntegerObservations<'_>,
+    ) -> IntegerComparisonProjection {
         // Boolean equality to a literal includes negation. Reuse its checked
         // operand meaning before asking the integer owner for a relation;
         // absence of a positive proof is never evidence of the negative.
@@ -446,16 +1805,28 @@ impl StructuralJudge<'_> {
         } = predicate.semantic_value()
         {
             if !operator.is_comparison() {
-                return None;
+                return IntegerComparisonProjection::NotInteger;
             }
-            return Some((
+            let before = observations.projection_registrations();
+            let Some(left) = self.mathematical_value(left, observations, 0) else {
+                let after = observations.projection_registrations();
+                return if before == after {
+                    IntegerComparisonProjection::NotInteger
+                } else {
+                    IntegerComparisonProjection::UnavailableOperand
+                };
+            };
+            let Some(right) = self.mathematical_value(right, observations, 0) else {
+                return IntegerComparisonProjection::UnavailableOperand;
+            };
+            return IntegerComparisonProjection::Comparison((
                 if positive {
                     *operator
                 } else {
                     operator.complement().unwrap_or(*operator)
                 },
-                self.mathematical_value(left, observations, 0)?,
-                self.mathematical_value(right, observations, 0)?,
+                left,
+                right,
             ));
         }
         let StructuralTerm::ScalarBinary {
@@ -466,14 +1837,14 @@ impl StructuralJudge<'_> {
             right,
         } = predicate.semantic_value()
         else {
-            return None;
+            return IntegerComparisonProjection::NotInteger;
         };
         if !operator.is_comparison()
             || meaning
                 .iter()
                 .any(|(primitive, _)| !primitive.accepts_integer_literal())
         {
-            return None;
+            return IntegerComparisonProjection::NotInteger;
         }
         let [left, right] = [left, right].map(|operand| self.resolve(operand.as_ref().clone()));
         if ![&left, &right]
@@ -487,17 +1858,42 @@ impl StructuralJudge<'_> {
                 )
             })
         {
-            return None;
+            return IntegerComparisonProjection::NotInteger;
         }
-        Some((
+        let Some(left) = self.integer_value(&left, meaning[0].0, observations, 0) else {
+            return IntegerComparisonProjection::UnavailableOperand;
+        };
+        let Some(right) = self.integer_value(&right, meaning[1].0, observations, 0) else {
+            return IntegerComparisonProjection::UnavailableOperand;
+        };
+        IntegerComparisonProjection::Comparison((
             if positive {
                 *operator
             } else {
                 operator.complement().unwrap_or(*operator)
             },
-            self.integer_value(&left, meaning[0].0, observations, 0)?,
-            self.integer_value(&right, meaning[1].0, observations, 0)?,
+            left,
+            right,
         ))
+    }
+
+    fn resolve_integer_operand(
+        &self,
+        value: StructuralTerm,
+        observations: &mut IntegerObservations<'_>,
+    ) -> StructuralTerm {
+        let Some(answers) = &mut observations.operand_resolutions else {
+            return self.resolve(value);
+        };
+        if let Some((_, resolved)) = answers
+            .iter()
+            .find(|(input, _)| input.same_resolution_payload(&value))
+        {
+            return resolved.clone();
+        }
+        let resolved = self.resolve(value.clone());
+        answers.push((value, resolved.clone()));
+        resolved
     }
 
     fn integer_value(
@@ -519,8 +1915,28 @@ impl StructuralJudge<'_> {
             }
             _ => false,
         };
-        let value = self.resolve(self.completed_value_identity(value.clone()));
+        let completed = self.completed_scalar_observation(value, primitive);
+        let description = self.completed_value_identity(value.clone());
+        // Preserve the authored operation tree until each node has admitted
+        // its own children. General ring resolution may cancel an unsafe node.
+        let value = match description.semantic_value() {
+            StructuralTerm::ScalarBinary { .. } | StructuralTerm::MathematicalBinary { .. } => {
+                description
+            }
+            _ => self.resolve_integer_operand(description, observations),
+        };
         let value = value.semantic_value();
+        if let Some((identity, policy)) = completed.as_ref()
+            && matches!(
+                policy,
+                ArithmeticDomain::Trapping
+                    | ArithmeticDomain::Wrapping
+                    | ArithmeticDomain::Saturating
+            )
+            && !matches!(value, StructuralTerm::ScalarBinary { .. })
+        {
+            return observations.observed_atom(identity.clone(), primitive);
+        }
         if let StructuralTerm::Integer(integer) = value {
             let value = Polynomial::constant(integer.clone());
             // Folding an independently formed operand cannot make it
@@ -545,7 +1961,8 @@ impl StructuralJudge<'_> {
             left,
             right,
         } = value
-            && Engine::integer_operation_meaning(*operator, *meaning)
+            && (Engine::integer_operation_meaning(*operator, *meaning)
+                || Engine::integer_policy_operation_meaning(*operator, *meaning).is_some())
         {
             if ![left, right]
                 .into_iter()
@@ -566,40 +1983,40 @@ impl StructuralJudge<'_> {
             // independently of the carrier observing the completed result.
             let left = self.integer_value(left, meaning[0].0, observations, depth + 1)?;
             let right = self.integer_value(right, meaning[1].0, observations, depth + 1)?;
-            let value = observations.engine.selected_integer_binary_value(
-                *operator,
-                *meaning,
-                left.clone(),
-                right.clone(),
-            )?;
+            let policy = Engine::integer_operation_policy(*operator, *meaning)?;
+            let completed = completed.filter(|_| {
+                matches!(
+                    policy,
+                    ArithmeticDomain::Trapping
+                        | ArithmeticDomain::Wrapping
+                        | ArithmeticDomain::Saturating
+                )
+            });
+            let (value, formation) = if let Some((completed, _)) = completed {
+                (
+                    observations.observed_atom(completed, primitive)?,
+                    OperationFormation::CompletedValue,
+                )
+            } else {
+                (
+                    observations.operation_placeholder()?,
+                    OperationFormation::Required,
+                )
+            };
             observations.operations.push(ObservedOperation {
                 operator: *operator,
-                primitives: meaning.map(|(primitive, _)| primitive),
+                meaning: *meaning,
                 operands: [left, right],
                 value: value.clone(),
                 children: start..observations.operations.len(),
+                formation,
                 admitted: false,
             });
             return Some(value);
         }
-        let position =
-            if let Some(position) = observations.atoms.iter().position(|atom| atom == value) {
-                position
-            } else {
-                observations.atoms.push(value.clone());
-                let position = observations.atoms.len() - 1;
-                observations
-                    .engine
-                    .parameter_atoms
-                    .push(atom_name(position));
-                position
-            };
-        let value = Polynomial::atom(atom_name(position));
-        // A complete observed value has its selected operand's carrier. These
-        // intrinsic bounds apply only to opaque leaves, never to a computation
-        // waiting to prove formation or to an anonymous integer literal.
-        observations.install_observed_carrier_bounds(primitive, &value)?;
-        Some(value)
+        // Only an opaque completed leaf receives intrinsic carrier bounds;
+        // an unadmitted recipe has neither a carrier assumption nor an interval.
+        observations.observed_atom(value.clone(), primitive)
     }
 
     fn mathematical_value(
@@ -610,6 +2027,14 @@ impl StructuralJudge<'_> {
     ) -> Option<Polynomial> {
         if depth >= 64 {
             return None;
+        }
+        if let StructuralTerm::IntegerEmbedding { reference, value } = value.semantic_value() {
+            let (primitive, _) = super::super::structural_terms::scalar_operand_meaning(
+                self.program,
+                *reference,
+                value,
+            )?;
+            return self.integer_value(value, primitive, observations, depth + 1);
         }
         // Keep mathematical arithmetic visible to the polynomial owner. A
         // rewrite such as base + length = end may replace the complete sum
@@ -664,4 +2089,97 @@ impl StructuralJudge<'_> {
 
 fn atom_name(position: usize) -> String {
     format!("\0captured-integer:{position}")
+}
+
+#[cfg(test)]
+mod carrier_bound_tests {
+    use super::*;
+    #[test]
+    fn observed_integer_atoms_supply_exactly_their_carrier_bounds() {
+        let program = typed_trees::TypedTrees::default();
+        for primitive in [PrimitiveType::I32, PrimitiveType::U64] {
+            let mut observations = IntegerObservations {
+                engine: Engine::for_explicit_bindings(&program),
+                atoms: Vec::new(),
+                operations: Vec::new(),
+                carrier_bounds: Vec::new(),
+                installed_carrier_bounds: 0,
+                next_operation_id: 0,
+                operand_resolutions: None,
+            };
+            let value = observations
+                .observed_atom(StructuralTerm::Variable("observed".to_owned()), primitive)
+                .unwrap();
+            assert!(observations.install_premises(&mut Vec::new()));
+            let (low, high) = primitive.integer_bounds().unwrap();
+            let queries = observations.engine.lower_bound_queries();
+            assert!(queries.prove_at_least(&value, &BigInt::from_i128(low)));
+            assert!(queries.prove_at_least(
+                &Polynomial::constant(BigInt::zero()).sub(&value),
+                &BigInt::from_i128(-high)
+            ));
+            assert!(!queries.prove_at_least(&value, &BigInt::from_i128(low + 1)));
+            assert!(!queries.prove_at_least(
+                &Polynomial::constant(BigInt::zero()).sub(&value),
+                &BigInt::from_i128(-high + 1)
+            ));
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn operand_resolutions_preserve_payload_and_end_with_batch() {
+        let mut program = typed_trees::TypedTrees::default();
+        let first = program
+            .type_reference_table
+            .insert(typed_trees::types::TypeReferenceNode::Unit);
+        let second = program
+            .type_reference_table
+            .insert(typed_trees::types::TypeReferenceNode::Unit);
+        let mut judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let prepared = judge.prepare_integer_premises().unwrap();
+        let mut work = prepared.take_goal_work();
+        work.operand_resolutions = Some(Vec::new());
+        let observation = |observed_type| StructuralTerm::ObservedValue {
+            observed_type,
+            value: Box::new(StructuralTerm::Integer(BigInt::from_i64(1))),
+            descriptor: None,
+        };
+        assert_eq!(observation(first), observation(second));
+        for input in [observation(first), observation(second), observation(first)] {
+            let resolved = judge.resolve_integer_operand(input.clone(), &mut work);
+            assert!(resolved.same_resolution_payload(&input));
+        }
+        assert_eq!(work.operand_resolutions.as_ref().unwrap().len(), 2);
+        let variable = StructuralTerm::Variable("value".into());
+        // Reuse the scratch in two different contexts; the second must see its own substitution.
+        for expected in [1, 2] {
+            prepared.put_goal_work(work);
+            work = prepared.take_goal_work();
+            assert!(work.operand_resolutions.is_none());
+            judge.substitutions = std::sync::Arc::new(vec![(
+                "value".into(),
+                StructuralTerm::Integer(BigInt::from_i64(expected)),
+            )]);
+            work.operand_resolutions = Some(Vec::new());
+            for _ in 0..2 {
+                assert_eq!(
+                    judge.resolve_integer_operand(variable.clone(), &mut work),
+                    StructuralTerm::Integer(BigInt::from_i64(expected)),
+                );
+                prepared.reset_goal_work(&mut work);
+            }
+            assert_eq!(work.operand_resolutions.as_ref().unwrap().len(), 1);
+        }
+    }
 }

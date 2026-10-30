@@ -1,8 +1,8 @@
 // Zero establishment and explicit qualification prove the same complete theory.
-domain i32::NotFive(value) requires value != 5;
-domain i32::BelowFive(value) requires value < 5;
+domain i32::NotFive requires self != 5;
+domain i32::BelowFive requires self < 5;
 domain i32::Small = i32::NotFive & i32::BelowFive;
-domain<const Bound: u64> u64::Below<Bound>(value) requires value < Bound;
+domain<const Bound: u64> u64::Below<Bound> requires self < Bound;
 
 data Main { value: i32 in Small; }
 
@@ -19,8 +19,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

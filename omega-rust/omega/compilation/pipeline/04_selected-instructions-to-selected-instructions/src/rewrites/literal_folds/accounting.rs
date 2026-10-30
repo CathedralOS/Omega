@@ -16,23 +16,37 @@ use crate::StagedSelectedLoweringOptimizationCustodyReceipt;
 use crate::ValidatedLiteralFold;
 use crate::ValidatedRecoveryClassifications;
 use crate::ValidatedSpillChoices;
+/// The fold evidence row both literal-fold receipts carry: the three source
+/// identities the admitted fold receipt copies verbatim from its plan, then the
+/// choice, recovery, and fold triples with their policy tag and work usage.
+fn fold_evidence(
+    choices: &ValidatedSpillChoices,
+    recovery: &ValidatedRecoveryClassifications,
+    fold: &ValidatedLiteralFold,
+) -> StagedOptimizedLiteralFoldAttemptReceipt {
+    StagedOptimizedLiteralFoldAttemptReceipt {
+        source_selected: fold.receipt().source_selected(),
+        source_ranges: fold.receipt().ranges(),
+        source_legality: fold.receipt().legality(),
+        choices: choices.receipt().identity(),
+        choice_policy: choices.receipt().policy(),
+        choice_usage: choices.receipt().usage(),
+        recovery: recovery.receipt().identity(),
+        recovery_policy: recovery.receipt().policy(),
+        recovery_usage: recovery.receipt().usage(),
+        fold: fold.receipt().identity(),
+        fold_policy: fold.receipt().policy(),
+        fold_usage: fold.receipt().usage(),
+        applied_count: fold.receipt().applied_count(),
+        transformed_selected: fold.receipt().transformed_selected(),
+    }
+}
+
 pub(super) fn iteration_receipt(
     step: &StagedOptimizedLiteralFoldStep,
 ) -> StagedOptimizedLiteralFoldIterationReceipt {
     StagedOptimizedLiteralFoldIterationReceipt {
-        source_selected: step.fold.plan().source_selected,
-        source_ranges: step.fold.plan().ranges,
-        source_legality: step.fold.plan().legality,
-        choices: step.choices.receipt().identity(),
-        choice_policy: step.choices.receipt().policy(),
-        choice_usage: step.choices.receipt().usage(),
-        recovery: step.recovery.receipt().identity(),
-        recovery_policy: step.recovery.receipt().policy(),
-        recovery_usage: step.recovery.receipt().usage(),
-        fold: step.fold.receipt().identity(),
-        fold_policy: step.fold.receipt().policy(),
-        fold_usage: step.fold.receipt().usage(),
-        transformed_selected: step.fold.receipt().transformed_selected(),
+        evidence: fold_evidence(&step.choices, &step.recovery, &step.fold),
         fresh_liveness: step.liveness.receipt().identity(),
         fresh_ranges: step.ranges.receipt().identity(),
         fresh_legality: step.legality.receipt().identity(),
@@ -77,7 +91,7 @@ pub(super) fn selected_lowering_custody_receipt(
         action_count,
         initial_virtual_register_count: source.legality().receipt().virtual_register_count(),
         iterations: steps.iter().map(iteration_receipt).collect(),
-        attempt: attempt_receipt(attempt),
+        attempt: fold_evidence(&attempt.choices, &attempt.recovery, &attempt.fold),
         final_selected,
         final_liveness,
         final_ranges,
@@ -133,25 +147,34 @@ pub(super) fn selected_lowering_completion_identity(
     SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(&canonical)
 }
 
+/// The canonical v5 encoding of one fold evidence row: the row `fold_evidence`
+/// builds, in the load-bearing field order every receipt in this module shares.
+fn encode_fold_evidence(
+    canonical: &mut Vec<u8>,
+    evidence: StagedOptimizedLiteralFoldAttemptReceipt,
+) {
+    canonical.extend_from_slice(&evidence.source_selected().bytes());
+    canonical.extend_from_slice(&evidence.source_ranges().bytes());
+    canonical.extend_from_slice(&evidence.source_legality().bytes());
+    canonical.extend_from_slice(&evidence.choices().bytes());
+    canonical.push(spill_choice_policy_tag(evidence.choice_policy()));
+    canonical.extend_from_slice(&evidence.choice_usage().encode());
+    canonical.extend_from_slice(&evidence.recovery().bytes());
+    canonical.push(recovery_policy_tag(evidence.recovery_policy()));
+    canonical.extend_from_slice(&evidence.recovery_usage().encode());
+    canonical.extend_from_slice(&evidence.fold().bytes());
+    crate::codec_bytes::push_encoded(
+        canonical,
+        literal_fold_policy_tag(evidence.fold_policy()).to_le_bytes(),
+    );
+    canonical.extend_from_slice(&evidence.fold_usage().encode());
+}
+
 pub(super) fn encode_iteration_receipt(
     canonical: &mut Vec<u8>,
     iteration: StagedOptimizedLiteralFoldIterationReceipt,
 ) {
-    canonical.extend_from_slice(&iteration.source_selected().bytes());
-    canonical.extend_from_slice(&iteration.source_ranges().bytes());
-    canonical.extend_from_slice(&iteration.source_legality().bytes());
-    canonical.extend_from_slice(&iteration.choices().bytes());
-    canonical.push(spill_choice_policy_tag(iteration.choice_policy()));
-    canonical.extend_from_slice(&iteration.choice_usage().encode());
-    canonical.extend_from_slice(&iteration.recovery().bytes());
-    canonical.push(recovery_policy_tag(iteration.recovery_policy()));
-    canonical.extend_from_slice(&iteration.recovery_usage().encode());
-    canonical.extend_from_slice(&iteration.fold().bytes());
-    crate::codec_bytes::push_encoded(
-        canonical,
-        literal_fold_policy_tag(iteration.fold_policy()).to_le_bytes(),
-    );
-    canonical.extend_from_slice(&iteration.fold_usage().encode());
+    encode_fold_evidence(canonical, iteration.evidence);
     canonical.extend_from_slice(&iteration.transformed_selected().bytes());
     canonical.extend_from_slice(&iteration.fresh_liveness().bytes());
     canonical.extend_from_slice(&iteration.fresh_ranges().bytes());
@@ -162,21 +185,7 @@ pub(super) fn encode_attempt_receipt(
     canonical: &mut Vec<u8>,
     attempt: StagedOptimizedLiteralFoldAttemptReceipt,
 ) {
-    canonical.extend_from_slice(&attempt.source_selected().bytes());
-    canonical.extend_from_slice(&attempt.source_ranges().bytes());
-    canonical.extend_from_slice(&attempt.source_legality().bytes());
-    canonical.extend_from_slice(&attempt.choices().bytes());
-    canonical.push(spill_choice_policy_tag(attempt.choice_policy()));
-    canonical.extend_from_slice(&attempt.choice_usage().encode());
-    canonical.extend_from_slice(&attempt.recovery().bytes());
-    canonical.push(recovery_policy_tag(attempt.recovery_policy()));
-    canonical.extend_from_slice(&attempt.recovery_usage().encode());
-    canonical.extend_from_slice(&attempt.fold().bytes());
-    crate::codec_bytes::push_encoded(
-        canonical,
-        literal_fold_policy_tag(attempt.fold_policy()).to_le_bytes(),
-    );
-    canonical.extend_from_slice(&attempt.fold_usage().encode());
+    encode_fold_evidence(canonical, attempt);
     encode_count(canonical, attempt.applied_count());
     canonical.extend_from_slice(&attempt.transformed_selected().bytes());
 }
@@ -203,27 +212,6 @@ pub(super) fn encode_count(canonical: &mut Vec<u8>, count: usize) {
             .expect("selected-lowering completion count fits u64")
             .to_le_bytes(),
     );
-}
-
-pub(super) fn attempt_receipt(
-    attempt: &StagedOptimizedLiteralFoldAttempt,
-) -> StagedOptimizedLiteralFoldAttemptReceipt {
-    StagedOptimizedLiteralFoldAttemptReceipt {
-        source_selected: attempt.fold.receipt().source_selected(),
-        source_ranges: attempt.fold.receipt().ranges(),
-        source_legality: attempt.fold.receipt().legality(),
-        choices: attempt.choices.receipt().identity(),
-        choice_policy: attempt.choices.receipt().policy(),
-        choice_usage: attempt.choices.receipt().usage(),
-        recovery: attempt.recovery.receipt().identity(),
-        recovery_policy: attempt.recovery.receipt().policy(),
-        recovery_usage: attempt.recovery.receipt().usage(),
-        fold: attempt.fold.receipt().identity(),
-        fold_policy: attempt.fold.receipt().policy(),
-        fold_usage: attempt.fold.receipt().usage(),
-        applied_count: attempt.fold.receipt().applied_count(),
-        transformed_selected: attempt.fold.receipt().transformed_selected(),
-    }
 }
 
 pub(super) fn step_usage(
@@ -260,44 +248,17 @@ pub(super) fn add_usage(
     left: OptimizationWorkUsage,
     right: OptimizationWorkUsage,
 ) -> Result<OptimizationWorkUsage, OptimizedLiteralFoldCustodyError> {
-    Ok(OptimizationWorkUsage {
-        rule_evaluations: left
-            .rule_evaluations
-            .checked_add(right.rule_evaluations)
-            .ok_or(OptimizedLiteralFoldCustodyError::WorkOverflow)?,
-        candidates: left
-            .candidates
-            .checked_add(right.candidates)
-            .ok_or(OptimizedLiteralFoldCustodyError::WorkOverflow)?,
-        validation_steps: left
-            .validation_steps
-            .checked_add(right.validation_steps)
-            .ok_or(OptimizedLiteralFoldCustodyError::WorkOverflow)?,
-        commits: left
-            .commits
-            .checked_add(right.commits)
-            .ok_or(OptimizedLiteralFoldCustodyError::WorkOverflow)?,
-        iterations: left
-            .iterations
-            .checked_add(right.iterations)
-            .ok_or(OptimizedLiteralFoldCustodyError::WorkOverflow)?,
-    })
+    crate::work_accounting::combine(left, right)
+        .map_err(|_| OptimizedLiteralFoldCustodyError::WorkOverflow)
 }
 
 pub(super) fn ensure_selected_lowering_budget(
     usage: OptimizationWorkUsage,
     budget: OptimizationWorkBudget,
 ) -> Result<(), OptimizedLiteralFoldCustodyError> {
-    if usage.within(budget) {
-        Ok(())
-    } else {
-        Err(
-            OptimizedLiteralFoldCustodyError::SelectedLoweringBudgetExceeded {
-                required: usage,
-                budget,
-            },
-        )
-    }
+    crate::work_accounting::admit(usage, budget, |required, budget| {
+        OptimizedLiteralFoldCustodyError::SelectedLoweringBudgetExceeded { required, budget }
+    })
 }
 
 pub(super) fn validate_selected_lowering_policies(

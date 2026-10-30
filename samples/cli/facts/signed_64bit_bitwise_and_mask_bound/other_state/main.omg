@@ -16,7 +16,7 @@ requires raw >= 112 && raw <= 127
     transition {
         _ -> step(raw)
     }
-    state step(r: i64) -> i64
+    machine step(r: i64) -> i64
     requires r >= 112 && r <= 127
     {
         let masked: i64 = r & 63i64;
@@ -33,6 +33,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

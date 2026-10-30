@@ -1,4 +1,6 @@
-use crate::candidates::{canonicalize_provenance, provenance_realized_at};
+use crate::candidates::{
+    canonicalize_provenance, provenance_realized_at, realize_node_provenance, realized_at_own_site,
+};
 use optimization_unit::{
     DeadScalarNodeRewrite, NodeLocation, PsiOptimizationFunction, PsiRealizationSite,
 };
@@ -13,8 +15,7 @@ pub(crate) fn reconstruct_dead_scalar_node_accounting(
     let block = &function.blocks[block_position];
     let removed = block.nodes.get(node_position)?;
     block.nodes.get(node_position.checked_add(1)?)?;
-    let mut provenance = vec![provenance_realized_at(
-        PsiRealizationSite::Node(patch.location),
+    let mut provenance = vec![realized_at_own_site(
         PsiRealizationSite::Node(patch.location),
         &removed.provenance,
         &removed.fuel,
@@ -42,22 +43,12 @@ pub(crate) fn reconstruct_dead_scalar_node_accounting(
     let mut blocks = vec![block.id];
     for later in function.blocks.iter().skip(block_position + 1) {
         blocks.push(later.id);
-        for (index, node) in later.nodes.iter().enumerate() {
-            if node.provenance.is_empty() {
-                continue;
-            }
-            let site = PsiRealizationSite::Node(NodeLocation {
-                machine: function.machine,
-                block: later.id,
-                node: u32::try_from(index).ok()?,
-            });
-            provenance.push(provenance_realized_at(
-                site,
-                site,
-                &node.provenance,
-                &node.fuel,
-            ));
-        }
+        realize_node_provenance(
+            function.machine,
+            later.id,
+            later.nodes.iter().enumerate(),
+            &mut provenance,
+        )?;
     }
     blocks.sort();
     canonicalize_provenance(&mut provenance);
@@ -88,22 +79,12 @@ pub(crate) fn reconstruct_removed_result_use_accounting(
             continue;
         }
         blocks.push(use_block.id);
-        for (index, node) in use_block.nodes.iter().enumerate() {
-            if node.provenance.is_empty() {
-                continue;
-            }
-            let site = PsiRealizationSite::Node(NodeLocation {
-                machine: function.machine,
-                block: use_block.id,
-                node: u32::try_from(index).ok()?,
-            });
-            provenance.push(provenance_realized_at(
-                site,
-                site,
-                &node.provenance,
-                &node.fuel,
-            ));
-        }
+        realize_node_provenance(
+            function.machine,
+            use_block.id,
+            use_block.nodes.iter().enumerate(),
+            &mut provenance,
+        )?;
     }
     blocks.sort();
     blocks.dedup();

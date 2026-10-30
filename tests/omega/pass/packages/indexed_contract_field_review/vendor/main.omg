@@ -5,8 +5,8 @@ public data Packet { tag: u8; bytes: [u8; 8]; }
 public data Envelope { packet: Packet; }
 public data PacketBatch { packets: [Packet; 2]; }
 
-public domain Packet::Tagged(packet)
-requires packet.bytes[0] == 42 && packet.bytes[7] == 7;
+public domain Packet::Tagged
+requires self.bytes[0] == 42 && self.bytes[7] == 7;
 
 public data TaggedPacket where bytes[0] == 42 {
     bytes: [u8; 8];

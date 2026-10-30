@@ -1,7 +1,7 @@
 use crate::declarations::PackageKey;
 use build_evaluation::{BuildEvaluationUsage, BuildObservationSummary, RestrictedBuildRequest};
 use package_compilation::{
-    AcceptedSemanticBinding, PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment,
+    AcceptedSemanticBinding, PackageBuildHandoff, PackageSourceConsumptionCommitment,
 };
 use package_evidence::record::{PackagePolicyBaseline, PackagePolicyRow};
 use package_source::ImmutableSourceResolution;
@@ -28,7 +28,7 @@ pub(crate) struct CompilerIssuedPackageReview {
     pub(super) restricted_build_requests: Vec<RestrictedBuildRequest>,
     pub(super) semantic_bindings: Vec<AcceptedSemanticBinding>,
     pub(super) semantic_binding_candidates: Vec<SemanticBindingReviewCandidate>,
-    pub(super) generated_source_bundle: PackageGeneratedSourceBundle,
+    pub(super) build_handoff: PackageBuildHandoff,
     pub(super) policy: PackagePolicyBaseline,
     /// The policy's complete canonical rows, derived once from `policy`.
     pub(super) policy_rows: Vec<PackagePolicyRow>,
@@ -41,9 +41,9 @@ impl CompilerIssuedPackageReview {
     /// sources do not make build and product reviews interchangeable.
     pub(crate) fn checked_context(&self) -> crate::lock::PackageCheckedContext {
         crate::lock::PackageCheckedContext::new(
-            self.generated_source_bundle.purpose(),
-            self.generated_source_bundle.target(),
-            self.generated_source_bundle.build_execution_profile(),
+            self.build_handoff.purpose(),
+            self.build_handoff.target(),
+            self.build_handoff.build_execution_profile(),
         )
     }
 
@@ -104,8 +104,8 @@ impl CompilerIssuedPackageReview {
     /// Exact explicit generated-source handoffs from the same checked run as
     /// this review. This is replay input for later dependency compilation, not
     /// an accepted source or package instance.
-    pub const fn generated_source_bundle(&self) -> &PackageGeneratedSourceBundle {
-        &self.generated_source_bundle
+    pub const fn build_handoff(&self) -> &PackageBuildHandoff {
+        &self.build_handoff
     }
 
     /// Complete normalized comparison meaning from this same checked package,
@@ -141,9 +141,9 @@ pub(crate) struct CompilerIssuedPackageReviewSet {
     pub(super) reviews: Vec<CompilerIssuedPackageReview>,
 }
 
+/// Which verification step refused a compiled review's retained source custody.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PackageSourceVerificationPhase {
-    BeforeCompilation,
+pub enum PackageSourceVerificationPhase {
     AfterCompilation,
 }
 

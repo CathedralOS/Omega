@@ -8,9 +8,9 @@ data Command {
     case Move(dx: i32);
     case Say(volume: i32);
 }
-domain Command::Interactive(command)
+domain Command::Interactive
 requires
-    command in Command::Move | Command::Say;
+    self in Command::Move | Command::Say;
 data Main { cmd: Command; }
 machine Main::main(main: &mut Main) {
     main.cmd = Command::Say { volume: 3 };
@@ -19,7 +19,7 @@ machine Main::main(main: &mut Main) {
         Command::None -> none_state()
         Command::Quit -> quit_state()
     }
-    state interactive() { }
-    state none_state() { }
-    state quit_state() { }
+    machine interactive() { }
+    machine none_state() { }
+    machine quit_state() { }
 }

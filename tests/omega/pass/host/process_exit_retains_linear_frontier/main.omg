@@ -10,7 +10,7 @@ machine main() reaches ProcessExit {
         true -> finish(owner, 0)
         _ -> finish(owner, 1)
     }
-    state finish(owner: Owner, status: i32) {
+    machine finish(owner: Owner, status: i32) {
         let additional: Token = Token { value: 7 };
         ProcessExit::exit_process(status);
     }

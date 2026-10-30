@@ -4,6 +4,7 @@
 
 use crate::capture::PackageReviewInput;
 use crate::capture::behavior::project_service_row;
+use crate::capture::refusal;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::facts::exactly_one;
 use crate::capture::semantics::signatures::callable_declaration_scope;
@@ -71,7 +72,7 @@ pub(super) fn project(
         ));
     }
     let scope = callable_declaration_scope(compilation, machine)?;
-    let parameters = scope.type_parameters;
+    let parameters = scope.type_parameters.as_ref();
     let mut ordinals = Vec::with_capacity(checked_parameters.len());
     for symbol in checked_parameters {
         let mut matches = parameters
@@ -123,6 +124,4 @@ pub(super) fn project(
     })
 }
 
-fn rejected(message: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(message)]
-}
+refusal!(message, "{message}");

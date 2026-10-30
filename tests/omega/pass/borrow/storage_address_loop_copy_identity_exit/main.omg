@@ -6,10 +6,10 @@ machine different(original: &[u64; 2], copied: &[u64; 2]) -> bool {
 }
 machine scan(original: &[u64; 2]) -> bool {
     transition { _ -> step(original, [7, 11], 0, true) }
-    state step(original: &[u64; 2], prior: [u64; 2], index: u64, valid: bool) -> bool {
+    machine step(original: &[u64; 2], prior: [u64; 2], index: u64, valid: bool) -> bool {
         transition index < 3 { true -> body(original, prior, index, valid) false -> valid }
     }
-    state body(original: &[u64; 2], prior: [u64; 2], index: u64, valid: bool) -> bool requires index < 3 {
+    machine body(original: &[u64; 2], prior: [u64; 2], index: u64, valid: bool) -> bool requires index < 3 {
         let copied: [u64; 2] = [7, 11];
         let distinct: bool = different(&prior, &copied);
         transition { _ -> step(original, copied, index + 1, valid && distinct) }
@@ -19,5 +19,5 @@ machine main() crashes Trap {
     let values: [u64; 2] = [7, 11];
     let valid: bool = scan(&values);
     transition valid { true -> done() false -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

@@ -8,9 +8,10 @@
 //! parameter's entry fact is not reread here: its subject can move.
 use super::{
     BigInt, BinaryOperator, Diagnostic, Engine, ExpressionHandle, ExpressionNode, Machine,
-    Polynomial, StrictArithmeticBindingValue, StrictArithmeticSymbolBinding, SymbolHandle,
+    Polynomial, SymbolHandle,
 };
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
+use crate::{StrictArithmeticBindingValue, StrictArithmeticSymbolBinding};
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::state::State;

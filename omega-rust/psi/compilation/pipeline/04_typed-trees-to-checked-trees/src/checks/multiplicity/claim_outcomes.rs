@@ -6,12 +6,10 @@
 //! instead name templates: each receiving occurrence keeps its locally
 //! allocated identity, while `joins` retains the complete call/return
 //! correspondence. A result binding is not new resource authority.
-//! Argument correspondence uses the completed actual's current ownership at
-//! the exact invocation. Descending into a constructor's historical children
-//! loses claims already rebased beneath that completed argument.
 
 mod joins;
-pub(crate) use joins::{publish_call_claim_joins, validate_call_claim_joins};
+pub(super) use joins::preserved_inactive_place;
+pub(crate) use joins::{CallClaimJoinFailure, publish_call_claim_joins, validate_call_claim_joins};
 
 use crate::checks::multiplicity::linear_obligations::{
     CheckedClaimOutcomeEntry, CheckedClaimOutcomeMap, CheckedClaimOutcomeSource,
@@ -93,9 +91,7 @@ impl ClaimOutcomePreparation {
         let Some(target) = validation::call_target_state(program, call.target_symbol) else {
             return;
         };
-        if !self.dependencies.contains(&target.symbol) {
-            self.dependencies.push(target.symbol);
-        }
+        crate::collections::push_unique(&mut self.dependencies, target.symbol);
         if let Some(map) = self
             .maps
             .iter()
@@ -111,6 +107,11 @@ impl ClaimOutcomePreparation {
         {
             event.provenance = provenance;
             event.claim_identity = identity;
+            // Some authenticates an input correspondence even when assigning
+            // it is a no-op: a same-statement constructed input can already
+            // carry this exact pair. It remains that input, never a new local
+            // receiving occurrence to which a prior join hypothesis may apply.
+            return;
         }
         // Different returning sources can have a complete join without an
         // invariant outcome map. Missing either summary never means absence.
@@ -258,29 +259,15 @@ fn derive_claim_outcome_hypothesis(
             },
         ))
         .collect::<Vec<_>>();
-    let mut entries =
-        return_entries
-            .iter()
-            .flatten()
-            .cloned()
-            .fold(Vec::new(), |mut entries, entry| {
-                if !entries.contains(&entry) {
-                    entries.push(entry);
-                }
-                entries
-            });
+    let mut entries = crate::collections::unique_in_order(return_entries.iter().flatten().cloned());
     entries.retain(|entry| expected_paths.contains(&entry.output_path));
     for path in &expected_paths {
-        let sources = entries
-            .iter()
-            .filter(|entry| entry.output_path == *path)
-            .map(|entry| &entry.source)
-            .fold(Vec::new(), |mut sources, source| {
-                if !sources.contains(&source) {
-                    sources.push(source);
-                }
-                sources
-            });
+        let sources = crate::collections::unique_in_order(
+            entries
+                .iter()
+                .filter(|entry| entry.output_path == *path)
+                .map(|entry| &entry.source),
+        );
         if sources.len() != 1 {
             if sources.is_empty()
                 && claim_path_is_statically_inactive(
@@ -313,7 +300,7 @@ fn derive_claim_outcome_hypothesis(
         .filter(|path| !entries.iter().any(|entry| entry.output_path == **path))
         .cloned()
         .collect::<Vec<_>>();
-    if !joins::complete_frontier(program, state.return_type, &entries, &inactive_paths) {
+    if !joins::complete_whole_frontier(program, state.return_type, &entries, &inactive_paths) {
         return None;
     }
     // Each return accounts for its own selected case. A path may be absent
@@ -351,7 +338,7 @@ fn derive_claim_outcome_hypothesis(
                     })
                     .cloned()
                     .collect::<Vec<_>>();
-                joins::complete_frontier(program, state.return_type, returned, &absent)
+                joins::complete_whole_frontier(program, state.return_type, returned, &absent)
                     && returned.iter().all(|entry| entries.contains(entry))
             });
     Some(ClaimOutcomeHypothesis {
@@ -680,11 +667,6 @@ fn claim_outcomes_for_named_transition(
     else {
         return Vec::new();
     };
-    let Some(invocation) =
-        named_claim_invocation(program, state, statement_index, target_symbol, arguments)
-    else {
-        return Vec::new();
-    };
     let arguments = program.statement_table.expression_handles(arguments);
     target_map
         .entries
@@ -696,7 +678,6 @@ fn claim_outcomes_for_named_transition(
                 statement_index,
                 arguments,
                 target_state,
-                invocation,
                 &entry.source,
                 segments,
                 permission_events,
@@ -915,40 +896,18 @@ fn claim_outcomes_for_expression(
                 })
                 .collect()
         }
-        typed_trees::expression::ExpressionNode::Match(_) => {
-            let Some((_, receipt)) =
-                ownership.owned_selection_at(state.symbol, statement_index as u32)
-            else {
-                return Vec::new();
-            };
-            if receipt.expression != expression {
-                return Vec::new();
-            }
-            let Some(alternatives) =
-                selection_alternatives(program, state, ownership, permission_events, receipt)
-            else {
-                return Vec::new();
-            };
-            let mut arms = alternatives.into_iter().map(|(_, entries)| entries);
-            let Some(mut entries) = arms.next() else {
-                return Vec::new();
-            };
-            // This summary names an invariant source, not an arbitrary arm's
-            // source. Every reachable arm must supply the same complete map;
-            // an absent arm mapping cannot prove conservation by omission.
-            if arms.all(|other| {
-                other.len() == entries.len() && other.iter().all(|entry| entries.contains(entry))
-            }) {
-                for entry in &mut entries {
-                    let mut path = output_prefix.to_vec();
-                    path.append(&mut entry.output_path);
-                    entry.output_path = path;
-                }
-                entries
-            } else {
-                Vec::new()
-            }
-        }
+        // A receipt'd selection joins one result claim at the destination;
+        // the receipt's transfers name the consumed source claim per edge
+        // rather than a permission event.
+        typed_trees::expression::ExpressionNode::Match(_) => claim_outcomes_for_owned_selection(
+            program,
+            state,
+            statement_index,
+            expression,
+            ownership,
+            permission_events,
+            output_prefix,
+        ),
         // A qualification-only `as` returns the value it was handed: the
         // suffix moves, the storage does not. `consume_granted(root: Extent in
         // Granted) -> Extent { root as Extent }` conserves the caller's claim
@@ -1002,83 +961,90 @@ fn output_path_type(
     )
 }
 
-/// Complete, correlated source maps for the receipt's authored terminal arms.
-/// Result paths were resolved by the producer once; consumers do not recover
-/// field correspondence from source order or independently combine claims.
-fn selection_alternatives(
-    program: &dyn validation::CheckingInput,
+/// A receipt'd selection produces its result claims at the join edge: each
+/// transfer names the consumed source claims that become the result's claims
+/// on that edge, and uniform linear consumption means every edge maps the
+/// result to the same source places. A whole affine carrier contributes one
+/// entry per frontier claim, landing at the claim's position below the moved
+/// leaf. A parameter source binds the caller's claim at its exact input path;
+/// a local source publishes the established identity the roster recorded. A
+/// fresh per-edge product establishes its claim inside the selection, so its
+/// origin is intentionally untracked.
+fn claim_outcomes_for_owned_selection(
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
     ownership: &checked_trees::FlowOwnershipFacts,
-    events: &[FlowPermissionEventFact],
-    receipt: &checked_trees::FlowOwnedSelectionReceipt,
-) -> Option<
-    Vec<(
-        arena::Handle<typed_trees::expression::TableMatchArm>,
-        Vec<CheckedClaimOutcomeEntry>,
-    )>,
-> {
-    super::owned_selection::terminal_arms(program, receipt.expression)
-        .into_iter()
-        .map(|(arm, _)| {
-            let mut entries = Vec::new();
-            for transfer in ownership
-                .selection_transfers
-                .span_or_empty(receipt.transfers)
-                .iter()
-                .filter(|transfer| transfer.source_arm == arm)
+    permission_events: &[FlowPermissionEventFact],
+    output_prefix: &[facts::PlaceSegment],
+) -> Vec<CheckedClaimOutcomeEntry> {
+    let Some((_, receipt)) = ownership.owned_selection_at(state.symbol, statement_index as u32)
+    else {
+        return Vec::new();
+    };
+    if receipt.expression != expression {
+        return Vec::new();
+    }
+    let mut entries = Vec::new();
+    for transfer in ownership
+        .selection_transfers
+        .span_or_empty(receipt.transfers)
+    {
+        if !transfer.source.is_valid() {
+            continue;
+        }
+        let leaf_path = ownership.segments.span_or_empty(transfer.path);
+        for claim in ownership
+            .selection_transfer_claims
+            .span_or_empty(transfer.claims)
+        {
+            // This flat projection can expose only an invariant named origin.
+            // A transported selected home keeps its guarded completion graph;
+            // Unknown is not an establishment or a representative alternative.
+            if claim.claim_identity == PermissionClaimIdentity::Unknown
+                || claim.provenance == PermissionProvenance::Unknown
             {
-                if !transfer.source.is_valid() {
-                    continue;
-                }
-                for claim in ownership
-                    .selection_transfer_claims
-                    .span_or_empty(transfer.claims)
-                {
-                    let claim_path = ownership.segments.span_or_empty(claim.path);
-                    let suffix =
-                        claim_path.strip_prefix(ownership.segments.span_or_empty(transfer.path))?;
-                    let mut output_path = ownership
-                        .segments
-                        .span_or_empty(transfer.result_path)
-                        .to_vec();
-                    output_path.extend_from_slice(suffix);
-                    // The source home may still be a parameter after its
-                    // old claim was consumed and replaced. Only the actual
-                    // transferred identity/provenance can name an entry input.
-                    let origin = claim_outcome_source_for_identity(
-                        program,
-                        state,
-                        claim.claim_identity,
-                        claim.provenance,
-                        &ownership.segments,
-                        events,
-                    );
-                    entries.push(CheckedClaimOutcomeEntry {
-                        output_path,
-                        source: origin,
-                    });
-                }
+                continue;
             }
-            for produced in ownership
-                .selection_produced_claims
-                .span_or_empty(receipt.produced_claims)
-                .iter()
-                .filter(|produced| produced.source_arm == arm)
-            {
-                entries.push(CheckedClaimOutcomeEntry {
-                    output_path: ownership
-                        .segments
-                        .span_or_empty(produced.result_path)
-                        .to_vec(),
-                    source: CheckedClaimOutcomeSource::Established {
-                        claim_identity: produced.claim_identity,
-                        provenance: produced.provenance,
-                    },
-                });
-            }
-            Some((arm, entries))
-        })
-        .collect()
+            // The claim's consumed path is the leaf's moved path plus the
+            // claim's position below it; stripping the leaf prefix yields the
+            // result-relative path the claim lands at.
+            let claim_path = ownership.segments.span_or_empty(claim.path);
+            let Some(suffix) = claim_path.strip_prefix(leaf_path) else {
+                return Vec::new();
+            };
+            let mut output_path = output_prefix.to_vec();
+            output_path
+                .extend_from_slice(ownership.segments.span_or_empty(transfer.destination_path));
+            output_path.extend_from_slice(suffix);
+            // A parameter home may have received a new occupant. Only its
+            // exact transferred identity and provenance establish input origin.
+            let source = claim_outcome_source_for_identity(
+                program,
+                state,
+                claim.claim_identity,
+                claim.provenance,
+                &ownership.segments,
+                permission_events,
+            );
+            let entry = CheckedClaimOutcomeEntry {
+                output_path,
+                source,
+            };
+            crate::collections::push_unique(&mut entries, entry);
+        }
+    }
+    if entries.is_empty() {
+        entries.push(CheckedClaimOutcomeEntry {
+            output_path: output_prefix.to_vec(),
+            source: CheckedClaimOutcomeSource::Established {
+                claim_identity: PermissionClaimIdentity::Unknown,
+                provenance: PermissionProvenance::Unknown,
+            },
+        });
+    }
+    entries
 }
 
 fn claim_outcome_source_for_event(
@@ -1106,14 +1072,17 @@ fn claim_outcome_source_for_identity(
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     permission_events: &[FlowPermissionEventFact],
 ) -> CheckedClaimOutcomeSource {
-    if let Some(entry) = permission_events.iter().find(|candidate| {
-        candidate.state_symbol == state.symbol
-            && candidate.source == PermissionEventSource::StateEntry
-            && candidate.kind == PermissionEventKind::Establish
-            && candidate.access == PermissionAccess::Owned
-            && candidate.claim_identity == claim_identity
-            && candidate.provenance == provenance
-    }) && let Some(parameter_symbol) = entry.root.as_symbol()
+    if claim_identity != PermissionClaimIdentity::Unknown
+        && provenance != PermissionProvenance::Unknown
+        && let Some(entry) = permission_events.iter().find(|candidate| {
+            candidate.state_symbol == state.symbol
+                && candidate.source == PermissionEventSource::StateEntry
+                && candidate.kind == PermissionEventKind::Establish
+                && candidate.access == PermissionAccess::Owned
+                && candidate.claim_identity == claim_identity
+                && candidate.provenance == provenance
+        })
+        && let Some(parameter_symbol) = entry.root.as_symbol()
         && parameter_for_symbol(program, state, parameter_symbol).is_some()
     {
         return CheckedClaimOutcomeSource::Input {
@@ -1137,31 +1106,29 @@ fn claim_origin_for_source(
         CheckedClaimOutcomeSource::Established {
             claim_identity,
             provenance,
-        } => Some((*provenance, *claim_identity)),
+        } => (*claim_identity != PermissionClaimIdentity::Unknown
+            && *provenance != PermissionProvenance::Unknown)
+            .then_some((*provenance, *claim_identity)),
         CheckedClaimOutcomeSource::Input {
             parameter_symbol,
             path,
         } => {
-            let origins = permission_events
-                .iter()
-                .filter(|event| {
-                    event.state_symbol == state.symbol
-                        && event.source == PermissionEventSource::StateEntry
-                        && event.kind == PermissionEventKind::Establish
-                        && event.access == PermissionAccess::Owned
-                        && event.obligation_live
-                        && event.root == facts::PlaceRoot::Symbol(*parameter_symbol)
-                        && segments.span_or_empty(event.segments) == path
-                        && event.claim_identity != PermissionClaimIdentity::Unknown
-                        && event.provenance != PermissionProvenance::Unknown
-                })
-                .map(|event| (event.provenance, event.claim_identity))
-                .fold(Vec::new(), |mut origins, origin| {
-                    if !origins.contains(&origin) {
-                        origins.push(origin);
-                    }
-                    origins
-                });
+            let origins = crate::collections::unique_in_order(
+                permission_events
+                    .iter()
+                    .filter(|event| {
+                        event.state_symbol == state.symbol
+                            && event.source == PermissionEventSource::StateEntry
+                            && event.kind == PermissionEventKind::Establish
+                            && event.access == PermissionAccess::Owned
+                            && event.obligation_live
+                            && event.root == facts::PlaceRoot::Symbol(*parameter_symbol)
+                            && segments.span_or_empty(event.segments) == path
+                            && event.claim_identity != PermissionClaimIdentity::Unknown
+                            && event.provenance != PermissionProvenance::Unknown
+                    })
+                    .map(|event| (event.provenance, event.claim_identity)),
+            );
             let [origin] = origins.as_slice() else {
                 return None;
             };
@@ -1181,50 +1148,16 @@ fn bind_claim_outcome_source_at_call(
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     permission_events: &[FlowPermissionEventFact],
 ) -> Option<CheckedClaimOutcomeSource> {
-    let (machine, _) = validation::find_state(program, caller_state.symbol)?;
-    let invocation = validation::collect_call_sites_in_statement(program, machine, caller_state, statement_index)
-        .into_iter().enumerate().find_map(|(call_ordinal, site)| {
-            matches!(site, validation::CallSite::Expression { call: found, .. } if std::ptr::eq(found, call))
-                .then_some(PermissionEventSource::Call { statement_index, call_ordinal, target_symbol: call.target_symbol })
-        })?;
     bind_claim_outcome_source_at_arguments(
         program,
         caller_state,
         statement_index,
         program.expression_table.expression_handles(call.arguments),
         target_state,
-        invocation,
         source,
         segments,
         permission_events,
     )
-}
-
-fn named_claim_invocation(
-    program: &dyn validation::CheckingInput,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    target_symbol: SymbolHandle,
-    arguments: HandleSpan<typed_trees::expression::ExpressionHandle>,
-) -> Option<PermissionEventSource> {
-    let (machine, _) = validation::find_state(program, state.symbol)?;
-    let resolved_target = validation::call_target_state(program, target_symbol)
-        .map_or(target_symbol, |target| target.symbol);
-    let mut matching =
-        validation::collect_call_sites_in_statement(program, machine, state, statement_index)
-            .into_iter()
-            .enumerate()
-            .filter_map(|(call_ordinal, site)| {
-                matches!(site, validation::CallSite::TransitionNamed { path, arguments: found, .. }
-                if path.symbol == target_symbol && found == arguments)
-                .then_some(PermissionEventSource::Call {
-                    statement_index,
-                    call_ordinal,
-                    target_symbol: resolved_target,
-                })
-            });
-    let source = matching.next()?;
-    matching.next().is_none().then_some(source)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1234,7 +1167,6 @@ fn bind_claim_outcome_source_at_arguments(
     statement_index: usize,
     arguments: &[typed_trees::expression::ExpressionHandle],
     target_state: &typed_trees::state::State,
-    invocation: PermissionEventSource,
     source: &CheckedClaimOutcomeSource,
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     permission_events: &[FlowPermissionEventFact],
@@ -1247,74 +1179,49 @@ fn bind_claim_outcome_source_at_arguments(
         return Some(source.clone());
     };
     let argument = argument_for_parameter(program, arguments, target_state, *parameter_symbol)?;
-    // Invocation custody belongs to the completed actual, not to the earlier
-    // births of its constructed children. Resolve the formal-relative path
-    // beneath that current owner, just as structural call transfer does.
+    let parameter = parameter_for_symbol(program, target_state, *parameter_symbol)?;
+    // Constructor operands already name the transferred claims. Resolve the
+    // exact typed projection instead of inventing storage below a literal.
+    let mut projections = crate::flow::literal_expression_projections(
+        program,
+        argument,
+        parameter.type_reference,
+        path,
+        false,
+    )?;
+    let projection = projections.pop()?;
+    if !projections.is_empty() {
+        return None;
+    }
     let mut place = validation::canonical_place_from_expression_in_state(
         program,
         caller_state.symbol,
         statement_index,
-        argument,
+        projection.expression,
     )?;
-    let transferred_at = |event: &&FlowPermissionEventFact| {
-        event.state_symbol == caller_state.symbol
-            && event.source == invocation
-            && event.kind == PermissionEventKind::Transfer
-            && event.access == PermissionAccess::Owned
-            && event.obligation_live
-    };
-    let transfers = permission_events
-        .iter()
-        .filter(transferred_at)
-        .collect::<Vec<_>>();
-    // An owned extraction can publish anonymous custody distinct from its
-    // borrowed source. Both roots at this invocation are ambiguous, not a
-    // reason to select whichever historical claim happens to match.
-    if place.root.as_symbol().is_some()
-        && transfers
+    place.segments.extend_from_slice(&projection.remaining);
+    let sources = crate::collections::unique_in_order(
+        permission_events
             .iter()
-            .any(|event| event.root == facts::PlaceRoot::Expression(argument))
-    {
-        if transfers.iter().any(|event| {
-            event.root == place.root
-                && segments
-                    .span_or_empty(event.segments)
-                    .starts_with(&place.segments)
-        }) {
-            return None;
-        }
-        place = validation::CanonicalPlace {
-            root: facts::PlaceRoot::Expression(argument),
-            segments: Vec::new(),
-        };
-    }
-    place.segments.extend_from_slice(path);
-    let sources = permission_events
-        .iter()
-        .filter(|event| {
-            event.state_symbol == caller_state.symbol
-                && event.source == invocation
-                && event.kind == PermissionEventKind::Transfer
-                && event.access == PermissionAccess::Owned
-                && event.obligation_live
-                && event.root == place.root
-                && segments.span_or_empty(event.segments) == place.segments
-        })
-        .map(|event| {
-            claim_outcome_source_for_event(
-                program,
-                caller_state,
-                event,
-                segments,
-                permission_events,
-            )
-        })
-        .fold(Vec::new(), |mut sources, source| {
-            if !sources.contains(&source) {
-                sources.push(source);
-            }
-            sources
-        });
+            .filter(|event| {
+                event.state_symbol == caller_state.symbol
+                    && permission_event_statement_index(event.source) == Some(statement_index)
+                    && event.kind == PermissionEventKind::Transfer
+                    && event.access == PermissionAccess::Owned
+                    && event.obligation_live
+                    && event.root == place.root
+                    && segments.span_or_empty(event.segments) == place.segments
+            })
+            .map(|event| {
+                claim_outcome_source_for_event(
+                    program,
+                    caller_state,
+                    event,
+                    segments,
+                    permission_events,
+                )
+            }),
+    );
     let [source] = sources.as_slice() else {
         return None;
     };
@@ -1406,41 +1313,36 @@ fn call_result_origin_rewrite(
     let map = maps
         .iter()
         .find(|map| map.state_symbol == target_state.symbol)?;
-    let matching = map
-        .entries
-        .iter()
-        .filter(|entry| entry.output_path == receiving_path)
-        // Only an input correspondence forwards a caller-held identity.
-        // A callee establishment is a template shared by all invocations;
-        // its completed result keeps the receiving occurrence's identity
-        // and joins its exact return source through a call receipt.
-        .filter(|entry| matches!(entry.source, CheckedClaimOutcomeSource::Input { .. }))
-        // Forwarding preserves one identity only when it names one receiving
-        // location. A case-dependent location instead needs the existing
-        // occurrence-local join, whose alternatives authenticate the live path.
-        .filter(|entry| {
-            !map.entries
-                .iter()
-                .any(|other| other.source == entry.source && other.output_path != entry.output_path)
-        })
-        .filter_map(|entry| {
-            bind_claim_outcome_source_at_call(
-                program,
-                state,
-                statement_index,
-                call,
-                target_state,
-                &entry.source,
-                segments,
-                permission_events,
-            )
-        })
-        .fold(Vec::new(), |mut sources, source| {
-            if !sources.contains(&source) {
-                sources.push(source);
-            }
-            sources
-        });
+    let matching = crate::collections::unique_in_order(
+        map.entries
+            .iter()
+            .filter(|entry| entry.output_path == receiving_path)
+            // Only an input correspondence forwards a caller-held identity.
+            // A callee establishment is a template shared by all invocations;
+            // its completed result keeps the receiving occurrence's identity
+            // and joins its exact return source through a call receipt.
+            .filter(|entry| matches!(entry.source, CheckedClaimOutcomeSource::Input { .. }))
+            // Forwarding preserves one identity only when it names one receiving
+            // location. A case-dependent location instead needs the existing
+            // occurrence-local join, whose alternatives authenticate the live path.
+            .filter(|entry| {
+                !map.entries.iter().any(|other| {
+                    other.source == entry.source && other.output_path != entry.output_path
+                })
+            })
+            .filter_map(|entry| {
+                bind_claim_outcome_source_at_call(
+                    program,
+                    state,
+                    statement_index,
+                    call,
+                    target_state,
+                    &entry.source,
+                    segments,
+                    permission_events,
+                )
+            }),
+    );
     let [source] = matching.as_slice() else {
         return None;
     };
@@ -1454,8 +1356,12 @@ fn call_result_origin_rewrite(
     ))
 }
 
+/// Canonical origin substitution updates every retained use of the same
+/// claim pair. A selected completion is an actual consumer too; leaving its
+/// transfer roster behind would revive pre-join provenance during replay.
 pub(crate) fn apply_claim_origin_rewrites(
     permission_events: &mut [FlowPermissionEventFact],
+    ownership: &mut checked_trees::FlowOwnershipFacts,
     rewrites: &[(
         PermissionProvenance,
         PermissionClaimIdentity,
@@ -1468,29 +1374,52 @@ pub(crate) fn apply_claim_origin_rewrites(
         .iter_mut()
         .filter(|event| event.access == PermissionAccess::Owned)
     {
-        let mut provenance = event.provenance;
-        let mut claim_identity = event.claim_identity;
-        for _ in 0..rewrites.len() {
-            let Some((_, _, replacement_provenance, replacement_identity)) =
-                rewrites
-                    .iter()
-                    .find(|(source_provenance, source_identity, _, _)| {
-                        *source_provenance == provenance && *source_identity == claim_identity
-                    })
-            else {
-                break;
-            };
-            if *replacement_provenance == provenance && *replacement_identity == claim_identity {
-                break;
-            }
-            provenance = *replacement_provenance;
-            claim_identity = *replacement_identity;
-        }
-        changed |= event.provenance != provenance || event.claim_identity != claim_identity;
-        event.provenance = provenance;
-        event.claim_identity = claim_identity;
+        changed |= rewrite_claim_origin(&mut event.provenance, &mut event.claim_identity, rewrites);
     }
+    ownership.selection_transfers.for_each_mut(|_, transfer| {
+        changed |= rewrite_claim_origin(
+            &mut transfer.provenance,
+            &mut transfer.claim_identity,
+            rewrites,
+        );
+    });
+    ownership
+        .selection_transfer_claims
+        .for_each_mut(|_, claim| {
+            changed |=
+                rewrite_claim_origin(&mut claim.provenance, &mut claim.claim_identity, rewrites);
+        });
     changed
+}
+
+fn rewrite_claim_origin(
+    provenance: &mut PermissionProvenance,
+    claim_identity: &mut PermissionClaimIdentity,
+    rewrites: &[(
+        PermissionProvenance,
+        PermissionClaimIdentity,
+        PermissionProvenance,
+        PermissionClaimIdentity,
+    )],
+) -> bool {
+    let previous = (*provenance, *claim_identity);
+    for _ in 0..rewrites.len() {
+        let Some((_, _, replacement_provenance, replacement_identity)) =
+            rewrites
+                .iter()
+                .find(|(source_provenance, source_identity, _, _)| {
+                    *source_provenance == *provenance && *source_identity == *claim_identity
+                })
+        else {
+            break;
+        };
+        if *replacement_provenance == *provenance && *replacement_identity == *claim_identity {
+            break;
+        }
+        *provenance = *replacement_provenance;
+        *claim_identity = *replacement_identity;
+    }
+    previous != (*provenance, *claim_identity)
 }
 
 pub(crate) fn publish_claim_outcome_maps(

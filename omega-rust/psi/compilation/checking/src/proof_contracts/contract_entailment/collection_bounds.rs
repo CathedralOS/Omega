@@ -6,9 +6,10 @@
 //! judge already used by call requirements and exact casts, rather than building
 //! another call-result graph or admitting captured values as live storage.
 
-use super::structural_judgment::{StructuralJudgment, StructuralTerm};
+mod geometry;
 use super::structural_prefix::{PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor};
-use typed_trees::expression::{BinaryOperator, ExpressionHandle};
+pub(super) use geometry::proves_observed_bounds;
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
@@ -81,10 +82,27 @@ impl<'program> CollectionBoundsObservations<'program> {
                 &mut query,
             )
         };
-        recognized.is_some() && query.seen && query.proven
+        if recognized.is_some() && query.seen && query.proven {
+            return true;
+        }
+        // A private helper's exact descriptor and index arrive together under
+        // its callers' guards. Observe the same closed incoming frames as
+        // operand formation; lexical ancestry alone supplies no bound, and
+        // any unresolved or unproved arrival keeps the operation inadmissible.
+        query.seen = false;
+        query.proven = true;
+        super::structural_prefix::observe_private_arrivals(
+            self.program,
+            self.machine,
+            &mut query,
+            false,
+        ) == Some(true)
+            && query.seen
+            && query.proven
     }
 }
 
+#[derive(Clone)]
 struct Bounds {
     site: StructuralPrefixSite,
     expression: ExpressionHandle,
@@ -93,6 +111,10 @@ struct Bounds {
 }
 
 impl StructuralPrefixVisitor for Bounds {
+    fn has_positive_proof(&self) -> bool {
+        self.seen && self.proven
+    }
+
     fn site(&self) -> StructuralPrefixSite {
         self.site
     }
@@ -124,6 +146,7 @@ impl StructuralPrefixVisitor for Bounds {
         let Some(entries) = judge.normal_operation_entries(
             self.site.statement_index,
             self.expression,
+            super::structural_judgment::normal_returns::OperationOperandDemand::All,
             environment,
             (machine, state, state.return_type),
         ) else {
@@ -132,108 +155,32 @@ impl StructuralPrefixVisitor for Bounds {
         };
         self.proven &= !entries.is_empty();
         for entry in entries {
-            let Some(collection) = entry.arguments.first() else {
+            if super::struct_trace() {
+                eprintln!(
+                    "STRUCT collection-operands machine={} values={:?}",
+                    machine.name, entry.arguments
+                );
+            }
+            let Some(collection) = entry.arguments.first().and_then(Option::as_ref) else {
                 self.proven = false;
                 return;
             };
-            let Some(length) = super::structural_terms::observed_collection_measure(
-                program,
-                reference,
-                language_semantics::declaration_selection::CollectionMeasure::Length,
-                || Some(collection.clone()),
-            ) else {
-                self.proven = false;
-                return;
-            };
-            // Selected builtin length is a u64 observation. Preserve that
-            // authenticated carrier at the mathematical-integer boundary,
-            // just as the ordinary expression judgment does for `.len`.
-            let length = if matches!(length.semantic_value(), StructuralTerm::Integer(_)) {
-                length
-            } else {
-                let Some(reference) =
-                    crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
-                        program,
-                        symbols::BuiltinTypeAtom::U64,
-                    )
-                else {
-                    self.proven = false;
-                    return;
-                };
-                StructuralTerm::IntegerEmbedding {
-                    reference,
-                    value: Box::new(length),
-                }
-            };
-            let zero = StructuralTerm::Integer(numerics::bignum::BigInt::zero());
             let mut position = 1;
-            let mut value = |source: ExpressionHandle, default: StructuralTerm| {
-                if !source.is_valid() {
-                    return Some(default);
-                }
-                let value = entry.arguments.get(position)?.clone();
-                position += 1;
-                // An exact observed integer already has mathematical meaning;
-                // anonymous literals need no invented finite carrier handle.
-                if matches!(value.semantic_value(), StructuralTerm::Integer(_)) {
-                    return Some(value);
-                }
-                let reference =
-                    crate::expression_result_type_reference(program, machine, state, source)?;
-                program
-                    .primitive_type_reference(reference)
-                    .filter(|primitive| primitive.is_fixed_integer())?;
-                Some(StructuralTerm::IntegerEmbedding {
-                    reference,
-                    value: Box::new(value),
-                })
-            };
-            let required = if let Some(range) = program.expression_table.range_node(indexed.index) {
-                let (Some(start), Some(mut end)) = (
-                    value(range.start, zero.clone()),
-                    value(range.end, length.clone()),
-                ) else {
-                    self.proven = false;
-                    return;
-                };
-                let authored_end = end.clone();
-                if range.end_inclusive && range.end.is_valid() {
-                    end = StructuralTerm::MathematicalBinary {
-                        operator: BinaryOperator::Add,
-                        left: Box::new(end),
-                        right: Box::new(StructuralTerm::Integer(
-                            numerics::bignum::BigInt::from_i64(1),
-                        )),
-                    };
-                }
-                vec![
-                    (BinaryOperator::GreaterOrEqual, start.clone(), zero.clone()),
-                    (BinaryOperator::GreaterOrEqual, authored_end, zero.clone()),
-                    (BinaryOperator::LessOrEqual, start, end.clone()),
-                    (BinaryOperator::LessOrEqual, end, length),
-                ]
-            } else {
-                let Some(index) = value(indexed.index, zero.clone()) else {
-                    self.proven = false;
-                    return;
-                };
-                vec![
-                    (BinaryOperator::GreaterOrEqual, index.clone(), zero),
-                    (BinaryOperator::Less, index, length),
-                ]
-            };
-            self.proven &= position == entry.arguments.len()
-                && required.into_iter().all(|(operator, left, right)| {
-                    let judgment = entry.judge.judge_observed_predicate(
-                        StructuralTerm::MathematicalBinary {
-                            operator,
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        },
-                        0,
-                    );
-                    matches!(judgment, StructuralJudgment::Proven)
-                });
+            self.proven &= proves_observed_bounds(
+                program,
+                &entry.judge,
+                indexed,
+                reference,
+                collection.clone(),
+                |source| {
+                    let value = entry.arguments.get(position)?.as_ref()?.clone();
+                    position += 1;
+                    Some((
+                        value,
+                        crate::expression_result_type_reference(program, machine, state, source),
+                    ))
+                },
+            ) && position == entry.arguments.len();
         }
     }
 }

@@ -7,7 +7,7 @@ terminates;
 terminates by remaining in 0..=values.len;
 {
     transition remaining > 0 { true -> inspect(values, remaining) false -> (true) }
-    state inspect(values: &[i32], remaining: u64) -> bool
+    machine inspect(values: &[i32], remaining: u64) -> bool
     requires remaining > 0 && remaining <= values.len
     {
         let selected: u64 = remaining - 1;
@@ -24,7 +24,7 @@ terminates;
 terminates by (cursor, values.len) -> Nat::BoundedDistance;
 {
     transition cursor < values.len { true -> inspect(values, cursor) false -> (true) }
-    state inspect(values: &[i32], cursor: u64) -> bool
+    machine inspect(values: &[i32], cursor: u64) -> bool
     requires cursor < values.len
     {
         transition values[cursor] >= 0 && values[cursor] <= 255 {
@@ -44,7 +44,7 @@ ensures valid_values(values) == true && ascending_values(values) == true
         true -> store(values, selected, replacement)
         false -> store(values, selected, replacement)
     }
-    state store(values: &mut [i32], selected: u64, replacement: i32)
+    machine store(values: &mut [i32], selected: u64, replacement: i32)
     requires selected < values.len
     requires valid_values(values) == true && ascending_values(values) == true
     requires replacement >= 0 && replacement <= 255
@@ -63,8 +63,8 @@ machine Main::main(main: &mut Main) crashes Trap {
     replace(&mut main.rows.values[..], 4, 40);
     let observed: i32 = main.rows.values[4];
     transition observed == 40 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

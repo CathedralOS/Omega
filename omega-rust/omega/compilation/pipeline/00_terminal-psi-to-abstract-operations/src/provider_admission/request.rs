@@ -68,6 +68,9 @@ pub struct NativeProviderSettlement<'execution> {
 pub struct NativeCompilerBuiltinSettlement<'execution> {
     pub requirement_identity: &'execution str,
     pub provider_plan: &'execution effects::provider_plan::ProviderPlan,
+    /// Exact contract authenticated by intrinsic classification, before a
+    /// direct leaf's callable identity replaces its selection coordinate.
+    pub semantic_schema: &'execution effects::provider_plan::ServiceSchema,
     pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub settlement: crate::provider_admission::TerminalCompilerBuiltinSettlement,
 }

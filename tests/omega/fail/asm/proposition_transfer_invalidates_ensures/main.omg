@@ -8,6 +8,6 @@ requires ready(subject.ready);
     entry ensures ready(subject.ready):
         jmp done(change(subject))
     }
-    state done(value: u64) {}
+    machine done(value: u64) {}
 }
 machine main() {}

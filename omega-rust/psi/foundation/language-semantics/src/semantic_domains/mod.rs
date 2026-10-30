@@ -9,7 +9,7 @@ use crate::SemanticDomainId;
 /// NAME, minted in declaration order (deterministic because lowering order
 /// is; presentation is excluded from identity per the facets brief).
 /// `NULL`/0 stays "not computed"; ids start at 1.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct SemanticDomainTable {
     names: Vec<String>,
 }
@@ -99,10 +99,10 @@ impl DomainSemanticRole {
 /// Role-keyed semantic contributions of one declared domain.
 ///
 /// Predicate membership is deliberately absent: it lives in
-/// [`DomainPredicateBody`] and the proof-fact lattice. Fixed fields make the
+/// [`DomainPredicatePresence`] and the proof-fact lattice. Fixed fields make the
 /// initial closed vocabulary explicit while allowing a hybrid domain to
 /// contribute independently on each axis.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct DomainSemanticRoles {
     pub denotation_dimension: Option<SemanticDomainId>,
     pub arithmetic_policy: Option<SemanticDomainId>,
@@ -127,7 +127,7 @@ impl DomainSemanticRoles {
 /// still records whether membership arrived through proof, propagation,
 /// transformation, or a receipt; this record answers which authored
 /// relationship was allowed to introduce it in the first place.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum DomainEstablishmentRoute {
     /// An exact ordinary trait requirement authored by `established by`.
     CheckedRequirement {
@@ -191,13 +191,24 @@ impl DomainEstablishmentRoute {
     }
 }
 
+/// Source-independent issuer coordinates retained with checked qualification.
+/// These export identities describe the declaration, not an installed grant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct BoundaryQualificationIssuer {
+    pub requirement_identity: String,
+    pub boundary_path: String,
+    pub boundary_package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    /// Build-only declarations cannot own a Product provider's grant.
+    pub is_product_owner: bool,
+}
+
 /// Why one checked membership fact may qualify its exact runtime subject.
 ///
 /// This is deliberately independent from the fact's program-point origin:
 /// `CallEnsures` says where a fact entered the caller, while this enum says
 /// which semantic route makes that fact trustworthy. `None` is used for
 /// declarations and obligations that do not themselves establish membership.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum QualificationEvidenceOrigin {
     #[default]
     None,

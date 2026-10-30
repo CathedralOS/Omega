@@ -23,6 +23,15 @@ write contract; no caller guard re-establishes it.
 | other_machine | [program](other_machine/main.omg) | [unproved write](other_machine/invalid/main.omg) |
 | target_body | [program](target_body/main.omg) | [unproved write](target_body/invalid/main.omg) |
 
+The match-join place derives both branch inputs from actual external status
+reads, preventing a literal input from erasing the runtime selection. Each branch
+carries the same
+proved code byte 9 and a distinct tag (11 or 13); after the unchanged placed
+write, the program traps if the selected tag differs from that input. Thus an
+inverted or constant branch cannot pass merely because both code fields are 9.
+The reject twin changes only both code fields to 8 and still refuses the write
+contract; the tag check never establishes the code requirement.
+
 The row is pinned under `tests/omega/{pass,fail}/facts/` as
 `installed_entry_storage_through_<place>_{exit,unproved}`. Every positive binds
 all four hosted targets. `entry_ram.txt` explicitly requests initialization for
@@ -49,7 +58,7 @@ No ambient mutable global or hidden receiver enters source. Ordinary lifetime,
 loan, qualification, termination and cleanup checks remain in force.
 
 After normal return, the runtime retires the entry loans and observes the same
-original allocations. The dedicated FD 3 protocol binds the canonical artifact,
+original allocations. The private observation protocol (FD 3 on Unix; a process-bound named pipe on Windows) binds the canonical artifact,
 placement seal, occurrence and complete byte count; guest stdout/stderr are not
 this evidence. A partial write, wrong header, missing/extra frame or absent
 normal return cannot pass. The public CLI compares actual native and Terminal
@@ -64,7 +73,7 @@ allocation from the checked recipe and observes the original after execution.
 Provider settlement, layout geometry and ABI planning retain source/physical
 coordinates and each pointer's exact record geometry. Native realization charges
 the callee's complete WCSU to a disjoint stack partition. ISA selection and final
-Mach-O/ELF emission establish initialization before lending and observation after
+Mach-O/ELF/PE emission establish initialization before lending and observation after
 return. A separate instruction reader reconstructs the final pointer addresses,
 argument registers, exact semantic call, stack switch/restore, full writes and
 loader continuation, and the final image header must select that exact adapter.
@@ -85,8 +94,25 @@ repaired macOS bridge executed the root, all nine places and two-occurrence
 control with native/Terminal exit 0 and exact original-backing observations;
 all twins and storage controls refused their own obligations. Final producer-bound
 qualification records retain actual sources, target and engine observations.
-Linux x86-64 retains its existing physical lender; actual native observations on
-other hosts are unverified. Unsupported native lenders still refuse explicitly.
+Linux x86-64 and Windows x86-64 qualification records execute the row and the
+source-access customer with actual native/Terminal agreement and independent
+original-backing readback. The Windows lender follows the Microsoft ABI,
+keeps platform calls on the original loader stack, and uses a separate checked
+activation stack for the application. Its final PE adapter has an independent
+instruction reader. A process-bound private pipe carries a bounded complete
+observation after normal return; stdout/stderr and child execution are bounded
+separately.
+
+The [stack-argument witness](stack_entry_occurrence/main.omg) lends five distinct
+occurrences, crossing the first Windows stack-argument boundary after four
+register arguments. Only occurrence four changes its transmit byte to 9.
+Linux ARM64 uses the same exact-allocation lifecycle and AAPCS64 X0–X7 pointer
+placement, with Linux write and exit-group syscalls and an independent final-byte
+reader. Qualification records distinguish named QEMU/PRoot execution on Linux
+x86-64 from physical ARM hardware execution. Fresh macOS execution and physical
+Linux ARM64 execution remain unverified. Unsupported native placements still
+refuse explicitly. This is private hosted RAM, not a device-provider or Atomic
+establishment claim.
 
 The companion [free local-state row](../free_entry_local_state/README.md) proves
 ordinary local ownership and executable cleanup without supplied parameters.

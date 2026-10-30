@@ -1,4 +1,5 @@
-use super::{PackagePolicyCallingPlan, PackagePolicyNativeParameterOrigin, strictly_sorted};
+use super::{PackagePolicyCallingPlan, PackagePolicyNativeParameterOrigin};
+use crate::record::validation::{ordered, ordered_by};
 use crate::record::{
     PackagePolicyCallbackDestination as Destination, PackagePolicyTypeParameterKind,
     PackageReviewBoundaryShapeClass,
@@ -15,16 +16,12 @@ pub(super) fn validate(policy: &PackagePolicyCallingPlan) -> Result<(), &'static
     {
         return Err("calling callback catalog exceeds normalized capacity");
     }
-    if !strictly_sorted(&callbacks.demands)
-        || !strictly_sorted(&callbacks.materializations)
-        || !strictly_sorted(&callbacks.layouts)
-        || callbacks
-            .binders
-            .windows(2)
-            .any(|pair| pair[0].static_machine_ordinal >= pair[1].static_machine_ordinal)
-    {
-        return Err("calling callback catalogs are not canonical");
-    }
+    ordered(&callbacks.demands)?;
+    ordered(&callbacks.materializations)?;
+    ordered(&callbacks.layouts)?;
+    ordered_by(&callbacks.binders, |a, b| {
+        a.static_machine_ordinal.cmp(&b.static_machine_ordinal)
+    })?;
     for binder in &callbacks.binders {
         binder.parameter.validate_resolved()?;
         binder.requirement.validate_resolved()?;

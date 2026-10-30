@@ -89,12 +89,8 @@ pub fn time_host_permission_rows(
 pub(crate) fn time_host_mechanism_row(
     mechanism: TerminalMechanismIdentity,
     method: &ServiceMethod,
-) -> Result<TerminalAuthorityPolicyRow, UnsettledTimeHostRequirement> {
-    if !settled_time_host_cohort(&method.name) {
-        return Err(UnsettledTimeHostRequirement::UnknownRequirement);
-    }
-    Ok(TerminalAuthorityPolicyRow::new(
-        mechanism,
-        TerminalAuthorityDisposition::from_classes([]),
-    ))
+) -> Option<TerminalAuthorityPolicyRow> {
+    settled_time_host_cohort(&method.name).then(|| {
+        TerminalAuthorityPolicyRow::new(mechanism, TerminalAuthorityDisposition::from_classes([]))
+    })
 }

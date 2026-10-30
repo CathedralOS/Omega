@@ -1,0 +1,8 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "executable domain test",
+    "expects subject carrier"
+  ]
+}

@@ -23,7 +23,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.j = 2;
     main.k = 3;
     transition main.j <= main.rows && main.k <= main.cols { true -> put(main, main.j, main.k) _ -> bad(main) }
-    state put(main: &mut Main, y: u32, x: u32)
+    machine put(main: &mut Main, y: u32, x: u32)
     requires y <= main.rows && x <= main.cols
     {
         // The RHS must be genuinely runtime: a static-folding value lowers
@@ -34,7 +34,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.out = main.cells[11] as i32;
         Console::exit_process(main.out);
     }
-    state bad(main: &mut Main) { Console::exit_process(9); }
+    machine bad(main: &mut Main) { Console::exit_process(9); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

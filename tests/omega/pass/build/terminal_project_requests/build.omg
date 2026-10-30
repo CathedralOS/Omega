@@ -1,0 +1,26 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "terminal_project_requests");
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}
+
+// Build project requests are effects of the executed branch, including helpers.
+machine project_name() -> &[u8] { "computed_project" }
+
+machine selected_dependency(builder: &mut Build) {
+    Build::depend_as(builder, "selected", Source::Path { location: "selected_source" });
+}
+
+machine unselected_dependency(builder: &mut Build) {
+    Build::depend_as(builder, "unselected", Source::Path { location: "unselected_source" });
+}
+
+machine requests(builder: &mut Build) {
+    Build::application(builder, project_name());
+    transition true {
+        true -> selected_dependency(builder)
+        false -> unselected_dependency(builder)
+    }
+}

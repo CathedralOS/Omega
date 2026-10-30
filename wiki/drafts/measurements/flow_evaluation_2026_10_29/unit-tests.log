@@ -1,0 +1,7 @@
+    Finished `test` profile [optimized] target(s) in 0.20s
+────────────
+ Nextest run ID f12b844e-a625-4c1a-a9fc-95cc4e5ca2b4 with nextest profile: default
+    Starting 1 test across 1 binary
+        PASS [   0.030s] (1/1) phase-profile tests::rows_accumulate_by_name
+────────────
+     Summary [   0.030s] 1 test run: 1 passed, 0 skipped

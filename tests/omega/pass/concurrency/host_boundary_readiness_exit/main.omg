@@ -1,0 +1,95 @@
+// Expected exit: 0
+// A checked suspending call retains its argument and continuation until ready.
+public boundary trait Readiness {
+    machine wait(value: i32) -> i32 reaches suspends;
+    machine observe(value: i32) reaches;
+    machine replace(value: &mut i32) reaches suspends;
+}
+public Immediate satisfies Readiness {
+    machine wait(value: i32) -> i32 { value }
+    machine observe(value: i32) {}
+    machine replace(value: &mut i32) { value = 42; }
+}
+
+public boundary trait ProviderGate {
+    machine wait(value: i32) -> i32 reaches suspends;
+}
+public OpenGate satisfies ProviderGate {
+    machine wait(value: i32) -> i32 { value }
+}
+
+// The interpreter installs the selected Readiness::wait component while this
+// distinct, checked host crossing retains the original caller continuation.
+machine component_entry() reaches Readiness ProviderGate suspends; {
+    Readiness::observe(1);
+    let ignored: i32 = suspend ProviderGate::wait(0);
+    let result: i32 = suspend await_value(42);
+    Readiness::observe(result);
+}
+
+machine component_premature_entry() reaches Readiness suspends; {
+    let result: i32 = suspend await_value(42);
+    Readiness::observe(result);
+}
+
+machine await_value(value: i32) -> i32 reaches Readiness suspends; {
+    suspend Readiness::wait(value)
+}
+
+machine main() reaches Readiness crashes Trap {
+    Readiness::observe(1);
+    let retained: i32 = 17;
+    let observed: i32 = suspend await_value(42);
+    transition retained == 17 && observed == 42 {
+        true -> finished(observed)
+        _ -> wrong()
+    }
+    machine finished(observed: i32) reaches Readiness {
+        Readiness::observe(observed);
+    }
+    machine wrong() crashes Trap { crash Trap; }
+}
+
+// The host control attempts to park this non-suspending call. It must refuse
+// before invoking observe, and a retry must retain the same failure.
+machine synchronous_entry() reaches Readiness {
+    Readiness::observe(9);
+}
+
+machine storage_entry() reaches Readiness crashes Trap {
+    Readiness::observe(1);
+    let mut held: i32 = 7;
+    suspend Readiness::replace(&mut held);
+    transition held == 42 {
+        true -> finished(held)
+        _ -> wrong()
+    }
+    machine finished(held: i32) reaches Readiness { Readiness::observe(held); }
+    machine wrong() crashes Trap { crash Trap; }
+}
+
+// The same host write now crosses an incoming loan and two incomplete calls.
+machine replace_incoming(value: &mut i32) reaches Readiness suspends; {
+    initialize_incoming(value);
+    suspend Readiness::replace(value);
+}
+
+machine initialize_incoming(value: &mut i32) { value = 7; }
+
+machine incoming_storage_entry() reaches Readiness crashes Trap {
+    Readiness::observe(1);
+    let mut held: i32 = 7;
+    suspend replace_incoming(&mut held);
+    transition held == 42 {
+        true -> finished(held)
+        _ -> wrong()
+    }
+    machine finished(held: i32) reaches Readiness { Readiness::observe(held); }
+    machine wrong() crashes Trap { crash Trap; }
+}
+
+machine entry_start() reaches Readiness crashes Trap {
+    suspend main();
+    suspend storage_entry();
+    suspend incoming_storage_entry();
+}

@@ -21,20 +21,20 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> second(start)
     }
 
-    state first(start: u64) {
+    machine first(start: u64) {
         let mut opening: Score;
         opening.value = start as u64 in Wrapping;
         transition { _ -> settle(&mut opening, 71) }
     }
 
-    state second(start: u64) {
+    machine second(start: u64) {
         let mut closing: Score;
         closing.value = start as u64 in Wrapping;
         closing.value = closing.value + 1;
         transition { _ -> settle(&mut closing, 70) }
     }
 
-    state settle(score: &mut Score, code: i32) {
+    machine settle(score: &mut Score, code: i32) {
         score.bonus = score.value + 66;
         transition score.bonus == 70 {
             true -> refused(code)
@@ -42,7 +42,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state refused(code: i32) {
+    machine refused(code: i32) {
         Console::exit_process(code);
     }
 }

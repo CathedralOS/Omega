@@ -11,7 +11,7 @@ requires bag.items.len <= capacity;
 terminates by bag.items -> Slice::Length in 0..=capacity;
 -> u64 {
     transition { _ -> step(bag, capacity) }
-    state step(current: Bag, bound: u64) {
+    machine step(current: Bag, bound: u64) -> u64 {
         transition current.items.len > 0 {
             true -> step(Bag { items: current.items[1..] }, bound)
             false -> 0
@@ -29,7 +29,7 @@ machine main() crashes Trap {
         true -> evaluate(bag, capacity)
         false -> bad()
     }
-    state evaluate(current: Bag, bound: u64)
+    machine evaluate(current: Bag, bound: u64)
     requires current.items.len <= bound;
     {
         let remaining: u64 = walk(current, bound);
@@ -38,6 +38,6 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

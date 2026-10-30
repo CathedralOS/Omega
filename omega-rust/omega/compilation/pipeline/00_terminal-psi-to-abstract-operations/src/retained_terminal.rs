@@ -2,23 +2,25 @@
 //! match it occurrence for occurrence - every boundary demand, callback and
 //! nearest-FMA site - before native realization is allowed to begin.
 
+mod codec;
+pub use codec::{recover_native_derivation_inputs, retain_native_derivation_inputs};
+
 mod component_inputs;
 pub use component_inputs::{
     AdmittedNativeComponentCall, ComponentExportInput, ComponentNativeInputs,
+    RetainedComponentNativeInputs,
 };
 
 mod native_providers;
 mod proposal;
 
-pub use proposal::{
-    SelectedFamilyRealizationSource, TerminalNativeProposalRequest,
-    project_terminal_native_realization_proposal,
-};
+pub use proposal::{TerminalNativeProposalRequest, project_terminal_native_realization_proposal};
 
-pub use backend_plan::TerminalTargetProviderProposal;
+pub use backend_plan::{SelectedFamilyRealizationSource, TerminalTargetProviderProposal};
 pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
 pub use native_providers::{
-    PreparedNativeExecution, PreparedRetainedNativeProviders, RetainedNativeProviderInputs,
+    PreparedNativeExecution, PreparedNativeWork, PreparedRetainedNativeProviders,
+    RetainedNativeProviderInputs,
 };
 
 pub use crate::provider_admission::TerminalCompilerBuiltinProposal;
@@ -39,6 +41,8 @@ pub struct TerminalNativeProviders {
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     /// Original selected-plan order; direct leaves join only at execution.
     pub intrinsic_executions: Vec<Vec<Option<effects::CompilerIntrinsicExecutionIdentity>>>,
+    /// Exact selected external declarations in the same original plan/row order.
+    pub numeric_realizations: Vec<Vec<Option<String>>>,
     /// Build-admitted AVX+FMA3 provider, joined to x86 FMA demand by planning.
     pub x86_scalar_fma: Option<target::AdmittedX86ScalarFmaProvider>,
 }
@@ -102,7 +106,6 @@ impl TerminalNativeRealizationProposal {
     pub fn bind_physical_adapter(
         &mut self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
-        machine: semantic_vocabulary::MachineId,
     ) -> Result<(), &'static str> {
         let application = self
             .program_entry
@@ -112,7 +115,6 @@ impl TerminalNativeRealizationProposal {
             artifact,
             application,
             &self.providers.checked_adapters,
-            machine,
         )?;
         self.program_entry.physical_adapter = Some(physical);
         Ok(())
@@ -262,6 +264,10 @@ impl RetainedTerminalArtifact {
     }
 
     pub fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
+        &self.artifact
+    }
+
+    pub fn shared_artifact(&self) -> &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact> {
         &self.artifact
     }
 

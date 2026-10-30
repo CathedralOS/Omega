@@ -12,6 +12,7 @@
 //! `component_eras/` owns era ledgers and progress evidence.
 //! These are realization records, not the source language's effect analysis.
 
+pub mod external_providers;
 mod fnv1a;
 mod provider_evidence;
 pub mod provider_grants;
@@ -19,7 +20,7 @@ pub mod provider_grants;
 pub use provider_evidence::executable_scopes::behavior_exclusions::{
     AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, BehaviorExclusionReport,
     BehaviorExclusionVerdict, BehaviorExclusions, authored_behavior_exclusion_set_in,
-    establish_behavior_exclusions,
+    establish_behavior_exclusions, resolve_authored_behavior_exclusion,
 };
 
 pub(crate) use provider_evidence::SelectedProviderClosureDigest;
@@ -42,10 +43,7 @@ pub use provider_evidence::component_eras::component_era_entry_ledger::{
     EraEntryError, EraQuiescenceError, EraRetirementError,
 };
 pub(crate) use provider_evidence::executable_scopes::behavior_exclusions::BehaviorExclusion;
-pub(crate) use provider_evidence::executable_scopes::executable_tcb_manifest::{
-    ContainmentGuarantee, ExecutionScope, OpaqueExecutableAdmissionCandidate,
-    OpaqueInProcessBinding, ValidatedOpaqueExecutableAdmission,
-};
+pub(crate) use provider_evidence::executable_scopes::executable_tcb_manifest::ExecutionScope;
 pub use provider_evidence::providers::foreign_locator::{
     ForeignLocatorCandidate, ForeignLocatorIdentityDigest, ForeignLocatorValidationError,
     NormalizedForeignLocator, normalize_foreign_locator,
@@ -53,8 +51,8 @@ pub use provider_evidence::providers::foreign_locator::{
 pub use provider_evidence::providers::provider_plan;
 pub use provider_evidence::{
     AssumedBindingContractSelection, InstallationReachResolution,
-    SelectedExternalRequirementApplication, SelectedProviderPlanFacts,
-    SelectedRequirementSpecialization, SelectedTargetFamilyRealization,
+    SelectedExternalRequirementApplication, SelectedProviderPlanCandidate,
+    SelectedProviderPlanFacts, SelectedRequirementSpecialization, SelectedTargetFamilyRealization,
 };
 
 #[cfg(test)]

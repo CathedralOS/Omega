@@ -7,11 +7,11 @@ requires outer < windows.len && other < windows.len {
         false -> done()
     }
     // The incoming guard measured the old selector, not this new binding.
-    state store(windows: &mut [Window], outer: u64, inner: u64)
+    machine store(windows: &mut [Window], outer: u64, inner: u64)
     requires outer < windows.len {
         windows[outer].values[inner] = 17;
     }
-    state done() {}
+    machine done() {}
 }
 
 machine main() {}

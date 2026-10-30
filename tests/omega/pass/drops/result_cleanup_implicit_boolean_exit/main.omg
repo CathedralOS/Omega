@@ -12,6 +12,6 @@ machine main() crashes Trap {
     let mut count: u64 = 0;
     let answer: u64 = read(&make_token(&mut count));
     transition answer == 7 && count == 1 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -18,18 +18,18 @@ public machine initialize(pedigree: &Pedigree, result: &mut Inference) {
     result.limit = 1;
     result.denominator = 1;
     transition { _ -> size(pedigree, result, 0) }
-    state size(pedigree: &Pedigree, result: &mut Inference, person: i32 in Wrapping) {
+    machine size(pedigree: &Pedigree, result: &mut Inference, person: i32 in Wrapping) {
         transition person < pedigree.count {
             true -> grow(pedigree, result, person)
             _ -> done()
         }
     }
-    state grow(pedigree: &Pedigree, result: &mut Inference, person: i32 in Wrapping) {
+    machine grow(pedigree: &Pedigree, result: &mut Inference, person: i32 in Wrapping) {
         result.limit = result.limit * 3;
         result.denominator = result.denominator * 4;
         transition { _ -> size(pedigree, result, person + 1) }
     }
-    state done() { }
+    machine done() { }
 }
 
 public machine enumerate(pedigree: &Pedigree, result: &mut Inference) {
@@ -37,32 +37,32 @@ public machine enumerate(pedigree: &Pedigree, result: &mut Inference) {
     result.mass = 0;
     result.marginals = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
     transition { _ -> candidate(pedigree, result, 0) }
-    state candidate(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping) {
+    machine candidate(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping) {
         transition code < result.limit {
             true -> decode(pedigree, result, code, code, 0)
             _ -> done()
         }
     }
-    state decode(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
+    machine decode(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
                  remaining: i32 in Wrapping, person: i32 in Wrapping) {
         transition person >= 0 && person < pedigree.count && person < 6 {
             true -> digit(pedigree, result, code, remaining, person)
             _ -> weigh(pedigree, result, code, 0, 1)
         }
     }
-    state digit(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
+    machine digit(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
                 remaining: i32 in Wrapping, person: i32 in Wrapping) {
         result.genotypes[person] = (remaining % 3) as i32;
         transition { _ -> decode(pedigree, result, code, remaining / 3, person + 1) }
     }
-    state weigh(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
+    machine weigh(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
                 person: i32 in Wrapping, weight: i32 in Wrapping) {
         transition person >= 0 && person < pedigree.count && person < 6 {
             true -> observation(pedigree, result, code, person, weight)
             _ -> accept(pedigree, result, code, weight)
         }
     }
-    state observation(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
+    machine observation(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
                       person: i32 in Wrapping, weight: i32 in Wrapping) {
         let genotype: i32 in Wrapping = result.genotypes[person] as i32 in Wrapping;
         let observed: i32 in Wrapping = pedigree.observed[person] as i32 in Wrapping;
@@ -73,7 +73,7 @@ public machine enumerate(pedigree: &Pedigree, result: &mut Inference) {
             _ -> candidate(pedigree, result, code + 1)
         }
     }
-    state parent(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
+    machine parent(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
                  person: i32 in Wrapping, weight: i32 in Wrapping, genotype: i32 in Wrapping) {
         let father: i32 in Wrapping = pedigree.father[person] as i32 in Wrapping;
         let mother: i32 in Wrapping = pedigree.mother[person] as i32 in Wrapping;
@@ -82,12 +82,12 @@ public machine enumerate(pedigree: &Pedigree, result: &mut Inference) {
             _ -> ancestry(pedigree, result, code, person, weight, genotype, father - 1, mother - 1)
         }
     }
-    state founder(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
+    machine founder(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
                   person: i32 in Wrapping, weight: i32 in Wrapping, genotype: i32 in Wrapping) {
         let factor: i32 in Wrapping = founder_weight(genotype);
         transition { _ -> weigh(pedigree, result, code, person + 1, weight * factor) }
     }
-    state ancestry(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
+    machine ancestry(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
                    person: i32 in Wrapping, weight: i32 in Wrapping, genotype: i32 in Wrapping,
                    father: i32 in Wrapping, mother: i32 in Wrapping) {
         transition father >= 0 && father < 6 && mother >= 0 && mother < 6 {
@@ -95,7 +95,7 @@ public machine enumerate(pedigree: &Pedigree, result: &mut Inference) {
             _ -> done()
         }
     }
-    state child(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
+    machine child(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
                 person: i32 in Wrapping, weight: i32 in Wrapping, genotype: i32 in Wrapping,
                 father: i32 in Wrapping, mother: i32 in Wrapping) {
         let paternal: i32 in Wrapping = result.genotypes[father] as i32 in Wrapping;
@@ -106,19 +106,19 @@ public machine enumerate(pedigree: &Pedigree, result: &mut Inference) {
             _ -> candidate(pedigree, result, code + 1)
         }
     }
-    state accept(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping, weight: i32 in Wrapping) {
+    machine accept(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping, weight: i32 in Wrapping) {
         result.solutions = result.solutions + 1;
         result.mass = result.mass + weight;
         transition { _ -> marginal(pedigree, result, code, weight, 0) }
     }
-    state marginal(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
+    machine marginal(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
                    weight: i32 in Wrapping, person: i32 in Wrapping) {
         transition person >= 0 && person < pedigree.count && person < 6 {
             true -> slot(pedigree, result, code, weight, person)
             _ -> candidate(pedigree, result, code + 1)
         }
     }
-    state slot(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
+    machine slot(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
                weight: i32 in Wrapping, person: i32 in Wrapping) {
         let genotype: i32 in Wrapping = result.genotypes[person] as i32 in Wrapping;
         let position: i32 in Wrapping = person * 3 + genotype;
@@ -127,13 +127,13 @@ public machine enumerate(pedigree: &Pedigree, result: &mut Inference) {
             _ -> done()
         }
     }
-    state accumulate(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
+    machine accumulate(pedigree: &Pedigree, result: &mut Inference, code: i32 in Wrapping,
                      weight: i32 in Wrapping, person: i32 in Wrapping, position: i32 in Wrapping) {
         let previous: i32 in Wrapping = result.marginals[position] as i32 in Wrapping;
         result.marginals[position] = (previous + weight) as i32;
         transition { _ -> marginal(pedigree, result, code, weight, person + 1) }
     }
-    state done() { }
+    machine done() { }
 }
 
 machine genotype_bit(genotype: i32 in Wrapping) -> i32 in Wrapping {
@@ -147,13 +147,13 @@ machine founder_weight(genotype: i32 in Wrapping) -> i32 in Wrapping {
 // witness. Removing constraints cannot destroy an assignment, so one pass suffices.
 public machine contradiction(pedigree: &Pedigree, result: &mut Inference) {
     transition { _ -> attempt(pedigree, result, 0) }
-    state attempt(pedigree: &Pedigree, result: &mut Inference, person: i32 in Wrapping) {
+    machine attempt(pedigree: &Pedigree, result: &mut Inference, person: i32 in Wrapping) {
         transition person >= 0 && person < pedigree.count && person < 6 {
             true -> remove(pedigree, result, person)
             _ -> finish(pedigree, result)
         }
     }
-    state remove(pedigree: &Pedigree, result: &mut Inference, person: i32 in Wrapping) {
+    machine remove(pedigree: &Pedigree, result: &mut Inference, person: i32 in Wrapping) {
         result.active[person] = 0;
         enumerate(pedigree, result);
         transition result.mass == 0 {
@@ -161,9 +161,9 @@ public machine contradiction(pedigree: &Pedigree, result: &mut Inference) {
             _ -> restore(pedigree, result, person)
         }
     }
-    state restore(pedigree: &Pedigree, result: &mut Inference, person: i32 in Wrapping) {
+    machine restore(pedigree: &Pedigree, result: &mut Inference, person: i32 in Wrapping) {
         result.active[person] = 1;
         transition { _ -> attempt(pedigree, result, person + 1) }
     }
-    state finish(pedigree: &Pedigree, result: &mut Inference) { enumerate(pedigree, result); }
+    machine finish(pedigree: &Pedigree, result: &mut Inference) { enumerate(pedigree, result); }
 }

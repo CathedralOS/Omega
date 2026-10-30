@@ -18,7 +18,6 @@ use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
-use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 use super::receiver::expression_type_reference_for_origin;
@@ -56,59 +55,15 @@ fn finalize_pending_use(
     operator_use: &CheckedOperatorUseFact,
     candidates: &[CheckedOperatorCandidateFact],
 ) -> (CheckedOperatorResolutionStatus, SymbolHandle) {
-    let admissible: Vec<&CheckedOperatorCandidateFact> = candidates
+    let identities = candidates
         .iter()
-        .filter(|candidate| candidate.is_domain_owned())
-        .filter(|candidate| domain_is_active_at_use(program, operator_use, candidate.domain_symbol))
-        .collect();
-
-    match admissible.as_slice() {
-        [winner] => (
-            CheckedOperatorResolutionStatus::Resolved,
-            winner.operator_symbol,
-        ),
-        [] => inadmissible_domain_fallback(program, operator_use, candidates),
-        // Competing active domain meanings for one expression are never ranked.
-        _ => (
-            CheckedOperatorResolutionStatus::Ambiguous,
-            SymbolHandle::invalid(),
-        ),
-    }
-}
-
-/// No domain candidate was admissible: the ordinary meaning stays selected
-/// when one exists (chapter 8: declaring a domain operator does not replace
-/// the builtin). A unique root spelled candidate is that surface; otherwise a
-/// primitive left operand keeps its builtin operation. A non-primitive operand
-/// with only inadmissible domain meanings has no meaning at all.
-fn inadmissible_domain_fallback(
-    program: &dyn crate::CheckingInput,
-    operator_use: &CheckedOperatorUseFact,
-    candidates: &[CheckedOperatorCandidateFact],
-) -> (CheckedOperatorResolutionStatus, SymbolHandle) {
-    let roots: Vec<&CheckedOperatorCandidateFact> = candidates
-        .iter()
-        .filter(|candidate| !candidate.is_domain_owned())
-        .collect();
-
-    match roots.as_slice() {
-        [root] => (
-            CheckedOperatorResolutionStatus::Resolved,
-            root.operator_symbol,
-        ),
-        [] if builtin_meaning_exists(program, operator_use) => (
-            CheckedOperatorResolutionStatus::BuiltinFallback,
-            SymbolHandle::invalid(),
-        ),
-        [] => (
-            CheckedOperatorResolutionStatus::Inadmissible,
-            SymbolHandle::invalid(),
-        ),
-        _ => (
-            CheckedOperatorResolutionStatus::Ambiguous,
-            SymbolHandle::invalid(),
-        ),
-    }
+        .map(|candidate| (candidate.operator_symbol, candidate.domain_symbol))
+        .collect::<Vec<_>>();
+    select_scoped_candidates(
+        &identities,
+        |domain| domain_is_active_at_use(program, operator_use, domain),
+        builtin_meaning_exists(program, operator_use),
+    )
 }
 
 /// Whether any operand binding statically selects `domain_symbol`'s semantic
@@ -231,40 +186,90 @@ fn signature_selects_domain(
     expression: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    let CheckedValueOrigin::StateStatement { state_symbol, .. } = origin else {
+    let facts = super::scoped_applications::occurrence_requires(program, origin);
+    signature_facts_select_domain(program, &facts, expression, domain_symbol)
+}
+
+pub(super) fn signature_facts_select_domain(
+    program: &dyn crate::CheckingInput,
+    facts: &[&ProofFact],
+    expression: ExpressionHandle,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    let Some(binding) = direct_binding_symbol(program, expression) else {
         return false;
     };
-    let Some(binding_symbol) = direct_binding_symbol(program, expression) else {
-        return false;
-    };
-    let binding_name = program.expression_table.display_name(expression);
-    let resolved = program
-        .machine_holding_state(state_symbol)
-        .zip(program.state_by_symbol(state_symbol));
-    resolved
-        .into_iter()
-        .flat_map(|(machine, _)| program.machine_contracts(machine))
-        .chain(
-            resolved
-                .into_iter()
-                .flat_map(|(_, state)| program.state_contracts(state)),
-        )
-        .filter(|contract| contract.kind == SignatureContractKind::Requires)
-        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-        .any(|fact| match fact {
-            ProofFact::Membership(membership) => {
-                membership.domain_symbol == domain_symbol
-                    && (direct_binding_symbol(program, membership.value) == Some(binding_symbol)
-                        || (!binding_name.is_empty()
-                            && program.expression_table.display_name(membership.value)
-                                == binding_name))
-                    && program
-                        .domain_definition(domain_symbol)
-                        .is_some_and(|domain| domain.semantic_roles.denotation_dimension.is_some())
-            }
-            ProofFact::Expression(_) => false,
-            ProofFact::Proposition(_) => false,
-        })
+    facts.iter().any(|fact| matches!(fact, ProofFact::Membership(membership)
+        if membership.domain_symbol == domain_symbol
+            && direct_binding_symbol(program, membership.value) == Some(binding)
+            && program.domain_definition(domain_symbol).is_some_and(|domain| domain.semantic_roles.denotation_dimension.is_some())))
+}
+
+pub(super) fn scoped_mint_selects_domain(
+    program: &dyn crate::CheckingInput,
+    origin: Option<CheckedValueOrigin>,
+    expression: ExpressionHandle,
+    domain: SymbolHandle,
+) -> bool {
+    if let Some(origin) = origin {
+        return expression_mint_selects_domain(program, origin, expression, domain);
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Cast(cast) => cast_selects_domain(program, cast, domain),
+        ExpressionNode::Borrow(borrow) => {
+            scoped_mint_selects_domain(program, None, borrow.target, domain)
+        }
+        ExpressionNode::Atomic(atomic) => {
+            scoped_mint_selects_domain(program, None, atomic.value, domain)
+        }
+        _ => false,
+    }
+}
+
+/// Shared declaration-only arbitration. Callers supply actual lexical domain
+/// activation; this operation never consults flow-established memberships.
+pub(super) fn select_scoped_candidates(
+    candidates: &[(SymbolHandle, SymbolHandle)],
+    active: impl Fn(SymbolHandle) -> bool,
+    builtin: bool,
+) -> (CheckedOperatorResolutionStatus, SymbolHandle) {
+    let admissible = candidates
+        .iter()
+        .filter(|(_, domain)| domain.is_valid() && active(*domain))
+        .collect::<Vec<_>>();
+    match admissible.as_slice() {
+        [selected] => return (CheckedOperatorResolutionStatus::Resolved, selected.0),
+        [] => {}
+        _ => {
+            return (
+                CheckedOperatorResolutionStatus::Ambiguous,
+                SymbolHandle::invalid(),
+            );
+        }
+    }
+    let roots = candidates
+        .iter()
+        .filter(|(_, domain)| !domain.is_valid())
+        .collect::<Vec<_>>();
+    match roots.as_slice() {
+        [selected] => (CheckedOperatorResolutionStatus::Resolved, selected.0),
+        [] if builtin => (
+            CheckedOperatorResolutionStatus::BuiltinFallback,
+            SymbolHandle::invalid(),
+        ),
+        [] => (
+            if candidates.is_empty() {
+                CheckedOperatorResolutionStatus::Missing
+            } else {
+                CheckedOperatorResolutionStatus::Inadmissible
+            },
+            SymbolHandle::invalid(),
+        ),
+        _ => (
+            CheckedOperatorResolutionStatus::Ambiguous,
+            SymbolHandle::invalid(),
+        ),
+    }
 }
 
 fn direct_binding_symbol(
@@ -305,7 +310,7 @@ fn builtin_meaning_exists(
         .is_some_and(|type_reference| type_is_primitive(program, type_reference))
 }
 
-fn type_is_primitive(
+pub(super) fn type_is_primitive(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {

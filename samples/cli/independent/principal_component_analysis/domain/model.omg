@@ -14,82 +14,82 @@ public machine maximum(left: f64, right: f64) -> f64 { match left > right { true
 public machine analyze(a: &mut Analysis) {
  a.status = 0;
  transition { _ -> mean(a, 0, 0, 0.0) }
- state mean(a: &mut Analysis, column: u64 in Wrapping, row: u64 in Wrapping, sum: f64) {
+ machine mean(a: &mut Analysis, column: u64 in Wrapping, row: u64 in Wrapping, sum: f64) {
   transition column < 4 { true -> mean_row(a, column, row, sum) false -> covariance(a, 0, 0, 0, 0.0) }
  }
- state mean_row(a: &mut Analysis, column: u64 in Wrapping, row: u64 in Wrapping, sum: f64) {
+ machine mean_row(a: &mut Analysis, column: u64 in Wrapping, row: u64 in Wrapping, sum: f64) {
   let next: f64 = sum + (a.values[(row * 4 + column) % 64] - a.values[column % 4]) / F64::from_u64(a.rows);
   transition row < a.rows && row < 16 {
    true -> mean(a, column, row + 1, next)
    false -> store_mean(a, column, sum)
   }
  }
- state store_mean(a: &mut Analysis, column: u64 in Wrapping, sum: f64) {
+ machine store_mean(a: &mut Analysis, column: u64 in Wrapping, sum: f64) {
   a.means[column % 4] = sum + a.values[column % 4];
   transition { _ -> mean(a, column + 1, 0, 0.0) }
  }
- state covariance(a: &mut Analysis, left: u64 in Wrapping, right: u64 in Wrapping, row: u64 in Wrapping, sum: f64) {
+ machine covariance(a: &mut Analysis, left: u64 in Wrapping, right: u64 in Wrapping, row: u64 in Wrapping, sum: f64) {
   transition { left >= 4 -> scale_column(a, 0) right >= 4 -> covariance(a, left + 1, 0, 0, 0.0) row < a.rows && row < 16 -> product(a, left, right, row, sum) _ -> store_covariance(a, left, right, sum) }
  }
- state product(a: &mut Analysis, left: u64 in Wrapping, right: u64 in Wrapping, row: u64 in Wrapping, sum: f64) {
+ machine product(a: &mut Analysis, left: u64 in Wrapping, right: u64 in Wrapping, row: u64 in Wrapping, sum: f64) {
   let x: f64 = a.values[(row * 4 + left) % 64] - a.means[left % 4];
   let y: f64 = a.values[(row * 4 + right) % 64] - a.means[right % 4];
   let next: f64 = sum + x * y / (F64::from_u64(a.rows) - 1.0);
   transition { _ -> covariance(a, left, right, row + 1, next) }
  }
- state store_covariance(a: &mut Analysis, left: u64 in Wrapping, right: u64 in Wrapping, sum: f64) {
+ machine store_covariance(a: &mut Analysis, left: u64 in Wrapping, right: u64 in Wrapping, sum: f64) {
   a.covariance[(left * 4 + right) % 16] = sum;
   transition sum - sum == 0.0 { true -> covariance(a, left, right + 1, 0, 0.0) false -> numerical(a) }
  }
- state scale_column(a: &mut Analysis, column: u64 in Wrapping) {
+ machine scale_column(a: &mut Analysis, column: u64 in Wrapping) {
   transition column < 4 { true -> select_scale(a, column) false -> matrix(a, 0) }
  }
- state select_scale(a: &mut Analysis, column: u64 in Wrapping) {
+ machine select_scale(a: &mut Analysis, column: u64 in Wrapping) {
   transition a.mode == 1 && column < a.features { true -> correlation_scale(a, column) false -> unit_scale(a, column) }
  }
- state correlation_scale(a: &mut Analysis, column: u64 in Wrapping) {
+ machine correlation_scale(a: &mut Analysis, column: u64 in Wrapping) {
   transition a.covariance[(column * 5) % 16] > 0.0 { true -> nonconstant(a, column) false -> constant(a) }
  }
- state nonconstant(a: &mut Analysis, column: u64 in Wrapping) {
+ machine nonconstant(a: &mut Analysis, column: u64 in Wrapping) {
   a.scales[column % 4] = sqrt_f64(a.covariance[(column * 5) % 16]);
   transition { _ -> scale_column(a, column + 1) }
  }
- state unit_scale(a: &mut Analysis, column: u64 in Wrapping) { a.scales[column % 4] = 1.0; transition { _ -> scale_column(a, column + 1) } }
- state matrix(a: &mut Analysis, index: u64 in Wrapping) {
+ machine unit_scale(a: &mut Analysis, column: u64 in Wrapping) { a.scales[column % 4] = 1.0; transition { _ -> scale_column(a, column + 1) } }
+ machine matrix(a: &mut Analysis, index: u64 in Wrapping) {
   transition index < 16 { true -> matrix_element(a, index) false -> center(a, 0) }
  }
- state matrix_element(a: &mut Analysis, index: u64 in Wrapping) {
+ machine matrix_element(a: &mut Analysis, index: u64 in Wrapping) {
   let value: f64 = a.covariance[index % 16] / a.scales[(index / 4) % 4] / a.scales[index % 4];
   a.matrix[index % 16] = value; a.work[index % 16] = value;
   transition index / 4 == index % 4 { true -> diagonal(a, index) false -> off_diagonal(a, index) }
  }
- state diagonal(a: &mut Analysis, index: u64 in Wrapping) { a.vectors[index % 16] = 1.0; transition { _ -> matrix(a, index + 1) } }
- state off_diagonal(a: &mut Analysis, index: u64 in Wrapping) { a.vectors[index % 16] = 0.0; transition { _ -> matrix(a, index + 1) } }
- state center(a: &mut Analysis, index: u64 in Wrapping) {
+ machine diagonal(a: &mut Analysis, index: u64 in Wrapping) { a.vectors[index % 16] = 1.0; transition { _ -> matrix(a, index + 1) } }
+ machine off_diagonal(a: &mut Analysis, index: u64 in Wrapping) { a.vectors[index % 16] = 0.0; transition { _ -> matrix(a, index + 1) } }
+ machine center(a: &mut Analysis, index: u64 in Wrapping) {
   transition index < 64 { true -> centered(a, index) false -> sweep(a, 0) }
  }
- state centered(a: &mut Analysis, index: u64 in Wrapping) {
+ machine centered(a: &mut Analysis, index: u64 in Wrapping) {
   a.centered[index % 64] = (a.values[index % 64] - a.means[index % 4]) / a.scales[index % 4];
   transition { _ -> center(a, index + 1) }
  }
- state sweep(a: &mut Analysis, iteration: u64 in Wrapping) {
+ machine sweep(a: &mut Analysis, iteration: u64 in Wrapping) {
   transition iteration < 40 { true -> pair(a, iteration, 0, 1) false -> eigenvalues(a, 0) }
  }
- state pair(a: &mut Analysis, iteration: u64 in Wrapping, left: u64 in Wrapping, right: u64 in Wrapping) {
+ machine pair(a: &mut Analysis, iteration: u64 in Wrapping, left: u64 in Wrapping, right: u64 in Wrapping) {
   transition { left >= 3 -> sweep(a, iteration + 1) right >= 4 -> pair(a, iteration, left + 1, left + 2) _ -> rotation(a, iteration, left, right) }
  }
- state rotation(a: &mut Analysis, iteration: u64 in Wrapping, left: u64 in Wrapping, right: u64 in Wrapping) {
+ machine rotation(a: &mut Analysis, iteration: u64 in Wrapping, left: u64 in Wrapping, right: u64 in Wrapping) {
   let cross: f64 = a.work[(left * 4 + right) % 16];
   transition cross != 0.0 { true -> parameters(a, iteration, left, right, cross) false -> pair(a, iteration, left, right + 1) }
  }
- state parameters(a: &mut Analysis, iteration: u64 in Wrapping, left: u64 in Wrapping, right: u64 in Wrapping, cross: f64) {
+ machine parameters(a: &mut Analysis, iteration: u64 in Wrapping, left: u64 in Wrapping, right: u64 in Wrapping, cross: f64) {
   let difference: f64 = (a.work[(right * 5) % 16] - a.work[(left * 5) % 16]) / 2.0;
   let norm: f64 = maximum(absolute(difference), absolute(cross));
   let d: f64 = difference / norm; let b: f64 = cross / norm;
   let length: f64 = sqrt_f64(d * d + b * b);
   transition d >= 0.0 { true -> tangent(a, iteration, left, right, b / (d + length)) false -> tangent(a, iteration, left, right, b / (d - length)) }
  }
- state tangent(a: &mut Analysis, iteration: u64 in Wrapping, left: u64 in Wrapping, right: u64 in Wrapping, tangent: f64) {
+ machine tangent(a: &mut Analysis, iteration: u64 in Wrapping, left: u64 in Wrapping, right: u64 in Wrapping, tangent: f64) {
   let cosine: f64 = 1.0 / sqrt_f64(1.0 + tangent * tangent); let sine: f64 = tangent * cosine;
   let cross: f64 = a.work[(left * 4 + right) % 16];
   a.work[(left * 5) % 16] = a.work[(left * 5) % 16] - tangent * cross;
@@ -97,67 +97,67 @@ public machine analyze(a: &mut Analysis) {
   a.work[(left * 4 + right) % 16] = 0.0; a.work[(right * 4 + left) % 16] = 0.0;
   transition { _ -> rotate_row(a, iteration, left, right, cosine, sine, 0) }
  }
- state rotate_row(a: &mut Analysis, iteration: u64 in Wrapping, left: u64 in Wrapping, right: u64 in Wrapping, cosine: f64, sine: f64, row: u64 in Wrapping) {
+ machine rotate_row(a: &mut Analysis, iteration: u64 in Wrapping, left: u64 in Wrapping, right: u64 in Wrapping, cosine: f64, sine: f64, row: u64 in Wrapping) {
   transition row < 4 { true -> rotate_vector(a, iteration, left, right, cosine, sine, row) false -> pair(a, iteration, left, right + 1) }
  }
- state rotate_vector(a: &mut Analysis, iteration: u64 in Wrapping, left: u64 in Wrapping, right: u64 in Wrapping, cosine: f64, sine: f64, row: u64 in Wrapping) {
+ machine rotate_vector(a: &mut Analysis, iteration: u64 in Wrapping, left: u64 in Wrapping, right: u64 in Wrapping, cosine: f64, sine: f64, row: u64 in Wrapping) {
   let x: f64 = a.vectors[(row * 4 + left) % 16]; let y: f64 = a.vectors[(row * 4 + right) % 16];
   a.vectors[(row * 4 + left) % 16] = cosine * x - sine * y;
   a.vectors[(row * 4 + right) % 16] = sine * x + cosine * y;
   transition row != left && row != right { true -> rotate_matrix(a, iteration, left, right, cosine, sine, row) false -> rotate_row(a, iteration, left, right, cosine, sine, row + 1) }
  }
- state rotate_matrix(a: &mut Analysis, iteration: u64 in Wrapping, left: u64 in Wrapping, right: u64 in Wrapping, cosine: f64, sine: f64, row: u64 in Wrapping) {
+ machine rotate_matrix(a: &mut Analysis, iteration: u64 in Wrapping, left: u64 in Wrapping, right: u64 in Wrapping, cosine: f64, sine: f64, row: u64 in Wrapping) {
   let x: f64 = a.work[(row * 4 + left) % 16]; let y: f64 = a.work[(row * 4 + right) % 16];
   let first: f64 = cosine * x - sine * y; let second: f64 = sine * x + cosine * y;
   a.work[(row * 4 + left) % 16] = first; a.work[(left * 4 + row) % 16] = first;
   a.work[(row * 4 + right) % 16] = second; a.work[(right * 4 + row) % 16] = second;
   transition { _ -> rotate_row(a, iteration, left, right, cosine, sine, row + 1) }
  }
- state eigenvalues(a: &mut Analysis, index: u64 in Wrapping) {
+ machine eigenvalues(a: &mut Analysis, index: u64 in Wrapping) {
   transition index < 4 { true -> eigenvalue(a, index) false -> sort(a, 0, 1) }
  }
- state eigenvalue(a: &mut Analysis, index: u64 in Wrapping) { a.eigenvalues[index % 4] = maximum(0.0, a.work[(index * 5) % 16]); transition { _ -> eigenvalues(a, index + 1) } }
- state sort(a: &mut Analysis, left: u64 in Wrapping, right: u64 in Wrapping) {
+ machine eigenvalue(a: &mut Analysis, index: u64 in Wrapping) { a.eigenvalues[index % 4] = maximum(0.0, a.work[(index * 5) % 16]); transition { _ -> eigenvalues(a, index + 1) } }
+ machine sort(a: &mut Analysis, left: u64 in Wrapping, right: u64 in Wrapping) {
   transition { left >= 3 -> fractions(a, 0) right >= 4 -> sort(a, left + 1, left + 2) _ -> compare(a, left, right) }
  }
- state compare(a: &mut Analysis, left: u64 in Wrapping, right: u64 in Wrapping) {
+ machine compare(a: &mut Analysis, left: u64 in Wrapping, right: u64 in Wrapping) {
   transition a.eigenvalues[right % 4] > a.eigenvalues[left % 4] { true -> swap(a, left, right) false -> sort(a, left, right + 1) }
  }
- state swap(a: &mut Analysis, left: u64 in Wrapping, right: u64 in Wrapping) {
+ machine swap(a: &mut Analysis, left: u64 in Wrapping, right: u64 in Wrapping) {
   let value: f64 = a.eigenvalues[left % 4]; a.eigenvalues[left % 4] = a.eigenvalues[right % 4]; a.eigenvalues[right % 4] = value;
   transition { _ -> swap_vector(a, left, right, 0) }
  }
- state swap_vector(a: &mut Analysis, left: u64 in Wrapping, right: u64 in Wrapping, row: u64 in Wrapping) {
+ machine swap_vector(a: &mut Analysis, left: u64 in Wrapping, right: u64 in Wrapping, row: u64 in Wrapping) {
   transition row < 4 { true -> swap_element(a, left, right, row) false -> sort(a, left, right + 1) }
  }
- state swap_element(a: &mut Analysis, left: u64 in Wrapping, right: u64 in Wrapping, row: u64 in Wrapping) {
+ machine swap_element(a: &mut Analysis, left: u64 in Wrapping, right: u64 in Wrapping, row: u64 in Wrapping) {
   let value: f64 = a.vectors[(row * 4 + left) % 16]; a.vectors[(row * 4 + left) % 16] = a.vectors[(row * 4 + right) % 16]; a.vectors[(row * 4 + right) % 16] = value;
   transition { _ -> swap_vector(a, left, right, row + 1) }
  }
- state fractions(a: &mut Analysis, index: u64 in Wrapping) {
+ machine fractions(a: &mut Analysis, index: u64 in Wrapping) {
   transition index < 4 { true -> fraction(a, index) false -> scores(a, 0, 0, 0.0) }
  }
- state fraction(a: &mut Analysis, index: u64 in Wrapping) {
+ machine fraction(a: &mut Analysis, index: u64 in Wrapping) {
   let total: f64 = normalized_total(a);
   transition total > 0.0 { true -> nonzero_fraction(a, index, total) false -> zero_fraction(a, index) }
  }
- state nonzero_fraction(a: &mut Analysis, index: u64 in Wrapping, total: f64) { a.explained[index % 4] = (a.eigenvalues[index % 4] / a.eigenvalues[0]) / total; transition { _ -> fractions(a, index + 1) } }
- state zero_fraction(a: &mut Analysis, index: u64 in Wrapping) { a.explained[index % 4] = 0.0; transition { _ -> fractions(a, index + 1) } }
- state scores(a: &mut Analysis, index: u64 in Wrapping, column: u64 in Wrapping, sum: f64) {
+ machine nonzero_fraction(a: &mut Analysis, index: u64 in Wrapping, total: f64) { a.explained[index % 4] = (a.eigenvalues[index % 4] / a.eigenvalues[0]) / total; transition { _ -> fractions(a, index + 1) } }
+ machine zero_fraction(a: &mut Analysis, index: u64 in Wrapping) { a.explained[index % 4] = 0.0; transition { _ -> fractions(a, index + 1) } }
+ machine scores(a: &mut Analysis, index: u64 in Wrapping, column: u64 in Wrapping, sum: f64) {
   let next: f64 = sum + a.centered[((index / 4) * 4 + column) % 64] * a.vectors[(column * 4 + index % 4) % 16];
   transition { index >= 64 -> done() column < 4 -> scores(a, index, column + 1, next) _ -> score(a, index, sum) }
  }
- state score(a: &mut Analysis, index: u64 in Wrapping, sum: f64) { a.scores[index % 64] = sum; transition { _ -> scores(a, index + 1, 0, 0.0) } }
- state constant(a: &mut Analysis) { a.status = 65; }
- state numerical(a: &mut Analysis) { a.status = 66; }
- state done() {}
+ machine score(a: &mut Analysis, index: u64 in Wrapping, sum: f64) { a.scores[index % 64] = sum; transition { _ -> scores(a, index + 1, 0, 0.0) } }
+ machine constant(a: &mut Analysis) { a.status = 65; }
+ machine numerical(a: &mut Analysis) { a.status = 66; }
+ machine done() {}
 }
 
 // Normalize before summing: a finite spectrum can have an unrepresentable trace.
 machine normalized_total(a: &Analysis) -> f64 {
  transition a.eigenvalues[0] > 0.0 { true -> sum(a) false -> zero() }
- state sum(a: &Analysis) -> f64 {
+ machine sum(a: &Analysis) -> f64 {
   1.0 + a.eigenvalues[1] / a.eigenvalues[0] + a.eigenvalues[2] / a.eigenvalues[0] + a.eigenvalues[3] / a.eigenvalues[0]
  }
- state zero() -> f64 { 0.0 }
+ machine zero() -> f64 { 0.0 }
 }

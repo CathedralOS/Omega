@@ -21,6 +21,7 @@
 //! Projections spelled `wcsu` carry the worst-case stack usage (WCSU) that the
 //! storage contract defines.
 
+use super::validate_alignment;
 use crate::fnv1a::Fnv1a;
 use crate::task_plans::identities::commitment_digest;
 
@@ -31,6 +32,9 @@ use crate::{
     TaskStackFrameValidationId,
 };
 use std::collections::{BTreeMap, BTreeSet};
+
+#[cfg(test)]
+mod tests;
 
 /// Untrusted inputs presented for one opaque same-stack contribution.
 ///
@@ -155,11 +159,8 @@ pub fn admit_same_stack_contribution(
             "same-stack admission requirement identity does not match the selected identity".into(),
         ));
     }
-    if candidate.bytes == 0 {
-        return Err(TaskPlanDiagnostic(
-            "same-stack admission has zero WCSU".into(),
-        ));
-    }
+    // A leaf can add no frame bytes. Zero still requires the exact selected
+    // plan, requirement and receipt; it does not mean an absent call edge.
     validate_alignment(candidate.alignment, "same-stack admission")?;
 
     let report_identity =
@@ -310,12 +311,6 @@ pub fn validate_task_stack_frame_summary(
     )?;
     for call in &summary.calls {
         if let StackCallContribution::AdmittedSameStack(contribution) = call {
-            if contribution.bytes() == 0 {
-                return Err(TaskPlanDiagnostic(format!(
-                    "admitted same-stack contribution 0x{:016x} has zero WCSU",
-                    contribution.report_identity().normalized_identity()
-                )));
-            }
             validate_alignment(
                 contribution.alignment(),
                 &format!(
@@ -340,15 +335,6 @@ pub fn validate_task_stack_frame_summary(
     summary.unresolved_calls.sort_unstable();
     summary.unresolved_calls.dedup();
     Ok(ValidatedTaskStackFrameSummary(summary))
-}
-
-fn validate_alignment(alignment: u64, subject: &str) -> Result<(), TaskPlanDiagnostic> {
-    if alignment == 0 || !alignment.is_power_of_two() {
-        return Err(TaskPlanDiagnostic(format!(
-            "{subject} alignment {alignment} is not a nonzero power of two"
-        )));
-    }
-    Ok(())
 }
 
 /// Bind a frame's validated content: its identity, its exact local extent
@@ -468,26 +454,20 @@ impl ComposedTaskStackDemand {
 /// representation.
 ///
 /// The compact composition identity is not used as a substitute for the facts
-/// a stack allocator and activation fingerprint rely on. The projection also
-/// retains the exact root, composed shape, frame-validation set, admitted
-/// contribution set, unresolved-call roster, selected representation, and the
-/// composition's frame evidence — admission-time call-target covering
-/// recomposes from that retained evidence, never from the published shape
-/// alone. A non-empty roster makes the projection partial: the retained
-/// shape is the covered subgraph's demand, not the whole-call-graph WCSU.
+/// a stack allocator and activation fingerprint rely on. The projection retains
+/// the composed demand it projects — its exact root, composed shape,
+/// frame-validation set, admitted contribution set, unresolved-call roster and
+/// frame evidence — and adds only the selected representation, so those
+/// coordinates have one owner rather than a copy kept in step by hand.
+/// Admission-time call-target covering recomposes from that retained demand,
+/// never from the published shape alone. A non-empty roster makes the
+/// projection partial: the retained shape is the covered subgraph's demand,
+/// not the whole-call-graph WCSU.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WcsuStackPlanProjection {
     identity: StackPlanProjectionId,
-    composition: TaskStackCompositionId,
-    root: TaskStackFrameId,
-    bytes: u64,
-    alignment: u64,
-    frame_validations: BTreeSet<TaskStackFrameValidationId>,
-    admitted_contribution_report_identities: BTreeSet<AdmittedStackContributionReportId>,
-    admitted_contribution_commitments: BTreeSet<SameStackContributionCommitment>,
-    unresolved_calls: BTreeSet<UnresolvedCallSite>,
+    demand: ComposedTaskStackDemand,
     representation: StackRepresentationId,
-    evidence: TaskStackCompositionEvidence,
 }
 
 impl WcsuStackPlanProjection {
@@ -496,41 +476,41 @@ impl WcsuStackPlanProjection {
     }
 
     pub const fn composition(&self) -> TaskStackCompositionId {
-        self.composition
+        self.demand.identity()
     }
 
     pub const fn root(&self) -> TaskStackFrameId {
-        self.root
+        self.demand.root()
     }
 
     pub const fn bytes(&self) -> u64 {
-        self.bytes
+        self.demand.bytes()
     }
 
     pub const fn alignment(&self) -> u64 {
-        self.alignment
+        self.demand.alignment()
     }
 
     pub const fn frame_validations(&self) -> &BTreeSet<TaskStackFrameValidationId> {
-        &self.frame_validations
+        self.demand.frame_validations()
     }
 
     pub const fn admitted_contribution_report_identities(
         &self,
     ) -> &BTreeSet<AdmittedStackContributionReportId> {
-        &self.admitted_contribution_report_identities
+        self.demand.admitted_contribution_report_identities()
     }
 
     pub const fn admitted_contribution_commitments(
         &self,
     ) -> &BTreeSet<SameStackContributionCommitment> {
-        &self.admitted_contribution_commitments
+        self.demand.admitted_contribution_commitments()
     }
 
     /// The live calls the projected bound does not cover. Empty means the
     /// projected shape is the exact whole-call-graph WCSU.
     pub const fn unresolved_calls(&self) -> &BTreeSet<UnresolvedCallSite> {
-        &self.unresolved_calls
+        self.demand.unresolved_calls()
     }
 
     pub const fn representation(&self) -> StackRepresentationId {
@@ -539,8 +519,8 @@ impl WcsuStackPlanProjection {
 
     pub const fn stack_plan(&self) -> StackPlan {
         StackPlan {
-            bytes: self.bytes,
-            alignment: self.alignment,
+            bytes: self.demand.bytes(),
+            alignment: self.demand.alignment(),
             representation: self.representation,
         }
     }
@@ -548,14 +528,7 @@ impl WcsuStackPlanProjection {
     pub(crate) fn has_valid_identity(&self) -> bool {
         self.identity
             == StackPlanProjectionId(stack_plan_projection_report_fingerprint(
-                self.composition,
-                self.root,
-                self.bytes,
-                self.alignment,
-                &self.frame_validations,
-                &self.admitted_contribution_report_identities,
-                &self.admitted_contribution_commitments,
-                &self.unresolved_calls,
+                &self.demand,
                 self.representation,
             ))
     }
@@ -569,38 +542,14 @@ pub fn project_wcsu_stack_plan(
     demand: &ComposedTaskStackDemand,
     representation: StackRepresentationId,
 ) -> WcsuStackPlanProjection {
-    let composition = demand.identity;
-    let root = demand.root;
-    let bytes = demand.bytes;
-    let alignment = demand.alignment;
-    let frame_validations = demand.frame_validations.clone();
-    let admitted_contribution_report_identities =
-        demand.admitted_contribution_report_identities.clone();
-    let admitted_contribution_commitments = demand.admitted_contribution_commitments.clone();
-    let unresolved_calls = demand.unresolved_calls.clone();
     let identity = StackPlanProjectionId(stack_plan_projection_report_fingerprint(
-        composition,
-        root,
-        bytes,
-        alignment,
-        &frame_validations,
-        &admitted_contribution_report_identities,
-        &admitted_contribution_commitments,
-        &unresolved_calls,
+        demand,
         representation,
     ));
     WcsuStackPlanProjection {
         identity,
-        composition,
-        root,
-        bytes,
-        alignment,
-        frame_validations,
-        admitted_contribution_report_identities,
-        admitted_contribution_commitments,
-        unresolved_calls,
+        demand: demand.clone(),
         representation,
-        evidence: demand.evidence.clone(),
     }
 }
 
@@ -864,36 +813,32 @@ fn admitted_contribution_commitment(
 }
 
 fn stack_plan_projection_report_fingerprint(
-    composition: TaskStackCompositionId,
-    root: TaskStackFrameId,
-    bytes: u64,
-    alignment: u64,
-    frame_validations: &BTreeSet<TaskStackFrameValidationId>,
-    admitted_contribution_report_identities: &BTreeSet<AdmittedStackContributionReportId>,
-    admitted_contribution_commitments: &BTreeSet<SameStackContributionCommitment>,
-    unresolved_calls: &BTreeSet<UnresolvedCallSite>,
+    demand: &ComposedTaskStackDemand,
     representation: StackRepresentationId,
 ) -> u64 {
     let mut hash = Fnv1a::new();
-    hash.u64(composition.normalized_identity());
-    hash.u64(root.normalized_identity());
-    hash.u64(bytes);
-    hash.u64(alignment);
+    hash.u64(demand.identity().normalized_identity());
+    hash.u64(demand.root().normalized_identity());
+    hash.u64(demand.bytes());
+    hash.u64(demand.alignment());
+    let frame_validations = demand.frame_validations();
     hash.u64(frame_validations.len() as u64);
     for validation in frame_validations {
         hash.u64(validation.normalized_identity());
     }
+    let admitted_contribution_report_identities = demand.admitted_contribution_report_identities();
     hash.u64(admitted_contribution_report_identities.len() as u64);
     for contribution in admitted_contribution_report_identities {
         hash.u64(contribution.normalized_identity());
     }
+    let admitted_contribution_commitments = demand.admitted_contribution_commitments();
     hash.u64(admitted_contribution_commitments.len() as u64);
     for commitment in admitted_contribution_commitments {
         for byte in commitment.as_bytes() {
             hash.byte(byte);
         }
     }
-    hash_unresolved_calls(&mut hash, unresolved_calls.iter());
+    hash_unresolved_calls(&mut hash, demand.unresolved_calls().iter());
     hash.u64(representation.normalized_identity());
     hash.finish_or(Fnv1a::OFFSET_BASIS)
 }

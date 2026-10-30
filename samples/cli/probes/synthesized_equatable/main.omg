@@ -44,14 +44,14 @@ machine synthesized_equatable() {
         _ -> done(71)
     }
 
-    state check_unequal(a: Point, c: Point) {
+    machine check_unequal(a: Point, c: Point) {
         transition a != c {
             true -> check_callable(a, c)
             _ -> done(72)
         }
     }
 
-    state check_callable(a: Point, c: Point) {
+    machine check_callable(a: Point, c: Point) {
         let callable: bool = PointEquality::equals(&a, &c);
         transition !callable {
             true -> check_override()
@@ -59,7 +59,7 @@ machine synthesized_equatable() {
         }
     }
 
-    state check_override {
+    machine check_override {
         let t1: Token = Token { value: 5 };
         let t2: Token = Token { value: 5 };
         transition t1 != t2 {
@@ -68,5 +68,5 @@ machine synthesized_equatable() {
         }
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

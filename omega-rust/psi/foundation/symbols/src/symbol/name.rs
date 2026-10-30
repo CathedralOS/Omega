@@ -1,13 +1,14 @@
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use source::{SourceMap, SourceSpan};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SymbolName {
     storage: SymbolNameStorage,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, compiler_storage::Record)]
 enum SymbolNameStorage {
     #[default]
     Missing,
@@ -20,7 +21,7 @@ enum SymbolNameStorage {
         value: Arc<str>,
         source_span: SourceSpan,
     },
-    Static(&'static str),
+    Static(Cow<'static, str>),
     Owned(Arc<str>),
 }
 
@@ -96,7 +97,7 @@ impl SymbolName {
                         source_span,
                     }
                 }
-                SymbolNameRef::Static(value) => SymbolNameStorage::Static(value),
+                SymbolNameRef::Static(value) => SymbolNameStorage::Static(Cow::Borrowed(value)),
             },
         }
     }

@@ -109,6 +109,7 @@ pub(in crate::encoding::recovery) fn structural_path(
             1 => PackageReviewStructuralPredicatePathSegment::Case(reader.string()?),
             2 => PackageReviewStructuralPredicatePathSegment::FixedIndex(reader.u64()?),
             3 => PackageReviewStructuralPredicatePathSegment::RuntimeIndex(runtime_index(reader)?),
+            4 => PackageReviewStructuralPredicatePathSegment::Referent,
         }))
     })
 }

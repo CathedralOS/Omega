@@ -23,7 +23,9 @@ mod crash_entry_values;
 mod expression_children;
 pub(crate) use crash_entry_values::entry_parameter_place_before_statement;
 mod crash_plan_facts;
+pub(crate) mod declaration_descriptions;
 mod dynamic_conformance;
+pub(crate) mod proof_applications;
 pub(crate) use expression_children::{
     push_every_expression_child, push_expression_children, push_match_children,
 };
@@ -40,6 +42,7 @@ mod requirement_call_specializations;
 pub(crate) mod resolved_types;
 pub(crate) mod review_sources;
 pub(crate) mod state_locals;
+mod static_callable_crashes;
 
 pub(crate) use ::validation::field_domains::domain_is_vacuous;
 pub(crate) use crash_calls::{
@@ -47,7 +50,7 @@ pub(crate) use crash_calls::{
 };
 pub(crate) use crash_plan_facts::{
     canonical_crash_binary_path_predicate, canonical_crash_contract_predicate,
-    canonical_crash_operand_identity, canonical_crash_path_predicate,
+    canonical_crash_operand_identity, canonical_crash_path_predicate, declared_parameter_names,
     derive_authored_machine_crash_buckets, derive_authored_operator_crash_buckets,
     derive_authored_signature_crash_buckets, machine_entry_parameter_names,
 };
@@ -71,7 +74,7 @@ pub(crate) fn crash_entry_operand(
 use crate::borrow::build_borrow_facts;
 use crate::facts::capabilities::build_capability_facts;
 use crate::facts::contract_plan_facts::{build_contract_plans, build_mutation_facts};
-use crate::facts::dynamic_conformance::build_dynamic_conformance_facts;
+pub(crate) use crate::facts::dynamic_conformance::build_dynamic_conformance_facts;
 use crate::facts::machine_facts::{
     build_blocking_facts, build_suspension_facts, build_synchronous_invocation_facts,
     build_termination_facts,
@@ -135,6 +138,7 @@ pub(crate) fn build_check_facts(
     operational: OperationalPlan,
     service_reach_inference: flow_effects::ServiceReachInferencePlan,
     mut validation_facts: validation::ProgramValidationFacts,
+    expression_intervals: &[validation::ExpressionInterval],
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(CheckFacts, validation::PreparedEffectPlans), Vec<diagnostics::Diagnostic>> {
     // One resolver serves this immutable fact-construction window, including
@@ -150,6 +154,7 @@ pub(crate) fn build_check_facts(
     let mut operators = build_operator_facts(program, &values);
     operators.exact_integer_casts = validation_facts.exact_integer_casts.clone();
     operators.decided_formations = validation_facts.decided_formations.clone();
+    operators.trap_free_expressions = validation_facts.trap_free_expressions.clone();
     let mut proof = build_proof_facts(program, proof_plan, &borrow, &operators)?;
     for decision in integer_assignments {
         let proof::obligations::ProofObligation::BoundedAssignment(assignment) =
@@ -185,7 +190,8 @@ pub(crate) fn build_check_facts(
     crate::proof::bind_evidence_forwarding_facts(program, &mut proof)?;
     crate::proof::bind_outcome_specific_arm_facts(program, &mut proof)?;
     crate::proof::bind_evidence_projection_facts(program, &mut proof)?;
-    let semantic = build_semantic_facts(program, &proof, &operators);
+    let semantic =
+        build_semantic_facts(program, &proof, &operators).map_err(|diagnostic| vec![diagnostic])?;
     let domains = build_domain_facts(program, &semantic);
     // Meaning selection depends only on declarations and signatures. Complete
     // selected scalar plans before flow captures their evaluated local values.
@@ -201,6 +207,7 @@ pub(crate) fn build_check_facts(
         &validation_facts.exact_integer_casts,
         &mut values.proof_terms.terms,
     );
+    values.scalar_expressions.seal_expressions();
     // Form source flow and custody first. Their selected cleanup dispositions
     // complete the implicit execution graph; only then may effects and the
     // stronger capability, termination and callable-contract judgments publish.
@@ -225,6 +232,7 @@ pub(crate) fn build_check_facts(
     };
     let mut claim_outcomes = crate::checks::ClaimOutcomePreparation::default();
     drop(pre_flow_guard);
+    mutation_summaries.prewarm(program, &prepared.borrow, call_frames.as_ref());
     let flow_loop_guard = phase_profile::guard("05.d.3.b.flow_fixed_point");
     loop {
         phase_profile::count("05.d.3.b.flow_fixed_point.outer_iterations", 1);
@@ -246,41 +254,60 @@ pub(crate) fn build_check_facts(
                 &prepared.values.scalar_expressions,
                 &prepared.operators,
                 &validation_facts.exact_integer_casts,
+                expression_intervals,
                 mutation_summaries,
                 call_frames.as_ref(),
             )
         });
-        crate::facts::review_sources::bind_checked_body_call_source_spans(
-            program,
-            &mut prepared.flow,
-        )?;
-        if crate::checks::prepare_permission_events(
-            program,
-            &mut prepared,
-            &mut claim_outcomes,
-            mutation_summaries,
-            call_frames.as_ref(),
+        prepared.flow.control.seal_indexes();
+        phase_profile::scope("05.d.3.b.flow_fixed_point.bind_call_spans", || {
+            crate::facts::review_sources::bind_checked_body_call_source_spans(
+                program,
+                &mut prepared.flow,
+            )
+        })?;
+        if phase_profile::scope(
+            "05.d.3.b.flow_fixed_point.prepare_permission_events",
+            || {
+                crate::checks::prepare_permission_events(
+                    program,
+                    &mut prepared,
+                    &mut claim_outcomes,
+                    mutation_summaries,
+                    call_frames.as_ref(),
+                )
+            },
         )? {
             continue;
         }
-        if contextual_cleanup::retain_selected_receiver_loans(
-            program,
-            &mut prepared.borrow,
-            &prepared.flow.ownership,
-            &prepared.contextual_cleanup,
+        if phase_profile::scope(
+            "05.d.3.b.flow_fixed_point.retain_selected_receiver_loans",
+            || {
+                contextual_cleanup::retain_selected_receiver_loans(
+                    program,
+                    &mut prepared.borrow,
+                    &prepared.flow.ownership,
+                    &prepared.contextual_cleanup,
+                )
+            },
         ) {
             continue;
         }
-        if !contextual_cleanup::infer_entry_requirements(
-            program,
-            &mut prepared,
-            call_frames.as_ref(),
-        )? {
+        if !phase_profile::scope("05.d.3.b.flow_fixed_point.infer_entry_requirements", || {
+            contextual_cleanup::infer_entry_requirements(
+                program,
+                &mut prepared,
+                call_frames.as_ref(),
+            )
+        })? {
             break;
         }
     }
     drop(flow_loop_guard);
+    prepared.flow.ownership.seal_indexes();
+    prepared.flow.control.seal_indexes();
     let _post_flow_guard = phase_profile::guard("05.d.3.c.post_flow_facts");
+    crate::borrow::accesses::retain_completed_dispatch_extractions(program, &mut prepared);
     phase_profile::scope("05.d.3.c.1.scalar_and_index_plans", || {
         crate::values::retain_nested_call_arguments(
             program,
@@ -296,13 +323,15 @@ pub(crate) fn build_check_facts(
         ) = crate::execution::scalar_computations::build_checked_value_computation_plans(
             program,
             &prepared.operators,
+            &prepared.semantic,
             &prepared.flow,
             &prepared.borrow,
             &prepared.proof,
-            &prepared.values.scalar_expressions,
+            &mut prepared.values.scalar_expressions,
             &validation_facts.exact_integer_casts,
         );
     });
+    crate::execution::content_consumption::attach(program, &mut prepared)?;
     let index_compatibility = phase_profile::scope("05.d.3.c.2.index_compatibility", || {
         index_compatibility::build_index_compatibility_facts(
             program,
@@ -422,24 +451,33 @@ pub(crate) fn build_check_facts(
     });
     // STR4 checked plans: the normalized machine contracts (published
     // halves + fingerprint; prover-independent by construction).
-    let contract_plans = phase_profile::scope("05.d.3.c.5c.contract_plans", || {
-        build_contract_plans(
-            program,
-            &service_reaches,
-            &synchronous_invocations,
-            &suspensions,
-            &blocking,
-            &termination,
-            &mutation,
-            &capabilities,
-            &flow,
-            &operators,
-            &semantic,
-            &validation_facts.exact_integer_casts,
-            &values.scalar_expressions,
-            &values.scalar_computations,
-        )
-    })?;
+    let (contract_plans, completed_crashes) =
+        phase_profile::scope("05.d.3.c.5c.contract_plans", || {
+            build_contract_plans(
+                program,
+                &service_reaches,
+                &synchronous_invocations,
+                &suspensions,
+                &blocking,
+                &termination,
+                &mutation,
+                &capabilities,
+                &flow,
+                &operators,
+                &semantic,
+                &validation_facts.exact_integer_casts,
+                &values.scalar_expressions,
+                &values.scalar_computations,
+                &values.structural_values,
+            )
+        })?;
+    static_callable_crashes::validate(
+        program,
+        &operators,
+        &static_machine_selections.crash_refinements,
+        &contract_plans,
+        &completed_crashes,
+    )?;
     let nominal_machine_uses = build_nominal_machine_use_facts(
         program,
         static_machine_selections.nominal_uses,
@@ -465,7 +503,7 @@ pub(crate) fn build_check_facts(
     let mut fact_call_projections = Vec::new();
     for call in &validation_facts.integer_embedding_calls {
         let exact_source = matches!(program.expression_table.expression(call.call_expression),
-            typed_trees::expression::ExpressionNode::Call(source) if source.target_symbol == call.target_state)
+            typed_trees::expression::ExpressionNode::Call(source) if validation::call_target_entry_symbol(program, source.target_symbol) == call.target_state)
             && program
                 .machines()
                 .iter()

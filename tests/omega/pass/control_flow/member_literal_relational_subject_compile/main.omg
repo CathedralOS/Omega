@@ -13,6 +13,6 @@ machine Main::main(main: &mut Main) {
         _ -> many(main)
     }
 
-    state few(main: &mut Main) { main.answer = 70; }
-    state many(main: &mut Main) { main.answer = 71; }
+    machine few(main: &mut Main) { main.answer = 70; }
+    machine many(main: &mut Main) { main.answer = 71; }
 }

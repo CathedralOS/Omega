@@ -1,0 +1,3 @@
+module result;
+
+public machine answer() -> i32 { 0 }

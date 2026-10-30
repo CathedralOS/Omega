@@ -7,6 +7,6 @@ machine receive(envelope: Envelope) -> u64 {
 machine main() crashes Trap {
     let result: u64 = receive(Envelope::Held { view: View { bytes: "abcdefg" } });
     transition result == 7 {true -> done() false -> bad()}
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

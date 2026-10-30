@@ -48,17 +48,7 @@ pub(crate) fn encode_terminal_literal_fold_content(plan: &LiteralFoldPlan) -> Ve
                 }
             }
             crate::codec_bytes::push_encoded(&mut bytes, action.immediate.to_le_bytes());
-            bytes.push(match action.immediate_constraint.family {
-                register_model::RegisterConstraintFamily::Call => 0,
-                register_model::RegisterConstraintFamily::Return => 1,
-                register_model::RegisterConstraintFamily::SystemCall => 2,
-                register_model::RegisterConstraintFamily::InlineAssembly => 3,
-                register_model::RegisterConstraintFamily::Instruction => 4,
-            });
-            crate::codec_bytes::push_encoded(
-                &mut bytes,
-                action.immediate_constraint.variant.to_le_bytes(),
-            );
+            register_model::encode_constraint_key(&mut bytes, action.immediate_constraint);
         }
     }
     bytes.extend_from_slice(&plan.transformed_selected.bytes());

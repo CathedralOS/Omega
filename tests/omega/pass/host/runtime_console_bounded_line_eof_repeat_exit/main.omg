@@ -19,21 +19,21 @@ reaches Console
         LineReadResult::EndOfInput { count } -> first_count(main, count)
         _ -> invalid(main)
     }
-    state first_count(main: &mut Main, count: u64) {
+    machine first_count(main: &mut Main, count: u64) {
         transition count == 0 { true -> second(main) false -> invalid(main) }
     }
-    state second(main: &mut Main) {
+    machine second(main: &mut Main) {
         let result: LineReadResult = block Console::read_line(&mut main.line);
         transition result {
             LineReadResult::EndOfInput { count } -> second_count(main, count)
             _ -> invalid(main)
         }
     }
-    state second_count(main: &mut Main, count: u64) {
+    machine second_count(main: &mut Main, count: u64) {
         transition count == 0 { true -> done(main) false -> invalid(main) }
     }
-    state done(main: &mut Main) { Console::exit_process(21); }
-    state invalid(main: &mut Main) { Console::exit_process(99); }
+    machine done(main: &mut Main) { Console::exit_process(21); }
+    machine invalid(main: &mut Main) { Console::exit_process(99); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

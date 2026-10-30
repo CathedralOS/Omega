@@ -11,8 +11,8 @@ machine main() reaches MachineControl crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine restore(holder: &mut Flags) reaches MachineControl crashes Trap {

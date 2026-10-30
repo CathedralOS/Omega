@@ -147,8 +147,8 @@ machine Main::main(main: &mut Main) reaches Reader crashes Trap {
     let value: u64 = buffer.value;
     drop(buffer);
     transition observed == 37 && value == 37 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

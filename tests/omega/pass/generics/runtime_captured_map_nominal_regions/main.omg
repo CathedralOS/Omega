@@ -17,5 +17,5 @@ machine main() blocks; crashes Trap {
     let value: i32 = 37;
     let result: &i32 = block observed(&value);
     transition result as i32 == 37 { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

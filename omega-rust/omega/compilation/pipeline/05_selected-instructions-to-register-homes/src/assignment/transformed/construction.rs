@@ -1,12 +1,11 @@
 use crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest;
-use crate::{RegisterHomeError, ValidatedRegisterHomes, assign_register_homes};
+use crate::{RegisterHomeError, ValidatedRegisterHomes};
 
 use selected_instructions_to_selected_instructions::{
     StagedPreAllocationOptimizationCustodyReceipt, StagedPreAllocationOptimizationRun,
     StagedSelectedLoweringOptimizationCustodyReceipt, StagedSelectedLoweringOptimizationRun,
 };
 
-use super::custody::{pre_allocation_home_custody_receipt, selected_lowering_home_custody_receipt};
 use super::projection::{
     pre_allocation_final_analysis, pre_allocation_transformations,
     selected_lowering_final_analysis, selected_lowering_transformations,
@@ -21,25 +20,23 @@ use super::{
 /// Computing the assignment without consuming the run lets the route answer
 /// residual `NoCompatibleHome` pressure with runtime spill instead of
 /// post-run homes.
-pub(super) fn assign_register_homes_after_pre_allocation(
+pub(crate) fn assign_register_homes_after_pre_allocation(
     run: &StagedPreAllocationOptimizationRun,
+    reuse: Option<&mut crate::assignment::home_assignment::compute::FunctionHomeReuse>,
 ) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
     let (ranges, legality) = pre_allocation_final_analysis(run);
     let environment = run.source_legality_stage().register_environment();
-    assign_register_homes(
+    crate::assignment::home_assignment::assign_register_homes_reusing(
         legality,
         ranges,
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
+        environment,
+        reuse,
     )
 }
 
 /// The same construction over an already-computed assignment, for the
 /// composing route that probed assignment while it still owned the run.
-pub(super) fn construct_register_homes_after_pre_allocation_with_assignment(
+pub(crate) fn stage_optimized_register_homes_after_pre_allocation_with_assignment(
     run: StagedPreAllocationOptimizationRun,
     homes: ValidatedRegisterHomes,
 ) -> Result<
@@ -70,7 +67,11 @@ fn finish_register_homes_after_pre_allocation(
         &homes,
     )
     .map_err(OptimizedPostPreAllocationHomeCustodyError::Manifest)?;
-    let custody = pre_allocation_home_custody_receipt(source, &homes, &manifest);
+    let custody = crate::assignment::PostHomeCustodyReceipt::new(
+        source,
+        homes.receipt(),
+        manifest.record().identity,
+    );
     Ok(StagedOptimizedRegisterHomesAfterPreAllocation {
         run,
         homes,
@@ -83,25 +84,23 @@ fn finish_register_homes_after_pre_allocation(
 /// Computing the assignment without consuming the run lets the route answer
 /// residual `NoCompatibleHome` pressure with runtime spill instead of
 /// post-run homes.
-pub(super) fn assign_register_homes_after_selected_lowering(
+pub(crate) fn assign_register_homes_after_selected_lowering(
     run: &StagedSelectedLoweringOptimizationRun,
+    reuse: Option<&mut crate::assignment::home_assignment::compute::FunctionHomeReuse>,
 ) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
     let (ranges, legality) = selected_lowering_final_analysis(run);
     let environment = run.source_legality_stage().register_environment();
-    assign_register_homes(
+    crate::assignment::home_assignment::assign_register_homes_reusing(
         legality,
         ranges,
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
+        environment,
+        reuse,
     )
 }
 
 /// The same construction over an already-computed assignment, for the
 /// composing route that probed assignment while it still owned the run.
-pub(super) fn construct_register_homes_after_selected_lowering_with_assignment(
+pub(crate) fn stage_optimized_register_homes_after_selected_lowering_with_assignment(
     run: StagedSelectedLoweringOptimizationRun,
     homes: ValidatedRegisterHomes,
 ) -> Result<
@@ -132,7 +131,11 @@ fn finish_register_homes_after_selected_lowering(
         &homes,
     )
     .map_err(OptimizedPostSelectedLoweringHomeCustodyError::Manifest)?;
-    let custody = selected_lowering_home_custody_receipt(source, &homes, &manifest);
+    let custody = crate::assignment::PostHomeCustodyReceipt::new(
+        source,
+        homes.receipt(),
+        manifest.record().identity,
+    );
     Ok(StagedOptimizedRegisterHomesAfterSelectedLowering {
         run,
         homes,

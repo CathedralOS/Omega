@@ -7,12 +7,12 @@ data Main {values:Values;}
 machine Main::main(main:&mut Main) reaches Console {
  let byte:ByteRead=block Console::read_byte();
  transition byte {ByteRead::Byte{value} -> guard(main,value) _ -> fail(main)}
- state guard(main:&mut Main,value:i32) {
+ machine guard(main:&mut Main,value:i32) {
   main.values.x=F64::from_i32(value)-48.0;
   transition abs_f64(main.values.x) <= 0.000000001 {true -> good(main) _ -> fail(main)}
  }
- state good(main:&mut Main) {Console::exit_process(70);}
- state fail(main:&mut Main) {Console::exit_process(71);}
+ machine good(main:&mut Main) {Console::exit_process(70);}
+ machine fail(main:&mut Main) {Console::exit_process(71);}
 }
 
 // The entry owns ordinary local state; selection supplies no context.

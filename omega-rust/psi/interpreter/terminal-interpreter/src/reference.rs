@@ -50,6 +50,13 @@ pub(crate) struct ReferenceReferent {
     pub(crate) aggregate_view: Option<AggregateViewRegion>,
 }
 
+/// A captured association awaiting one transactional publication. It owns no
+/// new executable carrier, so validation can finish before either caller writes.
+pub(crate) struct PreparedReference {
+    pub(crate) referent: ReferenceReferent,
+    pub(crate) projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
+}
+
 /// Where a path written against an aggregate view ends: an aggregate of both
 /// declarations, or a scalar leaf with its view and backing carriers.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -220,7 +227,68 @@ impl TerminalExecution<'_> {
                 && claim.multiplicity == Some(StructuralMultiplicity::Linear)
                 && prefix.starts_with(&claim.path)
         });
-        resident.then_some(authority).ok_or_else(malformed)
+        if resident || self.resident_storage_region(place, structural_type, prefix)? {
+            Ok(authority)
+        } else {
+            Err(malformed())
+        }
+    }
+
+    /// A composite loan can contain several independently resident claims and
+    /// affine subtrees. Prove complete coverage of its typed carrier region;
+    /// one live child cannot authorize a parent with another child absent.
+    /// This scratch partition never consumes or relocates real custody.
+    fn resident_storage_region(
+        &self,
+        place: PlaceId,
+        root_type: StructuralTypeId,
+        prefix: &[StructuralPathSegment],
+    ) -> Result<bool, TerminalInterpretError> {
+        let types = self.program.structural_types();
+        crate::structural_inputs::case_membership::validate_case_projection(
+            &types,
+            &self.structural_values,
+            self.structural_cases.as_map(),
+            place,
+            prefix,
+        )?;
+        let selected_type = resolve_structural_path_type(&types, root_type, prefix)?;
+        let root = crate::custody::verified_structural_place(&self.structural_values, place)?;
+        let mut remaining = std::collections::BTreeSet::from([StructuralAffineDiscard {
+            place,
+            path: prefix.to_vec(),
+            structural_type: selected_type,
+        }]);
+        let claims = self
+            .live_claims
+            .values()
+            .filter(|claim| {
+                claim.place == Some(place)
+                    && claim.multiplicity == Some(StructuralMultiplicity::Linear)
+                    && claim.path.starts_with(prefix)
+            })
+            .map(|claim| claim.path.as_slice());
+        let affine = self
+            .live_affine_frontier
+            .iter()
+            .filter(|entry| entry.place == place && entry.path.starts_with(prefix))
+            .map(|entry| entry.path.as_slice());
+        // Subtract authenticated resident regions from scratch debt only.
+        // An absent child remains uncovered; no live custody is consumed.
+        crate::custody::exclude_linear_regions(
+            &types,
+            &mut remaining,
+            claims.chain(affine).map(|path| (place, path)),
+            &|entry| {
+                crate::structural_inputs::case_membership::stored_case_at_projection(
+                    &types,
+                    root,
+                    self.structural_cases.as_map(),
+                    &entry.path,
+                )
+            },
+        )?;
+        Ok(remaining.is_empty())
     }
 
     /// A descriptor observation borrows its exact carrier, without consuming
@@ -311,14 +379,19 @@ impl TerminalExecution<'_> {
         Ok((*referent, *access))
     }
 
-    pub(crate) fn establish_reference(
-        &mut self,
-        operation: &Operation,
+    /// Capture one reference's exact backing without publishing a carrier.
+    /// Both executable formation and admitted host output completion use this
+    /// operation. The caller owns the requested header and staged identity
+    /// cursor; this query grants no authority beyond the captured source.
+    pub(crate) fn capture_reference(
+        &self,
         source: &StructuralArgument,
+        reference_type: StructuralTypeId,
+        projected_qualifications: &[terminal_psi::StructuralPathQualification],
         storage: Option<terminal_psi::ReferenceStorageView>,
-    ) -> Result<(), TerminalInterpretError> {
-        let result = operation.result.structural().ok_or_else(malformed)?;
-        let (referent_type, access) = self.reference_contract(result.structural_type)?;
+        identity_cursor: &mut Option<u64>,
+    ) -> Result<PreparedReference, TerminalInterpretError> {
+        let (referent_type, access) = self.reference_contract(reference_type)?;
         let mut normalized_source = source.clone();
         normalized_source.path = terminal_semantics::reference_source_storage_path(
             self.program.structural_types().values(),
@@ -330,7 +403,6 @@ impl TerminalExecution<'_> {
         // Both local storage and ingress borrows already name their backing.
         // An explicit Referent projection reborrows that backing through a live
         // carrier; it never establishes ownership of the carrier's contents.
-        let mut identity_cursor = self.local_structural_identities.cursor();
         let mut byte_region = None;
         let mut region_referent = None;
         let mut aggregate_view = None;
@@ -339,24 +411,10 @@ impl TerminalExecution<'_> {
                 access,
                 ..source.clone()
             };
-            let (qualifications, projected_qualifications) =
-                terminal_psi::StructuralPathQualification::select(
-                    &[],
-                    &result.projected_qualifications,
-                    &[StructuralPathSegment::Referent],
-                );
             self.prepare_scalar_array_reference(
-                &StructuralParameterDeclaration {
-                    place: source.place,
-                    position: 0,
-                    structural_type: referent_type,
-                    multiplicity: StructuralMultiplicity::Unrestricted,
-                    access,
-                    qualifications,
-                    projected_qualifications,
-                },
+                referent_type,
                 &argument,
-                &mut identity_cursor,
+                identity_cursor,
                 &mut RuntimeRows::new(self.account.as_ref()),
             )?
         } else {
@@ -368,8 +426,8 @@ impl TerminalExecution<'_> {
                 self.program.catalogs.structural_domains.iter(),
                 self.live_structural_type(source.place)?,
                 &source.path,
-                result.structural_type,
-                &result.projected_qualifications,
+                reference_type,
+                projected_qualifications,
             );
         // Every bounded owner keeps the ordinary loan's actual home: a field
         // retains its parent/namespace/identity; a local retains its activation.
@@ -384,7 +442,7 @@ impl TerminalExecution<'_> {
             let (qualifications, projected_qualifications) =
                 terminal_psi::StructuralPathQualification::select(
                     &[],
-                    &result.projected_qualifications,
+                    projected_qualifications,
                     &[StructuralPathSegment::Referent],
                 );
             let parameter = StructuralParameterDeclaration {
@@ -400,7 +458,7 @@ impl TerminalExecution<'_> {
                 self.prepare_byte_sequence_loan(
                     &parameter,
                     source,
-                    &mut identity_cursor,
+                    identity_cursor,
                     &mut RuntimeRows::new(self.account.as_ref()),
                 )?
                 .ok_or_else(malformed)?,
@@ -457,7 +515,7 @@ impl TerminalExecution<'_> {
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
             };
-            let mut loan = self.capture_primitive_loan(&parameter, source, &mut identity_cursor)?;
+            let mut loan = self.capture_primitive_loan(&parameter, source, identity_cursor)?;
             if let Some(storage) = storage {
                 let stored_scalar = storage.stored_scalar.ok_or_else(malformed)?;
                 let crate::values::TerminalScalarValue::Integer {
@@ -481,7 +539,7 @@ impl TerminalExecution<'_> {
                     || !terminal_semantics::reference_storage_source_compatible(
                         self.program.structural_types().values(),
                         original_type,
-                        result.structural_type,
+                        reference_type,
                         Some(stored_scalar),
                     )
                 {
@@ -499,8 +557,9 @@ impl TerminalExecution<'_> {
             Some(loan)
         } else {
             if storage.is_none() && byte_owner_loan.is_none() && collection_loan.is_none() {
-                let (backing, tip) =
-                    self.resolve_live_view_projection(source.place, &source.path, source.access)?;
+                let (backing, tip) = self
+                    .resolve_live_view_projection(source.place, &source.path, source.access)
+                    .map_err(|error| error.in_reference_formation("resolve source view"))?;
                 if let Some(AggregateViewTip::Aggregate {
                     view,
                     backing: actual,
@@ -549,7 +608,7 @@ impl TerminalExecution<'_> {
                     || !terminal_semantics::reference_storage_source_compatible(
                         self.program.structural_types().values(),
                         original_type,
-                        result.structural_type,
+                        reference_type,
                         None,
                     )
                 {
@@ -589,7 +648,7 @@ impl TerminalExecution<'_> {
                         qualifications: Vec::new(),
                         projected_qualifications: Vec::new(),
                     };
-                    Some(self.capture_primitive_loan(&parameter, source, &mut identity_cursor)?)
+                    Some(self.capture_primitive_loan(&parameter, source, identity_cursor)?)
                 } else {
                     None
                 };
@@ -675,7 +734,9 @@ impl TerminalExecution<'_> {
             }
             None if region_referent.is_some() => region_referent.ok_or_else(malformed)?,
             None => {
-                let (view, captured) = self.resolve_live_placed_projection(source)?;
+                let (view, captured) = self
+                    .resolve_live_placed_projection(source)
+                    .map_err(|error| error.in_reference_formation("resolve source storage"))?;
                 placed = captured;
                 view
             }
@@ -692,10 +753,12 @@ impl TerminalExecution<'_> {
         // fresh shared view, not on its source home. Routed authority and Content
         // still require existing runtime custody, and mutable preservation debts
         // never grow merely because the bytes happen to satisfy a predicate.
+        // Primitive byte predicates have their own retained catalog form; they
+        // need not also carry a general structural predicate expression.
         if access == StructuralAccess::SharedBorrow {
             let (whole, projected) = terminal_psi::StructuralPathQualification::select(
                 &[],
-                &result.projected_qualifications,
+                projected_qualifications,
                 &[StructuralPathSegment::Referent],
             );
             let observable = |identity| {
@@ -707,6 +770,7 @@ impl TerminalExecution<'_> {
                     .is_some_and(|domain| {
                         domain.content_projection.is_none()
                             && domain.establishment_routes.is_empty()
+                            && domain.has_no_required_memberships()
                             && match &domain.predicate {
                                 Some(predicate) => terminal_semantics::domain_predicate_is_closed(
                                     self.program.structural_types().values(),
@@ -754,7 +818,7 @@ impl TerminalExecution<'_> {
         // the same authenticated tag filter must govern both formations.
         let (required_whole, required_paths) = terminal_psi::StructuralPathQualification::select(
             &[],
-            &result.projected_qualifications,
+            projected_qualifications,
             &[StructuralPathSegment::Referent],
         );
         let required_paths =
@@ -764,6 +828,39 @@ impl TerminalExecution<'_> {
                 self.structural_cases.as_map(),
                 &required_paths,
             )?;
+        // Declaration-owned field predicates are existing typed invariants,
+        // independently of temporal memberships on the physical home's birth
+        // declaration. Entailment cannot introduce an issuer or a new policy.
+        for domain in &required_whole {
+            if !referent.qualifications.contains(domain)
+                && terminal_semantics::scalar_projection_entails_membership(
+                    self.program.structural_types().values(),
+                    self.program.catalogs.structural_domains.iter(),
+                    referent.structural_type,
+                    &[],
+                    *domain,
+                )
+            {
+                referent.qualifications.push(*domain);
+            }
+        }
+        for row in &required_paths {
+            if !referent.projected_qualifications.contains(row)
+                && terminal_semantics::scalar_projection_entails_membership(
+                    self.program.structural_types().values(),
+                    self.program.catalogs.structural_domains.iter(),
+                    referent.structural_type,
+                    &row.path,
+                    row.domain,
+                )
+            {
+                referent.projected_qualifications.push(row.clone());
+            }
+        }
+        referent.qualifications.sort();
+        referent.qualifications.dedup();
+        referent.projected_qualifications.sort();
+        referent.projected_qualifications.dedup();
         let mut required_projected = Vec::new();
         terminal_psi::StructuralPathQualification::append_under(
             &required_whole,
@@ -788,27 +885,69 @@ impl TerminalExecution<'_> {
         projected.sort();
         projected.dedup();
         if !access_covers(source.access, access)
-            || result.multiplicity != StructuralMultiplicity::Affine
-            || !result.qualifications.is_empty()
-            || result.projected_qualifications.iter().any(|row| {
+            || projected_qualifications.iter().any(|row| {
                 !row.path.starts_with(&[StructuralPathSegment::Referent])
             })
             || required_projected.iter().any(|row| !projected.contains(row))
             || (access != StructuralAccess::SharedBorrow
                 && projected.iter().any(|row| !required_projected.contains(row)))
-            || !result.claims.is_empty()
             // The storage judgment above admitted an aggregate re-view.
             || (aggregate_view.is_none() && !field_compatible
                 && !terminal_semantics::reference_source_compatible(
                     self.program.structural_types().values(),
                     referent.structural_type,
-                    result.structural_type,
+                    reference_type,
                 ))
+        {
+            return Err(TerminalInterpretError::ReferenceFormation {
+                stage: "validate captured reference contract",
+                detail: format!(
+                    "source={source:?}, referent={:?}, reference={reference_type:?}, required={required_projected:?}, observed={projected:?}",
+                    referent.structural_type
+                ),
+            });
+        }
+        let collection_loan =
+            collection_loan.map(|(_, loan)| loan.with_descriptor_home(referent.clone()));
+        Ok(PreparedReference {
+            projected_qualifications: projected,
+            referent: ReferenceReferent {
+                view: placed.as_ref().map_or(referent, |ram| ram.source.clone()),
+                placed,
+                primitive_loan,
+                collection_loan,
+                byte_owner: byte_owner_loan.map(|(_, binding)| binding),
+                byte_region,
+                aggregate_view,
+            },
+        })
+    }
+
+    pub(crate) fn establish_reference(
+        &mut self,
+        operation: &Operation,
+        source: &StructuralArgument,
+        storage: Option<terminal_psi::ReferenceStorageView>,
+    ) -> Result<(), TerminalInterpretError> {
+        let result = operation.result.structural().ok_or_else(malformed)?;
+        if result.multiplicity != StructuralMultiplicity::Affine
+            || !result.qualifications.is_empty()
+            || !result.claims.is_empty()
             || self.structural_values.contains_key(&result.place)
             || self.live_affine_discard_at(result.place).is_some()
         {
             return Err(malformed());
         }
+        let mut identity_cursor = self.local_structural_identities.cursor();
+        let prepared = self
+            .capture_reference(
+                source,
+                result.structural_type,
+                &result.projected_qualifications,
+                storage,
+                &mut identity_cursor,
+            )
+            .map_err(|error| error.in_reference_formation("establish reference"))?;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
         let mut carrier = TerminalStructuralValue::minted(
@@ -816,19 +955,9 @@ impl TerminalExecution<'_> {
             result.structural_type,
             Vec::new(),
         );
-        carrier.projected_qualifications = projected;
-        self.reference_referents.insert(
-            StructuralRuntimePlace::from(&carrier),
-            ReferenceReferent {
-                view: placed.as_ref().map_or(referent, |ram| ram.source.clone()),
-                placed,
-                primitive_loan,
-                collection_loan: collection_loan.map(|(_, loan)| loan),
-                byte_owner: byte_owner_loan.map(|(_, binding)| binding),
-                byte_region,
-                aggregate_view,
-            },
-        )?;
+        carrier.projected_qualifications = prepared.projected_qualifications;
+        self.reference_referents
+            .insert(StructuralRuntimePlace::from(&carrier), prepared.referent)?;
         self.structural_values.insert(result.place, carrier)?;
         self.live_affine_frontier.insert(StructuralAffineDiscard {
             place: result.place,

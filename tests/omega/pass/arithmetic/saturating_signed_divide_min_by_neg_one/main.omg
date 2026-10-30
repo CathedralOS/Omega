@@ -19,15 +19,15 @@ machine Main::main(context: &mut Main) reaches Console {
         true  -> check_mod(&mut context, remainder)
         false -> div_wrong(&mut context)
     }
-    state check_mod(context: &mut Main, remainder: i32 in Saturating) {
+    machine check_mod(context: &mut Main, remainder: i32 in Saturating) {
         transition remainder == 0 {
             true  -> good(&mut context)
             false -> mod_wrong(&mut context)
         }
     }
-    state good(context: &mut Main)      { Console::exit_process(70); }
-    state div_wrong(context: &mut Main) { Console::exit_process(72); }
-    state mod_wrong(context: &mut Main) { Console::exit_process(73); }
+    machine good(context: &mut Main)      { Console::exit_process(70); }
+    machine div_wrong(context: &mut Main) { Console::exit_process(72); }
+    machine mod_wrong(context: &mut Main) { Console::exit_process(73); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

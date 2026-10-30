@@ -43,22 +43,22 @@ reaches ResourceProfileSupply crashes Trap
         PlacementOutcome::Ready { view } -> unexpected(view)
         PlacementOutcome::Rejected { returned, reason } -> check_reason(returned, reason, expected_reason)
     }
-    state unexpected(storage: Extent in Granted & Resident<WordPlacement, Word>) -> PlacementReturn<Extent in Granted & Vacant, Word> {
+    machine unexpected(storage: Extent in Granted & Resident<WordPlacement, Word>) -> PlacementReturn<Extent in Granted & Vacant, Word> {
         crash Trap;
     }
-    state check_reason(returned: PlacementReturn<Extent in Granted & Vacant, Word>, reason: PlacementInitializationFailure, expected: u64) -> PlacementReturn<Extent in Granted & Vacant, Word> {
+    machine check_reason(returned: PlacementReturn<Extent in Granted & Vacant, Word>, reason: PlacementInitializationFailure, expected: u64) -> PlacementReturn<Extent in Granted & Vacant, Word> {
         transition reason {
             PlacementInitializationFailure::RangeTooSmall { required, available } -> finish(returned, expected == 1 && required == 8 && available == 4)
             PlacementInitializationFailure::Misaligned { modulus, residue } -> finish(returned, expected == 2 && modulus == 8 && residue == 0)
             PlacementInitializationFailure::IncompatibleSupply -> finish(returned, expected == 3)
         }
     }
-    state finish(returned: PlacementReturn<Extent in Granted & Vacant, Word>, reason_ok: bool) -> PlacementReturn<Extent in Granted & Vacant, Word> {
+    machine finish(returned: PlacementReturn<Extent in Granted & Vacant, Word>, reason_ok: bool) -> PlacementReturn<Extent in Granted & Vacant, Word> {
         transition reason_ok && returned.custody.value == 17 {
             true -> done(returned)
             false -> bad(returned)
         }
     }
-    state done(returned: PlacementReturn<Extent in Granted & Vacant, Word>) -> PlacementReturn<Extent in Granted & Vacant, Word> { returned }
-    state bad(returned: PlacementReturn<Extent in Granted & Vacant, Word>) -> PlacementReturn<Extent in Granted & Vacant, Word> { crash Trap; }
+    machine done(returned: PlacementReturn<Extent in Granted & Vacant, Word>) -> PlacementReturn<Extent in Granted & Vacant, Word> { returned }
+    machine bad(returned: PlacementReturn<Extent in Granted & Vacant, Word>) -> PlacementReturn<Extent in Granted & Vacant, Word> { crash Trap; }
 }

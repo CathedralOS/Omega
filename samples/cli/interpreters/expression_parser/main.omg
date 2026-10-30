@@ -41,15 +41,15 @@ machine precedence(operator: u8) -> u64 {
         true -> high()
         _ -> additive(operator)
     }
-    state high() -> u64 { 2 }
-    state additive(operator: u8) -> u64 {
+    machine high() -> u64 { 2 }
+    machine additive(operator: u8) -> u64 {
         transition operator == 43 || operator == 45 {
             true -> low()
             _ -> none()
         }
     }
-    state low() -> u64 { 1 }
-    state none() -> u64 { 0 }
+    machine low() -> u64 { 1 }
+    machine none() -> u64 { 0 }
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -69,14 +69,14 @@ machine Main::main(main: &mut Main) reaches Console {
     main.operator_count = 0;
     transition { _ -> scan(main) }
 
-    state scan(main: &mut Main) {
+    machine scan(main: &mut Main) {
         transition main.position < main.length && main.position < 16 {
             true -> read(main)
             _ -> drain(main)
         }
     }
 
-    state read(main: &mut Main) {
+    machine read(main: &mut Main) {
         main.byte = main.text[main.position];
         transition main.byte >= 48 && main.byte <= 57 {
             true -> push_digit(main)
@@ -84,28 +84,28 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state punctuation(main: &mut Main) {
+    machine punctuation(main: &mut Main) {
         transition main.byte == 40 {
             true -> push_open(main)
             _ -> close_or_operator(main)
         }
     }
 
-    state close_or_operator(main: &mut Main) {
+    machine close_or_operator(main: &mut Main) {
         transition main.byte == 41 {
             true -> close(main)
             _ -> operator(main)
         }
     }
 
-    state push_digit(main: &mut Main) {
+    machine push_digit(main: &mut Main) {
         transition main.value_count < 16 && main.position < 16 {
             true -> store_digit(main)
             _ -> malformed()
         }
     }
 
-    state store_digit(main: &mut Main) {
+    machine store_digit(main: &mut Main) {
         let digit: i32 in Wrapping = main.byte as i32 in Wrapping;
         main.values[main.value_count] = digit - 48;
         main.value_count = main.value_count + 1;
@@ -113,14 +113,14 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> scan(main) }
     }
 
-    state push_open(main: &mut Main) {
+    machine push_open(main: &mut Main) {
         transition main.operator_count < 16 && main.position < 16 {
             true -> store_open(main)
             _ -> malformed()
         }
     }
 
-    state store_open(main: &mut Main) {
+    machine store_open(main: &mut Main) {
         main.operators[main.operator_count] = 40;
         main.operator_count = main.operator_count + 1;
         main.position = main.position + 1;
@@ -128,33 +128,33 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // ')' applies stacked operators back to the matching '('.
-    state close(main: &mut Main) {
+    machine close(main: &mut Main) {
         transition main.operator_count >= 1 && main.operator_count <= 16 {
             true -> close_top(main)
             _ -> malformed()
         }
     }
 
-    state close_top(main: &mut Main) {
+    machine close_top(main: &mut Main) {
         transition main.operators[main.operator_count - 1] == 40 {
             true -> pop_open(main)
             _ -> close_apply(main)
         }
     }
 
-    state close_apply(main: &mut Main) {
+    machine close_apply(main: &mut Main) {
         main.resume = Resume::Close;
         transition { _ -> apply(main) }
     }
 
-    state pop_open(main: &mut Main) {
+    machine pop_open(main: &mut Main) {
         transition main.operator_count >= 1 && main.position < 16 {
             true -> after_open(main)
             _ -> malformed()
         }
     }
 
-    state after_open(main: &mut Main) {
+    machine after_open(main: &mut Main) {
         main.operator_count = main.operator_count - 1;
         main.position = main.position + 1;
         transition { _ -> scan(main) }
@@ -162,14 +162,14 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // An operator first applies every stacked operator that binds at least
     // as tightly, then stacks itself.
-    state operator(main: &mut Main) {
+    machine operator(main: &mut Main) {
         transition main.operator_count >= 1 && main.operator_count <= 16 {
             true -> operator_top(main)
             _ -> push_operator(main)
         }
     }
 
-    state operator_top(main: &mut Main) {
+    machine operator_top(main: &mut Main) {
         let top: u8 = main.operators[main.operator_count - 1];
         transition top != 40 && precedence(top) >= precedence(main.byte) {
             true -> operator_apply(main)
@@ -177,19 +177,19 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state operator_apply(main: &mut Main) {
+    machine operator_apply(main: &mut Main) {
         main.resume = Resume::Operator;
         transition { _ -> apply(main) }
     }
 
-    state push_operator(main: &mut Main) {
+    machine push_operator(main: &mut Main) {
         transition main.operator_count < 16 && main.position < 16 {
             true -> store_operator(main)
             _ -> malformed()
         }
     }
 
-    state store_operator(main: &mut Main) {
+    machine store_operator(main: &mut Main) {
         main.operators[main.operator_count] = main.byte;
         main.operator_count = main.operator_count + 1;
         main.position = main.position + 1;
@@ -197,21 +197,21 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // The end of the text applies every operator still stacked.
-    state drain(main: &mut Main) {
+    machine drain(main: &mut Main) {
         transition main.operator_count >= 1 {
             true -> drain_apply(main)
             _ -> finish(main)
         }
     }
 
-    state drain_apply(main: &mut Main) {
+    machine drain_apply(main: &mut Main) {
         main.resume = Resume::Drain;
         transition { _ -> apply(main) }
     }
 
     // Pop two values and one operator, push the result, and return to the
     // loop that asked.
-    state apply(main: &mut Main) {
+    machine apply(main: &mut Main) {
         transition main.value_count >= 2 && main.value_count <= 16
             && main.operator_count >= 1 && main.operator_count <= 16 {
             true -> reduce(main)
@@ -219,7 +219,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state reduce(main: &mut Main) {
+    machine reduce(main: &mut Main) {
         let right: i32 in Wrapping = main.values[main.value_count - 1];
         let left: i32 in Wrapping = main.values[main.value_count - 2];
         let operator: u8 = main.operators[main.operator_count - 1];
@@ -231,21 +231,21 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state additive_result(main: &mut Main, operator: u8, left: i32 in Wrapping, right: i32 in Wrapping) {
+    machine additive_result(main: &mut Main, operator: u8, left: i32 in Wrapping, right: i32 in Wrapping) {
         transition operator == 43 {
             true -> store_result(main, left + right)
             _ -> store_result(main, left - right)
         }
     }
 
-    state store_result(main: &mut Main, result: i32 in Wrapping) {
+    machine store_result(main: &mut Main, result: i32 in Wrapping) {
         transition main.value_count >= 1 && main.value_count <= 16 {
             true -> write_result(main, result)
             _ -> malformed()
         }
     }
 
-    state write_result(main: &mut Main, result: i32 in Wrapping) {
+    machine write_result(main: &mut Main, result: i32 in Wrapping) {
         main.values[main.value_count - 1] = result;
         transition main.resume {
             Resume::Close -> close(main)
@@ -254,20 +254,20 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state finish(main: &mut Main) {
+    machine finish(main: &mut Main) {
         transition main.value_count == 1 {
             true -> report(main)
             _ -> malformed()
         }
     }
 
-    state report(main: &mut Main) {
+    machine report(main: &mut Main) {
         Console::write_line("expression_parser: 2*(3+4)-5");
         let result: i32 in Wrapping = main.values[0];
         Console::exit_process(result as i32);
     }
 
-    state malformed() {
+    machine malformed() {
         Console::exit_process(1);
     }
 }

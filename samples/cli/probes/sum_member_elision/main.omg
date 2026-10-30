@@ -34,14 +34,14 @@ machine Main::main(main: &mut Main) {
         RegionAlignment::Unaligned { offset } -> check(main, counted)
         _ -> fail(main)
     }
-    state check(main: &mut Main, counted: u32) {
+    machine check(main: &mut Main, counted: u32) {
         transition counted == 4 {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

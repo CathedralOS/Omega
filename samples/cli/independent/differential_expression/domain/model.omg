@@ -15,28 +15,28 @@ machine count(study: &Study, gene: i32 in Wrapping, sample: i32 in Wrapping) -> 
     transition position >= 0 && position < 48 {
  true -> read(study, position)
  false -> 0.0 }
-    state read(study: &Study, position: i32 in Wrapping) -> f64 requires position >= 0 && position < 48 { study.counts[position] }
+    machine read(study: &Study, position: i32 in Wrapping) -> f64 requires position >= 0 && position < 48 { study.counts[position] }
 }
 machine group(study: &Study, sample: i32 in Wrapping) -> i32 {
     transition sample >= 0 && sample < 6 {
  true -> read(study, sample)
  false -> 0 }
-    state read(study: &Study, sample: i32 in Wrapping) -> i32 requires sample >= 0 && sample < 6 { study.groups[sample] }
+    machine read(study: &Study, sample: i32 in Wrapping) -> i32 requires sample >= 0 && sample < 6 { study.groups[sample] }
 }
 machine factor(study: &Study, sample: i32 in Wrapping) -> f64 {
     transition sample >= 0 && sample < 6 {
  true -> read(study, sample)
  false -> 1.0 }
-    state read(study: &Study, sample: i32 in Wrapping) -> f64 requires sample >= 0 && sample < 6 { study.factors[sample] }
+    machine read(study: &Study, sample: i32 in Wrapping) -> f64 requires sample >= 0 && sample < 6 { study.factors[sample] }
 }
 machine geometric(study: &Study, gene: i32 in Wrapping) -> f64 {
     transition { _ -> scan(study, gene, 0, 0.0) }
-    state scan(study: &Study, gene: i32 in Wrapping, sample: i32 in Wrapping, sum: f64) -> f64 {
+    machine scan(study: &Study, gene: i32 in Wrapping, sample: i32 in Wrapping, sum: f64) -> f64 {
         transition sample < 6 {
  true -> value(study, gene, sample, sum)
  false -> exponential(sum / 6.0) }
     }
-    state value(study: &Study, gene: i32 in Wrapping, sample: i32 in Wrapping, sum: f64) -> f64 {
+    machine value(study: &Study, gene: i32 in Wrapping, sample: i32 in Wrapping, sum: f64) -> f64 {
         let value: f64 = count(study, gene, sample);
         transition value > 0.0 {
  true -> scan(study, gene, sample + 1, sum + logarithm(value))
@@ -45,17 +45,17 @@ machine geometric(study: &Study, gene: i32 in Wrapping) -> f64 {
 }
 machine normalize(study: &mut Study) -> bool {
     transition { _ -> sample(study, 0) }
-    state sample(study: &mut Study, index: i32 in Wrapping) -> bool {
+    machine sample(study: &mut Study, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 6 {
  true -> genes(study, index, 0, 0)
  false -> true }
     }
-    state genes(study: &mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping) -> bool requires index >= 0 && index < 6 {
+    machine genes(study: &mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping) -> bool requires index >= 0 && index < 6 {
         transition gene < 8 {
  true -> ratio(study, index, gene, size)
  false -> median(study, index, size) }
     }
-    state ratio(study: &mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping) -> bool requires index >= 0 && index < 6 {
+    machine ratio(study: &mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping) -> bool requires index >= 0 && index < 6 {
         let center: f64 = geometric(study, gene);
         let observed: f64 = count(study, gene, index);
         transition center > 0.0 && size >= 0 && size < 8 {
@@ -65,41 +65,41 @@ machine normalize(study: &mut Study) -> bool {
  false -> genes(study, index, gene + 1, size)
         }
     }
-    state prepare_insert(study: &mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, observed: f64, center: f64) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 {
+    machine prepare_insert(study: &mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, observed: f64, center: f64) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 {
         let value: f64 = logarithm(observed / center);
         transition { _ -> insert(study, index, gene, size, value, size) }
     }
-    state insert(study: &mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 {
+    machine insert(study: &mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 {
         transition position > 0 && position < 8 {
  true -> previous(study, index, gene, size, value, position, position - 1)
  false -> store(study, index, gene, size, value, position) }
     }
-    state previous(study: &mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping, previous: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 && position > 0 && position < 8 && previous >= 0 && previous < 8 {
+    machine previous(study: &mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping, previous: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 && position > 0 && position < 8 && previous >= 0 && previous < 8 {
         transition study.ratios[previous] > value {
  true -> shift(study, index, gene, size, value, position, previous)
  false -> store(study, index, gene, size, value, position) }
     }
-    state shift(study: &mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping, previous: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 && position > 0 && position < 8 && previous >= 0 && previous < 8 {
+    machine shift(study: &mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping, previous: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 && position > 0 && position < 8 && previous >= 0 && previous < 8 {
         study.ratios[position] = study.ratios[previous];
         transition { _ -> insert(study, index, gene, size, value, previous) }
     }
-    state store(study: &mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 {
+    machine store(study: &mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 {
         transition position >= 0 && position < 8 {
  true -> write(study, index, gene, size, value, position)
  false -> false }
     }
-    state write(study: &mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 && position >= 0 && position < 8 {
+    machine write(study: &mut Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 && position >= 0 && position < 8 {
         study.ratios[position] = value;
         transition { _ -> genes(study, index, gene + 1, size + 1) }
     }
-    state median(study: &mut Study, index: i32 in Wrapping, size: i32 in Wrapping) -> bool requires index >= 0 && index < 6 {
+    machine median(study: &mut Study, index: i32 in Wrapping, size: i32 in Wrapping) -> bool requires index >= 0 && index < 6 {
         let upper: i32 in Wrapping = size / 2;
         let lower: i32 in Wrapping = (size - 1) / 2;
         transition size > 0 && upper >= 0 && upper < 8 && lower >= 0 && lower < 8 {
  true -> finish(study, index, size, lower, upper)
  false -> false }
     }
-    state finish(study: &mut Study, index: i32 in Wrapping, size: i32 in Wrapping, lower: i32 in Wrapping, upper: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && lower >= 0 && lower < 8 && upper >= 0 && upper < 8 {
+    machine finish(study: &mut Study, index: i32 in Wrapping, size: i32 in Wrapping, lower: i32 in Wrapping, upper: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && lower >= 0 && lower < 8 && upper >= 0 && upper < 8 {
         study.factors[index] = exponential((study.ratios[lower] + study.ratios[upper]) / 2.0);
         study.eligible = size;
         transition { _ -> sample(study, index + 1) }
@@ -108,17 +108,17 @@ machine normalize(study: &mut Study) -> bool {
 
 machine average(study: &Study, gene: i32 in Wrapping, selected: i32) -> f64 {
     transition { _ -> scan(study, gene, selected, 0, 0.0, 0.0) }
-    state scan(study: &Study, gene: i32 in Wrapping, selected: i32, sample: i32 in Wrapping, total: f64, size: f64) -> f64 {
+    machine scan(study: &Study, gene: i32 in Wrapping, selected: i32, sample: i32 in Wrapping, total: f64, size: f64) -> f64 {
         transition sample < 6 {
  true -> add(study, gene, selected, sample, total, size)
  false -> finish(total, size) }
     }
-    state add(study: &Study, gene: i32 in Wrapping, selected: i32, sample: i32 in Wrapping, total: f64, size: f64) -> f64 {
+    machine add(study: &Study, gene: i32 in Wrapping, selected: i32, sample: i32 in Wrapping, total: f64, size: f64) -> f64 {
         transition group(study, sample) == selected {
  true -> scan(study, gene, selected, sample + 1, total + count(study, gene, sample) / factor(study, sample), size + 1.0)
  false -> scan(study, gene, selected, sample + 1, total, size) }
     }
-    state finish(total: f64, size: f64) -> f64 { transition size > 0.0 {
+    machine finish(total: f64, size: f64) -> f64 { transition size > 0.0 {
  true -> (total / size)
  false -> 0.0 } }
 }
@@ -126,37 +126,37 @@ machine average(study: &Study, gene: i32 in Wrapping, selected: i32) -> f64 {
 // divided by residual degrees of freedom times average squared group mean.
 machine dispersion(study: &Study, gene: i32 in Wrapping, a: f64, b: f64) -> f64 {
     transition { _ -> scan(study, gene, a, b, 0, 0.0, 0.0) }
-    state scan(study: &Study, gene: i32 in Wrapping, a: f64, b: f64, sample: i32 in Wrapping, numerator: f64, denominator: f64) -> f64 {
+    machine scan(study: &Study, gene: i32 in Wrapping, a: f64, b: f64, sample: i32 in Wrapping, numerator: f64, denominator: f64) -> f64 {
         transition sample < 6 {
  true -> add(study, gene, a, b, sample, numerator, denominator)
  false -> finish(numerator, denominator) }
     }
-    state add(study: &Study, gene: i32 in Wrapping, a: f64, b: f64, sample: i32 in Wrapping, numerator: f64, denominator: f64) -> f64 {
+    machine add(study: &Study, gene: i32 in Wrapping, a: f64, b: f64, sample: i32 in Wrapping, numerator: f64, denominator: f64) -> f64 {
         transition group(study, sample) == 0 {
  true -> residual(study, gene, a, b, sample, numerator, denominator, a)
  false -> residual(study, gene, a, b, sample, numerator, denominator, b) }
     }
-    state residual(study: &Study, gene: i32 in Wrapping, a: f64, b: f64, sample: i32 in Wrapping, numerator: f64, denominator: f64, mean: f64) -> f64 {
+    machine residual(study: &Study, gene: i32 in Wrapping, a: f64, b: f64, sample: i32 in Wrapping, numerator: f64, denominator: f64, mean: f64) -> f64 {
         let s: f64 = factor(study, sample); let difference: f64 = count(study, gene, sample) / s - mean;
         transition { _ -> scan(study, gene, a, b, sample + 1, numerator + difference * difference - mean / s, denominator + mean * mean * (4.0 / 6.0)) }
     }
-    state finish(numerator: f64, denominator: f64) -> f64 {
+    machine finish(numerator: f64, denominator: f64) -> f64 {
         transition denominator > 0.0 && numerator > denominator * 0.000001 {
  true -> cap(numerator / denominator)
  false -> 0.000001 }
     }
-    state cap(value: f64) -> f64 { transition value > 10.0 {
+    machine cap(value: f64) -> f64 { transition value > 10.0 {
  true -> 10.0
  false -> value } }
 }
 machine score(study: &Study, gene: i32 in Wrapping, selected: i32, mean: f64, alpha: f64) -> f64 {
     transition { _ -> scan(study, gene, selected, mean, alpha, 0, 0.0) }
-    state scan(study: &Study, gene: i32 in Wrapping, selected: i32, mean: f64, alpha: f64, sample: i32 in Wrapping, total: f64) -> f64 {
+    machine scan(study: &Study, gene: i32 in Wrapping, selected: i32, mean: f64, alpha: f64, sample: i32 in Wrapping, total: f64) -> f64 {
         transition sample < 6 {
  true -> add(study, gene, selected, mean, alpha, sample, total)
  false -> total }
     }
-    state add(study: &Study, gene: i32 in Wrapping, selected: i32, mean: f64, alpha: f64, sample: i32 in Wrapping, total: f64) -> f64 {
+    machine add(study: &Study, gene: i32 in Wrapping, selected: i32, mean: f64, alpha: f64, sample: i32 in Wrapping, total: f64) -> f64 {
         let mu: f64 = factor(study, sample) * mean;
         transition group(study, sample) == selected {
  true -> scan(study, gene, selected, mean, alpha, sample + 1, total + (count(study, gene, sample) - mu) / (1.0 + alpha * mu))
@@ -165,13 +165,13 @@ machine score(study: &Study, gene: i32 in Wrapping, selected: i32, mean: f64, al
 }
 machine fit(study: &Study, gene: i32 in Wrapping, selected: i32, alpha: f64) -> f64 {
     transition { _ -> bisect(study, gene, selected, alpha, 0.0, 1000000.0, 0) }
-    state bisect(study: &Study, gene: i32 in Wrapping, selected: i32, alpha: f64, lower: f64, upper: f64, iteration: i32 in Wrapping) -> f64 {
+    machine bisect(study: &Study, gene: i32 in Wrapping, selected: i32, alpha: f64, lower: f64, upper: f64, iteration: i32 in Wrapping) -> f64 {
         let middle: f64 = (lower + upper) / 2.0;
         transition iteration < 60 {
  true -> choose(study, gene, selected, alpha, lower, upper, middle, iteration)
  false -> middle }
     }
-    state choose(study: &Study, gene: i32 in Wrapping, selected: i32, alpha: f64, lower: f64, upper: f64, middle: f64, iteration: i32 in Wrapping) -> f64 {
+    machine choose(study: &Study, gene: i32 in Wrapping, selected: i32, alpha: f64, lower: f64, upper: f64, middle: f64, iteration: i32 in Wrapping) -> f64 {
         transition score(study, gene, selected, middle, alpha) > 0.0 {
  true -> bisect(study, gene, selected, alpha, middle, upper, iteration + 1)
  false -> bisect(study, gene, selected, alpha, lower, middle, iteration + 1) }
@@ -179,12 +179,12 @@ machine fit(study: &Study, gene: i32 in Wrapping, selected: i32, alpha: f64) -> 
 }
 machine information(study: &Study, gene: i32 in Wrapping, selected: i32, mean: f64, alpha: f64) -> f64 {
     transition { _ -> scan(study, selected, mean, alpha, 0, 0.0) }
-    state scan(study: &Study, selected: i32, mean: f64, alpha: f64, sample: i32 in Wrapping, total: f64) -> f64 {
+    machine scan(study: &Study, selected: i32, mean: f64, alpha: f64, sample: i32 in Wrapping, total: f64) -> f64 {
         transition sample < 6 {
  true -> add(study, selected, mean, alpha, sample, total)
  false -> total }
     }
-    state add(study: &Study, selected: i32, mean: f64, alpha: f64, sample: i32 in Wrapping, total: f64) -> f64 {
+    machine add(study: &Study, selected: i32, mean: f64, alpha: f64, sample: i32 in Wrapping, total: f64) -> f64 {
         let mu: f64 = factor(study, sample) * mean;
         transition group(study, sample) == selected {
  true -> scan(study, selected, mean, alpha, sample + 1, total + mu / (1.0 + alpha * mu))
@@ -200,17 +200,17 @@ machine log_probability(y: f64, mu: f64, alpha: f64) -> f64 {
 }
 machine log_likelihood(study: &Study, gene: i32 in Wrapping, a: f64, b: f64, alpha: f64) -> f64 {
     transition { _ -> scan(study, gene, a, b, alpha, 0, 0.0) }
-    state scan(study: &Study, gene: i32 in Wrapping, a: f64, b: f64, alpha: f64, sample: i32 in Wrapping, total: f64) -> f64 {
+    machine scan(study: &Study, gene: i32 in Wrapping, a: f64, b: f64, alpha: f64, sample: i32 in Wrapping, total: f64) -> f64 {
         transition sample < 6 {
  true -> choose(study, gene, a, b, alpha, sample, total)
  false -> total }
     }
-    state choose(study: &Study, gene: i32 in Wrapping, a: f64, b: f64, alpha: f64, sample: i32 in Wrapping, total: f64) -> f64 {
+    machine choose(study: &Study, gene: i32 in Wrapping, a: f64, b: f64, alpha: f64, sample: i32 in Wrapping, total: f64) -> f64 {
         transition group(study, sample) == 0 {
  true -> add(study, gene, a, b, alpha, sample, total, a)
  false -> add(study, gene, a, b, alpha, sample, total, b) }
     }
-    state add(study: &Study, gene: i32 in Wrapping, a: f64, b: f64, alpha: f64, sample: i32 in Wrapping, total: f64, mean: f64) -> f64 {
+    machine add(study: &Study, gene: i32 in Wrapping, a: f64, b: f64, alpha: f64, sample: i32 in Wrapping, total: f64, mean: f64) -> f64 {
         transition { _ -> scan(study, gene, a, b, alpha, sample + 1, total + log_probability(count(study, gene, sample), factor(study, sample) * mean, alpha)) }
     }
 }

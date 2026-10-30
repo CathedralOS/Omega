@@ -1,57 +1,35 @@
 use super::CoreContractDecodeError;
 
-/// Deterministic analysis products understood by the pass manager.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[repr(u8)]
-pub enum AnalysisKind {
-    ControlFlowGraph = 1,
-    Dominators = 2,
-    PostDominators = 3,
-    LoopForest = 4,
-    StronglyConnectedComponents = 5,
-    UseDefinition = 6,
-    ExecutableEdges = 7,
-    ScalarConstants = 8,
-    ValueRanges = 9,
-    EffectSummaries = 10,
-    CallGraph = 11,
-    PlaceAliases = 12,
-    MemoryVersions = 13,
-    OwnershipFrontiers = 14,
-    CleanupFrontiers = 15,
-    EscapeAndAddressStability = 16,
-    ValueLiveness = 17,
-    PlaceLiveness = 18,
-    TargetCosts = 19,
-    RegisterLiveness = 20,
-    PlaceAccessSummaries = 21,
+crate::tagged_vocabulary! {
+    21;
+    /// Deterministic analysis products understood by the pass manager.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum AnalysisKind {
+        ControlFlowGraph = 1,
+        Dominators = 2,
+        PostDominators = 3,
+        LoopForest = 4,
+        StronglyConnectedComponents = 5,
+        UseDefinition = 6,
+        ExecutableEdges = 7,
+        ScalarConstants = 8,
+        ValueRanges = 9,
+        EffectSummaries = 10,
+        CallGraph = 11,
+        PlaceAliases = 12,
+        MemoryVersions = 13,
+        OwnershipFrontiers = 14,
+        CleanupFrontiers = 15,
+        EscapeAndAddressStability = 16,
+        ValueLiveness = 17,
+        PlaceLiveness = 18,
+        TargetCosts = 19,
+        RegisterLiveness = 20,
+        PlaceAccessSummaries = 21,
+    }
 }
 
 impl AnalysisKind {
-    pub const ALL: [Self; 21] = [
-        Self::ControlFlowGraph,
-        Self::Dominators,
-        Self::PostDominators,
-        Self::LoopForest,
-        Self::StronglyConnectedComponents,
-        Self::UseDefinition,
-        Self::ExecutableEdges,
-        Self::ScalarConstants,
-        Self::ValueRanges,
-        Self::EffectSummaries,
-        Self::CallGraph,
-        Self::PlaceAliases,
-        Self::MemoryVersions,
-        Self::OwnershipFrontiers,
-        Self::CleanupFrontiers,
-        Self::EscapeAndAddressStability,
-        Self::ValueLiveness,
-        Self::PlaceLiveness,
-        Self::TargetCosts,
-        Self::RegisterLiveness,
-        Self::PlaceAccessSummaries,
-    ];
-
     const fn bit(self) -> u64 {
         1_u64 << (self as u8 - 1)
     }

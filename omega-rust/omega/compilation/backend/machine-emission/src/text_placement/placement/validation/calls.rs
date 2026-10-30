@@ -111,7 +111,7 @@ pub(super) struct ForeignCall<'a> {
     pub caller: MachineId,
     pub block: SelectedBlockId,
     pub instruction: SelectedInstructionId,
-    pub invocation_site: semantic_vocabulary::BoundaryInvocationSite,
+    pub invocation_site: semantic_vocabulary::InvocationSite,
     pub offset: u64,
     pub bytes: &'a [u8],
     pub fixup: FunctionFragmentNormalizedForeignCallFixup,

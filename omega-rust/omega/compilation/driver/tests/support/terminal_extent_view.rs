@@ -16,16 +16,11 @@ use extents::{
     AddressSpaceId, Extent, ExtentLineageId, ExtentProvenanceId, ExtentProviderIssuance,
     ExtentRightId, ExtentRights, ExtentRootGrant, MappingEraId,
 };
-use semantic_vocabulary::IntegerValue;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
-    ProviderInstallationSelection, TerminalExecutionResult, TerminalExecutionStatus,
-    TerminalInstanceCloseError, TerminalInstanceError, TerminalProgram,
-    TerminalProviderStorageInput, TerminalRuntimeSupplyRequest, TerminalScalarValue,
-    TerminalStructuralInputs, TerminalStructuralScalarFieldValue, TerminalStructuralValue,
-    admit_provider_installation,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalInstanceCloseError,
+    TerminalInstanceError, TerminalProgram, TerminalProviderStorageInput, TerminalStructuralInputs,
 };
-use terminal_psi::StructuralTypeShape;
 
 pub(super) fn allocation(provenance: u64, length: u64) -> Extent {
     ExtentRootGrant::from_admitted_provider(
@@ -74,48 +69,10 @@ fn exercise(
         .expect("exact View operation retained");
     assert_eq!(plan.storage.vacant, None);
     assert_eq!(plan.storage.resident, None);
-    let selections = module
-        .provider_candidates
-        .iter()
-        .map(|candidate| ProviderInstallationSelection {
-            boundary: candidate.boundary,
-            provider_identity: module
-                .identities
-                .text(candidate.provider_identity)
-                .unwrap()
-                .to_owned(),
-            provider_declaration: module
-                .identities
-                .text(candidate.provider_declaration.identity())
-                .unwrap()
-                .to_owned(),
-            candidate: candidate.candidate,
-        })
-        .collect::<Vec<_>>();
-    let installed = admit_provider_installation(artifact.view(), &selections, &[]).unwrap();
-    let supplies = program
-        .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
-            x86_flags: None,
-            entry: None,
-            installation: Some(&installed),
-            host_imports: &[],
-            target_machines: None,
-            target_layouts: None,
-        })
-        .unwrap();
+    let supplies = terminal_provision::admitted_supplies(artifact, program);
     let entry = program.entry().unwrap();
-    let [parameter] = entry.structural_parameters else {
-        panic!("one owned extent input");
-    };
     let terminal_psi::TerminalMachineResult::Structural(expected_result) = entry.result else {
         panic!("one owned extent result");
-    };
-    let StructuralTypeShape::Record { fields, .. } = &program
-        .structural_type(parameter.structural_type)
-        .unwrap()
-        .shape
-    else {
-        panic!("extent record");
     };
     for (second_word, compatible_transfer, bind_backing, crosswire, writable, payload_ceiling) in [
         (41_u64, true, true, false, writes, 8),
@@ -176,38 +133,7 @@ fn exercise(
             }],
         })
         .unwrap();
-        let values = [TerminalStructuralValue {
-            opaque_identity: 100,
-            structural_type: parameter.structural_type,
-            qualifications: parameter.qualifications.clone(),
-            projected_qualifications: parameter.projected_qualifications.clone(),
-            path: Vec::new(),
-        }];
-        let scalars = fields
-            .iter()
-            .map(|field| {
-                let coordinate = if field.id == plan.storage.base {
-                    4096_u64
-                } else {
-                    assert_eq!(field.id, plan.storage.length);
-                    16
-                };
-                TerminalStructuralScalarFieldValue {
-                    argument_index: 0,
-                    path: Vec::new(),
-                    field: field.id,
-                    value: TerminalScalarValue::Integer {
-                        scalar_type: field
-                            .field_type
-                            .scalar_type()
-                            .unwrap()
-                            .as_integer()
-                            .unwrap(),
-                        value: IntegerValue::Unsigned(coordinate.into()),
-                    },
-                }
-            })
-            .collect::<Vec<_>>();
+        let (values, scalars) = terminal_provision::storage_inputs(program, plan, 16);
         let mut instance = program
             .instantiate(terminal_interpreter::TerminalInstantiation {
                 account: Some(&account),

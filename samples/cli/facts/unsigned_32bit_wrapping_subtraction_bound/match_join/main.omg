@@ -23,10 +23,10 @@ ensures result == 0u32
         true -> ok()
         _ -> bad()
     }
-    state ok() {
+    machine ok() -> u32 {
         0u32
     }
-    state bad() {
+    machine bad() -> u32 {
         crash Trap;
     }
 }
@@ -46,6 +46,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

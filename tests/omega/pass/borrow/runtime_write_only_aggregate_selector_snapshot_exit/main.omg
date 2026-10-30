@@ -32,7 +32,7 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> again(main)
         _ -> bad()
     }
-    state again(main: &mut Main) {
+    machine again(main: &mut Main) {
         main.position = 1;
         main.replacement.padding = 37;
         main.replacement.value = -19;
@@ -44,8 +44,8 @@ machine Main::main(main: &mut Main) crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -1,0 +1,706 @@
+{
+  "metric": "child-reported compiler process wall ns per one complete native compile",
+  "batches": {
+    "initial": {
+      "pairs": 32,
+      "baseline_median_ms": 2449.8107,
+      "candidate_median_ms": 2205.56455,
+      "paired_difference_median_ms": -240.6009,
+      "paired_percent_median": -9.80258619635246,
+      "paired_percent_change_bootstrap_95": [
+        -10.490237660643597,
+        -9.328469867847272
+      ],
+      "median_difference_bootstrap_95_ms": [
+        -257.0656,
+        -226.12375
+      ]
+    },
+    "confirmation": {
+      "pairs": 16,
+      "baseline_median_ms": 3123.98595,
+      "candidate_median_ms": 2901.17555,
+      "paired_difference_median_ms": -227.5335,
+      "paired_percent_median": -8.32279696475688,
+      "paired_percent_change_bootstrap_95": [
+        -12.213920726925176,
+        -3.5096943543061143
+      ],
+      "median_difference_bootstrap_95_ms": [
+        -363.8386,
+        -107.99115
+      ]
+    }
+  },
+  "exploratory_all_pairs": {
+    "pairs": 48,
+    "baseline_median_ms": 2459.6007,
+    "candidate_median_ms": 2221.45885,
+    "paired_difference_median_ms": -238.55625,
+    "paired_percent_median": -9.72444436036301,
+    "paired_percent_change_bootstrap_95": [
+      -10.497496842979059,
+      -9.193354465059178
+    ],
+    "median_difference_bootstrap_95_ms": [
+      -257.0656,
+      -222.4787
+    ]
+  },
+  "raw_pairs": [
+    {
+      "batch": "initial",
+      "round": 0,
+      "baseline_ns": 2474511500.0,
+      "candidate_ns": 2207970800.0
+    },
+    {
+      "batch": "initial",
+      "round": 1,
+      "baseline_ns": 2433647600.0,
+      "candidate_ns": 2229660000.0
+    },
+    {
+      "batch": "initial",
+      "round": 2,
+      "baseline_ns": 2449413400.0,
+      "candidate_ns": 2241550600.0
+    },
+    {
+      "batch": "initial",
+      "round": 3,
+      "baseline_ns": 2427925500.0,
+      "candidate_ns": 2198156700.0
+    },
+    {
+      "batch": "initial",
+      "round": 4,
+      "baseline_ns": 2414820600.0,
+      "candidate_ns": 2182997200.0
+    },
+    {
+      "batch": "initial",
+      "round": 5,
+      "baseline_ns": 2474780000.0,
+      "candidate_ns": 2237668900.0
+    },
+    {
+      "batch": "initial",
+      "round": 6,
+      "baseline_ns": 2410873100.0,
+      "candidate_ns": 2195357000.0
+    },
+    {
+      "batch": "initial",
+      "round": 7,
+      "baseline_ns": 2454911300.0,
+      "candidate_ns": 2178694000.0
+    },
+    {
+      "batch": "initial",
+      "round": 8,
+      "baseline_ns": 2428983100.0,
+      "candidate_ns": 2211493500.0
+    },
+    {
+      "batch": "initial",
+      "round": 9,
+      "baseline_ns": 2457892100.0,
+      "candidate_ns": 2201642800.0
+    },
+    {
+      "batch": "initial",
+      "round": 10,
+      "baseline_ns": 2442440700.0,
+      "candidate_ns": 2201240300.0
+    },
+    {
+      "batch": "initial",
+      "round": 11,
+      "baseline_ns": 2458850300.0,
+      "candidate_ns": 2203158300.0
+    },
+    {
+      "batch": "initial",
+      "round": 12,
+      "baseline_ns": 2490506400.0,
+      "candidate_ns": 2209226300.0
+    },
+    {
+      "batch": "initial",
+      "round": 13,
+      "baseline_ns": 2450208000.0,
+      "candidate_ns": 2187740200.0
+    },
+    {
+      "batch": "initial",
+      "round": 14,
+      "baseline_ns": 2423825600.0,
+      "candidate_ns": 2187992500.0
+    },
+    {
+      "batch": "initial",
+      "round": 15,
+      "baseline_ns": 2596960600.0,
+      "candidate_ns": 2273642500.0
+    },
+    {
+      "batch": "initial",
+      "round": 16,
+      "baseline_ns": 2606835000.0,
+      "candidate_ns": 2221192000.0
+    },
+    {
+      "batch": "initial",
+      "round": 17,
+      "baseline_ns": 2455130800.0,
+      "candidate_ns": 2198183400.0
+    },
+    {
+      "batch": "initial",
+      "round": 18,
+      "baseline_ns": 2448827600.0,
+      "candidate_ns": 2191762000.0
+    },
+    {
+      "batch": "initial",
+      "round": 19,
+      "baseline_ns": 2422322900.0,
+      "candidate_ns": 2221725700.0
+    },
+    {
+      "batch": "initial",
+      "round": 20,
+      "baseline_ns": 2465630200.0,
+      "candidate_ns": 2212449100.0
+    },
+    {
+      "batch": "initial",
+      "round": 21,
+      "baseline_ns": 2474085400.0,
+      "candidate_ns": 2234084000.0
+    },
+    {
+      "batch": "initial",
+      "round": 22,
+      "baseline_ns": 2454128500.0,
+      "candidate_ns": 2371813100.0
+    },
+    {
+      "batch": "initial",
+      "round": 23,
+      "baseline_ns": 2620759300.0,
+      "candidate_ns": 2290401800.0
+    },
+    {
+      "batch": "initial",
+      "round": 24,
+      "baseline_ns": 2856913700.0,
+      "candidate_ns": 2200207800.0
+    },
+    {
+      "batch": "initial",
+      "round": 25,
+      "baseline_ns": 2446978500.0,
+      "candidate_ns": 2179193200.0
+    },
+    {
+      "batch": "initial",
+      "round": 26,
+      "baseline_ns": 2412947800.0,
+      "candidate_ns": 2266706100.0
+    },
+    {
+      "batch": "initial",
+      "round": 27,
+      "baseline_ns": 2419688200.0,
+      "candidate_ns": 2196356900.0
+    },
+    {
+      "batch": "initial",
+      "round": 28,
+      "baseline_ns": 2402318900.0,
+      "candidate_ns": 2362112900.0
+    },
+    {
+      "batch": "initial",
+      "round": 29,
+      "baseline_ns": 2419994800.0,
+      "candidate_ns": 2197516100.0
+    },
+    {
+      "batch": "initial",
+      "round": 30,
+      "baseline_ns": 2433693200.0,
+      "candidate_ns": 2220026100.0
+    },
+    {
+      "batch": "initial",
+      "round": 31,
+      "baseline_ns": 2460351100.0,
+      "candidate_ns": 2175639800.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 0,
+      "baseline_ns": 2491612700.0,
+      "candidate_ns": 2187289100.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 1,
+      "baseline_ns": 2434524700.0,
+      "candidate_ns": 2197910800.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 2,
+      "baseline_ns": 2440863800.0,
+      "candidate_ns": 3100008700.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 3,
+      "baseline_ns": 3333159200.0,
+      "candidate_ns": 2969320600.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 4,
+      "baseline_ns": 2975690700.0,
+      "candidate_ns": 2857121500.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 5,
+      "baseline_ns": 3241543100.0,
+      "candidate_ns": 2770264700.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 6,
+      "baseline_ns": 3198330700.0,
+      "candidate_ns": 3015533700.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 7,
+      "baseline_ns": 3371163400.0,
+      "candidate_ns": 2915096800.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 8,
+      "baseline_ns": 3015387800.0,
+      "candidate_ns": 3067380600.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 9,
+      "baseline_ns": 3360089800.0,
+      "candidate_ns": 2839547400.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 10,
+      "baseline_ns": 3074302000.0,
+      "candidate_ns": 2887254300.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 11,
+      "baseline_ns": 3275631900.0,
+      "candidate_ns": 2716763200.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 12,
+      "baseline_ns": 3153877200.0,
+      "candidate_ns": 2935424100.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 13,
+      "baseline_ns": 3237249400.0,
+      "candidate_ns": 2876205200.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 14,
+      "baseline_ns": 2908094300.0,
+      "candidate_ns": 3058073800.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 15,
+      "baseline_ns": 3094094700.0,
+      "candidate_ns": 3065160100.0
+    }
+  ],
+  "phase_medians_ms": {
+    "a": {
+      "05": 6.556,
+      "05.01.a_discover_call_catalog": 41.837,
+      "05.01.b_admit_bodies": 0.432,
+      "05.01.c_lower_structural_types": 1.897,
+      "05.01.d_lower_domains_and_services": 3.344,
+      "05.01.e_prepare_qualifications": 0.676,
+      "05.01.f_lower_signatures": 5.085,
+      "05.01.g1.1_setup": 1.322,
+      "05.01.g1.2_emit_states": 12.291,
+      "05.01.g1.3_finish": 2.173,
+      "05.01.g1.3a_requires": 0.067,
+      "05.01.g1.3b_places": 0.36,
+      "05.01.g1.3c_loans": 0.025,
+      "05.01.g1.3d_continuations": 0.561,
+      "05.01.g1.3e.1_owned_extractions": 0.009,
+      "05.01.g1.3e.2_complete_carriers": 0.861,
+      "05.01.g1.3e.3_projected_transfers": 0.129,
+      "05.01.g1.3e.4_retire_borrowed": 0.018,
+      "05.01.g1.3e_affine_cleanup": 1.032,
+      "05.01.g1.3f_crash_and_ranking": 0.021,
+      "05.01.g1_emit_composed_body": 18.894,
+      "05.01.g2_emit_ordinary_body": 9.797,
+      "05.01.h_provider_conformances": 0.04,
+      "05.01_lower_selected_machine": 85.219,
+      "05.02_declarations_retain": 1.286,
+      "05.03_nominal_cleanup_roles": 0.026,
+      "05.04_closed_reach_applications": 0.011,
+      "05.05_reborrow_restored_call_use": 0.005,
+      "05.06_placed_and_suspension": 0.034,
+      "05.07_operation_crash_contracts": 0.054,
+      "05.08_conformance_and_dyn": 0.043,
+      "05.09_build_providers": 0.005,
+      "05.10_reconcile_and_residences": 0.11,
+      "05.11_evidence_artifacts": 0.121,
+      "05.a.source_completion": 0.009,
+      "05.b.retained_match": 3.398,
+      "05.boundary_applications": 0.024,
+      "05.callback_applications": 0.004,
+      "05.debug_map": 0.001,
+      "05.e.declaration_authority": 1.315,
+      "05.identities_build": 0.003,
+      "05.lower_terminal_selection": 86.933,
+      "05.validate_runtime_evidence_inputs": 0.012,
+      "06.0.b_admit_permissions_and_trust": 0.448,
+      "06.0.c_report_prepare": 0.007,
+      "06.0.d_finish_terminal_application": 0.472,
+      "06.0.e_produce_native_product": 131.446,
+      "06.0.f_settlement_finish_native": 0.009,
+      "06.1.a_prepare_terminal": 0.002,
+      "06.1.b_admit_target_layouts": 0.001,
+      "06.1.c1_prepare_native_execution": 2.962,
+      "06.1.c2_prepare_native_providers": 0.005,
+      "06.1.c3_admit_prepared_native_realization": 0.189,
+      "06.1.c4_admit_executable_entry": 0.221,
+      "06.1.c5_capture_native_admission": 0.008,
+      "06.1.d.01_lower_to_target": 27.86,
+      "06.1.d.04_stage_instruction_selection": 17.122,
+      "06.1.d.04b_optimize_selected_instructions": 11.731,
+      "06.1.d.05.j.1_build_domains": 0.471,
+      "06.1.d.05.j.2_prepared_conflicts": 0.316,
+      "06.1.d.05.j.3_compute_bitmask": 0.358,
+      "06.1.d.05_stage_register_allocation": 4.879,
+      "06.1.d.06.a_post_allocation_machine": 20.948,
+      "06.1.d.06.b_stage_function_frame": 1.22,
+      "06.1.d.06.c_selected_form_encoding": 5.839,
+      "06.1.d.06.d_resolved_selected_form_layout": 7.738,
+      "06.1.d.06.e_resolved_layout_opt": 0.003,
+      "06.1.d.06.f_assemble_fixed_frame": 10.101,
+      "06.1.d.06.g_emit_fragment_object": 12.558,
+      "06.1.d.06_stage_frame_realization": 58.483,
+      "06.1.d_emit_realization_object": 4.091,
+      "06.1.e_emit_admitted_image": 0.886,
+      "build.admit_outputs": 1.87,
+      "build.create_session": 133.676,
+      "build.resolve_sources": 1986.918,
+      "component.cache.recovery": 35.717,
+      "evaluate_or_defer.check_defer": 4.139,
+      "evaluate_or_defer.check_defer.const_applications": 1.053,
+      "evaluate_or_defer.check_defer.endpoint_calls": 1.067,
+      "evaluate_or_defer.check_defer.independent_lengths": 1.05,
+      "evaluate_or_defer.check_defer.memberships": 0.013,
+      "evaluate_or_defer.evaluate_work": 3.372,
+      "evaluate_or_defer.evaluate_work.const_applications": 0.909,
+      "evaluate_or_defer.evaluate_work.const_array_lengths": 0.932,
+      "evaluate_or_defer.evaluate_work.domain_facts": 0.007,
+      "evaluate_or_defer.evaluate_work.dynamic_call_targets": 0.444,
+      "evaluate_or_defer.evaluate_work.placed_view_plans": 0.004,
+      "evaluate_or_defer.evaluate_work.plan_laid_layouts": 0.005,
+      "evaluate_or_defer.evaluate_work.range_endpoints": 1.044,
+      "evaluate_or_defer.evaluate_work.wire_plans": 0.007,
+      "evaluate_or_defer.finish": 0.457,
+      "evaluate_or_defer.finish.settle_target_observations": 0.299,
+      "evaluate_or_defer.finish.validate_retained_invocations": 0.155,
+      "psi.source.complete_authored": 1.026,
+      "psi.source.finish": 1.78,
+      "source.graph.decode.checks": 932.016,
+      "source.graph.decode.finish": 0.371,
+      "source.graph.decode.preparation": 288.269,
+      "source.graph.decode.sources": 185.996,
+      "source.graph.load.decode": 1444.858,
+      "source.graph.load.digest": 157.777,
+      "source.graph.load.read": 84.875,
+      "source.graph.load.require_after": 15.185,
+      "source.graph.load.require_before": 15.577,
+      "typed_trees::collect_program_references": 22.505,
+      "typed_trees::program_scoped_proof_facts": 0.244
+    },
+    "b": {
+      "05": 6.768,
+      "05.01.a_discover_call_catalog": 66.833,
+      "05.01.b_admit_bodies": 0.782,
+      "05.01.c_lower_structural_types": 2.818,
+      "05.01.d_lower_domains_and_services": 5.825,
+      "05.01.e_prepare_qualifications": 0.655,
+      "05.01.f_lower_signatures": 7.888,
+      "05.01.g1.1_setup": 1.615,
+      "05.01.g1.2_emit_states": 17.068,
+      "05.01.g1.3_finish": 2.548,
+      "05.01.g1.3a_requires": 0.075,
+      "05.01.g1.3b_places": 0.393,
+      "05.01.g1.3c_loans": 0.026,
+      "05.01.g1.3d_continuations": 0.634,
+      "05.01.g1.3e.1_owned_extractions": 0.014,
+      "05.01.g1.3e.2_complete_carriers": 0.967,
+      "05.01.g1.3e.3_projected_transfers": 0.164,
+      "05.01.g1.3e.4_retire_borrowed": 0.024,
+      "05.01.g1.3e_affine_cleanup": 1.246,
+      "05.01.g1.3f_crash_and_ranking": 0.025,
+      "05.01.g1_emit_composed_body": 24.962,
+      "05.01.g2_emit_ordinary_body": 12.137,
+      "05.01.h_provider_conformances": 0.048,
+      "05.01_lower_selected_machine": 124.524,
+      "05.02_declarations_retain": 1.881,
+      "05.03_nominal_cleanup_roles": 0.062,
+      "05.04_closed_reach_applications": 0.013,
+      "05.05_reborrow_restored_call_use": 0.007,
+      "05.06_placed_and_suspension": 0.046,
+      "05.07_operation_crash_contracts": 0.091,
+      "05.08_conformance_and_dyn": 0.047,
+      "05.09_build_providers": 0.007,
+      "05.10_reconcile_and_residences": 0.147,
+      "05.11_evidence_artifacts": 0.15,
+      "05.a.source_completion": 0.009,
+      "05.b.retained_match": 3.694,
+      "05.boundary_applications": 0.034,
+      "05.callback_applications": 0.003,
+      "05.debug_map": 0.001,
+      "05.e.declaration_authority": 1.395,
+      "05.identities_build": 0.003,
+      "05.lower_terminal_selection": 127.047,
+      "05.validate_runtime_evidence_inputs": 0.011,
+      "06.0.b_admit_permissions_and_trust": 0.693,
+      "06.0.c_report_prepare": 0.015,
+      "06.0.d_finish_terminal_application": 0.68,
+      "06.0.e_produce_native_product": 204.879,
+      "06.0.f_settlement_finish_native": 0.016,
+      "06.1.a_prepare_terminal": 0.002,
+      "06.1.b_admit_target_layouts": 0.001,
+      "06.1.c1_prepare_native_execution": 3.751,
+      "06.1.c2_prepare_native_providers": 0.004,
+      "06.1.c3_admit_prepared_native_realization": 0.252,
+      "06.1.c4_admit_executable_entry": 0.319,
+      "06.1.c5_capture_native_admission": 0.011,
+      "06.1.d.01_lower_to_target": 45.119,
+      "06.1.d.04_stage_instruction_selection": 26.286,
+      "06.1.d.04b_optimize_selected_instructions": 14.519,
+      "06.1.d.05.j.1_build_domains": 0.606,
+      "06.1.d.05.j.2_prepared_conflicts": 0.399,
+      "06.1.d.05.j.3_compute_bitmask": 0.425,
+      "06.1.d.05_stage_register_allocation": 5.769,
+      "06.1.d.06.a_post_allocation_machine": 27.802,
+      "06.1.d.06.b_stage_function_frame": 1.986,
+      "06.1.d.06.c_selected_form_encoding": 8.031,
+      "06.1.d.06.d_resolved_selected_form_layout": 13.652,
+      "06.1.d.06.e_resolved_layout_opt": 0.009,
+      "06.1.d.06.f_assemble_fixed_frame": 18.674,
+      "06.1.d.06.g_emit_fragment_object": 21.593,
+      "06.1.d.06_stage_frame_realization": 97.275,
+      "06.1.d_emit_realization_object": 6.126,
+      "06.1.e_emit_admitted_image": 0.957,
+      "build.admit_outputs": 1.787,
+      "build.create_session": 108.436,
+      "build.resolve_sources": 1760.876,
+      "component.cache.recovery": 38.194,
+      "evaluate_or_defer.check_defer": 4.508,
+      "evaluate_or_defer.check_defer.const_applications": 1.095,
+      "evaluate_or_defer.check_defer.endpoint_calls": 1.221,
+      "evaluate_or_defer.check_defer.independent_lengths": 1.161,
+      "evaluate_or_defer.check_defer.memberships": 0.013,
+      "evaluate_or_defer.evaluate_work": 3.469,
+      "evaluate_or_defer.evaluate_work.const_applications": 0.962,
+      "evaluate_or_defer.evaluate_work.const_array_lengths": 0.95,
+      "evaluate_or_defer.evaluate_work.domain_facts": 0.006,
+      "evaluate_or_defer.evaluate_work.dynamic_call_targets": 0.427,
+      "evaluate_or_defer.evaluate_work.placed_view_plans": 0.004,
+      "evaluate_or_defer.evaluate_work.plan_laid_layouts": 0.006,
+      "evaluate_or_defer.evaluate_work.range_endpoints": 1.075,
+      "evaluate_or_defer.evaluate_work.wire_plans": 0.01,
+      "evaluate_or_defer.finish": 0.396,
+      "evaluate_or_defer.finish.settle_target_observations": 0.248,
+      "evaluate_or_defer.finish.validate_retained_invocations": 0.145,
+      "psi.source.complete_authored": 1.076,
+      "psi.source.finish": 2.702,
+      "source.graph.decode.checks": 749.561,
+      "source.graph.decode.finish": 0.605,
+      "source.graph.decode.preparation": 261.125,
+      "source.graph.decode.sources": 147.224,
+      "source.graph.load.decode": 1158.573,
+      "source.graph.load.digest": 159.378,
+      "source.graph.load.read": 119.514,
+      "source.graph.load.require_after": 21.003,
+      "source.graph.load.require_before": 14.94,
+      "typed_trees::collect_program_references": 24.732,
+      "typed_trees::program_scoped_proof_facts": 0.248
+    }
+  },
+  "validated_image": {
+    "sha256": "6d01f7f36cbd52c02a8f2546dcf168f3da5962a493b6b2885855c0697b0fd646",
+    "bytes": 580080,
+    "product": "same-root component, description and linked wrapper; component ABI replay is the runtime acceptance boundary; standalone wrapper remains a separate failure"
+  },
+  "compile_observations": 112,
+  "unqualified_adapter_attempts": [
+    {
+      "role": "b",
+      "command": [
+        "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\omega-after.exe",
+        "--offline",
+        "--timings",
+        "--target",
+        "linux_x86_64",
+        "--build-dir",
+        "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\observations\\compile-b-6watjhrq\\build",
+        "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\matrix-b\\native\\main.omg"
+      ],
+      "directory": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\observations\\compile-b-6watjhrq",
+      "exit_code": 0,
+      "compile_wall_ns": 3153764800,
+      "peak_bytes": 1510076416,
+      "profile": false,
+      "qualification_failure": "Adapter initially expected the multi-component UI export index. Matrix publishes a single dependency image, its description and the linked program; no native validation or paired sample was recorded."
+    },
+    {
+      "role": "b",
+      "command": [
+        "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\omega-after.exe",
+        "--offline",
+        "--timings",
+        "--target",
+        "linux_x86_64",
+        "--build-dir",
+        "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\observations\\compile-b-d_5p9160\\build",
+        "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\matrix-b\\native\\main.omg"
+      ],
+      "directory": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\observations\\compile-b-d_5p9160",
+      "exit_code": 0,
+      "compile_wall_ns": 5494004400,
+      "peak_bytes": 3041923072,
+      "profile": false,
+      "qualification_failure": "Adapter compared Windows extended and ordinary path spellings before normalization; no native validation or paired sample was recorded."
+    },
+    {
+      "role": "b",
+      "command": [
+        "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\omega-after.exe",
+        "--offline",
+        "--timings",
+        "--target",
+        "linux_x86_64",
+        "--build-dir",
+        "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\observations\\compile-b-zflo3itn\\build",
+        "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\matrix-b\\native\\main.omg"
+      ],
+      "directory": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\observations\\compile-b-zflo3itn",
+      "exit_code": 0,
+      "compile_wall_ns": 2836573100,
+      "peak_bytes": 1510035456,
+      "profile": false,
+      "qualification_failure": "Adapter expected an unqualified ELF dependency name; emitted dependency uses the exact $ORIGIN/component path. No native validation or paired sample was recorded."
+    }
+  ],
+  "separate_root_qualification_only": [
+    {
+      "role": "a",
+      "command": [
+        "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\omega-before.exe",
+        "--offline",
+        "--timings",
+        "--target",
+        "linux_x86_64",
+        "--build-dir",
+        "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\observations\\compile-a-new5tdnu\\build",
+        "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\matrix-a\\native\\main.omg"
+      ],
+      "directory": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\observations\\compile-a-new5tdnu",
+      "exit_code": 0,
+      "compile_wall_ns": 5918018200,
+      "peak_bytes": 2931363840,
+      "profile": false,
+      "image": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\observations\\compile-a-new5tdnu\\build\\omega-program",
+      "image_sha256": "a8598f79cd746bbd24341420ccb8bcce27e01cfb07124ec7b765e48a7434a8c7",
+      "image_bytes": 580080,
+      "artifacts": {
+        "libomega-component-7f4d131d80e770028cf0df9a888386a194a78917f6313dba3b98960fde51c2df.so": "799fffb7f84dc4e6215bdba1a38fa517b33361495720b66f1a4cd988765fb18c",
+        "libomega-component-7f4d131d80e770028cf0df9a888386a194a78917f6313dba3b98960fde51c2df.so.component": "cdd9312b8eff967e3baf93684043b9d31068e7d3293b4f7b5d3cd8c4fcb9a8ed",
+        "omega-program": "0354dd8b5bdac03f9a2b9cfdb799f3ff462128a14b8cef7088afbb4b23e88857"
+      },
+      "phases_ms": {}
+    },
+    {
+      "role": "b",
+      "command": [
+        "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\omega-after.exe",
+        "--offline",
+        "--timings",
+        "--target",
+        "linux_x86_64",
+        "--build-dir",
+        "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\observations\\compile-b-gjs9h02_\\build",
+        "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\matrix-b\\native\\main.omg"
+      ],
+      "directory": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\observations\\compile-b-gjs9h02_",
+      "exit_code": 0,
+      "compile_wall_ns": 3298365700,
+      "peak_bytes": 1510039552,
+      "profile": false,
+      "image": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\observations\\compile-b-gjs9h02_\\build\\omega-program",
+      "image_sha256": "45bf816dbe412f9cad9e2b164db81d0abe4603099a1e3d6d61ce781a606273a1",
+      "image_bytes": 580080,
+      "artifacts": {
+        "libomega-component-86bfb8d3d8d3818674441db7d98221202ffe3d448bb28f6e2e28bd8fdcaeccc8.so": "f04a7c8ce8a5afad544b897fe9ba87a62c4d7aae2bf8635181573cf3c0abcfa2",
+        "libomega-component-86bfb8d3d8d3818674441db7d98221202ffe3d448bb28f6e2e28bd8fdcaeccc8.so.component": "e43214e25ced88598d3de5fcc62454f73312118511ffa71fa8417541110111bc",
+        "omega-program": "91ecc9480086c31728db3ff7fd5f2d3ffcd516a8e5d564a06d2d742bc9e075e3"
+      },
+      "phases_ms": {}
+    },
+    {
+      "role": "b",
+      "command": [
+        "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\omega-after.exe",
+        "--offline",
+        "--timings",
+        "--target",
+        "linux_x86_64",
+        "--build-dir",
+        "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\observations\\compile-b-jp7pfkg3\\build",
+        "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\matrix-b\\native\\main.omg"
+      ],
+      "directory": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\observations\\compile-b-jp7pfkg3",
+      "exit_code": 0,
+      "compile_wall_ns": 5480313600,
+      "peak_bytes": 1510199296,
+      "profile": false,
+      "image": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-matrix-generation-domains\\fixed\\observations\\compile-b-jp7pfkg3\\build\\omega-program",
+      "image_sha256": "45bf816dbe412f9cad9e2b164db81d0abe4603099a1e3d6d61ce781a606273a1",
+      "image_bytes": 580080,
+      "artifacts": {
+        "libomega-component-86bfb8d3d8d3818674441db7d98221202ffe3d448bb28f6e2e28bd8fdcaeccc8.so": "f04a7c8ce8a5afad544b897fe9ba87a62c4d7aae2bf8635181573cf3c0abcfa2",
+        "libomega-component-86bfb8d3d8d3818674441db7d98221202ffe3d448bb28f6e2e28bd8fdcaeccc8.so.component": "e43214e25ced88598d3de5fcc62454f73312118511ffa71fa8417541110111bc",
+        "omega-program": "91ecc9480086c31728db3ff7fd5f2d3ffcd516a8e5d564a06d2d742bc9e075e3"
+      },
+      "phases_ms": {}
+    }
+  ]
+}

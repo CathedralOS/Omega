@@ -1,0 +1,5 @@
+// Expected exit: 0
+data Index<Limit:u32> [copy] requires value<Limit {value:u32;}
+machine create(total:u32)->Index<(total+1u32)> requires total >= 0 && total <= 100 {Index{value:0}}
+machine probe(total:u32)->u32 requires total >= 0 && total <= 100 {create(total).Limit}
+machine main() crashes Trap {let observed:u32=probe(3); transition observed==4 {true->done() _->bad()} machine done(){} machine bad() crashes Trap {crash Trap;}}

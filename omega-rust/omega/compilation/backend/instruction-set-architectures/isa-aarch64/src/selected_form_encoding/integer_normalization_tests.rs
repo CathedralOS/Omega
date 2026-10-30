@@ -1,3 +1,4 @@
+use crate::test_support::rejects_every_bit_flip;
 use register_model::validate_physical_register_model;
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, SelectedInstructionKind,
@@ -95,17 +96,7 @@ fn normalization_binds_signedness_width_registers_and_full_destination_effects()
                     .is_err()
                 );
             }
-            for bit_offset in 0..encoded.bytes().len() * 8 {
-                let mut changed = encoded.bytes().to_vec();
-                changed[bit_offset / 8] ^= 1 << (bit_offset % 8);
-                assert!(
-                    validate_aarch64_selected_form_encoding(
-                        &physical, kind, key, &operands, &changed
-                    )
-                    .is_err(),
-                    "{kind:?} accepted changed bit {bit_offset}"
-                );
-            }
+            rejects_every_bit_flip(&physical, kind, key, &operands, encoded.bytes());
         }
     }
 }

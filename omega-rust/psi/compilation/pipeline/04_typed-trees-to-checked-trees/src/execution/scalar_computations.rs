@@ -35,7 +35,9 @@ mod boundary_calls;
 mod byte_comparisons;
 mod call_arguments;
 mod cases;
+mod coordinate_reads;
 mod dispatch;
+mod dispatch_copies;
 mod dynamic_calls;
 mod enum_equality;
 mod indexed_reads;
@@ -43,6 +45,7 @@ mod integers;
 mod normal_return;
 mod quotient_calls;
 mod rank_observations;
+mod reference_captures;
 mod slice_view;
 mod structural_fields;
 mod structural_values;
@@ -53,35 +56,20 @@ mod builder;
 pub(crate) fn build_checked_value_computation_plans(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
+    semantic: &facts::FactPlan,
     flow: &FlowFacts,
     borrow: &checked_trees::BorrowFacts,
     proof: &ProofFacts,
-    pure: &CheckedScalarExpressionPlans,
+    pure: &mut CheckedScalarExpressionPlans,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> (
     CheckedScalarComputationPlans,
     checked_trees::CheckedStructuralValuePlans,
 ) {
+    dispatch_copies::withdraw_captured_pure_roots(program, flow, pure);
     let mut plans = CheckedScalarComputationPlans::default();
     let mut structural_values = checked_trees::CheckedStructuralValuePlans::default();
-    let runtime_proof_output_callers: std::collections::HashSet<
-        SymbolHandle,
-        symbols::BuildSymbolHasher,
-    > = proof
-        .proof_output_calls
-        .iter()
-        .filter_map(|(_, call)| {
-            call.runtime_call
-                .is_some()
-                .then_some(call.caller_machine_symbol)
-        })
-        .collect();
     for machine in program.machines() {
-        // Existing named-output emission joins statement binding positions.
-        // It must not silently reinterpret computation-local call positions.
-        if runtime_proof_output_callers.contains(&machine.symbol) {
-            continue;
-        }
         let states = program.machine_states(machine);
         for state in states {
             let scalar_parameters = program
@@ -111,9 +99,12 @@ pub(crate) fn build_checked_value_computation_plans(
                 let statement_nodes_start = plans.nodes.storage_slice().len();
                 let mut builder = Builder {
                     program,
+                    shapes: crate::execution::terminal_unit::types::ShapeCollector::new(program),
                     operators,
+                    semantic,
                     flow,
                     borrow,
+                    proof,
                     pure,
                     exact_integer_casts,
                     machine: machine.symbol,
@@ -131,6 +122,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     scalar_occurrences: Vec::new(),
                     integer_occurrences: Vec::new(),
                 };
+                builder.retain_dispatch_copy_roots();
                 // Endpoints are ordinary operands. Capture every occurrence
                 // before constructing consumers, so a call result and a pure
                 // bound supply the same range operation at its authored site.
@@ -171,6 +163,12 @@ pub(crate) fn build_checked_value_computation_plans(
                     StatementNode::LocalData(local) => {
                         Some((local.initial_value, local.type_reference))
                     }
+                    StatementNode::Assignment(assignment) => {
+                        validation::assignment_stored_value_type(
+                            program, machine, state, assignment,
+                        )
+                        .map(|expected| (assignment.value, expected))
+                    }
                     StatementNode::Expression(expression) => {
                         let expected = if program
                             .expression_table
@@ -191,13 +189,6 @@ pub(crate) fn build_checked_value_computation_plans(
                 // A closed primitive array whose elements the scalar route
                 // enumerates owns one scalar root per element.
                 let scalar_elements = construction_destination
-                    .or_else(|| {
-                        let assignment = statement.as_assignment()?;
-                        validation::assignment_stored_value_type(
-                            program, machine, state, assignment,
-                        )
-                        .map(|expected| (assignment.value, expected))
-                    })
                     .filter(|(expression, expected)| {
                         !structural_values::needs_copied_place_root(
                             program,
@@ -261,6 +252,8 @@ pub(crate) fn build_checked_value_computation_plans(
                             source_span: Default::default(),
                             type_reference: local.type_reference,
                             qualification_decisions: Default::default(),
+                            content_transformation: Default::default(),
+                            content_inputs: Default::default(),
                             kind: checked_trees::CheckedStructuralValueKind::ZeroedStructural {
                                 projected_qualifications,
                             },
@@ -274,22 +267,43 @@ pub(crate) fn build_checked_value_computation_plans(
                     );
                 }
                 if let Some(elements) = scalar_elements {
-                    for (element_index, (element, primitive_type)) in
-                        elements.elements.into_iter().enumerate()
-                    {
+                    for (element_index, element) in elements.elements.into_iter().enumerate() {
                         let Ok(element_ordinal) = u32::try_from(element_index) else {
                             break;
                         };
-                        builder.record_root(
-                            pure,
-                            statement_ordinal,
-                            CheckedScalarExpressionRole::ArrayElement {
-                                source: checked_trees::CheckedArrayConstructionSource::Statement,
-                                element_ordinal,
-                            },
-                            element,
-                            primitive_type,
-                        );
+                        let role = CheckedScalarExpressionRole::ArrayElement {
+                            source: checked_trees::CheckedArrayConstructionSource::Statement,
+                            element_ordinal,
+                        };
+                        match element {
+                            validation::ScalarArrayElement::Authored {
+                                expression,
+                                primitive_type,
+                            } => {
+                                builder.record_root(
+                                    pure,
+                                    statement_ordinal,
+                                    role,
+                                    expression,
+                                    primitive_type,
+                                );
+                            }
+                            validation::ScalarArrayElement::Projected {
+                                row,
+                                indices,
+                                leaf_type,
+                                primitive_type,
+                            } => {
+                                builder.record_projected_element_root(
+                                    statement_ordinal,
+                                    role,
+                                    row,
+                                    &indices,
+                                    leaf_type,
+                                    primitive_type,
+                                );
+                            }
+                        }
                     }
                 }
                 for construction in captured
@@ -455,41 +469,6 @@ pub(crate) fn build_checked_value_computation_plans(
                     }
                 }
                 if let Some(assignment) = statement.as_assignment() {
-                    // Every structural replacement uses the same value graph:
-                    // constructors, calls and owned projections differ in
-                    // their producers, not in the receiving store. Selecting
-                    // roots by source spelling loses ordinary moved fields.
-                    // The sequence completes the RHS before replacing the
-                    // destination and retaining its restoration obligations.
-                    // Keep the destination's complete declared type. Carrier
-                    // classifiers may inspect its underlying shape, but value
-                    // custody must still distinguish arithmetic policies and
-                    // reference shells when comparing the source and result.
-                    // Assignment through a reference writes its referent, so
-                    // `referent = Sum::Case` through `referent: &mut Sum`
-                    // roots a value of the referee, which the sequence then
-                    // stores through the loan's whole-referent window.
-                    // Reference-valued replacement owns the descriptor, while
-                    // value-shaped assignment writes through the reference.
-                    // Share the source mutation owner's classification: the
-                    // declared reference shell alone cannot choose the store.
-                    // A projected descriptor slot has the same value semantics
-                    // as a local binding. Restricting this query to locals
-                    // strips a field's reference shell and loses its producer.
-                    let written = validation::assignment_stored_value_type(
-                        program, machine, state, assignment,
-                    );
-                    if let Some(expected) = written
-                        && program.primitive_type_reference(expected).is_none()
-                        && let Some(root) = builder.structural_value(assignment.value, expected)
-                    {
-                        builder.retain_structural_root(
-                            statement_ordinal,
-                            assignment.value,
-                            expected,
-                            root,
-                        );
-                    }
                     // An indexed store evaluates each selector of its
                     // target before its value. The pure plan already keeps
                     // the same `AssignmentIndex { depth }`/`AssignmentValue`
@@ -698,7 +677,11 @@ pub(crate) fn build_checked_value_computation_plans(
                         machine,
                         transfer.target,
                     )
-                    .and_then(|target_index| states.get(target_index)) else {
+                    .and_then(|target_index| states.get(target_index))
+                    .or_else(|| {
+                        validation::find_machine_head(program, transfer.target)
+                            .map(|(_, entry)| entry)
+                    }) else {
                         continue;
                     };
                     // Tail-normalized calls deliver into entry storage just
@@ -764,6 +747,8 @@ pub(crate) fn build_checked_value_computation_plans(
             }
         }
     }
+    plans.seal();
+    structural_values.seal();
     (plans, structural_values)
 }
 
@@ -777,12 +762,16 @@ pub(crate) fn record_rank_observations(
     rank_observations::record(
         program,
         &facts.operators,
+        &facts.semantic,
         &facts.flow,
         &facts.borrow,
+        &facts.proof,
         &facts.values.scalar_expressions,
         &facts.operators.exact_integer_casts,
         &facts.termination.rank_arrivals,
         &mut facts.values.scalar_computations,
         &mut facts.values.structural_values,
     );
+    facts.values.scalar_computations.seal();
+    facts.values.structural_values.seal();
 }

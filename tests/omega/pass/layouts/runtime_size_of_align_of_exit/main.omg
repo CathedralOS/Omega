@@ -134,44 +134,44 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad_padding(main)
     }
 
-    state check_zero_sized(main: &mut Main, row_bytes: u64, packed_bytes: u64, packed_align: u64) {
+    machine check_zero_sized(main: &mut Main, row_bytes: u64, packed_bytes: u64, packed_align: u64) {
         transition EMPTY_BYTES == 0 && size_of<Empty>() == 0 && row_bytes == 16 {
             true -> check_reference(main, packed_bytes, packed_align)
             false -> bad_zero(main)
         }
     }
 
-    state check_reference(main: &mut Main, packed_bytes: u64, packed_align: u64) {
+    machine check_reference(main: &mut Main, packed_bytes: u64, packed_align: u64) {
         transition REF_BYTES == 8 && size_of<&Row>() == 8 && align_of<&Row>() == 8 {
             true -> check_plan(main, packed_bytes, packed_align)
             false -> bad_reference(main)
         }
     }
 
-    state check_plan(main: &mut Main, packed_bytes: u64, packed_align: u64) {
+    machine check_plan(main: &mut Main, packed_bytes: u64, packed_align: u64) {
         transition packed_bytes == 1 && packed_align == 1 {
             true -> good(main)
             false -> bad_plan(main)
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state bad_padding(main: &mut Main) {
+    machine bad_padding(main: &mut Main) {
         Console::exit_process(71);
     }
 
-    state bad_zero(main: &mut Main) {
+    machine bad_zero(main: &mut Main) {
         Console::exit_process(72);
     }
 
-    state bad_reference(main: &mut Main) {
+    machine bad_reference(main: &mut Main) {
         Console::exit_process(73);
     }
 
-    state bad_plan(main: &mut Main) {
+    machine bad_plan(main: &mut Main) {
         Console::exit_process(74);
     }
 }

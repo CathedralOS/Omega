@@ -9,14 +9,17 @@
 //! Streams and exact semantic statuses are retained for an independent oracle
 //! validator. This is repository qualification tooling, not shipped CLI coverage.
 
-use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
-use package_manager::operations::{LocalProjectPreparationOptions, prepare_local_project};
+use omega_build::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct, build};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 
 fn main() -> Result<(), String> {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--build-profile")) {
+        println!("{}", compiler::compiler_build_profile());
+        return Ok(());
+    }
     std::thread::Builder::new()
         .name("qualify-inputs".to_owned())
         .stack_size(256 * 1024 * 1024)
@@ -54,18 +57,28 @@ fn qualify() -> Result<(), Box<dyn std::error::Error>> {
     // launched merely because its source declared another entry binding.
     let target = target::TargetProfile::from_omega_target_name(None)
         .map_err(|diagnostic| format!("{diagnostic:?}"))?;
-    let prepared = prepare_local_project(
-        &source,
-        LocalProjectPreparationOptions {
-            target,
-            offline: false,
-        },
-    )?
-    .ok_or("qualification requires a project with build.omg")?;
     let started = Instant::now();
-    let report = compile_prepared_local_project_for_native(
-        PreparedLocalProjectNativeRequest::new(prepared, evidence.join("product"), target),
-    )?;
+    let mut outcomes = build(BuildRequest {
+        root_path: source,
+        build_directory: Some(evidence.join("product")),
+        targets: BuildTargets::Single(target),
+        product: ProjectProduct::Native {
+            destination: NativeDestination::Retained,
+            private_entry_ram: Vec::new(),
+        },
+        timings: false,
+        offline: false,
+        verify: false,
+        require_package_project: true,
+        optimization_rollback: Default::default(),
+        build_snapshot: None,
+    })?;
+    let report = outcomes
+        .pop()
+        .ok_or("qualification lost its requested target")?
+        .result?
+        .into_report()?
+        .report;
     let artifact = report
         .retained_native_artifact()
         .ok_or("publication lost retained Terminal artifact")?
@@ -82,7 +95,11 @@ fn qualify() -> Result<(), Box<dyn std::error::Error>> {
         }
         let started = Instant::now();
         let terminal = terminal_runtime::execute(TerminalRuntimeRequest {
+            entry: None,
+            filesystem: Default::default(),
+            native_provider: None,
             x86_flags: None,
+            memory_ordering: None,
             provider_proposal: None,
             artifact,
             target: Some(target.target_name()),
@@ -90,7 +107,7 @@ fn qualify() -> Result<(), Box<dyn std::error::Error>> {
             fuel_allowance: 10_000_000,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: Some(Box::new(std::fs::File::open(&input)?)),
-            clock: Some(terminal_runtime::TerminalClockSnapshot::capture_host_epoch()?),
+            clock: Some(terminal_runtime::TerminalClockSnapshot::capture_host_epoch()?.into()),
         })?;
         std::fs::write(directory.join("terminal.stdout"), terminal.stdout)?;
         std::fs::write(directory.join("terminal.stderr"), terminal.stderr)?;

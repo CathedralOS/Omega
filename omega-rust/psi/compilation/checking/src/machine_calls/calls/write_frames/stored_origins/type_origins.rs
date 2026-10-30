@@ -360,11 +360,8 @@ fn walk_declared_origins(
                         {
                             continue;
                         }
-                        let type_reference = super::projections::projected_storage_type(
-                            program,
-                            root_reference,
-                            &segments,
-                        )?;
+                        let type_reference =
+                            super::projected_storage_type(program, root_reference, &segments)?;
                         origins.moves.push(
                             super::super::path_instantiation::aggregate_arguments::AggregateMove {
                                 local_segments: segments.clone(),

@@ -7,7 +7,7 @@ requires offset <= 8
         true -> consume(bytes, offset, descriptor)
         _ -> 0
     }
-    state consume(bytes: &[u8; 24], offset: u64, descriptor: &Descriptor) -> u64
+    machine consume(bytes: &[u8; 24], offset: u64, descriptor: &Descriptor) -> u64
     requires offset <= 8 && descriptor.pages <= 4503599627370495 &&
         descriptor.base <= 18446744073709551615 - descriptor.pages * 4096
     {

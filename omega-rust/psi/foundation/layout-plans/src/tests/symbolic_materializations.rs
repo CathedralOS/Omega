@@ -1,13 +1,13 @@
 use super::{
-    data, deeply_nested_layout, entry, nested_layout, post_handoff_context,
-    post_handoff_context_with, record_interior, reject_inner_layout_materialization,
-    repeated_layout, split_layout, symbolic_path,
+    data, deeply_nested_layout, entry, layout_field_entry, nested_layout,
+    numbered_layout_field_entry, post_handoff_context, post_handoff_context_with, record_interior,
+    reject_inner_layout_materialization, repeated_layout, split_layout, symbolic_path,
 };
 use crate::{
-    ByteOrder, ConsumptionInstant, IntegerInterpretation, LayoutFieldEntryReport,
-    LayoutPlacementReport, LayoutPlanReport, MaterializationAction, MaterializationContext,
-    PlacementAddressRange, PlacementConstraints, PlacementPhase, SymbolicFieldInnerLayout,
-    SymbolicFieldPathSegment, SymbolicFieldValue, derive_symbolic_materialization,
+    ByteOrder, ConsumptionInstant, IntegerInterpretation, LayoutPlacementReport, LayoutPlanReport,
+    MaterializationAction, MaterializationContext, PlacementAddressRange, PlacementConstraints,
+    PlacementPhase, SymbolicFieldInnerLayout, SymbolicFieldPathSegment, SymbolicFieldValue,
+    derive_symbolic_materialization,
 };
 
 #[test]
@@ -193,10 +193,12 @@ fn symbolic_inner_materialization_rejects_ambiguous_or_missing_members() {
     let repeated_outer = LayoutPlanReport {
         schema_report_fingerprint: 1,
         entries: (0..4)
-            .map(|index| LayoutFieldEntryReport {
-                field: "handlers".into(),
-                member_identity: Some(9),
-                placement: LayoutPlacementReport::At { offset: index * 16 },
+            .map(|index| {
+                numbered_layout_field_entry(
+                    "handlers".into(),
+                    9,
+                    LayoutPlacementReport::At { offset: index * 16 },
+                )
             })
             .collect(),
         offsets: None,
@@ -224,15 +226,14 @@ fn symbolic_inner_materialization_rejects_ambiguous_or_missing_members() {
     // A fragmented or stored-integer outer placement cannot enclose a record.
     let integer_outer = LayoutPlanReport {
         schema_report_fingerprint: 1,
-        entries: vec![LayoutFieldEntryReport {
-            field: "address".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::IntegerAt {
+        entries: vec![layout_field_entry(
+            "address".into(),
+            LayoutPlacementReport::IntegerAt {
                 offset: 0,
                 stored_width: 32,
                 interpretation: IntegerInterpretation::Unsigned,
             },
-        }],
+        )],
         offsets: None,
         size: Some(4),
         align: 4,
@@ -256,17 +257,16 @@ fn symbolic_inner_materialization_rejects_ambiguous_or_missing_members() {
     // A fragmented placement is the same dead end: bit containers describe a
     // scalar's storage, not the contiguous record extent an interior needs.
     let bits_outer = LayoutPlanReport {
-        entries: vec![LayoutFieldEntryReport {
-            field: "address".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::Bits {
+        entries: vec![layout_field_entry(
+            "address".into(),
+            LayoutPlacementReport::Bits {
                 container: 0,
                 container_width: 32,
                 destination_lsb: 0,
                 source_lsb: 0,
                 width: 32,
             },
-        }],
+        )],
         ..integer_outer.clone()
     };
     let bits_carrier = SymbolicFieldInnerLayout::new("address", record_interior(&carrier));
@@ -427,10 +427,11 @@ fn symbolic_inner_materialization_bounds_each_record_boundary() {
         LayoutPlanReport {
             schema_report_fingerprint: 2,
             entries: (0..2)
-                .map(|index| LayoutFieldEntryReport {
-                    field: "subs".into(),
-                    member_identity: None,
-                    placement: LayoutPlacementReport::At { offset: index * 24 },
+                .map(|index| {
+                    layout_field_entry(
+                        "subs".into(),
+                        LayoutPlacementReport::At { offset: index * 24 },
+                    )
                 })
                 .collect(),
             offsets: None,
@@ -442,11 +443,10 @@ fn symbolic_inner_materialization_bounds_each_record_boundary() {
         "subs",
         LayoutPlanReport {
             schema_report_fingerprint: 3,
-            entries: vec![LayoutFieldEntryReport {
-                field: "entry".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset: 0 },
-            }],
+            entries: vec![layout_field_entry(
+                "entry".into(),
+                LayoutPlacementReport::At { offset: 0 },
+            )],
             offsets: Some(vec![0]),
             size: Some(24),
             align: 8,
@@ -481,15 +481,14 @@ fn symbolic_inner_materialization_bounds_each_record_boundary() {
         "slot",
         LayoutPlanReport {
             schema_report_fingerprint: 2,
-            entries: vec![LayoutFieldEntryReport {
-                field: "sub".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::IntegerAt {
+            entries: vec![layout_field_entry(
+                "sub".into(),
+                LayoutPlacementReport::IntegerAt {
                     offset: 8,
                     stored_width: 64,
                     interpretation: IntegerInterpretation::Unsigned,
                 },
-            }],
+            )],
             offsets: None,
             size: Some(32),
             align: 8,
@@ -518,11 +517,10 @@ fn symbolic_inner_materialization_bounds_each_record_boundary() {
             "sub",
             LayoutPlanReport {
                 schema_report_fingerprint: 3,
-                entries: vec![LayoutFieldEntryReport {
-                    field: "entry".into(),
-                    member_identity: None,
-                    placement: LayoutPlacementReport::At { offset: 0 },
-                }],
+                entries: vec![layout_field_entry(
+                    "entry".into(),
+                    LayoutPlacementReport::At { offset: 0 },
+                )],
                 offsets: Some(vec![0]),
                 // `sub` sits at offset 8 of `slot`'s 32-byte interior; claiming 32
                 // more bytes reaches 40 and escapes into the outer object.
@@ -545,11 +543,10 @@ fn symbolic_inner_materialization_bounds_each_record_boundary() {
 
     // A leaf member may not escape the innermost interior extent either.
     let mut deep_escape = record_interior(&carrier.inner_layouts()[0]);
-    deep_escape.entries.push(LayoutFieldEntryReport {
-        field: "escape".into(),
-        member_identity: None,
-        placement: LayoutPlacementReport::At { offset: 20 },
-    });
+    deep_escape.entries.push(layout_field_entry(
+        "escape".into(),
+        LayoutPlacementReport::At { offset: 20 },
+    ));
     let escaping = SymbolicFieldInnerLayout::new("slot", record_interior(&carrier))
         .with_inner_layout(SymbolicFieldInnerLayout::new("sub", deep_escape));
     let error = reject_inner_layout_materialization(

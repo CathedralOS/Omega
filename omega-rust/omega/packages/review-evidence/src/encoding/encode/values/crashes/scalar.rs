@@ -23,17 +23,11 @@ fn encode_scalar_node(
     match expression {
         PackageReviewScalarExpression::Float32Literal(bits) => {
             encoder.tag("float32_literal", 9);
-            encoder.field("bits", |encoder| {
-                encoder.u32(*bits);
-                Ok(())
-            })?;
+            encoder.u32_field("bits", *bits)?;
         }
         PackageReviewScalarExpression::Float64Literal(bits) => {
             encoder.tag("float64_literal", 10);
-            encoder.field("bits", |encoder| {
-                encoder.u64(*bits);
-                Ok(())
-            })?;
+            encoder.u64_field("bits", *bits)?;
         }
         PackageReviewScalarExpression::Parameter {
             position,
@@ -41,10 +35,7 @@ fn encode_scalar_node(
         } => {
             encoder.tag("parameter", 0);
             encoder.field("position", |encoder| encoder.usize(*position))?;
-            encoder.field("primitive_type", |encoder| {
-                encode_primitive_type(encoder, *primitive_type);
-                Ok(())
-            })?;
+            encoder.field_by("primitive_type", *primitive_type, encode_primitive_type)?;
         }
         PackageReviewScalarExpression::Local {
             position,
@@ -52,10 +43,7 @@ fn encode_scalar_node(
         } => {
             encoder.tag("local", 1);
             encoder.field("position", |encoder| encoder.usize(*position))?;
-            encoder.field("primitive_type", |encoder| {
-                encode_primitive_type(encoder, *primitive_type);
-                Ok(())
-            })?;
+            encoder.field_by("primitive_type", *primitive_type, encode_primitive_type)?;
         }
         PackageReviewScalarExpression::StructuralParameterField {
             parameter_position,
@@ -63,29 +51,21 @@ fn encode_scalar_node(
             primitive_type,
         } => {
             encoder.tag("structural_parameter_field", 2);
-            encoder.field("parameter_position", |encoder| {
-                encoder.u32(*parameter_position);
-                Ok(())
-            })?;
+            encoder.u32_field("parameter_position", *parameter_position)?;
             encoder.field("path", |encoder| encode_structural_path(encoder, path))?;
-            encoder.field("primitive_type", |encoder| {
-                encode_primitive_type(encoder, *primitive_type);
-                Ok(())
-            })?;
+            encoder.field_by("primitive_type", *primitive_type, encode_primitive_type)?;
         }
         PackageReviewScalarExpression::IntegerLiteral(literal) => {
             encoder.tag("integer_literal", 3);
-            encoder.field("canonical_text", |encoder| {
-                encoder.string(&literal.canonical_text)
-            })?;
+            encoder.string_field("canonical_text", &literal.canonical_text)?;
             encoder.field("landing", |encoder| {
                 encoder.option(literal.landing.as_ref(), |encoder, landing| {
-                    encoder.field("landed_type", |encoder| {
-                        encoder.string(primitive_type_name(landing.landed_type))
-                    })?;
-                    encoder.field("arithmetic_domain", |encoder| {
-                        encoder.string(arithmetic_domain_name(landing.arithmetic_domain))
-                    })
+                    encoder
+                        .string_field("landed_type", primitive_type_name(landing.landed_type))?;
+                    encoder.string_field(
+                        "arithmetic_domain",
+                        arithmetic_domain_name(landing.arithmetic_domain),
+                    )
                 })
             })?;
         }
@@ -101,10 +81,7 @@ fn encode_scalar_node(
                 encoder.tag(name, tag);
                 Ok(())
             })?;
-            encoder.field("primitive_type", |encoder| {
-                encode_primitive_type(encoder, *primitive_type);
-                Ok(())
-            })?;
+            encoder.field_by("primitive_type", *primitive_type, encode_primitive_type)?;
             encoder.field("left", |encoder| encode_scalar_expression(encoder, left))?;
             encoder.field("right", |encoder| encode_scalar_expression(encoder, right))?;
         }
@@ -113,26 +90,16 @@ fn encode_scalar_node(
             operand,
         } => {
             encoder.tag("integer_bitwise_not", 5);
-            encoder.field("primitive_type", |encoder| {
-                encode_primitive_type(encoder, *primitive_type);
-                Ok(())
-            })?;
-            encoder.field("operand", |encoder| {
-                encode_scalar_expression(encoder, operand)
-            })?;
+            encoder.field_by("primitive_type", *primitive_type, encode_primitive_type)?;
+            encoder.field_by("operand", &**operand, encode_scalar_expression)?;
         }
         PackageReviewScalarExpression::IntegerWiden {
             primitive_type,
             operand,
         } => {
             encoder.tag("integer_widen", 6);
-            encoder.field("primitive_type", |encoder| {
-                encode_primitive_type(encoder, *primitive_type);
-                Ok(())
-            })?;
-            encoder.field("operand", |encoder| {
-                encode_scalar_expression(encoder, operand)
-            })?;
+            encoder.field_by("primitive_type", *primitive_type, encode_primitive_type)?;
+            encoder.field_by("operand", &**operand, encode_scalar_expression)?;
         }
         PackageReviewScalarExpression::IntegerExactCast {
             primitive_type,
@@ -140,13 +107,8 @@ fn encode_scalar_node(
             range,
         } => {
             encoder.tag("integer_exact_cast", 7);
-            encoder.field("primitive_type", |encoder| {
-                encode_primitive_type(encoder, *primitive_type);
-                Ok(())
-            })?;
-            encoder.field("operand", |encoder| {
-                encode_scalar_expression(encoder, operand)
-            })?;
+            encoder.field_by("primitive_type", *primitive_type, encode_primitive_type)?;
+            encoder.field_by("operand", &**operand, encode_scalar_expression)?;
             encoder.field("minimum", |encoder| encoder.string(&range.minimum))?;
             encoder.field("maximum", |encoder| encoder.string(&range.maximum))?;
         }
@@ -155,23 +117,15 @@ fn encode_scalar_node(
             operand,
         } => {
             encoder.tag("representation_view", 14);
-            encoder.field("primitive_type", |encoder| {
-                encode_primitive_type(encoder, *primitive_type);
-                Ok(())
-            })?;
-            encoder.field("operand", |encoder| {
-                encode_scalar_expression(encoder, operand)
-            })?;
+            encoder.field_by("primitive_type", *primitive_type, encode_primitive_type)?;
+            encoder.field_by("operand", &**operand, encode_scalar_expression)?;
         }
         PackageReviewScalarExpression::StructuralParameterByteLength {
             parameter_position,
             path,
         } => {
             encoder.tag("structural_parameter_byte_length", 15);
-            encoder.field("parameter_position", |encoder| {
-                encoder.u32(*parameter_position);
-                Ok(())
-            })?;
+            encoder.u32_field("parameter_position", *parameter_position)?;
             encoder.field("path", |encoder| encode_structural_path(encoder, path))?;
         }
         PackageReviewScalarExpression::StructuralParameterIndexedRead {
@@ -183,28 +137,22 @@ fn encode_scalar_node(
             primitive_type,
         } => {
             encoder.tag("structural_parameter_indexed_read", 16);
-            encoder.field("parameter_position", |encoder| {
-                encoder.u32(*parameter_position);
-                Ok(())
-            })?;
+            encoder.u32_field("parameter_position", *parameter_position)?;
             encoder.field("path", |encoder| encode_structural_path(encoder, path))?;
             encoder.field("index", |encoder| encode_scalar_expression(encoder, index))?;
             encoder.field("inner_indexes", |encoder| {
                 encoder.sequence(inner_indexes, encode_scalar_expression)
             })?;
-            encoder.field("element_path", |encoder| {
-                encode_structural_path(encoder, element_path)
-            })?;
-            encoder.field("primitive_type", |encoder| {
-                encode_primitive_type(encoder, *primitive_type);
-                Ok(())
-            })?;
+            encoder.field_by(
+                "element_path",
+                element_path.as_slice(),
+                encode_structural_path,
+            )?;
+            encoder.field_by("primitive_type", *primitive_type, encode_primitive_type)?;
         }
         PackageReviewScalarExpression::Boolean(expression) => {
             encoder.tag("boolean", 8);
-            encoder.field("expression", |encoder| {
-                encode_boolean_expression(encoder, expression)
-            })?;
+            encoder.field_by("expression", &**expression, encode_boolean_expression)?;
         }
     }
     Ok(())

@@ -1,0 +1,145 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "fb37124e244cf436f99976b0a508ed24cc28d285",
+  "dirty": true,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 19818
+  },
+  "subset": true,
+  "filter": "fail/borrows/returned_reference_missing_membership,fail/borrows/returned_reference_invalidated_membership,fail/borrows/dropped_reference_qualification_mixed_origins",
+  "shard": null,
+  "verdict": "moved",
+  "exit_code": 1,
+  "counts": {
+    "fixtures": 3,
+    "by_status": {
+      "rejected": 3
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {
+      "moved": 1
+    }
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 3,
+    "legacy": 0,
+    "unknown_revisions": 0,
+    "oldest": {
+      "revision": "a92f16431042",
+      "commits_behind": 711
+    }
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 10,
+      "jobs": "2",
+      "load1_end": 8.21,
+      "load1_start": 7.27,
+      "machine": "arm64",
+      "platform": "darwin",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": "1",
+      "cpus": 32,
+      "platform": "windows",
+      "machine": "amd64",
+      "load1_start": null,
+      "load1_end": null
+    },
+    "warnings": []
+  },
+  "observations": [
+    {
+      "fixture": "fail/borrows/dropped_reference_qualification_mixed_origins",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 804,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from corrupt_one at statement 1: left in Ticket::Issued",
+        "cannot prove ensures contract for exit from corrupt_one at statement 2: right in Ticket::Issued"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/returned_reference_invalidated_membership",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 778,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from borrow_invalidated, state entry, at statement 1: resource requires Resource::Open"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/returned_reference_missing_membership",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 347,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `borrow_missing` state `entry` terminal expression expects `&mut Resource[in Open]`, got `named value`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "fail/borrows/dropped_reference_qualification_mixed_origins",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/borrows/dropped_reference_qualification_mixed_origins",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1446,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove ensures contract for exit from corrupt_one at statement 0: invocation referent left in Ticket::Issued",
+          "cannot prove ensures contract for exit from corrupt_one at statement 0: invocation referent right in Ticket::Issued"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/borrows/dropped_reference_qualification_mixed_origins",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 804,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove ensures contract for exit from corrupt_one at statement 1: left in Ticket::Issued",
+          "cannot prove ensures contract for exit from corrupt_one at statement 2: right in Ticket::Issued"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    }
+  ]
+}

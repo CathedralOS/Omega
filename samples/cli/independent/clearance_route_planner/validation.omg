@@ -9,7 +9,7 @@ public machine route(scene: &fixtures::Scene, planner: &graph::Planner,
         true -> endpoints(scene, planner, radius, planner.route_count - 1)
         false -> false
     }
-    state endpoints(scene: &fixtures::Scene, planner: &graph::Planner,
+    machine endpoints(scene: &fixtures::Scene, planner: &graph::Planner,
                     radius: i64 in Wrapping, last: i32 in Wrapping) -> bool
     requires last >= 0 && last < 6
     {
@@ -18,7 +18,7 @@ public machine route(scene: &fixtures::Scene, planner: &graph::Planner,
             false -> false
         }
     }
-    state segment(scene: &fixtures::Scene, planner: &graph::Planner, radius: i64 in Wrapping,
+    machine segment(scene: &fixtures::Scene, planner: &graph::Planner, radius: i64 in Wrapping,
                   position: i32 in Wrapping, cost: i64 in Wrapping,
                   clearance: i64 in Wrapping, mask: i32 in Wrapping) -> bool {
         transition position >= 0 && position < 6 && position < planner.route_count {
@@ -26,7 +26,7 @@ public machine route(scene: &fixtures::Scene, planner: &graph::Planner,
             false -> (cost == planner.distances[1] && clearance == planner.clearance)
         }
     }
-    state nodes(scene: &fixtures::Scene, planner: &graph::Planner, radius: i64 in Wrapping,
+    machine nodes(scene: &fixtures::Scene, planner: &graph::Planner, radius: i64 in Wrapping,
                 position: i32 in Wrapping, cost: i64 in Wrapping, clearance: i64 in Wrapping,
                 mask: i32 in Wrapping, node: i32 in Wrapping) -> bool {
         transition node >= 0 && node < 6 && position >= 0 && position < 6 {
@@ -34,7 +34,7 @@ public machine route(scene: &fixtures::Scene, planner: &graph::Planner,
             false -> false
         }
     }
-    state unique(scene: &fixtures::Scene, planner: &graph::Planner, radius: i64 in Wrapping,
+    machine unique(scene: &fixtures::Scene, planner: &graph::Planner, radius: i64 in Wrapping,
                  position: i32 in Wrapping, cost: i64 in Wrapping, clearance: i64 in Wrapping,
                  mask: i32 in Wrapping, node: i32 in Wrapping) -> bool
     requires node >= 0 && node < 6 && position >= 0 && position < 6
@@ -44,7 +44,7 @@ public machine route(scene: &fixtures::Scene, planner: &graph::Planner,
             false -> false
         }
     }
-    state next(scene: &fixtures::Scene, planner: &graph::Planner, radius: i64 in Wrapping,
+    machine next(scene: &fixtures::Scene, planner: &graph::Planner, radius: i64 in Wrapping,
                position: i32 in Wrapping, cost: i64 in Wrapping, clearance: i64 in Wrapping,
                mask: i32 in Wrapping, node: i32 in Wrapping) -> bool {
         transition position + 1 < planner.route_count && position + 1 >= 0 && position + 1 < 6 {
@@ -53,7 +53,7 @@ public machine route(scene: &fixtures::Scene, planner: &graph::Planner,
             false -> (cost == planner.distances[1] && clearance == planner.clearance)
         }
     }
-    state previous(scene: &fixtures::Scene, planner: &graph::Planner, radius: i64 in Wrapping,
+    machine previous(scene: &fixtures::Scene, planner: &graph::Planner, radius: i64 in Wrapping,
                    position: i32 in Wrapping, cost: i64 in Wrapping, clearance: i64 in Wrapping,
                    mask: i32 in Wrapping, node: i32 in Wrapping, other: i32 in Wrapping) -> bool {
         transition node >= 0 && node < 6 && other >= 0 && other < 6 {
@@ -61,7 +61,7 @@ public machine route(scene: &fixtures::Scene, planner: &graph::Planner,
             false -> false
         }
     }
-    state measure(scene: &fixtures::Scene, planner: &graph::Planner, radius: i64 in Wrapping,
+    machine measure(scene: &fixtures::Scene, planner: &graph::Planner, radius: i64 in Wrapping,
                   position: i32 in Wrapping, cost: i64 in Wrapping, clearance: i64 in Wrapping,
                   mask: i32 in Wrapping, node: i32 in Wrapping, other: i32 in Wrapping) -> bool
     requires node >= 0 && node < 6 && other >= 0 && other < 6
@@ -85,21 +85,21 @@ public machine cut(scene: &fixtures::Scene, planner: &graph::Planner,
         true -> row(scene, planner, radius, 0)
         false -> false
     }
-    state row(scene: &fixtures::Scene, planner: &graph::Planner,
+    machine row(scene: &fixtures::Scene, planner: &graph::Planner,
               radius: i64 in Wrapping, from: i32 in Wrapping) -> bool {
         transition from >= 0 && from < 6 {
             true -> column(scene, planner, radius, from, 0)
             false -> true
         }
     }
-    state column(scene: &fixtures::Scene, planner: &graph::Planner, radius: i64 in Wrapping,
+    machine column(scene: &fixtures::Scene, planner: &graph::Planner, radius: i64 in Wrapping,
                  from: i32 in Wrapping, to: i32 in Wrapping) -> bool {
         transition to >= 0 && to < 6 && from >= 0 && from < 6 {
             true -> edge(scene, planner, radius, from, to)
             false -> row(scene, planner, radius, from + 1)
         }
     }
-    state edge(scene: &fixtures::Scene, planner: &graph::Planner, radius: i64 in Wrapping,
+    machine edge(scene: &fixtures::Scene, planner: &graph::Planner, radius: i64 in Wrapping,
                from: i32 in Wrapping, to: i32 in Wrapping) -> bool
     requires from >= 0 && from < 6 && to >= 0 && to < 6
     {
@@ -108,7 +108,7 @@ public machine cut(scene: &fixtures::Scene, planner: &graph::Planner,
             false -> column(scene, planner, radius, from, to + 1)
         }
     }
-    state crossing(scene: &fixtures::Scene, planner: &graph::Planner, radius: i64 in Wrapping,
+    machine crossing(scene: &fixtures::Scene, planner: &graph::Planner, radius: i64 in Wrapping,
                    from: i32 in Wrapping, to: i32 in Wrapping) -> bool
     requires from >= 0 && from < 6 && to >= 0 && to < 6
     {

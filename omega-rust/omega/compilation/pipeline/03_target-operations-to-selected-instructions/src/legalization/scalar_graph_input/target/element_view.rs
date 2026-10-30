@@ -70,11 +70,11 @@ impl Checker<'_> {
                             && owner.structural_parameters.iter().any(|parameter| {
                                 parameter.place == *place
                                     && parameter.structural_type == *structural_type
-                                    && access(parameter.access)
-                                    && terminal_semantics::view_descriptor_parameter(
+                                    && terminal_semantics::descriptor_parameter_access(
                                         parameter,
                                         self.types.iter(),
                                     )
+                                    .is_some_and(access)
                             })
                     })
             }
@@ -84,7 +84,20 @@ impl Checker<'_> {
                         |parameters| {
                             parameters.iter().any(|parameter| {
                                 parameter.place == source
-                                    && access(parameter.access)
+                                    && self.optimized.arrival_parameter(source).is_some_and(
+                                        |semantic| {
+                                            semantic.structural_type == parameter.structural_type
+                                                && semantic.access == parameter.access
+                                                && semantic.multiplicity == parameter.multiplicity
+                                                && semantic.projected_qualifications
+                                                    == parameter.projected_qualifications
+                                                && terminal_semantics::descriptor_parameter_access(
+                                                    semantic,
+                                                    self.types.iter(),
+                                                )
+                                                .is_some_and(access)
+                                        },
+                                    )
                                     && &parameter.placement == placement
                             })
                         },
@@ -179,6 +192,12 @@ impl Checker<'_> {
                 *place == source
                     && access(argument.access)
                     && backing
+                    && optimization_unit_semantics::descriptor_argument_accessible(
+                        self.optimized,
+                        argument,
+                        self.types,
+                        argument.access,
+                    )
                     && match (region, expected_region) {
                         (
                             target_operations::TargetElementViewRegion::WholeCollection,
@@ -318,11 +337,11 @@ impl Checker<'_> {
         // A block-carried borrowed descriptor backs the collection it names:
         // the edge already transported the pointer whose referent carries the
         // view's storage, the same admission an address join receives for a
-        // plain referent.
-        let descriptor_carrier = self.types.iter().any(|declaration| {
-            declaration.id == parameter.structural_type
-                && declaration.shape.is_borrowed_byte_carrier()
-        });
+        // plain referent. Classify the actual arrival's descriptor role and
+        // permission, uniformly for byte and element carriers; shape alone
+        // cannot authorize a stored descriptor's backing.
+        let descriptor_carrier =
+            terminal_semantics::view_descriptor_parameter(parameter, self.types.iter());
         let backing = parameter.access == terminal_psi::StructuralAccess::Owned
             || (block != self.optimized.entry
                 && (abstract_operations::control_flow::address_joins::is_address_join_in(
@@ -437,8 +456,8 @@ impl Checker<'_> {
         };
         // Replay the selected carrier and offset, not an invented standalone
         // type for an inline field. Copy presentation does not supply identity.
-        let Some((collection, offset, elements)) =
-            crate::structural_inputs::structural_reference_input::collection_projection(
+        let Some(projected) =
+            crate::structural_inputs::structural_reference_input::projected_collection(
                 root_structural_type,
                 collection_path,
                 self.types,
@@ -446,6 +465,9 @@ impl Checker<'_> {
         else {
             return false;
         };
+        let collection = projected.shape;
+        let offset = projected.offset;
+        let elements = projected.elements;
         if !super::unit::runtime_indices_rejoin(indices, &elements, self.available.unwrap_or(&[])) {
             return false;
         }

@@ -27,8 +27,8 @@ machine Main::main(main: &mut Main) crashes Trap {
     let first: i32 = specialized<1>();
     let second: i32 = specialized<2>();
     transition main.output == 7 && copied == 9 && first == 9 && second == 9 { true -> good() false -> bad() }
-    state good() {}
-    state bad() { crash Trap; }
+    machine good() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

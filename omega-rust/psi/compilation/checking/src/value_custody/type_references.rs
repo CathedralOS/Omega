@@ -42,14 +42,15 @@ mod constraint_validation;
 mod formation;
 mod generic_arguments;
 mod open_index_expressions;
+mod static_argument_scope;
 
 use constraint_validation::validate_type_constraints_node;
-pub use generic_arguments::normalize_closed_const_expression;
 pub(crate) use generic_arguments::{
     AppliedValueCarrier, const_argument_matches_parameter, const_integer_value_fits_primitive,
     exact_const_carrier_is_eligible, validate_const_binder_carriers, validate_exact_const_identity,
-    validate_exact_typed_structured_const_argument,
+    validate_exact_const_identity_in_carrier, validate_exact_typed_structured_const_argument,
 };
+pub use generic_arguments::{check_closed_const_expression, normalize_closed_const_expression};
 use generic_arguments::{
     machine_argument_name, validate_const_data_argument, validate_generic_argument_bounds,
     validate_machine_data_argument, validate_symbolic_array_length,
@@ -79,7 +80,6 @@ pub(crate) use open_index_expressions::validate_indexed_qualification_arguments;
 use crate::StateSignatureOwner;
 use crate::declarations::symbols::TopLevelSymbols;
 use diagnostics::Diagnostic;
-use std::borrow::Cow;
 use std::fmt;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
@@ -91,6 +91,10 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 pub enum StaticTypeArgumentOwner<'program> {
     Machine(&'program typed_trees::machine::Machine),
     Data(&'program typed_trees::data::DataDefinition),
+    Constant {
+        symbol: symbols::SymbolHandle,
+        name: &'program str,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -158,21 +162,7 @@ pub(crate) enum TypeReferenceOwner<'program> {
 }
 
 impl TypeReferenceOwner<'_> {
-    fn allows_direct_routed_service_carrier(&self) -> bool {
-        matches!(
-            self,
-            Self::DataField {
-                generic_depth: 0,
-                ..
-            } | Self::StateParameter {
-                owner: StateSignatureOwner::Machine(_),
-                generic_depth: 0,
-                ..
-            }
-        )
-    }
-
-    fn allows_borrowed_routed_service_carrier(&self) -> bool {
+    fn is_direct_runtime_value_position(&self) -> bool {
         matches!(
             self,
             Self::DataField {
@@ -318,6 +308,9 @@ impl fmt::Display for TypeReferenceOwner<'_> {
                     StaticTypeArgumentOwner::Data(data) => {
                         write!(formatter, "data `{}`", data.name)?;
                     }
+                    StaticTypeArgumentOwner::Constant { name, .. } => {
+                        write!(formatter, "constant `{name}`")?;
+                    }
                 }
                 formatter.write_str(" static type argument")?;
                 *generic_depth
@@ -426,28 +419,18 @@ impl fmt::Display for TypeReferenceOwner<'_> {
 /// Check a static type argument before specialization can erase its call site.
 /// The callee need not use this type in its body: formation, qualification and
 /// lifetime obligations belong to the caller's authored argument itself.
-pub fn validate_static_type_argument(
-    program: &dyn crate::CheckingInput,
-    caller: StaticTypeArgumentOwner<'_>,
+pub fn validate_static_type_argument<'program>(
+    program: &'program dyn crate::CheckingInput,
+    caller: StaticTypeArgumentOwner<'program>,
     type_reference: TypeReferenceHandle,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     // The invocation telescope excludes an owned member's captures. Static
     // operands are authored in the same lexical scope as its signature and
     // locals, so use retained declaration containment for all three.
-    let (type_parameters, lifetime_parameters, lexical_owner) = match caller {
-        StaticTypeArgumentOwner::Machine(machine) => {
-            let (types, lifetimes) = program
-                .machine_type_reference_scope(machine, |left, right| left.name == right.name);
-            (Cow::Owned(types), Cow::Owned(lifetimes), machine.symbol)
-        }
-        StaticTypeArgumentOwner::Data(data) => (
-            Cow::Borrowed(program.data_type_parameters(data)),
-            Cow::Borrowed(data.lifetime_parameters.as_slice()),
-            data.symbol,
-        ),
-    };
+    let (type_parameters, lifetime_parameters, lexical_owner) = caller.parameters(program);
     validate_type_reference_handle(
         program,
         type_reference,
@@ -463,6 +446,7 @@ pub fn validate_static_type_argument(
             type_parameters: &type_parameters,
             lifetime_parameters: &lifetime_parameters,
         },
+        formation_obligations,
     );
 }
 
@@ -473,15 +457,9 @@ pub(crate) fn validate_type_reference_handle(
     diagnostics: &mut Vec<Diagnostic>,
     owner: TypeReferenceOwner<'_>,
     type_parameter_scope: TypeParameterScope<'_>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
-    validate_routed_service_carrier_placement(
-        program,
-        type_reference,
-        owner,
-        type_parameter_scope.lexical_owner,
-        true,
-        diagnostics,
-    );
+    validate_boundary_trait_value_placement(program, type_reference, owner, diagnostics);
     // `range-constraints-require-exact-domain`: a range constraint under a
     // non-Exact domain is ill-formed
     // (checked once per declared handle; the accessors walk nested
@@ -500,100 +478,40 @@ pub(crate) fn validate_type_reference_handle(
         owner,
         false,
         type_parameter_scope,
+        formation_obligations,
     );
 }
 
-/// Find routed Binding carriers recursively rather than relying on the outer
-/// type shell. Concrete-machine parameters may own or borrow one exact
-/// carrier. Borrowing preserves its identity; it does not establish another
-/// binding. Borrowed locals and fields retain the same existing loan. Aggregate/generic
-/// nesting, owned locals, owned returns,
-/// traits, requirements, and operators retain their implementation fences.
-fn validate_routed_service_carrier_placement(
+/// Boundary traits describe operation requirements, not runtime values. Keep
+/// this check through borrowed shells and nominal applications after retiring
+/// Binding recognition; deleting the old carrier path must not admit provider
+/// objects or implicit receiving authority.
+fn validate_boundary_trait_value_placement(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     owner: TypeReferenceOwner<'_>,
-    lexical_owner: symbols::SymbolHandle,
-    direct: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    // A declaration is checked under its own telescope, not under the closed
-    // receiver of a future invocation. Concrete carrier consumers separately
-    // require transitive closure; this check cannot issue an exact identity.
-    match typed_trees::service::inspect_service_parameter_contract(program, type_reference) {
-        Err(error) => {
-            diagnostics.push(Diagnostic::error(format!(
-                "{owner} uses an invalid routed service carrier: {error}"
-            )));
-            return;
-        }
-        Ok(Some(parameter)) => {
-            if let Err(error) = parameter
-                .carrier
-                .require_declared_operands(program, lexical_owner)
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{owner} uses an invalid routed service carrier: {error}"
-                )));
-            }
-            let allowed = if parameter.access.is_some() {
-                owner.allows_borrowed_routed_service_carrier()
-            } else {
-                owner.allows_direct_routed_service_carrier()
-            };
-            if !direct || !allowed {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{owner} places the routed `Binding<R>` carrier outside the first direct field/owned concrete-machine-parameter rung"
-                )));
-            }
-            return;
-        }
-        Ok(None) => {}
-    }
-
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
-            validate_routed_service_carrier_placement(
-                program,
-                *referee,
-                owner,
-                lexical_owner,
-                false,
-                diagnostics,
-            );
+            validate_boundary_trait_value_placement(program, *referee, owner, diagnostics);
         }
         TypeReferenceNode::Constrained { base_type, .. } => {
-            validate_routed_service_carrier_placement(
-                program,
-                *base_type,
-                owner,
-                lexical_owner,
-                direct,
-                diagnostics,
-            );
+            validate_boundary_trait_value_placement(program, *base_type, owner, diagnostics);
         }
         TypeReferenceNode::FixedArray { element_type, .. }
         | TypeReferenceNode::Slice { element_type } => {
-            validate_routed_service_carrier_placement(
-                program,
-                *element_type,
-                owner,
-                lexical_owner,
-                false,
-                diagnostics,
-            );
+            validate_boundary_trait_value_placement(program, *element_type, owner, diagnostics);
         }
         TypeReferenceNode::Generic { arguments, .. } => {
             for argument in program
                 .type_reference_table
                 .type_reference_handles(*arguments)
             {
-                validate_routed_service_carrier_placement(
+                validate_boundary_trait_value_placement(
                     program,
                     *argument,
                     owner.generic_argument(),
-                    lexical_owner,
-                    false,
                     diagnostics,
                 );
             }
@@ -604,7 +522,7 @@ fn validate_routed_service_carrier_placement(
             // the surviving vocabulary: call the requirement directly, or
             // carry an ordinary handle, session, or `dyn` value when runtime
             // multiplicity is what the program needs.
-            if owner.allows_borrowed_routed_service_carrier()
+            if owner.is_direct_runtime_value_position()
                 && program
                     .traits()
                     .iter()
@@ -619,12 +537,10 @@ fn validate_routed_service_carrier_placement(
                 crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
                     .and_then(|definition| definition.generic_instance)
             {
-                validate_routed_service_carrier_placement(
+                validate_boundary_trait_value_placement(
                     program,
                     origin,
                     owner.generic_argument(),
-                    lexical_owner,
-                    false,
                     diagnostics,
                 );
             }
@@ -679,6 +595,7 @@ fn validate_type_reference_node(
     owner: TypeReferenceOwner<'_>,
     allow_bare_str: bool,
     mut type_parameter_scope: TypeParameterScope<'_>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let supplying_owner = program
         .type_reference_table
@@ -693,7 +610,9 @@ fn validate_type_reference_node(
     // Generic-argument sites below validate every spelled argument under the
     // application owner's custody.
     let validate_generic_argument =
-        |argument: TypeReferenceHandle, diagnostics: &mut Vec<Diagnostic>| {
+        |argument: TypeReferenceHandle,
+         diagnostics: &mut Vec<Diagnostic>,
+         formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>| {
             validate_type_reference_node(
                 program,
                 argument,
@@ -702,6 +621,7 @@ fn validate_type_reference_node(
                 owner.generic_argument(),
                 false,
                 type_parameter_scope,
+                formation_obligations,
             );
         };
     match program.type_reference_table.type_reference(type_reference) {
@@ -724,6 +644,7 @@ fn validate_type_reference_node(
                 owner,
                 type_reference_is_named_str(program, *referee),
                 type_parameter_scope,
+                formation_obligations,
             );
         }
         TypeReferenceNode::Constrained {
@@ -738,6 +659,7 @@ fn validate_type_reference_node(
                 owner,
                 allow_bare_str,
                 type_parameter_scope,
+                formation_obligations,
             );
             validate_type_constraints_node(
                 program,
@@ -758,6 +680,7 @@ fn validate_type_reference_node(
                 type_parameter_scope,
                 diagnostics,
                 owner,
+                formation_obligations,
             );
             // Element spelling of `range-constraints-require-exact-domain`
             // (`[u8 [0..=9] in Wrapping; 3]`).
@@ -775,6 +698,7 @@ fn validate_type_reference_node(
                 owner,
                 false,
                 type_parameter_scope,
+                formation_obligations,
             );
         }
         TypeReferenceNode::Slice { element_type } => {
@@ -786,6 +710,7 @@ fn validate_type_reference_node(
                 owner,
                 false,
                 type_parameter_scope,
+                formation_obligations,
             );
         }
         TypeReferenceNode::Generic {
@@ -860,7 +785,7 @@ fn validate_type_reference_node(
                 // schema, not a data-generic argument.
                 if parameters.is_empty() {
                     for argument in argument_handles {
-                        validate_generic_argument(*argument, diagnostics);
+                        validate_generic_argument(*argument, diagnostics, formation_obligations);
                     }
                     return;
                 }
@@ -895,6 +820,7 @@ fn validate_type_reference_node(
                                 &owner.value_formation_facts(program),
                                 owner.local_value_formation(),
                                 diagnostics,
+                                formation_obligations,
                             );
                         }
                         TypeParameterKind::Machine { contract } => {
@@ -925,7 +851,11 @@ fn validate_type_reference_node(
                                 )));
                                 continue;
                             }
-                            validate_generic_argument(*argument, diagnostics);
+                            validate_generic_argument(
+                                *argument,
+                                diagnostics,
+                                formation_obligations,
+                            );
                         }
                     }
                 }
@@ -946,10 +876,11 @@ fn validate_type_reference_node(
                     symbols,
                     type_parameter_scope,
                     diagnostics,
+                    formation_obligations,
                 );
             } else {
                 for argument in argument_handles {
-                    validate_generic_argument(*argument, diagnostics);
+                    validate_generic_argument(*argument, diagnostics, formation_obligations);
                 }
             }
         }
@@ -997,6 +928,7 @@ fn validate_type_reference_node(
                 symbols,
                 type_parameter_scope,
                 diagnostics,
+                formation_obligations,
             );
         }
         TypeReferenceNode::Named { symbol, name } => {

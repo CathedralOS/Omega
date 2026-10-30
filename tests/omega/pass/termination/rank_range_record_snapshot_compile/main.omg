@@ -8,7 +8,7 @@ requires remaining <= 5
 terminates by remaining in 0..=5;
 -> u32 {
     transition { _ -> s(Pair { left: remaining }, remaining) }
-    state s(pair: Pair, copy: u32)
+    machine s(pair: Pair, copy: u32) -> u32
     requires copy <= 5
     {
         transition pair.left > 0 {
@@ -16,7 +16,7 @@ terminates by remaining in 0..=5;
             false -> finish(copy)
         }
     }
-    state finish(result: u32)
+    machine finish(result: u32) -> u32
     requires result <= 5
     { result }
 }
@@ -29,6 +29,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

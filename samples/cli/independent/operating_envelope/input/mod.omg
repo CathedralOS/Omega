@@ -12,14 +12,14 @@ public machine parse(packet: &mut Packet, bytes: &[u8; 256]) {
     packet.count = 0;
     packet.valid = false;
     transition { _ -> scan(packet, bytes, 0, 0, false, false) }
-    state scan(packet: &mut Packet, bytes: &[u8; 256], cursor: i32 in Wrapping,
+    machine scan(packet: &mut Packet, bytes: &[u8; 256], cursor: i32 in Wrapping,
                value: i32 in Wrapping, negative: bool, started: bool) {
         transition cursor >= 0 && cursor < 256 {
             true -> byte(packet, bytes, cursor, value, negative, started)
             _ -> done()
         }
     }
-    state byte(packet: &mut Packet, bytes: &[u8; 256], cursor: i32 in Wrapping,
+    machine byte(packet: &mut Packet, bytes: &[u8; 256], cursor: i32 in Wrapping,
                value: i32 in Wrapping, negative: bool, started: bool) {
         let character: i32 = widen_u8_to_i32(bytes[cursor]);
         transition character {
@@ -29,21 +29,21 @@ public machine parse(packet: &mut Packet, bytes: &[u8; 256]) {
             _ -> digit(packet, bytes, cursor, value, negative, character)
         }
     }
-    state sign(packet: &mut Packet, bytes: &[u8; 256], cursor: i32 in Wrapping,
+    machine sign(packet: &mut Packet, bytes: &[u8; 256], cursor: i32 in Wrapping,
                value: i32 in Wrapping, negative: bool, started: bool) {
         transition started || negative {
             true -> done()
             _ -> scan(packet, bytes, cursor + 1, value, true, false)
         }
     }
-    state digit(packet: &mut Packet, bytes: &[u8; 256], cursor: i32 in Wrapping,
+    machine digit(packet: &mut Packet, bytes: &[u8; 256], cursor: i32 in Wrapping,
                 value: i32 in Wrapping, negative: bool, character: i32) {
         transition character >= 48 && character <= 57 && value <= 10000000 {
             true -> accumulate(packet, bytes, cursor, value, negative, character)
             _ -> done()
         }
     }
-    state accumulate(packet: &mut Packet, bytes: &[u8; 256], cursor: i32 in Wrapping,
+    machine accumulate(packet: &mut Packet, bytes: &[u8; 256], cursor: i32 in Wrapping,
                      value: i32 in Wrapping, negative: bool, character: i32) {
         let next: i32 in Wrapping = value * 10 + (character as i32 in Wrapping) - 48;
         transition next <= 100000000 {
@@ -51,20 +51,20 @@ public machine parse(packet: &mut Packet, bytes: &[u8; 256]) {
             _ -> done()
         }
     }
-    state separate(packet: &mut Packet, bytes: &[u8; 256], cursor: i32 in Wrapping,
+    machine separate(packet: &mut Packet, bytes: &[u8; 256], cursor: i32 in Wrapping,
                    value: i32 in Wrapping, negative: bool, started: bool) {
         transition started {
             true -> store(packet, bytes, cursor, value, negative)
             _ -> blank(packet, bytes, cursor, negative)
         }
     }
-    state blank(packet: &mut Packet, bytes: &[u8; 256], cursor: i32 in Wrapping, negative: bool) {
+    machine blank(packet: &mut Packet, bytes: &[u8; 256], cursor: i32 in Wrapping, negative: bool) {
         transition negative {
             true -> done()
             _ -> scan(packet, bytes, cursor + 1, 0, false, false)
         }
     }
-    state store(packet: &mut Packet, bytes: &[u8; 256], cursor: i32 in Wrapping,
+    machine store(packet: &mut Packet, bytes: &[u8; 256], cursor: i32 in Wrapping,
                 value: i32 in Wrapping, negative: bool) {
         let ok: bool = append(packet, value, negative);
         transition ok {
@@ -72,35 +72,35 @@ public machine parse(packet: &mut Packet, bytes: &[u8; 256]) {
             _ -> done()
         }
     }
-    state finish(packet: &mut Packet, value: i32 in Wrapping, negative: bool, started: bool) {
+    machine finish(packet: &mut Packet, value: i32 in Wrapping, negative: bool, started: bool) {
         transition started {
             true -> final_value(packet, value, negative)
             _ -> empty_tail(packet, negative)
         }
     }
-    state final_value(packet: &mut Packet, value: i32 in Wrapping, negative: bool) {
+    machine final_value(packet: &mut Packet, value: i32 in Wrapping, negative: bool) {
         packet.valid = append(packet, value, negative);
     }
-    state empty_tail(packet: &mut Packet, negative: bool) { packet.valid = !negative; }
-    state done() { }
+    machine empty_tail(packet: &mut Packet, negative: bool) { packet.valid = !negative; }
+    machine done() { }
 }
 machine append(packet: &mut Packet, value: i32 in Wrapping, negative: bool) -> bool {
     transition packet.count >= 0 && packet.count < 26 {
         true -> write(packet, value, negative)
         _ -> false
     }
-    state write(packet: &mut Packet, value: i32 in Wrapping, negative: bool) -> bool {
+    machine write(packet: &mut Packet, value: i32 in Wrapping, negative: bool) -> bool {
         transition negative {
             true -> minus(packet, value)
             _ -> plus(packet, value)
         }
     }
-    state minus(packet: &mut Packet, value: i32 in Wrapping) -> bool {
+    machine minus(packet: &mut Packet, value: i32 in Wrapping) -> bool {
         packet.values[packet.count] = (0 - value) as i32;
         packet.count = packet.count + 1;
         true
     }
-    state plus(packet: &mut Packet, value: i32 in Wrapping) -> bool {
+    machine plus(packet: &mut Packet, value: i32 in Wrapping) -> bool {
         packet.values[packet.count] = value as i32;
         packet.count = packet.count + 1;
         true

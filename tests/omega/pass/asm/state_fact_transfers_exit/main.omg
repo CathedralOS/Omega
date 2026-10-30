@@ -4,17 +4,17 @@ machine carry(rest: u64 in Trapping) -> u64 {
         true -> digit(rest, 48)
         _ -> outside()
     }
-    state digit(rest: u64 in Trapping, character: u64 in Trapping) -> u64
+    machine digit(rest: u64 in Trapping, character: u64 in Trapping) -> u64
     requires 48 <= character && character <= 57
     {
         let mut byte: u8 = character as u8;
         asm { mov byte, byte }
         transition { _ -> next(rest, 0) }
     }
-    state next(rest: u64 in Trapping, count: u64 in Trapping) -> u64
+    machine next(rest: u64 in Trapping, count: u64 in Trapping) -> u64
     requires count <= 9 && embed(rest) + embed(count) * 1000 <= 9999
     { rest as u64 }
-    state outside() -> u64 { 0 }
+    machine outside() -> u64 { 0 }
 }
 
 machine reordered() -> u64 {
@@ -34,7 +34,7 @@ machine reordered() -> u64 {
         mov value, value
     }
     transition { _ -> small(value) }
-    state small(value: u64) -> u64
+    machine small(value: u64) -> u64
     requires value < 10
     { value }
 }
@@ -46,6 +46,6 @@ machine main() crashes Trap {
         true -> good()
         _ -> bad()
     }
-    state good() {}
-    state bad() { crash Trap; }
+    machine good() {}
+    machine bad() { crash Trap; }
 }

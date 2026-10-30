@@ -14,8 +14,8 @@ machine Main::main(main: &mut Main) crashes Trap {
     main.second.value = 42;
     let result: i32 = fill(&main.first, &main.second);
     transition result == 42 && main.first.value == 41 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -1,0 +1,13 @@
+// Expected exit: 0
+machine apply<machine Transform>(value: u64) -> u64
+where machine Transform(item: u64) -> u64;
+{ Transform(value) }
+machine choose<const Number: u64>(value: u64) -> u64 {
+    apply<read>(value)
+    machine read(item: u64) -> u64 { Number }
+}
+machine main() crashes Trap {
+    transition choose<42>(1) == 42 { true -> done() _ -> failed() }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
+}

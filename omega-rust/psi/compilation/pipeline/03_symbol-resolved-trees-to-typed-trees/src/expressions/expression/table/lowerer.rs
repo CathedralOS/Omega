@@ -14,6 +14,7 @@ use crate::expressions::expression::name_paths::{
     lower_name_path_members_into_table, lower_table_name_path_node_into_table,
 };
 use crate::expressions::expression::operators::lower_binary_operator;
+use crate::expressions::proposition::is_proposition_call_target;
 use crate::lowerer::name::lower_name;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
@@ -160,6 +161,36 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             .authored_selection_occurrences(expression)
             .collect::<Vec<_>>();
         let lowered = self.lower_node(expression)?;
+        if let resolved::expression::ExpressionNode::Call(source_call) =
+            self.source.expression(expression)
+        {
+            let mut own = None;
+            for &occurrence in &authored_selection_occurrences {
+                let Some(program) = self.program else {
+                    continue;
+                };
+                let selection = program
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .ok_or_else(|| {
+                        Diagnostic::error("typing call lost its source selection occurrence")
+                    })?;
+                if selection.kind() != language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
+                    || selection.source_span() != source_call.target.source_span() { continue; }
+                if own.is_some_and(|previous| previous != occurrence) {
+                    return Err(Diagnostic::error(
+                        "typing call has conflicting source-owned Call occurrences",
+                    )
+                    .with_source_span(source_call.target.source_span()));
+                }
+                own = Some(occurrence);
+            }
+            if let typed::expression::ExpressionNode::Call(call) =
+                self.target().expression_mut(lowered)
+            {
+                call.authored_call_selection = own;
+            }
+        }
         if matches!(self.target().expression(lowered), typed::expression::ExpressionNode::Call(call) if call.layout_query.is_some())
         {
             // A portable query has an ordinary u64 carrier before its selected
@@ -249,6 +280,15 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         } else {
             self.lower_value(binary.right)?
         };
+        if matches!(
+            self.target_trees.expression_table.expression(left),
+            typed::expression::ExpressionNode::TypeExpression(_)
+        ) && matches!(
+            self.target_trees.expression_table.expression(right),
+            typed::expression::ExpressionNode::TypeExpression(_)
+        ) {
+            self.retain_builtin_type_reference(symbols::BuiltinTypeAtom::Bool)?;
+        }
         Ok(self
             .target()
             .insert(typed::expression::ExpressionNode::Binary(
@@ -392,12 +432,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     self.retain_builtin_type_reference(symbols::BuiltinTypeAtom::Int)?;
                 }
                 if let Some(program) = self.program
-                    && call.target_symbol.is_valid()
-                    && matches!(
-                        program.symbols.get(call.target_symbol).kind,
-                        symbols::SymbolKind::Proposition
-                            | symbols::SymbolKind::PropositionParameter
-                    )
+                    && is_proposition_call_target(&program.symbols, call.target_symbol)
                 {
                     return Err(Diagnostic::error(if self.fact_position {
                         "a proposition application must be the complete fact in this implementation slice"
@@ -414,6 +449,75 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 self.fact_position = fact_position;
                 if let Some(lowered) = synthesized? {
                     return Ok(lowered);
+                }
+                if let Some(program) = self.program {
+                    let namespace = if call.receiver.is_valid() {
+                        match self.source.expression(call.receiver) {
+                            resolved::expression::ExpressionNode::Name(path) => path.symbol,
+                            _ => symbols::SymbolHandle::invalid(),
+                        }
+                    } else {
+                        symbols::SymbolHandle::invalid()
+                    };
+                    if let Some(operation) = crate::expressions::product_queries::operation(
+                        program,
+                        namespace,
+                        call.target_symbol,
+                        call.target.as_str(),
+                    ) {
+                        if !call.machine_arguments.is_empty() || !call.evidence_arguments.is_empty()
+                        {
+                            return Err(Diagnostic::error(
+                                "Product queries accept only their ordinary value arguments",
+                            ));
+                        }
+                        let arguments = self
+                            .source
+                            .expression_handles(call.arguments)
+                            .to_vec()
+                            .into_iter()
+                            .map(|argument| self.lower_value(argument))
+                            .collect::<Result<Vec<_>, Diagnostic>>()?;
+                        return crate::expressions::product_queries::lower(
+                            program,
+                            self.target_trees,
+                            operation,
+                            arguments,
+                            self.source.source_span(expression),
+                            call.operational_acknowledgement,
+                        );
+                    }
+                    if let Some(request) = crate::expressions::product_selections::request(
+                        program,
+                        self.target_trees,
+                        self.source.authored_expression_exposure(expression),
+                        &self
+                            .source
+                            .authored_selection_occurrences(expression)
+                            .collect::<Vec<_>>(),
+                        namespace,
+                        call.target_symbol,
+                        call.target.as_str(),
+                        &call.machine_arguments,
+                        call.arguments.len(),
+                        call.evidence_arguments.len(),
+                        self.source.source_span(expression),
+                    )? {
+                        let arguments = self
+                            .source
+                            .expression_handles(call.arguments)
+                            .to_vec()
+                            .into_iter()
+                            .map(|argument| self.lower_value(argument))
+                            .collect::<Result<Vec<_>, Diagnostic>>()?;
+                        return crate::expressions::build_selections::lower(
+                            program,
+                            self.target_trees,
+                            request,
+                            arguments,
+                            call.operational_acknowledgement,
+                        );
+                    }
                 }
                 let quotient_operation = self.lower_quotient_operation_request(call)?;
                 let private_layout_operation = self.lower_private_layout_operation_request(call)?;
@@ -499,18 +603,13 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     // argument: no generic callee exists to bind it either.
                     Box::default()
                 } else {
-                    call.machine_arguments
-                        .iter()
-                        .map(|argument| {
-                            crate::expressions::expression::lower_static_machine_argument(
-                                self.program,
-                                self.target_trees,
-                                self.source.authored_expression_exposure(expression),
-                                argument,
-                            )
-                        })
-                        .collect::<Result<Vec<_>, Diagnostic>>()?
-                        .into_boxed_slice()
+                    crate::signatures::lexical_context::call_arguments(
+                        self.program,
+                        self.target_trees,
+                        self.source.authored_expression_exposure(expression),
+                        target_symbol,
+                        &call.machine_arguments,
+                    )?
                 };
                 let requirement_application = if call.requirement_application.is_valid() {
                     let program = self.program.ok_or_else(|| {
@@ -531,6 +630,8 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     .target()
                     .insert(typed::expression::ExpressionNode::Call(
                         typed::expression::TableCallExpression {
+                            authored_call_selection: None,
+                            authored_call_binding: call.authored_call_binding,
                             authored_machine_application: Default::default(),
                             exact_coercion_target: typed::types::TypeReferenceHandle::invalid(),
                             requirement_application,
@@ -544,7 +645,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                             private_layout_operation,
                             layout_query,
                             native_code_layout,
-                            root_binding: Default::default(),
+                            build_selection: Default::default(),
                             arguments,
                             evidence_arguments: call
                                 .evidence_arguments
@@ -705,6 +806,24 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                             operand,
                         },
                     )))
+            }
+            resolved::expression::ExpressionNode::TypeExpression(type_reference) => {
+                let program = self.program.ok_or_else(|| {
+                    Diagnostic::error("static type operand requires its resolved program")
+                })?;
+                let exposure = self.source.authored_expression_exposure(expression).unwrap_or(
+                    language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                );
+                let reference =
+                    crate::type_reference::lower_type_reference_into_trees_with_exposure(
+                        program,
+                        self.target_trees,
+                        program.child_type_reference(*type_reference),
+                        exposure,
+                    )?;
+                Ok(self
+                    .target()
+                    .insert(typed::expression::ExpressionNode::TypeExpression(reference)))
             }
             resolved::expression::ExpressionNode::ZeroValue(type_reference) => {
                 let program = self.program.ok_or_else(|| {

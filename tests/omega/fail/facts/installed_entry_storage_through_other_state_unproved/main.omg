@@ -23,7 +23,7 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
     let access: AccessPlan = AccessPlan::inaccessible(&schema);
     transition { _ -> place_status(schema, access, entries) }
 
-    state place_status(
+    machine place_status(
         schema: Schema,
         access: AccessPlan,
         entries: [FieldEntry; 64]
@@ -44,7 +44,7 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
         ) }
     }
 
-    state place_transmit(
+    machine place_transmit(
         schema: Schema,
         access: AccessPlan,
         entries: [FieldEntry; 64]
@@ -63,7 +63,7 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
         ) }
     }
 
-    state finish(
+    machine finish(
         access: AccessPlan,
         entries: [FieldEntry; 64]
     ) -> PlacementPlan {
@@ -90,9 +90,9 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
 machine finish(view: &mut Placed<RegPlacement, Registers>, code: u8) requires code == 9u8 crashes Trap {
     let observed: u32 = view.status.read(&view.status);
     transition observed == 41u32 { true -> write(view, code) _ -> bad() }
-    state write(view: &mut Placed<RegPlacement, Registers>, code: u8) requires code == 9u8 {
+    machine write(view: &mut Placed<RegPlacement, Registers>, code: u8) requires code == 9u8 {
         view.transmit.write(&mut view.transmit, code);
     }
-    state bad() { crash Trap; }
+    machine bad() { crash Trap; }
 }
-machine start(view: &mut Placed<RegPlacement, Registers>) crashes Trap { transition { _ -> transmit(view, 8u8) } state transmit(view: &mut Placed<RegPlacement, Registers>, code: u8) requires code == 9u8 { finish(view, code); } }
+machine start(view: &mut Placed<RegPlacement, Registers>) crashes Trap { transition { _ -> transmit(view, 8u8) } machine transmit(view: &mut Placed<RegPlacement, Registers>, code: u8) requires code == 9u8 { finish(view, code); } }

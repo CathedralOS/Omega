@@ -60,9 +60,7 @@ pub(crate) use framing::{
 };
 use instruction::decode_instruction;
 pub use instruction::{
-    decode_alternative, decode_alternative_legacy, decode_alternative_without_jump,
-    decode_alternative_without_scalar_call, decode_local_storage_slot, decode_provenance,
-    saturating_kind,
+    decode_alternative, decode_local_storage_slot, decode_provenance, saturating_kind,
 };
 pub use ownership::decode_ownership;
 use values::{
@@ -76,4 +74,5 @@ const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
 // Older envelopes contained claim IDs only and cannot be reinterpreted.
 // Version 39 widens semantic alternative-family tags, not instruction-kind
 // tags or closed form payloads. Older one-byte families are never reinterpreted.
-const VERSION: u32 = 39;
+// Version 41 fences the combined MemoryFence / InvokeNoNormal family roster.
+const VERSION: u32 = 41;

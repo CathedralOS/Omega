@@ -1,5 +1,5 @@
 //! Independent unreachable private-machine replay mechanics.
-use crate::candidates::{canonicalize_provenance, provenance_proven_unreachable_at};
+use crate::candidates::{canonicalize_provenance, proven_unreachable_at_own_site};
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
@@ -181,8 +181,7 @@ pub(crate) fn pruned_machine_provenance(
                     node: u32::try_from(node_index).ok()?,
                 });
                 if !node.provenance.is_empty() {
-                    rows.push(provenance_proven_unreachable_at(
-                        input,
+                    rows.push(proven_unreachable_at_own_site(
                         input,
                         &node.provenance,
                         &node.fuel,
@@ -194,8 +193,7 @@ pub(crate) fn pruned_machine_provenance(
                         edge: edge.psi_edge,
                     };
                     if !edge.provenance.is_empty() {
-                        rows.push(provenance_proven_unreachable_at(
-                            input,
+                        rows.push(proven_unreachable_at_own_site(
                             input,
                             &edge.provenance,
                             &edge.fuel,

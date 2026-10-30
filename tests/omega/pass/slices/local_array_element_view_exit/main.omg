@@ -39,11 +39,11 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> refused()
     }
 
-    state done() {
+    machine done() {
         Console::exit_process(70);
     }
 
-    state refused() {
+    machine refused() {
         Console::exit_process(71);
     }
 }

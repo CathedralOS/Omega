@@ -7,9 +7,9 @@ machine forward<Value [copy]>(value: Value) -> Value { value }
 machine main() crashes Trap {
     let original: [u8; 2] = [7, 11];
     transition { _ -> arrived(original) }
-    state arrived(items: [u8; 2]) {
+    machine arrived(items: [u8; 2]) {
         let observed: u64 = capacity<[u8; 2], 3>(forward(items));
         transition observed == 2 { true -> done() _ -> bad() }
     }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

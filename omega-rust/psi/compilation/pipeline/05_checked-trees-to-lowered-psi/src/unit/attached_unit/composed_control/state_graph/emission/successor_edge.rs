@@ -19,7 +19,10 @@ use super::super::{
     subslices,
 };
 use super::StateGraphEmission;
-use crate::emission::operation_emission::buffer::{CollectionLengthObservations, OperationBuffer};
+use crate::emission::operation_emission::buffer::{
+    OperationBuffer, StorageObservations, structural_result_declaration,
+};
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
 use crate::terminal_identities::lookup_domain_id_for_carrier;
@@ -75,9 +78,11 @@ impl StateGraphEmission<'_, '_> {
         } = emitted;
         let current_parameters = evaluation.current_parameters(state_parameters);
         let state_parameters = current_parameters.as_ref();
-        operations.length_observations.clone_from(inherited_lengths);
+        operations
+            .storage_observations
+            .clone_from(inherited_lengths);
         let target = plan
-            .state_position(edge.target_state)
+            .successor_position(edge)
             .ok_or(LoweringError::Unsupported(
                 "Unit graph target disappeared during emission",
             ))?;
@@ -99,6 +104,19 @@ impl StateGraphEmission<'_, '_> {
             established,
         );
         edge_evaluation.parameters = payload_values.iter().map(|(_, value)| *value).collect();
+        let copied_values = self.capture_dispatch_copies(
+            identities,
+            position,
+            edge.statement_ordinal,
+            state_parameters,
+            &mut edge_evaluation,
+            &mut edge_values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+            &mut sequence,
+        )?;
         let mut arguments = Vec::new();
         let mut structural_arguments = Vec::new();
         let mut retiring_loan_carriers = Vec::new();
@@ -110,13 +128,26 @@ impl StateGraphEmission<'_, '_> {
         // neither construction syntax nor the target's type supplies lifetime.
         for transfer in &edge.transfers {
             for (dependent, parent) in &transfer.retained_loan_parents {
-                let dependent = case_emission::result(state, *dependent, operations)?;
-                let parent = case_emission::result(state, *parent, operations)?;
-                if !dependent.path().is_empty() || !parent.path().is_empty() {
+                let dependent =
+                    edge_evaluation.value_storage(dependent, state_parameters, |binding| {
+                        Ok(case_emission::result(state, binding, operations)?
+                            .as_ref()
+                            .into())
+                    })?;
+                let parent =
+                    edge_evaluation.value_storage(parent, state_parameters, |binding| {
+                        Ok(case_emission::result(state, binding, operations)?
+                            .as_ref()
+                            .into())
+                    })?;
+                if !dependent.path.is_empty() || !parent.path.is_empty() {
                     return unsupported("state loan parent is not a complete owned home");
                 }
-                let relation = (dependent.place(), parent.place());
-                if !self.retained_loan_parents.contains(&relation) {
+                let relation = (dependent.place, parent.place);
+                // Exact physical aliases already share one storage lifetime.
+                // This graph orders distinct homes; it does not identify their
+                // logical loan epochs or relax the checked source dependencies.
+                if relation.0 != relation.1 && !self.retained_loan_parents.contains(&relation) {
                     self.retained_loan_parents.push(relation);
                 }
             }
@@ -223,8 +254,55 @@ impl StateGraphEmission<'_, '_> {
                     &state.operations,
                     transfer,
                 );
+                if loan_backing.is_some() && !transfer.incoming_loan_resources.is_empty() {
+                    return unsupported("state loan ingress contradicts local owned backing");
+                }
                 let mut loan_backing_home = None;
                 let mut place = match transfer.source {
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::EvaluateNoNormal { operations: ref selected } => {
+                            let state_bindings = operations.structural_values.clone();
+                            let planned = selected.iter().cloned().collect::<Vec<_>>();
+                            let emitted = super::super::super::emission::emit_call_operations(
+                                identities, checked, owner, state, &planned, self.catalogs,
+                                state_parameters, &mut edge_evaluation, &mut edge_values,
+                                &self.state_erased[position], next_value, next_block, next_edge,
+                                operations, &mut sequence,
+                            );
+                            operations.structural_values = state_bindings;
+                            emitted?;
+                            let terminator = operations.take_invocation_completion(next_edge)?
+                                .ok_or(LoweringError::Unsupported("stopped successor operand lost its exact invocation"))?;
+                            let selection_edge = edge_id(allocate_dense(next_edge)?);
+                            if let Some(rank) = current_rank {
+                                self.block_ranks.insert(staged, rank);
+                                self.block_ranks.insert(edge_evaluation.current, rank);
+                                self.block_ranks.extend(edge_evaluation.blocks.iter().map(|block| (block.id, rank)));
+                                self.preserve_edges(edge_evaluation.blocks.iter().flat_map(|block| block.terminator.edges()), rank);
+                                self.rank_edges.insert(selection_edge, (rank, terminal_psi::TerminalNaturalRankComparison::Preserving));
+                            }
+                            edge_blocks.extend(edge_evaluation.blocks);
+                            edge_blocks.push(Block {
+                                id: edge_evaluation.current,
+                                parameters: edge_evaluation.parameters,
+                                erased_scalar_formals: self.state_erased[position].clone(),
+                                erased_proof_formals: crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                                    identities, checked, &self.state_erased_proof[position],
+                                ),
+                                structural_parameters: edge_evaluation.block_structural_parameters,
+                                operations: operations[edge_evaluation.operation_start..].to_vec(),
+                                terminator,
+                            });
+                            return Ok(SuccessorEdge {
+                                edge: selection_edge, target: staged, arguments: Vec::new(),
+                                erased_arguments: Vec::new(),
+                                erased_proof_arguments: (0..self.state_erased_proof[position].len()).map(|position| {
+                                    semantic_vocabulary::ProofTerm::Formal {
+                                        position: u32::try_from(position).expect("erased-proof roster positions fit u32"),
+                                    }
+                                }).collect(),
+                                structural_arguments: Vec::new(), cleanup_actions: Vec::new(),
+                            });
+                        }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue { ref operands, ref establishment, ref presentation } => {
                             // The edge performs its ordinary establishment
                             // through the state's operation emitter, so the
@@ -491,7 +569,7 @@ impl StateGraphEmission<'_, '_> {
                                         domain_ids: &self.catalogs.domain_ids,
                                     },
                                     carrier_type, source, crate::unit::attached_unit::reference_results::PublishedReferenceStorage::Declared, &self.catalogs.structural_types,
-                                    edge_evaluation.structural_root_parameters(),
+                                    &edge_evaluation,
                                     place_id(allocate_dense(&mut self.catalogs.next_place)?), operations,
                                 )?;
                                 captured_loans.push((group, carrier.id));
@@ -541,8 +619,8 @@ impl StateGraphEmission<'_, '_> {
                                 source,
                                 root_type,
                                 &subject.path,
-                                &case_identity.spelling(),
-                                &field_identity.spelling(),
+                                case_identity,
+                                field_identity,
                                 path,
                                 target_parameter,
                                 destination,
@@ -590,17 +668,15 @@ impl StateGraphEmission<'_, '_> {
                                 })
                                 .collect::<Result<Vec<_>, _>>()?;
                             let producer = operations.allocate();
-                            operations.push(Operation {
-                                static_reach_binding: None,
-                                suspension_crossing: None,
-                                id: producer,
-                                result: OperationResult::Unit,
-                                kind: OperationKind::EstablishByteSequenceLiteral {
+                            operations.push(Operation::unsuspended(
+                                producer,
+                                OperationResult::Unit,
+                                OperationKind::EstablishByteSequenceLiteral {
                                     destination,
                                     bytes: bytes.clone(),
                                     qualifications,
                                 },
-                            });
+                            ));
                             destination
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedValue {
@@ -640,39 +716,30 @@ impl StateGraphEmission<'_, '_> {
                                 &target_parameter.type_identity,
                             )?;
                             let producer = operations.allocate();
-                            operations.push(Operation {
-                                static_reach_binding: None,
-                                suspension_crossing: None,
-                                id: producer,
-                                result: OperationResult::Structural(
-                                    terminal_psi::StructuralOperationResult {
-                                        qualification_establishments: Vec::new(),
-                                        place: destination,
-                                        structural_type,
-                                        multiplicity: StructuralMultiplicity::Unrestricted,
-                                        qualifications: Vec::new(),
-                                        projected_qualifications: Vec::new(),
-                                        claims: Vec::new(),
-                                    },
+                            operations.push(Operation::unsuspended(
+                                producer,
+                                structural_result_declaration(
+                                    destination,
+                                    structural_type,
+                                    StructuralMultiplicity::Unrestricted,
                                 ),
-                                kind: OperationKind::StructuralLeafCopy { source, path },
-                            });
+                                OperationKind::StructuralLeafCopy { source, path },
+                            ));
                             self.catalogs.temporary_places.push(
-                                StructuralPlaceDeclaration {
-                                    id: destination,
-                                    kind: StructuralPlaceKind::OperationResult {
-                                        producer,
-                                        structural_type,
-                                    },
-                                },
+                                operation_result_place(destination, producer, structural_type),
                             );
                             destination
                             }
                         }
                     };
                 for parent in &transfer.retained_operand_parents {
-                    let parent = case_emission::result(state, *parent, operations)?;
-                    if !parent.path().is_empty() {
+                    let parent =
+                        edge_evaluation.value_storage(parent, state_parameters, |binding| {
+                            Ok(case_emission::result(state, binding, operations)?
+                                .as_ref()
+                                .into())
+                        })?;
+                    if !parent.path.is_empty() {
                         return unsupported("state operand parent is not a complete owned home");
                     }
                     let dependent = self.state_contract_rosters[target]
@@ -682,8 +749,10 @@ impl StateGraphEmission<'_, '_> {
                         .ok_or(LoweringError::Unsupported(
                             "state operand parent lost its target carrier",
                         ))?;
-                    let relation = (dependent, parent.place());
-                    if !self.retained_loan_parents.contains(&relation) {
+                    let relation = (dependent, parent.place);
+                    // A receiving header can reuse its source's owned home.
+                    // Retaining that same home introduces no further ordering.
+                    if relation.0 != relation.1 && !self.retained_loan_parents.contains(&relation) {
                         self.retained_loan_parents.push(relation);
                     }
                 }
@@ -715,13 +784,17 @@ impl StateGraphEmission<'_, '_> {
                             _ => None,
                         }),
                     };
-                    if parameter
-                        .and_then(|index| state.structural_parameters.get(index as usize))
-                        .is_some_and(|parameter| {
-                            parameter.access == checked_trees::CheckedStructuralAccess::Owned
-                        })
+                    if let Some(index) = parameter
+                        && state.structural_parameters.get(index as usize).is_some_and(
+                            |parameter| {
+                                parameter.access == checked_trees::CheckedStructuralAccess::Owned
+                            },
+                        )
                     {
-                        self.loan_chains.lend(target, target_index as u32, place)?;
+                        let home = state_parameters
+                            .get(index as usize)
+                            .map_or(place, |param| param.place);
+                        self.loan_chains.lend(target, target_index as u32, home)?;
                     }
                     let lender = if let Some(home) = loan_backing_home.as_ref() {
                         Some(std::borrow::Cow::Borrowed(home))
@@ -774,7 +847,12 @@ impl StateGraphEmission<'_, '_> {
                 // Shared loan subjects keep their backing local's storage
                 // for the loan's duration exactly like mutable ones: the
                 // activation-entry home dies once at the machine's return.
+                // Complete incoming provenance denotes caller/provider backing.
+                // A local descriptor over it is not a locally owned lender home.
+                // Its recorded parent/operand debts above and selected carrier
+                // cleanup remain independent of this referent-home judgment.
                 if chain_arrival.is_none()
+                    && transfer.incoming_loan_resources.is_empty()
                     && matches!(
                         target_parameter.access,
                         checked_trees::CheckedStructuralAccess::MutableBorrow
@@ -1093,30 +1171,43 @@ impl StateGraphEmission<'_, '_> {
         // Operand evaluation establishes the outgoing values before the exact
         // selected source exit determines the remaining owned dispositions.
         // Keep action kinds and their checked order through private staging.
-        let exit = super::super::cleanup::coordinate(
-            self.catalogs.cleanup_control,
-            state,
-            edge.statement_ordinal as usize,
-            false,
-        )?;
-        let mut cleanup_regions = super::super::cleanup::for_exit_regions(
-            identities,
-            self.claims.published(),
-            self.checked,
-            state,
-            exit,
-            self.catalogs,
-            state_parameters,
-            &edge_evaluation,
-            operations,
-        )?;
-        super::super::cleanup::selection(
-            state.state,
-            &state.operations,
-            &edge_evaluation,
-            operations,
-            &mut cleanup_regions,
-        )?;
+        // A fused invocation keeps its own completion classification. A
+        // different returning arm can make the enclosing body resumable.
+        let selected_exit = match edge.completion {
+            checked_trees::CheckedSuccessorCompletion::NoNormalInvocation => None,
+            checked_trees::CheckedSuccessorCompletion::StateArrival
+            | checked_trees::CheckedSuccessorCompletion::ReturningInvocation => {
+                super::super::cleanup::optional_coordinate(
+                    self.catalogs.cleanup_control,
+                    state,
+                    edge.statement_ordinal as usize,
+                    false,
+                )?
+            }
+        };
+        let mut cleanup_regions = if let Some(exit) = selected_exit {
+            let mut cleanup_regions = super::super::cleanup::for_exit_regions(
+                identities,
+                self.claims.published(),
+                self.checked,
+                state,
+                exit,
+                self.catalogs,
+                state_parameters,
+                &edge_evaluation,
+                operations,
+            )?;
+            super::super::cleanup::selection(
+                state.state,
+                &state.operations,
+                &edge_evaluation,
+                operations,
+                &mut cleanup_regions,
+            )?;
+            cleanup_regions
+        } else {
+            Vec::new()
+        };
         // Proof-only actuals never evaluate: each checked erased row
         // lowers to a term over the emitting state's scalar values and
         // erased formals, in the target's erased-roster order.
@@ -1316,6 +1407,9 @@ impl StateGraphEmission<'_, '_> {
                 operations,
             )?;
         }
+        let copied_regions =
+            self.complete_dispatch_copies(&copied_values, &edge_evaluation, operations)?;
+        cleanup_regions.splice(0..0, copied_regions);
         let cleanup_actions = edge_evaluation.emit_cleanup_regions(
             identities,
             self.checked,
@@ -1454,7 +1548,7 @@ pub(super) struct SuccessorFrame<'f> {
     pub(super) state_parameters: &'f [StructuralParameterDeclaration],
     pub(super) bindings: &'f ScalarBindings,
     pub(super) current_rank: Option<ValueId>,
-    pub(super) inherited_lengths: &'f CollectionLengthObservations,
+    pub(super) inherited_lengths: &'f StorageObservations,
     pub(super) sequence:
         &'f crate::unit::attached_unit::composed_control::emission::OperationSequence,
 }

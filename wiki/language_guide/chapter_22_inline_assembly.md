@@ -5,6 +5,11 @@ ownership, authority, effects or control flow. The [assembly specification](../s
 defines the contract; the [instruction catalog note](../../omega-rust/psi/foundation/language-core/inline_assembly.md)
 records current source and target coverage.
 
+`asm machine` gives an ordinary machine an assembly body. It can implement the
+same requirements as an ordinary machine. Nested assembly-bodied declarations
+also spell `asm machine`; nesting does not silently change the meaning of an
+unmarked `machine`. Inline `asm { ... }` remains available inside ordinary code.
+
 ## Parsed instructions with contracts
 
 Each accepted instruction has structured operands and a compiler-owned contract.
@@ -23,7 +28,7 @@ the enclosing machine. Several instructions use explicit `;` separators.
 A block may state assertions and its exact realized register footprint:
 
 ```omega
-asm where
+asm
     requires ready
     clobbers none
     ensures ready
@@ -36,11 +41,12 @@ Here the x86 fences change ordering, not general-purpose registers. `requires`
 is proved on entry and `ensures` on fallthrough after invalidating stale facts.
 Neither clause manufactures evidence or overrides an instruction contract.
 An authored clobber set must be exact: both omitted and invented changes reject.
-`hlt` and `jmp` blocks have no local post-state for `ensures`.
+An outgoing jump checks the source block's `ensures` before entering its
+successor. A nonreturning environment exit does not invent an ordinary return.
 
-## Blocks do not share hidden registers
+## Separate regions do not share hidden registers
 
-Separate blocks cannot communicate through whatever a previous block left in
+Separate assembly regions cannot communicate through whatever a previous region left in
 a general register or scratch flag. Inputs and outputs use ordinary typed places:
 
 ```omega
@@ -60,22 +66,35 @@ explicit obligation. A block is not an atomic transaction or rollback scope.
 
 ## Label contracts and loops
 
-One assembly body may contain an explicit checked control-flow graph. Labels
-are basic blocks, and ordinary `requires`/`ensures` propositions describe their
-entry and exit states:
+One assembly body contains an explicit checked control-flow graph. Nested
+assembly machines name basic blocks, with optional ordinary `requires`,
+`ensures` and exact `clobbers` clauses:
 
 ```omega
-asm {
-entry requires input > 0:
-    mov eax, input;
-    jmp loop;
+asm machine drain(count: u32)
+terminates
+registers ecx = count
+{
+    transition -> check;
 
-loop requires eax > 0:
-    sub eax, 1;
-    jnz loop;
+    asm machine check {
+        test ecx, ecx;
+        jz done;
+        transition -> step;
 
-done requires eax == 0 ensures eax == 0:
-    mov output, eax
+        asm machine step
+        requires ecx > 0
+        {
+            sub ecx, 1;
+            jmp check;
+        }
+    }
+
+    asm machine done
+    requires ecx == 0
+    {
+        ret;
+    }
 }
 ```
 
@@ -84,9 +103,15 @@ Every predecessor, including a loop backedge, proves the destination's
 the source label's `ensures` on every exit. Registers, flags, modeled memory,
 ordinary places and values, authority, domains and live ownership obligations
 are all part of that symbolic state. Separate `asm` statements still share no
-hidden scratch registers. A conditional terminator's not-taken edge goes to the
-next declared label, or to the body exit, and proves that destination exactly
-like its taken edge.
+hidden scratch registers. Nested blocks within one region do share the exact
+modeled incoming register and flag state through their explicit edges.
+
+A conditional jump is the final native instruction of its block. The following
+`transition` names its not-taken successor and must place that successor
+physically next, with no transfer instruction. The pair is one complete
+terminator; another instruction after `jz` would need another block. An actual
+`jmp` handles a nonadjacent target or backedge. Impossible adjacency rejects,
+rather than quietly inserting a jump. Declarations do not execute by themselves.
 
 A proposition over modeled memory performs no load and grants no access. For
 example, `[eax] == 1` at a label asks the proof system about the memory state
@@ -94,6 +119,46 @@ identified by `eax`; an actual load or store separately owes its instruction
 contract. Ambiguous width, address space or backing makes the proposition
 unprovable. Loops use these label invariants and, when termination is required,
 the ordinary ranked-decrease rules rather than an asm-only termination system.
+
+The `registers` header initializes working registers once. It may emit code;
+it is not a declaration of where the caller supplied arguments. Initializers
+refer to the incoming input values, even when their physical locations overlap.
+The initial transition emits no trampoline, and a backedge skips initialization.
+
+A nested clobber list describes that block's own instructions, not every
+successor it can reach. Instruction effects are inferred when the list is
+omitted. A temporary write followed by restoration still contributes to the
+write footprint; ABI preservation of the original value is checked separately.
+
+## Calling conventions and results
+
+Ordinary entries use Omega's compiler-owned internal convention. An implementation
+of a boundary requirement uses that requirement's `Calling<Policy>` plan, whether
+its body is assembly or ordinary Omega. The plan describes all parameter and
+result locations, stack obligations and preserved state, not just a register
+count. A working-register binding cannot change the caller's ABI.
+
+There is no extra `outputs` interface. At `ret`, the checker proves the declared
+result is fully initialized in the plan's result locations and proves the
+required preservation, ownership and postconditions. A result may span registers
+or use a hidden output destination. Copying that destination pointer retains
+its established storage relationship, not new authority from its numeric bits.
+Inline assembly cannot use `ret` to bypass its enclosing machine's control flow.
+See [calling plans](../spec/build/calling_plans.md).
+
+## Generics and slices
+
+Generic assembly machines use ordinary type, const and machine parameters.
+Each admitted application must justify its instruction widths, representation,
+access and ownership; equal sizes alone do not authorize copying arbitrary T.
+An assembly callback can satisfy the library iterator's ordinary step contract,
+so `for_each<Element, Step>` needs no asm-only variant. This is static machine
+composition, not textual instruction injection or guaranteed unrolling.
+
+Ordinary slices remain valid parameters under Omega's internal convention.
+Their live bounds and loans still govern assembly accesses. A foreign calling
+policy instead needs an explicitly admitted descriptor shape or a pointer/length
+adapter; rejecting an unspecified foreign slice ABI does not prohibit slices.
 
 ## No quiet spelling
 
@@ -114,11 +179,12 @@ ordinary foreign-provider path.
 
 ## Control flow remains Omega control flow
 
-Internal jumps target declared assembly labels; a jump leaving the body targets
-an Omega state. Both are checked transitions whose target contracts, arguments,
+Internal jumps target declared assembly machines; a jump leaving the body targets
+a visible Omega machine. Both are checked transfers whose target contracts, arguments,
 invariants and live obligations remain visible. Control transfer is the final
-instruction in its label block. Undeclared targets, hidden returns and unwinds
-remain rejected.
+instruction in its block, except for the zero-instruction transition completing
+a conditional terminator. Undeclared targets, uncontracted returns and unwinds
+remain rejected. A local jump neither creates a frame nor repeats register setup.
 
 Some catalog operations are user-checked; entry/exit operations such as
 return-from-interrupt are deriver-only. A handler cannot use them to bypass its
@@ -143,6 +209,13 @@ An integer address grants no memory authority. Assembly memory operations need
 the same provenance, bounds, alignment and permissions as other operations.
 MMIO normally uses plan-derived accessors; cache/TLB operations, DMA completion
 and executable publication need their exact target contracts.
+
+`align_of<T>()` reports a type layout's minimum alignment; `align_of(value)`
+observes the actual location. On a nonempty borrowed slice it observes the
+first element, not the descriptor. A branch on that observation can prove an
+aligned instruction's precondition. Bounds and access authority remain separate.
+Copies and offsets of a storage address retain only the relationships justified
+by dataflow and the backing's live loan; arbitrary integers acquire no access.
 
 For example, a checked table writer does not acquire publication authority merely
 by producing valid bytes. The consumer establishes the table's semantic validity

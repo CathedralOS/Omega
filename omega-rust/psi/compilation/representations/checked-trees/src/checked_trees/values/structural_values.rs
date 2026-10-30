@@ -10,18 +10,21 @@ use typed_trees::types::TypeReferenceHandle;
 
 use crate::checked_trees::keyed_rows::KeyedRows;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralValuePlans {
     pub roots: Arena<CheckedStructuralValueRoot>,
     pub nodes: Arena<CheckedStructuralValue>,
     pub dispatch_arms: Arena<CheckedStructuralDispatchArm>,
     pub record_fields: Arena<CheckedStructuralRecordField>,
+    pub content_inputs: Arena<crate::CheckedUnitStructuralArgumentPlan>,
     call_schedules: Arena<StructuralCallSchedule>,
     calls: Arena<crate::CheckedStructuralValueCall>,
     roots_by_state: KeyedRows<SymbolHandle, CheckedStructuralValueRoot>,
+    roots_by_machine: KeyedRows<SymbolHandle, CheckedStructuralValueRoot>,
+    nodes_by_state: KeyedRows<SymbolHandle, CheckedStructuralValue>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 struct StructuralCallSchedule {
     value: CheckedStructuralValueHandle,
     /// Exact predecessor namespace of this independently checked value root.
@@ -31,8 +34,20 @@ struct StructuralCallSchedule {
 
 pub type CheckedStructuralValueHandle = Handle<CheckedStructuralValue>;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+/// Whether evaluating a checked value can reach its receiving continuation.
+/// Unknown callees and unmodelled scalar computations conservatively remain
+/// normal; absence of a result never supplies cleanup or termination authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedValueCompletion {
+    Normal,
+    NoNormal,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralValueRoot {
+    /// A completed entry copy has its own producer, independently of an
+    /// authored read at the same expression occurrence. Zero names a read root.
+    pub captured_copy: Handle<crate::FlowCopiedValue>,
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     pub statement_ordinal: u32,
@@ -41,7 +56,7 @@ pub struct CheckedStructuralValueRoot {
     pub root: CheckedStructuralValueHandle,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralValue {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -54,13 +69,20 @@ pub struct CheckedStructuralValue {
     /// linked source judgments, not this annotation, prove membership.
     pub type_reference: TypeReferenceHandle,
     pub qualification_decisions: HandleSpan<crate::CheckedValueQualification>,
+    /// Exact completion that derives content authority on this fresh payload.
+    /// Copies and later aliases never replay this transaction.
+    pub content_transformation: Handle<crate::facts::ContentBodyTransformation>,
+    /// Complete owned parent operands of that transaction, in the same source
+    /// namespace as ordinary construction operands. Custody and lowering read
+    /// this roster independently of the payload's producing expression kind.
+    pub content_inputs: HandleSpan<crate::CheckedUnitStructuralArgumentPlan>,
     pub kind: CheckedStructuralValueKind,
 }
 
 /// A view borrows either the collection's existing elements or an exactly
 /// tiled byte region. The latter retains its scalar computation handle so the
 /// offset is evaluated once at formation, before any later mutation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedElementViewRegion {
     WholeCollection,
     RepresentationBytes {
@@ -71,7 +93,7 @@ pub enum CheckedElementViewRegion {
 
 /// The exact semantic edge authorizing a whole-value quotient adaptation.
 /// These are checked occurrence coordinates, never layout-based permissions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedQuotientAdaptationLicense {
     Mint,
     Input {
@@ -83,7 +105,7 @@ pub enum CheckedQuotientAdaptationLicense {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedStructuralValueKind {
     /// Selected executable demand, not a runtime invocation or constant value.
     NativeCodeLayout {
@@ -207,7 +229,15 @@ pub enum CheckedStructuralValueKind {
     /// `type_identity` is the projected carrier, not its containing owner's.
     Projection {
         source: CheckedStructuralValueHandle,
+        /// The declared logical backing when this path starts below a stored
+        /// reference root. Zero means the path already names published storage,
+        /// including whole-descriptor forwarding and saved physical projections.
+        /// This coordinate grants no access or ownership of the backing.
+        logical_root_type_identity: TypeIdentityId,
         path: Vec<crate::CheckedUnitStructuralPathSegment>,
+        /// Authored selector children in the scalar computation operand arena;
+        /// the canonical path remains the independent ownership coordinate.
+        projection_evaluations: arena::HandleSpan<crate::CheckedScalarComputationHandle>,
         type_identity: TypeIdentityId,
         /// A selected copy leaves its source's independent disposal debt live.
         /// Whole-value forwarding has no selection and does not copy here.
@@ -253,7 +283,7 @@ pub enum CheckedStructuralValueKind {
     },
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralRecordField {
     pub field: SymbolHandle,
     pub expression: ExpressionHandle,
@@ -261,7 +291,7 @@ pub struct CheckedStructuralRecordField {
     pub value: CheckedStructuralRecordFieldValue,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedStructuralRecordFieldValue {
     Scalar(CheckedScalarComputationHandle),
     Structural(CheckedStructuralValueHandle),
@@ -279,7 +309,7 @@ impl Default for CheckedStructuralValueKind {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralDispatchArm {
     pub source_arm: Handle<TableMatchArm>,
     pub equality_use: Handle<CheckedOperatorUseFact>,
@@ -288,6 +318,126 @@ pub struct CheckedStructuralDispatchArm {
 }
 
 impl CheckedStructuralValuePlans {
+    /// Summarize evaluation without turning catalog order into execution order.
+    /// Sequential children stop their parent; dispatch keeps a normal path
+    /// unless its subject stops or every admitted, nonempty alternative stops.
+    pub fn completion(
+        &self,
+        root: CheckedStructuralValueHandle,
+        calls: &[crate::CheckedStructuralValueCall],
+    ) -> Option<CheckedValueCompletion> {
+        self.completion_with(root, calls, &|_| None)
+    }
+
+    /// Independent roots (notably computed dispatch subjects) retain private
+    /// call namespaces. Their preparation owner can supply the same summary
+    /// before those schedules move into this arena, without importing ordinals.
+    pub fn completion_with(
+        &self,
+        root: CheckedStructuralValueHandle,
+        calls: &[crate::CheckedStructuralValueCall],
+        prepared_root: &dyn Fn(CheckedStructuralValueHandle) -> Option<CheckedValueCompletion>,
+    ) -> Option<CheckedValueCompletion> {
+        fn visit(
+            plans: &CheckedStructuralValuePlans,
+            value: CheckedStructuralValueHandle,
+            calls: &[crate::CheckedStructuralValueCall],
+            active: &mut Vec<CheckedStructuralValueHandle>,
+            prepared_root: &dyn Fn(CheckedStructuralValueHandle) -> Option<CheckedValueCompletion>,
+        ) -> Option<CheckedValueCompletion> {
+            use CheckedValueCompletion::{NoNormal, Normal};
+            if !plans.nodes.is_valid(value) {
+                return None;
+            }
+            if let Some(completion) = prepared_root(value) {
+                return Some(completion);
+            }
+            if active.contains(&value) {
+                return Some(Normal);
+            }
+            active.push(value);
+            let mut children = Vec::new();
+            let completion = match &plans.nodes.get(value).kind {
+                CheckedStructuralValueKind::Call { .. } => {
+                    let mut matching = calls.iter().filter(|call| call.value == value);
+                    let call = matching.next();
+                    if matching.next().is_some() {
+                        return None;
+                    }
+                    if call.is_some_and(|call| !call.has_normal_continuation()) {
+                        NoNormal
+                    } else {
+                        Normal
+                    }
+                }
+                CheckedStructuralValueKind::Dispatch { subject, arms } => {
+                    let subject = subject.structural_value();
+                    let subject_stops = if subject.is_valid() {
+                        let subject_calls = plans
+                            .call_schedule(subject)
+                            .map_or(calls, |(_, calls)| calls);
+                        visit(plans, subject, subject_calls, active, prepared_root)? == NoNormal
+                    } else {
+                        false
+                    };
+                    let arms = plans.dispatch_arms.span(*arms)?;
+                    // Visit every arm even after finding a normal one: this
+                    // query must not make malformed admitted arms invisible.
+                    let mut all_stop = !arms.is_empty();
+                    for arm in arms {
+                        all_stop &=
+                            visit(plans, arm.value, calls, active, prepared_root)? == NoNormal;
+                    }
+                    if subject_stops || all_stop {
+                        NoNormal
+                    } else {
+                        Normal
+                    }
+                }
+                CheckedStructuralValueKind::Record { fields, .. }
+                | CheckedStructuralValueKind::StructuralCase { fields, .. } => {
+                    for field in plans.record_fields.span(*fields)? {
+                        if let CheckedStructuralRecordFieldValue::Structural(child) = field.value {
+                            children.push(child);
+                        }
+                    }
+                    Normal
+                }
+                CheckedStructuralValueKind::QuotientCall { arguments, .. } => {
+                    children.extend(arguments);
+                    Normal
+                }
+                CheckedStructuralValueKind::FixedArray { elements } => {
+                    children.extend(elements);
+                    Normal
+                }
+                CheckedStructuralValueKind::Projection { source, .. }
+                | CheckedStructuralValueKind::ViewSubslice { source, .. }
+                | CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
+                    children.push(*source);
+                    Normal
+                }
+                CheckedStructuralValueKind::Reference { source_value, .. } => {
+                    if source_value.is_valid() {
+                        children.push(*source_value);
+                    }
+                    Normal
+                }
+                _ => Normal,
+            };
+            let mut result = completion;
+            for child in children {
+                if visit(plans, child, calls, active, prepared_root)? == NoNormal {
+                    result = NoNormal;
+                    break;
+                }
+            }
+            active.pop();
+            Some(result)
+        }
+        visit(self, root, calls, &mut Vec::new(), prepared_root)
+    }
+
     /// Structural values actually reached from a retained root, including
     /// computed backing storage. This is the value graph, not the referent
     /// type graph: a stored pointer alone never demands its pointee's storage.
@@ -409,6 +559,12 @@ impl CheckedStructuralValuePlans {
         Some(self.calls.get_mut(call))
     }
 
+    pub fn seal(&mut self) {
+        self.roots_by_state.seal(&self.roots, |root| root.state);
+        self.roots_by_machine.seal(&self.roots, |root| root.machine);
+        self.nodes_by_state.seal(&self.nodes, |node| node.state);
+    }
+
     fn with_state_roots<R>(
         &self,
         state: SymbolHandle,
@@ -416,6 +572,34 @@ impl CheckedStructuralValuePlans {
     ) -> R {
         self.roots_by_state
             .with_rows(&self.roots, |root| root.state, &state, run)
+    }
+
+    fn with_machine_roots<R>(
+        &self,
+        machine: SymbolHandle,
+        run: impl FnOnce(&[Handle<CheckedStructuralValueRoot>]) -> R,
+    ) -> R {
+        self.roots_by_machine
+            .with_rows(&self.roots, |root| root.machine, &machine, run)
+    }
+
+    pub fn with_state_nodes<R>(
+        &self,
+        state: SymbolHandle,
+        run: impl FnOnce(&[Handle<CheckedStructuralValue>]) -> R,
+    ) -> R {
+        self.nodes_by_state
+            .with_rows(&self.nodes, |node| node.state, &state, run)
+    }
+
+    pub fn roots_for_machine(&self, machine: SymbolHandle) -> Vec<&CheckedStructuralValueRoot> {
+        self.with_machine_roots(machine, |handles| {
+            handles
+                .iter()
+                .map(|handle| self.roots.get(*handle))
+                .filter(|root| root.machine == machine)
+                .collect()
+        })
     }
 
     pub fn roots_for_state(&self, state: SymbolHandle) -> Vec<&CheckedStructuralValueRoot> {
@@ -455,7 +639,8 @@ impl CheckedStructuralValuePlans {
                 .iter()
                 .map(|handle| self.roots.get(*handle))
                 .filter(|root| {
-                    root.state == state
+                    !root.captured_copy.is_valid()
+                        && root.state == state
                         && root.statement_ordinal == statement_ordinal
                         && root.expression == expression
                 });
@@ -472,6 +657,9 @@ impl CheckedStructuralValuePlans {
     /// execution nor dominance; scheduling must require an existing lexical
     /// completion before consuming a saved alias. Catalog-only readers may omit
     /// the statement, but still require a unique root within the state.
+    /// Captured-copy roots have their own completion identity and may share
+    /// this authored expression. Only root_for_captured_copy may select them;
+    /// an expression dependency selects the ordinary produced occurrence.
     pub fn completed_expression_dependency(
         &self,
         expressions: &typed_trees::expression::ExpressionTable,
@@ -506,7 +694,8 @@ impl CheckedStructuralValuePlans {
                             .iter()
                             .map(|handle| self.roots.get(*handle))
                             .filter(|root| {
-                                root.state == state
+                                !root.captured_copy.is_valid()
+                                    && root.state == state
                                     && root.expression == expression
                                     && statement
                                         .is_none_or(|statement| root.statement_ordinal == statement)
@@ -537,6 +726,49 @@ impl CheckedStructuralValuePlans {
         }
     }
 
+    pub fn root_for_captured_copy(
+        &self,
+        state: SymbolHandle,
+        statement: u32,
+        copy: Handle<crate::FlowCopiedValue>,
+    ) -> Option<&CheckedStructuralValueRoot> {
+        if !copy.is_valid() {
+            return None;
+        }
+        self.with_state_roots(state, |handles| {
+            let mut roots = handles
+                .iter()
+                .map(|handle| self.roots.get(*handle))
+                .filter(|root| {
+                    root.state == state
+                        && root.statement_ordinal == statement
+                        && root.captured_copy == copy
+                });
+            let root = roots.next()?;
+            roots.next().is_none().then_some(root)
+        })
+    }
+
+    /// The checked producer handle, rather than its diagnostic source
+    /// occurrence, identifies a value independently of its eventual consumer.
+    pub fn root_for_value(
+        &self,
+        value: CheckedStructuralValueHandle,
+    ) -> Option<&CheckedStructuralValueRoot> {
+        if !self.nodes.is_valid(value) {
+            return None;
+        }
+        let node = self.nodes.get(value);
+        self.with_state_roots(node.state, |handles| {
+            let mut roots = handles
+                .iter()
+                .map(|handle| self.roots.get(*handle))
+                .filter(|root| root.root == value);
+            let root = roots.next()?;
+            roots.next().is_none().then_some(root)
+        })
+    }
+
     pub fn root_at(
         &self,
         state: SymbolHandle,
@@ -546,7 +778,11 @@ impl CheckedStructuralValuePlans {
             let mut roots = handles
                 .iter()
                 .map(|handle| self.roots.get(*handle))
-                .filter(|root| root.state == state && root.statement_ordinal == statement_ordinal);
+                .filter(|root| {
+                    !root.captured_copy.is_valid()
+                        && root.state == state
+                        && root.statement_ordinal == statement_ordinal
+                });
             let root = roots.next()?;
             roots.next().is_none().then_some(root)
         })
@@ -607,6 +843,8 @@ mod index_tests {
             source_span: Default::default(),
             type_reference: Default::default(),
             qualification_decisions: Default::default(),
+            content_transformation: Default::default(),
+            content_inputs: Default::default(),
             kind: super::CheckedStructuralValueKind::Scalar {
                 value: Default::default(),
             },

@@ -3,7 +3,7 @@
 data Row<const Count: u64> { values: [i64 in Wrapping; Count]; }
 machine read<const Count: u64>(row: &Row<Count>, index: u64) -> i64 in Wrapping {
     transition index <= Count { true -> take(row, index) _ -> (0) }
-    state take(row: &Row<Count>, index: u64) -> i64 in Wrapping { row.values[index] }
+    machine take(row: &Row<Count>, index: u64) -> i64 in Wrapping { row.values[index] }
 }
 machine main() crashes Trap {
     let mut row: Row<2>;
@@ -11,5 +11,5 @@ machine main() crashes Trap {
     row.values[1] = 2;
     let value: i64 in Wrapping = read<2>(&row, 2);
     transition value == 0 { true -> done() _ -> done() }
-    state done() {}
+    machine done() {}
 }

@@ -15,6 +15,7 @@
 //! Unsupported source constructs fail closed.
 
 mod boundary_applications;
+mod build_providers;
 mod callback_applications;
 pub(crate) mod debug_map;
 pub(crate) mod declarations;
@@ -48,35 +49,40 @@ pub fn lower_machine(
     machine: TerminalMachineSelection<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     program_roots: crate::TerminalProgramRoots<'_>,
+    publication: terminal_codec::TerminalPublication,
+    external_declarations: Option<&crate::PreparedExternalProviderDeclarations>,
 ) -> Result<LoweredPsi, LoweringError> {
     if checked
         .facts
-        .integer_range_obligations
+        .flow
+        .terminal_unit_effects
+        .boundary_machines
         .iter()
-        .any(checked_trees::IntegerRangeObligation::is_pending)
+        .any(|plan| {
+            !plan.pending_scalar_requires.is_empty() || !plan.pending_scalar_recipes.is_empty()
+        })
     {
         return unsupported(
-            "integer range obligations require target closure before Terminal production",
+            "boundary scalar contract clauses require target closure before Terminal production",
         );
     }
-    // A shared source judgment may carry target-dependent proof conditions.
-    // Only target closure consumes those obligations; direct/package callers
-    // cannot publish conditional call evidence as unconditional Terminal code.
-    if checked
-        .facts
-        .constant_predicate_obligations
-        .iter()
-        .any(checked_trees::ConstantPredicateObligation::is_pending)
-    {
-        return unsupported(
-            "constant proof predicates require target closure before Terminal production",
-        );
-    }
+    // Scalar applications retain pending range, predicate and normal-completion
+    // conditions in the canonical module. Publication does not discharge them:
+    // native and interpreter admission require a completed selected judgment.
+    // Pending boundary clauses above differ: their complete projection failed,
+    // so they cannot be erased or represented by an incomplete condition.
     // One builder owns the complete closure's identities. Body construction
     // snapshots only a prefix: declaration, evidence and application retention
     // can intern more rows. Seal the complete table after those producers, so
     // every durable index resolves in the module that owns it.
-    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+    let mut identities = match publication {
+        terminal_codec::TerminalPublication::Portable => {
+            terminal_psi::TerminalIdentityTableBuilder::default()
+        }
+        terminal_codec::TerminalPublication::Invocation => {
+            terminal_psi::TerminalIdentityTableBuilder::for_invocation()
+        }
+    };
     // Nominal callbacks are checked callable roots, even though their foreign
     // invocation is not an ordinary source call edge. Retain them once beside
     // program entries; native ABI adapters select these exact bodies later.
@@ -96,54 +102,92 @@ pub fn lower_machine(
         machines: &roots,
         boundaries: program_roots.boundaries,
     };
-    let selection = select_terminal_machine(checked, machine)?;
-    let (mut lowered, completion) = lower_terminal_selection(
-        &mut identities,
-        checked,
-        selection,
-        exact_toolchain_sources,
-        program_roots,
-    )
+    let selection = match machine {
+        TerminalMachineSelection::Declarations => None,
+        machine => Some(select_terminal_machine(checked, machine)?),
+    };
+    let (mut lowered, completion) = phase_profile::scope("05.lower_terminal_selection", || {
+        lower_terminal_selection(
+            &mut identities,
+            checked,
+            selection,
+            exact_toolchain_sources,
+            program_roots,
+        )
+    })
     .map_err(|error| error.with_source_names(checked))?;
-    boundary_applications::retain(
-        &mut identities,
-        checked,
-        exact_toolchain_sources,
-        &mut lowered,
-    )
-    .map_err(LoweringError::Unsupported)?;
-    callback_applications::retain(
-        &mut identities,
-        checked,
-        exact_toolchain_sources,
-        &mut lowered,
-    )
-    .map_err(LoweringError::Unsupported)?;
-    lowered.semantic_module.identities = identities.build();
+    phase_profile::scope("05.boundary_applications", || {
+        boundary_applications::retain(
+            &mut identities,
+            checked,
+            exact_toolchain_sources,
+            &mut lowered,
+        )
+    })
+    .map_err(|reason| LoweringError::InvalidBoundaryApplication(reason.to_owned()))?;
+    match external_declarations {
+        Some(declarations) => declarations.retain(
+            checked,
+            exact_toolchain_sources,
+            &mut identities,
+            &mut lowered.semantic_module,
+        )?,
+        None => crate::retention::external_providers::retain(
+            &mut identities,
+            checked,
+            exact_toolchain_sources,
+            &mut lowered.semantic_module,
+        )?,
+    }
+    phase_profile::scope("05.callback_applications", || {
+        callback_applications::retain(
+            &mut identities,
+            checked,
+            exact_toolchain_sources,
+            &mut lowered,
+        )
+    })
+    .map_err(LoweringError::InvalidDeclarationIdentity)?;
+    lowered.semantic_module.task_activation_demands =
+        crate::lower_task_activation_demands(checked, &mut identities)
+            .map_err(LoweringError::TaskActivation)?;
+    lowered.semantic_module.identities =
+        phase_profile::scope("05.identities_build", || identities.build());
+    // Declaration and evidence producers intern beyond the body snapshot.
+    // Validate against their complete module-owned table before publication.
+    if let Err(reason) = phase_profile::scope("05.validate_runtime_evidence_inputs", || {
+        terminal_semantics::validate_runtime_evidence_inputs(&lowered.semantic_module)
+    }) {
+        diagnose_runtime_evidence_case_failure(&lowered.semantic_module, reason);
+        return Err(LoweringError::Unsupported(reason));
+    }
     // Debug identity binds the whole semantic module, including retained
     // boundary/callback applications and the final interned identity table.
     // Construct it only after those producers finish; stamping the body's
     // earlier table prefix makes even a constant entry's companion stale.
-    lowered.debug_map = if selection.signature == CheckedTerminalSignatureEligibility::Eligible
-        && completion.debug == DebugPublication::FromCheckedPlan
-    {
-        let live_states = checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .composed_for_machine(selection.machine)
-            .map(attached_unit::unit_graph_live_states)
-            .transpose()?;
-        checked
-            .facts
-            .flow
-            .terminal_debug
-            .for_machine(selection.machine)
-            .map(|plan| build_debug_map(plan, &lowered.semantic_module, live_states.as_deref()))
-            .transpose()?
-    } else {
-        None
-    };
+    lowered.debug_map = phase_profile::scope("05.debug_map", || -> Result<_, LoweringError> {
+        if let Some(selection) = selection
+            && selection.signature == CheckedTerminalSignatureEligibility::Eligible
+            && completion.debug == DebugPublication::FromCheckedPlan
+        {
+            let live_states = checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .composed_for_machine(selection.machine)
+                .map(attached_unit::unit_graph_live_states)
+                .transpose()?;
+            checked
+                .facts
+                .flow
+                .terminal_debug
+                .for_machine(selection.machine)
+                .map(|plan| build_debug_map(plan, &lowered.semantic_module, live_states.as_deref()))
+                .transpose()
+        } else {
+            Ok(None)
+        }
+    })?;
     Ok(lowered)
 }
 
@@ -157,6 +201,9 @@ pub(crate) fn nominal_cleanup_subject(
         semantic_vocabulary::StructuralTypeId,
     )],
 ) -> Result<Option<semantic_vocabulary::StructuralTypeId>, LoweringError> {
+    if validation::nominal_cleanup_owner(&checked.typed, source).is_none() {
+        return Ok(None);
+    }
     let rendered = type_ids
         .iter()
         .map(|(identity, id)| {
@@ -249,7 +296,7 @@ fn retain_nominal_cleanup_roles(
 fn lower_terminal_selection(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
-    selection: &checked_trees::CheckedTerminalMachineSelection,
+    selection: Option<&checked_trees::CheckedTerminalMachineSelection>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     program_roots: crate::TerminalProgramRoots<'_>,
 ) -> Result<(LoweredPsi, LoweringCompletion), LoweringError> {
@@ -258,13 +305,31 @@ fn lower_terminal_selection(
         completion,
         source_machine_ids,
         source_boundary_ids,
-    } = lower_selected_machine(
-        identities,
-        checked,
-        selection,
-        program_roots,
-        exact_toolchain_sources,
-    )?;
+    } = phase_profile::scope("05.01_lower_selected_machine", || match selection {
+        Some(selection) => lower_selected_machine(
+            identities,
+            checked,
+            selection,
+            program_roots,
+            exact_toolchain_sources,
+        ),
+        None => Ok(LoweredSelectedMachine::source_mapped(
+            attached_unit::lower_unit_closure(
+                identities,
+                checked,
+                &attached_unit::UnitClosureRequest::unit(
+                    checked,
+                    symbols::SymbolHandle::invalid(),
+                    &[],
+                    program_roots,
+                    exact_toolchain_sources,
+                ),
+            )?,
+            LoweringCompletion {
+                debug: DebugPublication::Omit,
+            },
+        )),
+    })?;
     if lowered.semantic_module.target_machine_families.len()
         != crate::unit::attached_unit::target_families::runtime_families(checked)?.len()
     {
@@ -274,96 +339,258 @@ fn lower_terminal_selection(
         .iter()
         .map(|(source, _)| *source)
         .collect::<Vec<_>>();
-    declarations::retain(
-        identities,
-        checked,
-        exact_toolchain_sources,
-        &source_machine_ids,
-        &mut lowered.semantic_module,
-    )
-    .map_err(LoweringError::Unsupported)?;
-    retain_nominal_cleanup_roles(checked, &source_machine_ids, &mut lowered.semantic_module)?;
-    closed_reach_applications::retain_closed_reach_applications(
-        identities,
-        checked,
-        &source_machine_ids,
-        &lowered.source_call_occurrences,
-        &mut lowered.semantic_module,
-    )?;
-    for (source_machine, terminal_machine) in &source_machine_ids {
-        reborrow_restored_call_use::retain_selected_reborrow_restored_call_uses(
+    phase_profile::scope("05.02_declarations_retain", || {
+        declarations::retain(
             identities,
             checked,
-            *source_machine,
-            *terminal_machine,
+            exact_toolchain_sources,
+            &source_machine_ids,
+            &mut lowered.semantic_module,
+        )
+    })
+    .map_err(LoweringError::InvalidDeclarationIdentity)?;
+    phase_profile::scope("05.03_nominal_cleanup_roles", || {
+        retain_nominal_cleanup_roles(checked, &source_machine_ids, &mut lowered.semantic_module)
+    })?;
+    phase_profile::scope("05.04_closed_reach_applications", || {
+        closed_reach_applications::retain_closed_reach_applications(
+            identities,
+            checked,
+            &source_machine_ids,
             &lowered.source_call_occurrences,
-            &lowered.semantic_module.machines,
-            &mut lowered.semantic_module.reborrow_restored_call_uses,
-        )?;
-    }
-    crate::retention::placed_view_plans::retain(
-        identities,
-        checked,
-        exact_toolchain_sources,
-        &mut lowered.semantic_module,
+            &mut lowered.semantic_module,
+        )
+    })?;
+    phase_profile::scope(
+        "05.05_reborrow_restored_call_use",
+        || -> Result<_, LoweringError> {
+            for (source_machine, terminal_machine) in &source_machine_ids {
+                reborrow_restored_call_use::retain_selected_reborrow_restored_call_uses(
+                    identities,
+                    checked,
+                    *source_machine,
+                    *terminal_machine,
+                    &lowered.source_call_occurrences,
+                    &lowered.semantic_module.machines,
+                    &mut lowered.semantic_module.reborrow_restored_call_uses,
+                )?;
+            }
+            Ok(())
+        },
     )?;
-    crate::retention::placement_lifecycles::retain(
-        identities,
-        checked,
-        exact_toolchain_sources,
-        &mut lowered,
-    )?;
-    retained_borrow_custody::retain_foreign_borrow_custodies(
-        identities,
-        checked,
-        exact_toolchain_sources,
-        &mut lowered.semantic_module,
+    phase_profile::scope(
+        "05.06_placed_and_suspension",
+        || -> Result<_, LoweringError> {
+            crate::retention::placed_view_plans::retain(
+                identities,
+                checked,
+                exact_toolchain_sources,
+                &mut lowered.semantic_module,
+            )?;
+            crate::retention::placement_lifecycles::retain(
+                identities,
+                checked,
+                exact_toolchain_sources,
+                &mut lowered,
+            )?;
+            suspension_call_plan::retain_suspension_call_plans(
+                identities,
+                checked,
+                &source_machines,
+                &lowered.source_call_occurrences,
+                &mut lowered.semantic_module,
+            )?;
+            retained_borrow_custody::retain_foreign_borrow_custodies(
+                identities,
+                checked,
+                exact_toolchain_sources,
+                &mut lowered.semantic_module,
+            )?;
+            Ok(())
+        },
     )?;
     // Selected operator invocations carry their crash contract beside the
     // exact emitted operation; a named invocation's carrier is its own
     // boundary call's declaration, verified through the same projection
     // sources. A crash-qualified use the closure cannot join fails closed
     // here rather than lowering crash-free.
-    operation_crash_contracts::retain_operation_crash_contracts(
-        identities,
-        checked,
-        &source_machines,
-        &source_machine_ids,
-        &mut lowered,
-    )?;
+    phase_profile::scope("05.07_operation_crash_contracts", || {
+        operation_crash_contracts::retain_operation_crash_contracts(
+            identities,
+            checked,
+            &source_machines,
+            &source_machine_ids,
+            &mut lowered,
+        )
+    })?;
     // Guarded guarantees are admitted from the finished closure: whether the
     // entry returns one exact payloadless case is a fact of its lowered body,
     // whichever producer emitted it.
-    reject_unguarded_outcome_guarantees(checked, &source_machine_ids, &lowered.semantic_module)?;
-    crate::retention::conformance_applications::lower_closed_conformance_applications(
-        identities,
-        checked,
-        &source_machines,
-        &source_boundary_ids,
-        &mut lowered.semantic_module,
+    phase_profile::scope(
+        "05.08_conformance_and_dyn",
+        || -> Result<_, LoweringError> {
+            reject_unguarded_outcome_guarantees(
+                checked,
+                &source_machine_ids,
+                &lowered.semantic_module,
+            )?;
+            crate::retention::conformance_applications::lower_closed_conformance_applications(
+                identities,
+                checked,
+                &source_machines,
+                &source_boundary_ids,
+                &mut lowered.semantic_module,
+            )?;
+            crate::unit::dynamic_dispatch::lower_dynamic_dispatch_catalog(
+                identities,
+                checked,
+                &source_machines,
+                &mut lowered.semantic_module,
+            )?;
+            retain_float_meanings(identities, checked, &source_machine_ids, &mut lowered)?;
+            Ok(())
+        },
     )?;
-    crate::unit::dynamic_dispatch::lower_dynamic_dispatch_catalog(
-        identities,
-        checked,
-        &source_machines,
-        &mut lowered.semantic_module,
-    )?;
-    suspension_call_plan::retain_suspension_call_plans(
-        identities,
-        checked,
-        &source_machines,
-        &lowered.source_call_occurrences,
-        &mut lowered.semantic_module,
-    )?;
-    retain_float_meanings(identities, checked, &source_machine_ids, &mut lowered)?;
+    lowered.build_provider_requirements = phase_profile::scope("05.09_build_providers", || {
+        build_providers::retain(
+            identities,
+            checked,
+            exact_toolchain_sources,
+            &source_boundary_ids,
+            &lowered.source_call_occurrences,
+        )
+    })?;
 
     // Copies emitted while composing values can allocate after frame reservation.
     // Retain their ordinary place declarations before publishing the module;
     // quotient adaptations keep their separate exact occurrence licenses.
-    crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations(
-        &mut lowered.semantic_module,
-    );
-    crate::retention::copied_memberships::retain(&mut lowered.semantic_module)?;
-    lower_and_install_evidence_artifacts(identities, checked, &source_machine_ids, &mut lowered)?;
+    phase_profile::scope(
+        "05.10_reconcile_and_residences",
+        || -> Result<_, LoweringError> {
+            crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations(
+            &mut lowered.semantic_module,
+        );
+            crate::emission::descriptor_residences::complete(&mut lowered.semantic_module)?;
+            crate::retention::payload_memberships::retain(&mut lowered.semantic_module)?;
+            Ok(())
+        },
+    )?;
+    phase_profile::scope("05.11_evidence_artifacts", || {
+        lower_and_install_evidence_artifacts(identities, checked, &source_machine_ids, &mut lowered)
+    })?;
     Ok((lowered, completion))
+}
+
+/// Failure-only imaging of the actual, unpublished module. The normal reader
+/// remains the sole admission decision; these queries cannot authorize a call.
+/// Keep environment/logging at the producer boundary, outside pure semantics.
+fn diagnose_runtime_evidence_case_failure(module: &terminal_psi::TerminalModule, reason: &str) {
+    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_none() {
+        return;
+    }
+    let graph = terminal_semantics::descriptor_results::terminal_graph(module);
+    let mut analysis = terminal_semantics::descriptor_results::DescriptorAnalysis::new(
+        &module.structural_types,
+        &graph,
+    );
+    for invocation in &module.proof_output_calls {
+        let Some(runtime) = invocation.runtime_call else {
+            continue;
+        };
+        let Some(caller) = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == invocation.caller)
+        else {
+            continue;
+        };
+        let Some(machine) = graph.iter().find(|machine| machine.id == caller.id) else {
+            eprintln!(
+                "[runtime-evidence-case] caller={:?} consumer={:?} graph=absent reason={reason}",
+                caller.id, runtime.site
+            );
+            continue;
+        };
+        let feasibility = analysis.flow_feasibility(caller.id);
+        for block in &caller.blocks {
+            for (index, operation) in block.operations.iter().enumerate() {
+                let Some(parts) = terminal_psi::direct_call_parts(&operation.kind) else {
+                    continue;
+                };
+                for row in parts.selected_evidence.iter().filter(|row| {
+                    invocation
+                        .evidence_arguments
+                        .iter()
+                        .any(|argument| argument.source == row.output)
+                }) {
+                    let terminal_psi::OperationResult::Structural(result) = &operation.result
+                    else {
+                        continue;
+                    };
+                    let predicate =
+                        terminal_semantics::descriptor_results::DescriptorCasePredicate {
+                            subject:
+                                terminal_semantics::descriptor_lifetimes::DescriptorLocation::whole(
+                                    result.place,
+                                ),
+                            case: row.guard.result_case,
+                        };
+                    eprintln!(
+                        "[runtime-evidence-case] caller={:?} producer={:?} producer_cut=({:?},{index}) consumer={:?} output={:?} result={:?} type={:?} guard_case={:?} validity_result={:?} reason={reason}",
+                        caller.id,
+                        operation.id,
+                        block.id,
+                        runtime.site,
+                        row.output,
+                        result.place,
+                        result.structural_type,
+                        row.guard.result_case,
+                        row.validity.result
+                    );
+                    for (position, step) in &machine.flow {
+                        let established =
+                            analysis.case_is_established(caller.id, *position, &predicate);
+                        let membership =
+                            analysis.case_feasibility(caller.id, *position, &predicate);
+                        eprintln!(
+                            "[runtime-evidence-case-step] caller={:?} cut={position:?} flow={:?} original_selected={established} original_membership={membership:?} definitions={:?} derivations={:?} producer={:?} contents_transfer={} unresolved_write={} payload_invalidations={}",
+                            caller.id,
+                            feasibility.get(position),
+                            step.definitions,
+                            step.derivations,
+                            machine.payload_producers.get(position),
+                            machine.contents_transfers.contains_key(position),
+                            machine.unresolved_contents_writes.contains(position),
+                            machine
+                                .payload_invalidations
+                                .get(position)
+                                .map_or(0, Vec::len)
+                        );
+                        for edge in &step.successors {
+                            eprintln!(
+                                "[runtime-evidence-case-edge] caller={:?} cut={position:?} target={:?} parameters={:?} derivations={:?}",
+                                caller.id,
+                                edge.target,
+                                edge.parameters,
+                                edge.derivations().collect::<Vec<_>>()
+                            );
+                        }
+                        for (branch, predicates) in &machine.case_successors {
+                            for (observed, truth) in predicates
+                                .iter()
+                                .filter(|(observed, _)| observed.case == row.guard.result_case)
+                            {
+                                let selected =
+                                    analysis.case_is_established(caller.id, *position, observed);
+                                eprintln!(
+                                    "[runtime-evidence-case-observation] caller={:?} cut={position:?} branch={branch:?} subject={:?} case={:?} truth={truth} selected={selected}",
+                                    caller.id, observed.subject, observed.case
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

@@ -166,3 +166,28 @@ mod tests {
         }
     }
 }
+
+impl<T: 'static> compiler_storage::Record for Handle<T> {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        self.arena_index.write(output)?;
+        self.generation.write(output)
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        let arena_index = u32::read(input)?;
+        let generation = u32::read(input)?;
+        // ZII absence has no payload to relocate. All semantic arena domains
+        // preserve their generations; only an explicitly registered storage
+        // domain (retained syntax text) supplies a fresh correspondence.
+        let generation = if arena_index == 0 {
+            generation
+        } else {
+            input.generation::<T>(generation)?
+        };
+        Ok(Self::from_parts(arena_index, generation))
+    }
+}

@@ -1,11 +1,11 @@
-domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8]::Utf8 requires valid_utf8(self);
 // A `&mut [Room]` view of records whose `label` field is declared `in Utf8`,
 // forwarded whole to a machine. The callee's parameter owes each element's
 // label membership; a loan lends the storage itself, so the call site's
 // facts, where the view's element memberships live, are its evidence.
 use omega_language_std::console;
 
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 8]::Utf8 requires valid_utf8(self);
 data Room [copy] { label: TextBuffer; value: u64; }
 data Main { rooms: [Room; 3]; }
 
@@ -26,8 +26,8 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         true -> reached(main)
         _ -> missed(main)
     }
-    state reached(main: &mut Main) { Console::exit_process(70); }
-    state missed(main: &mut Main) { Console::exit_process(71); }
+    machine reached(main: &mut Main) { Console::exit_process(70); }
+    machine missed(main: &mut Main) { Console::exit_process(71); }
 }
 
 
@@ -40,8 +40,8 @@ machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
         true -> checked(bytes)
         false -> bad()
     }
-    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
-    state bad() { crash Trap; }
+    machine checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    machine bad() -> &[u8] in Utf8 { crash Trap; }
 }
 machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
     let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);

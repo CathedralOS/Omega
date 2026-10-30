@@ -51,26 +51,26 @@ machine Main::write_slot(main: &mut Main, idx: i32 in Saturating, value: i32 in 
         _ -> try_w1(main, idx, value)
     }
 
-    state w0(main: &mut Main, value: i32 in Saturating) { main.stack.slots[0] = value; }
+    machine w0(main: &mut Main, value: i32 in Saturating) { main.stack.slots[0] = value; }
 
-    state try_w1(main: &mut Main, idx: i32 in Saturating, value: i32 in Saturating) {
+    machine try_w1(main: &mut Main, idx: i32 in Saturating, value: i32 in Saturating) {
         transition idx == 1 {
             true -> w1(main, value)
             _ -> try_w2(main, idx, value)
         }
     }
 
-    state w1(main: &mut Main, value: i32 in Saturating) { main.stack.slots[1] = value; }
+    machine w1(main: &mut Main, value: i32 in Saturating) { main.stack.slots[1] = value; }
 
-    state try_w2(main: &mut Main, idx: i32 in Saturating, value: i32 in Saturating) {
+    machine try_w2(main: &mut Main, idx: i32 in Saturating, value: i32 in Saturating) {
         transition idx == 2 {
             true -> w2(main, value)
             _ -> w3(main, value)
         }
     }
 
-    state w2(main: &mut Main, value: i32 in Saturating) { main.stack.slots[2] = value; }
-    state w3(main: &mut Main, value: i32 in Saturating) { main.stack.slots[3] = value; }
+    machine w2(main: &mut Main, value: i32 in Saturating) { main.stack.slots[2] = value; }
+    machine w3(main: &mut Main, value: i32 in Saturating) { main.stack.slots[3] = value; }
 }
 
 // ---------------------------------------------------------------------------
@@ -96,14 +96,14 @@ machine Main::add(main: &mut Main) {
         _ -> done(main)
     }
 
-    state add_sp2(main: &mut Main) {
+    machine add_sp2(main: &mut Main) {
         let a: i32 in Saturating = main.stack.slots[0];
         let b: i32 in Saturating = main.stack.slots[1];
         main.stack.sp = 1;
         main.stack.slots[0] = a + b;
     }
 
-    state done(main: &mut Main) {}
+    machine done(main: &mut Main) {}
 }
 
 // ---------------------------------------------------------------------------
@@ -115,14 +115,14 @@ machine Main::sub(main: &mut Main) {
         _ -> done(main)
     }
 
-    state sub_sp2(main: &mut Main) {
+    machine sub_sp2(main: &mut Main) {
         let a: i32 in Saturating = main.stack.slots[0];
         let b: i32 in Saturating = main.stack.slots[1];
         main.stack.sp = 1;
         main.stack.slots[0] = a - b;
     }
 
-    state done(main: &mut Main) {}
+    machine done(main: &mut Main) {}
 }
 
 // ---------------------------------------------------------------------------
@@ -134,14 +134,14 @@ machine Main::mul(main: &mut Main) {
         _ -> done(main)
     }
 
-    state mul_sp2(main: &mut Main) {
+    machine mul_sp2(main: &mut Main) {
         let a: i32 in Saturating = main.stack.slots[0];
         let b: i32 in Saturating = main.stack.slots[1];
         main.stack.sp = 1;
         main.stack.slots[0] = a * b;
     }
 
-    state done(main: &mut Main) {}
+    machine done(main: &mut Main) {}
 }
 
 // ---------------------------------------------------------------------------
@@ -168,28 +168,28 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad_result(main)
     }
 
-    state check_sp(main: &mut Main) {
+    machine check_sp(main: &mut Main) {
         transition main.stack.sp == 0 {
             true -> good(main)
             _ -> bad_sp(main)
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::write_line("PASS: (32+4)*2-2 == 70 and the stack drained to empty (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(70);
     }
 
-    state bad_result(main: &mut Main) {
+    machine bad_result(main: &mut Main) {
         Console::write_line("FAIL: RPN result != 70 (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(71);
     }
 
-    state bad_sp(main: &mut Main) {
+    machine bad_sp(main: &mut Main) {
         Console::write_line("FAIL: stack pointer != 0 after pop_result (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

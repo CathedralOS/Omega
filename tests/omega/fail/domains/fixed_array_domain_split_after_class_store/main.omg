@@ -2,7 +2,7 @@
 // licence: a SECOND store that replaces another byte with a non-ASCII one
 // splits the scalar the carrier held, retires the minted class, and the normal
 // return must refuse the field's declared domain again.
-domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 4]::Utf8 requires valid_utf8(self);
 
 data Buffer { label: [u8; 4] in Utf8; }
 
@@ -12,9 +12,9 @@ machine store(buffer: &mut Buffer, byte: u8) {
         true -> write(buffer, byte)
         _ -> keep(buffer)
     }
-    state write(buffer: &mut Buffer, byte: u8) {
+    machine write(buffer: &mut Buffer, byte: u8) {
         buffer.label[1] = byte;
         buffer.label[0] = 200;
     }
-    state keep(buffer: &mut Buffer) { }
+    machine keep(buffer: &mut Buffer) { }
 }

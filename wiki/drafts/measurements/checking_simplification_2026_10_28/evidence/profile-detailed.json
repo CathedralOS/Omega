@@ -1,0 +1,14 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+    "--timings",
+    "--build-dir",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\checking-simplification\\profile-output",
+    "--target",
+    "windows_x86_64",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-ablation\\trial3\\inputs\\stack32\\main.omg"
+  ],
+  "exit": 0,
+  "wall_ms": 9144.632400013506,
+  "sha256": "bdaa359af809e89e101fa2c76e065b6aaceebac2421420fa38b16be117b8d745"
+}

@@ -333,7 +333,9 @@ fn complete_expression_tree(
                 let expected_type = argument_types.get(index).copied().unwrap_or_default();
                 PendingNode::Expression(*argument, ValuePosition::CallArgument(expected_type))
             }));
-            if call.receiver.is_valid() {
+            if call.receiver.is_valid()
+                && program.dynamic_slot_by_symbol(call.target_symbol).is_none()
+            {
                 pending.push(PendingNode::Receiver(call.receiver));
             }
             continue;

@@ -1,6 +1,7 @@
 use isa_x86_64::{
-    encode_x86_64_selected_i64_less_than_branch_form, encode_x86_64_selected_jump_form,
-    encode_x86_64_selected_nonzero_branch_form, encode_x86_64_selected_short_nonzero_branch_form,
+    ValidatedX86_64SelectedFormEncoding, encode_x86_64_selected_i64_less_than_branch_form,
+    encode_x86_64_selected_jump_form, encode_x86_64_selected_nonzero_branch_form,
+    encode_x86_64_selected_short_nonzero_branch_form,
     encode_x86_64_selected_u64_less_than_branch_form, x86_64_physical_register_model,
 };
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
@@ -18,17 +19,16 @@ use machine_code::{
 };
 
 use super::{
-    branch_inspection::{inspect_production_branch, replay_inspect_branch},
-    reflow::{reflow_production_functions, reflow_replay_functions},
+    branch_inspection::inspect_production_branch, lane, reflow::reflow_production_functions,
     work::charge,
 };
 
 use super::super::{
     X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
-    X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
+    X86BranchRelaxationIdentity, X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
     error::{OptimizedX86BranchRelaxationError, X86BranchRelaxationWorkAxis},
     identity::{RevisionRoots, artifact_identity, revision_identity},
-    validation::{compare_replayed_action_evidence, ensure_x86_target},
+    validation::ensure_x86_target,
 };
 
 fn physical() -> ValidatedPhysicalRegisterModel {
@@ -69,37 +69,8 @@ fn conditional_function(
 ) -> ResolvedSelectedFunctionLayout {
     let physical = physical();
     let displacement = i64::try_from(fallthrough_arm_bytes).unwrap();
-    let branch_alternative = match predicate {
-        ResolvedConditionalBranchPredicate::NonZeroV1 => alternative(),
-        ResolvedConditionalBranchPredicate::U64LessThanV1 => MachineAlternativeKey {
-            family: MachineAlternativeFamily::ConditionalBranchU64LessThan,
-            variant: 0,
-        },
-        ResolvedConditionalBranchPredicate::I64LessThanV1 => MachineAlternativeKey {
-            family: MachineAlternativeFamily::ConditionalBranchI64LessThan,
-            variant: 0,
-        },
-    };
-    let near = match predicate {
-        ResolvedConditionalBranchPredicate::NonZeroV1 => {
-            encode_x86_64_selected_nonzero_branch_form(&physical, branch_alternative, displacement)
-        }
-        ResolvedConditionalBranchPredicate::U64LessThanV1 => {
-            encode_x86_64_selected_u64_less_than_branch_form(
-                &physical,
-                branch_alternative,
-                displacement,
-            )
-        }
-        ResolvedConditionalBranchPredicate::I64LessThanV1 => {
-            encode_x86_64_selected_i64_less_than_branch_form(
-                &physical,
-                branch_alternative,
-                displacement,
-            )
-        }
-    }
-    .unwrap();
+    let branch_alternative = lane::selected_alternative(predicate, alternative(), true);
+    let near = lane::encode(predicate, true, &physical, branch_alternative, displacement).unwrap();
     let entry = SelectedBlockId(0);
     let fallthrough = SelectedBlockId(1);
     let taken = SelectedBlockId(2);
@@ -109,71 +80,25 @@ fn conditional_function(
         machine: MachineId::new(1).unwrap(),
         byte_count: taken_offset + 1,
         blocks: vec![
-            ResolvedSelectedBlockLayout {
-                block: entry,
-                offset: 0,
-                byte_count: 6,
-                instructions: vec![ResolvedSelectedFormRow {
-                    instruction: SelectedInstructionId(0),
-                    alternative: branch_alternative,
-                    offset: 0,
-                    bytes: near.bytes().to_vec(),
-                    branch: Some(Box::new(machine_code::ResolvedBranchEvidence::Conditional(
-                        machine_code::ResolvedConditionalBranchEvidence {
-                            predicate,
-                            source_block: entry,
-                            when_taken_edge: Some(EdgeId::new(1).unwrap()),
-                            when_taken_block: taken,
-                            when_taken_offset: taken_offset,
-                            when_fallthrough_edge: Some(EdgeId::new(2).unwrap()),
-                            when_fallthrough_block: fallthrough,
-                            when_fallthrough_offset: fallthrough_offset,
-                            byte_displacement: displacement,
-                            decoded_register_reads: vec![],
-                            decoded_effects: near.footprint().encoded.clone(),
-                        },
-                    ))),
-                    internal_machine_fixup: None,
-                    normalized_foreign_call_fixup: None,
-                    image_address_fixup: None,
-                }],
-            },
-            ResolvedSelectedBlockLayout {
-                block: fallthrough,
-                offset: fallthrough_offset,
-                byte_count: u64::try_from(fallthrough_arm_bytes).unwrap(),
-                instructions: vec![ResolvedSelectedFormRow {
-                    instruction: SelectedInstructionId(1),
-                    alternative: MachineAlternativeKey {
-                        family: MachineAlternativeFamily::ReturnScalar,
-                        variant: 0,
-                    },
-                    offset: fallthrough_offset,
-                    bytes: vec![0x90; fallthrough_arm_bytes],
-                    branch: None,
-                    internal_machine_fixup: None,
-                    normalized_foreign_call_fixup: None,
-                    image_address_fixup: None,
-                }],
-            },
-            ResolvedSelectedBlockLayout {
-                block: taken,
-                offset: taken_offset,
-                byte_count: 1,
-                instructions: vec![ResolvedSelectedFormRow {
-                    instruction: SelectedInstructionId(2),
-                    alternative: MachineAlternativeKey {
-                        family: MachineAlternativeFamily::ReturnScalar,
-                        variant: 0,
-                    },
-                    offset: taken_offset,
-                    bytes: vec![0xc3],
-                    branch: None,
-                    internal_machine_fixup: None,
-                    normalized_foreign_call_fixup: None,
-                    image_address_fixup: None,
-                }],
-            },
+            near_conditional_block(
+                entry,
+                0,
+                SelectedInstructionId(0),
+                branch_alternative,
+                predicate,
+                &near,
+                entry,
+                (taken, taken_offset, 1),
+                (fallthrough, fallthrough_offset, 2),
+                displacement,
+            ),
+            padding_block(
+                fallthrough,
+                fallthrough_offset,
+                SelectedInstructionId(1),
+                fallthrough_arm_bytes,
+            ),
+            return_block(taken, taken_offset, SelectedInstructionId(2)),
         ],
     }
 }
@@ -196,71 +121,20 @@ fn backward_conditional_function(target_block_bytes: usize) -> ResolvedSelectedF
         machine: MachineId::new(1).unwrap(),
         byte_count: fallthrough_offset + 1,
         blocks: vec![
-            ResolvedSelectedBlockLayout {
-                block: taken,
-                offset: 0,
-                byte_count: branch_offset,
-                instructions: vec![ResolvedSelectedFormRow {
-                    instruction: SelectedInstructionId(0),
-                    alternative: MachineAlternativeKey {
-                        family: MachineAlternativeFamily::ReturnScalar,
-                        variant: 0,
-                    },
-                    offset: 0,
-                    bytes: vec![0x90; target_block_bytes],
-                    branch: None,
-                    internal_machine_fixup: None,
-                    normalized_foreign_call_fixup: None,
-                    image_address_fixup: None,
-                }],
-            },
-            ResolvedSelectedBlockLayout {
-                block: entry,
-                offset: branch_offset,
-                byte_count: 6,
-                instructions: vec![ResolvedSelectedFormRow {
-                    instruction: SelectedInstructionId(1),
-                    alternative: alternative(),
-                    offset: branch_offset,
-                    bytes: near.bytes().to_vec(),
-                    branch: Some(Box::new(machine_code::ResolvedBranchEvidence::Conditional(
-                        machine_code::ResolvedConditionalBranchEvidence {
-                            predicate: ResolvedConditionalBranchPredicate::NonZeroV1,
-                            source_block: entry,
-                            when_taken_edge: Some(EdgeId::new(1).unwrap()),
-                            when_taken_block: taken,
-                            when_taken_offset: 0,
-                            when_fallthrough_edge: Some(EdgeId::new(2).unwrap()),
-                            when_fallthrough_block: fallthrough,
-                            when_fallthrough_offset: fallthrough_offset,
-                            byte_displacement: near_displacement,
-                            decoded_register_reads: vec![],
-                            decoded_effects: near.footprint().encoded.clone(),
-                        },
-                    ))),
-                    internal_machine_fixup: None,
-                    normalized_foreign_call_fixup: None,
-                    image_address_fixup: None,
-                }],
-            },
-            ResolvedSelectedBlockLayout {
-                block: fallthrough,
-                offset: fallthrough_offset,
-                byte_count: 1,
-                instructions: vec![ResolvedSelectedFormRow {
-                    instruction: SelectedInstructionId(2),
-                    alternative: MachineAlternativeKey {
-                        family: MachineAlternativeFamily::ReturnScalar,
-                        variant: 0,
-                    },
-                    offset: fallthrough_offset,
-                    bytes: vec![0xc3],
-                    branch: None,
-                    internal_machine_fixup: None,
-                    normalized_foreign_call_fixup: None,
-                    image_address_fixup: None,
-                }],
-            },
+            padding_block(taken, 0, SelectedInstructionId(0), target_block_bytes),
+            near_conditional_block(
+                entry,
+                branch_offset,
+                SelectedInstructionId(1),
+                alternative(),
+                ResolvedConditionalBranchPredicate::NonZeroV1,
+                &near,
+                entry,
+                (taken, 0, 1),
+                (fallthrough, fallthrough_offset, 2),
+                near_displacement,
+            ),
+            return_block(fallthrough, fallthrough_offset, SelectedInstructionId(2)),
         ],
     }
 }
@@ -316,71 +190,25 @@ fn jump_across_branch_function(fallthrough_arm_bytes: usize) -> ResolvedSelected
                     image_address_fixup: None,
                 }],
             },
-            ResolvedSelectedBlockLayout {
-                block: entry,
-                offset: branch_offset,
-                byte_count: 6,
-                instructions: vec![ResolvedSelectedFormRow {
-                    instruction: SelectedInstructionId(1),
-                    alternative: alternative(),
-                    offset: branch_offset,
-                    bytes: near.bytes().to_vec(),
-                    branch: Some(Box::new(machine_code::ResolvedBranchEvidence::Conditional(
-                        machine_code::ResolvedConditionalBranchEvidence {
-                            predicate: ResolvedConditionalBranchPredicate::NonZeroV1,
-                            source_block: entry,
-                            when_taken_edge: Some(EdgeId::new(1).unwrap()),
-                            when_taken_block: taken,
-                            when_taken_offset: taken_offset,
-                            when_fallthrough_edge: Some(EdgeId::new(2).unwrap()),
-                            when_fallthrough_block: fallthrough,
-                            when_fallthrough_offset: fallthrough_offset,
-                            byte_displacement: near_displacement,
-                            decoded_register_reads: vec![],
-                            decoded_effects: near.footprint().encoded.clone(),
-                        },
-                    ))),
-                    internal_machine_fixup: None,
-                    normalized_foreign_call_fixup: None,
-                    image_address_fixup: None,
-                }],
-            },
-            ResolvedSelectedBlockLayout {
-                block: fallthrough,
-                offset: fallthrough_offset,
-                byte_count: u64::try_from(fallthrough_arm_bytes).unwrap(),
-                instructions: vec![ResolvedSelectedFormRow {
-                    instruction: SelectedInstructionId(2),
-                    alternative: MachineAlternativeKey {
-                        family: MachineAlternativeFamily::ReturnScalar,
-                        variant: 0,
-                    },
-                    offset: fallthrough_offset,
-                    bytes: vec![0x90; fallthrough_arm_bytes],
-                    branch: None,
-                    internal_machine_fixup: None,
-                    normalized_foreign_call_fixup: None,
-                    image_address_fixup: None,
-                }],
-            },
-            ResolvedSelectedBlockLayout {
-                block: taken,
-                offset: taken_offset,
-                byte_count: 1,
-                instructions: vec![ResolvedSelectedFormRow {
-                    instruction: SelectedInstructionId(3),
-                    alternative: MachineAlternativeKey {
-                        family: MachineAlternativeFamily::ReturnScalar,
-                        variant: 0,
-                    },
-                    offset: taken_offset,
-                    bytes: vec![0xc3],
-                    branch: None,
-                    internal_machine_fixup: None,
-                    normalized_foreign_call_fixup: None,
-                    image_address_fixup: None,
-                }],
-            },
+            near_conditional_block(
+                entry,
+                branch_offset,
+                SelectedInstructionId(1),
+                alternative(),
+                ResolvedConditionalBranchPredicate::NonZeroV1,
+                &near,
+                entry,
+                (taken, taken_offset, 1),
+                (fallthrough, fallthrough_offset, 2),
+                near_displacement,
+            ),
+            padding_block(
+                fallthrough,
+                fallthrough_offset,
+                SelectedInstructionId(2),
+                fallthrough_arm_bytes,
+            ),
+            return_block(taken, taken_offset, SelectedInstructionId(3)),
         ],
     }
 }
@@ -404,60 +232,168 @@ fn conditional_branch_mut(
     }
 }
 
-#[test]
-fn eligible_near_branch_shrinks_and_both_reflow_implementations_agree() {
-    let physical = physical();
-    let source = function(127);
-    assert_eq!(
-        inspect_production_branch(&source, 0, 0, &physical).unwrap(),
-        (
-            X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
-            Some(127),
-        )
-    );
-    assert_eq!(
-        replay_inspect_branch(&source, 0, 0, &physical).unwrap(),
-        (
-            X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
-            Some(127),
-        )
-    );
+/// A filler block: `bytes` `0x90` rows ending in a return. Every fixture pads
+/// an arm with one.
+fn padding_block(
+    block: SelectedBlockId,
+    offset: u64,
+    instruction: SelectedInstructionId,
+    bytes: usize,
+) -> ResolvedSelectedBlockLayout {
+    ResolvedSelectedBlockLayout {
+        block,
+        offset,
+        byte_count: u64::try_from(bytes).unwrap(),
+        instructions: vec![return_row(instruction, offset, vec![0x90; bytes])],
+    }
+}
 
-    let short =
-        encode_x86_64_selected_short_nonzero_branch_form(&physical, alternative(), 127).unwrap();
-    let mut produced = vec![source.clone()];
-    produced[0].blocks[0].instructions[0].bytes = short.bytes().to_vec();
-    let mut replayed = produced.clone();
-    reflow_production_functions(&mut produced, &physical).unwrap();
-    reflow_replay_functions(&mut replayed, &physical).unwrap();
-    assert_eq!(produced, replayed);
-    assert_eq!(source.byte_count - produced[0].byte_count, 4);
-    assert_eq!(produced[0].blocks[0].instructions[0].bytes, [0x75, 0x7f]);
-    assert_eq!(produced[0].blocks[1].offset, 2);
-    assert_eq!(produced[0].blocks[2].offset, 129);
+/// The taken arm: one `ret` row.
+fn return_block(
+    block: SelectedBlockId,
+    offset: u64,
+    instruction: SelectedInstructionId,
+) -> ResolvedSelectedBlockLayout {
+    ResolvedSelectedBlockLayout {
+        block,
+        offset,
+        byte_count: 1,
+        instructions: vec![return_row(instruction, offset, vec![0xc3])],
+    }
+}
+
+/// One near conditional-branch row and the block that carries it: `near`
+/// supplies the row's bytes and recorded effects, and each successor arrives
+/// as `(block, offset, psi edge)`. Every near branch row is six bytes wide.
+#[allow(clippy::too_many_arguments)]
+fn near_conditional_block(
+    block: SelectedBlockId,
+    offset: u64,
+    instruction: SelectedInstructionId,
+    alternative: MachineAlternativeKey,
+    predicate: ResolvedConditionalBranchPredicate,
+    near: &ValidatedX86_64SelectedFormEncoding,
+    source_block: SelectedBlockId,
+    taken: (SelectedBlockId, u64, u64),
+    fallthrough: (SelectedBlockId, u64, u64),
+    displacement: i64,
+) -> ResolvedSelectedBlockLayout {
+    ResolvedSelectedBlockLayout {
+        block,
+        offset,
+        byte_count: 6,
+        instructions: vec![ResolvedSelectedFormRow {
+            instruction,
+            alternative,
+            offset,
+            bytes: near.bytes().to_vec(),
+            branch: Some(Box::new(machine_code::ResolvedBranchEvidence::Conditional(
+                machine_code::ResolvedConditionalBranchEvidence {
+                    predicate,
+                    source_block,
+                    when_taken_edge: Some(EdgeId::new(taken.2).unwrap()),
+                    when_taken_block: taken.0,
+                    when_taken_offset: taken.1,
+                    when_fallthrough_edge: Some(EdgeId::new(fallthrough.2).unwrap()),
+                    when_fallthrough_block: fallthrough.0,
+                    when_fallthrough_offset: fallthrough.1,
+                    byte_displacement: displacement,
+                    decoded_register_reads: vec![],
+                    decoded_effects: near.footprint().encoded.clone(),
+                },
+            ))),
+            internal_machine_fixup: None,
+            normalized_foreign_call_fixup: None,
+            image_address_fixup: None,
+        }],
+    }
+}
+
+/// The filler row those blocks carry: a return-scalar alternative, no branch,
+/// and the three layout fixup slots empty.
+fn return_row(
+    instruction: SelectedInstructionId,
+    offset: u64,
+    bytes: Vec<u8>,
+) -> ResolvedSelectedFormRow {
+    ResolvedSelectedFormRow {
+        instruction,
+        alternative: MachineAlternativeKey {
+            family: MachineAlternativeFamily::ReturnScalar,
+            variant: 0,
+        },
+        offset,
+        bytes,
+        branch: None,
+        internal_machine_fixup: None,
+        normalized_foreign_call_fixup: None,
+        image_address_fixup: None,
+    }
+}
+
+/// A near branch is eligible exactly once it has a rel8 displacement: reflow
+/// must settle the function on the short form, keep the displacement as
+/// evidence, and the next inspection must report the form already short.
+/// Forward and backward branches differ only in the fixture, the block the
+/// branch sits in, the displacement's sign, and the offsets it moves, so the
+/// body states the shared expectation once.
+fn assert_near_branch_relaxes_to_the_short_form(
+    source: ResolvedSelectedFunctionLayout,
+    branch_block: usize,
+    displacement: i64,
+    short_bytes: [u8; 2],
+    offsets: &[(usize, u64)],
+) -> Vec<ResolvedSelectedFunctionLayout> {
+    let physical = physical();
     assert_eq!(
-        produced[0].blocks[0].instructions[0]
+        inspect_production_branch(&source, branch_block, 0, &physical).unwrap(),
+        (
+            X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
+            Some(displacement),
+        )
+    );
+    let short =
+        encode_x86_64_selected_short_nonzero_branch_form(&physical, alternative(), displacement)
+            .unwrap();
+    let mut produced = vec![source.clone()];
+    produced[0].blocks[branch_block].instructions[0].bytes = short.bytes().to_vec();
+    reflow_production_functions(&mut produced, &physical).unwrap();
+    assert_eq!(source.byte_count - produced[0].byte_count, 4);
+    assert_eq!(
+        produced[0].blocks[branch_block].instructions[0].bytes,
+        short_bytes
+    );
+    for &(block, offset) in offsets {
+        assert_eq!(produced[0].blocks[block].offset, offset);
+    }
+    assert_eq!(
+        produced[0].blocks[branch_block].instructions[0]
             .branch
             .as_deref()
             .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
             .unwrap()
             .byte_displacement,
-        127
+        displacement
     );
     assert_eq!(
-        inspect_production_branch(&produced[0], 0, 0, &physical).unwrap(),
+        inspect_production_branch(&produced[0], branch_block, 0, &physical).unwrap(),
         (X86BranchRelaxationAttemptOutcome::AlreadyShort, None,)
     );
-    assert_eq!(
-        replay_inspect_branch(&produced[0], 0, 0, &physical).unwrap(),
-        (X86BranchRelaxationAttemptOutcome::AlreadyShort, None,)
-    );
+    produced
+}
 
+#[test]
+fn eligible_near_branch_shrinks_and_reflow_settles_on_the_short_form() {
+    let mut produced = assert_near_branch_relaxes_to_the_short_form(
+        function(127),
+        0,
+        127,
+        [0x75, 0x7f],
+        &[(1, 2), (2, 129)],
+    );
     let fixed_point = produced.clone();
-    reflow_production_functions(&mut produced, &physical).unwrap();
-    reflow_replay_functions(&mut replayed, &physical).unwrap();
+    reflow_production_functions(&mut produced, &physical()).unwrap();
     assert_eq!(produced, fixed_point);
-    assert_eq!(replayed, fixed_point);
 }
 
 #[test]
@@ -473,14 +409,6 @@ fn u64_less_than_relaxation_uses_jb_and_changes_only_the_alternative_variant() {
             Some(127),
         )
     );
-    assert_eq!(
-        replay_inspect_branch(&source, 0, 0, &physical).unwrap(),
-        (
-            X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
-            Some(127),
-        )
-    );
-
     let short_alternative = MachineAlternativeKey {
         family: MachineAlternativeFamily::ConditionalBranchU64LessThan,
         variant: 1,
@@ -490,10 +418,7 @@ fn u64_less_than_relaxation_uses_jb_and_changes_only_the_alternative_variant() {
     let mut produced = vec![source.clone()];
     produced[0].blocks[0].instructions[0].alternative = short_alternative;
     produced[0].blocks[0].instructions[0].bytes = short.bytes().to_vec();
-    let mut replayed = produced.clone();
     reflow_production_functions(&mut produced, &physical).unwrap();
-    reflow_replay_functions(&mut replayed, &physical).unwrap();
-    assert_eq!(produced, replayed);
     assert_eq!(source.byte_count - produced[0].byte_count, 4);
     assert_eq!(produced[0].blocks[0].instructions[0].bytes, [0x72, 0x7f]);
     assert_eq!(
@@ -504,14 +429,10 @@ fn u64_less_than_relaxation_uses_jb_and_changes_only_the_alternative_variant() {
         inspect_production_branch(&produced[0], 0, 0, &physical).unwrap(),
         (X86BranchRelaxationAttemptOutcome::AlreadyShort, None)
     );
-    assert_eq!(
-        replay_inspect_branch(&produced[0], 0, 0, &physical).unwrap(),
-        (X86BranchRelaxationAttemptOutcome::AlreadyShort, None)
-    );
 }
 
 #[test]
-fn i64_less_than_relaxation_uses_jl_and_replay_rejects_jb_substitution() {
+fn i64_less_than_relaxation_uses_jl() {
     let physical = physical();
     let source = signed_less_than_function(127);
     assert_eq!(source.blocks[0].instructions[0].bytes[..2], [0x0f, 0x8c]);
@@ -524,16 +445,9 @@ fn i64_less_than_relaxation_uses_jl_and_replay_rejects_jb_substitution() {
     let mut produced = vec![source.clone()];
     produced[0].blocks[0].instructions[0].alternative = short_alternative;
     produced[0].blocks[0].instructions[0].bytes = short.bytes().to_vec();
-    let mut replayed = produced.clone();
     reflow_production_functions(&mut produced, &physical).unwrap();
-    reflow_replay_functions(&mut replayed, &physical).unwrap();
-    assert_eq!(produced, replayed);
     assert_eq!(source.byte_count - produced[0].byte_count, 4);
     assert_eq!(produced[0].blocks[0].instructions[0].bytes, [0x7c, 0x7f]);
-
-    let mut unsigned_opcode = produced[0].clone();
-    unsigned_opcode.blocks[0].instructions[0].bytes[0] = 0x72;
-    assert!(replay_inspect_branch(&unsigned_opcode, 0, 0, &physical).is_err());
 }
 
 #[test]
@@ -542,7 +456,7 @@ fn branch_predicate_and_opcode_cannot_be_substituted() {
     let mut less = less_than_function(1);
     less.blocks[0].instructions[0].alternative = alternative();
     less.blocks[0].instructions[0].bytes = vec![0x0f, 0x85, 1, 0, 0, 0];
-    assert!(replay_inspect_branch(&less, 0, 0, &physical).is_err());
+    assert!(inspect_production_branch(&less, 0, 0, &physical).is_err());
 
     let mut nonzero = function(1);
     nonzero.blocks[0].instructions[0].alternative = MachineAlternativeKey {
@@ -550,22 +464,15 @@ fn branch_predicate_and_opcode_cannot_be_substituted() {
         variant: 0,
     };
     nonzero.blocks[0].instructions[0].bytes = vec![0x0f, 0x82, 1, 0, 0, 0];
-    assert!(replay_inspect_branch(&nonzero, 0, 0, &physical).is_err());
+    assert!(inspect_production_branch(&nonzero, 0, 0, &physical).is_err());
 }
 
 #[test]
-fn out_of_range_near_branch_is_a_verified_no_change_attempt() {
+fn out_of_range_near_branch_is_no_change_attempt() {
     let physical = physical();
     let source = function(128);
     assert_eq!(
         inspect_production_branch(&source, 0, 0, &physical).unwrap(),
-        (
-            X86BranchRelaxationAttemptOutcome::NearDisplacementOutsideI8,
-            None,
-        )
-    );
-    assert_eq!(
-        replay_inspect_branch(&source, 0, 0, &physical).unwrap(),
         (
             X86BranchRelaxationAttemptOutcome::NearDisplacementOutsideI8,
             None,
@@ -577,9 +484,17 @@ fn out_of_range_near_branch_is_a_verified_no_change_attempt() {
 fn malformed_short_opcode_and_work_overrun_fail_closed() {
     let physical = physical();
     let mut source = function(1);
+    // The wrong short opcode for the recorded predicate: the encoder's own
+    // decoder rejects it.
     source.blocks[0].instructions[0].bytes = vec![0x74, 1];
     assert!(matches!(
-        replay_inspect_branch(&source, 0, 0, &physical),
+        inspect_production_branch(&source, 0, 0, &physical),
+        Err(OptimizedX86BranchRelaxationError::X86_64(_))
+    ));
+    // A width that is neither the two-byte nor the six-byte form.
+    source.blocks[0].instructions[0].bytes = vec![0x0f, 0x85, 1];
+    assert!(matches!(
+        inspect_production_branch(&source, 0, 0, &physical),
         Err(OptimizedX86BranchRelaxationError::MalformedBranch(
             SelectedInstructionId(0)
         ))
@@ -605,138 +520,113 @@ fn non_x86_target_is_rejected_before_any_relaxation_work() {
     );
 }
 
-#[test]
-fn corrupted_action_changes_identity_and_is_rejected_by_replay_comparison() {
-    let roots = RevisionRoots {
-        source: ResolvedSelectedFormLayoutIdentity::from_bytes([1; 32]),
-        selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes([2; 32]),
-        machine: physical_instructions::PostAllocationMachineIdentity::from_bytes([3; 32]),
-        pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([4; 32]),
-        target: NativeTarget::linux_x64(),
-    };
-    let functions = vec![function(1)];
-    let input = revision_identity(roots, &functions);
-    let action = X86BranchRelaxationAction {
-        iteration: 1,
-        input,
-        output: X86BranchRelaxationRevisionIdentity::from_bytes([5; 32]),
-        instruction: SelectedInstructionId(0),
-        old_offset: 0,
-        new_offset: 0,
-        old_displacement: 1,
-        new_displacement: 1,
-        old_bytes: vec![0x0f, 0x85, 1, 0, 0, 0],
-        new_bytes: vec![0x75, 1],
-    };
-    let attempts = vec![X86BranchRelaxationAttempt {
-        iteration: 1,
-        input,
-        instruction: SelectedInstructionId(0),
-        offset: 0,
-        byte_displacement: 1,
-        encoded_bytes: 6,
-        outcome: X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
-    }];
-    let budget = OptimizationWorkBudget::new(8, 8, 8, 8, 8).unwrap();
-    let usage = OptimizationWorkUsage {
-        rule_evaluations: 1,
-        candidates: 1,
-        validation_steps: 1,
-        commits: 1,
-        iterations: 2,
-    };
-    let output = ResolvedSelectedFormLayoutIdentity::from_bytes([6; 32]);
-    let output_revision = X86BranchRelaxationRevisionIdentity::from_bytes([7; 32]);
-    let identity = artifact_identity(
-        roots,
-        X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1,
-        budget,
-        usage,
-        output,
-        output_revision,
-        &attempts,
-        std::slice::from_ref(&action),
-        &functions,
-    );
-    let mut corrupted = action.clone();
-    corrupted.new_bytes = vec![0x74, 1];
-    let corrupted_identity = artifact_identity(
-        roots,
-        X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1,
-        budget,
-        usage,
-        output,
-        output_revision,
-        &attempts,
-        std::slice::from_ref(&corrupted),
-        &functions,
-    );
-    assert_ne!(identity, corrupted_identity);
-    assert_eq!(
-        compare_replayed_action_evidence(
-            &attempts,
-            std::slice::from_ref(&corrupted),
-            &attempts,
-            std::slice::from_ref(&action),
-        ),
-        Err(OptimizedX86BranchRelaxationError::ArtifactMismatch)
-    );
+/// One relaxed roster rehashed by the two corruption tests: the revision
+/// roots, the recorded selection and the work the rel8 policy charged for it.
+struct IdentityFixture {
+    roots: RevisionRoots,
+    functions: Vec<ResolvedSelectedFunctionLayout>,
+    action: X86BranchRelaxationAction,
+    attempts: Vec<X86BranchRelaxationAttempt>,
+    budget: OptimizationWorkBudget,
+    usage: OptimizationWorkUsage,
+    output: ResolvedSelectedFormLayoutIdentity,
+    output_revision: X86BranchRelaxationRevisionIdentity,
+}
+
+impl IdentityFixture {
+    fn new() -> Self {
+        let roots = RevisionRoots {
+            source: ResolvedSelectedFormLayoutIdentity::from_bytes([1; 32]),
+            selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes([2; 32]),
+            machine: physical_instructions::PostAllocationMachineIdentity::from_bytes([3; 32]),
+            pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([4; 32]),
+            target: NativeTarget::linux_x64(),
+        };
+        let functions = vec![function(1)];
+        let input = revision_identity(roots, &functions);
+        Self {
+            roots,
+            functions,
+            action: X86BranchRelaxationAction {
+                iteration: 1,
+                input,
+                output: X86BranchRelaxationRevisionIdentity::from_bytes([5; 32]),
+                instruction: SelectedInstructionId(0),
+                old_offset: 0,
+                new_offset: 0,
+                old_displacement: 1,
+                new_displacement: 1,
+                old_bytes: vec![0x0f, 0x85, 1, 0, 0, 0],
+                new_bytes: vec![0x75, 1],
+            },
+            attempts: vec![X86BranchRelaxationAttempt {
+                iteration: 1,
+                input,
+                instruction: SelectedInstructionId(0),
+                offset: 0,
+                byte_displacement: 1,
+                encoded_bytes: 6,
+                outcome: X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
+            }],
+            budget: OptimizationWorkBudget::new(8, 8, 8, 8, 8).unwrap(),
+            usage: OptimizationWorkUsage {
+                rule_evaluations: 1,
+                candidates: 1,
+                validation_steps: 1,
+                commits: 1,
+                iterations: 2,
+            },
+            output: ResolvedSelectedFormLayoutIdentity::from_bytes([6; 32]),
+            output_revision: X86BranchRelaxationRevisionIdentity::from_bytes([7; 32]),
+        }
+    }
+
+    /// Rehash the fixture under the rel8 policy with the given roster and
+    /// action list.
+    fn identity(
+        &self,
+        attempts: &[X86BranchRelaxationAttempt],
+        actions: &[X86BranchRelaxationAction],
+    ) -> X86BranchRelaxationIdentity {
+        artifact_identity(
+            self.roots,
+            X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1,
+            self.budget,
+            self.usage,
+            self.output,
+            self.output_revision,
+            attempts,
+            actions,
+            &self.functions,
+        )
+    }
 }
 
 #[test]
-fn backward_branch_at_the_i8_floor_relaxes_and_both_reflow_implementations_agree() {
-    let physical = physical();
+fn corrupted_action_changes_the_artifact_identity() {
+    let fixture = IdentityFixture::new();
+    let identity = fixture.identity(&fixture.attempts, std::slice::from_ref(&fixture.action));
+    let mut corrupted = fixture.action.clone();
+    corrupted.new_bytes = vec![0x74, 1];
+    let corrupted_identity = fixture.identity(&fixture.attempts, std::slice::from_ref(&corrupted));
+    assert_ne!(identity, corrupted_identity);
+}
+
+#[test]
+fn backward_branch_at_the_i8_floor_relaxes_to_the_short_form() {
     // The taken block covers bytes 0..126, so the branch sits at 126 and the
     // prospective rel8 displacement 0-(126+2) is exactly -128.
-    let source = backward_conditional_function(126);
-    assert_eq!(
-        inspect_production_branch(&source, 1, 0, &physical).unwrap(),
-        (
-            X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
-            Some(-128),
-        )
-    );
-    assert_eq!(
-        replay_inspect_branch(&source, 1, 0, &physical).unwrap(),
-        (
-            X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
-            Some(-128),
-        )
-    );
-
-    let short =
-        encode_x86_64_selected_short_nonzero_branch_form(&physical, alternative(), -128).unwrap();
-    let mut produced = vec![source.clone()];
-    produced[0].blocks[1].instructions[0].bytes = short.bytes().to_vec();
-    let mut replayed = produced.clone();
-    reflow_production_functions(&mut produced, &physical).unwrap();
-    reflow_replay_functions(&mut replayed, &physical).unwrap();
-    assert_eq!(produced, replayed);
-    assert_eq!(source.byte_count - produced[0].byte_count, 4);
-    assert_eq!(produced[0].blocks[1].instructions[0].bytes, [0x75, 0x80]);
-    assert_eq!(produced[0].blocks[1].offset, 126);
-    assert_eq!(produced[0].blocks[2].offset, 128);
-    assert_eq!(
-        produced[0].blocks[1].instructions[0]
-            .branch
-            .as_deref()
-            .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
-            .unwrap()
-            .byte_displacement,
-        -128
-    );
-    assert_eq!(
-        inspect_production_branch(&produced[0], 1, 0, &physical).unwrap(),
-        (X86BranchRelaxationAttemptOutcome::AlreadyShort, None,)
-    );
-    assert_eq!(
-        replay_inspect_branch(&produced[0], 1, 0, &physical).unwrap(),
-        (X86BranchRelaxationAttemptOutcome::AlreadyShort, None,)
+    assert_near_branch_relaxes_to_the_short_form(
+        backward_conditional_function(126),
+        1,
+        -128,
+        [0x75, 0x80],
+        &[(1, 126), (2, 128)],
     );
 }
 
 #[test]
-fn backward_branch_beyond_the_i8_floor_is_a_verified_no_change() {
+fn backward_branch_beyond_the_i8_floor_is_no_change() {
     let physical = physical();
     // One byte further back: the prospective rel8 displacement is -129.
     let source = backward_conditional_function(127);
@@ -747,17 +637,10 @@ fn backward_branch_beyond_the_i8_floor_is_a_verified_no_change() {
             None,
         )
     );
-    assert_eq!(
-        replay_inspect_branch(&source, 1, 0, &physical).unwrap(),
-        (
-            X86BranchRelaxationAttemptOutcome::NearDisplacementOutsideI8,
-            None,
-        )
-    );
 }
 
 #[test]
-fn jump_whose_target_crosses_the_relaxed_branch_is_reencoded_by_both_reflows() {
+fn jump_whose_target_crosses_the_relaxed_branch_is_reencoded_by_reflow() {
     let physical = physical();
     let source = jump_across_branch_function(127);
     assert_eq!(
@@ -781,10 +664,7 @@ fn jump_whose_target_crosses_the_relaxed_branch_is_reencoded_by_both_reflows() {
         encode_x86_64_selected_short_nonzero_branch_form(&physical, alternative(), 127).unwrap();
     let mut produced = vec![source.clone()];
     produced[0].blocks[1].instructions[0].bytes = short.bytes().to_vec();
-    let mut replayed = produced.clone();
     reflow_production_functions(&mut produced, &physical).unwrap();
-    reflow_replay_functions(&mut replayed, &physical).unwrap();
-    assert_eq!(produced, replayed);
     assert_eq!(source.byte_count - produced[0].byte_count, 4);
     // The jump row stays at offset 0 while its target moves from 138 to 134.
     let jump = jump_evidence(&produced[0]);
@@ -797,7 +677,7 @@ fn jump_whose_target_crosses_the_relaxed_branch_is_reencoded_by_both_reflows() {
 }
 
 #[test]
-fn a_taken_block_absent_from_the_layout_is_rejected_by_both_inspectors() {
+fn a_taken_block_absent_from_the_layout_is_rejected() {
     let physical = physical();
     let mut source = function(1);
     conditional_branch_mut(&mut source, 0, 0).when_taken_block = SelectedBlockId(99);
@@ -807,111 +687,46 @@ fn a_taken_block_absent_from_the_layout_is_rejected_by_both_inspectors() {
             SelectedBlockId(99)
         ))
     );
+}
+
+#[test]
+fn a_fallthrough_that_is_not_the_next_block_is_rejected() {
+    let physical = physical();
+    let mut functions = vec![function(1)];
+    // The taken block is not the branch's fallthrough; reflow refuses to
+    // rewrite a branch whose fallthrough edge does not end at the next row.
+    conditional_branch_mut(&mut functions[0], 0, 0).when_fallthrough_block = SelectedBlockId(2);
     assert_eq!(
-        replay_inspect_branch(&source, 0, 0, &physical),
-        Err(OptimizedX86BranchRelaxationError::MissingTargetBlock(
-            SelectedBlockId(99)
+        reflow_production_functions(&mut functions, &physical),
+        Err(OptimizedX86BranchRelaxationError::BranchFallthroughMismatch(SelectedInstructionId(0)))
+    );
+}
+
+#[test]
+fn drifted_recorded_branch_effects_are_rejected() {
+    let physical = physical();
+    let mut functions = vec![function(1)];
+    conditional_branch_mut(&mut functions[0], 0, 0)
+        .decoded_effects
+        .control = MachineEncodedControlEffect::FallThroughV1;
+    assert_eq!(
+        reflow_production_functions(&mut functions, &physical),
+        Err(OptimizedX86BranchRelaxationError::BranchEffectsMismatch(
+            SelectedInstructionId(0)
         ))
     );
 }
 
 #[test]
-fn a_fallthrough_that_is_not_the_next_block_is_rejected_by_both_reflows() {
-    let physical = physical();
-    for reflow in [reflow_production_functions, reflow_replay_functions] {
-        let mut functions = vec![function(1)];
-        // The taken block is not the branch's fallthrough; reflow refuses to
-        // rewrite a branch whose fallthrough edge does not end at the next row.
-        conditional_branch_mut(&mut functions[0], 0, 0).when_fallthrough_block = SelectedBlockId(2);
-        assert_eq!(
-            reflow(&mut functions, &physical),
-            Err(
-                OptimizedX86BranchRelaxationError::BranchFallthroughMismatch(
-                    SelectedInstructionId(0)
-                )
-            )
-        );
-    }
-}
-
-#[test]
-fn drifted_recorded_branch_effects_are_rejected_by_both_reflows() {
-    let physical = physical();
-    for reflow in [reflow_production_functions, reflow_replay_functions] {
-        let mut functions = vec![function(1)];
-        conditional_branch_mut(&mut functions[0], 0, 0)
-            .decoded_effects
-            .control = MachineEncodedControlEffect::FallThroughV1;
-        assert_eq!(
-            reflow(&mut functions, &physical),
-            Err(OptimizedX86BranchRelaxationError::BranchEffectsMismatch(
-                SelectedInstructionId(0)
-            ))
-        );
-    }
-}
-
-#[test]
-fn corrupted_attempt_outcome_changes_identity_and_is_rejected_by_replay_comparison() {
-    let roots = RevisionRoots {
-        source: ResolvedSelectedFormLayoutIdentity::from_bytes([1; 32]),
-        selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes([2; 32]),
-        machine: physical_instructions::PostAllocationMachineIdentity::from_bytes([3; 32]),
-        pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([4; 32]),
-        target: NativeTarget::linux_x64(),
-    };
-    let functions = vec![function(1)];
-    let input = revision_identity(roots, &functions);
-    let attempts = vec![X86BranchRelaxationAttempt {
-        iteration: 1,
-        input,
-        instruction: SelectedInstructionId(0),
-        offset: 0,
-        byte_displacement: 1,
-        encoded_bytes: 6,
-        outcome: X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
-    }];
-    let budget = OptimizationWorkBudget::new(8, 8, 8, 8, 8).unwrap();
-    let usage = OptimizationWorkUsage {
-        rule_evaluations: 1,
-        candidates: 1,
-        validation_steps: 1,
-        commits: 1,
-        iterations: 2,
-    };
-    let output = ResolvedSelectedFormLayoutIdentity::from_bytes([6; 32]);
-    let output_revision = X86BranchRelaxationRevisionIdentity::from_bytes([7; 32]);
-    let identity = artifact_identity(
-        roots,
-        X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1,
-        budget,
-        usage,
-        output,
-        output_revision,
-        &attempts,
-        &[],
-        &functions,
-    );
+fn corrupted_attempt_outcome_changes_the_artifact_identity() {
+    let fixture = IdentityFixture::new();
+    let identity = fixture.identity(&fixture.attempts, &[]);
     // An attempt roster that reports the terminal decline instead of the
-    // recorded selection rehashes differently and fails the replay comparison.
-    let mut corrupted_attempts = attempts.clone();
+    // recorded selection rehashes differently.
+    let mut corrupted_attempts = fixture.attempts.clone();
     corrupted_attempts[0].outcome = X86BranchRelaxationAttemptOutcome::AlreadyShort;
-    let corrupted_identity = artifact_identity(
-        roots,
-        X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1,
-        budget,
-        usage,
-        output,
-        output_revision,
-        &corrupted_attempts,
-        &[],
-        &functions,
-    );
+    let corrupted_identity = fixture.identity(&corrupted_attempts, &[]);
     assert_ne!(identity, corrupted_identity);
-    assert_eq!(
-        compare_replayed_action_evidence(&corrupted_attempts, &[], &attempts, &[]),
-        Err(OptimizedX86BranchRelaxationError::ArtifactMismatch)
-    );
 }
 
 /// `branch_count` blocks each ending in one six-byte near branch to a shared
@@ -941,72 +756,30 @@ fn branch_chain_function(
         } else {
             SelectedBlockId(index + 1)
         };
-        blocks.push(ResolvedSelectedBlockLayout {
-            block: SelectedBlockId(index),
+        blocks.push(near_conditional_block(
+            SelectedBlockId(index),
             offset,
-            byte_count: 6,
-            instructions: vec![ResolvedSelectedFormRow {
-                instruction: SelectedInstructionId(index),
-                alternative: alternative(),
-                offset,
-                bytes: near.bytes().to_vec(),
-                branch: Some(Box::new(machine_code::ResolvedBranchEvidence::Conditional(
-                    machine_code::ResolvedConditionalBranchEvidence {
-                        predicate: ResolvedConditionalBranchPredicate::NonZeroV1,
-                        source_block: SelectedBlockId(index),
-                        when_taken_edge: Some(EdgeId::new(u64::from(index) * 2 + 1).unwrap()),
-                        when_taken_block: taken,
-                        when_taken_offset: taken_offset,
-                        when_fallthrough_edge: Some(EdgeId::new(u64::from(index) * 2 + 2).unwrap()),
-                        when_fallthrough_block: fallthrough,
-                        when_fallthrough_offset: offset + 6,
-                        byte_displacement: displacement,
-                        decoded_register_reads: vec![],
-                        decoded_effects: near.footprint().encoded.clone(),
-                    },
-                ))),
-                internal_machine_fixup: None,
-                normalized_foreign_call_fixup: None,
-                image_address_fixup: None,
-            }],
-        });
+            SelectedInstructionId(index),
+            alternative(),
+            ResolvedConditionalBranchPredicate::NonZeroV1,
+            &near,
+            SelectedBlockId(index),
+            (taken, taken_offset, u64::from(index) * 2 + 1),
+            (fallthrough, offset + 6, u64::from(index) * 2 + 2),
+            displacement,
+        ));
     }
-    blocks.push(ResolvedSelectedBlockLayout {
-        block: padding,
-        offset: padding_offset,
-        byte_count: u64::try_from(padding_bytes).unwrap(),
-        instructions: vec![ResolvedSelectedFormRow {
-            instruction: SelectedInstructionId(branch_count),
-            alternative: MachineAlternativeKey {
-                family: MachineAlternativeFamily::ReturnScalar,
-                variant: 0,
-            },
-            offset: padding_offset,
-            bytes: vec![0x90; padding_bytes],
-            branch: None,
-            internal_machine_fixup: None,
-            normalized_foreign_call_fixup: None,
-            image_address_fixup: None,
-        }],
-    });
-    blocks.push(ResolvedSelectedBlockLayout {
-        block: taken,
-        offset: taken_offset,
-        byte_count: 1,
-        instructions: vec![ResolvedSelectedFormRow {
-            instruction: SelectedInstructionId(branch_count + 1),
-            alternative: MachineAlternativeKey {
-                family: MachineAlternativeFamily::ReturnScalar,
-                variant: 0,
-            },
-            offset: taken_offset,
-            bytes: vec![0xc3],
-            branch: None,
-            internal_machine_fixup: None,
-            normalized_foreign_call_fixup: None,
-            image_address_fixup: None,
-        }],
-    });
+    blocks.push(padding_block(
+        padding,
+        padding_offset,
+        SelectedInstructionId(branch_count),
+        padding_bytes,
+    ));
+    blocks.push(return_block(
+        taken,
+        taken_offset,
+        SelectedInstructionId(branch_count + 1),
+    ));
     ResolvedSelectedFunctionLayout {
         machine: MachineId::new(1).unwrap(),
         byte_count: taken_offset + 1,
@@ -1046,19 +819,13 @@ fn branch_bytes(functions: &[ResolvedSelectedFunctionLayout]) -> String {
         .join(" ")
 }
 
-/// Run both trace routes over the same roster, require them to agree, and
-/// report the sweep count, the committed branch count and the relaxed bytes.
+/// Run the production trace over the roster and report the sweep count, the
+/// committed branch count and the relaxed bytes.
 fn sweep_report(functions: Vec<ResolvedSelectedFunctionLayout>) -> String {
     let physical = physical();
     let production =
         super::production::compute_trace(sweep_roots(), &functions, &physical, sweep_budget())
             .unwrap();
-    let replayed =
-        super::replay::replay_trace(sweep_roots(), &functions, &physical, sweep_budget()).unwrap();
-    assert_eq!(production.functions, replayed.functions);
-    assert_eq!(production.usage, replayed.usage);
-    assert_eq!(production.attempts, replayed.attempts);
-    assert_eq!(production.actions, replayed.actions);
     format!(
         "sweeps={} commits={} branches={}",
         production.usage.iterations,

@@ -52,7 +52,8 @@ pub(crate) fn owned_conformance_realization(
     }
     let provisional = row
         .provisional_realization_ordinal
-        .and_then(|ordinal| program.machines.iter().nth(ordinal))
+        .filter(|ordinal| *ordinal < program.machines.len())
+        .map(|ordinal| &program.machines[ordinal])
         .map(|machine| machine.symbol);
     if row.provisional_realization_ordinal.is_some() && provisional.is_none() {
         return Err("owned conformance realization has an invalid construction ordinal");
@@ -66,16 +67,56 @@ pub(crate) fn owned_conformance_realization(
         provisional.filter(|symbol| symbol.is_valid())
     }
     .ok_or("owned conformance realization lost its exact enclosing capture scope")?;
-    if program
-        .machines
-        .iter()
-        .filter(|machine| machine.symbol == selected)
-        .count()
-        != 1
-    {
+    if program.machines.unique_by_symbol(selected).is_none() {
         return Err("owned conformance realization has no unique retained machine declaration");
     }
     Ok(selected)
+}
+
+/// Publish authored containment when declaration symbols first exist. This is
+/// independent of requirement-overload normalization: a provisional row still
+/// has to agree with any retained realization. Every later scope consumer reads
+/// this same inverse relationship instead of reconstructing it from all maps.
+pub(super) fn record_declaration_owners(
+    program: &symbol_resolved_trees::SymbolResolvedTrees,
+    symbols: &mut SymbolTable,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let mut ownership = Vec::new();
+    let mut diagnostics = Vec::new();
+    for conformance in program.conformances.iter() {
+        for row in conformance
+            .rows
+            .iter()
+            .filter(|row| row.source.owns_realization())
+        {
+            let machine = match owned_conformance_realization(program, row) {
+                Ok(machine) => machine,
+                Err(reason) => {
+                    diagnostics.push(diagnostics::Diagnostic::error(reason));
+                    continue;
+                }
+            };
+            if ownership
+                .iter()
+                .any(|(declaration, _)| *declaration == machine)
+            {
+                diagnostics.push(diagnostics::Diagnostic::error(
+                    "owned conformance realization has ambiguous enclosing capture scope",
+                ));
+            } else {
+                ownership.push((machine, conformance.symbol));
+            }
+        }
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    for (declaration, owner) in ownership {
+        symbols
+            .record_declaration_owner(declaration, owner)
+            .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
+    }
+    Ok(())
 }
 
 /// Exact namespace owning this machine, if it is a retained map member.
@@ -84,33 +125,36 @@ pub(crate) fn owned_conformance_namespace(
     program: &symbol_resolved_trees::SymbolResolvedTrees,
     machine: SymbolHandle,
 ) -> Result<SymbolHandle, &'static str> {
-    let mut owner = SymbolHandle::invalid();
-    for conformance in program.conformances.iter() {
+    let owner = program.symbols.get(machine).declaration_owner;
+    if !owner.is_valid() {
+        return Ok(owner);
+    }
+    for conformance in program
+        .conformances
+        .iter()
+        .filter(|map| map.symbol == owner)
+    {
         for row in conformance
             .rows
             .iter()
             .filter(|row| row.source.owns_realization())
         {
             if owned_conformance_realization(program, row)? == machine {
-                if owner.is_valid() {
-                    return Err(
-                        "owned conformance realization has ambiguous enclosing capture scope",
-                    );
-                }
-                owner = conformance.symbol;
+                return Ok(owner);
             }
         }
     }
-    Ok(owner)
+    Ok(SymbolHandle::invalid())
 }
 
-/// Source lexical captures of owned map rows. Invocation binders remain in
-/// the machine's own telescope; an ordinary referenced row captures nothing.
-pub(super) struct ConformanceTypeScopes {
+/// Static declaration context of owned map rows and nested machines. These
+/// exact binders are visible during formation without becoming runtime captures
+/// or fresh invocation parameters. Referenced map rows capture nothing.
+pub(super) struct DeclarationTypeScopes {
     owned: Vec<(SymbolHandle, Vec<TypeParameter>)>,
 }
 
-impl ConformanceTypeScopes {
+impl DeclarationTypeScopes {
     pub(super) fn of(
         program: &symbol_resolved_trees::SymbolResolvedTrees,
     ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
@@ -141,6 +185,38 @@ impl ConformanceTypeScopes {
                         .data_type_parameters(conformance.type_parameters)
                         .to_vec(),
                 ));
+            }
+        }
+        // The lowered roster is parent-first. Each child inherits its parent's
+        // already collected static context, with nearer declarations shadowing
+        // names while retaining the original binder identities.
+        for machine in program
+            .machines
+            .iter()
+            .filter(|machine| machine.lexical_parent.is_valid())
+        {
+            let parent = program.machines.get(machine.lexical_parent);
+            let mut parameters = program.machine_type_parameters(parent).to_vec();
+            parameters.extend(evidence_type_parameters(&parent.conformance_bounds));
+            if let Some((_, inherited)) = owned.iter().find(|(owner, _)| *owner == parent.symbol) {
+                parameters = declaration_type_scope(&parameters, inherited);
+            }
+            if let Some(data) = program
+                .data_definitions
+                .iter()
+                .find(|data| data.symbol == parent.attached_data_symbol)
+            {
+                parameters = declaration_type_scope(
+                    &parameters,
+                    program.data_type_parameters(data.type_parameters),
+                );
+            }
+            if let Some((_, inherited)) =
+                owned.iter_mut().find(|(owner, _)| *owner == machine.symbol)
+            {
+                *inherited = declaration_type_scope(inherited, &parameters);
+            } else {
+                owned.push((machine.symbol, parameters));
             }
         }
         if diagnostics.is_empty() {
@@ -372,7 +448,6 @@ pub(super) struct MachineScope<'program> {
     /// rescanning (or a thread-local side table).
     pub(super) resolution_indexes: &'program ResolvedIndexes,
     pub(super) type_parameters: &'program [symbol_resolved_trees::data::TypeParameter],
-    pub(super) attached_data: Option<&'program symbol_resolved_trees::name::DiagnosticName>,
     pub(super) attached_data_symbol: SymbolHandle,
     pub(super) inherited_data_members: Option<&'program [symbol_resolved_trees::data::DataMember]>,
     pub(super) owned_data: &'program [symbol_resolved_trees::machine::OwnedData],
@@ -411,7 +486,6 @@ impl<'program> ContractScopeContext<'program> {
         symbol: SymbolHandle,
         lexical_requirements: LexicalRequirements<'program>,
         type_parameters: &'program [symbol_resolved_trees::data::TypeParameter],
-        attached_data: Option<&'program symbol_resolved_trees::name::DiagnosticName>,
         attached_data_symbol: SymbolHandle,
         inherited_data_members: Option<&'program [DataMember]>,
         owned_data: &'program [symbol_resolved_trees::machine::OwnedData],
@@ -422,7 +496,6 @@ impl<'program> ContractScopeContext<'program> {
             attached_machines: self.attached_machines,
             resolution_indexes: self.resolution_indexes,
             type_parameters,
-            attached_data,
             attached_data_symbol,
             inherited_data_members,
             owned_data,

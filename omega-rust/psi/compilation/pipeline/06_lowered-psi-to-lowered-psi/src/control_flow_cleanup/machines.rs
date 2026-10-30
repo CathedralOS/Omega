@@ -1,8 +1,8 @@
 //! Optimizer module role: producer. Machine-level reachability pruning.
 //!
 //! Once per-machine folds have run, a machine no surviving transition can
-//! reach is dead code: this pass drops it. Retention is the verifier's
-//! `retained_machines` closure — the module entry, attached and ranked
+//! reach is dead code: this pass drops it. Retention is the
+//! `retained_machines_with_roots` closure — the module entry, attached and ranked
 //! machines, provider candidates, and every machine a module-level custody
 //! or evidence row names are roots, and each retained machine keeps the
 //! callees its surviving call, dispatch, and cleanup transitions name.
@@ -12,9 +12,7 @@
 //! unsealed checked-source and selected-IEEE sidecars only the producer can
 //! see — stays in place. A machine kept that way is not a retention root,
 //! but its own transitions still name machines: the keep-set grows until the
-//! surviving-evidence check and the transition closure agree. The
-//! independent verifier then re-derives the whole relation from the
-//! rewritten module rather than trusting this proposal.
+//! surviving-evidence check and the transition closure agree.
 
 use semantic_vocabulary::{EdgeId, OperationId, ValueId};
 use std::collections::BTreeSet;
@@ -23,8 +21,8 @@ use terminal_psi::{TerminalMachine, TerminalModule};
 /// Drop every machine outside the keep-set the retained closure and the
 /// surviving-evidence check converge on. Evidence is read over the kept
 /// machines alone, which is the evidence the module with every unreachable
-/// candidate removed publishes, matching the relation the independent
-/// verifier re-derives on the rewrite's output: a candidate the remaining
+/// candidate removed publishes, matching the relation the rewritten module
+/// publishes: a candidate the remaining
 /// rows still pin stays unreachable but retained, and the machines its own
 /// transitions name are pulled into the next round's closure.
 pub(super) fn prune(
@@ -70,10 +68,23 @@ pub(super) fn prune(
         kept = next;
     }
     module.machines.retain(|machine| kept.contains(&machine.id));
+    // The declaration graph survives dead-code removal, but an association
+    // with executable code exists only while that code remains in the module.
+    // These rows have no externally held handles; rebuild their dense roster.
+    let callables = std::mem::take(&mut module.scalar_applications.proof_scope.callables);
+    module
+        .scalar_applications
+        .proof_scope
+        .callables
+        .insert_many(callables.iter().map(|(_, row)| row.clone()).filter(|row| {
+            !matches!(row, terminal_psi::ProofCallableAssociation::Callable {
+                callable: terminal_psi::TargetMachineCallable::Machine(body), ..
+            } if !kept.contains(body))
+        }));
 }
 
-/// The verifier's surviving-evidence check plus the producer-only sidecar
-/// pins: a recorded source call or selected IEEE occurrence keeps the machine
+/// The surviving-evidence check plus the producer-only sidecar pins: a
+/// recorded source call or selected IEEE occurrence keeps the machine
 /// holding its named operation or captured scalar values.
 fn machine_bound(
     machine: &TerminalMachine,

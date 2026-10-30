@@ -226,7 +226,7 @@ pub fn encode_x86_64_semantic_unit_wrapper_template(
     request: X86_64SemanticUnitWrapperEncodingRequest,
 ) -> Result<ValidatedX86_64SemanticUnitWrapperTemplate, X86_64SemanticUnitWrapperEncodingError> {
     validate_request(request)?;
-    let mut bytes = Vec::with_capacity(expected_function_byte_count(request));
+    let mut bytes = Vec::with_capacity(expected_function_byte_count());
     bytes.extend([0x48, 0x81, 0xec]);
     bytes.extend(request.outgoing_frame_byte_count.to_le_bytes());
     for copy in request.copies {
@@ -244,7 +244,7 @@ pub fn encode_x86_64_semantic_unit_wrapper_template(
     bytes.extend([0x48, 0x81, 0xc4]);
     bytes.extend(request.outgoing_release_byte_count.to_le_bytes());
     bytes.push(0xc3);
-    debug_assert_eq!(bytes.len(), expected_function_byte_count(request));
+    debug_assert_eq!(bytes.len(), expected_function_byte_count());
     validate_x86_64_semantic_unit_wrapper_template(request, &bytes)
 }
 
@@ -254,7 +254,7 @@ pub fn validate_x86_64_semantic_unit_wrapper_template(
     bytes: &[u8],
 ) -> Result<ValidatedX86_64SemanticUnitWrapperTemplate, X86_64SemanticUnitWrapperEncodingError> {
     validate_request(request)?;
-    if bytes.len() != expected_function_byte_count(request) {
+    if bytes.len() != expected_function_byte_count() {
         return Err(X86_64SemanticUnitWrapperEncodingError::MalformedTemplate);
     }
     let mut cursor = Cursor::new(bytes);
@@ -285,7 +285,7 @@ pub fn validate_x86_64_semantic_unit_wrapper_template(
             outgoing_stack_byte_offset: cursor.u32()?,
         });
     }
-    let relocation = expected_relocation(request);
+    let relocation = expected_relocation();
     if cursor.offset != usize::from(relocation.opcode_function_byte_offset) {
         return Err(X86_64SemanticUnitWrapperEncodingError::MalformedTemplate);
     }
@@ -305,7 +305,7 @@ pub fn validate_x86_64_semantic_unit_wrapper_template(
     let decoded_copies: [X86_64SemanticUnitWrapperCopy; 4] = copies
         .try_into()
         .map_err(|_| X86_64SemanticUnitWrapperEncodingError::MalformedTemplate)?;
-    let mut decoded_bindings = bindings;
+    let decoded_bindings = bindings;
 
     let decoded_extent_bindings: [X86_64SemanticUnitWrapperArgumentBinding; 2] = decoded_bindings
         .try_into()
@@ -429,7 +429,7 @@ fn validate_request(
 }
 
 /// A 20-byte counted loop plus one 8-byte LEA, independent of context size.
-fn expected_function_byte_count(request: X86_64SemanticUnitWrapperEncodingRequest) -> usize {
+fn expected_function_byte_count() -> usize {
     X86_64_SEMANTIC_UNIT_WRAPPER_FUNCTION_BYTE_COUNT
 }
 
@@ -471,9 +471,7 @@ fn expected_footprint(
     }
 }
 
-fn expected_relocation(
-    request: X86_64SemanticUnitWrapperEncodingRequest,
-) -> X86_64SemanticUnitWrapperRelocation {
+fn expected_relocation() -> X86_64SemanticUnitWrapperRelocation {
     // sub(7) + copies(4×15) + extent binds(2×8) reach the call opcode.
     let opcode = 83;
     X86_64SemanticUnitWrapperRelocation {
@@ -492,7 +490,7 @@ fn validate_relocation(
     relocation: X86_64SemanticUnitWrapperRelocation,
 ) -> Result<(), X86_64SemanticUnitWrapperResolutionError> {
     if relocation != template.relocation
-        || relocation != expected_relocation(template.request)
+        || relocation != expected_relocation()
         || template
             .bytes
             .get(usize::from(relocation.opcode_function_byte_offset))
@@ -569,7 +567,7 @@ mod tests {
         assert_eq!(template.bytes()[83], 0xe8);
         assert_eq!(&template.bytes()[84..88], &[0, 0, 0, 0]);
         assert_eq!(template.bytes()[95], 0xc3);
-        assert_eq!(template.relocation(), expected_relocation(request()));
+        assert_eq!(template.relocation(), expected_relocation());
         assert!(template.footprint().frame_is_balanced);
         assert!(template.footprint().writes_stack_pointer);
         assert!(template.footprint().writes_instruction_pointer);

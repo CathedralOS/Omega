@@ -19,13 +19,13 @@ data Password [copy] {
     salt: i32 in Wrapping;
 }
 
-domain Password::Valid(password)
+domain Password::Valid
 requires
-    password.length > 0;
+    self.length > 0;
 
-domain Password::Secure(password)
+domain Password::Secure
 requires
-    password.score >= 8;
+    self.score >= 8;
 
 machine mark_valid(password: &mut Password)
 ensures
@@ -65,19 +65,19 @@ machine Main::main(main: &mut Main) {
         true -> one(main)
         _ -> other(main)
     }
-    state one(main: &mut Main) {
+    machine one(main: &mut Main) {
         main.hits = 1;
         transition main.password.score >= 8 {
             true -> two(main)
             _ -> other(main)
         }
     }
-    state two(main: &mut Main) {
+    machine two(main: &mut Main) {
         main.hits = 2;
         Main::accept(main.password);
         main.hits = 3;
     }
-    state other(main: &mut Main) {
+    machine other(main: &mut Main) {
         main.hits = -1;
     }
 }

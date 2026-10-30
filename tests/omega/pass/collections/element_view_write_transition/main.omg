@@ -21,7 +21,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> good(main)
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(181);
     }
 }
@@ -33,7 +33,7 @@ machine release(bag: &mut Bag) {
         _ -> done()
     }
 
-    state done() {
+    machine done() {
     }
 }
 

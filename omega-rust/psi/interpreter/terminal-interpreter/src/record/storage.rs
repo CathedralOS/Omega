@@ -18,11 +18,13 @@ use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 
+mod aggregate;
+
 pub(crate) enum ConstructorValue<'execution> {
     Placed(TerminalStructuralValue),
     PackedScalars {
         structural_type: StructuralTypeId,
-        elements: &'execution [TerminalScalarValue],
+        elements: &'execution [crate::scalar_storage::ScalarCell],
         qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
         projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
     },
@@ -39,7 +41,7 @@ impl<'execution> ConstructorValue<'execution> {
             }
             let types = execution.program.structural_types();
             let mut structural_type = array.structural_type;
-            let mut elements = array.elements();
+            let mut elements = array.cells();
             // A packed tree's static child is a contiguous row-major span.
             // Select the actual source span before any receiving declaration
             // is consulted; neither a referent nor byte window owns this data.
@@ -47,8 +49,10 @@ impl<'execution> ConstructorValue<'execution> {
                 let StructuralPathSegment::FixedIndex(index) = segment else {
                     return Err(malformed());
                 };
-                let StructuralTypeShape::FixedArray { element, length } =
-                    types.get(&structural_type).ok_or_else(malformed)?.shape
+                let StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                } = types.get(&structural_type).ok_or_else(malformed)?.shape
                 else {
                     return Err(malformed());
                 };
@@ -111,6 +115,16 @@ impl<'execution> ConstructorValue<'execution> {
         destination_path: &[StructuralPathSegment],
     ) -> Result<Option<crate::primitive_storage::PrimitiveStorageWrites>, TerminalInterpretError>
     {
+        if terminal_semantics::scalar_array_leaf_shape(
+            execution.program.structural_types().values(),
+            self.structural_type(),
+        )
+        .is_some_and(|(_, count)| count == 0)
+        {
+            // No physical stores can publish a new empty subtree's initialized
+            // home. It needs the same constructor transaction as other payloads.
+            return Ok(None);
+        }
         let mut writes = crate::primitive_storage::PrimitiveStorageWrites::default();
         let supported =
             self.visit_scalar_leaves(execution, source, |selectors, scalar_type, value| {
@@ -160,8 +174,10 @@ impl<'execution> ConstructorValue<'execution> {
         // proportional to a huge outer array whose inner arrays are empty.
         let mut dimensions = Vec::new();
         let mut current = root;
-        while let StructuralTypeShape::FixedArray { element, length } =
-            types.get(&current).ok_or_else(malformed)?.shape
+        while let StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } = types.get(&current).ok_or_else(malformed)?.shape
         {
             dimensions.push(length);
             current = element;
@@ -173,45 +189,23 @@ impl<'execution> ConstructorValue<'execution> {
                 *selector = remaining.checked_rem(*length).ok_or_else(malformed)?;
                 remaining = remaining.checked_div(*length).ok_or_else(malformed)?;
             }
-            let value = match self {
-                Self::PackedScalars { elements, .. } => *elements
-                    .get(usize::try_from(leaf_ordinal).map_err(|_| malformed())?)
-                    .ok_or_else(malformed)?,
-                Self::Placed(value) => {
-                    let (storage, actual, shared) = if dimensions.is_empty() {
-                        // An owned primitive parameter is a completed payload,
-                        // not an ordinary whole-root borrowing operation.
-                        execution.primitive_view_access(value, &[], scalar_type, false)?
-                    } else {
-                        // A borrowed array can be presented by opaque metadata
-                        // while its bytes remain in a suspended caller. Keep
-                        // the actual operand's home/path to follow that loan.
-                        let mut path = source.path.clone();
-                        path.extend(
-                            selectors
-                                .iter()
-                                .copied()
-                                .map(StructuralPathSegment::FixedIndex),
-                        );
-                        execution.primitive_access(source.place, false, &path)?
-                    };
-                    execution.read_primitive_storage(
-                        source.place,
-                        storage,
-                        actual,
-                        scalar_type,
-                        shared,
-                    )?
-                }
-            };
-            if value.scalar_type() != scalar_type || !terminal_scalar_belongs_to_type(value) {
-                return Err(malformed());
-            }
             let path = selectors
                 .iter()
                 .copied()
                 .map(StructuralPathSegment::FixedIndex)
                 .collect::<Vec<_>>();
+            let value = match self {
+                Self::PackedScalars { elements, .. } => elements
+                    .get(usize::try_from(leaf_ordinal).map_err(|_| malformed())?)
+                    .ok_or_else(malformed)?
+                    .read()?,
+                Self::Placed(value) => {
+                    execution.read_primitive_argument(source, value, &path, scalar_type)?
+                }
+            };
+            if value.scalar_type() != scalar_type || !terminal_scalar_belongs_to_type(value) {
+                return Err(malformed());
+            }
             visit(&path, scalar_type, value)?;
         }
         Ok(Some(scalar_type))
@@ -251,6 +245,10 @@ impl<'execution> ConstructorValue<'execution> {
 }
 
 pub(crate) struct ConstructorStorage {
+    original_roots: RuntimeRows<
+        StructuralRuntimePlace,
+        crate::effects::original_storage::OriginalStorageAllocation,
+    >,
     completed_profiles: RuntimeRows<
         StructuralRuntimePlace,
         crate::provider_storage::profiles::CompletedResourceProfile,
@@ -261,7 +259,7 @@ pub(crate) struct ConstructorStorage {
         RuntimeRows<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
     host_atoms:
         RuntimeRows<StructuralRuntimePlace, crate::structural_storage::HostStructuralPayload>,
-    scalars: RuntimeRows<StructuralScalarRuntimeField, TerminalScalarValue>,
+    scalars: crate::scalar_storage::ScalarStorageRows<StructuralScalarRuntimeField>,
     bytes: RuntimeRows<
         StructuralByteSequenceRuntimeField,
         crate::byte_sequences::binding::ByteSequenceBinding,
@@ -270,8 +268,12 @@ pub(crate) struct ConstructorStorage {
     byte_descriptors:
         RuntimeRows<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
     references: RuntimeRows<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
-    primitives: RuntimeRows<StructuralRuntimePlace, TerminalScalarValue>,
-    byte_arrays: RuntimeRows<StructuralRuntimePlace, ByteSequenceView>,
+    primitives: crate::scalar_storage::ScalarStorageRows<StructuralRuntimePlace>,
+    byte_arrays: RuntimeRows<
+        StructuralRuntimePlace,
+        crate::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage,
+    >,
+    empty_arrays: crate::scalar_array::empty_storage::EmptyArrayStorage,
     owner_writes: Vec<(
         crate::byte_sequences::binding::ByteOwnerHome,
         ByteSequenceView,
@@ -286,6 +288,45 @@ pub(crate) struct ConstructorStorage {
 /// Install its funded rows before committing source custody or external writes.
 pub(crate) struct DetachedConstructorStorage(ConstructorStorage);
 
+struct ConstructorResidentWrites {
+    scalars: crate::scalar_storage::ResidentReplacementWrites<StructuralScalarRuntimeField>,
+    primitives: crate::scalar_storage::ResidentReplacementWrites<StructuralRuntimePlace>,
+    byte_arrays: Vec<(
+        StructuralRuntimePlace,
+        crate::structural_inputs::byte_arrays::storage::PreparedStructuralByteArrayReplacement,
+    )>,
+}
+
+impl ConstructorResidentWrites {
+    fn commit(self, storage: &mut ConstructorStorage) -> Result<(), TerminalInterpretError> {
+        self.scalars.commit(&mut storage.scalars)?;
+        self.primitives.commit(&mut storage.primitives)?;
+        for (home, replacement) in self.byte_arrays {
+            *storage.byte_arrays.get_mut(&home).ok_or_else(malformed)? = replacement.commit()?;
+        }
+        Ok(())
+    }
+}
+
+/// Boundary writeback retains the complete admitted replacement, including
+/// original resident endpoints, before any input or result commits.
+pub(crate) struct PreparedConstructorReplacement {
+    retirement: crate::scalar_array::empty_storage::EmptyArrayRetirement,
+    storage: ConstructorStorage,
+    residents: ConstructorResidentWrites,
+}
+
+impl PreparedConstructorReplacement {
+    pub(crate) fn publish(
+        mut self,
+        execution: &mut TerminalExecution<'_>,
+    ) -> Result<(), TerminalInterpretError> {
+        self.residents.commit(&mut self.storage)?;
+        execution.prune_subtree(self.retirement)?;
+        self.storage.publish(execution)
+    }
+}
+
 impl DetachedConstructorStorage {
     pub(crate) fn install(
         self,
@@ -296,6 +337,25 @@ impl DetachedConstructorStorage {
 }
 
 impl ConstructorStorage {
+    /// Prepared outgoing storage is not resident yet. Its captured backings
+    /// remain live throughout the cleanup that precedes publication.
+    pub(crate) fn retain_storage(&self, retained: &mut crate::structural_storage::RetainedStorage) {
+        for reference in self.references.values() {
+            retained.reference(reference);
+        }
+        for view in self.views.values() {
+            view.retain_storage(retained);
+        }
+        for binding in self
+            .bytes
+            .values()
+            .chain(self.byte_descriptors.values())
+            .chain(self.activation_descriptors.values())
+        {
+            retained.byte_binding(binding);
+        }
+    }
+
     /// Detached resident custody owns these rows independently of the execution
     /// tables. Its provider and immutable backing edges can share other owners.
     pub(crate) fn measure_result_custody<'storage>(
@@ -304,6 +364,7 @@ impl ConstructorStorage {
         custody: &mut crate::result_custody::ResultCustody<'storage>,
     ) -> Result<(), TerminalInterpretError> {
         for count in [
+            self.original_roots.len(),
             self.completed_profiles.len(),
             self.provider_descriptors.len(),
             self.activation_descriptors.len(),
@@ -315,6 +376,7 @@ impl ConstructorStorage {
             self.references.len(),
             self.primitives.len(),
             self.byte_arrays.len(),
+            self.empty_arrays.rows.len(),
             self.cases.len(),
         ] {
             custody.add_cells(count)?;
@@ -332,7 +394,7 @@ impl ConstructorStorage {
             custody.binding(binding)?;
         }
         for bytes in self.byte_arrays.values() {
-            custody.bytes(bytes)?;
+            bytes.measure_result_custody(custody)?;
         }
         for (_, bytes) in &self.owner_writes {
             custody.bytes(bytes)?;
@@ -350,17 +412,19 @@ impl ConstructorStorage {
         account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
     ) -> Self {
         Self {
+            original_roots: RuntimeRows::new(account),
             completed_profiles: RuntimeRows::new(account),
             provider_descriptors: RuntimeRows::new(account),
             activation_descriptors: RuntimeRows::new(account),
             host_atoms: RuntimeRows::new(account),
-            scalars: RuntimeRows::new(account),
+            scalars: crate::scalar_storage::ScalarStorageRows::new(account),
             bytes: RuntimeRows::new(account),
             views: RuntimeRows::new(account),
             byte_descriptors: RuntimeRows::new(account),
             references: RuntimeRows::new(account),
-            primitives: RuntimeRows::new(account),
+            primitives: crate::scalar_storage::ScalarStorageRows::new(account),
             byte_arrays: RuntimeRows::new(account),
+            empty_arrays: crate::scalar_array::empty_storage::EmptyArrayStorage::new(account),
             owner_writes: Vec::new(),
             cases: RuntimeRows::new(account),
         }
@@ -399,6 +463,9 @@ impl ConstructorStorage {
                 path,
             })
         };
+        for (home, root) in &original.original_roots {
+            self.original_roots.insert(relocate(home)?, *root)?;
+        }
         for (home, binding) in &original.provider_descriptors {
             if !execution.provider_storage.binding_is_live(*binding) {
                 return Err(
@@ -438,6 +505,9 @@ impl ConstructorStorage {
         self.primitives.append(&mut decoded.primitives)?;
         self.bytes.append(&mut decoded.bytes)?;
         self.byte_arrays.append(&mut decoded.byte_arrays)?;
+        self.empty_arrays
+            .rows
+            .append(&mut decoded.empty_arrays.rows)?;
         self.cases.append(&mut decoded.cases)?;
         Ok(())
     }
@@ -554,6 +624,7 @@ impl ConstructorStorage {
     pub(crate) fn stage_byte_array(
         &mut self,
         destination: StructuralRuntimePlace,
+        structural_type: StructuralTypeId,
         bytes: crate::byte_sequences::storage::ByteSequenceStorage,
     ) -> Result<(), TerminalInterpretError> {
         // Byte arrays have one backing, never duplicate primitive cells. This
@@ -562,8 +633,15 @@ impl ConstructorStorage {
             home.opaque_identity != destination.opaque_identity
                 || !home.path.starts_with(&destination.path)
         });
-        self.byte_arrays
-            .insert(destination, ByteSequenceView::new(bytes))?;
+        let account = bytes.account().cloned();
+        self.byte_arrays.insert(
+            destination,
+            crate::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage::new(
+                structural_type,
+                ByteSequenceView::new(bytes),
+                account.as_ref(),
+            ),
+        )?;
         Ok(())
     }
     /// Completion reseats this exact root immediately after pruning it. Retained
@@ -648,7 +726,11 @@ impl ConstructorStorage {
                 if transfers_custody {
                     return Err(malformed());
                 }
-                self.stage_array(execution, *structural_type, elements, destination)
+                let values = elements
+                    .iter()
+                    .map(crate::scalar_storage::ScalarCell::read)
+                    .collect::<Result<Vec<_>, _>>()?;
+                self.stage_array(execution, *structural_type, &values, destination)
             }
         }
     }
@@ -678,7 +760,10 @@ impl ConstructorStorage {
                 }
                 self.primitives.insert(destination.clone(), *value)?;
             }
-            StructuralTypeShape::FixedArray { element, length } => {
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
                 let (scalar_type, leaf_count) = terminal_semantics::scalar_array_leaf_shape(
                     execution.program.structural_types().values(),
                     structural_type,
@@ -686,6 +771,14 @@ impl ConstructorStorage {
                 .ok_or_else(malformed)?;
                 if u64::try_from(elements.len()).ok() != Some(leaf_count) {
                     return Err(malformed());
+                }
+                if leaf_count == 0 {
+                    self.empty_arrays.establish(
+                        &execution.program.structural_types(),
+                        destination.clone(),
+                        structural_type,
+                    )?;
+                    return Ok(());
                 }
                 if matches!(
                     execution
@@ -717,7 +810,7 @@ impl ConstructorStorage {
                         execution.account.as_ref(),
                     )?;
                     self.byte_arrays
-                        .insert(destination.clone(), ByteSequenceView::new(bytes))?;
+                        .insert(destination.clone(), crate::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage::new(structural_type, ByteSequenceView::new(bytes), execution.account.as_ref()))?;
                 } else {
                     let element_count = match execution
                         .program
@@ -852,7 +945,7 @@ impl ConstructorStorage {
                     self.bytes.insert(
                         field.clone(),
                         crate::byte_sequences::binding::ByteSequenceBinding::Immutable(
-                            bytes.detached_descriptor(),
+                            bytes.owned_snapshot(),
                         ),
                     )?;
                 }
@@ -862,12 +955,12 @@ impl ConstructorStorage {
                 }) => {
                     execution.byte_owner_bytes(home)?;
                     self.owner_writes
-                        .push((home.clone(), bytes.detached_descriptor()));
+                        .push((home.clone(), bytes.owned_snapshot()));
                 }
                 Some(_) => return Err(malformed()),
                 None => {
                     self.byte_arrays
-                        .insert(destination.clone(), bytes.detached_descriptor())?;
+                        .insert(destination.clone(), crate::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage::new(child.structural_type, bytes.owned_snapshot(), execution.account.as_ref()))?;
                 }
             }
         }
@@ -904,6 +997,16 @@ impl ConstructorStorage {
             })
         };
         if transfers_custody {
+            // Relocate an existing complete allocation association. Scalar Rc
+            // equality cannot prove this whole-subtree custody transfer: a
+            // disjoint projected move can leave other loans on its old parent.
+            for (home, original) in
+                crate::structural_storage::cells(&execution.original_storage_roots, source)
+            {
+                if let Some(target) = relocate(home) {
+                    self.original_roots.insert(target, *original)?;
+                }
+            }
             for (home, profile) in crate::structural_storage::cells(
                 &execution.provider_storage.completed_profiles,
                 source,
@@ -996,7 +1099,10 @@ impl ConstructorStorage {
             crate::structural_storage::cells(&execution.structural_scalar_fields, source)
         {
             if let Some(parent) = relocate(&field.parent) {
-                self.scalars.insert(field.relocated(parent), *scalar)?;
+                self.scalars.insert_cell(
+                    field.relocated(parent),
+                    scalar.relocated(transfers_custody)?,
+                )?;
             }
         }
         for (field, bytes) in
@@ -1018,16 +1124,25 @@ impl ConstructorStorage {
             crate::structural_storage::cells(&execution.structural_primitive_storage, source)
         {
             if let Some(target) = relocate(home) {
-                self.primitives.insert(target, *value)?;
+                self.primitives
+                    .insert_cell(target, value.relocated(transfers_custody)?)?;
             }
         }
         for (home, bytes) in
             crate::structural_storage::cells(&execution.structural_byte_storage, source)
         {
             if let Some(target) = relocate(home) {
-                self.byte_arrays.insert(target, bytes.clone())?;
+                self.byte_arrays
+                    .insert(target, bytes.relocated(transfers_custody)?)?;
             }
         }
+        self.empty_arrays.stage_subtree(
+            &execution.program.structural_types(),
+            &execution.empty_array_storage,
+            &execution.structural_byte_storage,
+            source,
+            destination,
+        )?;
         for (home, atom) in
             crate::structural_storage::cells(&execution.structural_host_atoms, source)
         {
@@ -1041,6 +1156,88 @@ impl ConstructorStorage {
             }
         }
         Ok(())
+    }
+
+    /// Prepare original resident endpoints before an in-place replacement
+    /// retires the old subtree. All shape and funding checks precede writes.
+    pub(crate) fn preserve_replaced_residents(
+        &mut self,
+        execution: &TerminalExecution<'_>,
+        root: &StructuralRuntimePlace,
+    ) -> Result<(), TerminalInterpretError> {
+        self.preserve_original_roots(execution, root)?;
+        self.prepare_resident_writes(execution, root)?.commit(self)
+    }
+
+    pub(crate) fn prepare_replacement(
+        mut self,
+        execution: &TerminalExecution<'_>,
+        root: StructuralRuntimePlace,
+    ) -> Result<PreparedConstructorReplacement, TerminalInterpretError> {
+        self.preserve_original_roots(execution, &root)?;
+        let residents = self.prepare_resident_writes(execution, &root)?;
+        Ok(PreparedConstructorReplacement {
+            retirement: execution.prepare_subtree_retirement(&root)?,
+            storage: self,
+            residents,
+        })
+    }
+
+    fn preserve_original_roots(
+        &mut self,
+        execution: &TerminalExecution<'_>,
+        root: &StructuralRuntimePlace,
+    ) -> Result<(), TerminalInterpretError> {
+        for (home, original) in
+            crate::structural_storage::cells(&execution.original_storage_roots, root)
+        {
+            if self
+                .original_roots
+                .get(home)
+                .is_some_and(|incoming| incoming != original)
+            {
+                return Err(TerminalInterpretError::ResidentStorage(
+                    crate::TerminalEffectRejection::new(
+                        "replacement cannot substitute another original allocation",
+                    ),
+                ));
+            }
+            self.original_roots.insert(home.clone(), *original)?;
+        }
+        Ok(())
+    }
+
+    fn prepare_resident_writes(
+        &self,
+        execution: &TerminalExecution<'_>,
+        root: &StructuralRuntimePlace,
+    ) -> Result<ConstructorResidentWrites, TerminalInterpretError> {
+        self.validate_publication(execution)?;
+        let scalars = self
+            .scalars
+            .prepare_resident_replacement(&execution.structural_scalar_fields, Some(root))?;
+        let primitives = self
+            .primitives
+            .prepare_resident_replacement(&execution.structural_primitive_storage, Some(root))?;
+        let mut byte_arrays = Vec::new();
+        for (home, original) in
+            crate::structural_storage::cells(&execution.structural_byte_storage, root)
+        {
+            if original.has_residents() {
+                let incoming = self.byte_arrays.get(home).ok_or_else(malformed)?;
+                if let Some(replacement) = original.prepare_replacement(incoming)? {
+                    byte_arrays.push((home.clone(), replacement));
+                }
+            }
+        }
+        for (home, _) in &self.owner_writes {
+            execution.byte_owner_bytes(home)?;
+        }
+        Ok(ConstructorResidentWrites {
+            scalars,
+            primitives,
+            byte_arrays,
+        })
     }
 
     pub(crate) fn publish(
@@ -1063,6 +1260,9 @@ impl ConstructorStorage {
         &self,
         execution: &TerminalExecution<'_>,
     ) -> Result<(), TerminalInterpretError> {
+        execution
+            .original_storage_roots
+            .validate_append(&self.original_roots)?;
         execution
             .provider_storage
             .descriptors
@@ -1096,6 +1296,10 @@ impl ConstructorStorage {
         execution
             .structural_byte_storage
             .validate_append(&self.byte_arrays)?;
+        execution
+            .empty_array_storage
+            .rows
+            .validate_append(&self.empty_arrays.rows)?;
         execution.structural_cases.validate_append(&self.cases)?;
         execution
             .structural_host_atoms
@@ -1108,6 +1312,9 @@ impl ConstructorStorage {
         execution: &mut TerminalExecution<'_>,
     ) -> Result<(), TerminalInterpretError> {
         self.validate_publication(execution)?;
+        execution
+            .original_storage_roots
+            .append(&mut self.original_roots)?;
         execution
             .structural_scalar_fields
             .append(&mut self.scalars)?;
@@ -1139,6 +1346,10 @@ impl ConstructorStorage {
         execution
             .structural_byte_storage
             .append(&mut self.byte_arrays)?;
+        execution
+            .empty_array_storage
+            .rows
+            .append(&mut self.empty_arrays.rows)?;
         execution.structural_cases.append(&mut self.cases)?;
         execution
             .structural_host_atoms

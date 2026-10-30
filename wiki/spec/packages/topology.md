@@ -124,13 +124,15 @@ machine build(builder: &mut Build) {
 
     let inputs = deployment_inputs(&mut builder.source);
     let output = builder.output.require("payments.plan");
-    suspend Build::await_provider<TopologyBuild>(builder, "topology");
+    suspend Build::await_provider<TopologyBuild, topology::DiagnosticTopology>(builder);
     compose_payments(inputs, output);
 }
 ```
 
-`TopologyBuild` is a requirement already known when this Build is checked. The
-dependency request may proceed while `deployment_inputs` performs local work;
+`TopologyBuild` is a requirement already known when this Build is checked.
+`topology::DiagnosticTopology` explicitly names the dependency's implementation;
+it is a deferred selection reference, not an ordinary import of unresolved code.
+The dependency request may proceed while `deployment_inputs` performs local work;
 provider readiness suspends only if the admitted implementation is not installed
 yet. The local deployment helper calls exact `TopologyBuild::operation`
 requirements through the installed Build-scoped static slot rather than

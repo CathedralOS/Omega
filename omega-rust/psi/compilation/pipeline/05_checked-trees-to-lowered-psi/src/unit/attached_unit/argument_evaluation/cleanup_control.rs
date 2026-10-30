@@ -16,11 +16,18 @@ use terminal_psi::{
     Block, OperationKind, OperationResult, SuccessorEdge, TerminalAffineCleanupAction,
 };
 
+mod case_observations;
+
 /// Invocation-owned block construction shared by statement continuations and
 /// scalar expansion. Storage coordinates are already captured and normalized.
 /// The first block retains its incoming declarations; private continuations
 /// carry scalar values and forward erased proof formals without reevaluation.
 pub(crate) struct CleanupEmission<'a> {
+    pub(crate) structural_types: &'a [terminal_psi::StructuralTypeDeclaration],
+    /// Historical declaration geometry remains valid after a source namespace
+    /// moves on. It authenticates typed coordinates, never current availability.
+    pub(crate) source_parameters: &'a [(u32, terminal_psi::StructuralParameterDeclaration)],
+    pub(crate) previous_parameter_homes: &'a [terminal_psi::StructuralParameterDeclaration],
     pub(crate) checked: &'a checked_trees::CheckedTrees,
     pub(crate) current: &'a mut BlockId,
     pub(crate) parameters: &'a mut Vec<ValueDeclaration>,
@@ -42,6 +49,9 @@ impl Evaluation {
         block_erased_scalar_formals: &'a mut Vec<ValueDeclaration>,
     ) -> CleanupEmission<'a> {
         CleanupEmission {
+            structural_types: &self.structural_types,
+            source_parameters: &self.structural_parameters,
+            previous_parameter_homes: &self.previous_parameter_homes,
             checked,
             current: &mut self.current,
             parameters: &mut self.parameters,
@@ -56,7 +66,16 @@ impl Evaluation {
     /// Rejoin the actual emitted carrier, independently of source copyability
     /// or referent multiplicity. Cleanup actions and descriptor releases use
     /// this same contract when choosing disposal versus home retirement.
-    pub(crate) fn carrier_signature(
+    pub(crate) fn carrier_multiplicity(
+        &self,
+        place: semantic_vocabulary::PlaceId,
+        operations: &OperationBuffer,
+    ) -> Result<terminal_psi::StructuralMultiplicity, LoweringError> {
+        self.emitted_carrier(place, operations)
+            .map(|(_, multiplicity)| multiplicity)
+    }
+
+    pub(crate) fn emitted_carrier(
         &self,
         place: semantic_vocabulary::PlaceId,
         operations: &OperationBuffer,
@@ -67,55 +86,86 @@ impl Evaluation {
         ),
         LoweringError,
     > {
-        let mut signatures = self
-            .structural_root_parameters()
-            .filter(|parameter| parameter.place == place)
-            .map(|parameter| (parameter.structural_type, parameter.multiplicity))
-            // Branches inherit the transported owner frontier, not their
-            // parent's completed blocks. These are the actual receiving-home
-            // declarations retained by transport, not inferred source types.
-            .chain(
-                self.structural_value_owners
-                    .iter()
-                    .filter(|owner| owner.value.place == place)
-                    .map(|owner| (owner.value.structural_type, owner.value.multiplicity)),
-            )
-            // Anonymous backing is an emitted result without an authored
-            // local binding. Its declaration is authoritative too, including
-            // when only one selected branch establishes that home.
+        let mut carriers = self
+            .emitted_carriers(operations)
+            .filter(|(carrier_place, _, _)| *carrier_place == place)
+            .map(|(_, structural_type, multiplicity)| (structural_type, multiplicity));
+        let carrier = carriers.next().ok_or(LoweringError::Unsupported(
+            "descriptor retirement lost its emitted carrier declaration",
+        ))?;
+        if carriers.any(|other| other != carrier) {
+            return Err(LoweringError::Unsupported(
+                "descriptor retirement has inconsistent carrier declarations",
+            ));
+        }
+        Ok(carrier)
+    }
+
+    /// The emitting owners retain one carrier roster, including Unit-result
+    /// literal establishments. These declarations describe a home's carrier;
+    /// they do not establish current availability or authorize its disposal.
+    fn emitted_carriers<'a>(
+        &'a self,
+        operations: &'a OperationBuffer,
+    ) -> impl Iterator<
+        Item = (
+            semantic_vocabulary::PlaceId,
+            semantic_vocabulary::StructuralTypeId,
+            terminal_psi::StructuralMultiplicity,
+        ),
+    > + 'a {
+        self.structural_root_parameters()
+            .map(|parameter| {
+                (
+                    parameter.place,
+                    parameter.structural_type,
+                    parameter.multiplicity,
+                )
+            })
+            // Branches retain the receiving owner declarations independently
+            // of their parent's completed blocks.
+            .chain(self.structural_value_owners.iter().map(|owner| {
+                (
+                    owner.value.place,
+                    owner.value.structural_type,
+                    owner.value.multiplicity,
+                )
+            }))
             .chain(
                 operations
                     .iter()
                     .chain(self.blocks.iter().flat_map(|block| block.operations.iter()))
                     .filter_map(|operation| operation.result.structural())
-                    .filter(|result| result.place == place)
-                    .map(|result| (result.structural_type, result.multiplicity)),
+                    .map(|result| (result.place, result.structural_type, result.multiplicity)),
             )
             .chain(
                 operations
                     .structural_values
                     .iter()
-                    .filter(|(_, binding)| binding.place() == place && binding.path().is_empty())
-                    .map(|(_, binding)| (binding.structural_type(), binding.multiplicity())),
-            );
-        let signature = signatures.next().ok_or(LoweringError::Unsupported(
-            "descriptor retirement lost its emitted carrier declaration",
-        ))?;
-        if signatures.any(|other| other != signature) {
-            return Err(LoweringError::Unsupported(
-                "descriptor retirement has inconsistent carrier declarations",
-            ));
-        }
-        Ok(signature)
-    }
-
-    pub(crate) fn carrier_multiplicity(
-        &self,
-        place: semantic_vocabulary::PlaceId,
-        operations: &OperationBuffer,
-    ) -> Result<terminal_psi::StructuralMultiplicity, LoweringError> {
-        self.carrier_signature(place, operations)
-            .map(|(_, multiplicity)| multiplicity)
+                    .filter(|(_, binding)| binding.path().is_empty())
+                    .map(|(_, binding)| {
+                        (
+                            binding.place(),
+                            binding.structural_type(),
+                            binding.multiplicity(),
+                        )
+                    }),
+            )
+            // The literal emitter publishes this row only after the actual
+            // Unit-result operation. Its shared image descriptor is unrestricted
+            // under the Terminal operation schema, just as its authored binding.
+            .chain(
+                operations
+                    .literal_types
+                    .iter()
+                    .map(|&(place, structural_type)| {
+                        (
+                            place,
+                            structural_type,
+                            terminal_psi::StructuralMultiplicity::Unrestricted,
+                        )
+                    }),
+            )
     }
 
     /// The exact emitted carrier roster available to a computation expansion.
@@ -131,26 +181,8 @@ impl Evaluation {
         LoweringError,
     > {
         let mut places = self
-            .structural_root_parameters()
-            .map(|parameter| parameter.place)
-            .chain(
-                self.structural_value_owners
-                    .iter()
-                    .map(|owner| owner.value.place),
-            )
-            .chain(
-                operations
-                    .iter()
-                    .chain(self.blocks.iter().flat_map(|block| block.operations.iter()))
-                    .filter_map(|operation| operation.result.structural())
-                    .map(|result| result.place),
-            )
-            .chain(
-                operations
-                    .structural_values
-                    .iter()
-                    .filter_map(|(_, binding)| binding.path().is_empty().then(|| binding.place())),
-            )
+            .emitted_carriers(operations)
+            .map(|(place, _, _)| place)
             .collect::<Vec<_>>();
         places.sort_unstable();
         places.dedup();
@@ -208,10 +240,7 @@ impl Evaluation {
                 self.descriptor_retirement(place, operations)?,
             )]);
         }
-        let (root_type, _) = self.carrier_signature(place, operations)?;
-        // A retired root leaves an empty disposal partition. The partial
-        // geometry query deliberately accepts only strict descendants; do not
-        // manufacture a second whole-root discard for a completed partition.
+        let (root_type, _) = self.emitted_carrier(place, operations)?;
         if moved.iter().any(Vec::is_empty) {
             if moved.len() != 1 {
                 return Err(LoweringError::Unsupported(
@@ -423,44 +452,9 @@ impl CleanupEmission<'_> {
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
-        let mut remaining = regions;
-        while let Some(first) = remaining.first() {
-            let retirement = matches!(first.action, TerminalAffineCleanupAction::RetireHome(_));
-            let count = remaining
-                .iter()
-                .take_while(|region| {
-                    region.selected_region == first.selected_region
-                        && matches!(region.action, TerminalAffineCleanupAction::RetireHome(_))
-                            == retirement
-                })
-                .count();
-            let group = &remaining[..count];
-            if let Some(region) = &first.selected_region {
-                let (bypass, bypass_parameters) = self.select_storage(
-                    identities, region, retirement, values, next_value, next_block, next_edge,
-                    operations,
-                )?;
-                self.cleanup_scope(
-                    identities, group, 0, values, next_value, next_block, next_edge, operations,
-                )?;
-                self.cleanup_jump(
-                    identities,
-                    bypass,
-                    &bypass_parameters,
-                    Vec::new(),
-                    Vec::new(),
-                    values,
-                    next_edge,
-                    operations,
-                )?;
-            } else {
-                self.cleanup_scope(
-                    identities, group, 0, values, next_value, next_block, next_edge, operations,
-                )?;
-            }
-            remaining = &remaining[count..];
-        }
-        Ok(())
+        self.cleanup_scope(
+            identities, regions, 0, None, values, next_value, next_block, next_edge, operations,
+        )
     }
 
     /// Start one static candidate-death scope, capturing its scalar/proof frame
@@ -558,6 +552,7 @@ impl CleanupEmission<'_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         regions: &[CleanupRegion],
         depth: usize,
+        selected_scope: Option<&terminal_psi::StructuralArgument>,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
@@ -572,10 +567,69 @@ impl CleanupEmission<'_> {
                 ));
             }
             if first.conditions.len() == depth {
-                let count = remaining
-                    .iter()
-                    .take_while(|region| region.conditions.len() == depth)
-                    .count();
+                let retirement = matches!(first.action, TerminalAffineCleanupAction::RetireHome(_));
+                if let Some(region) = first.selected_region.as_ref()
+                    && Some(region) != selected_scope
+                {
+                    // A nominal receiver and its descendant cleanup retain
+                    // one availability decision across their complete scope.
+                    let count = if retirement {
+                        1
+                    } else {
+                        remaining
+                            .iter()
+                            .take_while(|entry| {
+                                entry.selected_region == first.selected_region
+                                    && !matches!(
+                                        entry.action,
+                                        TerminalAffineCleanupAction::RetireHome(_)
+                                    )
+                            })
+                            .count()
+                    };
+                    let (bypass, parameters) = self.select_storage(
+                        identities, region, retirement, values, next_value, next_block, next_edge,
+                        operations,
+                    )?;
+                    self.cleanup_scope(
+                        identities,
+                        &remaining[..count],
+                        depth,
+                        Some(region),
+                        values,
+                        next_value,
+                        next_block,
+                        next_edge,
+                        operations,
+                    )?;
+                    self.cleanup_jump(
+                        identities,
+                        bypass,
+                        &parameters,
+                        Vec::new(),
+                        Vec::new(),
+                        values,
+                        next_edge,
+                        operations,
+                    )?;
+                    remaining = &remaining[count..];
+                    continue;
+                }
+                let count = if retirement {
+                    1
+                } else {
+                    remaining
+                        .iter()
+                        .take_while(|entry| {
+                            entry.conditions.len() == depth
+                                && entry.selected_region == first.selected_region
+                                && !matches!(
+                                    entry.action,
+                                    TerminalAffineCleanupAction::RetireHome(_)
+                                )
+                        })
+                        .count()
+                };
                 let actions = remaining[..count]
                     .iter()
                     .map(|region| region.action.clone())
@@ -597,6 +651,39 @@ impl CleanupEmission<'_> {
                     })
                 })
                 .count();
+            // Observe a shared discriminator before any of its selected
+            // payload scopes dispose storage. An absent selected sum bypasses
+            // the complete dispatch; a partially moved sum still fails the
+            // ordinary whole-value gate and cannot authorize a tag read.
+            let observation = terminal_psi::StructuralArgument {
+                place: selected.place,
+                path: selected.path.clone(),
+                access: terminal_psi::StructuralAccess::Owned,
+            };
+            let selected_observation = remaining[..count].iter().all(|region| {
+                region.selected_region.as_ref().is_some_and(|source| {
+                    source.place == observation.place
+                        && (source.path.starts_with(&observation.path)
+                            || observation.path.starts_with(&source.path))
+                })
+            });
+            let bypass = if selected_observation
+                && !self.declared_single_case(selected, operations)
+                && self.retained_case(selected, operations).is_none()
+            {
+                Some(self.select_storage(
+                    identities,
+                    &observation,
+                    false,
+                    values,
+                    next_value,
+                    next_block,
+                    next_edge,
+                    operations,
+                )?)
+            } else {
+                None
+            };
             let join = block_id(allocate_dense(next_block)?);
             let join_parameters = declarations(
                 &values
@@ -609,6 +696,7 @@ impl CleanupEmission<'_> {
                 identities,
                 &remaining[..count],
                 depth,
+                selected_scope,
                 join,
                 &join_parameters,
                 values,
@@ -617,6 +705,18 @@ impl CleanupEmission<'_> {
                 next_edge,
                 operations,
             )?;
+            if let Some((bypass, parameters)) = bypass {
+                self.cleanup_jump(
+                    identities,
+                    bypass,
+                    &parameters,
+                    Vec::new(),
+                    Vec::new(),
+                    values,
+                    next_edge,
+                    operations,
+                )?;
+            }
             remaining = &remaining[count..];
         }
         Ok(())
@@ -628,6 +728,7 @@ impl CleanupEmission<'_> {
 
         regions: &[CleanupRegion],
         depth: usize,
+        selected_scope: Option<&terminal_psi::StructuralArgument>,
         join: BlockId,
         join_parameters: &[ValueDeclaration],
         values: &mut Vec<ValueDeclaration>,
@@ -637,12 +738,59 @@ impl CleanupEmission<'_> {
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
         let mut remaining = regions;
+        let mut common_cases = None;
         while let Some(first) = remaining.first() {
             let condition = &first.conditions[depth];
             let count = remaining
                 .iter()
                 .take_while(|region| region.conditions.get(depth) == Some(condition))
                 .count();
+            let declaration = self.case_subject(condition, operations)?;
+            let cases = match &declaration.shape {
+                terminal_psi::StructuralTypeShape::Sum { cases }
+                | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => cases,
+                _ => {
+                    return Err(LoweringError::Unsupported(
+                        "cleanup case has no sum carrier",
+                    ));
+                }
+            };
+            if terminal_psi::find_structural_case(cases, condition.case).is_none() {
+                return Err(LoweringError::Unsupported(
+                    "cleanup case is not declared by its sum",
+                ));
+            }
+            if cases.len() == 1 {
+                if count != remaining.len() {
+                    return Err(LoweringError::Unsupported(
+                        "single-case cleanup has competing arms",
+                    ));
+                }
+                // control_flow.md: a declared single case needs no discriminator
+                // branch. The cleanup action still proves its exact live region.
+                self.cleanup_scope(
+                    identities,
+                    remaining,
+                    depth + 1,
+                    selected_scope,
+                    values,
+                    next_value,
+                    next_block,
+                    next_edge,
+                    operations,
+                )?;
+                self.cleanup_jump(
+                    identities,
+                    join,
+                    join_parameters,
+                    Vec::new(),
+                    Vec::new(),
+                    values,
+                    next_edge,
+                    operations,
+                )?;
+                return Ok(());
+            }
             let when_true = block_id(allocate_dense(next_block)?);
             let when_true_parameters = declarations(
                 &values
@@ -666,19 +814,41 @@ impl CleanupEmission<'_> {
             } else {
                 (join, join_parameters.to_vec())
             };
-            let observation = ValueDeclaration {
-                id: value_id(allocate_dense(next_value)?),
-                scalar_type: ScalarType::Boolean,
-                qualifications: Default::default(),
+            let observation = if let Some(observed) = self.retained_case(condition, operations) {
+                observed
+            } else {
+                let value = ValueDeclaration {
+                    id: value_id(allocate_dense(next_value)?),
+                    scalar_type: ScalarType::Boolean,
+                    qualifications: Default::default(),
+                };
+                let producer = operations.push_leaf(
+                    OperationResult::Scalar(value),
+                    OperationKind::StructuralCaseMembership {
+                        source: condition.place,
+                        path: condition.path.clone(),
+                        case: condition.case,
+                    },
+                );
+                operations.storage_observations.cases.push(
+                    crate::emission::operation_emission::buffer::CapturedStructuralCaseObservation {
+                        source: condition.place,
+                        path: condition.path.clone(),
+                        structural_type: condition.structural_type,
+                        case: condition.case,
+                        value,
+                        producer,
+                    },
+                );
+                value
             };
-            operations.push_leaf(
-                OperationResult::Scalar(observation.clone()),
-                OperationKind::StructuralCaseMembership {
-                    source: condition.place,
-                    path: condition.path.clone(),
-                    case: condition.case,
-                },
-            );
+            // The first discriminator dominates every arrival at this dispatch's
+            // join. Observations made inside an arm or its later false-chain do
+            // not: preserve only this common scope after the complete dispatch.
+            if common_cases.is_none() {
+                common_cases = Some(operations.storage_observations.cases.clone());
+            }
+            let branch_cases = operations.storage_observations.cases.clone();
             let proof_arguments = self.proof_arguments()?;
             let successor = |edge, target| SuccessorEdge {
                 edge,
@@ -715,6 +885,7 @@ impl CleanupEmission<'_> {
                 identities,
                 &remaining[..count],
                 depth + 1,
+                selected_scope,
                 values,
                 next_value,
                 next_block,
@@ -731,11 +902,15 @@ impl CleanupEmission<'_> {
                 next_edge,
                 operations,
             )?;
+            operations.storage_observations.cases = branch_cases;
             *self.current = when_false;
             *self.parameters = when_false_parameters.clone();
             *values = when_false_parameters;
             *self.operation_start = operations.len();
             remaining = &remaining[count..];
+        }
+        if let Some(common) = common_cases {
+            operations.storage_observations.cases = common;
         }
         Ok(())
     }

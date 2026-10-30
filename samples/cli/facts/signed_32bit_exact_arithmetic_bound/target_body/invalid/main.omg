@@ -6,50 +6,81 @@ machine consume_i32_margin(m: i32) -> i32
     m
 }
 
-linux_x86_64 machine target_probe(base: i32, delta: i32) -> i32
-    requires base >= 20i32 && base <= 35i32 && delta >= 15i32 && delta <= 26i32
-{
-    let sum: i32 = base + delta;
-    let margin: i32 = 60i32 - sum;
-    consume_i32_margin(margin)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine target_probe(base: i32, delta: i32) -> i32
-    requires base >= 20i32 && base <= 35i32 && delta >= 15i32 && delta <= 26i32
-{
-    let sum: i32 = base + delta;
-    let margin: i32 = 60i32 - sum;
-    consume_i32_margin(margin)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine target_probe(base: i32, delta: i32) -> i32
-    requires base >= 20i32 && base <= 35i32 && delta >= 15i32 && delta <= 26i32
-{
-    let sum: i32 = base + delta;
-    let margin: i32 = 60i32 - sum;
-    consume_i32_margin(margin)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine target_probe(base: i32, delta: i32) -> i32
-    requires base >= 20i32 && base <= 35i32 && delta >= 15i32 && delta <= 26i32
-{
-    let sum: i32 = base + delta;
-    let margin: i32 = 60i32 - sum;
-    consume_i32_margin(margin)
+boundary trait SelectedProbe {
+    machine target_probe(base: i32, delta: i32) -> i32
+        reaches SelectedBodyCheck crashes Trap
+        requires base >= 20i32 && base <= 35i32 && delta >= 15i32 && delta <= 26i32;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine target_probe(base: i32, delta: i32) -> i32
+        reaches SelectedBodyCheck crashes Trap
+        requires base >= 20i32 && base <= 35i32 && delta >= 15i32 && delta <= 26i32
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let sum: i32 = base + delta;
+        let margin: i32 = 60i32 - sum;
+        consume_i32_margin(margin)
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine target_probe(base: i32, delta: i32) -> i32
+        reaches SelectedBodyCheck crashes Trap
+        requires base >= 20i32 && base <= 35i32 && delta >= 15i32 && delta <= 26i32
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let sum: i32 = base + delta;
+        let margin: i32 = 60i32 - sum;
+        consume_i32_margin(margin)
+    }
 }
 
 machine probe(base: i32, delta: i32) -> i32
+    reaches SelectedProbe, SelectedBodyCheck crashes Trap
     requires base >= 20i32 && base <= 35i32 && delta >= 15i32 && delta <= 26i32
 {
-    target_probe(base, delta)
+    SelectedProbe::target_probe(base, delta)
 }
 
-machine main() crashes Trap {
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
     let diff: i32 = probe(25i32, 20i32);
     transition diff == 15i32 {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

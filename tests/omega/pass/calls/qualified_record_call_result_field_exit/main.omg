@@ -1,6 +1,6 @@
 use omega_language_std::console;
 
-domain [u8; 3]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 3]::Utf8 requires valid_utf8(self);
 data Leaf [copy] { name: [u8; 3] in Utf8; value: u64 in Wrapping; }
 data Destination [copy] { first: Leaf; second: Leaf; guard: u64; }
 data Builder { generated: u64 in Wrapping; }
@@ -32,7 +32,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

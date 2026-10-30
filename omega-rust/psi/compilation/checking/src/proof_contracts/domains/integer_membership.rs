@@ -14,10 +14,10 @@
 //! qualifications only, which no fact this judgment supports can reach.
 
 use super::closed_integer_index_bindings;
-use crate::proof_contracts::contract_entailment::{
+use crate::proof_contracts::contract_entailment::scoped_arithmetic_implication_for_declaration;
+use crate::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
-    scoped_arithmetic_implication_for_declaration,
 };
 use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;
@@ -96,7 +96,7 @@ fn membership(
             }
             return Proven;
         }
-        if !definition.predicate_body.is_present() {
+        if !definition.predicate_presence.is_present() {
             return if crate::field_domains::domain_is_vacuous(
                 program,
                 definition.symbol,

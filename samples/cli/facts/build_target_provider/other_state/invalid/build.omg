@@ -1,0 +1,9 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "build_target_provider_other_state_invalid");
+    Build::depend(builder, Source::Path { location: "reading_provider" });
+    Build::bind(builder, windows_x86_64::ProgramEntry, first_entry);
+    Build::bind(builder, macos_x86_64::ProgramEntry, first_entry);
+    Build::bind(builder, linux_x86_64::ProgramEntry, first_entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, second_entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, second_entry);
+}

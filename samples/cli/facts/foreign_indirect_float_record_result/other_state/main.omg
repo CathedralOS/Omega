@@ -36,14 +36,14 @@ machine consume(first: Transform, copied: Transform) -> i32 reaches AffineTransf
         true -> passed()
         false -> failed()
     }
-    state passed() -> i32 { 0 }
-    state failed() -> i32 { 1 }
+    machine passed() -> i32 { 0 }
+    machine failed() -> i32 { 1 }
 }
 
 machine receive(value: Transform) -> bool reaches AffineTransforms { consume(value, value) == 0 }
 machine main() reaches AffineTransforms crashes Trap {
  transition { _ -> arrived(AffineTransforms::make(1.25, -2.5, 3.75, -4.0, 5.5, -6.25)) }
- state arrived(value: Transform) { transition receive(value) { true -> done() _ -> failed() } }
- state done() {}
- state failed() { crash Trap; }
+ machine arrived(value: Transform) { transition receive(value) { true -> done() _ -> failed() } }
+ machine done() {}
+ machine failed() { crash Trap; }
 }

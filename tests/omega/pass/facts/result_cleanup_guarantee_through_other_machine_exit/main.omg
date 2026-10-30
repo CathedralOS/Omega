@@ -12,6 +12,6 @@ machine across() -> u64 { let seed: Seed = forward(); read(&make_token(&seed)) }
 machine main() crashes Trap {
     let answer: u64 = across();
     transition answer == 7 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

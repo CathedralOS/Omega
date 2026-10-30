@@ -147,12 +147,12 @@ public machine Pool::request4(pool: &mut Pool) -> Request {
         _ -> denied(pool)
     }
 
-    state minted(pool: &mut Pool) -> Request {
+    machine minted(pool: &mut Pool) -> Request {
         pool.free4 = pool.free4 - 1;
         Request::Granted { rung: 4 }
     }
 
-    state denied(pool: &mut Pool) -> Request {
+    machine denied(pool: &mut Pool) -> Request {
         Request::Denied
     }
 }
@@ -163,12 +163,12 @@ public machine Pool::request8(pool: &mut Pool) -> Request {
         _ -> denied(pool)
     }
 
-    state minted(pool: &mut Pool) -> Request {
+    machine minted(pool: &mut Pool) -> Request {
         pool.free8 = pool.free8 - 1;
         Request::Granted { rung: 8 }
     }
 
-    state denied(pool: &mut Pool) -> Request {
+    machine denied(pool: &mut Pool) -> Request {
         Request::Denied
     }
 }
@@ -179,12 +179,12 @@ public machine Pool::request16(pool: &mut Pool) -> Request {
         _ -> denied(pool)
     }
 
-    state minted(pool: &mut Pool) -> Request {
+    machine minted(pool: &mut Pool) -> Request {
         pool.free16 = pool.free16 - 1;
         Request::Granted { rung: 16 }
     }
 
-    state denied(pool: &mut Pool) -> Request {
+    machine denied(pool: &mut Pool) -> Request {
         Request::Denied
     }
 }
@@ -198,11 +198,11 @@ public machine Pool::release4(pool: &mut Pool) {
         _ -> over(pool)
     }
 
-    state freed(pool: &mut Pool) {
+    machine freed(pool: &mut Pool) {
         pool.free4 = pool.free4 + 1;
     }
 
-    state over(pool: &mut Pool) {
+    machine over(pool: &mut Pool) {
         pool.over4 = 1;
     }
 }
@@ -213,11 +213,11 @@ public machine Pool::release8(pool: &mut Pool) {
         _ -> over(pool)
     }
 
-    state freed(pool: &mut Pool) {
+    machine freed(pool: &mut Pool) {
         pool.free8 = pool.free8 + 1;
     }
 
-    state over(pool: &mut Pool) {
+    machine over(pool: &mut Pool) {
         pool.over8 = 1;
     }
 }
@@ -228,11 +228,11 @@ public machine Pool::release16(pool: &mut Pool) {
         _ -> over(pool)
     }
 
-    state freed(pool: &mut Pool) {
+    machine freed(pool: &mut Pool) {
         pool.free16 = pool.free16 + 1;
     }
 
-    state over(pool: &mut Pool) {
+    machine over(pool: &mut Pool) {
         pool.over16 = 1;
     }
 }
@@ -250,14 +250,14 @@ public machine Vec::open4(vec: &mut Vec, request: Request, store: &mut Backing4)
 
     // A grant for a different rung cannot open this edge: the pool's
     // answer must name rung 4, or the handle stays closed.
-    state verify(vec: &mut Vec, store: &mut Backing4, rung: u64) -> u64 {
+    machine verify(vec: &mut Vec, store: &mut Backing4, rung: u64) -> u64 {
         transition rung == 4 {
             true -> opened(vec, store)
             _ -> closed(vec)
         }
     }
 
-    state opened(vec: &mut Vec, store: &mut Backing4) -> u64 {
+    machine opened(vec: &mut Vec, store: &mut Backing4) -> u64 {
         store.held = 1;
         vec.live = 1;
         vec.rung = 4;
@@ -265,7 +265,7 @@ public machine Vec::open4(vec: &mut Vec, request: Request, store: &mut Backing4)
         1
     }
 
-    state closed(vec: &mut Vec) -> u64 {
+    machine closed(vec: &mut Vec) -> u64 {
         0
     }
 }
@@ -308,14 +308,14 @@ public machine Vec::grow4to8(vec: &mut Vec, old: &mut Backing4, fresh: &mut Back
 
     // The grant must name rung 8; a mismatched answer leaves the vector
     // and both stores untouched.
-    state verify(vec: &mut Vec, old: &mut Backing4, fresh: &mut Backing8, rung: u64) -> u64 {
+    machine verify(vec: &mut Vec, old: &mut Backing4, fresh: &mut Backing8, rung: u64) -> u64 {
         transition rung == 8 {
             true -> adopt(vec, old, fresh)
             _ -> denied(vec)
         }
     }
 
-    state adopt(vec: &mut Vec, old: &mut Backing4, fresh: &mut Backing8) -> u64 {
+    machine adopt(vec: &mut Vec, old: &mut Backing4, fresh: &mut Backing8) -> u64 {
         fresh.e[0] = old.e[0];
         fresh.e[1] = old.e[1];
         fresh.e[2] = old.e[2];
@@ -330,7 +330,7 @@ public machine Vec::grow4to8(vec: &mut Vec, old: &mut Backing4, fresh: &mut Back
         vec.len
     }
 
-    state denied(vec: &mut Vec) -> u64 {
+    machine denied(vec: &mut Vec) -> u64 {
         0
     }
 }
@@ -343,14 +343,14 @@ public machine Vec::grow8to16(vec: &mut Vec, old: &mut Backing8, fresh: &mut Bac
 
     // The grant must name rung 16; a mismatched answer leaves the vector
     // and both stores untouched.
-    state verify(vec: &mut Vec, old: &mut Backing8, fresh: &mut Backing16, rung: u64) -> u64 {
+    machine verify(vec: &mut Vec, old: &mut Backing8, fresh: &mut Backing16, rung: u64) -> u64 {
         transition rung == 16 {
             true -> adopt(vec, old, fresh)
             _ -> denied(vec)
         }
     }
 
-    state adopt(vec: &mut Vec, old: &mut Backing8, fresh: &mut Backing16) -> u64 {
+    machine adopt(vec: &mut Vec, old: &mut Backing8, fresh: &mut Backing16) -> u64 {
         fresh.e[0] = old.e[0];
         fresh.e[1] = old.e[1];
         fresh.e[2] = old.e[2];
@@ -373,7 +373,7 @@ public machine Vec::grow8to16(vec: &mut Vec, old: &mut Backing8, fresh: &mut Bac
         vec.len
     }
 
-    state denied(vec: &mut Vec) -> u64 {
+    machine denied(vec: &mut Vec) -> u64 {
         0
     }
 }

@@ -131,11 +131,11 @@ public machine Permissions::set_readonly(permissions: &mut Permissions, readonly
         Permissions::Posix { mode } -> posix(permissions, mode, readonly)
         _ -> portable(permissions, readonly)
     }
-    state posix(permissions: &mut Permissions, mode: u32, readonly: bool) {
+    machine posix(permissions: &mut Permissions, mode: u32, readonly: bool) {
         let updated: u32 = posix_mode_with_readonly(mode, readonly);
         permissions = Permissions::Posix { mode: updated };
     }
-    state portable(permissions: &mut Permissions, readonly: bool) {
+    machine portable(permissions: &mut Permissions, readonly: bool) {
         permissions = Permissions::Readonly { value: readonly };
     }
 }

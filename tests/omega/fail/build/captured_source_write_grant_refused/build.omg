@@ -8,10 +8,10 @@ machine build(builder: &mut Build) {
         true -> denied(builder, obligation)
         _ -> admitted(builder, obligation, writer)
     }
-    state denied(builder: &mut Build, obligation: RequiredOutput) {
+    machine denied(builder: &mut Build, obligation: RequiredOutput) {
         BuildOutput::fail(&mut builder.output, obligation, "captured source write grant denied");
     }
-    state admitted(builder: &mut Build, obligation: RequiredOutput, writer: i32) {
+    machine admitted(builder: &mut Build, obligation: RequiredOutput, writer: i32) {
         _ = BuildSource::close(&builder.source, writer);
         let output: BuildPath = BuildOutput::resolve(&builder.output, "admitted.txt");
         let descriptor: i32 = BuildOutput::create(&mut builder.output, output, 0);
@@ -27,8 +27,8 @@ machine settle(builder: &mut Build, completion: OutputCompletion) {
         OutputCompletion::Sealed { receipt } -> sealed(builder)
         OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
     }
-    state sealed(builder: &mut Build) {}
-    state failed(builder: &mut Build, obligation: RequiredOutput) {
+    machine sealed(builder: &mut Build) {}
+    machine failed(builder: &mut Build, obligation: RequiredOutput) {
         BuildOutput::fail(&mut builder.output, obligation, "control output did not seal");
     }
 }

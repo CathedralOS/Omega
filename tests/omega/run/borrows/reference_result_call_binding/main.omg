@@ -9,7 +9,7 @@ data Main {
 
 machine Main::borrow_count(main: &Main) -> &u32 {
     transition { _ -> out(main) }
-    state out(main: &Main) -> &u32 { &main.count }
+    machine out(main: &Main) -> &u32 { &main.count }
 }
 
 machine Main::main(main: &mut Main) reaches Console {

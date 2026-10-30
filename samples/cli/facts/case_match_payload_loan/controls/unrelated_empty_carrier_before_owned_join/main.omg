@@ -7,6 +7,6 @@ machine main() crashes Trap {
     let owner: Token = Token { value: 17 };
     let selected: Token = match choose() { true -> owner false -> owner };
     transition selected.value == 17 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

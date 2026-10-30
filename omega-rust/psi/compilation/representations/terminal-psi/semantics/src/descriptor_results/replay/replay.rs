@@ -13,6 +13,7 @@ pub(super) type Value = Option<BTreeSet<Origin>>;
 pub(super) type Slots = BTreeMap<DescriptorLocation, Value>;
 #[derive(Clone, Default, PartialEq, Eq)]
 pub(super) struct State {
+    pub(super) cases: Arc<super::case_flow::CurrentCases>,
     // Position snapshots share immutable maps; only a real write detaches.
     // This keeps captured contents independent without copying every slot at
     // scalar operations or copying every nested map with a states snapshot.
@@ -271,6 +272,14 @@ impl<'a> Replay<'a> {
                 ) {
                     return None;
                 }
+                // A carrier's own storage coordinate is an anchor, not an
+                // equation saying its pointer contents point back to itself.
+                // View-only replay retains these anchors for ordinary reference
+                // results without tracking their pointees. Keep the authored
+                // Referent path; only a distinct captured backing can replace it.
+                if origins.len() == 1 && origins.contains(&Origin::Storage(prefix.clone())) {
+                    continue;
+                }
                 let mut alternatives = false;
                 for origin in origins {
                     let Origin::Storage(backing) = origin else {
@@ -361,6 +370,36 @@ impl<'a> Replay<'a> {
         }
         Some(locations)
     }
+    /// Reborrowing a whole ordinary referent captures the pointer in its
+    /// descriptor, rather than a recipe which reloads that descriptor later.
+    /// Borrowing a descriptor slot itself still captures the slot's address.
+    fn reference_referent_carrier(
+        &self,
+        machine: &DescriptorMachine,
+        location: &DescriptorLocation,
+    ) -> Option<Option<DescriptorLocation>> {
+        if !self.slot_kind.tracks_references() {
+            return Some(None);
+        }
+        let Some((DescriptorPathSegment::Referent, path)) = location.path.split_last() else {
+            return Some(None);
+        };
+        let root_type = *machine.place_types.get(&location.root)?;
+        let endpoint = crate::descriptor_lifetimes::descriptor_location_type(
+            self.types,
+            root_type,
+            &location.path,
+        )?;
+        Some(
+            (!self.slot_kind.is_slot(self.types, endpoint)
+                && !is_descriptor(self.types.iter(), endpoint))
+            .then(|| DescriptorLocation {
+                root: location.root,
+                path: path.to_vec(),
+            }),
+        )
+    }
+
     pub(super) fn read(
         &self,
         machine: &DescriptorMachine,
@@ -378,24 +417,8 @@ impl<'a> Replay<'a> {
         // the pointer captured in its carrier. An incoming reference field is
         // an Incoming slot, not an inline subtree of the containing argument.
         // A descriptor endpoint instead needs its own contents observation.
-        if self.slot_kind == DescriptorSlotKind::References
-            && let Some((DescriptorPathSegment::Referent, path)) = location.path.split_last()
-        {
-            let root_type = *machine.place_types.get(&location.root)?;
-            let endpoint = crate::descriptor_lifetimes::descriptor_location_type(
-                self.types,
-                root_type,
-                &location.path,
-            )?;
-            if !self.slot_kind.is_slot(self.types, endpoint)
-                && !is_descriptor(self.types.iter(), endpoint)
-            {
-                let carrier = DescriptorLocation {
-                    root: location.root,
-                    path: path.to_vec(),
-                };
-                return self.read(machine, state, &carrier);
-            }
+        if let Some(carrier) = self.reference_referent_carrier(machine, &location)? {
+            return self.read(machine, state, &carrier);
         }
         // The pointer temporary's origin is the pointee carrier. An unfilled
         // child slot on the temporary is not an invalidated owned subtree.
@@ -522,8 +545,9 @@ impl<'a> Replay<'a> {
                 {
                     continue;
                 }
-                let origin = if self.slot_kind != DescriptorSlotKind::Views
-                    && self.slot_kind.is_slot(self.types, structural_type)
+                let origin = if self
+                    .slot_kind
+                    .parameter_is_incoming_slot(self.types, structural_type)
                 {
                     Origin::Incoming(DescriptorLocation::whole(row.place))
                 } else if is_descriptor(self.types.iter(), structural_type) {
@@ -620,14 +644,22 @@ impl<'a> Replay<'a> {
             })
             .collect()
     }
-    pub(super) fn transfer(
+    pub(super) fn transfer<'locations>(
         &self,
         machine: &DescriptorMachine,
         before: &State,
         definitions: &[DescriptorLocation],
-        derivations: &[(DescriptorLocation, DescriptorLocation)],
-        position: Option<DescriptorPosition>,
+        derivations: impl Clone
+        + Iterator<
+            Item = (
+                &'locations DescriptorLocation,
+                &'locations DescriptorLocation,
+            ),
+        >,
+        transfer: super::case_flow::Transfer<'_>,
+        case_storage: &super::case_flow::Storage,
     ) -> Option<State> {
+        let position = transfer.position();
         // Operation writes follow exact current storage aliases; edge bindings
         // define new carrier names and therefore use their declared destinations.
         let canonical = |location: &DescriptorLocation| {
@@ -642,7 +674,7 @@ impl<'a> Replay<'a> {
             .map(canonical)
             .collect::<Option<Vec<_>>>()?;
         let mut assigned = Slots::new();
-        for (source, destination) in derivations {
+        for (source, destination) in derivations.clone() {
             let projection = position.and_then(|position| {
                 machine
                     .projections
@@ -655,20 +687,22 @@ impl<'a> Replay<'a> {
                     destination.clone(),
                 ))
             }) {
-                // Borrowing a pointer slot captures its address. Loading or
-                // moving that slot instead captures the pointer it contains.
-                // Referent reads subsequently follow this storage alias, so
-                // copying descendants into the pointer's own carrier would
-                // both duplicate and misplace their contents.
-                let storage = self.canonical_storage(machine, before, source)?;
+                // Borrowing a pointer slot captures its address; reborrowing
+                // its whole ordinary referent captures the pointer it contains
+                // now. The latter must survive replacement of that slot.
+                // Storage aliases alone transport descendant slots; copying
+                // them into a captured pointer would misplace their contents.
+                let value =
+                    if let Some(carrier) = self.reference_referent_carrier(machine, source)? {
+                        self.read(machine, before, &carrier)
+                    } else {
+                        let storage = self.canonical_storage(machine, before, source)?;
+                        Some(BTreeSet::from([Origin::Storage(storage)]))
+                    };
                 merge_value(
                     &mut assigned,
                     canonical(destination)?,
-                    self.project(
-                        machine,
-                        Some(BTreeSet::from([Origin::Storage(storage)])),
-                        projection,
-                    ),
+                    self.project(machine, value, projection),
                 );
                 continue;
             }
@@ -706,6 +740,15 @@ impl<'a> Replay<'a> {
         // an unchanged value need not detach the shared map. Canonicalization
         // and every derivation above still run before any update is omitted.
         let mut after = before.clone();
+        after.cases = super::case_flow::transport(
+            self,
+            machine,
+            before,
+            &definitions,
+            derivations,
+            transfer,
+            case_storage,
+        )?;
         if !definitions.is_empty() {
             for (location, value) in before.slots.iter() {
                 if value.is_some()
@@ -731,6 +774,87 @@ impl<'a> Replay<'a> {
         }
         Some(after)
     }
+    fn transfer_edge(
+        &self,
+        machine: &DescriptorMachine,
+        before: &State,
+        edge: &crate::descriptor_lifetimes::DescriptorFlowEdge,
+        case_storage: &super::case_flow::Storage,
+    ) -> Option<State> {
+        let mut after = self.transfer(
+            machine,
+            before,
+            &edge.parameters,
+            edge.derivations(),
+            super::case_flow::Transfer::Arrival(edge),
+            case_storage,
+        )?;
+        for binding in &edge.bindings {
+            if let crate::descriptor_lifetimes::DescriptorFlowSource::Contents(query) =
+                &binding.source
+            {
+                let structural_type = *machine.place_types.get(&binding.parameter.root)?;
+                let mut captured = Slots::from([(
+                    binding.parameter.clone(),
+                    self.read_contents(machine, before, query),
+                )]);
+                for slot in self.slot_kind.owned_slots(
+                    self.types,
+                    binding.parameter.root,
+                    structural_type,
+                )? {
+                    if slot == binding.parameter {
+                        continue;
+                    }
+                    let mut source = query.clone();
+                    source.steps.extend(
+                        slot.path
+                            .iter()
+                            .cloned()
+                            .map(DescriptorContentsStep::Address),
+                    );
+                    captured.insert(slot, self.read_contents(machine, before, &source));
+                }
+                for (location, value) in captured {
+                    if after.slots.get(&location) != Some(&value) {
+                        after.slots_mut().insert(location, value);
+                    }
+                }
+            }
+            if binding.access != StructuralAccess::Owned {
+                continue;
+            }
+            let parameter = &binding.parameter;
+            if !parameter.path.is_empty() {
+                return None;
+            }
+            let structural_type = *machine.place_types.get(&parameter.root)?;
+            let shape = &find_structural_type(self.types, structural_type)?.shape;
+            if is_descriptor(self.types.iter(), structural_type)
+                || matches!(
+                    shape,
+                    StructuralTypeShape::Reference { .. }
+                        | StructuralTypeShape::Record {
+                            storage: terminal_psi::StructuralRecordStorage::PlacedView(_)
+                                | terminal_psi::StructuralRecordStorage::PlacedAccessor(_),
+                            ..
+                        }
+                )
+            {
+                continue;
+            }
+            // An owned ordinary value arrives in its receiving home. Its
+            // nested descriptor words were captured simultaneously above and
+            // keep their original pointees. Borrowed arrivals instead retain
+            // the actual storage alias; moving a pointer carrier does not move
+            // its referent. This storage coordinate grants no loan authority.
+            let value = Some(BTreeSet::from([Origin::Storage(parameter.clone())]));
+            if after.slots.get(parameter) != Some(&value) {
+                after.slots_mut().insert(parameter.clone(), value);
+            }
+        }
+        Some(after)
+    }
     pub(super) fn states(&mut self, identity: MachineId, depth: usize) -> Option<States> {
         if let Some(cached) = self.snapshots.get(&identity) {
             return cached.clone();
@@ -741,6 +865,8 @@ impl<'a> Replay<'a> {
             return None;
         }
         let machine = self.machine(identity)?;
+        super::case_flow::validate_graph(self, machine)?;
+        let case_storage = super::case_flow::Storage::new(self, machine);
         if !machine.flow.contains_key(&machine.entry) {
             return None;
         }
@@ -761,10 +887,30 @@ impl<'a> Replay<'a> {
                 machine,
                 &before,
                 &step.definitions,
-                &step.derivations,
-                Some(position),
+                step.derivations
+                    .iter()
+                    .map(|(source, destination)| (source, destination)),
+                super::case_flow::Transfer::Operation(position),
+                &case_storage,
             )?;
             after.contents_invalidated |= machine.unresolved_contents_writes.contains(&position);
+            if step.may_escape
+                || machine.unresolved_contents_writes.contains(&position)
+                || machine
+                    .calls
+                    .get(&position)
+                    .is_some_and(|call| !call.argument_contents.iter().all(Option::is_some))
+            {
+                // Unknown effects may reach any old value. Exact known-call
+                // footprints were framed with the operation's typed writes;
+                // the completed summary below frames descriptor effects too.
+                after.cases = Arc::default();
+            }
+            if let Some(constructors) = machine.case_constructors.get(&position) {
+                for constructor in constructors {
+                    super::case_flow::establish(self, machine, &mut after, constructor)?;
+                }
+            }
             if let Some(transfers) = machine.contents_transfers.get(&position) {
                 self.transfer_contents(machine, &before, &mut after, transfers);
             }
@@ -790,11 +936,22 @@ impl<'a> Replay<'a> {
             {
                 let summary = self.invocation_summary(call, depth + 1)?;
                 after.contents_invalidated |= summary.invalidates_contents;
+                if summary.invalidates_contents {
+                    after.cases = Arc::default();
+                }
                 let mut replacements = BTreeMap::new();
                 let mut destinations = Vec::new();
                 for effect in &summary.effects {
                     let destination =
                         self.actual_contents(call, effect.parameter, &effect.steps)?;
+                    super::case_flow::retire_query(
+                        self,
+                        machine,
+                        &before,
+                        &mut after,
+                        &destination,
+                        &case_storage,
+                    );
                     let targets = self.contents_targets(machine, &before, &destination)?;
                     let strong = targets.len() == 1
                         && matches!(targets.first(), Some(DescriptorPayloadTarget::Storage(_)));
@@ -849,15 +1006,38 @@ impl<'a> Replay<'a> {
             // Membership-only edge reads observe the completed operation,
             // including descriptor/call effects. Keep only requested edge
             // snapshots; ordinary custody queries remain pre-operation.
-            if machine.payload_arrivals.contains_key(&position) {
+            if step.successors.iter().any(|edge| {
+                edge.bindings.iter().any(|binding| {
+                    matches!(
+                        binding.source,
+                        crate::descriptor_lifetimes::DescriptorFlowSource::Contents(_)
+                    )
+                })
+            }) {
                 arrivals.insert(position, after.clone());
             }
-            for edge in &step.successors {
+            if machine
+                .case_successors
+                .get(&position)
+                .is_some_and(|cases| cases.len() != step.successors.len())
+            {
+                return None;
+            }
+            for (ordinal, edge) in step.successors.iter().enumerate() {
                 if !machine.flow.contains_key(&edge.target) {
                     return None;
                 }
-                let carried =
-                    self.transfer(machine, &after, &edge.parameters, &edge.bindings, None)?;
+                let mut selected = after.clone();
+                if let Some((predicate, truth)) = machine
+                    .case_successors
+                    .get(&position)
+                    .and_then(|cases| cases.get(ordinal))
+                {
+                    if !super::case_flow::select(self, machine, &mut selected, predicate, *truth)? {
+                        continue;
+                    }
+                }
+                let carried = self.transfer_edge(machine, &selected, edge, &case_storage)?;
                 match states.get_mut(&edge.target) {
                     None => {
                         states.insert(edge.target, carried);
@@ -888,6 +1068,16 @@ impl<'a> Replay<'a> {
     ) -> Option<Summary> {
         match &call.target {
             DescriptorInvocationTarget::Machine(machine) => self.summary(*machine, depth),
+            target @ DescriptorInvocationTarget::Public {
+                effects_machine: Some(machine),
+                ..
+            } => {
+                let effects = self.summary(*machine, depth)?;
+                let mut summary = direct_target_summary(target)?;
+                summary.effects = effects.effects;
+                summary.invalidates_contents |= effects.invalidates_contents;
+                Some(summary)
+            }
             DescriptorInvocationTarget::Public { realizations, .. } if !realizations.is_empty() => {
                 let summaries = realizations
                     .iter()
@@ -905,6 +1095,16 @@ impl<'a> Replay<'a> {
     pub(super) fn cached_invocation_summary(&self, call: &DescriptorInvocation) -> Option<Summary> {
         match &call.target {
             DescriptorInvocationTarget::Machine(machine) => self.summaries.get(machine)?.clone(),
+            target @ DescriptorInvocationTarget::Public {
+                effects_machine: Some(machine),
+                ..
+            } => {
+                let effects = self.summaries.get(machine)?.as_ref()?;
+                let mut summary = direct_target_summary(target)?;
+                summary.effects = effects.effects.clone();
+                summary.invalidates_contents |= effects.invalidates_contents;
+                Some(summary)
+            }
             DescriptorInvocationTarget::Public { realizations, .. } if !realizations.is_empty() => {
                 let summaries = realizations
                     .iter()
@@ -1093,9 +1293,15 @@ impl<'a> Replay<'a> {
             }
             Origin::Backing(DescriptorCallOrigin::Argument { source, projection }) => {
                 let (position, access, structural_type) = self.parameter(machine, *source)?;
-                if !matches!(access, terminal_psi::reading_borrow_pair_pattern!())
-                    && !(access == StructuralAccess::Owned
-                        && external_backing(self.types, structural_type, &projection.path))
+                // A borrowed argument names its referent's storage without
+                // reading it: a write-only loan's backing identity is fixed by
+                // the borrow's formation, so it exports like a reading borrow.
+                if !matches!(
+                    access,
+                    terminal_psi::reading_borrow_pair_pattern!()
+                        | StructuralAccess::WriteOnlyBorrow
+                ) && !(access == StructuralAccess::Owned
+                    && external_backing(self.types, structural_type, &projection.path))
                 {
                     return None;
                 }
@@ -1110,8 +1316,15 @@ impl<'a> Replay<'a> {
         if let Some(cached) = self.summaries.get(&identity) {
             return cached.clone();
         }
-        self.summaries.insert(identity, None);
         let machine = self.machine(identity)?;
+        // A closed empty interface has no origins to discover. Establish its
+        // transitive invalidation effect without recursively replaying bodies;
+        // a scalar I/O cycle must not become an unknown descriptor result.
+        if let Some(summary) = self.empty_interface_summary(machine) {
+            self.summaries.insert(identity, Some(summary.clone()));
+            return Some(summary);
+        }
+        self.summaries.insert(identity, None);
         let states = self.states(identity, depth)?;
         // A result's carrier stays local storage. Only its exact descriptor
         // slots export backing, under the same case/field paths as construction
@@ -1123,6 +1336,11 @@ impl<'a> Replay<'a> {
                 if !location.path.is_empty() {
                     return None;
                 }
+                let Some(state) = states.get(position) else {
+                    // Complete graph validation plus case-edge replay proved
+                    // this return impossible; it supplies no result origins.
+                    continue;
+                };
                 let structural_type = *machine.place_types.get(&location.root)?;
                 if result_type.is_some_and(|previous| previous != structural_type) {
                     return None;
@@ -1147,7 +1365,7 @@ impl<'a> Replay<'a> {
                     if slot.path != location.path {
                         return None;
                     }
-                    let origins = self.read(machine, states.get(position)?, &location)?;
+                    let origins = self.read(machine, state, &location)?;
                     if origins.is_empty() {
                         return None;
                     }
@@ -1171,7 +1389,7 @@ impl<'a> Replay<'a> {
             else {
                 continue;
             };
-            let slots = if self.slot_kind == DescriptorSlotKind::References {
+            let slots = if self.slot_kind.tracks_references() {
                 self.slot_kind
                     .writable_slots(self.types, row.place, structural_type, access)?
             } else {
@@ -1341,6 +1559,11 @@ fn merge_state(existing: &mut State, incoming: &State) -> bool {
     // a shared map and an absent entry remains distinct from an unknown one.
     let before = existing.clone();
     let mut changed = !before.contents_invalidated && incoming.contents_invalidated;
+    let cases = super::case_flow::join(&before.cases, &incoming.cases);
+    if cases != *existing.cases {
+        existing.cases = Arc::new(cases);
+        changed = true;
+    }
     existing.contents_invalidated |= incoming.contents_invalidated;
     for query in before
         .contents

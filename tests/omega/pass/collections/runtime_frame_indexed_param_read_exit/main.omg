@@ -21,8 +21,8 @@ requires k <= 2
         true -> yes(main)
         false -> no(main)
     }
-    state yes(main: &mut Main) { Console::exit_process(1); }
-    state no(main: &mut Main) { Console::exit_process(2); }
+    machine yes(main: &mut Main) { Console::exit_process(1); }
+    machine no(main: &mut Main) { Console::exit_process(2); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

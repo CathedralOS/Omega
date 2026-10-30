@@ -6,13 +6,14 @@ use super::super::{
 };
 use super::completed_aggregate::{self, CompletedAggregate};
 use super::emission;
+use crate::unit::attached_unit::structural_values::ValueOutcome;
 
 impl emission::Emission<'_, '_, '_> {
     pub(super) fn structural_case(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: checked_trees::CheckedStructuralValueHandle,
-    ) -> Result<PlaceId, LoweringError> {
+    ) -> Result<ValueOutcome<PlaceId>, LoweringError> {
         let node = self
             .checked
             .facts
@@ -130,7 +131,7 @@ impl emission::Emission<'_, '_, '_> {
             if matches!(target.field_type, StructuralFieldType::Erased { .. }) {
                 return unsupported("erased case member has no runtime initializer");
             }
-            let value = self.completed_member_value(
+            let ValueOutcome::Normal(value) = self.completed_member_value(
                 identities,
                 field,
                 target,
@@ -144,7 +145,10 @@ impl emission::Emission<'_, '_, '_> {
                 initialized.len(),
                 source_count,
                 &mut claims,
-            )?;
+            )?
+            else {
+                return Ok(ValueOutcome::NoNormal);
+            };
             initialized.push((
                 position,
                 terminal_psi::RecordFieldInitializer {
@@ -156,27 +160,29 @@ impl emission::Emission<'_, '_, '_> {
         self.remap_saved_scalar_fields(scalar_positions, &mut initialized, source_count);
         initialized.sort_by_key(|(position, _)| *position);
         let place = place_id(allocate_dense(self.environment.next_place)?);
-        self.environment
-            .private_places
-            .push(completed_aggregate::emit_completed(
-                place,
-                self.structural_type,
-                self.multiplicity,
-                CompletedAggregate::Case {
-                    result_case: shape_case.id,
-                    fields: initialized.into_iter().map(|(_, field)| field).collect(),
-                    declarations: &shape_fields,
-                    common_fields: common.len(),
-                },
-                self.evaluation
-                    .structural_parameters
-                    .iter()
-                    .map(|(_, parameter)| parameter),
-                self.operations,
-            )?);
+        let declaration = completed_aggregate::emit_completed(
+            place,
+            self.structural_type,
+            self.multiplicity,
+            CompletedAggregate::Case {
+                result_case: shape_case.id,
+                fields: initialized.into_iter().map(|(_, field)| field).collect(),
+                declarations: &shape_fields,
+                common_fields: common.len(),
+            },
+            self.evaluation.structural_root_parameters(),
+            self.operations,
+        )?;
+        if let semantic_vocabulary::StructuralPlaceKind::OperationResult { producer, .. } =
+            declaration.kind
+        {
+            self.evaluation
+                .retire_structural_operation_operands(producer, self.operations)?;
+        }
+        self.environment.private_places.push(declaration);
         claims.sort();
         self.operations
             .set_structural_result_claims(place, claims)?;
-        Ok(place)
+        Ok(ValueOutcome::Normal(place))
     }
 }

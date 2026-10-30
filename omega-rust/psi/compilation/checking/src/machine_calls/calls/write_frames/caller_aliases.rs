@@ -101,6 +101,25 @@ pub struct AssignmentStorageOrigins {
     pub references: Option<Vec<LocalWriteOrigin>>,
 }
 
+/// Current standalone slot rows supersede the older alias-entry inventory.
+/// An unknown current row still shadows its old initializer; omitting it would
+/// silently restore the retired pointer. Nested slots keep their own selectors.
+pub(super) fn current_reference_aliases(
+    program: &dyn crate::CheckingInput,
+    current: &[LocalWriteOrigin],
+    aliases: &[(String, FramePlaceOrigin)],
+) -> Vec<(String, FramePlaceOrigin)> {
+    aliases
+        .iter()
+        .filter(|(name, _)| {
+            !current.iter().any(|row| {
+                row.local_segments.is_empty() && program.symbols.name(row.local_symbol) == name
+            })
+        })
+        .cloned()
+        .collect()
+}
+
 /// Storage captured by one exact invocation. Each operand keeps all possible
 /// origins; `None` is unknown and `Some([])` means no caller storage. These
 /// coordinates do not grant permission to access the referents.
@@ -108,12 +127,18 @@ pub struct AssignmentStorageOrigins {
 pub struct CallWriteOrigins {
     pub receiver: Option<Vec<LocalWriteSource>>,
     pub arguments: Vec<Option<Vec<LocalWriteSource>>>,
+    /// Input descriptor leaves captured before this invocation's own writes.
+    /// Any operand which may replace their bindings withholds the roster.
+    /// These are reach coordinates, never permission or post-call identity.
+    pub references: Option<Vec<LocalWriteOrigin>>,
 }
 
 /// Proven referent of a local reference leaf. Coarse observer paths stay
 /// coarse; exact structured coordinates are composed and checked independently.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalWriteSource {
+    /// An explicitly performed output, not a declaration-relative address.
+    pub invocation_output: Option<facts::InvocationOutputIdentity>,
     /// Literal-produced image backing cannot alias writable declaration storage.
     /// This category survives projection independently of coordinate precision;
     /// an absent declaration root alone never establishes static backing.
@@ -155,7 +180,9 @@ pub enum ReferenceResultTransport {
 
 impl LocalWriteSource {
     pub(super) fn frame_origin(&self) -> FramePlaceOrigin {
-        let mut source = if self.is_image_storage {
+        let mut source = if let Some(identity) = self.invocation_output {
+            super::place_paths::FrameSourcePlace::invocation_output(identity, self.segments.clone())
+        } else if self.is_image_storage {
             super::place_paths::FrameSourcePlace::image_storage()
         } else {
             super::place_paths::FrameSourcePlace::default()
@@ -164,7 +191,8 @@ impl LocalWriteSource {
         source.root = self.root;
         source.segments = self.segments.clone();
         source.representation = self.representation.clone();
-        source.builtin_coordinates = self.root.is_valid() || self.is_image_storage;
+        source.builtin_coordinates =
+            self.root.is_valid() || self.is_image_storage || self.invocation_output.is_some();
         FramePlaceOrigin {
             path: self.path.clone(),
             precision: if self.collection_coarse {
@@ -176,8 +204,16 @@ impl LocalWriteSource {
         }
     }
 
-    pub(crate) fn write_path(&self, program: &dyn crate::CheckingInput) -> String {
-        super::place_paths::project_write_path(program, &self.frame_origin(), "")
+    pub(crate) fn write_path(&self, program: &dyn crate::CheckingInput) -> Option<String> {
+        // Performed output permissions are not physical write coordinates.
+        if self.invocation_output.is_some() {
+            return None;
+        }
+        Some(super::place_paths::project_write_path(
+            program,
+            &self.frame_origin(),
+            "",
+        ))
     }
 
     /// Substitute relative storage using the frame owner's coordinate algebra.
@@ -187,7 +223,11 @@ impl LocalWriteSource {
         program: &dyn crate::CheckingInput,
         relative: &Self,
     ) -> Option<Self> {
-        if !self.root.is_valid() || !relative.root.is_valid() {
+        if self.invocation_output.is_some()
+            || relative.invocation_output.is_some()
+            || !self.root.is_valid()
+            || !relative.root.is_valid()
+        {
             return None;
         }
         let coordinate = |source: &Self| super::place_paths::FrameSourcePlace {
@@ -200,6 +240,7 @@ impl LocalWriteSource {
         };
         let source = coordinate(self).append_relative(program, &coordinate(relative));
         Some(Self {
+            invocation_output: self.invocation_output,
             is_image_storage: self.is_image_storage,
             recasts: source.recasts,
             root: source.root,
@@ -215,6 +256,7 @@ impl LocalWriteSource {
 impl From<FramePlaceOrigin> for LocalWriteSource {
     fn from(origin: FramePlaceOrigin) -> Self {
         Self {
+            invocation_output: origin.source.output_identity(),
             is_image_storage: origin.source.is_static(),
             recasts: origin.source.recasts,
             representation: origin.source.representation,
@@ -240,9 +282,6 @@ pub enum AssignmentWriteTarget {
 
 struct AssignmentEvidence {
     target: AssignmentWriteTarget,
-    aliases: Vec<(String, FramePlaceOrigin)>,
-    divergent: Vec<(String, Vec<FramePlaceOrigin>)>,
-    stored: Vec<StoredLocalOrigins>,
 }
 
 /// A state's recorded assignment results, as `walk_state_assignments`
@@ -284,12 +323,10 @@ pub(super) fn assignment_write_paths(
                 state_assignments,
             )?
             .destinations;
-            Some(
-                destinations
-                    .iter()
-                    .map(|destination| destination.write_path(program))
-                    .collect(),
-            )
+            destinations
+                .iter()
+                .map(|destination| destination.write_path(program))
+                .collect()
         }
     }
 }
@@ -367,6 +404,7 @@ pub(super) fn assignment_storage_origins(
         );
         return Some(AssignmentStorageOrigins {
             destinations: vec![LocalWriteSource {
+                invocation_output: None,
                 is_image_storage: false,
                 recasts: Vec::new(),
                 representation: None,
@@ -397,6 +435,7 @@ pub(super) fn assignment_storage_origins(
         );
         return Some(AssignmentStorageOrigins {
             destinations: vec![LocalWriteSource {
+                invocation_output: None,
                 is_image_storage: source.is_static(),
                 recasts: source.recasts,
                 representation: source.representation,
@@ -428,22 +467,13 @@ pub(super) fn assignment_storage_origins(
         true,
         &evidence.stored,
     )?;
-    // A stable place can name a stored reference descriptor. Performed writes
-    // target its captured referents, not the private carrier slot. Resolve
-    // every selected reference leaf; unresolved candidates invalidate the
-    // judgment rather than silently dropping a possible destination.
+    // The initializer owner completed every selected load against this entry
+    // inventory. These are captured addresses, not slots to read a second time.
     let mut destinations = Vec::new();
     for origin in origins {
-        for destination in super::stored_origins::canonical_reference_origins(
-            program,
-            &Some(origin),
-            &[],
-            &evidence.stored,
-        ) {
-            let destination = LocalWriteSource::from(destination?);
-            if !destinations.contains(&destination) {
-                destinations.push(destination);
-            }
+        let destination = LocalWriteSource::from(origin);
+        if !destinations.contains(&destination) {
+            destinations.push(destination);
         }
     }
     Some(AssignmentStorageOrigins {
@@ -517,9 +547,6 @@ fn assignment_evidence(
     {
         return Some(AssignmentEvidence {
             target: AssignmentWriteTarget::Storage { paths: vec![path] },
-            aliases: Vec::new(),
-            divergent: Vec::new(),
-            stored: Vec::new(),
         });
     }
     let state = match site {
@@ -547,9 +574,6 @@ fn assignment_evidence(
         .find(|(recorded, _)| *recorded == index)?;
     Some(AssignmentEvidence {
         target: prefix.target.clone(),
-        aliases: prefix.aliases.clone(),
-        divergent: prefix.divergent.clone(),
-        stored: prefix.stored.clone(),
     })
 }
 
@@ -1010,12 +1034,20 @@ enum CallerPrefixSite<'program> {
     },
 }
 
-fn caller_site_key(site: CallerWriteSite<'_>) -> (u8, usize) {
+fn caller_site_key(site: CallerWriteSite<'_>) -> (u8, usize, usize) {
     match site {
-        CallerWriteSite::Call(call) => (0, std::ptr::from_ref(call).addr()),
-        CallerWriteSite::Statement(statement) => (1, std::ptr::from_ref(statement).addr()),
-        CallerWriteSite::Expression(expression) => (2, expression.arena_index() as usize),
-        CallerWriteSite::Transition(target) => (3, target.arena_index() as usize),
+        CallerWriteSite::Call(call) => (0, 0, std::ptr::from_ref(call).addr()),
+        CallerWriteSite::Statement(statement) => (1, 0, std::ptr::from_ref(statement).addr()),
+        CallerWriteSite::Expression(expression) => (
+            2,
+            expression.generation() as usize,
+            expression.arena_index() as usize,
+        ),
+        CallerWriteSite::Transition(target) => (
+            3,
+            target.generation() as usize,
+            target.arena_index() as usize,
+        ),
     }
 }
 
@@ -1060,10 +1092,10 @@ fn caller_prefix_site<'program>(
     symbols: &TopLevelSymbols<'program>,
     site: CallerWriteSite<'_>,
 ) -> Option<CallerPrefixSite<'program>> {
-    let (kind, id) = caller_site_key(site);
+    let (kind, generation, id) = caller_site_key(site);
     let entry = memoized(
         &symbols.caller_sites.prefix_site_entries,
-        (machine.symbol, kind, id),
+        (machine.symbol, kind, generation, id),
         || caller_prefix_entry(program, machine, symbols, site),
     )?;
     Some(match entry {
@@ -1215,10 +1247,10 @@ pub(super) fn caller_statement_at_site<'program>(
     &'program StatementNode,
     usize,
 )> {
-    let (kind, id) = caller_site_key(site);
+    let (kind, generation, id) = caller_site_key(site);
     let (state_symbol, index) = memoized(
         &symbols.caller_sites.site_statements,
-        (machine.symbol, kind, id),
+        (machine.symbol, kind, generation, id),
         || {
             caller_statement_owner(program, machine, site)
                 .map(|(state, _statement, index)| (state.symbol, index))
@@ -1327,7 +1359,9 @@ pub(super) fn expression_any(
                     .map(|field| field.value),
             ),
             ExpressionNode::Range(range) => pending.extend([range.start, range.end]),
-            ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
+            ExpressionNode::TypeExpression(_)
+            | ExpressionNode::SavedSubject(_)
+            | typed_trees::literal_expression_pattern!() => {}
         }
     }
     false

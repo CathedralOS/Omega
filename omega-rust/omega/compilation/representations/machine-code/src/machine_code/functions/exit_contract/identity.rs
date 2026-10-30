@@ -75,8 +75,7 @@ pub fn whole_function_exit_contract_identity(
             });
             hasher.raw(&crash.instruction.0.to_le_bytes());
             hasher.raw(&crash.offset.to_le_bytes());
-            hasher.u64(crash.bytes.len() as u64);
-            hasher.raw(&crash.bytes);
+            hasher.bytes(&crash.bytes);
         }
         hasher.u64(function.process_exits.len() as u64);
         for exited in &function.process_exits {
@@ -84,8 +83,7 @@ pub fn whole_function_exit_contract_identity(
             hasher.raw(&exited.completion_edge.get().to_le_bytes());
             hasher.raw(&exited.instruction.0.to_le_bytes());
             hasher.raw(&exited.offset.to_le_bytes());
-            hasher.u64(exited.bytes.len() as u64);
-            hasher.raw(&exited.bytes);
+            hasher.bytes(&exited.bytes);
         }
         hasher.u64(function.returns.len() as u64);
         for returned in &function.returns {
@@ -93,8 +91,7 @@ pub fn whole_function_exit_contract_identity(
             hasher.raw(&returned.psi_return_edge.get().to_le_bytes());
             hasher.raw(&returned.instruction.0.to_le_bytes());
             hasher.raw(&returned.offset.to_le_bytes());
-            hasher.u64(returned.bytes.len() as u64);
-            hasher.raw(&returned.bytes);
+            hasher.bytes(&returned.bytes);
             match &returned.value {
                 WholeFunctionReturnValueEvidence::UnitV1 => hasher.byte(1),
                 WholeFunctionReturnValueEvidence::AggregateV1 { fragments } => {

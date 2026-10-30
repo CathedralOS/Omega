@@ -291,17 +291,11 @@ impl QuotientFamily {
         level: Level,
         arguments: &[TermHandle],
     ) -> TermHandle {
-        let mut term = arena.insert(Term::Constant {
+        let constant = arena.insert(Term::Constant {
             declaration,
             levels: vec![level],
         });
-        for &argument in arguments {
-            term = arena.insert(Term::Apply {
-                function: term,
-                argument,
-            });
-        }
-        term
+        arena.apply_arguments(constant, arguments)
     }
 
     fn spine(
@@ -311,7 +305,7 @@ impl QuotientFamily {
         mut levels: Vec<Level>,
         arguments: &[TermHandle],
     ) -> TermHandle {
-        let mut term = arena.insert(Term::Constant {
+        let constant = arena.insert(Term::Constant {
             declaration,
             levels: {
                 let mut instantiation = self.levels.to_vec();
@@ -319,21 +313,8 @@ impl QuotientFamily {
                 instantiation
             },
         });
-        term = arena.insert(Term::Apply {
-            function: term,
-            argument: self.carrier,
-        });
-        term = arena.insert(Term::Apply {
-            function: term,
-            argument: self.relation,
-        });
-        for &argument in arguments {
-            term = arena.insert(Term::Apply {
-                function: term,
-                argument,
-            });
-        }
-        term
+        let related = arena.apply_arguments(constant, &[self.carrier, self.relation]);
+        arena.apply_arguments(related, arguments)
     }
 
     /// `Q A R` — the opaque carrier, a `Type max(u,v)`.

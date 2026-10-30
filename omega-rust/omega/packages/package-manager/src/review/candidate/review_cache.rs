@@ -24,7 +24,7 @@
 //! The live compiler source owner is deliberately not persisted: its sealed
 //! program storage is not serializable. The cache stores the facts a
 //! carried occurrence's `checked` field is actually consumed for — the
-//! tolerated flag, the source-consumption commitment inputs, the
+//! source-consumption commitment inputs, the
 //! target-entry candidate and, when a consumer demanded one, the published
 //! independent-component description. Publication lowers the dependency to
 //! Terminal Psi, so a record does not publish one speculatively: a consumer
@@ -46,13 +46,12 @@
 mod key;
 mod record_codec;
 
-pub(crate) use key::compiled_review_key;
+pub(crate) use key::{compiled_review_key, compiled_review_key_with_identity};
 
 use key::{lineage_digest, resolution_digest};
 use package_compilation::{
     AcceptedSemanticBinding, CheckedSourceCacheLimits, ConsumedSourceUnit,
-    IndependentComponentDescription, PackageGeneratedSourceBundle,
-    PackageSourceConsumptionCommitment,
+    IndependentComponentDescription, PackageBuildHandoff, PackageSourceConsumptionCommitment,
 };
 use package_evidence::encoding::PackagePolicyRecoveryLimits;
 use package_evidence::record::PackagePolicyBaseline;
@@ -74,7 +73,6 @@ const DEFAULT_MAX_RECORD_BYTES: u64 = 512 * 1024 * 1024;
 /// live compiler source: the facts needed by carried dependency occurrences.
 #[derive(Debug, Clone)]
 pub(crate) struct CachedOccurrenceFacts {
-    pub tolerated_unsettled_service_fields: bool,
     pub consumed_units: Vec<ConsumedSourceUnit>,
     pub source_consumption_commitment: PackageSourceConsumptionCommitment,
     pub component_description: Option<IndependentComponentDescription>,
@@ -100,7 +98,7 @@ pub(crate) struct CachedCompiledReview {
     restricted_build_requests: Vec<build_evaluation::RestrictedBuildRequest>,
     semantic_bindings: Vec<AcceptedSemanticBinding>,
     semantic_binding_candidates: Vec<SemanticBindingReviewCandidate>,
-    generated_source_bundle: PackageGeneratedSourceBundle,
+    build_handoff: PackageBuildHandoff,
     policy_bytes: Vec<u8>,
     facts: CachedOccurrenceFacts,
     policy_canonical_bytes: u64,
@@ -161,7 +159,7 @@ impl CachedCompiledReview {
             restricted_build_requests: self.restricted_build_requests,
             semantic_bindings: self.semantic_bindings,
             semantic_binding_candidates: self.semantic_binding_candidates,
-            generated_source_bundle: self.generated_source_bundle,
+            build_handoff: self.build_handoff,
             policy,
             policy_rows,
             policy_commitment,
@@ -201,14 +199,8 @@ impl CompiledReviewCache {
     }
 
     fn record_path(&self, key: &[u8; 32]) -> PathBuf {
-        let mut name = String::with_capacity(64 + 4);
-        use std::fmt::Write;
-        for byte in key {
-            let _ = write!(name, "{byte:02x}");
-        }
-        name.push('.');
-        name.push_str(RECORD_EXTENSION);
-        self.directory.join(name)
+        let name = crate::digest_encoder::hex(key);
+        self.directory.join(format!("{name}.{RECORD_EXTENSION}"))
     }
 
     /// Decode the record filed under `key`. Any decode or self-verification
@@ -316,15 +308,15 @@ pub(crate) fn record_compiled_review(
         lineage: lineage_digest(review.key().source_lineage()),
         resolution: resolution_digest(review.resolution()),
         purpose: review.checked_context().purpose(),
-        target: review.generated_source_bundle().target(),
-        build_execution_profile: review.generated_source_bundle().build_execution_profile(),
+        target: review.build_handoff().target(),
+        build_execution_profile: review.build_handoff().build_execution_profile(),
         selected_build_machine_identity: review.selected_build_machine_identity().to_owned(),
         build_evaluation_usage: review.build_evaluation_usage(),
         build_observation_summary: review.build_observation_summary().cloned(),
         restricted_build_requests: review.restricted_build_requests().to_vec(),
         semantic_bindings: review.semantic_bindings().to_vec(),
         semantic_binding_candidates: review.semantic_binding_candidates().to_vec(),
-        generated_source_bundle: review.generated_source_bundle().clone(),
+        build_handoff: review.build_handoff().clone(),
         policy_bytes,
         facts,
         policy_canonical_bytes: u64::try_from(policy_canonical_bytes).ok()?,

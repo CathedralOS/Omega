@@ -45,6 +45,15 @@ pub(crate) fn collect_value_roots(
     roots: &mut Vec<typed_trees::type_identity::TypeIdentityId>,
 ) -> Result<(), LoweringError> {
     let node = checked.facts.values.structural_values.nodes.get(value);
+    // Evaluation validates the retained carrier before producing children.
+    // Its declaration is needed independently of a receiving result binding:
+    // a stopped constructor or selected branch never publishes such a value.
+    roots.push(validation::stored_structural_type_identity(
+        &checked.typed,
+        node.type_reference,
+        &[],
+        &[],
+    ));
     match &node.kind {
         checked_trees::CheckedStructuralValueKind::Reference {
             source,
@@ -350,23 +359,7 @@ pub(super) fn lower_program_local_root_introductions(
 pub(super) fn lower_unit_structural_types(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
-    plans: UnitPlans<'_>,
-    closure: &[symbols::SymbolHandle],
-    boundaries: &[(&CheckedBoundaryMachinePlan, BoundaryIdentity)],
-) -> Result<
-    (
-        Vec<StructuralTypeDeclaration>,
-        Vec<(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)>,
-        Vec<StructuralReferentIdentity>,
-    ),
-    LoweringError,
-> {
-    lower_unit_structural_types_including(identities, checked, plans, closure, boundaries, &[])
-}
-
-pub(super) fn lower_unit_structural_types_including(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    checked: &CheckedTrees,
+    scalar_applications: &super::scalar_applications::SourceScalarApplications,
     plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
     boundaries: &[(&CheckedBoundaryMachinePlan, BoundaryIdentity)],
@@ -381,17 +374,20 @@ pub(super) fn lower_unit_structural_types_including(
 > {
     let mut roots = additional_roots.to_vec();
     let mut literal_view = false;
-    for symbol in closure {
+    let sources = plans.source_machines(checked, closure)?;
+    // Fused dispatch identities do not replace the declaration owners of
+    // retained computations. Publish every producer's complete requirements.
+    for symbol in &sources {
         let operands = crate::scalar_lowering::computations::operand_types::type_requirements(
             checked, *symbol,
         )?;
         roots.extend(operands.identities);
         literal_view |= operands.literal_view;
+    }
+    for symbol in closure {
         let body = UnitBody::find(plans, *symbol)?;
         place_types::collect(checked, plans, body, &mut roots)?;
-        if !matches!(body, UnitBody::Ordinary(plan) if plan.scalar_result.is_some() || plan.scalar_control.is_some())
-            && let checked_trees::CheckedControlResultPlan::Structural(result) = body.result()?
-        {
+        if let checked_trees::CheckedControlResultPlan::Structural(result) = body.result()? {
             roots.push(result.type_identity);
         }
         roots.extend(body.attachment());
@@ -449,10 +445,14 @@ pub(super) fn lower_unit_structural_types_including(
         // Scalar computations can own structural producers and their operand
         // temporaries. Their operation dependencies need the same catalog walk
         // as statement-owned operations, not just their call signatures.
-        let value_operations =
-            crate::expression_preparation::computation_graph::value_call_operations(
-                checked, *symbol, None,
-            )?;
+        let mut value_operations = Vec::new();
+        for source in plans.source_machines(checked, &[*symbol])? {
+            value_operations.extend(
+                crate::expression_preparation::computation_graph::value_call_operations(
+                    checked, source, None,
+                )?,
+            );
+        }
         for operation in body.operations().chain(value_operations) {
             collect_operation_type_roots(checked, plans, operation, &mut roots)?;
             match operation {
@@ -553,7 +553,7 @@ pub(super) fn lower_unit_structural_types_including(
         }
     }
     let (mut declarations, mut identity_ids, referents) =
-        lower_unit_structural_type_roots(identities, checked, plans, &roots)?;
+        lower_unit_structural_type_roots(identities, checked, scalar_applications, plans, &roots)?;
     if literal_view {
         crate::emission::structural_byte_sequence_store::literal_view_type(
             identities,
@@ -580,7 +580,9 @@ pub(super) fn lower_unit_structural_types_including(
                     crate::scalar_lowering::computations::fields::prepare_place_observations(
                         identities,
                         checked,
-                        *machine,
+                        crate::declarations::state_declaration(checked, state)?
+                            .0
+                            .symbol,
                         state,
                         &declarations,
                     );
@@ -643,7 +645,7 @@ fn select_from<'a>(
 }
 
 /// The one checked declaration of `identity` in the Unit roster.
-pub(super) fn selected_declaration<'a>(
+pub(crate) fn selected_declaration<'a>(
     plans: UnitPlans<'a>,
     identity: typed_trees::type_identity::TypeIdentityId,
 ) -> Result<&'a CheckedUnitStructuralTypePlan, LoweringError> {
@@ -658,6 +660,7 @@ pub(super) fn selected_declaration<'a>(
 pub(crate) fn lower_unit_structural_type_roots(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    scalar_applications: &super::scalar_applications::SourceScalarApplications,
     plans: UnitPlans<'_>,
     roots: &[typed_trees::type_identity::TypeIdentityId],
 ) -> Result<
@@ -943,13 +946,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                 length,
             } => StructuralTypeShape::FixedArray {
                 element: lookup_type_id(&type_ids, element_type_identity)?,
-                // Terminal production runs on a closed program copy: every
-                // recipe extent carries its value under this target capsule.
-                length: length
-                    .closed(&checked.typed)
-                    .ok_or(LoweringError::Unsupported(
-                        "fixed array extent is a constant recipe the target capsule has not closed",
-                    ))?,
+                length: scalar_applications.array_extent(checked, *length)?,
             },
             CheckedUnitStructuralTypeShape::Sum { cases } => {
                 let mut case_identities = BTreeSet::new();
@@ -1057,8 +1054,58 @@ pub(super) fn lower_unit_structural_domains(
     LoweringError,
 > {
     let mut selected = Vec::new();
+    let sources = plans.source_machines(checked, closure)?;
+    for (_, region) in checked.facts.flow.ownership.loan_completions.iter() {
+        if !sources.contains(&region.machine) {
+            continue;
+        }
+        for fact in crate::emission::loan_completions::qualification_facts(checked, region) {
+            if crate::emission::call_qualifications::declaration_represents(
+                identities, checked, fact,
+            )? {
+                continue;
+            }
+            if let Some((_, _, _, domain)) = fact.payload.domain_membership()
+                && !selected.contains(&domain)
+            {
+                selected.push(domain);
+            }
+        }
+    }
     for symbol in closure {
         let body = UnitBody::find(plans, *symbol)?;
+        // Statement-call publications and returned custody consume the same
+        // exact occurrence inventory. A declaration-represented scalar duty
+        // is discharged there, while every nominal row roots its theory here.
+        for (state, operation) in body.operations_with_states() {
+            let Some(call) = operation.call() else {
+                continue;
+            };
+            let (machine, _) = crate::declarations::state_declaration(checked, state)?;
+            let coordinate = crate::emission::operation_emission::buffer::SourceCallCoordinate {
+                state,
+                statement_index: call.coordinate.statement_index as usize,
+                call_ordinal: call.coordinate.call_ordinal as usize,
+            };
+            let homes = body.structural_home_roots(checked, state)?;
+            for fact in crate::emission::call_qualifications::for_call(
+                checked,
+                machine.symbol,
+                coordinate,
+                |root| homes.contains(&root),
+            ) {
+                if crate::emission::call_qualifications::declaration_represents(
+                    identities, checked, fact,
+                )? {
+                    continue;
+                }
+                if let Some((_, _, _, domain)) = fact.payload.domain_membership()
+                    && !selected.contains(&domain)
+                {
+                    selected.push(domain);
+                }
+            }
+        }
         // A callable publishes its result contract even when its only caller
         // observes a field immediately. Register that signature's domains here,
         // not incidentally through a receiving local or another parameter.
@@ -1082,23 +1129,12 @@ pub(super) fn lower_unit_structural_domains(
                 }
             }
         }
-        for operation in body.operations() {
+        for (state, operation) in body.operations_with_states() {
+            let (owner, _) = crate::declarations::state_declaration(checked, state)?;
             crate::expression_preparation::structural_value_requirements::collect_operation_requirements(
                 checked,
-                *symbol,
+                owner.symbol,
                 operation,
-                &mut selected,
-            )?;
-        }
-        // Values the body's computed operands construct carry the
-        // memberships checking decided for them, as operation values do.
-        for value in crate::expression_preparation::computation_graph::reachable_structural_values(
-            checked, *symbol,
-        )? {
-            crate::expression_preparation::structural_value_requirements::collect_value_requirements(
-                checked,
-                *symbol,
-                value,
                 &mut selected,
             )?;
         }
@@ -1157,6 +1193,20 @@ pub(super) fn lower_unit_structural_domains(
             if !selected.contains(&domain) {
                 selected.push(domain);
             }
+        }
+    }
+    // Computed producers keep their original machine namespace after fusion,
+    // including the complete membership roster checked on each produced value.
+    for source in sources {
+        for value in crate::expression_preparation::computation_graph::reachable_structural_values(
+            checked, source,
+        )? {
+            crate::expression_preparation::structural_value_requirements::collect_value_requirements(
+                checked,
+                source,
+                value,
+                &mut selected,
+            )?;
         }
     }
     for (boundary, _) in boundaries {
@@ -1226,6 +1276,27 @@ pub(super) fn lower_unit_structural_domains(
             }
         }
     }
+    // Prerequisites remain needed even when no executable operand names their
+    // family directly. Close the selected family set before dense IDs or any
+    // carrier presentation is assigned.
+    let mut cursor = 0;
+    while let Some(domain) = selected.get(cursor).copied() {
+        cursor += 1;
+        for plan in plans.structural_domains().iter().filter(|plan| {
+            plan.domain == domain
+                && type_ids
+                    .iter()
+                    .any(|(identity, _)| *identity == plan.carrier_type_identity)
+        }) {
+            if let Some(required) = &plan.required_memberships {
+                for parent in required {
+                    if !selected.contains(parent) {
+                        selected.push(*parent);
+                    }
+                }
+            }
+        }
+    }
     let mut selected_plans: Vec<&checked_trees::CheckedUnitStructuralDomainPlan> = Vec::new();
     for domain in selected {
         let mut found = false;
@@ -1250,7 +1321,15 @@ pub(super) fn lower_unit_structural_domains(
             selected_plans.push(plan);
         }
         if !found {
-            return unsupported("Unit closure references a missing structural domain carrier");
+            return Err(LoweringError::MissingUnitDomainPlan {
+                domain,
+                name: checked
+                    .typed
+                    .semantic_domains
+                    .name(domain)
+                    .unwrap_or_default()
+                    .to_owned(),
+            });
         }
     }
     // Semantic family and exact storage carrier are independent identities.
@@ -1419,6 +1498,20 @@ pub(super) fn lower_unit_structural_domains(
                     cause: Box::new(cause),
                 })?;
             Ok(StructuralDomainDeclaration {
+                required_memberships: plan
+                    .required_memberships
+                    .as_ref()
+                    .map(|required| {
+                        required
+                            .iter()
+                            .map(|domain| {
+                                DomainSemanticId::new(u64::from(domain.0))
+                                    .ok_or(LoweringError::InvalidContentDomainIdentity)
+                            })
+                            .collect::<Result<Vec<_>, _>>()
+                    })
+                    .transpose()?,
+                complete_predicate_theory: plan.complete_predicate_theory,
                 predicate,
                 byte_predicate: plan.byte_predicate,
                 establishment_routes,
@@ -1494,72 +1587,12 @@ pub(super) fn lower_unit_structural_domains(
     Ok((declarations, domain_ids))
 }
 
-fn establishment_requirement_identity(
-    checked: &CheckedTrees,
-    trait_symbol: symbols::SymbolHandle,
-    requirement_symbol: symbols::SymbolHandle,
-) -> Result<String, LoweringError> {
-    let definition = checked
-        .typed
-        .trait_definition_by_symbol(trait_symbol)
-        .ok_or(LoweringError::Unsupported(
-            "domain establishment route names an absent trait",
-        ))?;
-    let signature = checked
-        .typed
-        .trait_machine_signature_by_symbol(definition, requirement_symbol)
-        .ok_or(LoweringError::Unsupported(
-            "domain establishment route names an absent requirement",
-        ))?;
-    Ok(checked
-        .typed
-        .trait_requirement_callable_identity_text(definition, signature))
-}
-
 fn lower_establishment_route(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     route: language_semantics::DomainEstablishmentRoute,
 ) -> Result<terminal_psi::StructuralEstablishmentRoute, LoweringError> {
-    Ok(match route {
-        language_semantics::DomainEstablishmentRoute::CheckedRequirement {
-            trait_definition,
-            requirement,
-        } => terminal_psi::StructuralEstablishmentRoute::Requirement {
-            requirement: identities.intern(&establishment_requirement_identity(
-                checked,
-                trait_definition,
-                requirement,
-            )?),
-        },
-        language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
-            boundary_trait,
-            requirement,
-        } => terminal_psi::StructuralEstablishmentRoute::BoundaryRequirement {
-            requirement: identities.intern(&establishment_requirement_identity(
-                checked,
-                boundary_trait,
-                requirement,
-            )?),
-        },
-        language_semantics::DomainEstablishmentRoute::ExactMachine { machine } => {
-            let declaration = checked
-                .typed
-                .machine(machine)
-                .ok_or(LoweringError::Unsupported(
-                    "domain establishment route names an absent machine",
-                ))?;
-            let machine = checked
-                .typed
-                .machine_callable_identity_text(declaration)
-                .ok_or(LoweringError::Unsupported(
-                    "domain establishment route machine has no normalized identity",
-                ))?;
-            terminal_psi::StructuralEstablishmentRoute::ExactMachine {
-                machine: identities.intern(&machine),
-            }
-        }
-    })
+    crate::expression_preparation::qualifications::establishment_route(identities, checked, &route)
 }
 
 /// Normalize one authored establishment catalog to its source-free form.
@@ -1618,7 +1651,7 @@ pub(super) fn lower_establishment_routes(
             .ok_or(LoweringError::Unsupported(
                 "domain establishment route names an absent requirement",
             ))?;
-        for signature in checked.requirement_machine_instances(declared) {
+        for signature in checked.executable_requirement_machine_instances(declared) {
             let mut application = *route;
             match &mut application {
                 language_semantics::DomainEstablishmentRoute::CheckedRequirement {
@@ -1715,10 +1748,19 @@ pub(super) fn call_result_qualification_establishments(
         };
         let requirement =
             identities.intern(&checked.trait_requirement_callable_identity_text(owner, signature));
+        let declaration = crate::machine_lowering::declarations::semantic_identity(
+            identities,
+            checked,
+            boundary_callee,
+        )
+        .map_err(|_| {
+            LoweringError::Unsupported("boundary issuer lost its exact declaration owner")
+        })?;
         if let Some(index) = catalog.iter().position(|route| {
             matches!(route, terminal_psi::StructuralEstablishmentRoute::BoundaryRequirement {
-                requirement: candidate,
-            } if *candidate == requirement)
+                requirement_identity: candidate,
+                declaration: candidate_owner,
+            } if *candidate == requirement && candidate_owner.identity() == declaration)
         }) {
             establishments.push(terminal_psi::ResultQualificationEstablishment {
                 domain: lookup_domain_id(domain_ids, *domain)?,
@@ -1811,6 +1853,7 @@ pub(super) fn lower_unit_services_including(
                 | checked_trees::structural_field_write_pattern!()
                 | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
                 | CheckedUnitEffectOperationPlan::AtomicFence { .. }
+                | CheckedUnitEffectOperationPlan::EvaluateStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::Complete { .. } => {}
             }
         }
@@ -1944,7 +1987,7 @@ pub(crate) fn lower_root_service_reach(
                 .flat_map(|owner| {
                     checked
                         .typed
-                        .trait_machine_instances(owner)
+                        .executable_trait_machine_instances(owner)
                         .filter(move |requirement| requirement.symbol == dependency.requirement)
                         .map(move |requirement| (owner, requirement))
                 })

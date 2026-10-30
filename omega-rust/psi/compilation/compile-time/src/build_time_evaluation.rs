@@ -11,19 +11,49 @@ use typed_trees::references::DeclarationSelection;
 /// completed Build jobs but still needs shared toolchain declarations. Build
 /// execution instead keeps exactly its admitted roster: a Product descriptor
 /// operand must never promote a Product implementation into callable context.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, compiler_storage::Record)]
 pub(crate) struct EvaluationDomain {
     work: DeclarationSelection,
     execution: DeclarationSelection,
     product_frontier: Option<Arc<typed_trees::TypedTrees>>,
+    pub(crate) accounting: crate::evaluation_accounting::EvaluationAccounting,
 }
 
+// Accounting is per-attempt scratch, never semantic input. Projection and
+// demanded-root clones share it only during the synchronous recorded precheck;
+// returned deferred work drops it before any later admission can resume.
+impl PartialEq for EvaluationDomain {
+    fn eq(&self, other: &Self) -> bool {
+        self.work == other.work
+            && self.execution == other.execution
+            && self.product_frontier == other.product_frontier
+    }
+}
+impl Eq for EvaluationDomain {}
+
 impl EvaluationDomain {
+    pub(crate) fn with_accounting(
+        mut self,
+        accounting: crate::evaluation_accounting::EvaluationAccounting,
+    ) -> Self {
+        self.accounting = accounting;
+        self
+    }
+
+    pub(crate) fn admission(
+        &self,
+        program: &typed_trees::TypedTrees,
+        authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    ) -> crate::BuildTimeAdmissionPlan {
+        crate::BuildTimeAdmissionPlan::infer(program, authority)
+            .with_accounting(self.accounting.clone())
+    }
     pub(crate) fn selected(work: DeclarationSelection, execution: DeclarationSelection) -> Self {
         Self {
             work,
             execution,
             product_frontier: None,
+            accounting: Default::default(),
         }
     }
 
@@ -32,6 +62,7 @@ impl EvaluationDomain {
             work: DeclarationSelection::all(),
             execution: DeclarationSelection::all(),
             product_frontier: None,
+            accounting: Default::default(),
         }
     }
 
@@ -79,6 +110,7 @@ impl EvaluationDomain {
         );
         domain.execution = domain.execution.intersect(&self.execution);
         domain.product_frontier = self.product_frontier.clone();
+        domain.accounting = self.accounting.clone();
         domain
     }
 
@@ -117,23 +149,11 @@ use crate::{
     layouts::plan_laid, layouts::wire_plans,
 };
 
-/// Inputs retained by package-aware probes and generated extension evaluation.
-///
-/// Source-scoped bindings are borrowed for this run; the source map and selection
-/// authority can be retained by evaluators. An extension may select nominal
-/// arguments from its predecessor, never re-normalize that predecessor's templates.
-pub struct BuildTimeSourceContext<'source> {
-    pub sources: Arc<source::SourceMap>,
-    pub source_scoped_top_level_bindings: &'source [symbols::SourceScopedTopLevelBinding],
-    pub selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
-    pub retained_base: Option<&'source symbol_resolved_trees::SymbolResolvedTrees>,
-}
-
 /// One pre-resolution evaluation request. Standalone syntax has no source
 /// context; source-bound runs keep loader bindings and authority together.
 pub struct BuildTimeEvaluationRequest<'source> {
     pub syntax_trees: syntax_trees::SyntaxTrees,
-    pub source_context: Option<BuildTimeSourceContext<'source>>,
+    pub source_context: BuildTimeSources<'source>,
 }
 
 /// Evaluate syntax before resolution and retain the matching typed continuation.
@@ -144,95 +164,54 @@ pub fn evaluate_pre_resolution(
         syntax_trees,
         source_context,
     } = request;
-    let (sources, source_scoped_top_level_bindings, selection_authority, retained_base) =
-        match source_context {
-            Some(context) => (
-                Some(context.sources),
-                context.source_scoped_top_level_bindings,
-                context.selection_authority,
-                context.retained_base,
-            ),
-            None => (None, &[][..], None, None),
-        };
-    let syntax_trees = const_initializers::evaluate(
-        syntax_trees,
-        sources.clone(),
-        source_scoped_top_level_bindings,
-        selection_authority.clone(),
-    )?;
-    let syntax_trees = const_generic_expressions::evaluate(
-        syntax_trees,
-        sources.clone(),
-        source_scoped_top_level_bindings,
-        selection_authority.as_deref(),
-    )?;
-    let syntax_trees = crate::const_evaluation::const_qualifications::prove_ready(
-        syntax_trees,
-        sources.clone(),
-        source_scoped_top_level_bindings,
-    )?;
+    // Every job sees the same declaration context. Source custody without its
+    // retained declarations would turn an ordinary imported constant call into
+    // Unknown; restarting just that job on fresh syntax loses the same bodies.
+    let syntax_trees = const_initializers::evaluate(syntax_trees, &source_context)?;
+    let syntax_trees = const_generic_expressions::evaluate(syntax_trees, &source_context)?;
+    let syntax_trees =
+        crate::const_evaluation::const_qualifications::prove_ready(syntax_trees, &source_context)?;
     // Canonical ranges must exist before the const-call probe normalizes its
     // syntax clone: that clone's generic synthesis is itself an equation
     // customer, so retained endpoints cannot arrive after it.
-    let syntax_trees = range_arguments::evaluate(
-        syntax_trees,
-        sources.clone(),
-        source_scoped_top_level_bindings,
-        selection_authority.clone(),
-    )?;
-    let mut syntax_trees = const_generic_calls::evaluate_const_generic_calls(
-        syntax_trees,
-        BuildTimeSources {
-            sources: sources.clone(),
-            source_scoped_top_level_bindings,
-            selection_authority: selection_authority.clone(),
-        },
-    )?;
+    let syntax_trees = range_arguments::evaluate(syntax_trees, &source_context)?;
+    let mut syntax_trees =
+        const_generic_calls::evaluate_const_generic_calls(syntax_trees, source_context.clone())?;
     syntax_trees_to_symbol_resolved_trees::pre_resolution::synthesize_trait_defaults(
         &mut syntax_trees,
-        sources.clone(),
-        source_scoped_top_level_bindings.to_vec(),
+        source_context.sources.clone(),
+        source_context.source_scoped_top_level_bindings.to_vec(),
+        source_context.retained_base(),
     )?;
-    let placed_view_records = placed_views::desugar_placed_views(
-        &mut syntax_trees,
-        BuildTimeSources {
-            sources: sources.clone(),
-            source_scoped_top_level_bindings,
-            selection_authority: selection_authority.clone(),
-        },
-    )?;
+    let placed_view_records =
+        placed_views::desugar_placed_views(&mut syntax_trees, source_context.clone())?;
+    let roots_before_generic = syntax_trees.root_item_handles().len();
     let mut syntax_trees = crate::syntax_probes::normalize_generic_data(
         syntax_trees,
-        sources.clone(),
-        source_scoped_top_level_bindings,
-        retained_base,
+        source_context.sources.clone(),
+        source_context.source_scoped_top_level_bindings,
+        source_context.retained_base(),
     )?;
     // Generic field extents become owned constant uses only after their exact
     // instance tuple has been copied. Close them through the same expression
     // and invocation admission used by ordinary static arguments.
-    syntax_trees = const_generic_expressions::evaluate(
-        syntax_trees,
-        sources.clone(),
-        source_scoped_top_level_bindings,
-        selection_authority.as_deref(),
-    )?;
-    syntax_trees = const_generic_calls::evaluate_const_generic_calls(
-        syntax_trees,
-        BuildTimeSources {
-            sources: sources.clone(),
-            source_scoped_top_level_bindings,
-            selection_authority: selection_authority.clone(),
-        },
-    )?;
+    if syntax_trees.root_item_handles().len() > roots_before_generic {
+        syntax_trees = const_generic_expressions::evaluate(syntax_trees, &source_context)?;
+        syntax_trees = const_generic_calls::evaluate_const_generic_calls(
+            syntax_trees,
+            source_context.clone(),
+        )?;
+    }
     let plan_laid_records = plan_laid::desugar_plan_laid_value_types(&mut syntax_trees)?;
     Ok(PreResolutionEvaluation {
         syntax_trees,
         pre_check: PreCheckEvaluation {
+            recorded_authority: None,
             domain: EvaluationDomain::all(),
             wire_schema_frontier: 0,
             placed_view_records,
             plan_laid_records,
-            selection_authority,
+            selection_authority: source_context.selection_authority,
             selected_operators: Vec::new(),
             provider_bodies: Vec::new(),
         },
@@ -253,13 +232,42 @@ pub struct SelectedBuildTimeOperators<'a> {
     pub provider_bodies: &'a [SelectedBuildTimeProviderBody],
 }
 
-/// The sources one syntax-phase evaluation resolves against: the source map,
-/// the source-scoped top-level bindings, and the selection authority.
+/// One source activation's lookup and invocation context. A predecessor lends
+/// exact declarations and bodies, not its historical invocation authority.
+/// Every syntax job borrows this same context; generated siblings share the
+/// predecessor but never participate in each other's normalization.
 #[derive(Clone, Default)]
 pub struct BuildTimeSources<'a> {
+    /// Parsed declaration context, separate from the cohort being elaborated.
+    /// Lookup still selects through the receiving namespace and authority.
+    pub declaration_syntax: Option<&'a syntax_trees::SyntaxTrees>,
     pub sources: Option<Arc<source::SourceMap>>,
     pub source_scoped_top_level_bindings: &'a [symbols::SourceScopedTopLevelBinding],
     pub selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    pub predecessor: Option<symbol_resolved_trees_to_typed_trees::SeededTypingBase>,
+}
+
+impl BuildTimeSources<'_> {
+    pub(crate) fn retained_base(&self) -> Option<&symbol_resolved_trees::SymbolResolvedTrees> {
+        self.predecessor
+            .as_ref()
+            .map(|predecessor| predecessor.resolved())
+    }
+
+    pub(crate) fn resolution_request(
+        &self,
+        syntax: syntax_trees::SyntaxTrees,
+    ) -> syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax,
+            sources: self.sources.clone(),
+            top_level_bindings: self.source_scoped_top_level_bindings.to_vec(),
+            retained_base: self
+                .predecessor
+                .as_ref()
+                .map(|predecessor| predecessor.shared_resolved()),
+        }
+    }
 }
 
 /// A selection authority together with the invocation custody it admitted:
@@ -283,7 +291,7 @@ impl PreResolutionEvaluation {
     pub fn evaluate_extension(
         units: Vec<syntax_trees::SyntaxTrees>,
         first_source: source::SourceId,
-        context: BuildTimeSourceContext<'_>,
+        context: BuildTimeSources<'_>,
     ) -> Result<(syntax_trees::SyntaxTrees, Vec<PreCheckEvaluation>), Vec<diagnostics::Diagnostic>>
     {
         let mut syntax: Option<syntax_trees::SyntaxTrees> = None;
@@ -291,12 +299,7 @@ impl PreResolutionEvaluation {
         for unit in units {
             let evaluated = evaluate_pre_resolution(BuildTimeEvaluationRequest {
                 syntax_trees: unit,
-                source_context: Some(BuildTimeSourceContext {
-                    sources: context.sources.clone(),
-                    source_scoped_top_level_bindings: context.source_scoped_top_level_bindings,
-                    selection_authority: context.selection_authority.clone(),
-                    retained_base: context.retained_base,
-                }),
+                source_context: context.clone(),
             })?;
             let (unit, pre_check) = evaluated.into_syntax_and_pre_check();
             match &mut syntax {
@@ -332,6 +335,7 @@ impl PreResolutionEvaluation {
 #[derive(Clone)]
 #[must_use = "the matching typed tree must consume this pre-check continuation"]
 pub struct PreCheckEvaluation {
+    recorded_authority: Option<validation::RecordedDeclarationAuthority>,
     /// Work roots, never an arena copy: folded types, evidence and fresh
     /// instances publish in the canonical frontend's original storage.
     domain: EvaluationDomain,
@@ -352,6 +356,8 @@ pub struct PreCheckEvaluation {
 pub struct EvaluatedPreCheck {
     domain: EvaluationDomain,
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    selected_operators: Vec<SelectedBuildTimeBinaryOperator>,
+    provider_bodies: Vec<SelectedBuildTimeProviderBody>,
 }
 
 impl EvaluatedPreCheck {
@@ -359,25 +365,166 @@ impl EvaluatedPreCheck {
         self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-        const_initializers::settle_target_observations(
-            typed,
-            self.selection_authority.clone(),
-            &self.domain,
-        )?;
+        let _g = phase_profile::guard("evaluate_or_defer.finish");
+        let selected = SelectedBuildTimeOperators {
+            operators: &self.selected_operators,
+            provider_bodies: &self.provider_bodies,
+        };
+        {
+            let _g = phase_profile::guard("evaluate_or_defer.finish.settle_target_observations");
+            const_initializers::settle_target_observations(
+                typed,
+                self.selection_authority.clone(),
+                &self.domain,
+                selected,
+            )?;
+        }
+        let _g = phase_profile::guard("evaluate_or_defer.finish.validate_retained_invocations");
         const_initializers::validate_retained_invocations(
             typed,
             self.selection_authority,
             &self.domain,
+            selected,
         )
     }
 }
 
 impl PreCheckEvaluation {
+    /// A disk candidate has no live authority. Only an equal recorded package
+    /// scope and the matching typed source owner permit rebinding it.
+    pub fn rejoin_source_authority(
+        &mut self,
+        program: &typed_trees::TypedTrees,
+        authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    ) -> Result<(), String> {
+        if let Some(recorded) = &self.recorded_authority {
+            self.selection_authority = match recorded {
+                // A continuation can carry pre-reconciliation jobs beside
+                // later package-owned jobs. Fresh evaluation preserves each
+                // producer's mode; the enclosing source context separately
+                // rejoins its complete current authority. Absence here is not
+                // a wildcard in that outer comparison.
+                validation::RecordedDeclarationAuthority::Absent => None,
+                validation::RecordedDeclarationAuthority::Packages(_) => {
+                    // Inherited jobs keep their projected work and executable
+                    // roster when another source adds Product declarations.
+                    // Compare every requester in both rosters, including any
+                    // explicit selected realization outside those roots. An
+                    // All execution roster deliberately remains conservative.
+                    let declarations =
+                        typed_trees::references::collect_program_declarations(program)
+                            .into_iter()
+                            .filter(|symbol| {
+                                self.domain.work.contains(*symbol)
+                                    || self.domain.execution.contains(*symbol)
+                            })
+                            .chain(
+                                self.selected_operators
+                                    .iter()
+                                    .map(|operator| operator.requirement),
+                            )
+                            .chain(self.provider_bodies.iter().flat_map(|provider| {
+                                [
+                                    provider.requirement,
+                                    provider.provider_machine,
+                                    provider.provider_state,
+                                    provider.provider_declaration,
+                                ]
+                            }));
+                    let mut sites = declarations
+                        .filter_map(|symbol| program.symbols.symbol_provenance_source_span(symbol))
+                        .collect::<Vec<_>>();
+                    let uses = self
+                        .selected_operators
+                        .iter()
+                        .map(|operator| {
+                            (
+                                operator.expression,
+                                operator.origin,
+                                operator.operands.as_slice(),
+                            )
+                        })
+                        .chain(self.provider_bodies.iter().map(|provider| {
+                            (
+                                provider.expression,
+                                provider.origin,
+                                provider.operands.as_slice(),
+                            )
+                        }));
+                    let mut needs_full_scope = false;
+                    for (expression, origin, operands) in uses {
+                        if let Some(machine) = origin.machine_symbol() {
+                            match program.symbols.symbol_provenance_source_span(machine) {
+                                Some(site) => sites.push(site),
+                                None => needs_full_scope = true,
+                            }
+                        }
+                        let parent = match origin {
+                            checked_trees::CheckedValueOrigin::NestedExpression { parent } => {
+                                Some(parent)
+                            }
+                            _ => None,
+                        };
+                        for occurrence in std::iter::once(expression)
+                            .chain(parent)
+                            .chain(operands.iter().copied())
+                        {
+                            match program.expression_table.try_source_span(occurrence) {
+                                Some(site) if site.span.start < site.span.end => sites.push(site),
+                                _ => needs_full_scope = true,
+                            }
+                        }
+                    }
+                    // A shared synthesized layout can have several callers in
+                    // different packages. Each application retains its own
+                    // requester even though the policy result has one owner.
+                    sites.extend(
+                        self.placed_view_records
+                            .iter()
+                            .flat_map(|record| record.invocation_sources.iter().copied()),
+                    );
+                    sites.extend(
+                        self.plan_laid_records
+                            .iter()
+                            .flat_map(|record| record.invocation_sources.iter().copied()),
+                    );
+                    recorded.require_current_sites(
+                        authority.as_deref(),
+                        program,
+                        sites.into_iter(),
+                    )?;
+                    if needs_full_scope {
+                        let sources = program
+                            .symbols
+                            .source_map()
+                            .ok_or("retained selected use has no complete source context")?;
+                        recorded.require_current(authority.as_deref(), &sources)?;
+                    }
+                    // Descriptor lookup is inert, but its original source
+                    // custody still participates in the comparison. Keep that
+                    // frontier conservative until its exact demands narrow it.
+                    if let Some(frontier) = &self.domain.product_frontier {
+                        let sources = frontier
+                            .symbols
+                            .source_map()
+                            .ok_or("retained Product descriptor frontier has no source context")?;
+                        recorded.require_current(authority.as_deref(), &sources)?;
+                    }
+                    authority
+                }
+            };
+            self.recorded_authority = None;
+        }
+        Ok(())
+    }
+
     /// Compare pending work from the same source-preparation owner. An authority
     /// object is opaque: only a shared object can establish the same selection
     /// context here. This is input matching, never permission to execute work.
     pub fn same_pending_work(&self, other: &Self) -> bool {
-        self.domain == other.domain
+        self.recorded_authority.is_none()
+            && other.recorded_authority.is_none()
+            && self.domain == other.domain
             && self.wire_schema_frontier == other.wire_schema_frontier
             && self.placed_view_records == other.placed_view_records
             && self.plan_laid_records == other.plan_laid_records
@@ -409,15 +556,33 @@ impl PreCheckEvaluation {
                 work: self.domain.work.intersect(&selected),
                 execution: self.domain.execution.intersect(&selected),
                 product_frontier: projection.product_declaration_frontier.clone(),
+                accounting: self.domain.accounting.clone(),
             },
         )
     }
 
-    /// Retain Product work after a Build projection completed successfully.
-    /// Call only after its independent checking and fold replay succeeded.
-    /// Newly synthesized Build declarations must be present in the completed
-    /// projection, so subtraction carries their exact identities too.
-    pub fn exclude_projection(
+    /// A source activation changes the canonical declaration roster, unlike a
+    /// private checking projection. Rebase its positional wire checkpoint onto
+    /// the selected prefix while retaining exact work and execution owners.
+    pub fn activate_sources(
+        &self,
+        original: &typed_trees::TypedTrees,
+        activation: &typed_trees::TypedTrees,
+    ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
+        let mut pending = self.project(original, activation)?;
+        let selected = DeclarationSelection::from_program(activation);
+        pending.wire_schema_frontier = original.wire_schemas()[..self.wire_schema_frontier]
+            .iter()
+            .filter(|schema| selected.contains(schema.symbol))
+            .count();
+        Ok(pending)
+    }
+
+    /// Remove work completed by another owned cohort, not its execution context.
+    /// The caller retains that cohort's remaining recipes independently. For a
+    /// Build projection, checking and fold replay must succeed before excluding
+    /// its work; synthesized declarations belong to that completed roster too.
+    pub fn exclude_completed_work(
         &self,
         original: &typed_trees::TypedTrees,
         completed_projection: &typed_trees::TypedTrees,
@@ -431,6 +596,7 @@ impl PreCheckEvaluation {
                     .excluding(&DeclarationSelection::from_program(completed_projection)),
                 execution: self.domain.execution.clone(),
                 product_frontier: self.domain.product_frontier.clone(),
+                accounting: self.domain.accounting.clone(),
             },
         )
     }
@@ -463,6 +629,7 @@ impl PreCheckEvaluation {
                 )]
             })?;
         Ok(Self {
+            recorded_authority: self.recorded_authority.clone(),
             domain,
             wire_schema_frontier: self.wire_schema_frontier,
             placed_view_records,
@@ -473,32 +640,69 @@ impl PreCheckEvaluation {
         })
     }
 
+    /// Execute the existing precheck route with explicit invocation accounting.
+    /// A deferred continuation does not retain the scratch collector: later
+    /// selected-provider work belongs to its own completion/admission.
+    pub fn evaluate_or_defer_recorded(
+        mut self,
+        typed: &mut typed_trees::TypedTrees,
+    ) -> Result<crate::RecordedPreCheck, Vec<diagnostics::Diagnostic>> {
+        let accounting = crate::evaluation_accounting::EvaluationAccounting::recording();
+        self.domain.accounting = accounting.clone();
+        let mut pending = self.evaluate_or_defer(typed)?;
+        if let Some(pending) = &mut pending {
+            pending.domain.accounting = Default::default();
+        }
+        Ok(crate::RecordedPreCheck {
+            pending,
+            accounting: accounting
+                .finish()
+                .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?,
+        })
+    }
+
     /// Keep value-dependent work together until exact boundary execution is
     /// selected. Independent ordinary build inputs retain their early route.
     pub fn evaluate_or_defer(
         mut self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<Option<Self>, Vec<diagnostics::Diagnostic>> {
-        if const_lengths::evaluate_independent_lengths(
-            typed,
-            self.selection_authority.clone(),
-            &self.domain,
-        )? || range_endpoints::pending_endpoint_calls_need_operator_selection(
-            typed,
-            self.selection_authority.clone(),
-            &self.domain,
-        )? || const_domain_facts::pending_memberships_need_operator_selection(
-            typed,
-            self.selection_authority.clone(),
-            &self.domain,
-        )? || const_applications::pending_const_applications_need_operator_selection(
-            typed,
-            self.selection_authority.clone(),
-            &self.domain,
-        )? || data_layout_queries::pending_layout_queries_need_operator_selection(
-            typed,
-            self.domain.work(),
-        ) {
+        if self.recorded_authority.is_some() {
+            return Err(vec![diagnostics::Diagnostic::error(
+                "restored pre-check has not rejoined current declaration authority",
+            )]);
+        }
+        const_initializers::retain_deferred_entries(typed, &self.domain);
+        let defer = {
+            let _g = phase_profile::guard("evaluate_or_defer.check_defer");
+            phase_profile::scope("evaluate_or_defer.check_defer.independent_lengths", || {
+                const_lengths::evaluate_independent_lengths(
+                    typed,
+                    self.selection_authority.clone(),
+                    &self.domain,
+                )
+            })? || phase_profile::scope("evaluate_or_defer.check_defer.endpoint_calls", || {
+                range_endpoints::pending_endpoint_calls_need_operator_selection(
+                    typed,
+                    self.selection_authority.clone(),
+                    &self.domain,
+                )
+            })? || phase_profile::scope("evaluate_or_defer.check_defer.memberships", || {
+                const_domain_facts::pending_memberships_need_operator_selection(
+                    typed,
+                    self.selection_authority.clone(),
+                    &self.domain,
+                )
+            })? || phase_profile::scope("evaluate_or_defer.check_defer.const_applications", || {
+                const_applications::pending_const_applications_need_operator_selection(
+                    typed,
+                    self.selection_authority.clone(),
+                    &self.domain,
+                )
+            })? || data_layout_queries::has_pending_target_observations(typed, self.domain.work())
+        };
+        if defer {
+            let _g = phase_profile::guard("evaluate_or_defer.defer_path");
             range_endpoints::defer_pending_endpoint_calls_in(typed, &self.domain)?;
             const_applications::defer_pending_const_applications(typed, &self.domain)?;
             // A const-generic application of a recipe call becomes a symbolic
@@ -553,6 +757,11 @@ impl PreCheckEvaluation {
         typed: &mut typed_trees::TypedTrees,
         selected: SelectedBuildTimeOperators<'_>,
     ) -> Result<EvaluatedPreCheck, Vec<diagnostics::Diagnostic>> {
+        if self.recorded_authority.is_some() {
+            return Err(vec![diagnostics::Diagnostic::error(
+                "restored pre-check has not rejoined current declaration authority",
+            )]);
+        }
         const_lengths::evaluate_selected_array_lengths(
             typed,
             self.selection_authority.clone(),
@@ -573,6 +782,11 @@ impl PreCheckEvaluation {
         self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        if self.recorded_authority.is_some() {
+            return Err(vec![diagnostics::Diagnostic::error(
+                "restored pre-check has not rejoined current declaration authority",
+            )]);
+        }
         self.evaluate_work(typed)?.finish(typed)
     }
 
@@ -580,65 +794,133 @@ impl PreCheckEvaluation {
         mut self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<EvaluatedPreCheck, Vec<diagnostics::Diagnostic>> {
-        const_lengths::evaluate_const_array_lengths_in(
-            typed,
-            self.selection_authority.clone(),
-            &self.domain,
-        )?;
-        range_endpoints::evaluate_selected_range_endpoints(
-            typed,
-            self.selection_authority.clone(),
-            SelectedBuildTimeOperators {
-                operators: &self.selected_operators,
-                provider_bodies: &self.provider_bodies,
+        let _g = phase_profile::guard("evaluate_or_defer.evaluate_work");
+        const_initializers::retain_deferred_entries(typed, &self.domain);
+        phase_profile::scope(
+            "evaluate_or_defer.evaluate_work.const_array_lengths",
+            || {
+                const_lengths::evaluate_const_array_lengths_in(
+                    typed,
+                    self.selection_authority.clone(),
+                    &self.domain,
+                )
             },
-            &self.domain,
         )?;
-        const_domain_facts::evaluate_selected_domain_facts(
-            typed,
-            self.selection_authority.clone(),
-            SelectedBuildTimeOperators {
-                operators: &self.selected_operators,
-                provider_bodies: &self.provider_bodies,
-            },
-            &self.domain,
-        )?;
-        const_applications::evaluate_selected_const_applications(
-            typed,
-            self.selection_authority.clone(),
-            SelectedBuildTimeOperators {
-                operators: &self.selected_operators,
-                provider_bodies: &self.provider_bodies,
-            },
-            &mut self.domain,
-        )?;
-        plan_laid::compute_plan_laid_layouts_in(
-            typed,
-            &self.plan_laid_records,
-            self.selection_authority.clone(),
-            &self.domain,
-        )?;
-        placed_views::validate_placed_view_plans_in(
-            typed,
-            &self.placed_view_records,
-            self.selection_authority.clone(),
-            &self.domain,
-        )?;
-        wire_plans::compute_wire_plans_in(
-            typed,
-            self.selection_authority.clone(),
-            self.wire_schema_frontier,
-            &self.domain,
-        )?;
+        phase_profile::scope("evaluate_or_defer.evaluate_work.range_endpoints", || {
+            range_endpoints::evaluate_selected_range_endpoints(
+                typed,
+                self.selection_authority.clone(),
+                SelectedBuildTimeOperators {
+                    operators: &self.selected_operators,
+                    provider_bodies: &self.provider_bodies,
+                },
+                &self.domain,
+            )
+        })?;
+        phase_profile::scope("evaluate_or_defer.evaluate_work.domain_facts", || {
+            const_domain_facts::evaluate_selected_domain_facts(
+                typed,
+                self.selection_authority.clone(),
+                SelectedBuildTimeOperators {
+                    operators: &self.selected_operators,
+                    provider_bodies: &self.provider_bodies,
+                },
+                &self.domain,
+            )
+        })?;
+        phase_profile::scope("evaluate_or_defer.evaluate_work.const_applications", || {
+            const_applications::evaluate_selected_const_applications(
+                typed,
+                self.selection_authority.clone(),
+                SelectedBuildTimeOperators {
+                    operators: &self.selected_operators,
+                    provider_bodies: &self.provider_bodies,
+                },
+                &mut self.domain,
+            )
+        })?;
+        phase_profile::scope("evaluate_or_defer.evaluate_work.plan_laid_layouts", || {
+            plan_laid::compute_plan_laid_layouts_in(
+                typed,
+                &self.plan_laid_records,
+                self.selection_authority.clone(),
+                &self.domain,
+            )
+        })?;
+        phase_profile::scope("evaluate_or_defer.evaluate_work.placed_view_plans", || {
+            placed_views::validate_placed_view_plans_in(
+                typed,
+                &self.placed_view_records,
+                self.selection_authority.clone(),
+                &self.domain,
+            )
+        })?;
+        phase_profile::scope("evaluate_or_defer.evaluate_work.wire_plans", || {
+            wire_plans::compute_wire_plans_in(
+                typed,
+                self.selection_authority.clone(),
+                self.wire_schema_frontier,
+                &self.domain,
+            )
+        })?;
         // Every position this evaluation folded leaves the recipe roster;
         // only still-symbolic positions remain for a later target closure.
         typed.retain_symbolic_constant_recipes();
         // Installed view plans bind their accessor targets before any later
         // continuation consumes them; initializer settlement waits for queries.
-        validation::resolve_selected_dynamic_call_targets(typed, self.domain.work())?;
+        phase_profile::scope(
+            "evaluate_or_defer.evaluate_work.dynamic_call_targets",
+            || validation::resolve_selected_dynamic_call_targets(typed, self.domain.work()),
+        )?;
         Ok(EvaluatedPreCheck {
             domain: self.domain,
             selection_authority: self.selection_authority,
+            selected_operators: self.selected_operators,
+            provider_bodies: self.provider_bodies,
+        })
+    }
+}
+
+impl compiler_storage::Record for PreCheckEvaluation {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        output.record(|output| {
+            self.domain.write(output)?;
+            self.wire_schema_frontier.write(output)?;
+            self.placed_view_records.write(output)?;
+            self.plan_laid_records.write(output)?;
+            let captured;
+            let authority = match &self.recorded_authority {
+                Some(authority) => authority,
+                None => {
+                    captured = validation::RecordedDeclarationAuthority::capture(
+                        self.selection_authority.as_deref(),
+                    )
+                    .map_err(|reason| output.error(reason))?;
+                    &captured
+                }
+            };
+            authority.write(output)?;
+            self.selected_operators.write(output)?;
+            self.provider_bodies.write(output)
+        })
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        input.record(|input| {
+            Ok(Self {
+                domain: compiler_storage::Record::read(input)?,
+                wire_schema_frontier: compiler_storage::Record::read(input)?,
+                placed_view_records: compiler_storage::Record::read(input)?,
+                plan_laid_records: compiler_storage::Record::read(input)?,
+                recorded_authority: Some(compiler_storage::Record::read(input)?),
+                selection_authority: None,
+                selected_operators: compiler_storage::Record::read(input)?,
+                provider_bodies: compiler_storage::Record::read(input)?,
+            })
         })
     }
 }

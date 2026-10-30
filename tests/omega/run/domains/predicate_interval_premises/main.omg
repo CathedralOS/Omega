@@ -4,9 +4,9 @@
 // entry `requires`, a dominating guard -- establishes the membership even
 // when it is spelled differently from the domain's predicate: `x < 10`
 // establishes `value <= 15`. Unsigned, signed and field subjects are shown.
-domain u64::Small(value) requires value <= 15;
+domain u64::Small requires self <= 15;
 
-domain i32::Centered(value) requires value >= -5 && value <= 5;
+domain i32::Centered requires self >= -5 && self <= 5;
 
 data Box [copy] { size: u64; }
 
@@ -25,8 +25,8 @@ machine guarded(x: u64) -> u64 {
         true -> small(x)
         false -> large()
     }
-    state small(y: u64) -> u64 { use_small(y) }
-    state large() -> u64 { 0 }
+    machine small(y: u64) -> u64 { use_small(y) }
+    machine large() -> u64 { 0 }
 }
 
 machine main() crashes Trap {
@@ -35,6 +35,6 @@ machine main() crashes Trap {
     let c: u64 = relay_field(Box { size: 11 });
     let d: i32 = relay_signed(-2);
     transition a == 3 && b == 12 && c == 11 && d == -2 { true -> done() false -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

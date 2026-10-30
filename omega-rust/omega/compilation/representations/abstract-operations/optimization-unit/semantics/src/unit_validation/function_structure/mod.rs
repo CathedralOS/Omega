@@ -31,7 +31,8 @@ mod descriptor_sources;
 mod fixed_byte_freshness;
 pub(crate) use byte_predicates::{
     byte_field_predicates, byte_write_predicates, concatenation_preserves_predicates,
-    copied_field_predicates_at_transfer, replacement_preserves_predicates, whole_source_predicates,
+    copied_field_predicates_at_invocation, copied_field_predicates_at_transfer,
+    replacement_preserves_predicates, whole_source_predicates,
 };
 pub(crate) use byte_views::byte_field_store_capacity;
 pub use byte_views::declared_descriptor_home;
@@ -43,7 +44,9 @@ mod parameters;
 mod provenance;
 mod results;
 mod structural_roots;
-pub(crate) use structural_roots::{operation_place_accesses, operation_place_inputs};
+pub(crate) use structural_roots::{
+    ReferenceMembershipValidation, operation_place_accesses, operation_place_inputs,
+};
 mod structural_transfers;
 
 pub(crate) use control_flow::ControlCyclePolicy;
@@ -63,6 +66,7 @@ pub(crate) fn validate_function(
         terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement,
     >,
     ownership_frontiers: &mut Vec<optimization_unit::OwnershipFrontierFact>,
+    reference_memberships: Option<&mut ReferenceMembershipValidation<'_>>,
 ) -> Result<(), OptimizationUnitValidationError> {
     if let Some(subject) = function.nominal_cleanup_subject {
         if function.attachment != Some(subject)
@@ -116,6 +120,8 @@ pub(crate) fn validate_function(
         structural_types,
         structural_domains,
         &control_flow.predecessors,
+        reference_memberships,
+        call_accesses.view_graph(),
     )?;
     crate::unit_validation::references::validate_function_references(
         function,
@@ -155,6 +161,7 @@ pub(crate) fn validate_function(
         services,
         structural_types,
         structural_domains,
+        call_accesses,
     )?;
     validate_places_and_claims(function)?;
     let requirements = current_ownership::validate_current_ownership_frontier_collecting(

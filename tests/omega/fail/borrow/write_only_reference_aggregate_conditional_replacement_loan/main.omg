@@ -4,8 +4,8 @@ data Main { left: Cell; right: Cell; }
 
 machine replace(held: &write Held, incoming: Held, change: bool) {
     transition change { true -> set(&write held, incoming) _ -> done() }
-    state set(held: &write Held, incoming: Held) { held = incoming; }
-    state done() {}
+    machine set(held: &write Held, incoming: Held) { held = incoming; }
+    machine done() {}
 }
 
 machine Main::main(main: &mut Main) crashes Trap {
@@ -22,6 +22,6 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

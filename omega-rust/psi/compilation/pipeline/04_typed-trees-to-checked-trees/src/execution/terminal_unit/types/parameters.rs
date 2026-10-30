@@ -156,11 +156,11 @@ pub(crate) fn erased_proof_parameter_plans(
         .enumerate()
         .filter(|(_, parameter)| parameter.relevance.is_erased())
         .filter(|(_, parameter)| {
-            (proof_only.contract_term_carrier(program, parameter.type_reference)
+            proof_only.contract_term_carrier(program, parameter.type_reference)
                 || validation::mathematical_applications::is_source_evidence_carrier(
                     program,
                     parameter.type_reference,
-                ))
+                )
         })
         .map(|(position, parameter)| {
             Some(checked_trees::CheckedErasedProofParameterPlan {

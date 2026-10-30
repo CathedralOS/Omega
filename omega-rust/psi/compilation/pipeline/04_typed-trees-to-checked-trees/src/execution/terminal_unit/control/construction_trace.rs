@@ -23,7 +23,7 @@ pub(crate) struct LocalConstructionTrace {
 
 /// One position of the trace, so a builder that set a statement aside for a
 /// later owner can return to where it was.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct TraceMark {
     phase: &'static str,
     statement_index: Option<u32>,
@@ -84,7 +84,7 @@ impl LocalConstructionTrace {
             program,
             machine,
             site,
-            CheckedUnitPlanGapReason::Unsupported(self.phase.get()),
+            CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed(self.phase.get())),
         )
     }
 }

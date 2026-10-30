@@ -59,6 +59,6 @@ machine exercise<'storage>(source: &'storage Cell) -> bool {
 machine main() crashes Trap {
     let seed: Cell = Cell { value: 17 };
     transition exercise(&seed) { true -> passed() false -> failed() }
-    state passed() {}
-    state failed() { crash Trap; }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }

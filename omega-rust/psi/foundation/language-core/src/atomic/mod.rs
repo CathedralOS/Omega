@@ -5,7 +5,7 @@
 //! stronger instruction, but source admission first rejects orderings that the
 //! operation cannot mean.
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum MemoryOrdering {
     NoOrdering,
     Receive,
@@ -18,7 +18,7 @@ pub enum MemoryOrdering {
 /// `NoOrdering` or join global sequential order by itself. Its event remains
 /// present even when target refinement needs no instruction; synchronization
 /// additionally requires the matching atomic observation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum FenceOrdering {
     Receive,
     Publish,
@@ -28,7 +28,7 @@ pub enum FenceOrdering {
 /// The operation-specific ordering commitment attached to an atomic source
 /// expression. This survives compiler-authored carrier lowering so later
 /// phases do not have to rediscover semantics from an expression shape.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum AtomicOrderingPlan {
     Load(MemoryOrdering),
     Store(MemoryOrdering),
@@ -51,7 +51,7 @@ pub enum AtomicOrderingPlan {
 ///
 /// This identifies source semantics only. It does not authorize an atomic
 /// attempt or describe a target retry strategy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum AtomicObservingCompareExchangeOperation {
     Decisive,
     SingleAttempt,
@@ -62,7 +62,7 @@ pub enum AtomicObservingCompareExchangeOperation {
 /// `Observed` means that the failure arm carries the exact resident type. The
 /// carrier that retains this shape must separately prove that resident is
 /// copyable; this enum carries no value custody.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum AtomicObservingCompareExchangeResultShape {
     ExchangedOrMismatchedObserved,
     ExchangedOrMismatchedOrUncommittedObserved,
@@ -74,7 +74,7 @@ pub enum AtomicObservingCompareExchangeResultShape {
 /// writes one primitive observation. The distinct single-attempt form retains
 /// the complete three-arm public outcome identity through execution. Naming
 /// this carrier grants no atomic, provider, Terminal, or native authority.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum AtomicExpressionResultCustody {
     Scalar,
     ObservingCompareExchangeOnce(AtomicCompareExchangeOnceResultCustody),
@@ -86,7 +86,7 @@ pub enum AtomicExpressionResultCustody {
 /// The three fields are deliberately redundant. Every phase rechecks their
 /// canonical agreement so a decisive operation, two-arm shape, or sibling
 /// outcome identity cannot substitute under an unchanged ordering plan.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct AtomicCompareExchangeOnceResultCustody {
     pub operation: AtomicObservingCompareExchangeOperation,
     pub result_shape: AtomicObservingCompareExchangeResultShape,
@@ -235,7 +235,7 @@ const OUTCOME_TYPE_PARAMETERS: [&str; 1] = ["T"];
 /// The identity and its schema are descriptive compiler vocabulary. They do
 /// not prove that an operation occurred, grant access or value custody, select
 /// a provider, authorize lowering, or prescribe retry behavior.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum AtomicCompareExchangeOutcomeIdentity {
     AtomicCompareExchangeOutcome,
     AtomicCompareExchangeOnceOutcome,

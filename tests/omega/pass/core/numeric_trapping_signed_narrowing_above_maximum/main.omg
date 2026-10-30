@@ -11,6 +11,6 @@ machine main() {
         _ -> nonnegative()
     }
 
-    state negative() {}
-    state nonnegative() {}
+    machine negative() {}
+    machine nonnegative() {}
 }

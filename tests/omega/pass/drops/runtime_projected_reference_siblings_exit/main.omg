@@ -9,7 +9,7 @@ data Main { first: Leaf; second: Leaf; }
 // Each stored reference must keep its own referent after the root retires.
 machine exercise(input: Pair) -> bool {
     transition { _ -> finish(input.right, input.left) }
-    state finish(first: View, second: View) -> bool {
+    machine finish(first: View, second: View) -> bool {
         first.body.value == 29 && second.body.value == 7
     }
 }
@@ -26,7 +26,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 0)
         _ -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -15,6 +15,22 @@ use numerics::float_semantics_catalog::{
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::PrimitiveType;
 
+impl StructuralJudgment {
+    /// Truth composition only. Each operand is judged by its own authenticated
+    /// meaning and observation environment before it reaches this table.
+    pub(super) fn connective(operator: BinaryOperator, left: Self, right: Self) -> Self {
+        match (operator, left, right) {
+            (BinaryOperator::And, Self::Proven, Self::Proven)
+            | (BinaryOperator::Or, Self::Proven, _)
+            | (BinaryOperator::Or, _, Self::Proven) => Self::Proven,
+            (BinaryOperator::And, Self::Refuted, _)
+            | (BinaryOperator::And, _, Self::Refuted)
+            | (BinaryOperator::Or, Self::Refuted, Self::Refuted) => Self::Refuted,
+            _ => Self::Unknown,
+        }
+    }
+}
+
 impl StructuralJudge<'_> {
     /// An observed Boolean equality against a literal determines the other
     /// operand. This is the inverse of Boolean folding, not an equality law
@@ -64,6 +80,46 @@ impl StructuralJudge<'_> {
         ))
     }
 
+    /// A completed builtin integer/Boolean equality has the ordinary value
+    /// inverse. IEEE equality intentionally has no such identity law. Both
+    /// observations must already be authorized before truth donates an equation.
+    pub(super) fn identity_equality_operands(
+        &self,
+        predicate: &StructuralTerm,
+        truth: &StructuralTerm,
+    ) -> Option<(StructuralTerm, StructuralTerm)> {
+        let StructuralTerm::ScalarBinary {
+            references,
+            operator,
+            meaning,
+            left,
+            right,
+        } = predicate
+        else {
+            return None;
+        };
+        let holds = boolean_value(truth)?;
+        if !matches!(
+            (operator, holds),
+            (BinaryOperator::Equal, true) | (BinaryOperator::NotEqual, false)
+        ) || meaning[0] != meaning[1]
+            || !(meaning[0].0.is_fixed_integer() || meaning[0].0 == PrimitiveType::Bool)
+            || !super::super::structural_terms::scalar_operand_is_observed(
+                self.program,
+                references[0],
+                left,
+            )
+            || !super::super::structural_terms::scalar_operand_is_observed(
+                self.program,
+                references[1],
+                right,
+            )
+        {
+            return None;
+        }
+        Some((*left.clone(), *right.clone()))
+    }
+
     /// Logical conjunction/disjunction have no overloadable operator spelling.
     /// The retained connective decomposes predicates; every leaf still owes
     /// its own exact selected meaning and truth judgment. A scalar result-type
@@ -82,14 +138,10 @@ impl StructuralJudge<'_> {
     ) -> StructuralJudgment {
         let left_judgment = self.judge(self.program, left);
         let right_judgment = self.judge(self.program, right);
-        match (&left_judgment, &right_judgment) {
-            (StructuralJudgment::Proven, _) | (_, StructuralJudgment::Proven) => {
-                return StructuralJudgment::Proven;
-            }
-            (StructuralJudgment::Refuted, StructuralJudgment::Refuted) => {
-                return StructuralJudgment::Refuted;
-            }
-            _ => {}
+        let composed =
+            StructuralJudgment::connective(BinaryOperator::Or, left_judgment, right_judgment);
+        if !matches!(composed, StructuralJudgment::Unknown) {
+            return composed;
         }
         let Some(left_term) = self.declaration_term(left) else {
             return StructuralJudgment::Unknown;
@@ -515,6 +567,75 @@ impl StructuralJudge<'_> {
         None
     }
 
+    /// Enclose an authenticated completed operand, independent of its source
+    /// place spelling. Only true selected IEEE predicates over this exact
+    /// meaning and format contribute; false order has no complement law.
+    pub(in crate::proof_contracts::contract_entailment) fn observed_float_bounds(
+        &self,
+        value: &StructuralTerm,
+        reference: typed_trees::types::TypeReferenceHandle,
+    ) -> Option<crate::proof_contracts::arithmetic_domains::FloatSourceBounds> {
+        use crate::proof_contracts::arithmetic_domains::FloatSourceBounds;
+        let primitive = self.program.primitive_type_reference(reference)?;
+        if !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+            || !super::super::structural_terms::scalar_operand_is_observed(
+                self.program,
+                reference,
+                value,
+            )
+        {
+            return None;
+        }
+        let meaning = self.resolve(projected_meaning(self.program, primitive, value.clone())?);
+        let (format, _) = self.float_projection(&meaning)?;
+        let mut bounds = if let Some((_, literal)) = self.float_literal_endpoint(&meaning) {
+            let value = literal.to_f64();
+            if value.is_nan() {
+                return None;
+            }
+            Some(FloatSourceBounds {
+                primitive,
+                minimum: value,
+                maximum: value,
+            })
+        } else {
+            None
+        };
+        for (predicate, truth) in self.rewrites.iter() {
+            if boolean_value(truth) != Some(true) {
+                continue;
+            }
+            let Some((comparison, left, right)) = self.completed_float_comparison(predicate, 0)
+            else {
+                continue;
+            };
+            let (subject, bound_format, bound, subject_on_left) =
+                if let Some((format, bound)) = self.float_literal_endpoint(&right) {
+                    (&left, format, bound, true)
+                } else if let Some((format, bound)) = self.float_literal_endpoint(&left) {
+                    (&right, format, bound, false)
+                } else {
+                    continue;
+                };
+            if *subject != meaning || bound_format != format {
+                continue;
+            }
+            let Some(observed) = FloatSourceBounds::from_comparison(
+                primitive,
+                float_binary_operator(comparison),
+                bound.to_f64(),
+                subject_on_left,
+            ) else {
+                continue;
+            };
+            bounds = Some(match bounds {
+                Some(previous) => previous.intersect(observed)?,
+                None => observed,
+            });
+        }
+        bounds
+    }
+
     pub(in crate::proof_contracts::contract_entailment) fn observed_float_predicate_judgment(
         &self,
         predicate: &StructuralTerm,
@@ -636,7 +757,7 @@ pub(super) fn boolean_term(value: bool) -> StructuralTerm {
     }
 }
 
-fn boolean_value(value: &StructuralTerm) -> Option<bool> {
+pub(super) fn boolean_value(value: &StructuralTerm) -> Option<bool> {
     let StructuralTerm::Constructor { data, case, fields } = value.semantic_value() else {
         return None;
     };

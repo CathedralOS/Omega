@@ -21,7 +21,7 @@ crashes Trap
         ByteRead::Byte { value } -> observe(application, value)
         _ -> bad(application)
     }
-    state observe(application: &mut Main, value: i32) {
+    machine observe(application: &mut Main, value: i32) {
         let observed: f64 = abs_f64(step(&mut application.counter, value) - 80.0);
         let converted: i32 in Saturating = I32::from_f64(observed);
         transition converted == 15 && application.counter.calls == 1u32 {
@@ -29,9 +29,9 @@ crashes Trap
             false -> bad(application)
         }
     }
-    state done(application: &mut Main) {
+    machine done(application: &mut Main) {
         Console::write_line("magnitude=15 calls=1");
         Console::exit_process(0);
     }
-    state bad(application: &mut Main) { Console::exit_process(3); }
+    machine bad(application: &mut Main) { Console::exit_process(3); }
 }

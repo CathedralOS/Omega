@@ -121,6 +121,7 @@ impl Expression {
             Expression::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
             Expression::String(value) => source::display_literal_bytes(value),
             Expression::Unary(unary) => unary.display_name(),
+            Expression::TypeExpression(_) => "type".to_owned(),
             Expression::ZeroValue(_) => "zero_value<type>()".to_owned(),
         }
     }
@@ -245,6 +246,7 @@ impl ExpressionNode {
             }
             Self::String(value) => out.push_str(&source::display_literal_bytes(value)),
             Self::Unary(unary) => unary.write_display_name_with(table, out),
+            Self::TypeExpression(_) => out.push_str("type"),
             Self::ZeroValue(_) => out.push_str("zero_value<type>()"),
         }
     }
@@ -482,6 +484,14 @@ impl TableCallExpression {
 
 impl StaticMachineArgument {
     pub fn display_name(&self) -> String {
+        self.display_name_with_owner(None)
+    }
+
+    pub fn display_name_in(&self, table: &ExpressionTable) -> String {
+        self.display_name_with_owner(Some(table))
+    }
+
+    fn display_name_with_owner(&self, table: Option<&ExpressionTable>) -> String {
         if self.type_reference.is_valid() {
             return "<structural type>".to_owned();
         }
@@ -498,10 +508,22 @@ impl StaticMachineArgument {
                 .iter()
                 .map(|lifetime| format!("'{lifetime}"))
                 .collect::<Vec<_>>();
-            arguments.extend(application.arguments.iter().map(Self::display_name));
+            arguments.extend(
+                application
+                    .arguments
+                    .iter()
+                    .map(|argument| argument.display_name_with_owner(table)),
+            );
             rendered.push('<');
             rendered.push_str(&arguments.join(", "));
             rendered.push('>');
+            if application.member.is_valid() {
+                rendered.push_str("::");
+                match table.and_then(|table| table.static_member(application.member)) {
+                    Some(member) => rendered.push_str(&member.display_name_with_owner(table)),
+                    None => rendered.push_str("<qualified member requires owning table>"),
+                }
+            }
         }
         rendered
     }

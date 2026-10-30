@@ -1,0 +1,1 @@
+machine `observe` state `entry` reads write-only parameter `source`

@@ -346,13 +346,8 @@ fn receiver_root_type(
     if !root.is_valid() {
         return None;
     }
-    if let Some(parameter) = program.state_parameter_by_symbol(state, root) {
-        return Some(parameter.type_reference);
-    }
-    if let Some((_, local)) = program.state_local_declaration(state, root) {
-        return Some(local.type_reference);
-    }
-    field_by_symbol(program, root).map(|field| field.type_reference)
+    crate::state_root_type(program, state, root)
+        .or_else(|| field_by_symbol(program, root).map(|field| field.type_reference))
 }
 
 fn report_runtime_erased_field(

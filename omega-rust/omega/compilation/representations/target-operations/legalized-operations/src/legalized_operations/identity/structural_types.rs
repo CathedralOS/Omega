@@ -1,5 +1,5 @@
 use super::calling::{encode_placement, encode_shape};
-use super::encoding::{encode_ids, encode_len};
+use super::encoding::{encode_ids, encode_len, encode_option};
 use super::scalar::encode_scalar_type;
 use semantic_vocabulary::{IeeeFloatFormat, StructuralPlaceKind};
 use terminal_psi::{
@@ -38,16 +38,28 @@ mod parameter_tests;
 #[cfg(test)]
 mod scalar_refinement_tests;
 
+/// Encode each declaration and assert that no two encodings coincide.
+#[cfg(test)]
+fn assert_distinct_encodings(declarations: impl IntoIterator<Item = StructuralTypeDeclaration>) {
+    let mut encodings = Vec::new();
+    for declaration in declarations {
+        let mut bytes = Vec::new();
+        encode_structural_type(&mut bytes, &declaration);
+        assert!(!encodings.contains(&bytes));
+        encodings.push(bytes);
+    }
+}
+
 #[test]
 fn element_view_encoding_distinguishes_access_ceilings() {
-    let mut encodings = Vec::new();
-    for access in [
-        None,
-        Some(StructuralAccess::SharedBorrow),
-        Some(StructuralAccess::MutableBorrow),
-        Some(StructuralAccess::WriteOnlyBorrow),
-    ] {
-        let declaration = StructuralTypeDeclaration {
+    assert_distinct_encodings(
+        [
+            None,
+            Some(StructuralAccess::SharedBorrow),
+            Some(StructuralAccess::MutableBorrow),
+            Some(StructuralAccess::WriteOnlyBorrow),
+        ]
+        .map(|access| StructuralTypeDeclaration {
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,
@@ -60,62 +72,44 @@ fn element_view_encoding_distinguishes_access_ceilings() {
                 element: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
                 access,
             },
-        };
-        let mut bytes = Vec::new();
-        encode_structural_type(&mut bytes, &declaration);
-        assert!(!encodings.contains(&bytes));
-        encodings.push(bytes);
-    }
+        }),
+    );
 }
 
 #[test]
 fn logical_copy_permission_changes_encoded_identity() {
-    let mut encodings = Vec::new();
-    for copyable in [false, true] {
-        let declaration = StructuralTypeDeclaration {
-            quotient_carrier: None,
-            owns_linear_claim: false,
-            no_code_affine_cleanup: false,
-            descriptor_cleanup: true,
-            copyable,
-            scalar_restriction: None,
-            id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
-            identity: terminal_psi::TerminalIdentityIndex(1),
-            shape: StructuralTypeShape::Record {
-                fields: Vec::new(),
-                storage: terminal_psi::StructuralRecordStorage::Packed,
-            },
-        };
-        let mut bytes = Vec::new();
-        encode_structural_type(&mut bytes, &declaration);
-        assert!(!encodings.contains(&bytes));
-        encodings.push(bytes);
-    }
+    assert_distinct_encodings([false, true].map(|flag| StructuralTypeDeclaration {
+        quotient_carrier: None,
+        owns_linear_claim: false,
+        no_code_affine_cleanup: false,
+        copyable: flag,
+        descriptor_cleanup: true,
+        scalar_restriction: None,
+        id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+        identity: terminal_psi::TerminalIdentityIndex(1),
+        shape: StructuralTypeShape::Record {
+            fields: Vec::new(),
+            storage: terminal_psi::StructuralRecordStorage::Packed,
+        },
+    }));
 }
 
 #[test]
 fn declaration_owned_linearity_changes_encoded_identity() {
-    let mut encodings = Vec::new();
-    for owns_linear_claim in [false, true] {
-        let declaration = StructuralTypeDeclaration {
-            quotient_carrier: None,
-            owns_linear_claim,
-            no_code_affine_cleanup: false,
-            copyable: false,
-            descriptor_cleanup: false,
-            scalar_restriction: None,
-            id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
-            identity: terminal_psi::TerminalIdentityIndex(1),
-            shape: StructuralTypeShape::Record {
-                fields: Vec::new(),
-                storage: terminal_psi::StructuralRecordStorage::Packed,
-            },
-        };
-        let mut bytes = Vec::new();
-        encode_structural_type(&mut bytes, &declaration);
-        assert!(!encodings.contains(&bytes));
-        encodings.push(bytes);
-    }
+    assert_distinct_encodings([false, true].map(|flag| StructuralTypeDeclaration {
+        quotient_carrier: None,
+        owns_linear_claim: flag,
+        no_code_affine_cleanup: false,
+        copyable: false,
+        descriptor_cleanup: false,
+        scalar_restriction: None,
+        id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+        identity: terminal_psi::TerminalIdentityIndex(1),
+        shape: StructuralTypeShape::Record {
+            fields: Vec::new(),
+            storage: terminal_psi::StructuralRecordStorage::Packed,
+        },
+    }));
 }
 
 pub(super) fn encode_structural_parameter(
@@ -209,7 +203,9 @@ pub(super) fn encode_target_structural_argument(
     encode_shape(bytes, argument.shape);
     crate::codec_bytes::push_encoded(bytes, argument.source_byte_offset.to_le_bytes());
     optimization_core::encode_option_u64(bytes, argument.fixed_array_length);
-    encode_option_u32(bytes, argument.element_stride);
+    encode_option(bytes, argument.element_stride, |bytes, stride| {
+        crate::codec_bytes::push_encoded(bytes, stride.to_le_bytes())
+    });
     match &argument.source {
         target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
             bytes.push(5);
@@ -299,7 +295,10 @@ fn encode_structural_projection(bytes: &mut Vec<u8>, segment: &StructuralPathSeg
     }
 }
 
-pub(super) fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlaceDeclaration) {
+/// One structural place declaration: the place identity, then the tag and
+/// payload of the kind that declared it. The plan identity and the recovery
+/// codec publish the same row, so its spelling lives beside the type it reads.
+pub fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlaceDeclaration) {
     crate::codec_bytes::push_encoded(bytes, place.id.get().to_le_bytes());
     match place.kind {
         StructuralPlaceKind::BlockParameter { block, position } => {
@@ -433,7 +432,16 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
         StructuralTypeShape::FixedArray { element, length } => {
             bytes.push(3);
             crate::codec_bytes::push_encoded(bytes, element.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, length.to_le_bytes());
+            match length {
+                terminal_psi::ArrayExtent::Literal(length) => {
+                    bytes.push(0);
+                    crate::codec_bytes::push_encoded(bytes, length.to_le_bytes());
+                }
+                terminal_psi::ArrayExtent::Application(application) => {
+                    bytes.push(1);
+                    crate::codec_bytes::push_encoded(bytes, application.get().to_le_bytes());
+                }
+            }
         }
         StructuralTypeShape::Sum { cases } => {
             bytes.push(4);
@@ -457,7 +465,10 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
     }
 }
 
-fn encode_authored_field_storage(
+/// One authored field's storage row: the tag of the storage that declared it,
+/// then that tag's payload. The plan identity and the recovery codec write the
+/// same row, so its spelling lives beside the type it reads.
+pub fn encode_authored_field_storage(
     bytes: &mut Vec<u8>,
     storage: Option<&semantic_vocabulary::AuthoredFieldStorage>,
 ) {
@@ -557,16 +568,6 @@ pub(super) fn encode_access(bytes: &mut Vec<u8>, access: StructuralAccess) {
         StructuralAccess::MutableBorrow => 3,
         StructuralAccess::WriteOnlyBorrow => 4,
     });
-}
-
-pub(super) fn encode_option_u32(bytes: &mut Vec<u8>, value: Option<u32>) {
-    match value {
-        Some(value) => {
-            bytes.push(1);
-            crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
-        }
-        None => bytes.push(0),
-    }
 }
 
 pub(super) fn encode_string(bytes: &mut Vec<u8>, value: &str) {

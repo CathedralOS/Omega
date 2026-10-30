@@ -30,6 +30,7 @@ pub(in crate::flow) struct ArgumentSources<'program, 'writes> {
 /// Scratch custody copied before publication mutates the flow arenas. Paths
 /// identify destination children; later writes retain each child's own epoch.
 struct CapturedSource {
+    operand: FlowOperandFact,
     position: usize,
     destination: Vec<PlaceSegment>,
     expression: ExpressionHandle,
@@ -112,6 +113,7 @@ fn retain_capture(
         Vec::new()
     };
     captures.push(CapturedSource {
+        operand: *capture,
         position,
         destination: destination.clone(),
         expression: capture.expression,
@@ -119,7 +121,10 @@ fn retain_capture(
         later_writes: writes_after_capture(control, capture, invocation),
         referents,
     });
-    for child in control.operand_children.span(capture.children)? {
+    for child in control
+        .operand_children
+        .span(capture.constructed_children())?
+    {
         if !control.operands.is_valid(child.value) || active.contains(&child.value) {
             return None;
         }
@@ -223,6 +228,82 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
             writes,
             captures,
         })
+    }
+
+    pub(in crate::flow) fn retained_sources(
+        &self,
+        borrow: &checked_trees::BorrowFacts,
+        call: &BorrowCallFact,
+        control: &FlowControlFacts,
+        position: usize,
+    ) -> Option<crate::flow::retained_borrows::RetainedSources> {
+        let captured = self
+            .captures
+            .iter()
+            .find(|capture| capture.position == position && capture.destination.is_empty())?;
+        let stable_name = |operand: &FlowOperandFact, source: &CanonicalPlace| {
+            crate::flow::binding_origin_is_stable(
+                self.program,
+                control,
+                operand.entry_binding_writes,
+                operand.entry_binding_unknown_write,
+                source,
+            )
+        };
+        // Permission capture and historical loan obligations are independent
+        // channels. Neither unavailable channel supplies an empty proof.
+        let current = crate::flow::retained_borrows::captured_sources(
+            self.program,
+            borrow,
+            control,
+            &captured.operand,
+            &[],
+            self.parameters.get(position)?.type_reference,
+            &stable_name,
+        );
+        let debts = crate::flow::retained_borrows::output_debt_sources(
+            self.program,
+            borrow,
+            control,
+            self.state,
+            call,
+            &captured.operand,
+            self.parameters.get(position)?.type_reference,
+            &stable_name,
+        );
+        match (current, debts) {
+            (Some(mut current), Some(debts)) => {
+                current.append(debts);
+                Some(current)
+            }
+            (Some(current), None) => Some(current),
+            (None, Some(debts)) => Some(debts),
+            (None, None) => None,
+        }
+    }
+
+    pub(in crate::flow) fn completed_calls(
+        &self,
+        control: &FlowControlFacts,
+    ) -> Vec<ExpressionHandle> {
+        let mut calls = Vec::new();
+        for capture in self
+            .captures
+            .iter()
+            .filter(|capture| capture.destination.is_empty())
+        {
+            for expression in crate::flow::retained_borrows::completed_calls(
+                control,
+                &capture.operand,
+                self.state,
+                self.statement,
+            ) {
+                if !calls.contains(&expression) {
+                    calls.push(expression);
+                }
+            }
+        }
+        calls
     }
 
     pub(in crate::flow) fn observation_survives(

@@ -2,6 +2,7 @@ mod domain_selections;
 pub(crate) use domain_selections::normalize as normalize_membership_selections;
 
 use crate::expressions::expression::lower_expression_handle_from_table;
+use crate::expressions::proposition::is_proposition_call_target;
 use crate::lowerer::Lowerer;
 use crate::lowerer::name::lower_name;
 use crate::type_reference::domain_aliases::expand_domain_reference;
@@ -270,11 +271,7 @@ pub(crate) fn lower_expression_fact(
         .bodies
         .expressions
         .expression(expression)
-        && call.target_symbol.is_valid()
-        && matches!(
-            lowerer.source_trees.symbols.get(call.target_symbol).kind,
-            symbols::SymbolKind::Proposition | symbols::SymbolKind::PropositionParameter
-        )
+        && is_proposition_call_target(&lowerer.source_trees.symbols, call.target_symbol)
     {
         return crate::expressions::proposition::lower_proposition_application(lowerer, call)
             .map(typed::domain::ProofFact::Proposition);

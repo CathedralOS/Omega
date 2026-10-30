@@ -34,7 +34,15 @@ recorded identity for reconciliation rather than allocating a replacement.
    python3 tools/swarm/dispatch.py --repository CHECKOUT reserve --packet PACKET --attempt build/swarm/WAVE/ATTEMPT.json --owner "coordinator / slot"
    ```
 
-   The tool fetches main, checks its exact SHA and Git object fingerprints, skips
+   The tool fetches main successfully and verifies that the reviewed fixed base
+   remains in its history. The isolated checkout must still be at that exact
+   base; Git object fingerprints and failed observations bind the selected
+   source and producer there. `selection_main` records the newer fetched head
+   separately. Descendant publication during qualification does not require a
+   new producer or relabel an old observation. The tool skips
+   outcomes removed from the current board and selections whose own acceptance,
+   canonical contracts or fact inputs changed; its `skipped` reasons request
+   focused selection review without rebuilding unrelated inputs. It also skips
    rows with no remaining measured gap, and tries candidates in supplied priority
    order. CAS collisions recheck outcome and session ownership in the common
    registry. Exit 0 with `phase: reserved` is required; `no_work` is not permission
@@ -42,7 +50,14 @@ recorded identity for reconciliation rather than allocating a replacement.
    No eligible completed session stops selection unless `--allow-create` explicitly
    authorizes requesting a new one. This command never starts a session.
 5. Refresh the actual runtime observation before sending. Run `arm --attempt FILE --session-observation FRESH-ROW.json`
-   once: it rechecks main, gap, session observation and the exact live reservation.
+   once: it fetches main successfully and checks that it still descends from the
+   reserved base, then rechecks the gap at that fixed base, session observation
+   and the exact live reservation. The receipt records `dispatch_main` separately
+   from `base`. Ordinary descendant publication does not change the selected
+   source, producer, or historical evidence and requires no rebuild or recapture.
+   A lost base, changed evidence, unavailable session, or conflicting owner still
+   refuses the send. Initial selection still starts from a successfully fetched
+   main commit; later publication does not replace that recorded base.
    The fresh row must name the same reserved session and be observed after reservation;
    running or unavailable sessions refuse admission. Then use the discovered supported runtime or existing durable cloud adapter to
    send exactly once to the selected session ID, or create only when authorized.

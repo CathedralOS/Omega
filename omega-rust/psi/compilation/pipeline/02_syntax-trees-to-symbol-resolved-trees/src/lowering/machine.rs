@@ -8,6 +8,7 @@
 
 use syntax_trees::identifier::JoinedSyntaxPath;
 mod token_bindings;
+mod type_equations;
 
 pub(crate) use token_bindings::{
     mark_token_bound_domain_homes, reject_duplicate_direct_token_bindings,
@@ -33,7 +34,7 @@ use syntax_trees::{self as syntax, SyntaxTrees};
 /// Prepared syntax bound to the one declaration roster that indexed it.
 /// Compiler-derived machines can rewrite a template's name/attachment; retain
 /// that normalized owner rather than rediscovering it by an authored spelling.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, compiler_storage::Record)]
 pub(crate) struct PendingMachineBody {
     pub(crate) machine_ordinal: usize,
     source: syntax::item::Machine,
@@ -82,17 +83,29 @@ pub(crate) fn lower_machine_into(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
 ) -> Result<(), Diagnostic> {
-    lower_lexical_machine_into(lowerer, syntax_trees, machine, None)
+    lower_lexical_machine_into(lowerer, syntax_trees, machine, Handle::invalid())
 }
 
 fn lower_lexical_machine_into(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
-    lexical_parent: Option<usize>,
+    lexical_parent: Handle<Machine>,
 ) -> Result<(), Diagnostic> {
-    let ordinal = lowerer.symbol_resolved_trees.machines.len();
-    if lexical_parent.is_some()
+    // Nesting supplies a lexical name, not the outer declaration's public
+    // interface. Every header selects dependencies under its own exposure.
+    lowerer.with_authored_expression_exposure(machine_interface_exposure(machine), |lowerer| {
+        lower_lexical_machine_parts(lowerer, syntax_trees, machine, lexical_parent)
+    })
+}
+
+fn lower_lexical_machine_parts(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    machine: &syntax::item::Machine,
+    lexical_parent: Handle<Machine>,
+) -> Result<(), Diagnostic> {
+    if lexical_parent.is_valid()
         && (machine.is_public
             || machine.attached_data.is_some()
             || machine.boundary
@@ -102,14 +115,6 @@ fn lower_lexical_machine_into(
             "a nested machine is a private independent lexical declaration",
         ));
     }
-    if !machine.nested_machines.is_empty()
-        && (!machine.type_parameters.is_empty() || !machine.lifetime_parameters.is_empty())
-    {
-        return Err(Diagnostic::error(
-            "nested machines retaining an enclosing static telescope are not yet supported",
-        ));
-    }
-
     // OPERATOR-MACHINE-SUPPLY: `machine.spelling` (the optional fixed token
     // after `machine`) is copied onto the symbol-resolved declaration below
     // and flows through the typed machine record, where the typed lowering
@@ -170,6 +175,31 @@ fn lower_lexical_machine_into(
     lowerer.current_state_name = None;
     lowerer.current_evidence_term_names.clear();
     let type_parameters = lower_type_parameters(lowerer, syntax_trees, machine.type_parameters)?;
+    let type_equations::MachineTypeEquations {
+        definitions: declared_type_equations,
+        requires_argument_recovery,
+    } = type_equations::lower(lowerer, syntax_trees, machine)?;
+    let mut predicates = Vec::new();
+    for fact in syntax_trees.items.proof_facts(machine.where_facts) {
+        let syntax_trees::item::ProofFact::Expression(expression) = fact else {
+            return Err(Diagnostic::error(
+                "machine static type predicate lacks an expression owner",
+            )
+            .with_source_span(machine.name.source_span()));
+        };
+        predicates.push(crate::lowering::expression::lower_expression_into_table(
+            lowerer,
+            syntax_trees,
+            *expression,
+        )?);
+    }
+    let declared_type_predicates = lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .insert_expression_handles(predicates);
+
     // Each member keeps its own conformances and target-owned `via` locators.
     // Provider selection joins an exact member without promoting it into the
     // portable head or rewriting other members' declarations.
@@ -283,7 +313,7 @@ fn lower_lexical_machine_into(
         }
     };
     lowerer.pending_machine_service_reaches.push(
-        crate::selection::service_reaches::PendingAuthoredServiceReach {
+        crate::selection::service_reaches::PendingAuthoredServiceReach::Authored {
             keyword_source_spans: machine.service_reach_keyword_source_spans.clone(),
             authored: service_reaches,
         },
@@ -299,9 +329,9 @@ fn lower_lexical_machine_into(
             machine.clone(),
         ));
     }
-    lowerer.symbol_resolved_trees.machines.push(Machine {
-        lexical_parent,
+    let declaration = lowerer.symbol_resolved_trees.machines.push(Machine {
         symbol: SymbolHandle::invalid(),
+        lexical_parent,
         name: machine_name,
         generic_data_origin: symbol_resolved_trees::machine::GenericDataMachineOrigin {
             template_source: crate::lowering::name::lower_name(
@@ -334,9 +364,9 @@ fn lower_lexical_machine_into(
         target_family_interface: machine.target_family_interface,
         target_family_contracts_prepared: false,
         target_symbol_name,
-        has_structural_type_equations: !machine.where_facts.is_empty(),
+        has_structural_type_equations: requires_argument_recovery,
         structural_type_equations_pending: !machine.where_facts.is_empty()
-            && lowerer.structural_type_equations_pending,
+            && (lowerer.structural_type_equations_pending || !requires_argument_recovery),
         // TPR2: the termination plan's ONE population site (see
         // build_termination_plan below).
         termination_plan,
@@ -354,6 +384,8 @@ fn lower_lexical_machine_into(
                 .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
                 .collect(),
             type_parameters,
+            declared_type_equations,
+            declared_type_predicates,
             owned_data: HandleSpan::empty(),
             satisfies,
             conformance_bounds,
@@ -369,8 +401,13 @@ fn lower_lexical_machine_into(
         },
     });
     lowerer.current_compiler_selection_partition = None;
-    for nested in &machine.nested_machines {
-        lower_lexical_machine_into(lowerer, syntax_trees, nested, Some(ordinal))?;
+    for child in machine.nested_machines.handles() {
+        let syntax::item::Item::Machine(child) = syntax_trees.items.item(child) else {
+            return Err(Diagnostic::error(
+                "a machine lexical scope contains a non-machine declaration",
+            ));
+        };
+        lower_lexical_machine_into(lowerer, syntax_trees, child, declaration)?;
     }
     Ok(())
 }
@@ -409,6 +446,7 @@ pub(crate) fn complete_machine_body(
     })?;
     let owner = lowerer.symbol_resolved_trees.machines[pending.machine_ordinal].symbol;
     inputs.finish(lowerer, owner);
+    lowerer.completed_machines.push(owner);
     Ok(())
 }
 

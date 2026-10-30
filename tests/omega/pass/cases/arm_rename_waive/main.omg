@@ -2,7 +2,7 @@
 // `dx as step` renames the binding, `dy as _` waives the field, and
 // `..` opts out of the exhaustiveness law outright. The `if` guard and
 // target arguments see the renamed binding.
-domain i32::Step(value) requires 0 <= value && value <= 50;
+domain i32::Step requires 0 <= self && self <= 50;
 
 data Msg {
     case Move(dx: i32 in Step, dy: i32 in Step);
@@ -21,8 +21,8 @@ machine Main::apply(main: &mut Main, m: Msg) {
         Msg::Move { dx as step, dy as _ } if step == 30 -> good(step)
         _ -> bad()
     }
-    state good(step: i32 in Step) {}
-    state bad() {}
+    machine good(step: i32 in Step) {}
+    machine bad() {}
 }
 
 machine Main::rest(main: &mut Main, m: Msg) {
@@ -30,6 +30,6 @@ machine Main::rest(main: &mut Main, m: Msg) {
         Msg::Move { dx as step, .. } if step == 10 -> good(step)
         _ -> bad()
     }
-    state good(step: i32 in Step) {}
-    state bad() {}
+    machine good(step: i32 in Step) {}
+    machine bad() {}
 }

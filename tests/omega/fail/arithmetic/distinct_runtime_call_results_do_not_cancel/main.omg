@@ -2,7 +2,7 @@
 machine next(flag: &mut u64) -> u64
 ensures result >= result {
  transition flag { 0 -> first(flag) _ -> (1) }
- state first(flag: &mut u64) -> u64 { flag = 1; 0 }
+ machine first(flag: &mut u64) -> u64 { flag = 1; 0 }
 }
 machine difference(flag: &mut u64) -> u64 { next(flag) - next(flag) }
 machine main() { let mut flag: u64 = 0; let value: u64 = difference(&mut flag); }

@@ -110,7 +110,19 @@ pub fn descriptor_reborrow_shapes_match(
         && destination_ceiling.is_none_or(|access| requested_access.admits_referent(access))
 }
 
-fn descriptor_declared_access(shape: &StructuralTypeShape) -> Option<Option<StructuralAccess>> {
+/// Declared access on stored reference data. Canonical view occurrences have
+/// no stored ceiling and return None. This is a representation/ceiling query,
+/// not evidence that a descriptor or its referent is live or available.
+pub fn stored_reference_access(shape: &StructuralTypeShape) -> Option<StructuralAccess> {
+    match shape {
+        StructuralTypeShape::Reference { access, .. } => Some(*access),
+        _ => descriptor_declared_access(shape).flatten(),
+    }
+}
+
+pub(crate) fn descriptor_declared_access(
+    shape: &StructuralTypeShape,
+) -> Option<Option<StructuralAccess>> {
     match shape {
         StructuralTypeShape::ElementView { access, .. }
         | StructuralTypeShape::ByteSequence(
@@ -121,7 +133,10 @@ fn descriptor_declared_access(shape: &StructuralTypeShape) -> Option<Option<Stru
     }
 }
 
-pub(crate) fn descriptor_geometry_matches(
+/// Whether two view shapes keep the same descriptor representation and
+/// element/extent meaning. This pure geometry comparison grants no access,
+/// initialized storage, live loan, qualification or permission to copy.
+pub fn descriptor_geometry_matches(
     source: &StructuralTypeShape,
     destination: &StructuralTypeShape,
 ) -> bool {

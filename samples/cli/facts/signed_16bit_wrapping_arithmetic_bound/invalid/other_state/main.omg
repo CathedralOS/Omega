@@ -17,7 +17,7 @@ machine compute_other_state(lhs: i16, rhs: i16) -> i16
     let wrapped: i16 in Wrapping = a + b;
     let sum: i16 = wrapped as i16;
     transition { _ -> step(sum) }
-    state step(s: i16) -> i16 {
+    machine step(s: i16) -> i16 {
         verify_sum(s)
     }
 }
@@ -32,6 +32,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

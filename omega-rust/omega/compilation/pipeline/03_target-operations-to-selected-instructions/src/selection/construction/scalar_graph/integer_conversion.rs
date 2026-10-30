@@ -1,10 +1,8 @@
 //! Select proof-bearing exact casts, infallible widening and scalar
 //! representation re-views with explicit raw-width normalization.
-use super::{
-    Builder, LegalizedScalarInstructionKind, ScalarType, SelectedInstructionProvenance,
-    VirtualRegisterId,
-};
+use super::{Builder, LegalizedScalarInstructionKind, ScalarType, VirtualRegisterId};
 use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use legalized_operations::LegalizedScalarInstruction;
 
 pub(super) fn emit(
@@ -44,12 +42,7 @@ pub(super) fn emit(
         normalization,
         constraints.keys.copy_i64,
         &[input, output],
-        SelectedInstructionProvenance {
-            operations: vec![operation.operation],
-            values: vec![*operand, result.value],
-            fuel: operation.fuel.clone(),
-            ..Default::default()
-        },
+        operation_provenance(operation, vec![*operand, result.value]),
     )?;
     Ok(output)
 }

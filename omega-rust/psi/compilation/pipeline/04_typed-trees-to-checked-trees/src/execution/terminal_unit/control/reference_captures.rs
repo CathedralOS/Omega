@@ -15,6 +15,19 @@ pub(in crate::execution::terminal_unit) fn plan(
     if local.is_mutable || local.relevance.is_erased() {
         return None;
     }
+    // A retained value graph owns executable selector evaluations, including
+    // children whose proven coordinates are fixed. The direct local capture
+    // cannot steal that schedule or replay it while reconstructing a loan.
+    if let Some(root) = facts.values.structural_values.root_for_expression(
+        state.symbol,
+        u32::try_from(statement_index).ok()?,
+        local.initial_value,
+    ) && let checked_trees::CheckedStructuralValueKind::Reference { selectors, .. } =
+        facts.values.structural_values.nodes.get(root.root).kind
+        && !selectors.is_empty()
+    {
+        return None;
+    }
     let selector = |expression| {
         let reference = validation::expression_type_reference_in_state(
             program,

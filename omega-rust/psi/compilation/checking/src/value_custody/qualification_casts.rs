@@ -11,9 +11,7 @@
 //! Predicate discharge and authorized provenance remain independent obligations.
 
 use crate::program_validation::{ExpressionInterval, expression_interval};
-use crate::proof_contracts::contract_entailment::{
-    ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
-};
+use crate::{ScopedArithmeticValue, StrictArithmeticImplicationJudgment};
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
 use symbols::JoinedPath;
@@ -24,9 +22,13 @@ pub(crate) fn validate(
     intervals: &[ExpressionInterval],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for (_, node) in program.expression_table.expression_entries() {
+    // Preparation leaves replaced recipes in the arena. Only expressions
+    // reached from the current declarations still owe value judgments.
+    let references = typed_trees::references::collect_program_references(program.typed_program());
+    for (expression, node) in program.expression_table.expression_entries() {
         if let ExpressionNode::Cast(cast) = node
             && !cast.semantic_domain.is_empty()
+            && references.expressions.contains(&expression)
         {
             judge_qualification_cast(
                 program,
@@ -75,7 +77,7 @@ fn judge_qualification_cast(
             // A predicate proof is not an authorized origin. In particular,
             // computed bounds cannot mint a routed domain whose predicate
             // happens to hold. Existing route transport keeps its own owner.
-            if !domain.predicate_body.is_present()
+            if !domain.predicate_presence.is_present()
                 && domain.alias.is_none()
                 && !crate::field_domains::domain_is_vacuous(program, domain.symbol, &mut Vec::new())
             {

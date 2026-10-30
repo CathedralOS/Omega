@@ -51,6 +51,46 @@ pub(crate) const CHECKED_SOURCE_CACHE_LANE: &str = "checked-source-cache";
 /// a retained resolver storage lane.
 pub(crate) const COMPILED_REVIEW_CACHE_LANE: &str = "compiled-review-cache";
 
+/// Optional storage coordinates minted from the current resolver's retained
+/// lanes. These select storage only, never source or compilation authority.
+#[derive(Debug, Clone)]
+pub(super) struct SourceCacheDirectories {
+    checked_source: PathBuf,
+    compiled_review: PathBuf,
+}
+
+impl SourceCacheDirectories {
+    pub(super) fn retain(storage: &package_source::SourceResolver) -> Option<Self> {
+        let retained = (|| {
+            storage.verify_path_identity()?;
+            let checked_source = storage
+                .external_local_sources()
+                .retain_child(CHECKED_SOURCE_CACHE_LANE)?;
+            let compiled_review = retain_compiled_review_storage(storage)?;
+            storage.verify_path_identity()?;
+            Ok::<_, package_source::SourceResolveError>(Self {
+                checked_source: checked_source.path().to_path_buf(),
+                compiled_review: compiled_review.path().to_path_buf(),
+            })
+        })();
+        match retained {
+            Ok(directories) => Some(directories),
+            Err(reason) => {
+                if std::env::var_os("OMEGA_PHASE_PROFILE").is_some_and(|value| value != "0") {
+                    eprintln!("source acquisition cache directories unavailable: {reason}");
+                }
+                None
+            }
+        }
+    }
+
+    pub(super) fn apply_to(&self, custody: PackageSourceCustody) -> PackageSourceCustody {
+        custody
+            .with_checked_source_cache_dir(self.checked_source.clone())
+            .with_compiled_review_cache_dir(self.compiled_review.clone())
+    }
+}
+
 impl PartialEq for PackageSourceCustody {
     fn eq(&self, other: &Self) -> bool {
         self.key == other.key
@@ -145,4 +185,15 @@ impl PackageSourceCustody {
             && self.selection_evidence == other.selection_evidence
             && self.dependency_projections == other.dependency_projections
     }
+}
+
+pub(super) fn retain_compiled_review_storage(
+    storage: &package_source::SourceResolver,
+) -> Result<package_source::storage::RetainedStorageLane, package_source::SourceResolveError> {
+    storage.verify_path_identity()?;
+    let retained = storage
+        .external_local_sources()
+        .retain_child(COMPILED_REVIEW_CACHE_LANE)?;
+    storage.verify_path_identity()?;
+    Ok(retained)
 }

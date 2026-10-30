@@ -13,7 +13,7 @@ machine compute_other_state(dividend: i8, divisor: i8) -> i32
 {
     let rem: i8 = dividend % divisor;
     transition { _ -> step(rem) }
-    state step(r: i8) -> i32 {
+    machine step(r: i8) -> i32 {
         verify_rem(r)
     }
 }
@@ -28,6 +28,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

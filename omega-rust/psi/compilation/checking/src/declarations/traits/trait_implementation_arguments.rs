@@ -135,11 +135,7 @@ pub(super) fn validate_trait_implementation_arguments(
             );
         }
     }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
 /// One exact positional evidence telescope, shared by declaration edges and

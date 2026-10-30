@@ -15,11 +15,11 @@ machine main() crashes Trap {
         true -> again()
         false -> bad()
     }
-    state again() {
+    machine again() {
         let backing: Envelope<i32> = Envelope { payload: 31i32 };
         let value: &Envelope<i32> = forward(&backing);
         transition value.payload == 31 { true -> done() false -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

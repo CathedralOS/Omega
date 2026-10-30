@@ -13,10 +13,10 @@ machine read(envelope: &Envelope) -> u64 {
         Envelope::Second { payload } -> observe(&payload)
         _ -> (0)
     }
-    state observe(record: &Record) -> u64 {
+    machine observe(record: &Record) -> u64 {
         transition { _ -> finish(record) }
     }
-    state finish(record: &Record) -> u64 { record.value }
+    machine finish(record: &Record) -> u64 { record.value }
 }
 
 data Main { }
@@ -31,7 +31,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> done(main, 70)
         false -> done(main, 71)
     }
-    state done(main: &mut Main, status: i32) {
+    machine done(main: &mut Main, status: i32) {
         Console::exit_process(status);
     }
 }

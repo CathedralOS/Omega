@@ -15,30 +15,30 @@ machine windows_reparse_target(data: &WindowsNativeReparseData, returned: u32, o
         true -> kind(data, extent, output)
         false -> (-31)
     }
-    state kind(data: &WindowsNativeReparseData, extent: u64, output: &mut [u16; 8192]) -> i64 {
+    machine kind(data: &WindowsNativeReparseData, extent: u64, output: &mut [u16; 8192]) -> i64 {
         transition data.tag {
             2684354572 -> symbolic(data, extent, output)
             2684354563 -> mount(data, extent, output)
             _ -> (-50)
         }
     }
-    state mount(data: &WindowsNativeReparseData, extent: u64, output: &mut [u16; 8192]) -> i64 {
+    machine mount(data: &WindowsNativeReparseData, extent: u64, output: &mut [u16; 8192]) -> i64 {
         transition extent >= 8 { true -> span(data, extent, 8, 0, false, output) false -> (-31) }
     }
-    state symbolic(data: &WindowsNativeReparseData, extent: u64, output: &mut [u16; 8192]) -> i64 {
+    machine symbolic(data: &WindowsNativeReparseData, extent: u64, output: &mut [u16; 8192]) -> i64 {
         transition extent >= 12 {
             true -> flags(data, extent, output)
             false -> (-31)
         }
     }
-    state flags(data: &WindowsNativeReparseData, extent: u64, output: &mut [u16; 8192]) -> i64 {
+    machine flags(data: &WindowsNativeReparseData, extent: u64, output: &mut [u16; 8192]) -> i64 {
         let flags: u32 = widen_u16_to_u32(data.rest[0]) | (widen_u16_to_u32(data.rest[1]) << 16);
         transition flags <= 1 {
             true -> span(data, extent, 12, 2, flags == 1, output)
             false -> (-50)
         }
     }
-    state span(data: &WindowsNativeReparseData, extent: u64, header: u64, base: u64, relative: bool, output: &mut [u16; 8192]) -> i64
+    machine span(data: &WindowsNativeReparseData, extent: u64, header: u64, base: u64, relative: bool, output: &mut [u16; 8192]) -> i64
     requires base <= 2 {
         let offset: u64 = widen_u16_to_u64(data.substitute_offset);
         let length: u64 = widen_u16_to_u64(data.substitute_length);
@@ -48,7 +48,7 @@ machine windows_reparse_target(data: &WindowsNativeReparseData, returned: u32, o
             false -> (-31)
         }
     }
-    state units(data: &WindowsNativeReparseData, base: u64, offset: u64, length: u64, relative: bool, output: &mut [u16; 8192]) -> i64
+    machine units(data: &WindowsNativeReparseData, base: u64, offset: u64, length: u64, relative: bool, output: &mut [u16; 8192]) -> i64
     requires base <= 2 && offset <= 65535 && length <= 65535 {
         let start: u64 = base + offset / 2;
         let count: u64 = length / 2;
@@ -62,14 +62,14 @@ machine windows_reparse_target(data: &WindowsNativeReparseData, returned: u32, o
 machine windows_reparse_copy_target(data: &WindowsNativeReparseData, output: &mut [u16; 8192], start: u64, count: u64, relative: bool) -> i64
 requires start <= 8184 && count > 0 && count < 8192 && count <= 8184 - start {
     transition { _ -> copy(data, output, start, count, relative, 0) }
-    state copy(data: &WindowsNativeReparseData, output: &mut [u16; 8192], start: u64, count: u64, relative: bool, position: u64) -> i64
+    machine copy(data: &WindowsNativeReparseData, output: &mut [u16; 8192], start: u64, count: u64, relative: bool, position: u64) -> i64
     requires start <= 8184 && count > 0 && count < 8192 && count <= 8184 - start {
         transition position < count {
             true -> character(data, output, start, count, relative, position)
             false -> complete(output, count, relative)
         }
     }
-    state character(data: &WindowsNativeReparseData, output: &mut [u16; 8192], start: u64, count: u64, relative: bool, position: u64) -> i64
+    machine character(data: &WindowsNativeReparseData, output: &mut [u16; 8192], start: u64, count: u64, relative: bool, position: u64) -> i64
     requires start <= 8184 && count > 0 && count < 8192 && count <= 8184 - start && position < count {
         let character: u16 = data.rest[start + position];
         transition character != 0 {
@@ -77,24 +77,24 @@ requires start <= 8184 && count > 0 && count < 8192 && count <= 8184 - start {
             false -> (-31)
         }
     }
-    state store(data: &WindowsNativeReparseData, output: &mut [u16; 8192], start: u64, count: u64, relative: bool, position: u64, character: u16) -> i64
+    machine store(data: &WindowsNativeReparseData, output: &mut [u16; 8192], start: u64, count: u64, relative: bool, position: u64, character: u16) -> i64
     requires start <= 8184 && count > 0 && count < 8192 && count <= 8184 - start && position < count {
         output[position] = character;
         transition { _ -> copy(data, output, start, count, relative, position + 1) }
     }
-    state complete(output: &mut [u16; 8192], count: u64, relative: bool) -> i64
+    machine complete(output: &mut [u16; 8192], count: u64, relative: bool) -> i64
     requires count > 0 && count < 8192 {
         output[count] = 0;
         transition relative { true -> (narrow_u64_to_i64_exact(count)) false -> absolute(output, count) }
     }
-    state absolute(output: &mut [u16; 8192], count: u64) -> i64
+    machine absolute(output: &mut [u16; 8192], count: u64) -> i64
     requires count > 0 && count < 8192 {
         transition count > 4 && output[0] == 92 && output[1] == 63 && output[2] == 63 && output[3] == 92 {
             true -> translate(output, count)
             false -> (-50)
         }
     }
-    state translate(output: &mut [u16; 8192], count: u64) -> i64
+    machine translate(output: &mut [u16; 8192], count: u64) -> i64
     requires count > 0 && count < 8192 {
         output[1] = 92;
         narrow_u64_to_i64_exact(count)

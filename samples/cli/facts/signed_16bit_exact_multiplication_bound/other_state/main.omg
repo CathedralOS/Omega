@@ -22,13 +22,13 @@ machine main() crashes Trap {
         true -> step(prod)
         _ -> bad()
     }
-    state step(forwarded: i16) {
+    machine step(forwarded: i16) {
         let check: i32 = verify_prod(forwarded);
         transition check == 0 {
             true -> done()
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

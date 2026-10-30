@@ -348,6 +348,22 @@ pub use integer_math_normalization::{
 };
 use traversal::check_node;
 
+/// The rule-check dispatch preamble. The scoped traversal has already
+/// selected the rule's family; the family's check re-matches the variant it
+/// was called for — it never receives another — and records the accepted
+/// rule on the acceptance in the same breath. Written once here so each of
+/// the rule families does not restate the same guard, refusal text and
+/// acceptance row per rule.
+macro_rules! dispatched_rule {
+    ($proof:expr, $acceptance:expr, $pattern:pat => $accepted:ident) => {
+        let $pattern = &$proof.rule else {
+            unreachable!(concat!("dispatched ", stringify!($accepted)))
+        };
+        $acceptance.rules.insert(AcceptedProofRule::$accepted);
+    };
+}
+pub(crate) use dispatched_rule;
+
 /// What every rule check reads: the proposition context, the certificate's
 /// assumption and semantic-axiom rosters, and the machine parameter values.
 #[derive(Clone, Copy)]

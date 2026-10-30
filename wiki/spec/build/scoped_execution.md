@@ -1,7 +1,9 @@
-# Build dependency scopes and isolated inputs
+# Build staging, dependency scopes, and capabilities
 
-This contract defines ordinary Omega build evaluation's dependency scopes,
-product-selection boundary, immutable inputs, and output lifecycle. It does not
+Named decision: `staged-build-capability-attenuation`, settled 2026-10-28.
+
+This contract defines ordinary Omega build evaluation's checked stages,
+dependency scopes, delegated execution capabilities and product handoff. It does not
 introduce a second build language. These rules are normative; implementation
 coverage is tracked in [the execution board](../../../TASKS.md).
 Existing scoped filesystem enforcement is not evidence that the full contract
@@ -13,10 +15,10 @@ shipped signatures or wire compatibility.
 | Question | Required behavior |
 | --- | --- |
 | One builder or two? | One `Build`; scope and authority are enforced at individual operations. |
-| Build-only code? | Nonblocking `build_depend`/`build_depend_as` requests plus explicit `suspend Build::await_provider<R>` readiness; separate host/product nameability and checked instances. |
+| Build-only code? | Atomic `Build::build_dependency` registration and explicit preparation, then checked dependent continuations; ordinary logical `use` and separate host/product scopes. |
 | Reference target code from a host build? | Existing designated product operands plus qualified, non-callable product descriptions; no general host import of target code. |
-| Filesystem default? | Exact read-only input tree, append-and-seal staging, deterministic logical metadata, no implicit symlink traversal or ambient services. |
-| Extra host files? | Independently supplied captured inputs; live-host protocols are not added by this slice. |
+| Filesystem? | Ordinary filesystem contracts with explicitly supplied backing; parents may delegate read-only, subtree, snapshot or copy-on-write views. |
+| Extra host access? | Actual invocation grants and independently accepted authority, never a build-only input registry or an import side effect. |
 | Build failure? | Checked local errors, linear required outputs, sticky explicit failure, and no final result set after interruption or failed checks. |
 | Artifact-only application? | One interpreted Build request, at least one completed artifact, and no executable root/provider selections. |
 | Generated entry or inspection of this build's final executable? | Separate staged compilation; no cycle through this invocation's generated source. |
@@ -37,11 +39,11 @@ A build-only library must not become product-nameable merely because acquisition
 loaded its source. A scoped real-host filesystem is not an isolated virtual input
 snapshot; transitional implementations must distinguish those modes.
 
-Use one `machine build(builder: &mut Build)` entry with:
+Use one ordinary Build activation with:
 
 1. Explicit interpreted build-only dependency requests and separate selection contexts.
-2. Read-only captured inputs and private staged outputs as the default filesystem
-   contract, with explicit delegation for any additional host authority.
+2. Explicit filesystem/provider arguments under ordinary generic or dynamic
+  selection. Being a root grants no authority; the invocation supplies backing.
 3. Explicit product-description selection without executing target code.
 4. Generic required output publication, including artifact-only builds, without
    compiler knowledge of a package's artifact format or policy algorithms.
@@ -74,53 +76,110 @@ or evidence systems:
 
 ## Dependency declarations and binding
 
-Keep `depend` / `depend_as` for product dependencies. Add `build_depend` /
-`build_depend_as` for build-only dependencies, with the same source-selection
-vocabulary. The one root Build activation records both forms and package
-coordination may start their work immediately; neither declaration suspends the
-activation. Local helpers and control flow may compute requests. Aliases are
-unique within each scope; the same alias may identify different packages in the
-two contexts without cross-context lookup or fallback.
+`Build::dependency` registers a product dependency; `Build::build_dependency`
+registers a dependency for interpreted Build code. Both consume a configured
+dependency description and return its exact registration. The description may
+be prepared by ordinary library helpers, including `dependency::with_alias`;
+registration atomically fixes source selection, purpose, alias and delegated
+execution context before coordination may schedule work. There is no mutable
+half-registered edge, post-registration alias setter or spelling-based retarget.
+Descriptions and registration receipts grant no host or package authority by
+construction alone. The readable dependency names replace `depend`, `depend_as`,
+`build_depend` and `build_depend_as`; separate alias-registration variants are
+unnecessary when the unregistered description is configurable.
 
-Illustrative build source:
+Aliases are unique in their requesting package and purpose scope. A duplicate
+or conflicting registration rejects rather than choosing an order-dependent
+winner. The same spelling may name different packages in Build and Product
+scopes without cross-context fallback. A conditional registration becomes
+available only along paths on which it executed and was prepared.
+
+`use topology;` selects a logical package/module name; it never acquires source,
+executes a dependency, mounts a directory or grants visibility beyond the exact
+authorized dependency. Build imports may remain unresolved until the checked
+continuation that needs them. Unused imports normally produce a warning, with
+no acquisition or execution; types, contracts and proof uses count as uses.
+An explicitly executed dependency registration still has its ordinary scheduling
+effects even if no imported declaration is ultimately referenced.
+
+`Build::prepare_dependency` is the readiness boundary for an exact registered
+dependency. It admits and prepares that dependency for the requested execution
+profile under its delegated context. It may suspend; it does not rerun earlier
+Build statements. It is not a request for arbitrary native plugin execution.
+After preparation, the compiler resolves and checks the dependent continuation
+before it executes. Exact trait/provider installation still obeys
+[provider readiness](provider_selection.md#build-provider-readiness); a newly
+admitted dependency can supply ordinary shared non-core interfaces, without
+copying declarations or structurally identifying same-spelled traits.
+
+The following illustrates the selected surface, not a current executable fixture.
+`dependency::from_source` and configuration helpers are ordinary library code;
+source selection is resolved through the invocation's authorized acquisition
+route or supplied filesystem backing, never the compiler's ambient filesystem:
 
 ```omega
-use build_support::configuration;
+use topology;
 
-machine build(builder: &mut Build) {
-    Build::application(builder, "payments");
-    Build::build_depend_as(builder, "topology", Source::Path {
-        location: "../topology"
-    });
-    Build::depend_as(builder, "protocol", Source::Path {
-        location: "../payment-protocol"
-    });
+machine build(builder: &mut Build)
+suspends
+{
+  Build::application(builder, "payments");
+  let mut request = dependency::from_source(Source::Path {
+    location: "../topology"
+  });
+  dependency::with_alias(&mut request, "topology");
+  let registered = Build::build_dependency(builder, request);
 
-    suspend Build::await_provider<TopologyBuild>(builder, "topology");
-    configure_products(builder);
+  suspend Build::prepare_dependency(builder, registered);
+  topology::configure_products(builder);
 }
 ```
 
-Here `configure_products` is an ordinary helper from the local
-  `build_support::configuration` module. `TopologyBuild` is a pre-known exact
-  requirement application; its operations use ordinary qualified static calls.
-  The dependency request may proceed while local work continues.
-  Readiness suspends only if the checked implementation is not installed yet, then
-  resumes this same call site. `configure_products` calls exact
-  `TopologyBuild::operation(arguments)` requirements statically; no routing value
-  is returned or passed. Code needing only a schema, input bytes, or an output
-  sink receives those values instead of the whole builder. Passing the whole
-  builder is deliberate authority delegation, not the library default.
+Ordinary generator calls should instead receive the particular bytes, filesystem
+or output writer they need. Giving a helper the root builder is deliberate
+delegation of its operations, not a consequence of importing that helper.
+Filesystem backing is explicit data, with an ordinary selected implementation;
+no parameter named State or implicit receiver supplies hidden authority.
 
-The root is initially checked without static names from newly requested
-packages. Arbitrary top-of-file imports of those packages therefore reject;
-requesting an alias does not retroactively change name resolution. Package
-coordination resolves immutable closures as requests are observed. Before
-installing an exact provider slot, Psi checks the selected implementation
-against `R` and admits its effects, reach, and resources. The Terminal interpreter owns the
-parked continuation and resumes it without rerunning earlier statements.
-Dependency requests may appear in local helpers and ordinary conditionals; the
-final Build return joins every request even when no provider was awaited.
+## Checked Build stages
+
+Parse syntax and establish local lexical structure before execution. Execute
+only a completely checked and admitted prefix. A dependency's unresolved public
+types, contracts or implementation identities stop checking of the dependent
+continuation at an explicit preparation boundary; they do not justify executing
+an unresolved call. The continuation's operands, types and saved storage must
+already have valid checked representations when they cross that boundary.
+
+Preparation extends the authorized environment of the subsequent continuation,
+not the meaning of earlier code. Capture exact declarations, substitutions,
+source scope, aliases, facts, loans and resource custody across the suspension.
+No later discovery may reinterpret an earlier value, prove an earlier unsafe
+operation retroactively, replace an alias used by checked code, or execute a
+previously unchecked initializer. Cycles that require the missing dependency to
+decide how to acquire or prepare itself reject with their phase dependency.
+
+All syntax and already-resolvable obligations remain checked independently of
+whether execution selects a branch. A deferred branch can remain unresolved if
+not selected, but no claim of complete checking or readiness is made for it.
+On selection, resolve and check its complete executable continuation before any
+effect in that continuation. Unknown imports and invalid remote obligations
+cannot be silently treated as valid or optimized away. Once a dependency is
+admitted, its supplied ordinary declarations retain their normal source checking
+requirements, including unselected target implementations.
+
+At a join, dependency availability must hold on every incoming path where it is
+used; otherwise an explicit checked preparation is required before that use.
+Branch decisions, staged source and context identities remain part of replay
+and result applicability. Later-stage failure cannot publish a successful
+Build result, and real effects performed by earlier admitted stages have no
+automatic rollback. This is checked staged execution, not a fully checked whole
+Build body before its first effect or a transactional host process.
+
+Only ordinary Build continuations are staged this way. Generated product bytes
+join later product checking; they cannot redefine the currently executing Build
+or introduce new helpers into an already checked prefix. The mandatory final
+join covers all requests actually executed and the admitted executable closure,
+without asserting that unexecuted unresolved continuations were checked.
 
 The build can be split across ordinary imported source files. Only the selected
 root declares its role and dependency sets; imported helpers do not become build
@@ -132,7 +191,7 @@ root or builder state.
 
 | Occurrence | Selectable dependency code | Execution context |
 | --- | --- | --- |
-| Build entry and transitive helpers | Its package-local build sources, core, and exact static provider slots installed through `Build::await_provider<R>` | Admitted build evaluator on the host |
+| Build entry and transitive helpers | Its package-local build sources, core, and exact static provider slots installed through `Build::await_provider<R, Backing>` | Admitted build evaluator on the host |
 | Product source and its generated source | Its package-local product sources, core, and its ordinary dependencies | Selected product target |
 
 Core's exact toolchain vocabulary is directly available. Std is an ordinary
@@ -163,7 +222,13 @@ unless passed explicitly as input. Thus a macOS code generator for a Windows
 application must not select Windows filesystem implementations for itself.
 
 Model scheduling nodes as `(package instance, purpose, execution profile,
-requested product target)`, omitting only coordinates that do not apply. A
+requested product target, delegated execution context)`, omitting only
+coordinates that do not apply. The context includes exact selected provider
+implementations, granted backing/views, admitted source and filesystem
+observations, configuration and grant policy. Mutable object addresses and
+alias spellings are not durable context identities. Distinct delegated contexts
+may execute the same package separately; they do not have to agree on a global
+input map or share the union of their grants. A
 product node waits for its build output and product dependencies; a build node
 waits for its host helper libraries and captured input artifacts. A helper library
 uses its ordinary dependency edges in that host context, not its own build-only
@@ -195,8 +260,10 @@ existing edges as product, build, or both, with diagnostics for missing edges.
 Do not silently infer broader permission from an old lock entry. A versioned
 lock/review migration retains acquisitions while rechecking role-specific edges.
 
-For the first migration, keep `depend`/`depend_as` product-only and require authors
-to add the build edge explicitly where needed. Do not infer an edge from loaded
+During migration, old `depend` spellings remain product-only and require authors
+to add the build edge explicitly where needed. They receive deprecation
+diagnostics and are removed after the source migration, not retained as another
+accepted dialect. Do not infer an edge from loaded
 imports or silently turn each existing dependency into both. Acquisition records
 can be reused after exact identity validation; a lock lacking dependency-purpose
 information is not accepted as a scoped-build verdict. Report the requesting
@@ -215,6 +282,7 @@ Toolchain operations have designated product operands:
 
 ```omega
 Build::bind(builder, windows_x86_64::ProgramEntry, Application::start);
+Build::bind<WindowsAudioPlaybackIo::c_play_sound>(builder, windows_x86_64, native_locator);
 Build::select_provider<windows_x86_64::Console, TestConsole>(builder);
 Build::assume_binding_contract<WritableMemory::claim, RangeSupplier::supply>(builder);
 _ = builder.tests.group<Tests::memory>();
@@ -228,6 +296,16 @@ as admitted Build operations. No product receiver, function body, initializer,
 or provider is executed. A user-defined same-named method or generic helper gets
 no special resolution. This extends the existing "selection is not invocation"
 rule, not general syntax quotation or an exception to ordinary call checking.
+
+The native-binding overload's requirement argument is an exact designated
+product reference; its target and locator are ordinary checked Build data.
+It records package-local intent for resolution against the completed checked
+product, not an ordinary import or a call into product source. Literal locator
+byte lengths are inferred. Product binding never installs a provider in the
+running Build activation. This accepted form replaces source `via` and
+per-symbol forwarding declarations; its implementation and migration remain
+`BUILD-OWNED-NATIVE-BINDINGS` work under
+[foreign bindings](foreign_bindings.md#build-owned-native-binding).
 
 The assumed-binding operation registers a root-authorized runtime relationship
 only. Neither its implementation nor its admitted facts become build-executable;
@@ -307,14 +385,41 @@ without the compiler establishing it somewhere.
 
 ## Inputs and default filesystem
 
-Every build activation, including a dependency's own build, starts with:
+Build code uses ordinary filesystem traits with explicit backing arguments and
+ordinary selected named implementations or `dyn` dispatch. A type parameter
+such as FilesystemBacking names the backing data, not a magic State parameter
+or implicit service. The dependency calls the filesystem contract without
+needing to know whether its backing is a host directory, a restricted view or a virtual
+tree. A parent choosing and inspecting a virtual backing may name its library
+implementation explicitly. Dynamic dispatch is optional, not a condition of
+sandbox transparency.
 
-- A read-only view of its own exact package source snapshot and explicitly
-  supplied immutable inputs.
-- A private, initially empty staged output tree with bounded storage.
-- Explicit bounded diagnostics and evaluation resources.
-- No ambient home directory, consumer source tree, credentials, network,
-  subprocesses, or unrestricted host filesystem.
+Every activation receives only its actual invocation/parent grants, explicit
+bounded diagnostics and evaluation resources. The safe default can be a
+read-only view of its exact package snapshot plus private bounded writable
+storage, constructed through the same filesystem interfaces. A root may receive
+broad host backing only when the invocation actually grants it. Root position,
+a package import, a lock acceptance row or a filesystem trait name supplies
+none. Descendants do not inherit home directories, consumer source trees,
+credentials, resolver access, network or unrestricted host filesystem access.
+
+The public library surface covers file reads/writes and streaming operations,
+directory listing/metadata and namespace operations; restricted subtrees,
+read-only views and snapshots; private or copy-on-write overlays and explicit
+mounts; and change inspection plus checked application/export of changes.
+The selected filesystem contract fixes supported behavior. An unavailable
+operation reports Unsupported rather than falling back to another provider.
+These are ordinary library responsibilities, not compiler-injected input and
+output object categories or another filesystem instruction language.
+
+The parent attenuates and supplies backing before the child's execution is
+admitted. A restricted provider may retain the same declared theoretical reach
+as a real one; that declaration does not create physical backing or host
+authority. Admission covers the entire executable closure, so a child cannot
+escape by importing another filesystem package, selecting an unprovided raw
+host implementation, fabricating a handle or obtaining the parent's builder.
+The same principle applies to future network or other service contracts; this
+decision neither introduces those APIs nor grants them by analogy.
 
 "Virtual filesystem" specifies observable isolation, not mandatory RAM storage.
 The implementation may use an in-memory tree or confined disk backing, provided
@@ -322,7 +427,7 @@ paths, metadata, reads, writes, and failure behavior have the same contract.
 Unsupported access returns a checked error; a no-op filesystem must not report
 successful writes or fabricate empty files. Path traversal, implicit symlink following,
 host-handle fabrication, and concurrent host-path substitution must not escape
-the input/output views. Disk backing needs a race-safe implementation or an
+the delegated views. Disk backing needs a race-safe implementation or an
 explicitly adequate isolation premise, not canonicalization alone.
 
 Package input membership comes from the exact captured source inventory; no
@@ -332,14 +437,27 @@ Extra files are captured by the caller/sponsor before being exposed as immutable
 inputs. Bind their exact bytes and admitted metadata for this activation;
 reopening a changed host pathname cannot supply the same immutable input.
 
-Code generators should normally consume input bytes/views and a narrow output
-writer. A library needing filesystem-shaped access can accept explicitly passed
-snapshot/staging capabilities through an ordinary adapter. Importing std's
-filesystem API must not silently switch to a real-host runtime provider; the
-current compiler-owned facet admission remains the starting enforcement boundary.
-The exact reusable facet interface is an implementation prerequisite, not an
-assumption that every existing std filesystem call runs in builds today. The
-following minimal protocol fixes its behavior without requiring POSIX emulation.
+Code generators normally consume explicit bytes/views or a filesystem and a
+narrow writer through ordinary function arguments. They do not configure their
+package's Build activation through a consumer-specific hidden input registry.
+Compiler support retains dependency admission, source ownership, checked
+stages, resource accounting and publication; filesystem algorithms and
+attenuation/composition belong to ordinary libraries. Current facet-based
+enforcement is migration debt, not proof that every existing std filesystem
+operation already executes under these contracts.
+
+Copy-on-write overlays expose ordinary read-your-own-writes filesystem behavior
+without changing their base. A changeset names additions, modifications and
+deletions relative to its exact base/view. Applying it is a separate operation
+under the destination's authority, with path containment, permissions and
+explicit base/conflict checks; it is not an implicit host commit. Publishing
+generated source/artifacts and exporting files are separate actions. Failure
+can discard an unpublished overlay, not undo already performed host effects.
+
+The following protocol is the deterministic snapshot/staging library profile,
+not a requirement that every filesystem impersonate that profile or expose
+Build-specific handles. Other selected backings report their actual supported
+contract and observations.
 
 ### Snapshot and staging protocol
 
@@ -418,47 +536,46 @@ return a coherent immutable tree or fail; files changing while being copied
 cannot produce a falsely attributed snapshot. Tools may construct a capture
 request under user authority, but downloaded build code cannot widen it.
 
-Additional inputs arrive as a caller/sponsor-supplied map of named immutable
-files or trees, captured before that activation. Names are scoped input slots,
-not arbitrary host paths. The build may narrow a tree to a file/subtree capability;
-it cannot widen one or fabricate another root. Dependency builds get only the
-inputs explicitly assigned to their occurrence, not all inputs of the consumer.
-This first slice has no build-time request that pauses to solicit arbitrary new
-host access. A missing input is an explicit failure and a changed invocation.
+### Delegated files and configuration
 
-The compiler-owned source interface exposes the roster as `Build.inputs`.
-`BuildInputs::get(inputs: &BuildInputs, name: &[u8]) -> BuildSource` selects one captured slot;
-a missing slot fails the activation explicitly. The returned `BuildSource`
-uses the same read-only logical-path protocol as the package source facet,
-with its own root and inventory. Constructing `BuildInputs {}` supplies no
-runtime slot custody. Hosts supply activation-local slots with
-`BuildSnapshotRequest::with_inputs` and dependency assignments with
-`with_dependency_inputs`; neither API captures or reopens a host path.
+Extra files or configuration are passed as ordinary values or explicit
+filesystem capabilities from an authorized caller. They do not require a second
+public BuildInputs/BuildSource registry. Capture and exact inventory retention
+remain internal owners of reproducible filesystem observations, not authoring
+APIs that turn strings into host access. A missing file or denied operation has
+the selected filesystem's checked result; no fallback grants a broader root.
 
-Per-dependency input assignments are part of the pre-execution invocation and
-its prerequisite graph, keyed by exact package/purpose/target occurrence. The
-consumer's running build cannot grant new inputs retroactively to a dependency
-whose build has already completed. To use newly computed inputs, invoke an
-ordinary generator helper in the current build with those values, or arrange
-a separate later build using an explicitly completed artifact. There is no
-implicit graph mutation or recursive build API in this contract.
+## Execution contexts and reuse
 
-An edge assignment applies to each checked context that edge serves within the
-selected target invocation. Incoming assignments to one shared scheduling node
-must agree as complete maps, including an edge with no assigned inputs.
-Conflicting assignments reject before any affected build executes; taking their union would widen an edge's
-inputs. Equal assignments reuse the existing package/purpose/profile identity,
-without creating a new package instance for an import alias.
+Two consumers can prepare the same source package under different backing,
+provider selections or configuration. They receive distinct execution contexts;
+neither must adopt the other's input map, and coordination never unions their
+authority. Source acquisition and compiled code may be shared only where their
+actual checked identities permit it. Build results, generated code and effects
+are not shared merely because package bytes or aliases match. Joining produced
+variants still requires compatible exact product identities; separate execution
+does not authorize merging contradictory generated declarations.
 
-For first implementation, cache keys conservatively include the entire admitted
-input inventory and metadata profile, both dependency-purpose closures, executor
-semantics, selected target, and accepted grant policy. This accounts for negative
-lookups and directory listings without trusting user-authored watch lists.
-Content-identical read-only snapshots can share storage; grants and activation
-handles cannot. An output cache hit still requires exact provenance and current
-admission/resource eligibility; it is not a way to accept code that the current
-policy would refuse. Finer observed-input caching is deferred. No persistent
-scratch cache is implicitly visible to a build.
+Before reusing an execution result, prove applicability to the exact code,
+purpose, execution profile, configuration, selected providers, actual backing
+grants, source inventory, filesystem observations and accepted policy. The
+conservative implementation commits the complete delegated immutable view and
+logical metadata profile, including negative lookups and directory membership.
+Content-identical immutable snapshots may share bytes without sharing grants,
+writer custody or live activation identities. A library-supplied changeset or
+hash alone is not an authority or replay receipt. Product reuse is not evidence
+that the Build ran again and cannot silently omit required observable effects.
+Materializing cached files or applying retained changes still requires the
+destination's actual authority and the selected conflict/failure contract.
+
+Mutable/live backing is not an immutable cache input. Capture an adequate
+immutable observation closure under its actual authority, or decline persistent
+result reuse when applicability cannot be established. Resource or host failures
+cannot be relabeled as stable NotFound/EOF observations. No persistent scratch
+cache becomes implicitly readable. Different contexts are ordinary supported
+occurrences, not a conflict that must always be detected before the package's
+first-ever activation. Each occurrence and each newly reached continuation is
+admitted before its own effects; earlier authorized execution has no rollback.
 
 Additional real-host access is opt-in under independently accepted consumer and
 executor policy. Requests by downloaded code cannot grant themselves authority.
@@ -475,14 +592,12 @@ and subprocess facilities, if later justified, need their own admitted protocols
 a filesystem grant or std import provides neither. Resolver credentials and
 package retrieval remain outside build code's authority.
 
-The first portable protocol makes additional host files available by capturing
-read-only inputs, not by lending arbitrary live paths. Existing explicitly admitted
-live filesystem routes may remain separately identified transitional modes; they
-must not report snapshot-isolated execution. Their host observations and external
-effects require explicit admission and actual scoped capabilities. They are
-excluded from the snapshot-output cache. Enabling
-a mode is an independently accepted executor decision, never an option a package
-can use to approve itself. A generally extensible live-host grant API is deferred.
+The default portable profile prefers captured read-only views. Separately
+admitted live backing uses the same ordinary service abstraction while retaining
+its real observations, external effects and actual scoped authority. It must not
+claim snapshot isolation or enter snapshot-result reuse by a mode flag. Library
+provider selection cannot approve its own host grant. Network and process APIs
+remain separately specified capabilities, not consequences of filesystem access.
 
 Calling a library within the root build does not create a new sandbox. It can
 use capabilities passed by its caller. Passing the root builder may permit all
@@ -499,11 +614,11 @@ new build helpers for that invocation. Dependency-generated source enters only
 through the corresponding role/target-bound handoff, never a mutable output path.
 
 Add a compiler-issued linear `RequiredOutput` under the owning Build authority.
-`builder.output.require(name)` reserves one logical output name and returns its
+`Build::require_artifact(builder, name)` reserves one logical output name and returns its
 activation-bound obligation, or a checked error. Duplicate names and file/directory
 prefix collisions reject; no last writer wins. Names use the same logical path
-rules as staging. Registration may depend on admitted build computation, unlike
-package dependency requests. A caller needing a fixed output roster supplies
+rules as staging. Registration may depend on admitted build computation, as may
+atomic dependency requests. A caller needing a fixed output roster supplies
 that roster as an invocation requirement: never infer that a conditional branch
 which omitted `require` nevertheless checked the intended artifact.
 
@@ -521,8 +636,10 @@ record that cannot be forged, reset, or satisfied by dropping the source value:
 | Trap, cancellation, exhaustion, or executor failure | Abort the occurrence and its new product set; do not synthesize completion receipts. |
 
 `complete` cannot accept an open writer, a mutable host path, a file from another
-activation, or a previous run's receipt. A retained immutable blob may back a new
-staged file, but requires a new completion under the current obligation. Completion
+activation, or a previous run's receipt. Ordinary filesystem operations supply
+immutable captured bytes; publication does not require the retired BuildOutput
+writer category. A retained immutable blob may back a new staged file, but
+requires a new completion under the current obligation. Completion
 cannot trigger loading of artifact-defined code. Required outputs are files in
 this first slice; packages can serialize manifests/archives for variable-sized
 trees rather than demand another directory-product lifecycle.
@@ -574,9 +691,10 @@ files without this application-mode declaration.
 
 Artifact-only builds retain an explicit target/evaluation context from their
 invocation; the mode does not imply cross-target equivalence or a new target
-profile. A generator cannot inspect a target: target-specific generated
-content is emitted as target-tagged declarations for every target, never a
-different file per target.
+profile. A generator cannot inspect a selected realization target: generated
+source contains ordinary named implementations for the supplied targets, and
+the evaluated Build records target-keyed provider rows. It emits neither
+target-prefixed declarations nor a different file selected per realized target.
 This first slice does not automatically merge outputs from different target
 children. Executable builds still require the target's ProgramEntry and other
 mandatory roots even when they also publish artifacts.
@@ -610,8 +728,9 @@ and mutation tests; this document does not claim that interface implemented.
 The exact sequencing is:
 
 ```text
-host Build checking and admission
-  -> one resumable Build activation with dependency requests and static provider slots
+checked initial Build stage and admission
+  -> one resumable activation with atomic dependency registration
+  -> dependency preparation, then checked/admitted continuations without replay
   -> final dependency join and frozen product-selection frontier
   -> generated-source incorporation and final target/component checks
   -> required-output completion check and committed result set
@@ -629,9 +748,12 @@ dependency or input frontier by serializing a new manifest as output.
 | Case | Required result |
 | --- | --- |
 | Build dependency declared but never used by Build code | Request may complete without suspending; Build return still joins and records it. |
-| Provider readiness requested before dependency work completes | Suspend at `Build::await_provider<R>`, install only the admitted implementation into the exact static slot, and resume the same continuation without replay. |
+| Provider readiness requested before dependency work completes | Suspend at `Build::await_provider<R, Backing>`, install only the explicitly named admitted backing into the exact static slot, and resume the same continuation without replay. |
 | Dependency declaration in a local helper or conditional | Execute normally; only the requests actually emitted belong to this Build result. |
-| Static import or call into a newly requested build dependency | Reject initial Build checking; await its implementation through a pre-known exact requirement application before calling that static slot. |
+| Deferred import of a newly registered Build dependency | Remains inert until preparation; check the dependent continuation before any use executes. |
+| Unused import without a dependency request | Normally warn; acquire and execute nothing. |
+| Alias mutation, duplicate registration or a later request used to justify earlier code | Reject without retargeting any previously checked declaration. |
+| Branch-local dependency used at a join | Require preparation on every incoming use path or an explicit checked preparation before the use. |
 | Local multi-file build helper | Checked in the build context with exact Build vocabulary and normal visibility. |
 | Product-only entry/provider selected from a build with no host import of that implementation | Exact designated product operand resolves; no target code executes on the host. |
 | Same alias names different host and product packages | Ordinary calls select only the host package; product operands select only the product package. No fallback. |
@@ -646,7 +768,9 @@ dependency or input frontier by serializing a new manifest as output.
 | Missing input, negative lookup, or changed directory membership | Accounted in the input commitment; no stale watch-list-based reuse. |
 | Reads home/consumer secrets, follows an escaping link, fabricates a handle | Explicit refusal before unauthorized host access. |
 | Helper is deliberately given a wider input | May read that input; no false confidentiality claim. |
-| Runtime filesystem/network provider selected for a build helper | No bypass of build-facet admission or automatic host grant. |
+| Alternative filesystem/network provider selected for a build helper | Actual backing and complete closure admission remain required; no host escape or automatic grant. |
+| Two consumers prepare the same package with different backing views | Distinct execution contexts; no grant union or reuse of an inapplicable result. |
+| Cow overlay changed files inspected or exported | Preserve exact base/view and destination authority; no implicit commit to parent or host. |
 | Partial output, ignored error, unfinished required output | No new successful product publication. |
 | Failed completion followed by explicit successful retry | Custody is returned on the failed attempt; one valid completion may succeed. |
 | Duplicate completion, consumed obligation reuse, or previous activation's receipt | Reject; cannot substitute equal bytes for activation custody. |
@@ -662,13 +786,29 @@ paths on Windows and macOS; source inspection is not a host execution pass.
 Compare two packages using the same input and output names to detect cross-build
 leakage, and test same-package dual-purpose cache entries with different targets.
 
-The first slice uses the declaration names above, explicit purpose
-migration, product-reference roles, snapshot/staging operations, completion state
-table, and interpreted artifact-only mode. Their observable behavior
-is not delegated to implementation. Numeric wire tables and exact source
-signatures belong in the existing build/protocol owners before implementation
-can claim compatibility; the semantic outcomes and authority rules are fixed by
-this contract.
+## Migration and retirement
+
+`STAGED-BUILD-CAPABILITIES` in [TASKS.md](../../../TASKS.md) owns the complete
+ratified migration. Deprecate the old authoring routes with actionable
+diagnostics, migrate their customers and both producers, then delete them in
+that outcome. There is no permanent legacy mode or parallel filesystem API.
+
+The retired surface includes old dependency names and post-registration alias
+mutation, unconditional pre-known-only Build import checking, BuildInputs,
+BuildSource and BuildOutput filesystem operations, named per-dependency input
+maps including the unimplemented with_dependency_inputs proposal, and the
+global incoming-map agreement rule. Compiler-private source capture, exact
+provider installation, linear artifact publication, accounting and authority
+checks remain where required; changing names must not remove those guarantees.
+
+The accepted public journey is ordinary inert imports, configured descriptions,
+atomic registration, explicit preparation, checked continuation execution,
+ordinary filesystem capabilities and explicit artifact/source handoff. Exact
+library helper signatures and protocol encoding are implementation work, not
+permission to invent additional authoring concepts. Change retained schema and
+review identities where context or stage meaning changes; reject or explicitly
+migrate old records rather than reinterpret their bytes. Current fixtures using
+old facets do not prove the new surface implemented.
 
 Demonstrate a generator reading a template through a narrowed snapshot and
 completing a required file, a multi-file helper taking a restricted product entry

@@ -1,4 +1,4 @@
-use generator::main;
+use build_support;
 
 machine build(builder: &mut Build) {
     Build::application(builder, "acquired_generator_completed_output_set");
@@ -20,8 +20,8 @@ machine build(builder: &mut Build) {
         true -> generate(builder, companion, source, &template)
         _ -> failed(builder, companion, source)
     }
-    state generate(builder: &mut Build, companion: RequiredOutput, source: RequiredOutput, template: &[u8; 6]) {
-        // The acquired helper receives only these six captured bytes, not the
+    machine generate(builder: &mut Build, companion: RequiredOutput, source: RequiredOutput, template: &[u8; 6]) {
+        // The local helper receives only these six captured bytes, not the
         // source capability or the caller's host paths.
         let bytes: [u8; 6] = generate_companion(template);
         let companion_path: BuildPath = BuildOutput::resolve(&builder.output, "companion.txt");
@@ -40,7 +40,7 @@ machine build(builder: &mut Build) {
         let source_completion: OutputCompletion = BuildOutput::complete(&mut builder.output, source, generated);
         settle(builder, source_completion);
     }
-    state failed(builder: &mut Build, companion: RequiredOutput, source: RequiredOutput) {
+    machine failed(builder: &mut Build, companion: RequiredOutput, source: RequiredOutput) {
         BuildOutput::fail(&mut builder.output, companion, "captured template or acquired helper failed");
         BuildOutput::fail(&mut builder.output, source, "generation did not run");
     }
@@ -51,8 +51,8 @@ machine settle(builder: &mut Build, completion: OutputCompletion) {
         OutputCompletion::Sealed { receipt } -> sealed(builder)
         OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
     }
-    state sealed(builder: &mut Build) {}
-    state failed(builder: &mut Build, obligation: RequiredOutput) {
+    machine sealed(builder: &mut Build) {}
+    machine failed(builder: &mut Build, obligation: RequiredOutput) {
         BuildOutput::fail(&mut builder.output, obligation, "generated output did not seal");
     }
 }

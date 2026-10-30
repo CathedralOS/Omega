@@ -5,9 +5,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use semantic_vocabulary::{BlockId, EdgeId};
+use semantic_vocabulary::{BlockId, EdgeId, ValueId};
 use semantic_vocabulary::{CycleComponentId, PsiSemanticId};
-use terminal_psi::{TerminalMachine, TerminalNaturalCycle};
+use terminal_psi::{Block, StructuralArgument, TerminalMachine, TerminalNaturalCycle, Terminator};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ControlGraphError {
@@ -26,6 +26,210 @@ pub fn successors(machine: &TerminalMachine) -> BTreeMap<BlockId, Vec<(EdgeId, B
             (block.id, edges)
         })
         .collect()
+}
+
+/// One control edge that forwards the predecessor's operands positionally into
+/// a target block's parameter roster.
+///
+/// Case edges forward structural arguments but produce scalar payloads rather
+/// than forwarding scalar values. Their absent scalar roster makes that
+/// distinction explicit; it cannot be read as an empty scalar telescope.
+#[derive(Debug, Clone, Copy)]
+pub struct ForwardedBinding<'block> {
+    pub target: BlockId,
+    pub arguments: Option<&'block [ValueId]>,
+    pub structural_arguments: &'block [StructuralArgument],
+}
+
+/// The parameters this block's terminator forwards, with the exact operands
+/// each successor binds. Reading a block's arrival operands is one query: the
+/// terminator is classified here rather than re-matched by every consumer.
+pub fn forwarded_bindings(block: &Block) -> Vec<ForwardedBinding<'_>> {
+    match &block.terminator {
+        Terminator::Jump {
+            target,
+            arguments,
+            structural_arguments,
+            ..
+        } => vec![ForwardedBinding {
+            target: *target,
+            arguments: Some(arguments.as_slice()),
+            structural_arguments: structural_arguments.as_slice(),
+        }],
+        Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => [when_true, when_false]
+            .into_iter()
+            .map(|successor| ForwardedBinding {
+                target: successor.target,
+                arguments: Some(successor.arguments.as_slice()),
+                structural_arguments: successor.structural_arguments.as_slice(),
+            })
+            .collect(),
+        Terminator::StructuralCase { cases, .. } => cases
+            .iter()
+            .map(|successor| ForwardedBinding {
+                target: successor.target,
+                arguments: None,
+                structural_arguments: &successor.structural_arguments,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Whether this block reaches `target` by a structural-case edge. The edge
+/// declares payload fields instead of forwarding the target's parameters.
+pub fn reaches_by_case(block: &Block, target: BlockId) -> bool {
+    matches!(&block.terminator, Terminator::StructuralCase { cases, .. }
+        if cases.iter().any(|successor| successor.target == target))
+}
+
+/// Failure to establish an exact, closed module control graph is not evidence
+/// that an invocation cannot return.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompletionGraphError {
+    UnknownMachine(semantic_vocabulary::MachineId),
+    AmbiguousMachine(semantic_vocabulary::MachineId),
+    InvalidControl {
+        machine: semantic_vocabulary::MachineId,
+        error: ControlGraphError,
+    },
+}
+
+/// Reconstruct potential normal completion from actual module control, never
+/// from a caller's marker or the callee's crash ceiling. A closed cycle has no
+/// normal exit, but supplies no termination, disposal or abandonment authority.
+/// Ordinary prefix calls remain conservatively returning; an explicit
+/// no-normal invocation transfers this query to its exact callee entry.
+/// Borrowed control views share one absence-of-normal-completion algorithm.
+/// Each adapter authenticates its current graph before exposing an entry.
+pub trait NormalCompletionGraph {
+    type Error;
+    fn entry(&mut self, machine: semantic_vocabulary::MachineId) -> Result<BlockId, Self::Error>;
+    fn disposition(
+        &self,
+        machine: semantic_vocabulary::MachineId,
+        block: BlockId,
+    ) -> Result<NormalCompletionDisposition, Self::Error>;
+}
+
+/// Analysis scratch describing one existing control point, not an executable IR.
+pub enum NormalCompletionDisposition {
+    Return,
+    Stop,
+    Invoke(semantic_vocabulary::MachineId),
+    Successors(Vec<BlockId>),
+}
+
+pub fn normal_completion_possible_in<Graph: NormalCompletionGraph>(
+    graph: &mut Graph,
+    initial: semantic_vocabulary::MachineId,
+) -> Result<bool, Graph::Error> {
+    let entry = graph.entry(initial)?;
+    let mut visited = BTreeSet::new();
+    let mut pending = vec![(initial, entry)];
+    while let Some((machine, block)) = pending.pop() {
+        if !visited.insert((machine, block)) {
+            continue;
+        }
+        match graph.disposition(machine, block)? {
+            NormalCompletionDisposition::Return => return Ok(true),
+            NormalCompletionDisposition::Stop => {}
+            NormalCompletionDisposition::Invoke(callee) => {
+                let entry = graph.entry(callee)?;
+                pending.push((callee, entry));
+            }
+            NormalCompletionDisposition::Successors(targets) => {
+                pending.extend(targets.into_iter().map(|target| (machine, target)))
+            }
+        }
+    }
+    Ok(false)
+}
+
+struct ModuleCompletionGraph<'a> {
+    module: &'a terminal_psi::TerminalModule,
+    validated: BTreeSet<semantic_vocabulary::MachineId>,
+}
+impl ModuleCompletionGraph<'_> {
+    fn machine(
+        &self,
+        identity: semantic_vocabulary::MachineId,
+    ) -> Result<&TerminalMachine, CompletionGraphError> {
+        let mut candidates = self
+            .module
+            .machines
+            .iter()
+            .filter(|machine| machine.id == identity);
+        let machine = candidates
+            .next()
+            .ok_or(CompletionGraphError::UnknownMachine(identity))?;
+        if candidates.next().is_some() {
+            return Err(CompletionGraphError::AmbiguousMachine(identity));
+        }
+        Ok(machine)
+    }
+}
+impl NormalCompletionGraph for ModuleCompletionGraph<'_> {
+    type Error = CompletionGraphError;
+    fn entry(&mut self, identity: semantic_vocabulary::MachineId) -> Result<BlockId, Self::Error> {
+        if !self.validated.contains(&identity) {
+            validate_control_graph(self.machine(identity)?).map_err(|error| {
+                CompletionGraphError::InvalidControl {
+                    machine: identity,
+                    error,
+                }
+            })?;
+            self.validated.insert(identity);
+        }
+        Ok(self.machine(identity)?.entry)
+    }
+    fn disposition(
+        &self,
+        machine: semantic_vocabulary::MachineId,
+        block: BlockId,
+    ) -> Result<NormalCompletionDisposition, Self::Error> {
+        use terminal_psi::Terminator;
+        let block =
+            self.machine(machine)?
+                .block(&block)
+                .ok_or(CompletionGraphError::InvalidControl {
+                    machine,
+                    error: ControlGraphError::UnknownTarget(block),
+                })?;
+        Ok(match &block.terminator {
+            Terminator::Return { .. }
+            | Terminator::ReturnUnit { .. }
+            | Terminator::ReturnStructural { .. } => NormalCompletionDisposition::Return,
+            Terminator::InvokeNoNormal { callee, .. } => {
+                NormalCompletionDisposition::Invoke(*callee)
+            }
+            Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => {
+                NormalCompletionDisposition::Stop
+            }
+            Terminator::Jump { .. }
+            | Terminator::Conditional { .. }
+            | Terminator::StructuralCase { .. } => {
+                NormalCompletionDisposition::Successors(block.terminator.successor_targets())
+            }
+        })
+    }
+}
+
+pub fn normal_completion_possible(
+    module: &terminal_psi::TerminalModule,
+    initial: semantic_vocabulary::MachineId,
+) -> Result<bool, CompletionGraphError> {
+    normal_completion_possible_in(
+        &mut ModuleCompletionGraph {
+            module,
+            validated: BTreeSet::new(),
+        },
+        initial,
+    )
 }
 
 /// Iterative DFS returning blocks in first-finished order — the shared

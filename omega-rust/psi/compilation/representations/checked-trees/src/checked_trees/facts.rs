@@ -15,7 +15,9 @@ mod constant_predicate_obligations;
 mod constant_recipe_obligations;
 mod integer_range_obligations;
 pub use constant_predicate_obligations::ConstantPredicateObligation;
-pub use integer_range_obligations::{IntegerRangeObligation, IntegerRangeRecipe};
+pub use integer_range_obligations::{
+    IntegerRangeModel, IntegerRangeObligation, IntegerRangeRecipe,
+};
 mod contextual_cleanup;
 pub mod scalar_predicates;
 
@@ -27,6 +29,16 @@ mod blocking;
 mod checked_crash_operator_site;
 mod content;
 mod contract_plans;
+mod declaration_descriptions;
+mod proof_applications;
+pub use declaration_descriptions::{
+    CheckedDeclarationCapture, CheckedDeclarationDescription, CheckedDeclarationDescriptions,
+    CheckedDeclarationParameter, CheckedDeclarationSpecialization, CheckedMachineDescription,
+};
+pub use proof_applications::{
+    ProofApplicationMachine, ProofApplicationPlan, ProofApplicationTargetMember, ProofApplications,
+    ProofDeclarationDependencies,
+};
 mod mutation;
 mod qualifications;
 mod service_reaches;
@@ -83,23 +95,25 @@ pub use carry::{
 pub use checked_crash_operator_site::{CheckedCrashOperatorSite, OperatorSiteLocation};
 pub use collection::{CheckFacts, DecidedCallRequires, ProvenAssignmentIndex};
 pub use content::{
-    ContentBodyAvailableInput, ContentBodyClaimBinding, ContentBodyConservationFact,
-    ContentBodyDerivation, ContentBodyTransformation, ContentClaimTransformation,
+    ContentBackingAddressTransport, ContentBodyAvailableInput, ContentBodyClaimBinding,
+    ContentBodyConservationFact, ContentBodyCustody, ContentBodyDerivation,
+    ContentBodyTransformation, ContentBoundaryBodyRequirement, ContentClaimTransformation,
     ContentClaimTransformationSource, ContentIdentityReshuffleFact,
     ContentPartitionCompositionFact, ContentPartitionInputClaimBinding,
-    ContentPartitionPlaceSubstitution, ContentPartitionResultRewrite, ContentProjectionFacts,
-    RetainedBorrowCustodyFact,
+    ContentPartitionPlaceSubstitution, ContentPartitionResultRewrite, ContentPartitionReturnFact,
+    ContentProjectionFacts, RetainedBorrowCustodyFact,
 };
 pub use content_classes::{ContentClassFacts, ContentClassRow};
 pub use contextual_cleanup::{
     ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupEntryRequirement,
-    ContextualCleanupEntryRequirements, ContextualCleanupFacts, ContextualStorageEstablishment,
+    ContextualCleanupEntryRequirements, ContextualCleanupExcludedRegion,
+    ContextualCleanupExclusionCause, ContextualCleanupFacts, ContextualStorageEstablishment,
     StorageWindowInvocation,
 };
 pub use contract_plans::{
     CheckedCrashCallSite, CheckedCrashSite, CheckedEntryResourceEnvelope,
     CheckedMachineResourceEnvelopes, CheckedResourceAxisAnchor,
-    CheckedResourceDerivationObligation, CheckedRuntimeMembershipSubject,
+    CheckedResourceDerivationObligation, CheckedRuntimeMembershipSubject, CheckedTrappingSite,
     ClosedFloatRangeRequirement, ClosedIntegerRangeRequirement, ClosedScalarContractValue,
     ClosedScalarValueContractPlan, CrashCallSiteLocation, CrashCause, CrashContractCapsule,
     CrashInterface, CrashPlan, CrashPredicateExpression, CrashPredicateIdentity, CrashRouteBucket,
@@ -152,9 +166,9 @@ pub use termination::{
     CheckedProofRecursiveTransitionLane, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
     CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
     CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,
-    CheckedRankPremiseRegime, CheckedRankReceivingCoordinate, CheckedRankValueDerivation,
-    CheckedRuntimeNaturalState, CheckedRuntimeRankComponent, CheckedRuntimeRankEdge,
-    CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent, CheckedSourceNaturalRankEdge,
-    CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence, MachineTerminationFact,
-    TerminationFacts,
+    CheckedRankObservation, CheckedRankPremiseRegime, CheckedRankReceivingCoordinate,
+    CheckedRankValueDerivation, CheckedRuntimeNaturalState, CheckedRuntimeRankComponent,
+    CheckedRuntimeRankEdge, CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent,
+    CheckedSourceNaturalRankEdge, CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
+    MachineTerminationFact, TerminationFacts,
 };

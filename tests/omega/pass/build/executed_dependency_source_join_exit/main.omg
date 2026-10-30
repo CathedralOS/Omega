@@ -1,0 +1,12 @@
+// Expected exit: 0
+use selected;
+
+machine main() crashes Trap {
+    transition selected::answer() == 73u32 {
+        true -> done()
+        false -> bad()
+    }
+}
+
+machine done() { }
+machine bad() crashes Trap { crash Trap; }

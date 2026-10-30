@@ -16,7 +16,7 @@ machine Spread::plan(schema: Schema) -> Plan {
         _ -> plain(schema)
     }
 
-    state with_private(schema: Schema) -> Plan {
+    machine with_private(schema: Schema) -> Plan {
         let mut entries: [FieldEntry; 64];
         entries[0] = FieldEntry {
             key: schema.fields[0].key,
@@ -32,7 +32,7 @@ machine Spread::plan(schema: Schema) -> Plan {
         Plan::place_private<CallbackSlot>(plan, 8)
     }
 
-    state plain(schema: Schema) -> Plan {
+    machine plain(schema: Schema) -> Plan {
         let mut entries: [FieldEntry; 64];
         entries[0] = FieldEntry {
             key: schema.fields[0].key,

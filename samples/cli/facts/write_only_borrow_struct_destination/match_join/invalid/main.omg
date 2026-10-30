@@ -1,8 +1,8 @@
 // Fact: Initializing a destination storage slot through a write-only borrow (&write) establishes definite initialization and the post-write upper bound (written <= 95u64), discharging exact subtraction 95u64 - written across all nine places.
 
-domain u64::WrittenBound(v)
+domain u64::WrittenBound
 requires
-    v <= 96u64;
+    self <= 96u64;
 
 data DestinationSlot {
     written: u64 in WrittenBound;
@@ -36,6 +36,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -9,7 +9,7 @@ data Main { count: u64; other: u64; }
 
 machine Main::run(main: &Main) -> u64 {
     transition { _ -> next(main) }
-    state next(main: &mut Main) -> u64 {
+    machine next(main: &mut Main) -> u64 {
         main.count = 4;
         (main.count)
     }
@@ -17,10 +17,10 @@ machine Main::run(main: &Main) -> u64 {
 
 machine Main::through_shared_state(main: &Main) -> u64 {
     transition { _ -> look(main) }
-    state look(main: &Main) -> u64 {
+    machine look(main: &Main) -> u64 {
         transition { _ -> write(main) }
     }
-    state write(main: &mut Main) -> u64 {
+    machine write(main: &mut Main) -> u64 {
         main.other = 5;
         (main.other)
     }

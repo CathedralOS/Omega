@@ -1,22 +1,15 @@
 //! Ordinary scalar results use the ABI floating register without a wrapper call.
 
 use super::{
-    AARCH64_AAPCS64_RETURN, AARCH64_DARWIN_RETURN, aarch64_aapcs64_mixed_unit_call_keys,
-    aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_mixed_unit_call_keys,
-    aarch64_darwin_register_unit_call_keys,
+    AARCH64_AAPCS64_RETURN, AARCH64_DARWIN_RETURN, aarch64_mixed_unit_call_keys,
+    aarch64_register_unit_call_keys,
 };
 use register_model::{
     RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
     RegisterOperandConstraint, ValidatedPhysicalRegisterModel, find_register_constraint,
 };
 pub fn aarch64_float_scalar_call_keys(darwin: bool) -> Vec<RegisterConstraintKey> {
-    let count = input_keys(darwin).len()
-        + (if darwin {
-            aarch64_darwin_mixed_unit_call_keys()
-        } else {
-            aarch64_aapcs64_mixed_unit_call_keys()
-        })
-        .len();
+    let count = input_keys(darwin).len() + aarch64_mixed_unit_call_keys(darwin).len();
     (0..count)
         .map(|ordinal| {
             RegisterConstraintKey::call((if darwin { 1800 } else { 1600 }) + ordinal as u32)
@@ -29,18 +22,10 @@ pub fn aarch64_float_scalar_return_keys(darwin: bool) -> Vec<RegisterConstraintK
 }
 
 fn input_keys(darwin: bool) -> Vec<RegisterConstraintKey> {
-    (if darwin {
-        aarch64_darwin_register_unit_call_keys()
-    } else {
-        aarch64_aapcs64_register_unit_call_keys()
-    })
-    .into_iter()
-    .chain(if darwin {
-        aarch64_darwin_mixed_unit_call_keys()
-    } else {
-        aarch64_aapcs64_mixed_unit_call_keys()
-    })
-    .collect()
+    aarch64_register_unit_call_keys(darwin)
+        .into_iter()
+        .chain(aarch64_mixed_unit_call_keys(darwin))
+        .collect()
 }
 
 pub(super) fn append_constraints(
@@ -52,13 +37,9 @@ pub(super) fn append_constraints(
     };
     for darwin in [false, true] {
         let inputs = input_keys(darwin).into_iter().map(|key| (key, "d0")).chain(
-            (if darwin {
-                aarch64_darwin_mixed_unit_call_keys()
-            } else {
-                aarch64_aapcs64_mixed_unit_call_keys()
-            })
-            .into_iter()
-            .map(|key| (key, "x0")),
+            aarch64_mixed_unit_call_keys(darwin)
+                .into_iter()
+                .map(|key| (key, "x0")),
         );
         for ((input, result_name), key) in inputs.zip(aarch64_float_scalar_call_keys(darwin)) {
             let Some(result) = model.model().view_named(result_name) else {
@@ -107,13 +88,10 @@ pub(super) fn append_constraints(
 #[cfg(test)]
 mod tests {
     use super::super::{
-        aarch64_physical_register_model, aarch64_register_constraint_catalog,
-        validate_aarch64_register_constraint_catalog,
+        aarch64_aapcs64_register_unit_call_keys, aarch64_physical_register_model,
+        aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
     };
-    use super::{
-        aarch64_aapcs64_register_unit_call_keys, aarch64_float_scalar_call_keys,
-        aarch64_float_scalar_return_keys,
-    };
+    use super::{aarch64_float_scalar_call_keys, aarch64_float_scalar_return_keys};
 
     #[test]
     fn floating_return_uses_ordinary_return_bytes_and_exact_home() {

@@ -15,7 +15,7 @@ machine Main::main(main: &mut Main) reaches Console {
     let text: [u8; 5] = "HELLO";
     transition { _ -> literal(&text, 1) }
 
-    state literal(text: &[u8; 5], second: u64) {
+    machine literal(text: &[u8; 5], second: u64) {
         let last: u8 = text[4];
         transition text[0] == 72 && last == 79 {
             true -> guarded(text, second)
@@ -23,14 +23,14 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state guarded(text: &[u8; 5], second: u64) {
+    machine guarded(text: &[u8; 5], second: u64) {
         transition second < 5 && text[second] == 69 {
             true -> required(text, 2)
             _ -> finish(72)
         }
     }
 
-    state required(text: &[u8; 5], third: u64)
+    machine required(text: &[u8; 5], third: u64)
         requires third < 5
     {
         let byte: u8 = text[third];
@@ -41,7 +41,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state finish(code: i32) { Console::exit_process(code); }
+    machine finish(code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

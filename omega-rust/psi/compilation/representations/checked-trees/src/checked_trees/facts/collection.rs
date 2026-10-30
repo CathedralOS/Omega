@@ -8,8 +8,12 @@ use crate::{
 
 use crate::{CheckedFactCallProjection, CheckedPlacedViewInput};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckFacts {
+    /// Complete checked callable descriptions, independent of executable roots.
+    pub declaration_descriptions: crate::CheckedDeclarationDescriptions,
+    /// Conditional proof scope retained independently of the selected body roster.
+    pub proof_applications: crate::ProofApplicationPlan,
     pub quotient_formations: Vec<super::CheckedQuotientFormation>,
     pub quotient_operations: Vec<super::CheckedQuotientOperation>,
     /// Portable specialization identities derived from checked machine contracts.
@@ -145,7 +149,7 @@ pub struct CheckFacts {
 
 /// One `AssignmentIndex { depth }` selector of the assignment at
 /// `statement_index` whose bounds checking proved its index in range.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProvenAssignmentIndex {
     pub state: symbols::SymbolHandle,
     pub statement_index: u32,
@@ -169,7 +173,7 @@ impl ProvenAssignmentIndex {
 
 /// One call site's decision, conditional on its CheckFacts constant obligations
 /// until target closure discharges them before lowering.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct DecidedCallRequires {
     pub state: symbols::SymbolHandle,
     pub statement_index: u32,

@@ -14,16 +14,15 @@ use crate::{PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan};
 
 use crate::codec_bytes::encode_len;
 use instruction::encode_cfg_instruction;
-pub(crate) use instruction::encode_integer;
+pub(crate) use instruction::encode_kind;
 pub use ownership::{encode_cleanup, encode_ownership, encode_path, encode_reference_origin_path};
 pub use provenance::encode_provenance;
 pub use values::encode_ids;
-use values::encode_target;
 
 pub fn pre_allocation_machine_effect_identity(
     plan: &PreAllocationMachineEffectPlan,
 ) -> PreAllocationMachineEffectIdentity {
-    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v30\0")
+    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v32\0")
 }
 
 fn identity_with_domain(
@@ -45,7 +44,7 @@ pub(crate) fn encode_terminal_pre_allocation_machine_effect_content(
     bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
     crate::codec_bytes::push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
-    encode_target(&mut bytes, plan.target);
+    bytes.extend_from_slice(&plan.target.identity_bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.register_constraints.bytes());
     bytes.extend_from_slice(&plan.machine_effect_catalog.bytes());

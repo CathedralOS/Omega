@@ -16,7 +16,7 @@ requires val >= 20i8 && val <= 25i8
 {
     let shifted: i8 = val << 2u32;
     transition { _ -> step(shifted) }
-    state step(s: i8) -> i32 requires s >= 80i8 && s <= 100i8 {
+    machine step(s: i8) -> i32 requires s >= 80i8 && s <= 100i8 {
         verify_i8_shifted(s)
     }
 }
@@ -27,6 +27,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -22,13 +22,13 @@ data Main {
 
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> read(main) }
-    state read(main: &mut Main) {
+    machine read(main: &mut Main) {
         transition main.bytes >= 0 && main.bytes < 256 {
             true -> byte(main)
             _ -> invalid(main)
         }
     }
-    state byte(main: &mut Main)
+    machine byte(main: &mut Main)
     requires main.bytes >= 0 && main.bytes < 256 {
         main.bytes = main.bytes + 1;
         let observed: ByteRead = block Console::read_byte();
@@ -37,19 +37,19 @@ machine Main::main(main: &mut Main) reaches Console {
             ByteRead::Byte { value } -> classify(main, value)
         }
     }
-    state classify(main: &mut Main, value: i32) {
+    machine classify(main: &mut Main, value: i32) {
         transition value >= 48 && value <= 57 {
             true -> digit(main, value)
             _ -> separator(main, value)
         }
     }
-    state digit(main: &mut Main, value: i32) {
+    machine digit(main: &mut Main, value: i32) {
         transition main.digits >= 0 && main.digits < 7 {
             true -> accumulate(main, value)
             _ -> invalid(main)
         }
     }
-    state accumulate(main: &mut Main, value: i32)
+    machine accumulate(main: &mut Main, value: i32)
     requires main.digits >= 0 && main.digits < 7 {
         main.token = main.token * 10 + (value as i32 in Wrapping) - 48;
         main.digits = main.digits + 1;
@@ -58,25 +58,25 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> invalid(main)
         }
     }
-    state separator(main: &mut Main, value: i32) {
+    machine separator(main: &mut Main, value: i32) {
         transition value == 32 || value == 9 || value == 10 || value == 13 {
             true -> flush(main)
             _ -> invalid(main)
         }
     }
-    state flush(main: &mut Main) {
+    machine flush(main: &mut Main) {
         transition main.digits > 0 {
             true -> store(main)
             _ -> read(main)
         }
     }
-    state store(main: &mut Main) {
+    machine store(main: &mut Main) {
         transition main.position >= 0 && main.position < 13 {
             true -> save(main)
             _ -> invalid(main)
         }
     }
-    state save(main: &mut Main)
+    machine save(main: &mut Main)
     requires main.position >= 0 && main.position < 13 {
         main.input[main.position] = main.token as i32;
         main.position = main.position + 1;
@@ -84,41 +84,41 @@ machine Main::main(main: &mut Main) reaches Console {
         main.digits = 0;
         transition { _ -> read(main) }
     }
-    state end(main: &mut Main) {
+    machine end(main: &mut Main) {
         transition main.digits > 0 {
             true -> last(main)
             _ -> validate(main)
         }
     }
-    state last(main: &mut Main) {
+    machine last(main: &mut Main) {
         transition main.position >= 0 && main.position < 13 {
             true -> save_last(main)
             _ -> invalid(main)
         }
     }
-    state save_last(main: &mut Main)
+    machine save_last(main: &mut Main)
     requires main.position >= 0 && main.position < 13 {
         main.input[main.position] = main.token as i32;
         main.position = main.position + 1;
         transition { _ -> validate(main) }
     }
-    state validate(main: &mut Main) {
+    machine validate(main: &mut Main) {
         transition main.position == 13 && main.input[0] <= 4 {
             true -> terms(main)
             _ -> invalid(main)
         }
     }
-    state terms(main: &mut Main) {
+    machine terms(main: &mut Main) {
         main.index = 0;
         transition { _ -> term_loop(main) }
     }
-    state term_loop(main: &mut Main) {
+    machine term_loop(main: &mut Main) {
         transition main.index >= 0 && main.index < 4 {
             true -> term(main)
             _ -> weights(main)
         }
     }
-    state term(main: &mut Main)
+    machine term(main: &mut Main)
     requires main.index >= 0 && main.index < 4 {
         let mask: i32 = main.input[main.index + 1];
         transition mask <= 7 && (main.index < main.input[0] || mask == 0) {
@@ -126,23 +126,23 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> invalid(main)
         }
     }
-    state copy_term(main: &mut Main, mask: i32)
+    machine copy_term(main: &mut Main, mask: i32)
     requires main.index >= 0 && main.index < 4 {
         main.terms[main.index] = mask;
         main.index = main.index + 1;
         transition { _ -> term_loop(main) }
     }
-    state weights(main: &mut Main) {
+    machine weights(main: &mut Main) {
         main.index = 0;
         transition { _ -> weight_loop(main) }
     }
-    state weight_loop(main: &mut Main) {
+    machine weight_loop(main: &mut Main) {
         transition main.index >= 0 && main.index < 8 {
             true -> weight(main)
             _ -> normalized(main)
         }
     }
-    state weight(main: &mut Main)
+    machine weight(main: &mut Main)
     requires main.index >= 0 && main.index < 8 {
         main.total = main.total + (main.input[main.index + 5] as i32 in Wrapping);
         transition fails(&main.terms, main.input[0], main.index) {
@@ -150,77 +150,77 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> next_weight(main)
         }
     }
-    state failed_weight(main: &mut Main)
+    machine failed_weight(main: &mut Main)
     requires main.index >= 0 && main.index < 8 {
         main.failure = main.failure + (main.input[main.index + 5] as i32 in Wrapping);
         transition { _ -> next_weight(main) }
     }
-    state next_weight(main: &mut Main)
+    machine next_weight(main: &mut Main)
     requires main.index >= 0 && main.index < 8 {
         main.index = main.index + 1;
         transition { _ -> weight_loop(main) }
     }
-    state normalized(main: &mut Main) {
+    machine normalized(main: &mut Main) {
         transition main.total == 1000000 {
             true -> report(main)
             _ -> invalid(main)
         }
     }
-    state report(main: &mut Main) {
+    machine report(main: &mut Main) {
         Console::write("failure_ppm=");
         number(main.failure as i32);
         Console::write_line("/1000000");
         main.index = 0;
         transition { _ -> cuts(main) }
     }
-    state cuts(main: &mut Main) {
+    machine cuts(main: &mut Main) {
         transition main.index >= 0 && main.index < 8 {
             true -> cut(main)
             _ -> sensitivity(main)
         }
     }
-    state cut(main: &mut Main)
+    machine cut(main: &mut Main)
     requires main.index >= 0 && main.index < 8 {
         transition minimal_cut(&main.terms, main.input[0], main.index) {
             true -> emit_cut(main)
             _ -> next_cut(main)
         }
     }
-    state emit_cut(main: &mut Main) {
+    machine emit_cut(main: &mut Main) {
         Console::write("cut_mask=");
         number(main.index);
         Console::write_line("");
         transition { _ -> next_cut(main) }
     }
-    state next_cut(main: &mut Main)
+    machine next_cut(main: &mut Main)
     requires main.index >= 0 && main.index < 8 {
         main.index = main.index + 1;
         transition { _ -> cuts(main) }
     }
-    state sensitivity(main: &mut Main) {
+    machine sensitivity(main: &mut Main) {
         main.event = 0;
         transition { _ -> event_loop(main) }
     }
-    state event_loop(main: &mut Main) {
+    machine event_loop(main: &mut Main) {
         transition main.event >= 0 && main.event < 3 {
             true -> event_start(main)
             _ -> done(main)
         }
     }
-    state event_start(main: &mut Main) {
+    machine event_start(main: &mut Main) {
         main.repaired = 0;
         main.forced = 0;
         main.marginal = 0;
         main.index = 0;
         transition { _ -> audit_loop(main) }
     }
-    state audit_loop(main: &mut Main) {
+    machine audit_loop(main: &mut Main) {
         transition main.index >= 0 && main.index < 8 {
             true -> audit(main)
             _ -> emit_audit(main)
         }
     }
-    state audit(main: &mut Main)
+    machine audit(main: &mut Main)
     requires main.index >= 0 && main.index < 8 {
         let off: i32 = force_event(main.index, main.event, false);
         let on: i32 = force_event(main.index, main.event, true);
@@ -229,39 +229,39 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> repair(main, off, on)
         }
     }
-    state marginal(main: &mut Main, off: i32, on: i32)
+    machine marginal(main: &mut Main, off: i32, on: i32)
     requires main.index >= 0 && main.index < 8 {
         main.marginal = main.marginal + (main.input[main.index + 5] as i32 in Wrapping);
         transition { _ -> repair(main, off, on) }
     }
-    state repair(main: &mut Main, off: i32, on: i32) {
+    machine repair(main: &mut Main, off: i32, on: i32) {
         transition fails(&main.terms, main.input[0], off) {
             true -> add_repair(main, on)
             _ -> force(main, on)
         }
     }
-    state add_repair(main: &mut Main, on: i32)
+    machine add_repair(main: &mut Main, on: i32)
     requires main.index >= 0 && main.index < 8 {
         main.repaired = main.repaired + (main.input[main.index + 5] as i32 in Wrapping);
         transition { _ -> force(main, on) }
     }
-    state force(main: &mut Main, on: i32) {
+    machine force(main: &mut Main, on: i32) {
         transition fails(&main.terms, main.input[0], on) {
             true -> add_force(main)
             _ -> next_audit(main)
         }
     }
-    state add_force(main: &mut Main)
+    machine add_force(main: &mut Main)
     requires main.index >= 0 && main.index < 8 {
         main.forced = main.forced + (main.input[main.index + 5] as i32 in Wrapping);
         transition { _ -> next_audit(main) }
     }
-    state next_audit(main: &mut Main)
+    machine next_audit(main: &mut Main)
     requires main.index >= 0 && main.index < 8 {
         main.index = main.index + 1;
         transition { _ -> audit_loop(main) }
     }
-    state emit_audit(main: &mut Main)
+    machine emit_audit(main: &mut Main)
     requires main.event >= 0 && main.event < 3 {
         Console::write("event="); number(main.event);
         Console::write(" marginal_ppm="); number(main.marginal as i32);
@@ -276,16 +276,16 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> invalid(main)
         }
     }
-    state advance_event(main: &mut Main)
+    machine advance_event(main: &mut Main)
     requires main.event >= 0 && main.event < 3 {
         main.event = main.event + 1;
         transition { _ -> event_loop(main) }
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::write_line("AUDIT COMPLETE");
         Console::exit_process(0);
     }
-    state invalid(main: &mut Main) {
+    machine invalid(main: &mut Main) {
         Console::write_line("INVALID INPUT");
         Console::exit_process(2);
     }

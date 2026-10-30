@@ -18,8 +18,8 @@ machine Main::main(main: &mut Main) {
         Lookup::Found { value } -> found(value)
         Lookup::Missing -> missing()
     }
-    state found(value: u8) { }
-    state missing() { }
+    machine found(value: u8) { }
+    machine missing() { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

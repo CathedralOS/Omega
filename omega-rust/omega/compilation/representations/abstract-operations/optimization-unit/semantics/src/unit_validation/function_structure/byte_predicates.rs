@@ -371,6 +371,15 @@ pub(crate) fn copied_field_predicates_at_transfer<'t>(
     source: PlaceId,
     consumer: semantic_vocabulary::OperationId,
 ) -> Option<ByteSequencePredicateSet> {
+    copied_field_predicates_at_invocation(types, function, source, consumer.into())
+}
+
+pub(crate) fn copied_field_predicates_at_invocation<'t>(
+    types: impl Iterator<Item = &'t StructuralTypeDeclaration> + Clone,
+    function: &PsiOptimizationFunction,
+    source: PlaceId,
+    consumer: semantic_vocabulary::InvocationSite,
+) -> Option<ByteSequencePredicateSet> {
     let declaration = function.structural_place(source)?;
     let (producer, structural_type) = declaration.kind.as_operation_result()?;
     let node = function
@@ -439,14 +448,22 @@ pub(crate) fn copied_field_predicates_at_transfer<'t>(
     if field.field_type.byte_sequence_carrier()? != carrier {
         return None;
     }
-    let consuming = function
-        .block_nodes()
-        .find(|node| node.operation.psi_operation() == Some(consumer))?;
+    let consuming = function.block_nodes().find(|node| {
+        node.operation
+            .module_invocation()
+            .map(|call| call.site)
+            .or_else(|| node.operation.psi_operation().map(Into::into))
+            == Some(consumer)
+    })?;
     // Whole constructors and ordinary calls consume the same completed value.
     // The source occurrence, not the destination's requested predicates,
     // selects which pristine snapshot may supply its declared field invariants.
     let call_arguments = match &consuming.operation {
         Operation::CallStructural {
+            structural_arguments,
+            ..
+        }
+        | Operation::InvokeNoNormal {
             structural_arguments,
             ..
         } => structural_arguments.as_slice(),
@@ -481,7 +498,7 @@ pub(crate) fn copied_field_predicates_at_transfer<'t>(
             Operation::ReturnStructural { source: returned, .. } => *returned == source,
             _ => false
         };
-        escapes || (operation.psi_operation() != Some(consumer)
+        escapes || (operation.module_invocation().map(|call| call.site).or_else(|| operation.psi_operation().map(Into::into)) != Some(consumer)
             && (may_change_owned_source(operation, source)
                 || matches!(operation, Operation::EstablishReference { source: argument, .. } | Operation::EstablishElementView { source: argument, .. } if argument.place == source)
                 || matches!(operation, Operation::ByteSequenceSubslice { source: viewed, .. } if viewed.place == source)))

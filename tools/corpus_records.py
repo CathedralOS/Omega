@@ -195,6 +195,20 @@ def compare_records(base: list, head: list) -> dict:
             before, after = old_facts.get(key), new_facts.get(key)
             if before == after:
                 continue
+            # Admission can advance from an unchecked source refusal to an
+            # explicit pre-effect interpreter capability refusal. Neither has
+            # an engine observation; removing that placeholder is neutral.
+            # Concrete exits/output and previous agreement remain independent.
+            unmeasured_interpreter = (
+                key == "interpreter" and before == "unchecked" and after is None
+                and old["tier"] == new["tier"] and new["tier"] in ("pass", "run")
+                and old_rank == 0 and old["status"] in ("rejected", "incomplete")
+                and new["status"] in SUCCESS_STATUSES
+                and any(marker is not None and marker.group(3) == "interpreter"
+                        for marker in (MIGRATION_MARKER.fullmatch(diagnostic)
+                                       for diagnostic in new.get("diagnostics", []))))
+            if unmeasured_interpreter:
+                continue
             change = f"{fixture}: {key} {before or '-'} -> {after or '-'}"
             # Agreement is a successful comparison of both completed engines.
             # An earlier refusal or mismatch is not an execution oracle to
@@ -202,7 +216,8 @@ def compare_records(base: list, head: list) -> dict:
             gained_agreement = (
                 (key == "interpreter" and after == "agrees"
                  and before in ("unchecked", "declined", "exhausted", "disagrees"))
-                or (key == "terminal-targets" and before == "unchecked" and after == "match"))
+                or (key == "terminal-targets" and before == "unchecked" and after == "match")
+                or (key == "terminal-inspections" and before == "failed" and after == "match"))
             # The runner rejects a publication that contradicts its authored
             # inventory. A refused positive's `none` therefore is not a
             # successful empty-output promise to preserve when it starts

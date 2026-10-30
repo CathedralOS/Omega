@@ -20,13 +20,25 @@ pub(super) enum Backing {
         // Geometry is conservative; it grants no authority or disjointness.
         origin: DescriptorSourceOrigin,
         geometry: DescriptorCallOrigin,
-        address: Option<Vec<StructuralPathSegment>>,
+        return_path: Option<Vec<ReferenceOriginProjection>>,
     },
 }
 
 type Observation = (OperationId, PlaceId, Vec<StructuralPathSegment>);
 #[derive(Default)]
 pub(super) struct Observations {
+    pub(super) borrowed_live: Option<BTreeMap<BlockId, BTreeSet<PlaceId>>>,
+    pub(super) flow:
+        BTreeMap<DescriptorPosition, terminal_semantics::descriptor_results::FlowFeasibility>,
+    pub(super) edges: BTreeMap<
+        semantic_vocabulary::EdgeId,
+        terminal_semantics::descriptor_results::FlowFeasibility,
+    >,
+    inactive_cases: BTreeSet<(
+        DescriptorPosition,
+        terminal_semantics::descriptor_lifetimes::DescriptorLocation,
+        semantic_vocabulary::StructuralCaseId,
+    )>,
     sources: BTreeMap<Observation, Option<Vec<Backing>>>,
     positions: BTreeMap<OperationId, DescriptorPosition>,
     ordering: Option<terminal_semantics::scalar_ordering::ScalarOrdering>,
@@ -50,14 +62,18 @@ pub(super) fn prepare(
 ) -> Result<Observations, LegalizationError> {
     let types = &plan.structural_types[..];
     if !function
-        .blocks
+        .structural_parameters
         .iter()
-        .flat_map(|block| &block.nodes)
-        .any(|node| {
-            node.operation
-                .structural_result()
-                .is_some_and(|(_, result)| contains_reference(types, result.structural_type))
-        })
+        .any(|parameter| contains_reference(types, parameter.structural_type))
+        && !function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .any(|node| {
+                node.operation
+                    .structural_result()
+                    .is_some_and(|(_, result)| contains_reference(types, result.structural_type))
+            })
     {
         return Ok(Observations::default());
     }
@@ -92,17 +108,80 @@ pub(super) fn prepare(
         return Ok(observations);
     };
     let current = descriptor_machine(&graph, function.machine).ok_or_else(|| invalid())?;
+    observations.borrowed_live = borrowed_arrivals::live_coordinates(function);
+    // Record actual case queries at every program point, including empty
+    // forwarding blocks where an inactive payload is never read. The roster
+    // comes from evaluated case conditions, not guessed descriptor absence.
+    let conditions = current
+        .case_successors
+        .values()
+        .flatten()
+        .map(|(predicate, _)| {
+            (
+                (predicate.subject.clone(), predicate.case),
+                predicate.clone(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>()
+        .into_values()
+        .collect::<Vec<_>>();
     let mut analysis = DescriptorAnalysis::new(types, &graph);
+    observations.flow = analysis.flow_feasibility(function.machine);
     for block in &function.blocks {
         for (node_index, node) in block.nodes.iter().enumerate() {
+            let position = (block.id, u32::try_from(node_index).map_err(|_| invalid())?);
+            for predicate in &conditions {
+                capture_predicate_feasibility(
+                    &mut observations,
+                    &mut analysis,
+                    function.machine,
+                    position,
+                    predicate,
+                );
+            }
+            for (ordinal, edge) in node.successors.iter().enumerate() {
+                if observations
+                    .edges
+                    .insert(
+                        edge.psi_edge,
+                        analysis.edge_feasibility(function.machine, position, ordinal),
+                    )
+                    .is_some()
+                {
+                    return Err(invalid());
+                }
+            }
             let Some(operation) = node.operation.psi_operation() else {
                 continue;
             };
-            let position = (block.id, u32::try_from(node_index).map_err(|_| invalid())?);
             if observations.positions.insert(operation, position).is_some() {
                 return Err(invalid());
             }
             let step = current.flow.get(&position).ok_or_else(|| invalid())?;
+            for input in step
+                .inputs
+                .iter()
+                .chain(step.derivations.iter().map(|(source, _)| source))
+                .chain(
+                    step.successors
+                        .iter()
+                        // Uncertain arrivals observe only a whole root, so
+                        // they supply no selected-case path to authenticate.
+                        .flat_map(|edge| {
+                            edge.bindings
+                                .iter()
+                                .filter_map(|binding| binding.source.exact_location())
+                        }),
+                )
+            {
+                capture_case_feasibility(
+                    &mut observations,
+                    &mut analysis,
+                    function.machine,
+                    position,
+                    input,
+                );
+            }
             let mut slots = BTreeSet::new();
             for input in &step.inputs {
                 let Some(ty) = current.place_types.get(&input.root) else {
@@ -117,6 +196,13 @@ pub(super) fn prepare(
                 );
             }
             for location in slots {
+                capture_case_feasibility(
+                    &mut observations,
+                    &mut analysis,
+                    function.machine,
+                    position,
+                    &location,
+                );
                 let ty = *current
                     .place_types
                     .get(&location.root)
@@ -133,7 +219,7 @@ pub(super) fn prepare(
                                 Some(Backing::Descriptor {
                                     origin,
                                     geometry,
-                                    address: None,
+                                    return_path: None,
                                 })
                             })
                             .collect()
@@ -145,6 +231,79 @@ pub(super) fn prepare(
         }
     }
     Ok(observations)
+}
+
+fn capture_case_feasibility(
+    observations: &mut Observations,
+    analysis: &mut DescriptorAnalysis<'_>,
+    machine: semantic_vocabulary::MachineId,
+    position: DescriptorPosition,
+    input: &terminal_semantics::descriptor_lifetimes::DescriptorLocation,
+) {
+    for (case_position, segment) in input.path.iter().enumerate() {
+        let terminal_semantics::descriptor_lifetimes::DescriptorPathSegment::Case(case) = segment
+        else {
+            continue;
+        };
+        let subject = terminal_semantics::descriptor_lifetimes::DescriptorLocation {
+            root: input.root,
+            path: input.path[..case_position].to_vec(),
+        };
+        let predicate = terminal_semantics::descriptor_results::DescriptorCasePredicate {
+            subject: subject.clone(),
+            case: *case,
+        };
+        capture_predicate_feasibility(observations, analysis, machine, position, &predicate);
+    }
+}
+
+fn capture_predicate_feasibility(
+    observations: &mut Observations,
+    analysis: &mut DescriptorAnalysis<'_>,
+    machine: semantic_vocabulary::MachineId,
+    position: DescriptorPosition,
+    predicate: &terminal_semantics::descriptor_results::DescriptorCasePredicate,
+) {
+    if analysis.case_feasibility(machine, position, predicate)
+        == terminal_semantics::descriptor_results::FlowFeasibility::ProvedImpossible
+    {
+        observations
+            .inactive_cases
+            .insert((position, predicate.subject.clone(), predicate.case));
+    }
+}
+
+pub(super) fn path_is_impossible(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+) -> bool {
+    let Some(position) = custody.reference_position else {
+        return false;
+    };
+    let Some(root_type) = source_contract(function, custody, place) else {
+        return false;
+    };
+    path.iter().enumerate().any(|(index, segment)| {
+        let StructuralPathSegment::Case(case) = segment else {
+            return false;
+        };
+        let Some(subject) = terminal_semantics::descriptor_lifetimes::descriptor_location(
+            types,
+            place,
+            root_type,
+            &path[..index],
+            None,
+        ) else {
+            return false;
+        };
+        custody
+            .descriptor_backing
+            .inactive_cases
+            .contains(&(position, subject, *case))
+    })
 }
 
 pub(super) fn capture(
@@ -204,7 +363,7 @@ pub(super) fn capture(
                         source: backing_root,
                         projection,
                     },
-                address,
+                return_path,
                 ..
             } = origin
             {
@@ -212,7 +371,7 @@ pub(super) fn capture(
                 // refine an inexact parent into another storage coordinate.
                 *projection =
                     projection.then(&Projection::new(&source.path[path.len()..]).at(position));
-                *address = projection.fixed_address(
+                *return_path = projection.reference_origin_path(
                     custody
                         .descriptor_backing
                         .ordering
@@ -294,8 +453,9 @@ pub(super) fn overlaps(
     }
 }
 
-/// Exact return identity, separate from conservative storage interference.
-/// Every possible captured origin must name an admitted formal coordinate.
+/// Complete captured origin coverage, separate from storage interference.
+/// Families preserve a selected dimension without claiming a fixed address.
+/// Definite-overlap consumers independently reject such non-exact coordinates.
 pub(super) fn matches_return(backing: &[Backing], declared: &impl Fn(&Root) -> bool) -> bool {
     !backing.is_empty()
         && backing.iter().all(|origin| match origin {
@@ -303,12 +463,14 @@ pub(super) fn matches_return(backing: &[Backing], declared: &impl Fn(&Root) -> b
             Backing::Descriptor {
                 origin: DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument { .. }),
                 geometry: DescriptorCallOrigin::Argument { source, .. },
-                address: Some(path),
-            } => declared(&if path.is_empty() {
-                Root::Place(*source)
-            } else {
-                Root::Ingress(*source, path.clone())
-            }),
+                return_path: Some(path),
+            } => declared(&Root::Alternatives(vec![
+                target_operations::TargetReferenceOrigin {
+                    base: target_operations::TargetReferenceOriginBase::Storage { root: *source },
+                    path: path.clone(),
+                    extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                },
+            ])),
             _ => false,
         })
 }

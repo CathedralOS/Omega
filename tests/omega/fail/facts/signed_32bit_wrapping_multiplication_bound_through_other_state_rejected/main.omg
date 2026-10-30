@@ -19,7 +19,7 @@ machine probe(lhs: i32, rhs: i32) -> i32
         _ -> consume(prod)
     }
 
-    state consume(forwarded: i32) -> i32
+    machine consume(forwarded: i32) -> i32
     requires
         forwarded >= 50i32 && forwarded <= 200i32
     {
@@ -33,6 +33,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

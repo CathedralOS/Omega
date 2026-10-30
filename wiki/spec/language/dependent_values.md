@@ -77,7 +77,7 @@ own writes. See [invocation contracts](state_contracts.md).
 
 ## Default domains and zero initialization
 
-A data declaration's field qualifications and `where` clauses define its default
+A data declaration's field qualifications and `requires` clauses define its default
 domain; omission adds no predicates beyond its ordinary field/type obligations.
 An optional data-declaration `dropped by` clause contributes the default domain's
 [automatic cleanup selection](domains.md#domain-selected-automatic-cleanup),
@@ -97,9 +97,9 @@ writer restriction. Fresh construction and policy installation follow the domain
 establishment rules, not an implicit file-local or constructor privilege.
 
 Constraints on common fields and active-case payloads are written in data
-`where`. Its `self` denotes the complete value, as in named-domain predicates.
+`requires`. Its `self` denotes the complete value, as in named-domain predicates.
 Payload projections require a prior case guard; case declarations do not accept
-`where`. See [case-dependent default domains](data_and_literals.md#case-constraints).
+`requires`. See [case-dependent default domains](data_and_literals.md#case-constraints).
 Bracketed scalar range suffixes are not a second default-domain syntax.
 
 Boundary provider slots are not data fields and add no default-domain obligation.
@@ -161,12 +161,12 @@ create a reader/writer grant; retained restrictions follow their governed lifeti
 ### Collection invariants
 
 For `per-element-array-bounds`, use an ordinary pure, total, terminating
-machine over the collection as a predicate in `where` or `requires`. Its body
+machine over the collection as a predicate in `requires`. Its body
 walks the elements with ordinary recursive machines; collection invariants introduce no
 `forall`, `foreach`, or bracketed scalar-range type suffix.
 
 For example, a field `cells: [i32; 16]` can be constrained by
-`where cells_valid(&cells) == true;`. The ordinary machine
+`requires cells_valid(&cells) == true;`. The ordinary machine
 `cells_valid(cells: &[i32; 16]) -> bool` recognizes precisely arrays whose
 elements are each zero or one. Its use in a proposition must meet the ordinary
 [semantic evaluation](evaluation.md) admission rules. This asserts its
@@ -183,6 +183,14 @@ machine, not a new quantifier or an unchecked decomposition rule.
 
 An invariant window is compiler-derived proof debt, not a source `relax` mode,
 runtime poison flag, or mutable truth bit.
+[Exclusive storage recasts](../layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts)
+may open initial target-establishment debt before a valid target value exists.
+Geometry, authority and custody are immediate requirements; target-shaped storage
+is not a valid value merely because a cast names its type. Field initialization
+and checked evidence must establish the whole before ordinary typed consumption.
+The cast's pending-view formation is allowed, not a general exception for later
+borrow creation, calls or publication. Source handback and partially initialized
+resource cleanup remain separate obligations.
 [Borrowed-storage ownership windows](ownership.md#borrowed-storage-invariant-windows)
 apply the same discipline to temporarily absent content: a move records exact
 restoration debt, and an establishing store closes it. A hole has no current value
@@ -201,8 +209,8 @@ The domain must be proved again at the next consumption point:
 - Terminal transfer, return, or scope expiration.
 - Boundary/capability-carrying calls, even when they do not name the place.
 
-An unclosed window rejects with both the opening write and failing consumption
-point. Borrow exclusivity prevents another observer seeing it; a dependent loan
+An unclosed window rejects with both the opening write or storage cast and the
+failing consumption point. Borrow exclusivity prevents another observer seeing it; a dependent loan
 pins its witnesses, so a conflicting write cannot open a window in the first
 place. Write-only access must restore validity from written values, structure,
 and supplied facts, never by reading its referent.

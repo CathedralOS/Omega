@@ -2,6 +2,8 @@
 //! and embeddings, the proof-only fence, properties, rankings, quotients,
 //! float projections and the arithmetic, default and weakened domains.
 
+mod argument_subjects;
+pub use argument_subjects::contract_argument_root;
 pub(crate) mod arithmetic_domains;
 pub(crate) mod bound_expression_meaning;
 pub(crate) mod collection_predicates;

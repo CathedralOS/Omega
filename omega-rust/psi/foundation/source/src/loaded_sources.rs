@@ -1,13 +1,23 @@
-//! Loaded text and source coordinates before source-map custody is assigned.
+//! Captured text and admitted source coordinates at the parsing boundary.
 //!
-//! These inputs can be physical or supplied in memory. An origin override and
-//! dependency scope travel unchanged through lexing and parsing; the source-map
-//! owner still assigns package and toolchain custody when incorporating them.
+//! Physical reads produce `SourceContents`. The source-map owner assigns exact
+//! package/toolchain custody before supplying `LoadedSource` to parsing. Inputs
+//! may also be retained in memory; their coordinates, origin and dependency
+//! scope travel unchanged through lexing and parsing.
 
 use crate::{DependencyScope, SourceId, SourceOrigin};
 use arena::{Arena, HandleSpan};
 use std::path::PathBuf;
 use std::sync::Arc;
+
+/// Captured file contents before the package owner assigns checked custody and
+/// source coordinates. Reading bytes does not create a checked source instance.
+#[derive(Debug)]
+pub struct SourceContents {
+    pub path: PathBuf,
+    pub source: Arc<str>,
+    pub scope: DependencyScope,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoadedSource {

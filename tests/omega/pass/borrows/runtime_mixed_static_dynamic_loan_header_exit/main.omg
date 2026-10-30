@@ -9,14 +9,14 @@ machine inspect(dynamic: bool) crashes Trap {
         true -> verify(&values[cursor])
         _ -> verify(&values[0])
     }
-    state verify(value: &Value) {
+    machine verify(value: &Value) {
         transition value.amount == 11 {
             true -> done()
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine main() crashes Trap {
     inspect(false);

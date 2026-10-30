@@ -401,7 +401,7 @@ public machine sin(x: f64) -> f64 {
     // Ladder: subtract 2pi * k, halving k, until x lands in [-pi, pi].
     // Guard subjects materialize into slotted locals first (the guard
     // encoder compares places, not computed expressions).
-    state reduce(x: f64, k: f64) {
+    machine reduce(x: f64, k: f64) -> f64 {
         let mut hi: f64 = 3.14159265358979312;
         hi = hi * k;
         let mut lo: f64 = 0.0;
@@ -417,7 +417,7 @@ public machine sin(x: f64) -> f64 {
     }
 
     // Quadrant fold: sin(x) = sin(pi - x) on (pi/2, pi]; mirrored below.
-    state fold(x: f64) {
+    machine fold(x: f64) -> f64 {
         transition {
             x > 1.57079632679489656 -> poly(3.14159265358979312 - x)
             x < 0.0 - 1.57079632679489656 -> poly(0.0 - 3.14159265358979312 - x)
@@ -430,7 +430,7 @@ public machine sin(x: f64) -> f64 {
     // rebuild the whole chain as one deeply nested expression and exhaust
     // the MVP encoders' small scratch pools -- a mut local is slotted, so
     // every step stays a two-op store.
-    state poly(x: f64) {
+    machine poly(x: f64) -> f64 {
         let xx: f64 = x * x;
         // The x^17 coefficient is exactly 1/17!, not ten times that value.
         // Endpoint error matters when repeated cos(0) butterfly factors accumulate.
@@ -474,6 +474,6 @@ public machine is_finite(x: f64) -> bool {
     // tests/omega/pass/float/runtime_std_is_finite_exit (finite/inf/NaN legs).
     let d: f64 = x - x;
     transition d == 0.0 { true -> yes() _ -> no() }
-    state yes() -> bool { true }
-    state no() -> bool { false }
+    machine yes() -> bool { true }
+    machine no() -> bool { false }
 }

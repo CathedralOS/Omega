@@ -1,0 +1,5 @@
+{
+  "rejection_contains": [
+    "must hold a value again before this state's exits consume the borrow"
+  ]
+}

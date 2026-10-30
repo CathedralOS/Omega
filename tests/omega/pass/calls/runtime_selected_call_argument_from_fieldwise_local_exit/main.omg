@@ -31,8 +31,8 @@ machine selected_during_construction(enabled: bool) -> bool {
 
 machine verify(accepted: bool) crashes Trap {
     transition accepted { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 data Main {}

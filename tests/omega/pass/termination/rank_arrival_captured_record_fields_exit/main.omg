@@ -5,7 +5,7 @@ requires remaining <= 5
 terminates by remaining in 0..=5;
 -> u32 {
     transition { _ -> iterate(Pair { left: remaining, right: 4 }) }
-    state iterate(pending: Pair) {
+    machine iterate(pending: Pair) -> u32 {
         let captured: Pair = pending;
         transition captured.left > 0 {
             true -> iterate(Pair { left: captured.left - 1, right: captured.right })
@@ -20,6 +20,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

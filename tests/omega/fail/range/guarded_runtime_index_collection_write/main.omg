@@ -17,19 +17,19 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> interpose(main, main.k)
         false -> full(main)
     }
-    state interpose(main: &mut Main, ki: u64) requires ki < 4 {
+    machine interpose(main: &mut Main, ki: u64) requires ki < 4 {
         main.tallies[0] = 5;
         let u: i32 = main.tallies[ki];
         transition { _ -> bump(main, u, ki) }
     }
-    state bump(main: &mut Main, v: i32, ki: u64) requires v < 16, ki < 4 {
+    machine bump(main: &mut Main, v: i32, ki: u64) requires v < 16, ki < 4 {
         main.tallies[ki] = v + 1;
         transition main.tallies[2] == 1 {
             true -> matched(main)
             false -> unmatched(main)
         }
     }
-    state matched(main: &mut Main) { Console::exit_process(1); }
-    state unmatched(main: &mut Main) { Console::exit_process(9); }
-    state full(main: &mut Main) { Console::exit_process(8); }
+    machine matched(main: &mut Main) { Console::exit_process(1); }
+    machine unmatched(main: &mut Main) { Console::exit_process(9); }
+    machine full(main: &mut Main) { Console::exit_process(8); }
 }

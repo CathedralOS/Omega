@@ -1,0 +1,5 @@
+// Expected exit: 0
+data Index<Limit:u32> [copy] where value<Limit {value:u32;}
+machine bound()->u32 {9}
+machine read(value:Index<9>)->u32 {value.value}
+machine main() crashes Trap {let indexed:Index<(bound())> = Index{value:8}; transition read(indexed)==8 {true->done() _->bad()} machine done(){} machine bad() crashes Trap {crash Trap;}}

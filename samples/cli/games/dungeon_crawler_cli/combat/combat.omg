@@ -32,7 +32,7 @@ machine CombatSystem::fight(
     }
 
 
-    state defeated_enemy(
+    machine defeated_enemy(
         combat_system: &mut CombatSystem,
         player: &mut Player,
         event: &mut RoomEvent,
@@ -50,7 +50,7 @@ machine CombatSystem::fight(
         round.player_defeated = false;
     }
 
-    state enemy_retaliates(
+    machine enemy_retaliates(
         combat_system: &mut CombatSystem,
         player: &mut Player,
         event: &mut RoomEvent,

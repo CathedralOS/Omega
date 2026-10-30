@@ -4,6 +4,6 @@ const ANSWER: u64 = size_of<u8>() + 1u64;
 machine main() crashes Trap {
  let result: u64 = ANSWER - 42u64;
  transition result == 0u64 { true -> done() false -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }

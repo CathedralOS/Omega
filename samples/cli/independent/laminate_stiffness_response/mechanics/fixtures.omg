@@ -17,23 +17,23 @@ public machine fixture(model: &mut Laminate,mode: u8) {
         56 -> orientation(model)
         _ -> done()
     }
-    state reverse(model: &mut Laminate) { model.m2 = [0.0,1.0,0.0,0.0]; model.n2 = [1.0,0.0,0.0,0.0]; }
-    state symmetric(model: &mut Laminate) {
+    machine reverse(model: &mut Laminate) { model.m2 = [0.0,1.0,0.0,0.0]; model.n2 = [1.0,0.0,0.0,0.0]; }
+    machine symmetric(model: &mut Laminate) {
         model.count = 4; model.thickness = [0.25,0.25,0.25,0.25];
         model.m2 = [1.0,0.0,0.0,1.0]; model.n2 = [0.0,1.0,1.0,0.0];
     }
-    state balanced(model: &mut Laminate) {
+    machine balanced(model: &mut Laminate) {
         model.count = 4; model.thickness = [0.25,0.25,0.25,0.25];
         model.m2 = [0.5,0.5,0.5,0.5]; model.n2 = [0.5,0.5,0.5,0.5];
         model.mn = [0.5,-0.5,-0.5,0.5];
     }
-    state oblique(model: &mut Laminate) {
+    machine oblique(model: &mut Laminate) {
         model.count = 3; model.thickness = [0.2,0.3,0.5,0.0];
         model.m2 = [0.36,0.5,0.0,0.0]; model.n2 = [0.64,0.5,1.0,0.0];
         model.mn = [0.48,-0.5,0.0,0.0];
     }
-    state negative(model: &mut Laminate) { model.thickness[0] = -0.5; }
-    state empty(model: &mut Laminate) { model.count = 0; }
-    state orientation(model: &mut Laminate) { model.mn[0] = 0.5; }
-    state done() { }
+    machine negative(model: &mut Laminate) { model.thickness[0] = -0.5; }
+    machine empty(model: &mut Laminate) { model.count = 0; }
+    machine orientation(model: &mut Laminate) { model.mn[0] = 0.5; }
+    machine done() { }
 }

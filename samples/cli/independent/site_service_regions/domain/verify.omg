@@ -9,7 +9,7 @@ requires owner < 8
 {
     let own: f64 = distance(x, y, partition.site_x[owner], partition.site_y[owner]);
     transition { _ -> other(partition, owner, x, y, own, 0) }
-    state other(partition: &Partition, owner: u64, x: f64, y: f64, own: f64, index: u64) -> bool
+    machine other(partition: &Partition, owner: u64, x: f64, y: f64, own: f64, index: u64) -> bool
     requires owner < 8
     {
         transition index < partition.site_count && index < 8 {
@@ -17,7 +17,7 @@ requires owner < 8
             false -> (true)
         }
     }
-    state test(partition: &Partition, owner: u64, x: f64, y: f64, own: f64, index: u64) -> bool
+    machine test(partition: &Partition, owner: u64, x: f64, y: f64, own: f64, index: u64) -> bool
     requires owner < 8 && index < 8
     {
         let rival: f64 = distance(x, y, partition.site_x[index], partition.site_y[index]);
@@ -33,7 +33,7 @@ public machine shared(partition: &Partition, owner: u64, rival: u64) -> bool
 requires owner < 8 && rival < 8
 {
     transition owner == rival { true -> (false) false -> edge(partition, owner, rival, 0) }
-    state edge(partition: &Partition, owner: u64, rival: u64, index: u64) -> bool
+    machine edge(partition: &Partition, owner: u64, rival: u64, index: u64) -> bool
     requires owner < 8 && rival < 8
     {
         let count: u64 = partition.cells[owner].count;
@@ -42,7 +42,7 @@ requires owner < 8 && rival < 8
             false -> (false)
         }
     }
-    state test(partition: &Partition, owner: u64, rival: u64, index: u64, next: u64) -> bool
+    machine test(partition: &Partition, owner: u64, rival: u64, index: u64, next: u64) -> bool
     requires owner < 8 && rival < 8 && index < 32 && next < 32
     {
         let x: f64 = partition.cells[owner].x[index];
@@ -64,13 +64,13 @@ public machine verify(partition: &mut Partition) {
     partition.total = 0.0;
     partition.nearest = true;
     transition { _ -> cell(partition, 0) }
-    state cell(partition: &mut Partition, owner: u64) {
+    machine cell(partition: &mut Partition, owner: u64) {
         transition owner < partition.site_count && owner < 8 {
             true -> measure(partition, owner)
             false -> finish(partition)
         }
     }
-    state measure(partition: &mut Partition, owner: u64)
+    machine measure(partition: &mut Partition, owner: u64)
     requires owner < 8
     {
         let measured: f64 = area(&partition.cells[owner]);
@@ -78,7 +78,7 @@ public machine verify(partition: &mut Partition) {
         partition.total = partition.total + measured;
         transition measured > 0.0 { true -> vertex(partition, owner, 0) false -> fail(partition) }
     }
-    state vertex(partition: &mut Partition, owner: u64, index: u64)
+    machine vertex(partition: &mut Partition, owner: u64, index: u64)
     requires owner < 8
     {
         let count: u64 = partition.cells[owner].count;
@@ -87,7 +87,7 @@ public machine verify(partition: &mut Partition) {
             false -> adjacent(partition, owner, 0)
         }
     }
-    state test(partition: &mut Partition, owner: u64, index: u64, next: u64)
+    machine test(partition: &mut Partition, owner: u64, index: u64, next: u64)
     requires owner < 8 && index < 32 && next < 32
     {
         let vertex_ok: bool = nearest(partition, owner, partition.cells[owner].x[index], partition.cells[owner].y[index]);
@@ -99,7 +99,7 @@ public machine verify(partition: &mut Partition) {
             false -> fail(partition)
         }
     }
-    state adjacent(partition: &mut Partition, owner: u64, rival: u64)
+    machine adjacent(partition: &mut Partition, owner: u64, rival: u64)
     requires owner < 8
     {
         transition rival < partition.site_count && rival < 8 {
@@ -107,20 +107,20 @@ public machine verify(partition: &mut Partition) {
             false -> cell(partition, owner + 1)
         }
     }
-    state relation(partition: &mut Partition, owner: u64, rival: u64)
+    machine relation(partition: &mut Partition, owner: u64, rival: u64)
     requires owner < 8 && rival < 8
     {
         let connected: bool = shared(partition, owner, rival);
         partition.adjacency[owner * 8 + rival] = connected;
         transition { _ -> adjacent(partition, owner, rival + 1) }
     }
-    state finish(partition: &mut Partition) {
+    machine finish(partition: &mut Partition) {
         let expected: f64 = area(&partition.boundary);
         transition absolute(partition.total - expected) <= 0.000001 {
             true -> done()
             false -> fail(partition)
         }
     }
-    state fail(partition: &mut Partition) { partition.valid = false; partition.nearest = false; }
-    state done() { }
+    machine fail(partition: &mut Partition) { partition.valid = false; partition.nearest = false; }
+    machine done() { }
 }

@@ -1,0 +1,13 @@
+// Nested member and index projections use the same completed logical subject.
+// Expected exit: 0
+data Piece [copy] { value: i32; }
+data Counter [copy]
+where self.piece.value <= 60 && self.values[1] <= 60
+{ piece: Piece; values: [i32; 2]; }
+const NAMED: Counter = Counter { piece: Piece { value: 60 }, values: [0, 60] };
+public machine main() crashes Trap {
+    transition NAMED.piece.value == 60 && NAMED.values[1] == 60 { true -> done() false -> bad() }
+
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

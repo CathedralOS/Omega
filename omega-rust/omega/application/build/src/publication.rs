@@ -55,6 +55,7 @@ fn publish_product(
 ) -> Result<BuildOutcome, BuildError> {
     let (output, executable_path) = match product {
         ProjectProduct::Check
+        | ProjectProduct::Terminal
         | ProjectProduct::Inspection { .. }
         | ProjectProduct::Native {
             destination: NativeDestination::Retained,

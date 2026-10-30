@@ -17,6 +17,6 @@ machine main() crashes Trap {
     let observed: i32 = consume(envelope, install(&mut envelope, &first));
     let current: i32 = match envelope { Envelope::Active {cell} -> cell.value Envelope::Empty -> 0 };
     transition observed == 17 && current == 19 {true -> done() false -> bad()}
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

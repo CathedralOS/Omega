@@ -326,10 +326,17 @@ fn stored_operand_proves_comparison(
     if depth >= 16 {
         return false;
     }
-    if !stored.alternatives.is_empty() {
-        let alternatives = flow.control.operands.span_or_empty(stored.alternatives);
+    if let checked_trees::FlowOperandCompletion::Selected(alternatives) = stored.completion {
+        let Some(alternatives) = flow.control.operand_alternatives.span(alternatives) else {
+            return false;
+        };
         return !alternatives.is_empty()
             && alternatives.iter().all(|alternative| {
+                if !alternative.source_arm.is_valid()
+                    || !flow.control.operands.is_valid(alternative.value)
+                {
+                    return false;
+                }
                 stored_operand_proves_comparison(
                     program,
                     flow,
@@ -337,7 +344,7 @@ fn stored_operand_proves_comparison(
                     operators,
                     state,
                     invocation_operand,
-                    alternative,
+                    flow.control.operands.get(alternative.value),
                     suffix,
                     contexts,
                     required,

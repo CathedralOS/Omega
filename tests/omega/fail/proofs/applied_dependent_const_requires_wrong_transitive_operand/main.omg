@@ -1,0 +1,13 @@
+// Exact selected const operands use preceding transitive caller facts.
+machine identity<T, const Expected: T>(value: T) -> T
+requires value == Expected
+{ value }
+
+machine witness(value: u32, forwarded: u32, Expected: u32)
+requires value == forwarded
+requires forwarded == 8
+requires Expected == 12
+requires identity<u32, 7>(value) == value
+{}
+
+machine main() {}

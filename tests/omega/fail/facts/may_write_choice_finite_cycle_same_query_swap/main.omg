@@ -4,7 +4,7 @@
 
 machine choose<'storage>(chosen: &'storage mut u64, other: &'storage mut u64, pick_chosen: bool) -> &'storage mut u64 {
     transition { _ -> rotate(chosen, other, 1) }
-    state rotate(first: &'storage mut u64, second: &'storage mut u64, remaining: u64) -> &'storage mut u64 {
+    machine rotate(first: &'storage mut u64, second: &'storage mut u64, remaining: u64) -> &'storage mut u64 {
         transition remaining > 0 {
             true -> rotate(second, first, remaining - 1)
             false -> first
@@ -31,6 +31,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

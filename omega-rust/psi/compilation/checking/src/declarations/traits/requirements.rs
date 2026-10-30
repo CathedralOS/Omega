@@ -9,6 +9,7 @@ pub(crate) fn validate_trait_requirements(
     program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     for trait_definition in program.traits() {
         validate_trait_operator_bindings(program, trait_definition, diagnostics);
@@ -82,6 +83,7 @@ pub(crate) fn validate_trait_requirements(
                         lifetime_parameters: &trait_definition.lifetime_parameters,
                     },
                     diagnostics,
+                    formation_obligations,
                 );
             }
 

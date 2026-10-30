@@ -35,23 +35,23 @@ data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let l0: u64 = local_field(0);
     transition l0 == 4 { true -> l0ok(main) _ -> exit(main, 72) }
-    state l0ok(main: &mut Main) {
+    machine l0ok(main: &mut Main) {
         let l1: u64 = local_field(1);
         transition l1 == 8 { true -> l1ok(main) _ -> exit(main, 73) }
     }
-    state l1ok(main: &mut Main) {
+    machine l1ok(main: &mut Main) {
         let c0: u64 = call_field(0);
         transition c0 == 251 { true -> c0ok(main) _ -> exit(main, 74) }
     }
-    state c0ok(main: &mut Main) {
+    machine c0ok(main: &mut Main) {
         let c1: u64 = call_field(1);
         transition c1 == 249 { true -> c1ok(main) _ -> c1wrong(main, c1) }
     }
-    state c1wrong(main: &mut Main, c1: u64) {
+    machine c1wrong(main: &mut Main, c1: u64) {
         transition c1 == 251 { true -> exit(main, 75) _ -> exit(main, 76) }
     }
-    state c1ok(main: &mut Main) { Console::exit_process(70); }
-    state exit(main: &mut Main, code: u64) { Console::exit_process(code as i32); }
+    machine c1ok(main: &mut Main) { Console::exit_process(70); }
+    machine exit(main: &mut Main, code: u64) { Console::exit_process(code as i32); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

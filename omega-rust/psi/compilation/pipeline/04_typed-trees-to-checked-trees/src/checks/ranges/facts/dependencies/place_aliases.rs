@@ -8,7 +8,7 @@
 //! Once reanchored, the reference depends on its own captured descriptor and
 //! descendant selectors, not the variables that selected its original root.
 
-use super::{ExpressionDependencies, collect_reads, reads};
+use super::{ExpressionDependencies, reads};
 use crate::checks::ranges::RangeFacts;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
@@ -24,6 +24,7 @@ impl RangeFacts<'_> {
         symbol: SymbolHandle,
     ) {
         if !symbol.is_valid()
+            || self.expression_dependencies.is_empty()
             || !validation::place_has_builtin_coordinates(program, machine, Some(state), captured)
         {
             return;
@@ -55,7 +56,42 @@ impl RangeFacts<'_> {
             return;
         }
         let transferable = self.preserved_expression_labels(program, machine, state, Some(&[]));
-        let originals = self.expression_dependencies.clone();
+        let call_frames = self.checked_calls.and_then(|context| context.call_frames());
+        let originals: Vec<_> = self
+            .expression_dependencies
+            .iter()
+            .filter(|original| transferable.contains(&original.label))
+            .filter_map(|original| {
+                // Extent facts name the descriptor, not its `.len` projection.
+                let subject = validation::collection_length_receiver(
+                    program,
+                    machine,
+                    Some(state),
+                    original.expression,
+                )
+                .unwrap_or(original.expression);
+                let original_place = validation::canonical_place_from_expression_in_state(
+                    program,
+                    state.symbol,
+                    self.statement_index,
+                    subject,
+                )
+                .and_then(|place| {
+                    crate::flow::rebase_exact_local_place(
+                        program,
+                        state.symbol,
+                        self.statement_index,
+                        place,
+                        call_frames,
+                    )
+                })?;
+                (original_place.root == source.root)
+                    .then(|| (original.descriptor.is_some(), subject, original_place))
+            })
+            .collect();
+        if originals.is_empty() {
+            return;
+        }
         let prefix = self.statement_index.saturating_add(1);
         let bound_lookup = self.bound_lookup();
         for (expression, _) in program.expression_table.iter_expressions() {
@@ -88,35 +124,7 @@ impl RangeFacts<'_> {
             else {
                 continue;
             };
-            for original in &originals {
-                if !transferable.contains(&original.label) {
-                    continue;
-                }
-                // Extent facts name the descriptor, not its `.len` projection.
-                let subject = validation::collection_length_receiver(
-                    program,
-                    machine,
-                    Some(state),
-                    original.expression,
-                )
-                .unwrap_or(original.expression);
-                let Some(original_place) = validation::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    self.statement_index,
-                    subject,
-                )
-                .and_then(|place| {
-                    crate::flow::rebase_exact_local_place(
-                        program,
-                        state.symbol,
-                        self.statement_index,
-                        place,
-                        self.checked_calls.and_then(|context| context.call_frames()),
-                    )
-                }) else {
-                    continue;
-                };
+            for &(has_descriptor, subject, ref original_place) in &originals {
                 let mut uses_frozen_selector = false;
                 let same_place = original_place.root == rebased.root
                     && original_place.segments.len() == rebased.segments.len()
@@ -167,7 +175,7 @@ impl RangeFacts<'_> {
                 // require all resulting roots to exist at this capture. A
                 // future mutable read or new computed value cannot pass that
                 // currency check merely because its declaration exists.
-                if !collect_reads(
+                let complete = self.walk_reads(
                     program,
                     machine,
                     state,
@@ -180,14 +188,12 @@ impl RangeFacts<'_> {
                         prefix
                     },
                     expression,
-                    self.checked_calls,
-                    self.checked_operators,
                     &mut dependencies,
-                    0,
-                    bound_lookup,
-                ) || !dependencies
-                    .iter()
-                    .all(|read| reads::root_is_current(program, machine, state, prefix, read.root))
+                );
+                if !complete
+                    || !dependencies.iter().all(|read| {
+                        reads::root_is_current(program, machine, state, prefix, read.root)
+                    })
                 {
                     continue;
                 }
@@ -207,7 +213,7 @@ impl RangeFacts<'_> {
                         machine: machine.symbol,
                         state: state.symbol,
                         reads: Some(dependencies),
-                        descriptor: original.descriptor.as_ref().map(|_| candidate.clone()),
+                        descriptor: has_descriptor.then(|| candidate.clone()),
                     });
                 }
             }

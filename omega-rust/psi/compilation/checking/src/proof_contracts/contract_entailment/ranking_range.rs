@@ -3,9 +3,9 @@
 //! Numeric meaning and descriptor geometry grant no bounds or borrow authority.
 use super::{
     BTreeMap, BigInt, BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Machine,
-    Polynomial, ProofFact, SignatureContractKind, StrictArithmeticBindingValue,
-    StrictArithmeticSymbolBinding, inductive_judgment,
+    Polynomial, ProofFact, SignatureContractKind, inductive_judgment,
 };
+use crate::{StrictArithmeticBindingValue, StrictArithmeticSymbolBinding};
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceNode};
 
@@ -55,8 +55,8 @@ pub use identity_views::{
 };
 
 pub(crate) use calls::{
-    RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    call_member_premise_symbols, mixed_call_endpoints_are_pinned, prove_ranking_range_call,
+    RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
+    call_member_premise_symbols, prove_ranking_range_call,
 };
 
 /// A collection descriptor's closed extent, using the same checked geometry
@@ -104,7 +104,7 @@ pub fn captured_collection_length(
     machine: &Machine,
     state: &State,
     collection: ExpressionHandle,
-    mut observe: impl FnMut(&crate::CanonicalPlace) -> Option<BigInt>,
+    mut observe: impl FnMut(ExpressionHandle, &crate::CanonicalPlace) -> Option<BigInt>,
 ) -> Option<u64> {
     let mut engine = captured_integer_engine(program, machine, state, collection, &mut observe)?;
     lengths::actual(program, machine, state, collection, &[], &mut engine)?
@@ -120,7 +120,7 @@ pub fn captured_integer_value(
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
-    mut observe: impl FnMut(&crate::CanonicalPlace) -> Option<BigInt>,
+    mut observe: impl FnMut(ExpressionHandle, &crate::CanonicalPlace) -> Option<BigInt>,
 ) -> Option<BigInt> {
     meanings::admitted_carrier(program, machine, state, expression, 0)?;
     let mut engine = captured_integer_engine(program, machine, state, expression, &mut observe)?;
@@ -132,7 +132,7 @@ fn captured_integer_engine<'program>(
     machine: &'program Machine,
     state: &State,
     root: ExpressionHandle,
-    observe: &mut impl FnMut(&crate::CanonicalPlace) -> Option<BigInt>,
+    observe: &mut impl FnMut(ExpressionHandle, &crate::CanonicalPlace) -> Option<BigInt>,
 ) -> Option<Engine<'program>> {
     let mut engine = Engine::strict(program, machine, &[]);
     let mut expressions = Vec::new();
@@ -141,7 +141,7 @@ fn captured_integer_engine<'program>(
         let Some(place) = crate::canonical_place_from_expression(program, expression) else {
             continue;
         };
-        let Some(value) = observe(&place) else {
+        let Some(value) = observe(expression, &place) else {
             continue;
         };
         if !engine.bind_captured_integer_place(machine, state, expression, value) {
@@ -211,29 +211,36 @@ fn slice_rank_coordinate<'program>(
     }
 }
 
-/// Compile the source range owner's selected sequence coordinate into the
-/// existing checked scalar observation vocabulary. The supplied telescope is
-/// an established arrival correspondence, not a type-based guess. This query
-/// grants no range, descent, access or write-preservation authority; those
-/// remain independently proved by the caller's ranking judgment.
+/// Compile the exact admitted descriptor coordinate in its state's namespace.
+/// The coordinate is an established arrival correspondence, not a type-based
+/// guess. This grants no range, descent, access or write-preservation authority;
+/// those remain independently proved by the caller's ranking judgment.
+/// The source witness and inferred private coordinates use this same query;
+/// neither execution planning nor lowering needs an authored AST occurrence.
 pub fn ranking_slice_length_observation(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
     state: &State,
-    entry_parameters: &RankStateBindings,
-    subject: ExpressionHandle,
+    coordinate: &RankSubjectCoordinate,
 ) -> Option<(
     symbols::SymbolHandle,
     u32,
     checked_trees::CheckedScalarExpression,
 )> {
-    let root = program.machine_states(machine).first()?;
-    let coordinate = slice_rank_coordinate(program, root, state, Some(entry_parameters), subject)?;
-    let (parameter, path) = if let Some(coordinate) = coordinate {
-        let path = coordinate
+    let (parameter, path) = if coordinate.path.is_empty() {
+        let parameter = program.state_parameter_by_symbol(state, coordinate.parameter)?;
+        lengths::is_slice(program, parameter.type_reference).then_some(())?;
+        (parameter, Vec::new())
+    } else {
+        let field = coordinate::Coordinate::at_coordinate(
+            program,
+            state,
+            coordinate,
+            coordinate::CoordinateKind::Length,
+        )?;
+        let path = field
             .steps
             .iter()
-            .chain([&coordinate.field])
+            .chain([&field.field])
             .map(|field| {
                 checked_trees::CheckedStructuralPredicatePathSegment::Field(
                     checked_trees::CheckedMemberIdentity::of_member(
@@ -243,19 +250,7 @@ pub fn ranking_slice_length_observation(
                 )
             })
             .collect();
-        (coordinate.parameter, path)
-    } else {
-        let formal = lengths::parameter(program, root, subject)?;
-        let destination = entry_parameters.destination(&RankSubjectCoordinate {
-            parameter: formal.symbol,
-            path: Vec::new(),
-        })?;
-        if !destination.path.is_empty() {
-            return None;
-        }
-        let carrier = program.state_parameter_by_symbol(state, destination.parameter)?;
-        lengths::is_slice(program, carrier.type_reference).then_some(())?;
-        (carrier, Vec::new())
+        (field.parameter, path)
     };
     let position = program
         .state_parameters(state)
@@ -484,6 +479,8 @@ enum EdgeContext<'program> {
 /// Separate results prevent a range-membership proof from authorizing descent.
 #[derive(Clone, Copy)]
 pub struct RankingRangeEdgeProof {
+    /// Formed membership at both ends and any bound owned by the selected
+    /// view. Optional interval endpoints are instantiated per arrival.
     pub membership_and_pinning: bool,
     pub strictly_decreases: bool,
     pub non_increasing: bool,
@@ -511,15 +508,7 @@ pub fn ranking_range_premise_symbols(
     state_aliases::premise_symbols(program, machine, range, measure, true)
 }
 
-/// How a ranking judgment reads one carrier: its whole arrival value, or only
-/// a collection's extent through `.len`. A store into a collection's elements
-/// leaves its extent as it was, so the observation decides which prefix
-/// writes a premise survives.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RankPremiseObservation {
-    Value,
-    Length,
-}
+pub use checked_trees::CheckedRankObservation as RankPremiseObservation;
 
 /// One root formal a ranking judgment reads, and how much of it: the whole
 /// formal, or the extent of the collection at `path` beneath it.
@@ -1058,7 +1047,7 @@ fn prove_edge(
         // atom, so the subject names no natural coordinate here. The range
         // endpoints and the rest of the read surface still spell authored
         // member projections (`limits.cap`): the installed set binds exactly
-        // those projections so entry membership and endpoint pinning read
+        // those projections so entry formation and membership read
         // real atoms instead of failing to normalize.
         RankingRangeMeasure::SliceLength(subject) => Some(subject_field_coordinates(
             program,
@@ -1151,10 +1140,22 @@ fn prove_edge(
     }
     let required_symbols =
         state_aliases::required_symbols(program, machine, range, measure, premises)?;
-    let bindings = match entry_parameters {
+    let mut bindings = match entry_parameters {
         Some(entries) => calls::telescoped_bindings(program, machine, state, entries)?,
         None => integer_bindings(program, state)?,
     };
+    // One invocation's immutable Value/Const bindings do not move between
+    // its body states. These exact immutable binders are not runtime arrival
+    // slots. Cross-invocation judgments still owe explicit actual substitution.
+    for (symbol, reference) in invocation_value_parameters(program, machine, state) {
+        if let Some(primitive) = integer_parameter(program, reference) {
+            bindings.push(StrictArithmeticSymbolBinding::unsigned_integer_atom(
+                symbol,
+                format!("\0ranking:invocation:{:?}:value:{symbol:?}", machine.symbol),
+                primitive,
+            ));
+        }
+    }
     if required_symbols.iter().any(|symbol| {
         !bindings.iter().any(|binding| binding.symbol == *symbol)
             || destination.is_some_and(|destination| {
@@ -1276,7 +1277,7 @@ fn prove_edge(
     // Endpoint arithmetic uses the same exact entry aliases and field
     // coordinates as the rank. Bind non-polynomial term meaning after those
     // coordinates exist; declaration/flow formation and every arrival's
-    // pinning remain independent obligations below.
+    // membership remain independent obligations below.
     for endpoint in range.into_iter().flat_map(|range| [range.start, range.end]) {
         meanings::install_nonpolynomial_terms(program, machine, root, &mut engine, endpoint, 0)?;
     }
@@ -1559,8 +1560,8 @@ fn prove_edge(
             non_increasing: true,
         });
     }
-    // Normalization may cancel an undefined destination operation. Endpoint
-    // equality alone cannot transport its formation, so replay every node
+    // Normalization may cancel an undefined destination operation. A proved
+    // interval alone cannot supply formation, so replay every node
     // with the same simultaneous mapping used by the arrival's value proof.
     for endpoint in range.into_iter().flat_map(|range| [range.start, range.end]) {
         if !fields::endpoint_operations_land_after_arrival(
@@ -1582,22 +1583,16 @@ fn prove_edge(
     {
         return None;
     }
-    // Prove equality to the old endpoints, not merely membership in a newly
-    // moved interval. Simultaneous substitution cannot telescope n -> n - 1.
-    if !prove(next_floor.sub(&floor), 0)
-        || !prove(floor.sub(&next_floor), 0)
-        || !prove(next_ceiling.sub(&ceiling), 0)
-        || !prove(ceiling.sub(&next_ceiling), 0)
-    {
-        return None;
-    }
+    // Optional range endpoints follow the exact arriving actuals. The
+    // selected relation stays fixed; only its produced value's interval
+    // constraint is instantiated again. View-bound equality above is separate.
     let next_membership = if let Some(range) = range {
         calls::membership(
             &engine,
             measure,
             &next_rank,
-            &floor,
-            &ceiling,
+            &next_floor,
+            &next_ceiling,
             range.end_inclusive,
         )
     } else {
@@ -1755,8 +1750,9 @@ fn contract_comparisons(
     Some(comparisons)
 }
 
-/// Constrained-type hypotheses for a state's own formals. They hold on every
-/// arrival and remain valid at any call site inside that state.
+/// Carrier and declared-domain facts for the supplied frame bindings. Runtime
+/// formals belong to this state; explicit immutable indices belong to its one
+/// invocation. Cross-call actuals require their own substitution.
 fn parameter_comparisons(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -1766,8 +1762,19 @@ fn parameter_comparisons(
 ) -> Option<Vec<Comparison>> {
     let admit = |expression| meanings::admitted_carrier(program, machine, root, expression, 0);
     let mut comparisons = Vec::new();
-    for parameter in program.state_parameters(root).iter() {
-        let Some(primitive) = integer_parameter(program, parameter.type_reference) else {
+    for (symbol, reference) in program
+        .state_parameters(root)
+        .iter()
+        .map(|parameter| (parameter.symbol, parameter.type_reference))
+        .chain(
+            invocation_value_parameters(program, machine, root).filter(|(symbol, _)| {
+                // Only an explicitly supplied invocation index contributes facts.
+                // A cross-call template cannot invent an actual from its name.
+                bindings.iter().any(|binding| binding.symbol == *symbol)
+            }),
+        )
+    {
+        let Some(primitive) = integer_parameter(program, reference) else {
             continue;
         };
         // A bound fixed-integer formal holds a value of its carrier at every
@@ -1776,7 +1783,7 @@ fn parameter_comparisons(
         // update's no-wrap proof reads the upper one beside the edge guard.
         if let Some(StrictArithmeticBindingValue::Atom { identity, .. }) = bindings
             .iter()
-            .find(|binding| binding.symbol == parameter.symbol)
+            .find(|binding| binding.symbol == symbol)
             .map(|binding| &binding.value)
             && let Some((minimum, maximum)) = integer_carrier_bounds(primitive)
         {
@@ -1792,13 +1799,11 @@ fn parameter_comparisons(
             ));
         }
         for (minimum, maximum, end_inclusive) in
-            crate::value_custody::type_shapes::range_constraints(program, parameter.type_reference)
+            crate::value_custody::type_shapes::range_constraints(program, reference)
         {
             // Missing or ambiguous aliases cannot contribute an auxiliary
             // invariant, even when another premise makes the edge dead.
-            let binding = bindings
-                .iter()
-                .find(|binding| binding.symbol == parameter.symbol)?;
+            let binding = bindings.iter().find(|binding| binding.symbol == symbol)?;
             let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
                 return None;
             };
@@ -1882,6 +1887,35 @@ fn validate_mapping(
         }
     }
     Some(())
+}
+
+/// Immutable declaration indices beside one invocation's runtime formal roster.
+/// Exact symbols establish identity; lexical names and carrier matches do not.
+fn invocation_value_parameters<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine: &'program Machine,
+    state: &'program State,
+) -> impl Iterator<
+    Item = (
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+    ),
+> + 'program {
+    program
+        .machine_type_parameters(machine)
+        .iter()
+        .filter_map(move |parameter| {
+            let reference = match parameter.kind {
+                typed_trees::data::TypeParameterKind::Value { type_reference }
+                | typed_trees::data::TypeParameterKind::Const { type_reference } => type_reference,
+                _ => return None,
+            };
+            (!program
+                .state_parameters(state)
+                .iter()
+                .any(|formal| formal.symbol == parameter.symbol))
+            .then_some((parameter.symbol, reference))
+        })
 }
 
 fn integer_bindings(

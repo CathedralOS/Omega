@@ -1,1 +1,1 @@
-cannot prove requires contract for call accept from main: 128 in u8::Clear
+cannot form specification operator `==` in domain `u8::Clear` predicate: no exact selected meaning

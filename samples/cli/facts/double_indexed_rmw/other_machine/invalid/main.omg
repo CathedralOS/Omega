@@ -19,8 +19,8 @@ machine Writer::run(writer: &mut Writer, grid: &mut [[i32 in Wrapping; 4]; 3], r
         rows[ri].data[rj] = rows[ri].data[rj] + 1;
         let rows_got: i32 in Wrapping = rows[2].data[1] + rows[2].tag;
         transition grid_got == 42 && rows_got == 49 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
     }
 
 machine main() crashes Trap {

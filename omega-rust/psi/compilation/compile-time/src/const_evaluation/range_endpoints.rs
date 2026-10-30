@@ -1,4 +1,10 @@
-//! COMPTIME evaluation of NAMED RANGE ENDPOINTS.
+//! Shared evaluation of declared range bounds and closed contract integers.
+//!
+//! Both work positions retain their authored invocation until exact provider
+//! settlement. Contract clauses retain the surrounding symbolic comparison;
+//! only its closed integer call is a constant root. Discovery, admission,
+//! transactional fold publication and target receipts are one route for both.
+//! The legacy range-facing entrypoints below also serve the pre-check lifecycle.
 //!
 //! `u64[0..=limit(256)]` puts a build-time-admissible machine call
 //! in a declared integer range endpoint. The endpoint is a constant position
@@ -200,6 +206,7 @@ fn endpoint_stand_in(carrier: Option<PrimitiveType>, minimum: bool) -> (bool, &'
     }
 }
 
+#[derive(PartialEq, Eq)]
 pub(crate) struct PendingEndpoint {
     pub(crate) expression: ExpressionHandle,
     pub(crate) root: ExpressionHandle,
@@ -209,19 +216,66 @@ pub(crate) struct PendingEndpoint {
     /// The authored target is generic; the executable callee must be the
     /// prepared tree's specialized instance.
     pub(crate) static_application: bool,
+    pub(crate) contract_expression: bool,
 }
 
-struct EndpointRoot {
-    constrained_type: TypeReferenceHandle,
-    expression: ExpressionHandle,
+pub(crate) struct IntegerRoot {
+    pub(crate) position: IntegerRootPosition,
+    pub(crate) expression: ExpressionHandle,
+}
+
+/// Range endpoints are exact mathematical integers; contract expressions have
+/// the scalar carrier derived in their lexical scope. Do not manufacture that
+/// carrier from the range's constrained type.
+pub(crate) enum IntegerRootPosition {
+    Range(TypeReferenceHandle),
+    Contract(typed_trees::constant_recipes::ConstantExpressionContext),
 }
 
 /// Every nonliteral bound is a candidate for the shared evaluator. Calls
 /// separately name required constant invocations and provider dependencies;
 /// an unclosed call-free bound remains owned by ordinary range validation.
-struct EndpointPlan {
-    roots: Vec<EndpointRoot>,
-    calls: Vec<PendingEndpoint>,
+pub(crate) struct IntegerRootPlan {
+    pub(crate) roots: Vec<IntegerRoot>,
+    pub(crate) calls: Vec<PendingEndpoint>,
+}
+
+impl IntegerRootPlan {
+    /// The legacy source fold writes expression storage once. Its work list
+    /// is separate from the complete lexical context roster retained for
+    /// portable entries; sharing work never discards an owner's context.
+    fn evaluation_roots(&self) -> impl Iterator<Item = &IntegerRoot> {
+        let mut visited = std::collections::HashSet::new();
+        self.roots
+            .iter()
+            .filter(move |root| visited.insert(root.expression))
+    }
+}
+
+#[cfg(test)]
+mod root_plan_tests {
+    use super::*;
+    use typed_trees::constant_recipes::ConstantExpressionContext;
+
+    #[test]
+    fn constant_expression_contexts_share_legacy_folds_without_losing_owners() {
+        let expression = ExpressionHandle::from_parts(17, 1);
+        let plan = IntegerRootPlan {
+            roots: [23, 29]
+                .map(|owner| IntegerRoot {
+                    expression,
+                    position: IntegerRootPosition::Contract(ConstantExpressionContext {
+                        owner: symbols::SymbolHandle::from_parts(owner, 1),
+                        result_type: TypeReferenceHandle::from_parts(31, 1),
+                        ..Default::default()
+                    }),
+                })
+                .into(),
+            calls: Vec::new(),
+        };
+        assert_eq!(plan.evaluation_roots().count(), 1);
+        assert_eq!(plan.roots.len(), 2);
+    }
 }
 
 pub fn evaluate_const_range_endpoints(
@@ -258,14 +312,14 @@ pub(crate) fn pending_endpoint_calls_need_operator_selection(
     let prepared = crate::PreparedBuildMachineProgram::prepare_in(typed, domain)?;
     let execution = prepared.typed();
     let facts = validation::derive_pre_flow_operator_selections(execution);
-    let admission = BuildTimeAdmissionPlan::infer(execution, selection_authority);
+    let admission = domain.admission(execution, selection_authority);
     Ok(pending.iter().any(|endpoint| {
         // A type argument awaiting its own bound keeps this application
         // unspecialized. Its original template can still demand a provider;
         // this conservative deferral scan grants no invocation admission.
         let machine = resolve_endpoint_callee(execution, endpoint)
             .map_or(endpoint.machine, |callee| callee.instance);
-        admission.closure_needs_operator_selection(execution, machine, &facts)
+        admission.closure_needs_execution_preparation(execution, machine, &facts)
     }))
 }
 
@@ -388,7 +442,7 @@ pub(crate) fn evaluate_selected_range_endpoints(
             }
         };
     loop {
-        let plan = match endpoint_plan(typed, domain) {
+        let plan = match integer_root_plan(typed, domain) {
             Ok(plan) => plan,
             Err(errors) => {
                 restore(typed, published);
@@ -464,7 +518,7 @@ struct Round {
 
 fn evaluate_round(
     typed: &mut TypedTrees,
-    plan: &EndpointPlan,
+    plan: &IntegerRootPlan,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     operators: &[crate::SelectedBuildTimeBinaryOperator],
     provider_bodies: &[crate::SelectedBuildTimeProviderBody],
@@ -489,8 +543,8 @@ fn evaluate_round(
         diagnostics: Vec::new(),
     };
     let mut originals = Vec::new();
-    for endpoint in &plan.roots {
-        let result = evaluate_endpoint(
+    for endpoint in plan.evaluation_roots() {
+        let result = evaluate_root(
             typed,
             execution,
             &admission,
@@ -517,12 +571,19 @@ fn evaluate_round(
                 if !required {
                     continue;
                 }
-                round.diagnostics.push(Diagnostic::error(format!(
-                    "range endpoint of `{}`: const evaluation failed: {reason}",
-                    typed
-                        .type_reference_table
-                        .display_name(endpoint.constrained_type),
-                )));
+                let position = match endpoint.position {
+                    IntegerRootPosition::Contract(_) => "contract integer expression".to_owned(),
+                    IntegerRootPosition::Range(reference) => {
+                        format!(
+                            "range endpoint of `{}`",
+                            typed.type_reference_table.display_name(reference)
+                        )
+                    }
+                };
+                round.diagnostics.push(
+                    Diagnostic::error(format!("{position}: const evaluation failed: {reason}",))
+                        .with_source_span(typed.expression_table.source_span(endpoint.expression)),
+                );
             }
         }
     }
@@ -538,11 +599,11 @@ fn evaluate_round(
     Ok(round)
 }
 
-fn evaluate_endpoint(
+fn evaluate_root(
     typed: &TypedTrees,
     execution: &TypedTrees,
     admission: &BuildTimeAdmissionPlan,
-    endpoint: &EndpointRoot,
+    endpoint: &IntegerRoot,
     selection_authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<ExpressionNode, String> {
@@ -575,13 +636,13 @@ pub(crate) fn pending_endpoints(
     typed: &TypedTrees,
     domain: &EvaluationDomain,
 ) -> Result<Vec<PendingEndpoint>, Vec<Diagnostic>> {
-    Ok(endpoint_plan(typed, domain)?.calls)
+    Ok(integer_root_plan(typed, domain)?.calls)
 }
 
-fn endpoint_plan(
+pub(crate) fn integer_root_plan(
     typed: &TypedTrees,
     domain: &EvaluationDomain,
-) -> Result<EndpointPlan, Vec<Diagnostic>> {
+) -> Result<IntegerRootPlan, Vec<Diagnostic>> {
     let mut pending = Vec::new();
     let mut roots = Vec::new();
     let mut visited = Vec::new();
@@ -629,8 +690,8 @@ fn endpoint_plan(
                         ExpressionNode::Integer(_)
                     )
                 {
-                    roots.push(EndpointRoot {
-                        constrained_type,
+                    roots.push(IntegerRoot {
+                        position: IntegerRootPosition::Range(constrained_type),
                         expression: root,
                     });
                 }
@@ -644,11 +705,23 @@ fn endpoint_plan(
                     root,
                     machine: machine.symbol,
                     static_application,
+                    contract_expression: false,
                 });
             }
         }
     }
-    Ok(EndpointPlan {
+    for root in super::contract_expressions::roots(typed, domain) {
+        roots.push(IntegerRoot {
+            position: IntegerRootPosition::Contract(root.context),
+            expression: root.expression,
+        });
+        for invocation in root.invocations {
+            if !pending.contains(&invocation) {
+                pending.push(invocation);
+            }
+        }
+    }
+    Ok(IntegerRootPlan {
         roots,
         calls: pending,
     })

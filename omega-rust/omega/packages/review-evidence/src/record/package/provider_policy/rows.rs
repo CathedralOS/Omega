@@ -1,3 +1,4 @@
+use crate::record::accessors::field_projection_accessors;
 use crate::record::{
     PackagePolicyEvaluatedBindingProducer, PackageReviewCompilerIntrinsicExecution,
     PackageReviewForeignLocator, PackageReviewNominalIdentity,
@@ -13,6 +14,8 @@ pub struct PackagePolicyProviderRow {
     /// plan row has no authored machine to name: its realization is a
     /// toolchain settlement table entry, so this stays `None`.
     pub(crate) realization: Option<PackageReviewNominalIdentity>,
+    /// The actual Build producer when native supply has no realization body.
+    pub(crate) native_build: Option<PackagePolicyEvaluatedBindingProducer>,
     pub(crate) requirement_lifetime_partition: Vec<u32>,
     /// Authored same-stack demand in bytes. Zero means the realization wrote
     /// no `stack N bytes` clause.
@@ -23,29 +26,19 @@ pub struct PackagePolicyProviderRow {
 }
 
 impl PackagePolicyProviderRow {
+    field_projection_accessors!(borrowed requirement: &PackageReviewNominalIdentity);
     pub fn method(&self) -> &str {
         &self.method
-    }
-
-    pub fn requirement(&self) -> &PackageReviewNominalIdentity {
-        &self.requirement
     }
 
     pub fn realization(&self) -> Option<&PackageReviewNominalIdentity> {
         self.realization.as_ref()
     }
 
-    pub fn requirement_lifetime_partition(&self) -> &[u32] {
-        &self.requirement_lifetime_partition
-    }
+    field_projection_accessors!(sliced requirement_lifetime_partition: &[u32]);
+    field_projection_accessors!(copied admitted_same_stack_bytes: u64);
 
-    pub fn admitted_same_stack_bytes(&self) -> u64 {
-        self.admitted_same_stack_bytes
-    }
-
-    pub fn binding(&self) -> &PackagePolicyProviderBinding {
-        &self.binding
-    }
+    field_projection_accessors!(borrowed binding: &PackagePolicyProviderBinding);
 
     pub(crate) fn compiler_intrinsic_execution(
         &self,

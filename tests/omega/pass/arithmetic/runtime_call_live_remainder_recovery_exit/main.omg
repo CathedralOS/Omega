@@ -9,7 +9,7 @@ reaches Console
 requires divisor >= 1
 {
     transition { _ -> emit(value, divisor) }
-    state emit(value: i64 in Wrapping, divisor: i64 in Wrapping) -> i64 in Wrapping
+    machine emit(value: i64 in Wrapping, divisor: i64 in Wrapping) -> i64 in Wrapping
     requires divisor >= 1
     {
         Console::write_line("carry");
@@ -24,8 +24,8 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> good(context)
         false -> bad(context)
     }
-    state good(context: &mut Main) { Console::exit_process(70); }
-    state bad(context: &mut Main) { Console::exit_process(71); }
+    machine good(context: &mut Main) { Console::exit_process(70); }
+    machine bad(context: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

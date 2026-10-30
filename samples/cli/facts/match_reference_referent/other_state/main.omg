@@ -19,7 +19,7 @@ machine main() crashes Trap {
     let spare: i64 = 5;
     transition { _ -> pick(&chosen, &spare) }
 
-    state pick(chosen: &i64, spare: &i64) {
+    machine pick(chosen: &i64, spare: &i64) {
         let joined: &i64 = match choose() {
             true -> chosen
             false -> spare
@@ -31,6 +31,6 @@ machine main() crashes Trap {
         }
     }
 
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

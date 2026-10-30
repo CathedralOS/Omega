@@ -101,15 +101,19 @@ impl CapturedLoans {
             .filter(|(position, _)| live[*position])
         {
             for edge in state.successors() {
-                let target =
-                    plan.state_position(edge.target_state)
-                        .ok_or(LoweringError::Unsupported(
-                            "captured loan target disappeared",
-                        ))?;
+                let target = plan
+                    .successor_position(edge)
+                    .ok_or(LoweringError::Unsupported(
+                        "captured loan target disappeared",
+                    ))?;
                 for transfer in &edge.transfers {
                     if position != 0
                         && target != 0
                         && let Some(source) = forwarded(&transfer.source)
+                        && state.structural_parameters[source as usize].access
+                            == plan.states[target].structural_parameters
+                                [transfer.target_parameter_index as usize]
+                                .access
                         && matches!(
                             state.structural_parameters[source as usize].access,
                             checked_trees::checked_borrowed_access_pair_pattern!()
@@ -158,11 +162,11 @@ impl CapturedLoans {
             .filter(|(position, _)| live[*position])
         {
             for edge in state.successors() {
-                let target =
-                    plan.state_position(edge.target_state)
-                        .ok_or(LoweringError::Unsupported(
-                            "captured loan target disappeared",
-                        ))?;
+                let target = plan
+                    .successor_position(edge)
+                    .ok_or(LoweringError::Unsupported(
+                        "captured loan target disappeared",
+                    ))?;
                 for transfer in &edge.transfers {
                     let carrier_type_identity = match &transfer.source {
                         Source::ProjectedLoan {
@@ -198,9 +202,40 @@ impl CapturedLoans {
                             types.iter().find(|(candidate, _)| *candidate == group)
                         {
                             if *previous != carrier_type_identity {
-                                return Err(LoweringError::Unsupported(
-                                    "captured loan forwarding changes descriptor type",
-                                ));
+                                let shape = |identity| {
+                                    let carrier = crate::terminal_identities::lookup_type_id(
+                                        &catalogs.type_ids,
+                                        identity,
+                                    )?;
+                                    terminal_psi::find_structural_type(
+                                        &catalogs.structural_types,
+                                        carrier,
+                                    )
+                                    .map(|declaration| declaration.shape.clone())
+                                    .ok_or(
+                                        LoweringError::Unsupported(
+                                            "captured loan descriptor has no shape",
+                                        ),
+                                    )
+                                };
+                                return Err(LoweringError::CapturedLoanDescriptorMismatch {
+                                    source_state: position,
+                                    target_state: target,
+                                    target_parameter: transfer.target_parameter_index,
+                                    earlier: shape(previous)?,
+                                    incoming: shape(&carrier_type_identity)?,
+                                    source_access: super::super::result_custody::loan_subject(
+                                        &transfer.source,
+                                        values,
+                                    )
+                                    .map_or(
+                                        checked_trees::CheckedStructuralAccess::Owned,
+                                        |(subject, _)| subject.access,
+                                    ),
+                                    target_access: plan.states[target].structural_parameters
+                                        [transfer.target_parameter_index as usize]
+                                        .access,
+                                });
                             }
                         } else {
                             types.push((group, carrier_type_identity));
@@ -248,11 +283,11 @@ impl CapturedLoans {
             .filter(|(position, _)| live[*position])
         {
             for edge in state.successors() {
-                let target =
-                    plan.state_position(edge.target_state)
-                        .ok_or(LoweringError::Unsupported(
-                            "captured loan target disappeared",
-                        ))?;
+                let target = plan
+                    .successor_position(edge)
+                    .ok_or(LoweringError::Unsupported(
+                        "captured loan target disappeared",
+                    ))?;
                 for transfer in &edge.transfers {
                     if let Some((subject, _)) =
                         super::super::result_custody::loan_subject(&transfer.source, values)
@@ -600,9 +635,10 @@ impl CapturedLoans {
                                 when_false.structural_arguments.as_slice(),
                             ),
                         ],
-                        Terminator::StructuralCase { cases, .. } => {
-                            cases.iter().map(|arm| (arm.target, &[][..])).collect()
-                        }
+                        Terminator::StructuralCase { cases, .. } => cases
+                            .iter()
+                            .map(|arm| (arm.target, arm.structural_arguments.as_slice()))
+                            .collect(),
                         _ => Vec::new(),
                     };
                     for (target, arguments) in arrivals {
@@ -690,7 +726,11 @@ impl CapturedLoans {
                         }
                         Terminator::StructuralCase { cases, .. } => {
                             for arm in cases {
-                                retire(arm.target, &[], &mut arm.cleanup_actions);
+                                retire(
+                                    arm.target,
+                                    &arm.structural_arguments,
+                                    &mut arm.cleanup_actions,
+                                );
                             }
                         }
                         terminal_psi::terminator_return_pair_pattern!(cleanup_actions, ..)

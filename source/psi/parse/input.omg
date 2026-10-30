@@ -17,21 +17,21 @@ machine Parser::load_current(parser: &mut Parser, input: &TokenStream) {
         _ -> absent(parser)
     }
 
-    state array_bound(parser: &mut Parser, candidate: u64) {
+    machine array_bound(parser: &mut Parser, candidate: u64) {
         transition candidate < 65536 {
             true -> present(parser, candidate)
             _ -> absent(parser)
         }
     }
 
-    state present(parser: &mut Parser, retained: u64)
+    machine present(parser: &mut Parser, retained: u64)
     requires retained <= 65535
     {
         parser.current_index = retained;
         parser.current_present = true;
     }
 
-    state absent(parser: &mut Parser) {
+    machine absent(parser: &mut Parser) {
         parser.current_present = false;
     }
 }
@@ -59,11 +59,11 @@ crashes Trap
         _ -> reject(parser, input, code)
     }
 
-    state take(parser: &mut Parser, input: &TokenStream) {
+    machine take(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
     }
 
-    state reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+    machine reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
         Parser::reject_current(parser, input, code);
     }
 }
@@ -79,13 +79,13 @@ crashes Trap
         _ -> reject(parser, input, code)
     }
 
-    state take(parser: &mut Parser, input: &TokenStream) {
+    machine take(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
         parser.name_start = parser.token_start;
         parser.name_end = parser.token_end;
     }
 
-    state reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+    machine reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
         Parser::reject_current(parser, input, code);
     }
 }
@@ -99,7 +99,7 @@ crashes Trap
         _ -> absent()
     }
 
-    state loaded(parser: &mut Parser, input: &TokenStream, expected: PunctuationKind) {
+    machine loaded(parser: &mut Parser, input: &TokenStream, expected: PunctuationKind) -> bool {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Punctuation { punctuation, .. } -> compare(punctuation, expected)
@@ -107,11 +107,11 @@ crashes Trap
         }
     }
 
-    state compare(punctuation: PunctuationKind, expected: PunctuationKind) {
+    machine compare(punctuation: PunctuationKind, expected: PunctuationKind) -> bool {
         punctuation == expected
     }
 
-    state absent() {
+    machine absent() -> bool {
         false
     }
 }
@@ -125,7 +125,7 @@ crashes Trap
         _ -> absent()
     }
 
-    state loaded(parser: &mut Parser, input: &TokenStream, expected: KeywordKind) {
+    machine loaded(parser: &mut Parser, input: &TokenStream, expected: KeywordKind) -> bool {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Keyword { keyword, .. } -> compare(keyword, expected)
@@ -133,11 +133,11 @@ crashes Trap
         }
     }
 
-    state compare(keyword: KeywordKind, expected: KeywordKind) {
+    machine compare(keyword: KeywordKind, expected: KeywordKind) -> bool {
         keyword == expected
     }
 
-    state absent() {
+    machine absent() -> bool {
         false
     }
 }
@@ -151,7 +151,7 @@ crashes Trap
         _ -> absent()
     }
 
-    state loaded(parser: &mut Parser, input: &TokenStream) {
+    machine loaded(parser: &mut Parser, input: &TokenStream) -> bool {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Identifier -> present()
@@ -161,11 +161,11 @@ crashes Trap
         }
     }
 
-    state present() {
+    machine present() -> bool {
         true
     }
 
-    state absent() {
+    machine absent() -> bool {
         false
     }
 }
@@ -190,12 +190,12 @@ crashes Trap
         _ -> at_end(parser, code)
     }
 
-    state at_token(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+    machine at_token(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
         let token: Token = input.tokens[parser.current_index];
         SyntaxTrees::reject(&mut parser.output, code, parser.source, token.start, token.end);
     }
 
-    state at_end(parser: &mut Parser, code: ParseDiagnosticCode) {
+    machine at_end(parser: &mut Parser, code: ParseDiagnosticCode) {
         SyntaxTrees::reject(&mut parser.output, code, parser.source, parser.source_length, parser.source_length);
     }
 }
@@ -217,7 +217,7 @@ crashes Trap
         _ -> done()
     }
 
-    state marker(parser: &mut Parser, input: &TokenStream) {
+    machine marker(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
         parser.binding_erased_start = parser.token_start;
         let erased: bool = Parser::at_word(parser, input, "erased");
@@ -227,17 +227,17 @@ crashes Trap
         }
     }
 
-    state word(parser: &mut Parser, input: &TokenStream) {
+    machine word(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
         Parser::expect_punctuation(parser, input, PunctuationKind::RightBracket, ParseDiagnosticCode::ExpectedErasedMarker);
         parser.binding_erased = parser.output.accepted;
     }
 
-    state reject(parser: &mut Parser, input: &TokenStream) {
+    machine reject(parser: &mut Parser, input: &TokenStream) {
         Parser::reject_current(parser, input, ParseDiagnosticCode::ExpectedErasedMarker);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Record binding `handle` of `kind` as erased when its marker was spelled.
@@ -249,14 +249,14 @@ crashes Trap
         _ -> done()
     }
 
-    state bounded(parser: &mut Parser, kind: ErasedBindingKind, handle: u64 in Trapping, end: u64 in Trapping) {
+    machine bounded(parser: &mut Parser, kind: ErasedBindingKind, handle: u64 in Trapping, end: u64 in Trapping) {
         transition parser.output.erased_binding_count < 1024 {
             true -> stored(parser, kind, handle, end)
             _ -> full(parser)
         }
     }
 
-    state stored(parser: &mut Parser, kind: ErasedBindingKind, handle: u64 in Trapping, end: u64 in Trapping) {
+    machine stored(parser: &mut Parser, kind: ErasedBindingKind, handle: u64 in Trapping, end: u64 in Trapping) {
         parser.output.erased_bindings[parser.output.erased_binding_count] = ErasedBinding {
             kind: kind,
             handle: handle,
@@ -266,11 +266,11 @@ crashes Trap
         parser.binding_erased = false;
     }
 
-    state full(parser: &mut Parser) {
+    machine full(parser: &mut Parser) {
         SyntaxTrees::reject(&mut parser.output, ParseDiagnosticCode::ErasedBindingCapacityExceeded, parser.source, parser.binding_erased_start, parser.token_end);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 machine Parser::at_word(parser: &mut Parser, input: &TokenStream, spelling: &[u8]) -> bool
@@ -282,7 +282,7 @@ crashes Trap
         _ -> absent()
     }
 
-    state loaded(parser: &mut Parser, input: &TokenStream, spelling: &[u8]) {
+    machine loaded(parser: &mut Parser, input: &TokenStream, spelling: &[u8]) -> bool {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Identifier -> spelled(input, token.decoded_start, token.decoded_length, spelling)
@@ -290,11 +290,11 @@ crashes Trap
         }
     }
 
-    state spelled(input: &TokenStream, start: u64 in Trapping, length: u64 in Trapping, spelling: &[u8]) {
+    machine spelled(input: &TokenStream, start: u64 in Trapping, length: u64 in Trapping, spelling: &[u8]) -> bool {
         Parser::decoded_spells(input, start, length, spelling)
     }
 
-    state absent() {
+    machine absent() -> bool {
         false
     }
 }
@@ -309,7 +309,7 @@ crashes Trap
         _ -> absent()
     }
 
-    state loaded(parser: &mut Parser, input: &TokenStream) {
+    machine loaded(parser: &mut Parser, input: &TokenStream) -> bool {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Integer { base, empty_digits, has_suffix, .. } -> present()
@@ -317,11 +317,11 @@ crashes Trap
         }
     }
 
-    state present() {
+    machine present() -> bool {
         true
     }
 
-    state absent() {
+    machine absent() -> bool {
         false
     }
 }
@@ -385,12 +385,12 @@ crashes Trap
         _ -> restore(parser, input, cursor, false)
     }
 
-    state adjacent(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping, end: u64 in Trapping) {
+    machine adjacent(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping, end: u64 in Trapping) -> bool {
         let token: Token = input.tokens[parser.current_index];
         transition { _ -> restore(parser, input, cursor, token.start == end) }
     }
 
-    state restore(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping, result: bool) {
+    machine restore(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping, result: bool) -> bool {
         parser.cursor = cursor;
         Parser::load_current(parser, input);
         result
@@ -416,7 +416,7 @@ crashes Trap
         _ -> first_name(parser, input)
     }
 
-    state first_name(parser: &mut Parser, input: &TokenStream) {
+    machine first_name(parser: &mut Parser, input: &TokenStream) -> bool {
         let named: bool = Parser::at_name(parser, input);
         let suspends: bool = Parser::at_word(parser, input, "suspend");
         let blocks: bool = Parser::at_word(parser, input, "block");
@@ -426,7 +426,7 @@ crashes Trap
         }
     }
 
-    state second_name(parser: &mut Parser, input: &TokenStream) {
+    machine second_name(parser: &mut Parser, input: &TokenStream) -> bool {
         let family: bool = Parser::at_word(parser, input, "domain");
         let cursor: u64 in Trapping = parser.cursor;
         parser.cursor = parser.cursor + 1;
@@ -441,11 +441,11 @@ crashes Trap
         named && !cast && !membership || family && (generic || bracketed) || conformance
     }
 
-    state head() {
+    machine head() -> bool {
         true
     }
 
-    state expression() {
+    machine expression() -> bool {
         false
     }
 }
@@ -459,14 +459,14 @@ crashes Trap
 {
     transition { _ -> next(input, parser.cursor + 1) }
 
-    state next(input: &TokenStream, index: u64 in Trapping) {
+    machine next(input: &TokenStream, index: u64 in Trapping) -> bool {
         transition index < input.token_count {
             true -> opened(input, index)
             _ -> absent()
         }
     }
 
-    state opened(input: &TokenStream, index: u64 in Trapping) {
+    machine opened(input: &TokenStream, index: u64 in Trapping) -> bool {
         let token: Token = input.tokens[index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::Less, .. } -> scan(input, index + 1, 1)
@@ -474,14 +474,14 @@ crashes Trap
         }
     }
 
-    state scan(input: &TokenStream, index: u64 in Trapping, depth: u64 in Trapping) {
+    machine scan(input: &TokenStream, index: u64 in Trapping, depth: u64 in Trapping) -> bool {
         transition index < input.token_count {
             true -> token(input, index, depth)
             _ -> absent()
         }
     }
 
-    state token(input: &TokenStream, index: u64 in Trapping, depth: u64 in Trapping) {
+    machine token(input: &TokenStream, index: u64 in Trapping, depth: u64 in Trapping) -> bool {
         let token: Token = input.tokens[index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::Less, .. } -> scan(input, index + 1, depth + 1)
@@ -501,21 +501,21 @@ crashes Trap
         }
     }
 
-    state close(input: &TokenStream, index: u64 in Trapping, depth: u64 in Trapping) {
+    machine close(input: &TokenStream, index: u64 in Trapping, depth: u64 in Trapping) -> bool {
         transition depth > 1 {
             true -> scan(input, index + 1, depth - 1)
             _ -> related(input, index + 1)
         }
     }
 
-    state related(input: &TokenStream, index: u64 in Trapping) {
+    machine related(input: &TokenStream, index: u64 in Trapping) -> bool {
         transition index < input.token_count {
             true -> satisfies(input, index)
             _ -> absent()
         }
     }
 
-    state satisfies(input: &TokenStream, index: u64 in Trapping) {
+    machine satisfies(input: &TokenStream, index: u64 in Trapping) -> bool {
         let token: Token = input.tokens[index];
         transition token {
             Token::Identifier -> spelled(input, token.decoded_start, token.decoded_length)
@@ -523,11 +523,11 @@ crashes Trap
         }
     }
 
-    state spelled(input: &TokenStream, start: u64 in Trapping, length: u64 in Trapping) {
+    machine spelled(input: &TokenStream, start: u64 in Trapping, length: u64 in Trapping) -> bool {
         Parser::decoded_spells(input, start, length, "satisfies")
     }
 
-    state absent() {
+    machine absent() -> bool {
         false
     }
 }
@@ -541,21 +541,21 @@ crashes Trap
         _ -> absent()
     }
 
-    state compare(input: &TokenStream, cursor: u64 in Trapping, spelling: &[u8], index: u64 in Trapping) {
+    machine compare(input: &TokenStream, cursor: u64 in Trapping, spelling: &[u8], index: u64 in Trapping) -> bool {
         transition index < spelling.len {
             true -> byte(input, cursor, spelling, index)
             _ -> present()
         }
     }
 
-    state byte(input: &TokenStream, cursor: u64 in Trapping, spelling: &[u8], index: u64 in Trapping) {
+    machine byte(input: &TokenStream, cursor: u64 in Trapping, spelling: &[u8], index: u64 in Trapping) -> bool {
         transition cursor < 131072 {
             true -> compare_byte(input, cursor, spelling, index)
             _ -> absent()
         }
     }
 
-    state compare_byte(input: &TokenStream, cursor: u64 in Trapping, spelling: &[u8], index: u64 in Trapping) {
+    machine compare_byte(input: &TokenStream, cursor: u64 in Trapping, spelling: &[u8], index: u64 in Trapping) -> bool {
         let decoded: u8 = input.decoded[cursor] as u8;
         let expected: u8 = spelling[index];
         transition decoded == expected {
@@ -564,11 +564,11 @@ crashes Trap
         }
     }
 
-    state present() {
+    machine present() -> bool {
         true
     }
 
-    state absent() {
+    machine absent() -> bool {
         false
     }
 }

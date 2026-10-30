@@ -21,7 +21,7 @@ machine Duo::code(duo: Duo) -> u64 in Wrapping {
         Duo::Right { b, c } -> value(b + c)
     }
 
-    state value(code: u64 in Wrapping) -> u64 in Wrapping {
+    machine value(code: u64 in Wrapping) -> u64 in Wrapping {
         code
     }
 }
@@ -36,14 +36,14 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> done(main, 71)
     }
 
-    state guarded(main: &mut Main) {
+    machine guarded(main: &mut Main) {
         transition Duo::code(Duo::make(30, 40)) == 70 {
             true -> done(main, 70)
             _ -> done(main, 72)
         }
     }
 
-    state done(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine done(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -161,19 +161,19 @@ reaches DirectoryEnumeration
 {
     let total: i64 = PosixFilesystemImplementation::read_dir(fd, buffer, count, position);
     transition total > 0 && total <= 512 { true -> bounded(buffer, total) _ -> total }
-    state bounded(buffer: &mut [u8], total: i64) -> i64 requires total > 0; {
+    machine bounded(buffer: &mut [u8], total: i64) -> i64 requires total > 0; {
         let length: u64 = narrow_i64_to_u64_exact(total);
         transition { _ -> walk(buffer, total, length, 0) }
     }
-    state walk(buffer: &mut [u8], total: i64, length: u64, offset: u64) -> i64 {
+    machine walk(buffer: &mut [u8], total: i64, length: u64, offset: u64) -> i64 {
         transition offset < length { true -> header(buffer, total, length, offset) _ -> total }
     }
-    state header(buffer: &mut [u8], total: i64, length: u64, offset: u64) -> i64 {
+    machine header(buffer: &mut [u8], total: i64, length: u64, offset: u64) -> i64 {
         transition offset < 489 && offset + 17 < buffer.len {
             true -> record(buffer, total, length, offset) _ -> -5
         }
     }
-    state record(buffer: &mut [u8], total: i64, length: u64, offset: u64) -> i64
+    machine record(buffer: &mut [u8], total: i64, length: u64, offset: u64) -> i64
     requires offset < 489, offset + 17 < buffer.len;
     {
         let low: u64 = widen_u8_to_u64(buffer[offset + 16]);
@@ -183,7 +183,7 @@ reaches DirectoryEnumeration
             true -> clear(buffer, total, length, offset, record_length) _ -> -5
         }
     }
-    state clear(buffer: &mut [u8], total: i64, length: u64, offset: u64, record_length: u64) -> i64
+    machine clear(buffer: &mut [u8], total: i64, length: u64, offset: u64, record_length: u64) -> i64
     requires offset < 489, record_length <= 512 - offset;
     {
         let kind_offset: u64 = offset + directory_kind_offset();
@@ -191,7 +191,7 @@ reaches DirectoryEnumeration
             true -> store(buffer, total, length, offset, record_length, kind_offset) _ -> -5
         }
     }
-    state store(buffer: &mut [u8], total: i64, length: u64, offset: u64, record_length: u64, kind_offset: u64) -> i64
+    machine store(buffer: &mut [u8], total: i64, length: u64, offset: u64, record_length: u64, kind_offset: u64) -> i64
     requires kind_offset < buffer.len, offset < 489, record_length <= 512 - offset;
     {
         buffer[kind_offset] = 0;
@@ -206,68 +206,68 @@ data Main { filesystem: Filesystem; index: u64 in Wrapping; seen: u32; }
 machine Main::main(main: &mut Main) reaches Console {
     let result: UnitResult = block Filesystem::create_dir_all(&mut main.filesystem, "omega_unknown_kinds/sub");
     transition result { UnitResult::Ok -> payload(main) _ -> bad(10) }
-    state payload(main: &mut Main) {
+    machine payload(main: &mut Main) {
         let result: UnitResult = block Filesystem::write_all(&mut main.filesystem, "omega_unknown_kinds/sub/file", "contents");
         transition result { UnitResult::Ok -> outside(main) _ -> bad(11) }
     }
-    state outside(main: &mut Main) {
+    machine outside(main: &mut Main) {
         let result: UnitResult = block Filesystem::create_dir(&mut main.filesystem, "omega_unknown_outside");
         transition result { UnitResult::Ok -> outside_file(main) _ -> bad(12) }
     }
-    state outside_file(main: &mut Main) {
+    machine outside_file(main: &mut Main) {
         let result: UnitResult = block Filesystem::write_all(&mut main.filesystem, "omega_unknown_outside/keep", "keep");
         transition result { UnitResult::Ok -> link(main) _ -> bad(13) }
     }
-    state link(main: &mut Main) {
+    machine link(main: &mut Main) {
         let result: UnitResult = block Filesystem::symlink(&mut main.filesystem, "../omega_unknown_outside", "omega_unknown_kinds/link");
         transition result { UnitResult::Ok -> read(main) _ -> bad(14) }
     }
-    state read(main: &mut Main) {
+    machine read(main: &mut Main) {
         let result: DirEntryResult = block Filesystem::read_dir_nth(&mut main.filesystem, "omega_unknown_kinds", main.index as u64);
         transition result { DirEntryResult::Ok { entry } -> classify(main, entry) DirEntryResult::End -> listed(main) _ -> bad(15) }
     }
-    state classify(main: &mut Main, entry: DirEntry) {
+    machine classify(main: &mut Main, entry: DirEntry) {
         transition {
             entry.name_len == 3 && entry.name[0] == 115 && entry.is_dir && !entry.is_file -> directory(main)
             entry.name_len == 4 && entry.name[0] == 108 && !entry.is_dir && !entry.is_file -> symlink(main)
             _ -> bad(16)
         }
     }
-    state directory(main: &mut Main) { main.seen = main.seen | 1; transition { _ -> next(main) } }
-    state symlink(main: &mut Main) { main.seen = main.seen | 2; transition { _ -> next(main) } }
-    state next(main: &mut Main) {
+    machine directory(main: &mut Main) { main.seen = main.seen | 1; transition { _ -> next(main) } }
+    machine symlink(main: &mut Main) { main.seen = main.seen | 2; transition { _ -> next(main) } }
+    machine next(main: &mut Main) {
         main.index += 1;
         transition main.index <= 2 { true -> read(main) _ -> bad(17) }
     }
-    state listed(main: &mut Main) {
+    machine listed(main: &mut Main) {
         transition main.index == 2 && main.seen == 3 { true -> read_file(main) _ -> bad(18) }
     }
-    state read_file(main: &mut Main) {
+    machine read_file(main: &mut Main) {
         let result: DirEntryResult = block Filesystem::read_dir_nth(&mut main.filesystem, "omega_unknown_kinds/sub", 0);
         transition result { DirEntryResult::Ok { entry } -> file_kind(main, entry) _ -> bad(19) }
     }
-    state file_kind(main: &mut Main, entry: DirEntry) {
+    machine file_kind(main: &mut Main, entry: DirEntry) {
         transition entry.is_file && !entry.is_dir { true -> remove(main) _ -> bad(20) }
     }
-    state remove(main: &mut Main) {
+    machine remove(main: &mut Main) {
         let result: UnitResult = block Filesystem::remove_dir_all(&mut main.filesystem, "omega_unknown_kinds");
         transition result { UnitResult::Ok -> preserved(main) _ -> bad(21) }
     }
-    state preserved(main: &mut Main) {
+    machine preserved(main: &mut Main) {
         let present: bool = block Filesystem::exists(&mut main.filesystem, "omega_unknown_outside/keep");
         let removed: bool = block Filesystem::exists(&mut main.filesystem, "omega_unknown_kinds");
         transition present && !removed { true -> cleanup(main) _ -> bad(22) }
     }
-    state cleanup(main: &mut Main) {
+    machine cleanup(main: &mut Main) {
         let result: UnitResult = block Filesystem::remove_dir_all(&mut main.filesystem, "omega_unknown_outside");
         transition result { UnitResult::Ok -> short_output() _ -> bad(23) }
     }
-    state short_output() {
+    machine short_output() {
         let refused: bool = metadata_at_refuses_short_output();
         transition refused { true -> good() _ -> bad(24) }
     }
-    state good() { Console::exit_process(0); }
-    state bad(code: i32) { Console::exit_process(code); }
+    machine good() { Console::exit_process(0); }
+    machine bad(code: i32) { Console::exit_process(code); }
 }
 
 machine metadata_at_refuses_short_output() -> bool reaches FilesystemMetadataQuery {

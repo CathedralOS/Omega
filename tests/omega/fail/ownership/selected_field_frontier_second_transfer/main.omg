@@ -1,0 +1,16 @@
+data Payload { left: u64; right: u64; }
+data Pair { first: Payload; second: Payload; }
+machine consume(payload: Payload) -> u64 { payload.left }
+machine first(left: u64, right: u64) -> u64 { left }
+machine choose(enabled: bool, pair: Pair) -> u64 {
+    match enabled {
+        true -> first(consume(pair.first), consume(pair.first)),
+        _ -> consume(pair.second),
+    }
+}
+machine main() crashes Trap {
+    let observed: u64 = choose(true, Pair {
+        first: Payload { left: 7, right: 11 },
+        second: Payload { left: 13, right: 17 }
+    });
+}

@@ -8,16 +8,18 @@
 //! The wrapper itself has zero private-stack occupancy; the callee's complete
 //! checked demand belongs to the separately validated stack partition.
 
-mod macos_arm64;
-pub(super) use macos_arm64::validate as validate_macos_arm64;
+mod aarch64;
+mod windows_x86_64;
+pub(crate) use aarch64::validate as validate_aarch64;
+pub(super) use windows_x86_64::validate as validate_windows_x86_64;
 
 use diagnostics::Diagnostic;
 
-use super::{HostedReceiverPartitions, invalid};
+use super::{HostedEntryPartitions, invalid, recipe_index_for_runtime_position};
 
 fn expected_addresses(
     bss_address: u64,
-    partitions: HostedReceiverPartitions,
+    partitions: HostedEntryPartitions,
     invalid: &dyn Fn() -> Diagnostic,
 ) -> Result<(u64, u64, u64), Diagnostic> {
     Ok((
@@ -52,7 +54,7 @@ pub(super) fn validate_x86_64(
     address: u64,
     selected_entry: u64,
     bss_address: u64,
-    partitions: HostedReceiverPartitions,
+    partitions: HostedEntryPartitions,
     private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
 ) -> Result<(), Diagnostic> {
     let invalid = || invalid(target::NativeTarget::linux_x64());
@@ -115,10 +117,8 @@ pub(super) fn validate_x86_64(
         (0x4c, 0x0d),
     ];
     for ordinal in 0..private_entry_ram.len() {
-        let index = private_entry_ram
-            .iter()
-            .position(|recipe| recipe.input().runtime_position as usize == ordinal)
-            .ok_or_else(invalid)?;
+        let index =
+            recipe_index_for_runtime_position(private_entry_ram, ordinal).ok_or_else(invalid)?;
         let expected = originals[index];
         let (rex, modrm) = argument_encodings
             .get(ordinal)

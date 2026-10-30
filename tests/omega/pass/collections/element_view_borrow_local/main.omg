@@ -26,11 +26,11 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad(main)
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(181);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(90);
     }
 }
@@ -43,7 +43,7 @@ machine Main::fill_literal(bag: &mut Bag) {
         _ -> done()
     }
 
-    state done() {
+    machine done() {
     }
 }
 
@@ -56,7 +56,7 @@ machine Main::fill_local(bag: &mut Bag) {
         _ -> done()
     }
 
-    state done() {
+    machine done() {
     }
 }
 
@@ -68,7 +68,7 @@ machine Main::fill_param(bag: &mut Bag, at: u64) requires at < 4 {
         _ -> done()
     }
 
-    state done() {
+    machine done() {
     }
 }
 

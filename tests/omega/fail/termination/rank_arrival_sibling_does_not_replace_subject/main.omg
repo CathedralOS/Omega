@@ -11,7 +11,7 @@ terminates by countdown -> Countdown::Remaining in 0..=5;
             spare: Countdown { remaining: 4 }
         })
     }
-    state iterate(pending: Bundle) {
+    machine iterate(pending: Bundle) -> u64 {
         transition pending.spare.remaining > 0 {
             true -> iterate(Bundle {
                 held: pending.held,

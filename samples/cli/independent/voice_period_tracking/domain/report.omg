@@ -7,30 +7,30 @@ public machine number(value: i32 in Wrapping) reaches Console
 invokes Console;
 {
     transition { _ -> digits(value, 10000, false) }
-    state digits(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
+    machine digits(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
         transition divisor > 0 {
             true -> select(value, divisor, started)
             _ -> done()
         }
     }
-    state select(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
+    machine select(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
         transition value >= divisor || started || divisor == 1 {
             true -> emit(value, divisor)
             _ -> smaller(value, divisor)
         }
     }
-    state emit(value: i32 in Wrapping, divisor: i32 in Wrapping) {
+    machine emit(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         Console::write_byte((48 + value / divisor) as i32);
         transition divisor > 1 {
             true -> digits(value % divisor, divisor / 10, true)
             _ -> done()
         }
     }
-    state smaller(value: i32 in Wrapping, divisor: i32 in Wrapping) {
+    machine smaller(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition divisor > 1 {
             true -> digits(value, divisor / 10, false)
             _ -> done()
         }
     }
-    state done() {}
+    machine done() {}
 }

@@ -36,7 +36,7 @@ requires
         _ -> build(n, d, g)
     }
 
-    state build(n: Nat, d: Nat, g: Nat) -> Rat {
+    machine build(n: Nat, d: Nat, g: Nat) -> Rat {
         let rn: Nat = div(n, g);
         let rd: Nat = div(d, g);
         transition { _ -> Rat {
@@ -90,7 +90,7 @@ machine rat_eq(p: Rat, q: Rat) -> Nat
         Nat::Succ { prev as w } -> Nat::Succ { prev: Nat::Zero }
     }
 
-    state check_other(p: Rat, q: Rat) -> Nat {
+    machine check_other(p: Rat, q: Rat) -> Nat {
         let negative: Nat = rat_cross_negative(p, q);
         let positive: Nat = rat_cross_positive(p, q);
         transition (saturating_sub(negative, positive)) {

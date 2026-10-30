@@ -1,0 +1,13 @@
+[package]
+name = "sample-runner"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bounded-process = { path = "../../../../omega-rust/omega/foundation/bounded-process" }
+omega-build = { path = "../../../../omega-rust/omega/application/build" }
+package-manager = { path = "../../../../omega-rust/omega/packages/package-manager" }
+terminal-runtime = { path = "../../../../omega-rust/omega/application/terminal-runtime" }
+serde_json = "=1.0.151"
+target = { path = "../../../../omega-rust/omega/compilation/backend/target" }
+sha2 = "0.10.9"

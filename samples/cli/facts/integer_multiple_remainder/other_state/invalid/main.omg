@@ -5,12 +5,12 @@ data EvenLength where length % 2 == 0 { length: u16; }
 machine observe(value: EvenLength) -> u16 { value.length }
 machine probe(count: u64) -> u16 requires count > 0 && count < 4096 {
     transition { _ -> completed((count * 2 + OFFSET) as u16) }
-    state completed(length: u16) -> u16 requires length % 2 == 0 {
+    machine completed(length: u16) -> u16 requires length % 2 == 0 {
         observe(EvenLength { length: length })
     }
 }
 machine main() crashes Trap {
     transition probe(7) == 14 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

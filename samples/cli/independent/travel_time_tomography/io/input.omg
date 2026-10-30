@@ -13,11 +13,11 @@ crashes Trap
 {
     input.valid = false;
     transition { _ -> scan(input, 0, 0, 0, false, 0) }
-    state scan(input: &mut Input, count: u64, value: i32, digits: u64, pending: bool, bytes: u64)
+    machine scan(input: &mut Input, count: u64, value: i32, digits: u64, pending: bool, bytes: u64)
     requires count <= 13 requires value >= 0 requires value <= 99 requires digits <= 2 requires bytes <= 256 {
         transition bytes < 256 { true -> read(input, count, value, digits, pending, bytes) false -> bad() }
     }
-    state read(input: &mut Input, count: u64, value: i32, digits: u64, pending: bool, bytes: u64)
+    machine read(input: &mut Input, count: u64, value: i32, digits: u64, pending: bool, bytes: u64)
     requires count <= 13 requires value >= 0 requires value <= 99 requires digits <= 2 requires bytes < 256 {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
@@ -25,59 +25,59 @@ crashes Trap
             ByteRead::Byte { value as byte } -> classify(input, count, value, digits, pending, bytes + 1, byte)
         }
     }
-    state classify(input: &mut Input, count: u64, value: i32, digits: u64, pending: bool, bytes: u64, byte: i32)
+    machine classify(input: &mut Input, count: u64, value: i32, digits: u64, pending: bool, bytes: u64, byte: i32)
     requires count <= 13 requires value >= 0 requires value <= 99 requires digits <= 2 requires bytes <= 256 requires byte >= 0 requires byte <= 255 {
         transition byte >= 48 && byte <= 57 { true -> digit(input, count, value, digits, bytes, byte) false -> separator(input, count, value, digits, pending, bytes, byte) }
     }
-    state digit(input: &mut Input, count: u64, value: i32, digits: u64, bytes: u64, byte: i32)
+    machine digit(input: &mut Input, count: u64, value: i32, digits: u64, bytes: u64, byte: i32)
     requires count <= 13 requires value >= 0 requires value <= 99 requires digits <= 2 requires bytes <= 256 requires byte >= 48 requires byte <= 57 {
         transition digits < 2 { true -> append(input, count, value, digits, bytes, byte) false -> bad() }
     }
-    state append(input: &mut Input, count: u64, value: i32, digits: u64, bytes: u64, byte: i32)
+    machine append(input: &mut Input, count: u64, value: i32, digits: u64, bytes: u64, byte: i32)
     requires count <= 13 requires value >= 0 requires value <= 99 requires digits < 2 requires bytes <= 256 requires byte >= 48 requires byte <= 57 {
         let next: i32 = value * 10 + byte - 48;
         transition next <= 99 { true -> scan(input, count, next, digits + 1, true, bytes) false -> bad() }
     }
-    state separator(input: &mut Input, count: u64, value: i32, digits: u64, pending: bool, bytes: u64, byte: i32)
+    machine separator(input: &mut Input, count: u64, value: i32, digits: u64, pending: bool, bytes: u64, byte: i32)
     requires count <= 13 requires value >= 0 requires value <= 99 requires digits <= 2 requires bytes <= 256 {
         transition byte == 32 || byte == 9 || byte == 10 || byte == 13 {
             true -> flush(input, count, value, pending, bytes)
             false -> bad()
         }
     }
-    state flush(input: &mut Input, count: u64, value: i32, pending: bool, bytes: u64)
+    machine flush(input: &mut Input, count: u64, value: i32, pending: bool, bytes: u64)
     requires count <= 13 requires value >= 0 requires value <= 99 requires bytes <= 256 {
         transition pending { true -> capacity(input, count, value, bytes) false -> scan(input, count, 0, 0, false, bytes) }
     }
-    state capacity(input: &mut Input, count: u64, value: i32, bytes: u64)
+    machine capacity(input: &mut Input, count: u64, value: i32, bytes: u64)
     requires count <= 13 requires value >= 0 requires value <= 99 requires bytes <= 256 {
         transition count < 13 { true -> store(input, count, value, bytes) false -> bad() }
     }
-    state store(input: &mut Input, count: u64, value: i32, bytes: u64)
+    machine store(input: &mut Input, count: u64, value: i32, bytes: u64)
     requires count < 13 requires value >= 0 requires value <= 99 requires bytes <= 256 {
         input.tokens[count] = value;
         transition { _ -> scan(input, count + 1, 0, 0, false, bytes) }
     }
-    state eof(input: &mut Input, count: u64, value: i32, pending: bool)
+    machine eof(input: &mut Input, count: u64, value: i32, pending: bool)
     requires count <= 13 requires value >= 0 requires value <= 99 {
         transition pending { true -> last_capacity(input, count, value) false -> finish(input, count) }
     }
-    state last_capacity(input: &mut Input, count: u64, value: i32)
+    machine last_capacity(input: &mut Input, count: u64, value: i32)
     requires count <= 13 requires value >= 0 requires value <= 99 {
         transition count < 13 { true -> last(input, count, value) false -> bad() }
     }
-    state last(input: &mut Input, count: u64, value: i32)
+    machine last(input: &mut Input, count: u64, value: i32)
     requires count < 13 requires value >= 0 requires value <= 99 {
         input.tokens[count] = value;
         transition { _ -> finish(input, count + 1) }
     }
-    state finish(input: &mut Input, count: u64) {
+    machine finish(input: &mut Input, count: u64) {
         transition count == 13 { true -> bounds(input) false -> bad() }
     }
-    state bounds(input: &mut Input) {
+    machine bounds(input: &mut Input) {
         input.valid = input.tokens[0] <= input.tokens[1] && input.tokens[2] <= input.tokens[3];
     }
-    state bad() {}
+    machine bad() {}
 }
 public machine problem_from_input(input: &Input) -> Problem {
     Problem {

@@ -18,10 +18,10 @@ machine weigh(sink: &mut Sink, item: Item) -> u64 {
         Kind::B -> set(item)
         _ -> (item.weight)
     }
-    state forward(sink: &mut Sink, item: Item) -> u64 {
+    machine forward(sink: &mut Sink, item: Item) -> u64 {
         item.weight
     }
-    state set(item: Item) -> u64 {
+    machine set(item: Item) -> u64 {
         item.weight
     }
 }

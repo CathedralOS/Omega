@@ -3,6 +3,8 @@
 mod generics;
 
 use super::{PackagePolicyServiceMethod, provider_policy::validate_service_methods};
+use crate::record::accessors::field_projection_accessors;
+use crate::record::validation::ordered_by;
 use crate::record::{PackagePolicyTypeParameter, PackageReviewNominalIdentity};
 use effects::TerminalAuthorityDisposition;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -16,35 +18,21 @@ pub struct PackagePolicyTerminalPermissions {
 }
 
 impl PackagePolicyTerminalPermissions {
-    pub const fn package(&self) -> PackageKeyIdentity {
-        self.package
-    }
-    pub const fn target(&self) -> TargetProfile {
-        self.target
-    }
-    pub fn services(&self) -> &[PackagePolicyTerminalService] {
-        &self.services
-    }
+    field_projection_accessors!(copied package: semantic_vocabulary::PackageKeyIdentity);
+    field_projection_accessors!(copied target: target::TargetProfile);
+    field_projection_accessors!(sliced services: &[PackagePolicyTerminalService]);
 
     pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {
-        if self
-            .services
-            .windows(2)
-            .any(|pair| pair[0].service >= pair[1].service)
-        {
-            return Err("terminal permission services repeat or reorder identities");
-        }
+        ordered_by(&self.services, |a, b| a.service.cmp(&b.service))?;
         for service in &self.services {
             validate_service_methods(&service.methods, &service.service, self.target)?;
             generics::validate(service)?;
-            if service.permissions.is_empty()
-                || service
-                    .permissions
-                    .windows(2)
-                    .any(|pair| pair[0].requirement >= pair[1].requirement)
-            {
-                return Err("terminal permission service has empty or noncanonical permissions");
+            if service.permissions.is_empty() {
+                return Err("terminal permission service has no permissions");
             }
+            ordered_by(&service.permissions, |a, b| {
+                a.requirement.cmp(&b.requirement)
+            })?;
             for permission in &service.permissions {
                 if permission.requirement.validate_resolved().is_err()
                     || !service
@@ -71,21 +59,12 @@ pub struct PackagePolicyTerminalService {
 }
 
 impl PackagePolicyTerminalService {
-    pub fn service(&self) -> &PackageReviewNominalIdentity {
-        &self.service
-    }
-    pub fn static_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.static_parameters
-    }
-    pub const fn lifetime_parameter_count(&self) -> u32 {
-        self.lifetime_parameter_count
-    }
-    pub fn methods(&self) -> &[PackagePolicyServiceMethod] {
-        &self.methods
-    }
-    pub fn permissions(&self) -> &[PackagePolicyTerminalPermission] {
-        &self.permissions
-    }
+    field_projection_accessors!(sliced static_parameters: &[PackagePolicyTypeParameter]);
+    field_projection_accessors!(borrowed service: &PackageReviewNominalIdentity);
+
+    field_projection_accessors!(copied lifetime_parameter_count: u32);
+    field_projection_accessors!(sliced methods: &[PackagePolicyServiceMethod]);
+    field_projection_accessors!(sliced permissions: &[PackagePolicyTerminalPermission]);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,10 +74,6 @@ pub struct PackagePolicyTerminalPermission {
 }
 
 impl PackagePolicyTerminalPermission {
-    pub fn requirement(&self) -> &PackageReviewNominalIdentity {
-        &self.requirement
-    }
-    pub fn permitted(&self) -> &TerminalAuthorityDisposition {
-        &self.permitted
-    }
+    field_projection_accessors!(borrowed requirement: &PackageReviewNominalIdentity);
+    field_projection_accessors!(borrowed permitted: &TerminalAuthorityDisposition);
 }

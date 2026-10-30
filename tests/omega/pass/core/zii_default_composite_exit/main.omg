@@ -30,14 +30,14 @@ machine Main::build(main: &mut Main) reaches Console
         Msg::Pong { y, z } -> wrong_variant(main)
         _ -> wrong_no_match(main)
     }
-    state chk(main: &mut Main, x: i32)
+    machine chk(main: &mut Main, x: i32)
     {
         transition x == 0 {
             true -> leg2(main)
             _ -> wrong_payload(main)
         }
     }
-    state leg2(main: &mut Main)
+    machine leg2(main: &mut Main)
     {
         let e: u32 = main.arr[main.i];
         transition e == 0 {
@@ -45,7 +45,7 @@ machine Main::build(main: &mut Main) reaches Console
             _ -> wrong_elem(main)
         }
     }
-    state leg3(main: &mut Main)
+    machine leg3(main: &mut Main)
     {
         let n: u32 = main.nested.second.b;
         transition n == 0 {
@@ -53,17 +53,17 @@ machine Main::build(main: &mut Main) reaches Console
             _ -> wrong_nested(main)
         }
     }
-    state good(main: &mut Main)
+    machine good(main: &mut Main)
     { Console::exit_process(70); }
-    state wrong_variant(main: &mut Main)
+    machine wrong_variant(main: &mut Main)
     { Console::exit_process(71); }
-    state wrong_no_match(main: &mut Main)
+    machine wrong_no_match(main: &mut Main)
     { Console::exit_process(72); }
-    state wrong_payload(main: &mut Main)
+    machine wrong_payload(main: &mut Main)
     { Console::exit_process(73); }
-    state wrong_elem(main: &mut Main)
+    machine wrong_elem(main: &mut Main)
     { Console::exit_process(74); }
-    state wrong_nested(main: &mut Main)
+    machine wrong_nested(main: &mut Main)
     { Console::exit_process(75); }
 }
 

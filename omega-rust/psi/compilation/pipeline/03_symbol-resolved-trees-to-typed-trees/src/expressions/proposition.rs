@@ -4,6 +4,21 @@ use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
 
+/// Whether a call's resolved target is a proposition application: a
+/// proposition declaration or one of its generic binders. Such a call is
+/// proof-only on every typed surface, and each consumer decides its own
+/// rejection or application from this one test.
+pub(crate) fn is_proposition_call_target(
+    symbols: &symbols::SymbolTable,
+    target_symbol: symbols::SymbolHandle,
+) -> bool {
+    target_symbol.is_valid()
+        && matches!(
+            symbols.get(target_symbol).kind,
+            symbols::SymbolKind::Proposition | symbols::SymbolKind::PropositionParameter
+        )
+}
+
 pub(crate) fn lower_proposition_application(
     lowerer: &mut Lowerer,
     call: &resolved::expression::TableCallExpression,

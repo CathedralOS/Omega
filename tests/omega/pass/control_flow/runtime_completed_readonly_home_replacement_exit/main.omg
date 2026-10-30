@@ -9,14 +9,14 @@ terminates by remaining in 0..=3;
 {
     transition { _ -> observe(&Cell { value: remaining }, remaining) }
 
-    state observe(cell: &Cell, fuel: u32) requires fuel <= 3 {
+    machine observe(cell: &Cell, fuel: u32) -> u32 requires fuel <= 3 {
         let matches: bool = cell.value == fuel;
         transition matches && fuel > 0 {
             true -> observe(&Cell { value: fuel - 1 }, fuel - 1)
             false -> finish(matches, cell.value)
         }
     }
-    state finish(matches: bool, value: u32) -> u32 {
+    machine finish(matches: bool, value: u32) -> u32 {
         transition matches {
             true -> value
             false -> 99
@@ -31,6 +31,6 @@ machine main() crashes Trap {
         true -> done()
         false -> failed()
     }
-    state done() {}
-    state failed() { crash Trap; }
+    machine done() {}
+    machine failed() { crash Trap; }
 }

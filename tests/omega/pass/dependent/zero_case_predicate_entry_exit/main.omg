@@ -25,13 +25,13 @@ machine Main::main(main: &mut Main) reaches Console {
         Command::Dim { amount } -> apply(main, amount * 10)
         Command::Off -> apply(main, 0)
     }
-    state apply(main: &mut Main, target: i32)
+    machine apply(main: &mut Main, target: i32)
     requires target >= 0 && target <= 100;
     {
         main.brightness = target;
         transition { _ -> done(main) }
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(main.brightness);
     }
 }

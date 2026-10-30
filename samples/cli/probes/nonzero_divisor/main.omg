@@ -12,7 +12,7 @@
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-domain i32::NonZero(value) requires value != 0;
+domain i32::NonZero requires self != 0;
 
 data Divisor {
     case Unset;
@@ -31,10 +31,10 @@ machine Main::main(main: &mut Main) {
         Divisor::By { amount } -> Main::quotient(main, 490 / amount)
         Divisor::Unset -> Main::wrong(main)
     }
-    state quotient(main: &mut Main, value: i32) {
+    machine quotient(main: &mut Main, value: i32) {
         main.hits = (value == 70) as i32 in Wrapping;
     }
-    state wrong(main: &mut Main) { main.hits = -1; }
+    machine wrong(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

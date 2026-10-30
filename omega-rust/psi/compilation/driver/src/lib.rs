@@ -8,6 +8,8 @@
 //! evaluation, resolution and the paired typing continuation. Build execution
 //! borrows its declared inputs; `complete_authored` resumes that same owner,
 //! and `extend` consumes admitted generated syntax against its exact predecessor.
+//! `source_compilation/product_policy.rs` owns the post-join source judgments
+//! for Product choices, returning records for independent realization.
 //! Package acquisition, Build permissions and host effects stay outside this crate.
 //!
 //! `source_checking.rs` owns preparation, exact retained-judgment matching and
@@ -26,21 +28,29 @@ mod source_compilation;
 mod source_parsing;
 
 pub use source_checking::{
-    CheckRequest, CheckedSource, CheckedTreeProductSelection, ProductSelections, RetainedCheck,
-    SelectedCheckedSource, SourceAdmission,
+    CheckRequest, CheckedSource, CheckedTreeProductSelection, ProductRepresentationInput,
+    ProductSelections, RetainedCheck, SelectedCheckedSource, SourceAdmission,
 };
-pub use source_parsing::{ParsedText, SourceInput, SourceParseError, parse_text};
+pub use source_parsing::{
+    ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,
+};
 
 pub use source_compilation::{
-    BuildSourceInput, CompletedSource, PreparedSource, SourceCompilationRequest,
-    SourceContinuation, SourceExtensionRequest,
+    AdmittedProductPolicy, BuildSourceInput, CompletedSource, PreparedSource, ProductPolicyRequest,
+    SourceCompilationRequest, SourceContinuation, SourceExtensionRequest, SourceFrontends,
 };
 
 pub use psi_terminal_production::{
-    ProducedTerminalArtifact, ProgramEntryTerminalReceiptError, PsiCompilationObserver,
-    PsiCompilationStage, RetainedCallableSignature, TerminalApplicationCustody,
-    TerminalArtifactProductionError, TerminalBuildBindingCall, TerminalBuildBindingOperation,
-    TerminalBuildBindings, TerminalCompositionAdmission, TerminalMachineSelection,
-    TerminalProductionCustody, TerminalProductionRequest, TerminalProgramRoots,
-    UnmeasuredProduction, retained_callable_signature,
+    BuildProviderProductionRequest, PortableTerminalProgram, PreparedExternalProviderDeclarations,
+    PreparedTerminalRoots, ProducedBuildProvider, ProducedTerminalProgram,
+    ProgramEntryTerminalReceiptError, PsiCompilationObserver, PsiCompilationStage,
+    TerminalAdmissionRoot, TerminalApplicationCustody, TerminalArtifactProductionError,
+    TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
+    TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
+    TerminalBuildNativeLocator, TerminalBuildProviderRequirement, TerminalBuildQueryCall,
+    TerminalBuildQueryOperation, TerminalBuildRequestCall, TerminalBuildRequestOperation,
+    TerminalBuildRequests, TerminalBuildSelectionRequest, TerminalBuildValueCase,
+    TerminalBuildValueField, TerminalBuildValueShape, TerminalCompositionAdmission,
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionRequest,
+    TerminalProgramRoots, UnmeasuredProduction, lower_task_activation_demands,
 };

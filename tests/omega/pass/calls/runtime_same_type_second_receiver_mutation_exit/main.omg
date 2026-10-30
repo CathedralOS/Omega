@@ -12,15 +12,15 @@ data Counter { value: i32 in Wrapping; }
 machine Counter::increment(counter: &mut Counter) {
     counter.value = counter.value + 1;
     transition { _ -> done() }
-    state done() { }
+    machine done() { }
 }
 data Main { a: Counter; b: Counter; }
 machine Main::main(main: &mut Main) reaches Console {
     Counter::increment(&mut main.a);
     Counter::increment(&mut main.b);
     transition main.b.value == 1 { true -> good(main) _ -> bad(main, 71) }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -58,7 +58,7 @@ The invalid twin changes only a generated domain argument.
 Both this continuation and the fresh product route close their run through the
 same `close_typed_cohort`: satisfied declarations, progress premises, domain
 constraints, semantic qualification casts, fixed-byte literal landing, range
-argument validation, provider default finalization, target-machine families
+argument validation, provider default finalization, legacy target-machine families
 and dynamic call target binding, each over the rows the run produced.
 The matching post-typing evaluator consumes the completed candidate; wire-plan
 publication starts at the extension wire-schema frontier. The structural prefix
@@ -67,11 +67,15 @@ Admission compares retained resolved declaration roots and shared semantic IDs;
 ordinary typing operations own preservation of their retained storage. Compilation
 does not replay a whole typed-tree comparison after its own producer runs.
 
-Target-scoped units finish their independent pre-resolution evaluation before
+Legacy target-scoped units finish their independent pre-resolution evaluation before
 the ordinary target filter. The filter consumes the retained base selection
 into a combined selection, then settles selected origins and target-owned
 `provider_defaults` against the final typed continuation. Only extension
 declarations are mutable during this process.
+This describes current migration machinery, not accepted source syntax.
+`BUILD-OWNED-TARGET-SELECTION` in [the task board](../../../../../TASKS.md#pipeline-route)
+replaces target prefixes and family selection with ordinary named implementations
+and explicit target-keyed Build provider rows.
 Units share one immutable package-selection authority for this continuation;
 sharing it neither makes sibling declarations visible nor admits transitive-only
 package selections.

@@ -7,17 +7,17 @@ requires input.amount <= 321 - input.total
         true -> guarded(output, input)
         false -> unguarded(output, input)
     }
-    state guarded(output: &mut Limited, input: &Input) {
+    machine guarded(output: &mut Limited, input: &Input) {
         transition input.amount <= 320 - input.total {
             true -> store(output, input)
             false -> done()
         }
     }
-    state unguarded(output: &mut Limited, input: &Input) {
+    machine unguarded(output: &mut Limited, input: &Input) {
         transition { _ -> store(output, input) }
     }
-    state store(output: &mut Limited, input: &Input) {
+    machine store(output: &mut Limited, input: &Input) {
         output.value = input.total + input.amount;
     }
-    state done() {}
+    machine done() {}
 }

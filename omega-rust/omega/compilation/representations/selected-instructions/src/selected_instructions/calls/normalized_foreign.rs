@@ -7,13 +7,13 @@
 //! restoration and end in containment if the admitted provider returns.
 use crate::SelectedInstructionId;
 use optimization_unit::{EffectLink, OwnershipEvent};
-use semantic_vocabulary::BoundaryInvocationSite;
+use semantic_vocabulary::InvocationSite;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedNormalizedForeignCall {
     pub instruction: SelectedInstructionId,
     /// A terminal completion retains its edge; it is not a returning Unit operation.
-    pub invocation_site: BoundaryInvocationSite,
+    pub invocation_site: InvocationSite,
     pub call: legalized_operations::LegalizedNormalizedForeignCall,
     pub effect: EffectLink,
     pub ownership: Vec<OwnershipEvent>,

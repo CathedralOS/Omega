@@ -19,7 +19,7 @@ reaches
         false -> failed(window)
     }
 
-    state present(mut window: Window) {
+    machine present(mut window: Window) {
         let mut pixels: [i32; 4];
         pixels[0] = 16711680;
         pixels[1] = 65280;
@@ -39,10 +39,10 @@ reaches
         }
     }
 
-    state failed(window: Window) {
+    machine failed(window: Window) {
         macos_window_destroy(window);
         Console::exit_process(70);
     }
-    state passed() { Console::exit_process(0); }
-    state rejected() { Console::exit_process(71); }
+    machine passed() { Console::exit_process(0); }
+    machine rejected() { Console::exit_process(71); }
 }

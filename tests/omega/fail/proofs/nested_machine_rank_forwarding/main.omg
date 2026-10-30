@@ -1,0 +1,24 @@
+// Reusing the whole subject removes the cycle's only strict decrease.
+data Branch {
+    case End;
+    case Next(child: Branch);
+}
+
+machine descend(subject: Branch)
+terminates by subject;
+{
+    transition subject {
+        Branch::End -> done()
+        Branch::Next { child } -> forward(subject)
+    }
+
+    machine forward(child: Branch) {
+        descend(child);
+    }
+
+    machine done() {}
+}
+
+machine main() {
+    descend(Branch::Next { child: Branch::End });
+}

@@ -28,33 +28,33 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> check_skipped(main)
     }
 
-    state check_skipped(main: &mut Main) {
+    machine check_skipped(main: &mut Main) {
         transition main.hits == 0 {
             true -> take_call(main)
             false -> bad(main, 71)
         }
     }
 
-    state take_call(main: &mut Main) {
+    machine take_call(main: &mut Main) {
         transition true {
             true -> consume(Main::bump_and_value(7, main), main)
             false -> bad(main, 72)
         }
     }
 
-    state consume(delivered: u32, main: &mut Main) {
+    machine consume(delivered: u32, main: &mut Main) {
         transition delivered == 7 && main.hits == 1 {
             true -> reset_pair(main)
             false -> bad(main, 73)
         }
     }
 
-    state reset_pair(main: &mut Main) {
+    machine reset_pair(main: &mut Main) {
         main.hits = 0;
         transition { _ -> take_pair(main, 10) }
     }
 
-    state take_pair(main: &mut Main, seed: u32)
+    machine take_pair(main: &mut Main, seed: u32)
     requires seed <= 10
     {
         transition true {
@@ -67,19 +67,19 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state consume_pair(first: u32, second: u32, main: &mut Main) {
+    machine consume_pair(first: u32, second: u32, main: &mut Main) {
         transition first == 10 && second == 11 && main.hits == 2 {
             true -> reset_local(main)
             false -> bad(main, 75)
         }
     }
 
-    state reset_local(main: &mut Main) {
+    machine reset_local(main: &mut Main) {
         main.hits = 0;
         transition { _ -> take_local(main) }
     }
 
-    state take_local(main: &mut Main) {
+    machine take_local(main: &mut Main) {
         let seed: u32 = 20;
         transition true {
             true -> consume_local(Main::bump_and_value(seed, main), main)
@@ -87,19 +87,19 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state consume_local(delivered: u32, main: &mut Main) {
+    machine consume_local(delivered: u32, main: &mut Main) {
         transition delivered == 20 && main.hits == 1 {
             true -> reset_nested(main)
             false -> bad(main, 77)
         }
     }
 
-    state reset_nested(main: &mut Main) {
+    machine reset_nested(main: &mut Main) {
         main.hits = 0;
         transition { _ -> take_nested(main) }
     }
 
-    state take_nested(main: &mut Main) {
+    machine take_nested(main: &mut Main) {
         let seed: u32 = 20;
         transition true {
             true -> consume_nested(
@@ -110,15 +110,15 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state consume_nested(delivered: u32, main: &mut Main) {
+    machine consume_nested(delivered: u32, main: &mut Main) {
         transition delivered == 21 && main.hits == 2 {
             true -> good(main)
             false -> bad(main, 79)
         }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

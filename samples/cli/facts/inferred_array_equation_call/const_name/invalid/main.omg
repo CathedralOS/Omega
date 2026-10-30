@@ -7,5 +7,5 @@ where Length == [u8; Capacity]
 machine main() crashes Trap {
     let observed: u64 = capacity<[u8; 2], 3>(ITEMS);
     transition observed == 2 { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

@@ -102,44 +102,44 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad_first(main)
     }
 
-    state check_popped(main: &mut Main, popped: i32, second: i32) {
+    machine check_popped(main: &mut Main, popped: i32, second: i32) {
         transition popped == 7 {
             true -> check_second(main, second)
             false -> bad_popped(main)
         }
     }
 
-    state check_second(main: &mut Main, second: i32) {
+    machine check_second(main: &mut Main, second: i32) {
         transition second == 9 {
             true -> check_length(main)
             false -> bad_second(main)
         }
     }
 
-    state check_length(main: &mut Main) {
+    machine check_length(main: &mut Main) {
         transition main.vec.length == 1 {
             true -> good(main)
             false -> bad_length(main)
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state bad_first(main: &mut Main) {
+    machine bad_first(main: &mut Main) {
         Console::exit_process(71);
     }
 
-    state bad_popped(main: &mut Main) {
+    machine bad_popped(main: &mut Main) {
         Console::exit_process(72);
     }
 
-    state bad_second(main: &mut Main) {
+    machine bad_second(main: &mut Main) {
         Console::exit_process(73);
     }
 
-    state bad_length(main: &mut Main) {
+    machine bad_length(main: &mut Main) {
         Console::exit_process(74);
     }
 }

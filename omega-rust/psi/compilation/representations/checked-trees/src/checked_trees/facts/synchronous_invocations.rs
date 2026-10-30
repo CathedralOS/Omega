@@ -8,7 +8,7 @@
 use language_semantics::SynchronousInvocationPlan;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SynchronousInvocationFacts {
     /// One exact-keyed entry per checked machine, in machine order.
     pub machines: Vec<MachineSynchronousInvocationFact>,
@@ -23,7 +23,7 @@ impl SynchronousInvocationFacts {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct MachineSynchronousInvocationFact {
     pub machine: SymbolHandle,
     /// Exact symbolic targets retained before provider settlement can rewrite
@@ -31,5 +31,8 @@ pub struct MachineSynchronousInvocationFact {
     /// rendering, not an identity source.
     pub published_targets: Vec<flow_effects::InvocationTarget>,
     pub checked_inferred_targets: Vec<flow_effects::InvocationTarget>,
+    /// Concrete call applications and explicitly abstract external edges.
+    /// These are not reconstructed from the public permission ceiling.
+    pub realized_targets: Vec<flow_effects::RealizedInvocationTarget>,
     pub plan: SynchronousInvocationPlan,
 }

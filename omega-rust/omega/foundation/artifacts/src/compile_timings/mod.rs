@@ -32,12 +32,6 @@ pub const SOURCE_FILES_TO_TOKENS: StageMeta =
 pub const TOKENS_TO_SYNTAX_TREES: StageMeta =
     StageMeta::new("Stage 02", "TokenStreams", "SyntaxTrees");
 
-pub const SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES: StageMeta =
-    StageMeta::new("Stage 03", "SyntaxTrees", "SymbolResolvedTrees");
-
-pub const SYMBOL_RESOLVED_TREES_TO_TYPED_TREES: StageMeta =
-    StageMeta::new("Stage 04", "SymbolResolvedTrees", "TypedTrees");
-
 pub const TYPED_TREES_TO_CHECKED_TREES: StageMeta =
     StageMeta::new("Stage 05", "TypedTrees", "CheckedTrees");
 

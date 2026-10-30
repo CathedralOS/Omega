@@ -1,8 +1,10 @@
 //! Explicit host bindings for exact admitted native host operation slots.
 //! A slot's realization selects semantics; its complete declaration selects
-//! the typed adapter. Every family's offer first passes the shared
-//! `admit_exact_foreign_call` premise; the family then owns its own shape
-//! rules. No source-name dispatch or stdout-driven exit exists.
+//! the typed adapter. Modeled services pass the shared
+//! `admit_exact_foreign_call` premise and their exact shape rules. A separately
+//! sponsored native provider joins the complete produced ABI and original
+//! homes, with semantic completion still owned by Psi. No source-name
+//! dispatch or stdout-driven exit exists.
 //! Output stays buffered; input consumes only the caller's finite replay stream
 //! with an instance-private cursor. Checked compound operations remain guest code.
 
@@ -19,6 +21,7 @@ macro_rules! import_signature_via_clone {
     };
 }
 
+mod absolute_value;
 mod affine_transform;
 mod allocation;
 mod borrowed_storage;
@@ -26,10 +29,15 @@ mod buffered_output;
 pub(super) mod clock;
 mod descriptor_io;
 mod descriptor_mode;
+mod filesystem;
+mod integer_absolute;
 mod integer_division;
+mod integer_parsing;
+mod native_provider;
 mod native_word;
 mod network_address;
 mod numeric;
+mod scalar_codec;
 mod scalar_record;
 mod standard_input;
 
@@ -50,7 +58,7 @@ enum OutputKind {
 
 /// Shared admission premise for every exact foreign call binding before any
 /// trusted host adapter is offered for it: an identified provider-plan report,
-/// a valid entry mechanism, no callback materializations, no declaration
+/// a valid entry mechanism, no callback materializations, no host-supplied
 /// residue obligations, normal completion, and an evaluated boundary-entry
 /// plan that validates the native signature the adapter will actually run.
 /// Each family below keeps its own declaration/ABI shape rules; this one rule
@@ -81,8 +89,16 @@ pub(super) fn admit_exact_foreign_call(
             "foreign call binding retains callback materializations",
         ));
     }
-    if !declaration.requires.is_empty()
-        || !declaration.scalar_requires.is_empty()
+    // Structural requirements are caller-carried qualifications. The ordinary
+    // boundary argument binder checks them before invoking any host effect;
+    // admitting an adapter neither supplies nor re-establishes that evidence.
+    // Keep unsupported proof/output residue on the refusal path below.
+    // The shared interpreter boundary owner evaluates every scalar Requires
+    // against the captured invocation before calling any trusted host adapter.
+    // This adapter supplies no evidence and cannot bypass that gate.
+    // Normal-return memberships are output guarantees, not caller ingress.
+    // An unmodeled host adapter cannot establish them.
+    if !declaration.normal_qualifications.is_empty()
         || !declaration.scalar_ensures.is_empty()
         || !declaration.content_guarantees.is_empty()
         || !declaration.program_local_root_introductions.is_empty()
@@ -196,16 +212,27 @@ pub(super) fn matches_platform_c_symbol(
 pub(super) struct HostContext<'host> {
     output: buffered_output::BufferedStreams,
     input: Option<std::sync::Arc<std::sync::Mutex<Box<dyn std::io::Read + Send + 'host>>>>,
-    clock: Option<std::sync::Arc<std::sync::Mutex<clock::TerminalClockSnapshot>>>,
+    clock: Option<std::sync::Arc<std::sync::Mutex<clock::TerminalClockEnvironment>>>,
     addresses: std::sync::Arc<std::sync::Mutex<network_address::AddressValues>>,
+    native: native_provider::NativeContext,
+    filesystem: filesystem::FilesystemContext,
     allocations: std::sync::Arc<std::sync::Mutex<allocation::AllocationValues>>,
 }
 impl<'host> HostContext<'host> {
+    pub(super) fn finish_native_provider(&self) -> Result<(), TerminalRuntimeError> {
+        self.native.finish().map_err(|error| {
+            TerminalRuntimeError::missing("native-provider-retirement", error.reason)
+        })
+    }
     pub(super) fn new(
         input: Option<Box<dyn std::io::Read + Send + 'host>>,
-        clock: Option<clock::TerminalClockSnapshot>,
+        clock: Option<clock::TerminalClockEnvironment>,
+        native_provider: Option<std::process::Command>,
+        filesystem: super::TerminalFilesystemDelegation,
     ) -> Self {
         Self {
+            native: native_provider::NativeContext::new(native_provider),
+            filesystem: filesystem::FilesystemContext::new(filesystem),
             output: buffered_output::BufferedStreams::new(),
             input: input.map(|reader| std::sync::Arc::new(std::sync::Mutex::new(reader))),
             clock: clock.map(|snapshot| std::sync::Arc::new(std::sync::Mutex::new(snapshot))),
@@ -346,6 +373,36 @@ pub(super) fn bind<'host>(
                         "foreign host binding does not match its admitted requirement row",
                     ));
                 }
+                let filesystem = context.filesystem.admit(program, declaration, binding)?;
+                if filesystem.as_ref().is_some_and(|call| call.descriptor_io()) {
+                    let adapter = native_provider::NativeImport::admit(
+                        program,
+                        declaration,
+                        binding,
+                        provisions,
+                        &context.native,
+                        filesystem,
+                        input.as_ref().cloned(),
+                        output.clone(),
+                    )?
+                    .ok_or_else(|| {
+                        TerminalRuntimeError::missing(
+                            "runtime-filesystem",
+                            "filesystem descriptor needs an explicit matching-host native sponsor",
+                        )
+                    })?;
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
+                }
+                if let Some(adapter) = absolute_value::AbsoluteValueImport::admit(
+                    program,
+                    declaration,
+                    binding,
+                    provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
+                )? {
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
+                }
                 if let Some(adapter) = allocation::AllocationImport::admit(
                     program,
                     declaration,
@@ -385,11 +442,29 @@ pub(super) fn bind<'host>(
                     instance.bind_import(*slot, adapter)?;
                     continue;
                 }
+                if let Some(adapter) = integer_absolute::IntegerAbsoluteImport::admit(
+                    program,
+                    declaration,
+                    binding,
+                    provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
+                )? {
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
+                }
                 if let Some(adapter) = integer_division::IntegerDivisionImport::admit(
                     program,
                     declaration,
                     binding,
                     provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
+                )? {
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
+                }
+                if let Some(adapter) = integer_parsing::IntegerParsingImport::admit(
+                    program,
+                    declaration,
+                    binding,
+                    provisions.map_or(&[], TerminalRuntimeHostProvisions::borrowed_storage_layouts),
                 )? {
                     instance.bind_import(*slot, adapter)?;
                     continue;
@@ -403,16 +478,29 @@ pub(super) fn bind<'host>(
                     instance.bind_import(*slot, adapter)?;
                     continue;
                 }
-                let Some(adapter) =
+                if let Some(adapter) =
                     descriptor_mode::DescriptorModeImport::admit(declaration, binding)?
-                else {
-                    return Err(TerminalRuntimeError::missing(
-                        "runtime-host-import-bindings",
-                        "no trusted host implementation matches this exact foreign binding",
-                    ));
-                };
-                instance.bind_import(*slot, adapter)?;
-                continue;
+                {
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
+                }
+                if let Some(adapter) = native_provider::NativeImport::admit(
+                    program,
+                    declaration,
+                    binding,
+                    provisions,
+                    &context.native,
+                    filesystem,
+                    input.as_ref().cloned(),
+                    output.clone(),
+                )? {
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
+                }
+                return Err(TerminalRuntimeError::missing(
+                    "runtime-host-import-bindings",
+                    "no trusted host implementation matches this exact foreign binding",
+                ));
             }
             _ => {
                 return Err(TerminalRuntimeError::missing(

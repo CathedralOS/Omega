@@ -23,14 +23,7 @@ pub(super) fn validate<'a, 'p>(
     let Some(assignment) = statement.as_assignment() else {
         unreachable!("dispatched assignment_statements")
     };
-    let StatementScope {
-        program,
-        machine,
-        state_name,
-        current_state,
-        writable_roots,
-        ..
-    } = *scope;
+    let (program, machine, state_name, current_state, _, writable_roots) = scope.reads();
     let value_environment = &mut *outputs.value_environment;
     let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
     let diagnostics = &mut *outputs.diagnostics;
@@ -98,6 +91,7 @@ pub(super) fn validate<'a, 'p>(
             assignment.value,
             bound_lookup,
             diagnostics,
+            &mut arithmetic_decisions.integer_range_obligations,
         );
     }
     // An array-literal RHS into a `[T; N]` target: check each element's
@@ -113,6 +107,7 @@ pub(super) fn validate<'a, 'p>(
             assignment.value,
             target_type,
             diagnostics,
+            &mut arithmetic_decisions.integer_range_obligations,
         );
     }
     let owner = format!("machine `{}` state `{state_name}` assignment", machine.name);
@@ -266,8 +261,10 @@ pub(super) fn validate<'a, 'p>(
         }
     }
     // Replacement-style atomic events establish their authored replacement.
-    // A failed exchange preserves the already-valid resident. The carrier's
-    // synthetic arithmetic is never a separately evaluated store value.
+    // A failed exchange preserves the already-valid resident. Fetch preservation
+    // is universal: the evaluated operand transforms the valid resident through
+    // raw interval laws. The carrier's synthetic arithmetic is never a separately
+    // evaluated store value.
     let resident_replacement = atomic.as_ref().and_then(|event| {
         use access_plans::AtomicAccessOperation as A;
         match event.operation {
@@ -276,7 +273,22 @@ pub(super) fn validate<'a, 'p>(
             _ => None,
         }
     });
-    let established_value = resident_replacement.unwrap_or(assignment.value);
+    let atomic_fetch = atomic.as_ref().and_then(|event| {
+        use access_plans::AtomicAccessOperation as A;
+        use typed_trees::expression::BinaryOperator;
+        let (operator, operand) = match event.operation {
+            A::FetchAdd(_) => (BinaryOperator::Add, event.operands.first().copied()?),
+            A::FetchSub(_) => (BinaryOperator::Subtract, event.operands.first().copied()?),
+            A::FetchXor(_) => (BinaryOperator::BitwiseXor, event.operands.first().copied()?),
+            A::FetchOr(_) => (BinaryOperator::BitwiseOr, event.operands.first().copied()?),
+            A::FetchAnd(_) => (BinaryOperator::BitwiseAnd, event.operands.first().copied()?),
+            _ => return None,
+        };
+        Some((operator, operand))
+    });
+    let established_value = resident_replacement
+        .or(atomic_fetch.map(|(_, operand)| operand))
+        .unwrap_or(assignment.value);
     let before = diagnostics.len();
     let first_checked_interval = arithmetic_decisions.expression_values.len();
     let assignment_target_domain = assignment_target_type
@@ -335,6 +347,52 @@ pub(super) fn validate<'a, 'p>(
         &owner,
         diagnostics,
     );
+    let interval = if let Some((operator, _)) = atomic_fetch {
+        let resident_interval = current_state
+            .and_then(|state| {
+                arithmetic_domains::atomic_resident_interval(
+                    program,
+                    machine,
+                    Some(state),
+                    assignment.target,
+                )
+            })
+            .or_else(|| assignment_target_primitive.and_then(arithmetic_domains::primitive_range))
+            .unwrap_or(arithmetic_domains::Interval::UNBOUNDED);
+        use typed_trees::expression::BinaryOperator;
+        match operator {
+            BinaryOperator::Add => resident_interval.add(interval),
+            BinaryOperator::Subtract => resident_interval.subtract(interval),
+            BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor => {
+                let primitive = assignment_target_primitive
+                    .or(source_primitive)
+                    .unwrap_or(typed_trees::types::PrimitiveType::U32);
+                let resident_known = if resident_interval.low == resident_interval.high
+                    && resident_interval.low >= Some(0)
+                {
+                    resident_interval.low.map(|v| v as u64)
+                } else {
+                    None
+                };
+                let operand_known = if interval.low == interval.high && interval.low >= Some(0) {
+                    interval.low.map(|v| v as u64)
+                } else {
+                    None
+                };
+                arithmetic_domains::bitwise_binary(
+                    operator,
+                    primitive,
+                    resident_interval,
+                    interval,
+                    resident_known,
+                    operand_known,
+                )
+            }
+            _ => arithmetic_domains::Interval::UNBOUNDED,
+        }
+    } else {
+        interval
+    };
     // Only a clean value supplies a successful storage-fit judgment.
     if diagnostics.len() == before {
         let observation = arithmetic_domains::IntegerValueObservation {
@@ -401,12 +459,13 @@ pub(super) fn validate<'a, 'p>(
                 && diagnostics.len() == before
                 && let (Some(state), Some(target_type)) =
                     (current_state, assignment_target_type_raw)
-                && let Some(decision) = checked_integer_assignment(
+                && let Some(decision) = super::integer_establishment::checked_integer_establishment(
                     program,
                     machine,
                     state,
                     scope.statement_index,
-                    assignment,
+                    assignment.target,
+                    assignment.value,
                     target_type,
                     stated,
                 )
@@ -415,7 +474,7 @@ pub(super) fn validate<'a, 'p>(
             }
         }
     }
-    let copied_value = arithmetic_domains::CopiedIntegerValue::capture(
+    let mut copied_value = arithmetic_domains::CopiedIntegerValue::capture(
         program,
         machine,
         current_state,
@@ -437,6 +496,16 @@ pub(super) fn validate<'a, 'p>(
         assignment.value,
     );
     if let Some(written) = direct_written {
+        if let Some(state) = current_state {
+            copied_value.capture_assignment_relations(
+                program,
+                machine,
+                state,
+                assignment,
+                &written,
+                value_environment,
+            );
+        }
         value_environment.invalidate_assignment_paths(
             program,
             machine,
@@ -565,43 +634,4 @@ fn assignment_root_symbol(
         return symbols::SymbolHandle::default();
     }
     symbol
-}
-
-fn checked_integer_assignment(
-    program: &dyn crate::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    assignment: &typed_trees::statement::TableAssignment,
-    target_type: typed_trees::types::TypeReferenceHandle,
-    stated: arithmetic_domains::Interval,
-) -> Option<checked_trees::CheckedIntegerAssignmentDecision> {
-    let primitive = program.primitive_type_reference(target_type)?;
-    let (mut minimum, mut maximum) =
-        crate::proof_contracts::proof_embeddings::primitive_range(primitive)?;
-    for interval in std::iter::once(stated).chain(arithmetic_domains::enforced_declared_range(
-        program,
-        target_type,
-    )) {
-        if let Some(lower) = interval.low() {
-            minimum = minimum.max(numerics::bignum::BigInt::from_i64(lower));
-        }
-        if let Some(upper) = interval.high() {
-            maximum = maximum.min(numerics::bignum::BigInt::from_i64(upper));
-        }
-    }
-    (minimum <= maximum).then_some(checked_trees::CheckedIntegerAssignmentDecision {
-        atomic_resident: crate::value_custody::atomic_operations::atomic_assignment_carrier(
-            program, assignment,
-        )
-        .is_some(),
-        machine: machine.symbol,
-        state: state.symbol,
-        statement_index,
-        target: assignment.target,
-        value: assignment.value,
-        target_type,
-        minimum,
-        maximum,
-    })
 }

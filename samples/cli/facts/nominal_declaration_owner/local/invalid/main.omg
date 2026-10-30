@@ -5,6 +5,6 @@ use shared::library::read;
 machine transported() -> u8 { let token: Token = Token { value: 7 }; read(token) }
 machine main() crashes Trap {
     transition transported() == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

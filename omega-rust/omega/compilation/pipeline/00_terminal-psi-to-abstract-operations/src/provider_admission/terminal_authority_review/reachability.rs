@@ -1,10 +1,8 @@
-//! Root-reachable authority edges of one realized plan.
+//! Physical authority observations in the shared canonical synchronous closure.
 //!
-//! The walk follows the target-realized abstract plan, not checked source:
-//! a target family call reaches only the member this target selected, so a
-//! boundary another target's member calls is not demanded here. Provider
-//! supply and the closure review both read this one walk; a second walk
-//! could let the supply check pass a requirement the review then rejects.
+//! Provider supply, cycle admission and authority review use the same retained
+//! call semantics. Physical mechanism classification remains native-owned and
+//! reads the corresponding lowered operations; it cannot invent call edges.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -15,7 +13,7 @@ use effects::{
 };
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 
-use super::operations::{AuthorityEdge, authority_edge};
+use super::operations::{PhysicalAuthorityUse, physical_authority_use};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ReachableCheckedOperation {
@@ -29,12 +27,11 @@ pub(crate) struct ReachableAuthorityEdges {
     pub(crate) checked_operations: Vec<ReachableCheckedOperation>,
 }
 
-/// The realized plan's functions keyed by machine, with the dynamic dispatch
-/// catalog and target profile the walk consults.
+/// The shared canonical call graph plus this receiver's native observations.
 pub(crate) struct AuthorityGraph<'a> {
     input: &'a crate::VerifiedPsiOptimizationInput,
     functions: BTreeMap<MachineId, &'a AbstractFunction>,
-    dynamic_dispatch: &'a terminal_psi::TerminalDynamicDispatchCatalog,
+    calls: terminal_installation::SynchronousCallGraph<'a>,
     target_profile: target::TargetProfile,
 }
 
@@ -59,10 +56,18 @@ impl<'a> AuthorityGraph<'a> {
                 plan.entry
             ));
         }
+        let bridge = input
+            .selected_program_entry_call()
+            .map(|entry| (entry.boundary(), entry.entry()));
+        let calls = terminal_installation::SynchronousCallGraph::new(
+            input.context().module(),
+            input.target_machine_selections(),
+            bridge,
+        )?;
         Ok(Self {
             input,
             functions,
-            dynamic_dispatch: &plan.dynamic_dispatch,
+            calls,
             target_profile,
         })
     }
@@ -71,30 +76,17 @@ impl<'a> AuthorityGraph<'a> {
         &self,
         entry: MachineId,
     ) -> Result<ReachableAuthorityEdges, String> {
-        let mut pending = vec![entry];
-        let mut visited = BTreeSet::new();
-        let mut boundaries = BTreeSet::new();
+        let reached = self.calls.from_root(entry)?;
+        let boundaries = reached.boundaries;
         let mut checked_operations = BTreeMap::new();
-        while let Some(machine) = pending.pop() {
-            if !visited.insert(machine) {
-                continue;
-            }
+        for terminal_machine in reached.machines {
+            let machine = terminal_machine.id;
             let function = self.functions.get(&machine).ok_or_else(|| {
                 format!("reachable internal call names absent machine {machine:?}")
             })?;
             // Current rewrites preserve reachable calls and their machine IDs.
             // Any future inlining/call-erasing transform must preserve catalog
             // applicability before this selected executable closure is walked.
-            let terminal_machine =
-                self.input
-                    .context()
-                    .module()
-                    .machine(machine)
-                    .ok_or_else(|| {
-                        format!(
-                            "reachable machine {machine:?} has no retained Terminal declaration"
-                        )
-                    })?;
             let requirement = terminal_machine.assembly_target_requirement;
             if !requirement.accepts_target_name(self.target_profile.target_name()) {
                 // `MachineId` is a table coordinate. The retained source
@@ -120,61 +112,9 @@ impl<'a> AuthorityGraph<'a> {
                 ));
             }
             for operation in &function.operations {
-                // Cleanup is executable work on this edge, not a declaration
-                // marker. Its hook's mechanisms belong to the same authority
-                // closure as ordinary calls from the entry.
-                for (_, actions) in operation.cleanup_rosters() {
-                    for action in actions {
-                        if let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) =
-                            action
-                        {
-                            pending.push(cleanup.cleanup_machine);
-                        }
-                    }
-                }
-                match authority_edge(operation) {
-                    AuthorityEdge::None => {}
-                    AuthorityEdge::Internal(callee) => pending.push(callee),
-                    AuthorityEdge::Dynamic { interface, slot } => {
-                        // Formation captures no authority. Invocation may reach
-                        // any implementation's exact slot, never unrelated rows
-                        // or a representative provider's narrower authority.
-                        self.dynamic_dispatch.interface(interface)
-                            .and_then(|interface| interface.slots.get(slot as usize))
-                            .filter(|requirement| requirement.slot == slot)
-                            .ok_or_else(|| format!("dynamic authority edge names absent interface {interface} slot {slot}"))?;
-                        for table in &self.dynamic_dispatch.tables {
-                            if table.interface != interface {
-                                continue;
-                            }
-                            if let Some(machine) = table.rows.get(slot as usize).copied().flatten()
-                            {
-                                pending.push(machine);
-                            }
-                        }
-                    }
-                    AuthorityEdge::Boundary(boundary) => {
-                        if let Some(entry) = self
-                            .input
-                            .selected_program_entry_call()
-                            .filter(|entry| entry.boundary() == boundary)
-                        {
-                            // Keep the selected bridge's mechanism admission,
-                            // and include the actual continuation's own demands.
-                            // Code retention alone does not close authority.
-                            boundaries.insert(boundary);
-                            pending.push(entry.entry());
-                            continue;
-                        }
-                        if let Some(terminal_psi::TargetMachineCallable::Machine(member)) =
-                            self.input.target_family_member(boundary)?
-                        {
-                            pending.push(member);
-                        } else {
-                            boundaries.insert(boundary);
-                        }
-                    }
-                    AuthorityEdge::CheckedPortWrite {
+                match physical_authority_use(operation) {
+                    PhysicalAuthorityUse::None => {}
+                    PhysicalAuthorityUse::CheckedPortWrite {
                         service,
                         port,
                         operation,
@@ -209,7 +149,7 @@ impl<'a> AuthorityGraph<'a> {
                             },
                         )?;
                     }
-                    AuthorityEdge::CheckedRegister {
+                    PhysicalAuthorityUse::CheckedRegister {
                         service,
                         register_operation,
                         operation,

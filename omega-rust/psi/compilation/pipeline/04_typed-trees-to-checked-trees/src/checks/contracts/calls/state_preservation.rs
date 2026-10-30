@@ -5,7 +5,7 @@ use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
-use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
+use validation::canonical_place_from_expression_in_state;
 
 use super::super::assembly::expression_reads_overlapping_place;
 use crate::labels::symbol_name;
@@ -67,15 +67,11 @@ pub(super) fn caller_state_preserves_label_names(
             {
                 return false;
             }
-            let written = CanonicalPlace {
-                root: invalidation.mutated_root,
-                segments: facts
-                    .flow
-                    .invalidations
-                    .segments
-                    .span_or_empty(invalidation.mutated_segments)
-                    .to_vec(),
-            };
+            let written = crate::checks::places::place_or_root_in(
+                &facts.flow.invalidations.segments,
+                invalidation.mutated_root,
+                invalidation.mutated_segments,
+            );
             let read_places = reads
                 .iter()
                 .filter_map(|read| {

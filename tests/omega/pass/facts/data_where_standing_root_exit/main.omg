@@ -1,0 +1,29 @@
+// Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
+// Expected exit: 0
+data Counter where self.value <= 60 { value: i32; }
+data Main { counter: Counter; hits: i32 in Wrapping; }
+machine replace(slot: &mut i32, replacement: i32)
+requires replacement <= 60
+ensures slot <= 60
+{ slot = replacement; }
+machine run(main: &mut Main) crashes Trap {
+    main.hits = 0;
+    let total: i32 = 70 + main.counter.value;
+    transition total <= 130 {
+        true -> pass(main)
+        false -> fail(main)
+    }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) crashes Trap { crash Trap; }
+}
+machine entry_start() crashes Trap {
+    let mut entry_storage: Main;
+    replace(&mut entry_storage.counter.value, 60);
+    run(&mut entry_storage);
+    transition entry_storage.hits == 1 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

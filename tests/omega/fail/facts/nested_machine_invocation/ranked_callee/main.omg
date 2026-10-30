@@ -1,0 +1,31 @@
+// Expected exit: 0
+// The terminating wrapper is acyclic; its nested helper owns the decreasing loop.
+machine count(bytes: &[u8], total: &mut u64)
+terminates by bytes -> Slice::Length; {
+    transition bytes.len > 0 {
+        true -> step(bytes[1..], total)
+        false -> done()
+    }
+    machine step(bytes: &[u8], total: &mut u64)
+    terminates by bytes -> Slice::Length; {
+        total = ((total as u64 in Wrapping) + 1) as u64;
+        transition bytes.len > 0 {
+            true -> step(bytes, total)
+            false -> done()
+        }
+    }
+    machine done() {}
+}
+machine main() crashes Trap {
+    let bytes: [u8; 3] = [4, 8, 12];
+    let mut total: u64 = 0;
+    count(&bytes[0..0], &mut total);
+    let empty: u64 = total;
+    count(&bytes, &mut total);
+    transition empty == 0 && total == 3 {
+        true -> done()
+        false -> failed()
+    }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
+}

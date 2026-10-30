@@ -21,11 +21,7 @@ use terminal_psi::{StructuralPlaceDeclaration, TerminalModule};
 
 pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule) {
     for machine in &mut module.machines {
-        let mut declared: BTreeSet<_> = machine
-            .structural_places
-            .iter()
-            .map(|place| place.id)
-            .collect();
+        let mut declared: Option<BTreeSet<_>> = None;
         let mut additions = Vec::new();
         for block in &machine.blocks {
             for operation in &block.operations {
@@ -38,6 +34,13 @@ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule
                 let Some(result) = operation.result.structural() else {
                     continue;
                 };
+                let declared = declared.get_or_insert_with(|| {
+                    machine
+                        .structural_places
+                        .iter()
+                        .map(|place| place.id)
+                        .collect()
+                });
                 if !declared.insert(result.place) {
                     continue;
                 }
@@ -51,7 +54,27 @@ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule
             }
         }
         machine.structural_places.extend(additions);
-        machine.structural_places.sort_by_key(|place| place.id);
+        if !machine.structural_places.is_sorted_by_key(|place| place.id) {
+            machine.structural_places.sort_by_key(|place| place.id);
+        }
+    }
+}
+
+/// The operation-result place-declaration row: the place one operation
+/// establishes, with that operation as its producer and the place's structural
+/// type. A producing site already holds these three identities, so it names
+/// this row instead of re-spelling the declaration.
+pub(crate) fn operation_result_place(
+    place: semantic_vocabulary::PlaceId,
+    producer: semantic_vocabulary::OperationId,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+) -> StructuralPlaceDeclaration {
+    StructuralPlaceDeclaration {
+        id: place,
+        kind: StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
+        },
     }
 }
 
@@ -63,13 +86,11 @@ pub(crate) fn operation_result_declaration(
     operation: &terminal_psi::Operation,
 ) -> Option<StructuralPlaceDeclaration> {
     let result = operation.result.as_structural()?;
-    Some(StructuralPlaceDeclaration {
-        id: result.place,
-        kind: StructuralPlaceKind::OperationResult {
-            producer: operation.id,
-            structural_type: result.structural_type,
-        },
-    })
+    Some(operation_result_place(
+        result.place,
+        operation.id,
+        result.structural_type,
+    ))
 }
 
 pub(crate) fn operation_results<'a>(
@@ -85,17 +106,22 @@ pub(crate) fn retain_operation_results<'a>(
     operations: impl Iterator<Item = &'a terminal_psi::Operation>,
     declarations: &mut Vec<StructuralPlaceDeclaration>,
 ) -> Result<(), crate::lowering_error::LoweringError> {
-    for declaration in operation_results(operations) {
-        if let Some(existing) = declarations
+    let mut index_by_id: std::collections::HashMap<semantic_vocabulary::PlaceId, usize> =
+        declarations
             .iter()
-            .find(|existing| existing.id == declaration.id)
-        {
-            if *existing != declaration {
+            .enumerate()
+            .map(|(index, existing)| (existing.id, index))
+            .collect();
+    for declaration in operation_results(operations) {
+        if let Some(&index) = index_by_id.get(&declaration.id) {
+            if declarations[index] != declaration {
                 return crate::lowering_error::unsupported(
                     "computed result conflicts with an existing place declaration",
                 );
             }
         } else {
+            let index = declarations.len();
+            index_by_id.insert(declaration.id, index);
             declarations.push(declaration);
         }
     }
@@ -109,6 +135,12 @@ pub(crate) fn retain_block_parameters<'a>(
     blocks: impl Iterator<Item = &'a terminal_psi::Block>,
     declarations: &mut Vec<StructuralPlaceDeclaration>,
 ) -> Result<(), crate::lowering_error::LoweringError> {
+    let mut index_by_id: std::collections::HashMap<semantic_vocabulary::PlaceId, usize> =
+        declarations
+            .iter()
+            .enumerate()
+            .map(|(index, existing)| (existing.id, index))
+            .collect();
     for block in blocks {
         for (position, parameter) in block.structural_parameters.iter().enumerate() {
             let position = u32::try_from(position).map_err(|_| {
@@ -128,16 +160,15 @@ pub(crate) fn retain_block_parameters<'a>(
                     position,
                 },
             };
-            if let Some(existing) = declarations
-                .iter()
-                .find(|existing| existing.id == declaration.id)
-            {
-                if *existing != declaration {
+            if let Some(&index) = index_by_id.get(&declaration.id) {
+                if declarations[index] != declaration {
                     return crate::lowering_error::unsupported(
                         "computed parameter conflicts with an existing place declaration",
                     );
                 }
             } else {
+                let index = declarations.len();
+                index_by_id.insert(declaration.id, index);
                 declarations.push(declaration);
             }
         }

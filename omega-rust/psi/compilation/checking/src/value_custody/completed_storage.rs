@@ -5,16 +5,22 @@
 use arena::Handle;
 use checked_trees::FlowOperandFact;
 mod query;
-pub use query::at_snapshot;
+pub use query::{at_snapshot, contents_preserved_from};
 
 #[derive(Clone)]
 pub enum StoredOperand {
+    /// One unchanged entry descriptor in a complete predecessor frontier.
+    /// This names a slot, not its pointee address, formation or permission.
+    /// The consumer must authenticate the exact incoming namespace separately.
+    Incoming(crate::CanonicalPlace),
     Unavailable,
     Alternatives(Vec<StoredOperand>),
     Value {
         capture: Handle<FlowOperandFact>,
         reference: typed_trees::types::TypeReferenceHandle,
         projection: Vec<facts::PlaceSegment>,
+        /// Exact queried descriptor slot, separate from its producer and pointee.
+        slot: Option<crate::CanonicalPlace>,
     },
 }
 
@@ -29,20 +35,23 @@ pub struct StoredCapture {
     pub capture: Handle<FlowOperandFact>,
     pub reference: typed_trees::types::TypeReferenceHandle,
     pub projection: Vec<facts::PlaceSegment>,
+    pub slot: Option<crate::CanonicalPlace>,
 }
 
 impl StoredOperand {
     pub fn captures(self) -> Option<Vec<StoredCapture>> {
         match self {
-            Self::Unavailable => None,
+            Self::Unavailable | Self::Incoming(_) => None,
             Self::Value {
                 capture,
                 reference,
                 projection,
+                slot,
             } => Some(vec![StoredCapture {
                 capture,
                 reference,
                 projection,
+                slot,
             }]),
             Self::Alternatives(alternatives) => {
                 let mut captures = Vec::new();
@@ -56,13 +65,34 @@ impl StoredOperand {
 }
 
 mod backing;
-pub use backing::reference_backing_places;
+pub use backing::{direct_referent_places, projectable_reference_places, reference_backing_places};
 mod captures;
 mod descriptor_suppliers;
 mod reference_captures;
 pub use captures::{
-    captured_operand_child_at_path, captured_retention_profiles_at_path, operand_child_type,
+    captured_operand_child_at_path, captured_operand_children_at_path,
+    captured_retention_profiles_at_path, finite_projection_paths, operand_child_type,
     project_captured_view_place,
 };
 pub use descriptor_suppliers::descriptor_suppliers;
-pub use reference_captures::reference_captures_at_path;
+pub use reference_captures::{
+    owned_profile_reference_sources, reference_captures_at_path, reference_sources_at_path,
+};
+
+mod frozen_references;
+pub use frozen_references::{FrozenReferenceSelection, frozen_reference_leaf};
+mod descriptor_extents;
+pub use descriptor_extents::descriptor_extent;
+
+mod predecessors;
+pub use predecessors::{
+    predecessors, predecessors_in_control, predecessors_in_flow, terminal_alternatives,
+};
+mod memberships;
+pub use memberships::completed_membership;
+
+mod occurrences;
+pub use occurrences::consumer_captures;
+
+mod loan_homes;
+pub use loan_homes::{InstalledLoanHomes, descriptor_formation_sources};

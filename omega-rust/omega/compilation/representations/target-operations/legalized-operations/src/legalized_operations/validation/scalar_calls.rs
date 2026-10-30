@@ -12,6 +12,18 @@ pub enum LegalizedScalarCallShapeError {
 impl LegalizedScalarCall {
     /// Raw ABI consistency only; source, types and canonical target ABI require replay.
     pub fn validate_shape(&self) -> Result<(), LegalizedScalarCallShapeError> {
+        self.validate_invocation_shape(false)
+    }
+
+    /// Retain the complete declared ABI while publishing no result value.
+    pub fn validate_no_normal_shape(&self) -> Result<(), LegalizedScalarCallShapeError> {
+        self.validate_invocation_shape(true)
+    }
+
+    fn validate_invocation_shape(
+        &self,
+        no_normal: bool,
+    ) -> Result<(), LegalizedScalarCallShapeError> {
         use LegalizedScalarCallShapeError as Error;
         if self.call_plan.entry_control != EntryControl::CallReturn
             || !self.call_plan.callback_materializations.is_empty()
@@ -77,7 +89,11 @@ impl LegalizedScalarCall {
         }
         if self.result_placement != self.call_plan.result
             || self.result_placement.as_ref().is_some_and(|placement| {
-                if self.structural_result.is_some() {
+                if no_normal {
+                    !direct_scalar_register(placement)
+                        && !direct_aggregate_registers(placement)
+                        && !indirect_aggregate_result(placement)
+                } else if self.structural_result.is_some() {
                     !direct_aggregate_registers(placement) && !indirect_aggregate_result(placement)
                 } else {
                     !direct_scalar_register(placement)
@@ -85,6 +101,7 @@ impl LegalizedScalarCall {
             })
             || self.structural_result.is_some() && self.result_placement.is_none()
             || self.structural_result.is_none() && !self.descriptor_origins.is_empty()
+            || no_normal && self.structural_result.is_some()
         {
             return Err(Error::Result);
         }

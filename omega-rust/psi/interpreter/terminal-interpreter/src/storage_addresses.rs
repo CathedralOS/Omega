@@ -138,6 +138,18 @@ impl TerminalExecution<'_> {
         depth: usize,
         place: semantic_vocabulary::PlaceId,
     ) -> Result<u64, TerminalInterpretError> {
+        let mut cursor = self.local_structural_identities.cursor();
+        let identity = self.array_storage_identity_staged(depth, place, &mut cursor)?;
+        self.local_structural_identities.commit_cursor(cursor);
+        Ok(identity)
+    }
+
+    pub(crate) fn array_storage_identity_staged(
+        &mut self,
+        depth: usize,
+        place: semantic_vocabulary::PlaceId,
+        cursor: &mut Option<u64>,
+    ) -> Result<u64, TerminalInterpretError> {
         if let Some(identity) = self
             .frame_array(depth, place)
             .ok_or_else(malformed)?
@@ -145,7 +157,7 @@ impl TerminalExecution<'_> {
         {
             return Ok(identity);
         }
-        let identity = self.local_structural_identities.allocate()?;
+        let identity = self.local_structural_identities.allocate_staged(cursor)?;
         let arrays = if depth == self.call_stack.len() {
             &mut self.scalar_array_values
         } else {
@@ -156,7 +168,7 @@ impl TerminalExecution<'_> {
                 .scalar_array_values
         };
         arrays
-            .get_mut(&place)
+            .backing_mut(&place)
             .ok_or_else(malformed)?
             .storage_identity = Some(identity);
         Ok(identity)

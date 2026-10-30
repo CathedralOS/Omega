@@ -14,33 +14,33 @@ data Elements<const Count: u64> {
 
 machine amplitude<const Count: u64>(elements: &Elements<Count>) -> f64 {
     transition { _ -> walk(elements, 0, 0.0) }
-    state walk(elements: &Elements<Count>, index: u64, total: f64) -> f64 {
+    machine walk(elements: &Elements<Count>, index: u64, total: f64) -> f64 {
         transition index < Count {
             true -> step(elements, index, total)
             _ -> done(total)
         }
     }
-    state step(elements: &Elements<Count>, index: u64, total: f64) -> f64 {
+    machine step(elements: &Elements<Count>, index: u64, total: f64) -> f64 {
         let next: f64 = total + abs_f64(elements.weights[index]);
         transition { _ -> walk(elements, index + 1, next) }
     }
-    state done(total: f64) -> f64 { total }
+    machine done(total: f64) -> f64 { total }
 }
 
 machine parameter_amplitude<const Count: u64>(weights: &[f64; Count]) -> f64 {
     transition { _ -> walk(weights, 0, 0.0) }
-    state walk(weights: &[f64; Count], index: u64, total: f64) -> f64 {
+    machine walk(weights: &[f64; Count], index: u64, total: f64) -> f64 {
         transition Count > index {
             true -> step(weights, index, total)
             _ -> done(total)
         }
     }
-    state step(weights: &[f64; Count], index: u64, total: f64) -> f64 {
+    machine step(weights: &[f64; Count], index: u64, total: f64) -> f64 {
         let weight: f64 = weights[index];
         let next: f64 = total + abs_f64(weight);
         transition { _ -> walk(weights, index + 1, next) }
     }
-    state done(total: f64) -> f64 { total }
+    machine done(total: f64) -> f64 { total }
 }
 
 data Main {
@@ -67,11 +67,11 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> pass(main)
         _ -> fail(main)
     }
-    state pass(main: &mut Main) {
+    machine pass(main: &mut Main) {
         Console::write_line("generic element amplitude 6 4");
         Console::exit_process(0);
     }
-    state fail(main: &mut Main) {
+    machine fail(main: &mut Main) {
         Console::write_line("generic element amplitude mismatch");
         Console::exit_process(1);
     }

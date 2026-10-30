@@ -1,0 +1,54 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "7a0b63d1ff981db0af4c33c4240c6e604e0aa4ec",
+  "dirty": true,
+  "leg": "both",
+  "target": "windows_x86_64",
+  "golden": "tests/omega/corpus_both_windows_x86_64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 8626
+  },
+  "subset": true,
+  "filter": "pass/arithmetic/nested_clamp_resolution_exit",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 1,
+    "by_status": {
+      "built": 1
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/arithmetic/nested_clamp_resolution_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1627,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "7a0b63d1ff98+wt"
+    }
+  ],
+  "fixtures": []
+}

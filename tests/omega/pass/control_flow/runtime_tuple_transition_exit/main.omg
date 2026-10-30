@@ -11,7 +11,7 @@ machine Main::run(context: &mut Main) -> i32 {
         _ -> classify(context, false, true)
     }
 
-    state classify(context: &mut Main, left: bool, right: bool) -> i32 {
+    machine classify(context: &mut Main, left: bool, right: bool) -> i32 {
         transition (left, right) {
             (true, _) -> done_11(context)
             (false, true) -> done_22(context)
@@ -22,15 +22,15 @@ machine Main::run(context: &mut Main) -> i32 {
         }
     }
 
-    state done_11(context: &mut Main) -> i32 {
+    machine done_11(context: &mut Main) -> i32 {
         11
     }
 
-    state done_22(context: &mut Main) -> i32 {
+    machine done_22(context: &mut Main) -> i32 {
         22
     }
 
-    state done_33(context: &mut Main) -> i32 {
+    machine done_33(context: &mut Main) -> i32 {
         33
     }
 }

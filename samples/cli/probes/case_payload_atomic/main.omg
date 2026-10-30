@@ -26,10 +26,10 @@ machine Main::main(main: &mut Main) {
         true -> done(main)
         false -> bad(main)
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         main.hits = main.hits + 1;
     }
-    state bad(main: &mut Main) { }
+    machine bad(main: &mut Main) { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

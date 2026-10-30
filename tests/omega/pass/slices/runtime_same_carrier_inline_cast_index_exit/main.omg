@@ -17,6 +17,6 @@ machine main() crashes Trap {
     write(&mut items[..], 1);
     let result: u8 = read(&items[..], 1);
     transition result == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

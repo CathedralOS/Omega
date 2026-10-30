@@ -2,9 +2,9 @@
 //! A borrowed view member receives a descriptor value, not owned backing.
 //! Geometry uses the exact carrier declaration for every view access; copying
 //! versus transfer remains the source value's multiplicity and live custody.
-use super::{LiveDefinitions, RowSite};
+use super::RowSite;
+use super::aggregate_results::established_home;
 use crate::LoweringError;
-use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::AbstractOperation;
 use std::collections::BTreeSet;
 use target_operations::TargetUnitOperation;
@@ -91,9 +91,14 @@ pub(super) fn establish(
                     .map(|field| (Some(result_case), field)),
             )
             .collect(),
-        (StructuralTypeShape::FixedArray { length, .. }, None)
-            if elements
-                .is_some_and(|elements| u64::try_from(elements.len()).ok() == Some(*length)) =>
+        (
+            StructuralTypeShape::FixedArray {
+                length: terminal_psi::ArrayExtent::Literal(length),
+                ..
+            },
+            None,
+        ) if elements
+            .is_some_and(|elements| u64::try_from(elements.len()).ok() == Some(*length)) =>
         {
             Vec::new()
         }
@@ -400,8 +405,7 @@ pub(super) fn establish_structural_local(
     else {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
-    let result_home =
-        established_result_home(live, psi_operation, result, types, function.machine)?;
+    let result_home = established_home(live, *psi_operation, result, types, function.machine)?;
     // A declared descriptor local's home is read as a shared view once its
     // whole-slot store installs a descriptor; verification proved that store
     // reaches every read.
@@ -437,32 +441,11 @@ pub(super) fn establish_zeroed_structural(
     else {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
-    let result_home =
-        established_result_home(live, psi_operation, result, types, function.machine)?;
+    let result_home = established_home(live, *psi_operation, result, types, function.machine)?;
     operations.push(TargetUnitOperation::EstablishZeroedStructural {
         psi_operation: *psi_operation,
         result_home,
     });
     provenance.operations.push(*psi_operation);
     Ok(())
-}
-
-/// The establishment's aggregate home, registered as live; refused for
-/// `machine` when the place already holds one.
-fn established_result_home(
-    live: &mut LiveDefinitions,
-    psi_operation: &semantic_vocabulary::OperationId,
-    result: &terminal_psi::StructuralOperationResult,
-    types: &StructuralTypeLookup<'_>,
-    machine: semantic_vocabulary::MachineId,
-) -> Result<target_operations::TargetStructuralHomeRequirement, LoweringError> {
-    let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
-    if live
-        .structural_homes
-        .insert(result.place, result_home.clone())
-        .is_some()
-    {
-        return Err(LoweringError::unsupported_control_flow(machine));
-    }
-    Ok(result_home)
 }

@@ -33,10 +33,7 @@ pub fn present_structural_memberships<'types, 'domains>(
         let mut matches = domains.clone().filter(|row| {
             row.carrier == carrier
                 && row.semantic_domain == source.semantic_domain
-                && row.predicate == source.predicate
-                && row.content_projection == source.content_projection
-                && row.byte_predicate == source.byte_predicate
-                && row.establishment_routes == source.establishment_routes
+                && same_presented_theory(domains.clone(), source, row)
         });
         let destination = matches
             .next()
@@ -59,4 +56,77 @@ pub fn present_structural_memberships<'types, 'domains>(
     projected.sort();
     projected.dedup();
     Ok(())
+}
+
+/// A presentation changes carrier coordinates, not the dependency theory.
+/// Resolve every prerequisite on both carriers instead of donating source
+/// parent rows to the destination descriptor.
+fn same_presented_theory<'domains>(
+    domains: impl Iterator<Item = &'domains StructuralDomainDeclaration> + Clone,
+    source: &'domains StructuralDomainDeclaration,
+    destination: &'domains StructuralDomainDeclaration,
+) -> bool {
+    let resolve = |semantic_domain, carrier| {
+        let mut matches = domains
+            .clone()
+            .filter(|row| row.semantic_domain == semantic_domain && row.carrier == carrier);
+        let row = matches.next()?;
+        matches.next().is_none().then_some(row)
+    };
+    if resolve(source.semantic_domain, source.carrier).map(|row| row.id) != Some(source.id)
+        || resolve(destination.semantic_domain, destination.carrier).map(|row| row.id)
+            != Some(destination.id)
+    {
+        return false;
+    }
+    let mut pending = vec![(source, destination, false)];
+    let mut active = Vec::new();
+    let mut visited = Vec::new();
+    while let Some((source, destination, completed)) = pending.pop() {
+        if completed {
+            if active.pop() != Some(source.id) {
+                return false;
+            }
+            visited.push(source.id);
+            continue;
+        }
+        if active.contains(&source.id) {
+            return false;
+        }
+        if visited.contains(&source.id) {
+            continue;
+        }
+        if source.semantic_domain != destination.semantic_domain
+            || source.complete_predicate_theory != destination.complete_predicate_theory
+            || source.predicate != destination.predicate
+            || source.content_projection != destination.content_projection
+            || source.byte_predicate != destination.byte_predicate
+            || source.establishment_routes != destination.establishment_routes
+        {
+            return false;
+        }
+        let (Some(source_required), Some(destination_required)) = (
+            &source.required_memberships,
+            &destination.required_memberships,
+        ) else {
+            return false;
+        };
+        if source_required != destination_required
+            || !source_required.windows(2).all(|pair| pair[0] < pair[1])
+        {
+            return false;
+        }
+        active.push(source.id);
+        pending.push((source, destination, true));
+        for required in source_required.iter().rev() {
+            let Some(source_parent) = resolve(*required, source.carrier) else {
+                return false;
+            };
+            let Some(destination_parent) = resolve(*required, destination.carrier) else {
+                return false;
+            };
+            pending.push((source_parent, destination_parent, false));
+        }
+    }
+    true
 }

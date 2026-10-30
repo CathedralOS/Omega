@@ -1,0 +1,2 @@
+machine outer(value: u64) { helper(); machine helper() { let copy: u64 = value; } }
+machine main() { outer(7); }

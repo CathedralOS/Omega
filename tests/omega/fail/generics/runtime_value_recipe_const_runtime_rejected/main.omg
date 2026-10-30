@@ -1,0 +1,3 @@
+data Fixed<const Limit:u32> [copy] { value:u32; }
+machine bad(limit:u32) requires limit>=8 && limit<=9 { let indexed:Fixed<(limit+1u32)> = Fixed{value:8}; }
+machine main() {}

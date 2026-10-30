@@ -7,11 +7,12 @@
 //! by rule before patch shape, because its rewrites reuse the scalar patch
 //! shapes of other families. Each family module owns its validator and
 //! replay; `accept_region_rewrite` owns the one acceptance tail they share —
-//! clone, land, rebuild the derived surfaces, hold the region, issue — and
+//! compare the claimed region accounting against the replayed one, clone,
+//! land, rebuild the derived surfaces, hold the region, issue — and
 //! `rewrite_accounting` reconstructs provenance and custody for all of
 //! them, `observation` the closed scalar observation boundaries, and
-//! `structural_bindings` the block-parameter bindings replays may forward
-//! through.
+//! `optimization_unit::bound_place` the block-parameter bindings replays may
+//! forward through.
 
 use optimization_core::{OptimizationCandidateIdentity, OptimizationValidatorIdentity};
 use optimization_unit::{
@@ -35,7 +36,6 @@ pub(crate) mod proof_check_elision;
 pub(crate) mod rewrite_accounting;
 pub(crate) mod sparse_conditional_constant_propagation;
 pub(crate) mod state_specialization;
-mod structural_bindings;
 mod value_operand_rewrites;
 
 use case_membership_specialization::validate_case_membership_specialization_candidate;
@@ -174,6 +174,28 @@ pub(crate) fn provenance_realized_at(
     }
 }
 
+/// One realized-at rewrite for a value that lands where it already is: the
+/// input coordinate and the realization coordinate are the same site, so the
+/// family names it once. [`provenance_realized_at`] keeps the two-site form for
+/// values whose custody actually moves.
+pub(crate) fn realized_at_own_site(
+    site: optimization_unit::PsiRealizationSite,
+    sources: &[optimization_unit::PsiProvenance],
+    fuel: &[optimization_unit::FuelSettlement],
+) -> ProvenanceRewrite {
+    provenance_realized_at(site, site, sources, fuel)
+}
+
+/// The proven-unreachable mirror of [`realized_at_own_site`]: a site the
+/// candidate proved dead rather than landed, stamped at its own coordinate.
+pub(crate) fn proven_unreachable_at_own_site(
+    site: optimization_unit::PsiRealizationSite,
+    sources: &[optimization_unit::PsiProvenance],
+    fuel: &[optimization_unit::FuelSettlement],
+) -> ProvenanceRewrite {
+    provenance_proven_unreachable_at(site, site, sources, fuel)
+}
+
 /// One proven-unreachable rewrite: the mirror of `provenance_realized_at` for
 /// sites a candidate family proved dead rather than landed.
 pub(crate) fn provenance_proven_unreachable_at(
@@ -235,6 +257,81 @@ pub(crate) fn set_node_effect_link(
     Ok(output)
 }
 
+/// Land each folded `(site, node)` on the output unit's function: every site's
+/// block and node must resolve, and the node replaces the slot at its
+/// coordinate. The family owns only the node it folded.
+pub(crate) fn land_folded_nodes(
+    output: &mut PsiOptimizationUnit,
+    machine: semantic_vocabulary::MachineId,
+    folded: Vec<(
+        optimization_unit::NodeLocation,
+        optimization_unit::OptimizationNode,
+    )>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let function = output
+        .function_mut(machine)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    for (location, node) in folded {
+        let index = usize::try_from(location.node)
+            .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
+        let Some(slot) = function
+            .block_mut(location.block)
+            .and_then(|block| block.nodes.get_mut(index))
+        else {
+            return Err(OptimizationUnitValidationError::CandidateLocationMissing);
+        };
+        *slot = node;
+    }
+    Ok(())
+}
+
+/// The sweep every landing ends with: run `per_node` on each node of
+/// `function`, rebuild the node's derived surfaces from the operation it now
+/// carries, and re-stamp the function-wide effect sequence. A family that
+/// landed whole nodes with no per-node edit passes `|_| Ok(())`.
+pub(crate) fn sweep_output_nodes(
+    function: &mut PsiOptimizationFunction,
+    mut per_node: impl FnMut(
+        &mut optimization_unit::OptimizationNode,
+    ) -> Result<(), OptimizationUnitValidationError>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let mut effect = 0u64;
+    for block in &mut function.blocks {
+        let block_id = block.id;
+        for (node_index, node) in block.nodes.iter_mut().enumerate() {
+            per_node(node)?;
+            rebuild_node_metadata(node, block_id, node_index)?;
+            effect = set_node_effect_link(node, effect)?;
+        }
+    }
+    Ok(())
+}
+
+/// The candidate's realized rows must be exactly the independently
+/// reconstructed roster: the same rows in the same order, each carrying the
+/// input site, disposition and sources the replay derived, and each its fuel
+/// settlement.
+pub(crate) fn require_realized_rows(
+    candidate: &PsiRewriteCandidate,
+    expected: &[ProvenanceRewrite],
+) -> Result<(), OptimizationUnitValidationError> {
+    let actual = candidate.provenance();
+    let mut paired = actual.iter().zip(expected);
+    if actual.len() != expected.len()
+        || paired.clone().any(|(actual, expected)| {
+            actual.input != expected.input
+                || actual.disposition != expected.disposition
+                || actual.sources != expected.sources
+        })
+    {
+        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
+    }
+    if paired.any(|(actual, expected)| actual.fuel != expected.fuel) {
+        return Err(OptimizationUnitValidationError::CandidateFuelMismatch);
+    }
+    Ok(())
+}
+
 /// The block's node at `node`, or CandidateLocationMissing.
 pub(crate) fn candidate_node(
     block: &optimization_unit::OptimizationBlock,
@@ -258,6 +355,51 @@ pub(crate) fn candidate_block(
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)
 }
 
+/// Record every provenance-bearing node of `nodes` — one block's `(index,
+/// node)` pairs — as a rewrite realizing its own custody at its own site.
+/// A node carrying no provenance has nothing to realize and is skipped, and
+/// the caller chooses the iterator, including whatever region filter its
+/// accounting needs. Every accounting that leaves a block's nodes where they
+/// already are spells this ledger through here instead of walking the block
+/// again.
+pub(crate) fn realize_node_provenance<'node>(
+    machine: semantic_vocabulary::MachineId,
+    block: semantic_vocabulary::BlockId,
+    nodes: impl Iterator<Item = (usize, &'node optimization_unit::OptimizationNode)>,
+    realized: &mut Vec<ProvenanceRewrite>,
+) -> Option<()> {
+    for (node_index, node) in nodes {
+        if node.provenance.is_empty() {
+            continue;
+        }
+        let site = optimization_unit::PsiRealizationSite::Node(optimization_unit::NodeLocation {
+            machine,
+            block,
+            node: u32::try_from(node_index).ok()?,
+        });
+        realized.push(realized_at_own_site(site, &node.provenance, &node.fuel));
+    }
+    Some(())
+}
+
+/// Retire one node of an accepted block and fuse its custody into the node
+/// that inherits the vacated coordinate. The caller's replay already
+/// accounted for every later coordinate and the function's effect chain; this
+/// owns only the removal and the fuse.
+pub(crate) fn retire_node_custody(
+    block: &mut optimization_unit::OptimizationBlock,
+    node_index: usize,
+) -> Result<(), OptimizationUnitValidationError> {
+    let retired = block.nodes.remove(node_index);
+    let receiver = block
+        .nodes
+        .get_mut(node_index)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    receiver.provenance.extend_from_slice(&retired.provenance);
+    receiver.fuel.extend_from_slice(&retired.fuel);
+    Ok(())
+}
+
 /// The canonical provenance order every accepted roster leaves in: input
 /// realization site, then the disposition's canonical tag and site. The
 /// order is part of the candidate contract, so every family sorts through
@@ -266,8 +408,9 @@ pub(crate) fn canonicalize_provenance(rows: &mut [ProvenanceRewrite]) {
     rows.sort_by_key(ProvenanceRewrite::canonical_sort_key);
 }
 
-/// Accept one family's rewrite of `machine`'s region: clone the admitted
-/// input, let the family land its nodes on the clone, replay the shared
+/// Accept one family's rewrite of `machine`'s region: hold the candidate's
+/// claimed region accounting against the replayed one it was handed, clone the
+/// admitted input, let the family land its nodes on the clone, replay the shared
 /// output tail (derived surfaces rebuilt, identity refreshed, whole unit
 /// re-validated), then hold the rewrite inside its region — every input
 /// block the family's accounting did not name stays byte-exact and every
@@ -282,6 +425,9 @@ pub(crate) fn accept_region_rewrite(
     provenance: Vec<ProvenanceRewrite>,
     rewrite: impl FnOnce(&mut PsiOptimizationUnit) -> Result<(), OptimizationUnitValidationError>,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    if candidate.affected_blocks() != expected_blocks || candidate.provenance() != provenance {
+        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
+    }
     let input_function = candidate_function(input, machine)?;
     let mut output = input.clone();
     rewrite(&mut output)?;

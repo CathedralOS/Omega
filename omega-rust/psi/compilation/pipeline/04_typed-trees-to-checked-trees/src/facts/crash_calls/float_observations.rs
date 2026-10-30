@@ -65,12 +65,15 @@ impl<'a> FloatObservations<'a> {
         invocation: HandleSpan<FlowConstraintRef>,
         epoch: &FlowOperandFact,
     ) -> Option<Vec<FloatMeaning>> {
+        // The shared completed-value walk expands every Selected arm and keeps
+        // its actual copy/constructor associations. IEEE observation must not
+        // select alternatives again from the source expression's shape.
         let values = crate::flow::captured_operand_values(
             self.program,
             self.flow,
             self.semantic,
             state,
-            operand,
+            crate::flow::CapturedOperand::unrecorded(operand),
             reference,
             &[],
         )?;
@@ -101,7 +104,7 @@ impl<'a> FloatObservations<'a> {
                     &value.projection,
                     crate::flow::captured_value_places(self.program, self.flow, &value),
                     value.producer_invocation(invocation),
-                    value.producer_epoch.unwrap_or(epoch),
+                    value.producer_epoch.map_or(epoch, |source| source.row()),
                 ),
             ]
             .into_iter()
@@ -112,7 +115,7 @@ impl<'a> FloatObservations<'a> {
                         &self.flow.contexts,
                         &self.flow.control,
                         self.semantic,
-                        capture,
+                        capture.row(),
                         reference,
                         invocation,
                     );
@@ -149,7 +152,7 @@ impl<'a> FloatObservations<'a> {
                         }
                         self.produced(
                             state,
-                            capture,
+                            capture.row(),
                             projection.expression,
                             invocation,
                             epoch,
@@ -200,20 +203,6 @@ impl<'a> FloatObservations<'a> {
                     == Some(expected))
                 .then_some(vec![FloatMeaning::NaN])
             }
-            ExpressionNode::Match(_) => {
-                let mut possibilities = Vec::new();
-                for alternative in self.flow.control.operands.span(operand.alternatives)? {
-                    let observed = self.capture_values(
-                        state,
-                        alternative,
-                        alternative.type_reference,
-                        invocation,
-                        epoch,
-                    )?;
-                    extend_values(&mut possibilities, observed);
-                }
-                (!possibilities.is_empty()).then_some(possibilities)
-            }
             ExpressionNode::Call(authored) => {
                 // Expression identity alone is not an invocation: bind its exact
                 // state, statement, selected target and authenticated argument roster.
@@ -229,7 +218,13 @@ impl<'a> FloatObservations<'a> {
                             && call.authored_expression == expression
                     });
                 let call = calls.next()?;
-                if calls.next().is_some() || call.target_symbol != authored.target_symbol {
+                if calls.next().is_some()
+                    || call.target_symbol
+                        != validation::call_target_entry_symbol(
+                            self.program,
+                            validation::call_target_symbol(self.program, authored),
+                        )
+                {
                     return None;
                 }
                 let (callee, entry) =
@@ -253,13 +248,10 @@ impl<'a> FloatObservations<'a> {
                     else {
                         return None;
                     };
-                    if path.symbol != path.head_symbol
-                        || self
-                            .program
-                            .expression_table
-                            .name_path_members(path.members)
-                            .len()
-                            != 1
+                    if !self
+                        .program
+                        .expression_table
+                        .name_path_is_single_member(path)
                         || formal.is_some_and(|known| known != path.symbol)
                     {
                         return None;
@@ -438,9 +430,7 @@ fn extend_values(
     for value in additional {
         // Structural meaning keeps opposite zero signs distinct. NaN payloads
         // are not part of this proof-only observation and cannot be invented.
-        if !values.contains(&value) {
-            values.push(value);
-        }
+        crate::collections::push_unique(&mut *values, value);
     }
 }
 

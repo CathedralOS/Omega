@@ -2,7 +2,7 @@
 use super::{call::*, normalized_foreign::*, settlements::*, signature::*};
 use crate::FixedViewCopyDecodeError;
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
-    Cursor, decode_accepted_fact, decode_id, decode_option_u64, encode_option_u64, length,
+    Cursor, decode_accepted_fact, decode_id, decode_list, decode_option_u64, length,
 };
 use selected_instructions::{
     OutgoingArgumentSlotId, SelectedBlockId, SelectedBoundarySettlement, SelectedFunction,
@@ -14,6 +14,17 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
     cursor: &mut Cursor<'_>,
 ) -> Result<selected_instructions::LocalStorageSlotId, FixedViewCopyDecodeError> {
     let tag = cursor.byte()?;
+    if tag == 8 || tag == 9 {
+        let edge = decode_id(cursor, semantic_vocabulary::EdgeId::new)?;
+        return Ok(if tag == 8 {
+            selected_instructions::LocalStorageSlotId::InvocationResult { edge }
+        } else {
+            selected_instructions::LocalStorageSlotId::InvocationArgument {
+                edge,
+                argument_index: cursor.u32()?,
+            }
+        });
+    }
     if tag == 6 {
         return Ok(selected_instructions::LocalStorageSlotId::EdgeSnapshot {
             edge: decode_id(cursor, semantic_vocabulary::EdgeId::new)?,
@@ -60,10 +71,10 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
 
 pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn decode_invocation_site(
     cursor: &mut Cursor<'_>,
-) -> Result<semantic_vocabulary::BoundaryInvocationSite, FixedViewCopyDecodeError> {
+) -> Result<semantic_vocabulary::InvocationSite, FixedViewCopyDecodeError> {
     let tag = cursor.byte()?;
     let identity = cursor.u64()?;
-    semantic_vocabulary::BoundaryInvocationSite::from_tagged_identity(tag, identity).ok_or_else(
+    semantic_vocabulary::InvocationSite::from_tagged_identity(tag, identity).ok_or_else(
         || match tag {
             0 | 1 => FixedViewCopyDecodeError::InvalidSemanticId(identity),
             _ => FixedViewCopyDecodeError::UnknownOption(tag),
@@ -121,164 +132,7 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
     }
     length(bytes, function.memory_accesses.len());
     for row in &function.memory_accesses {
-        crate::codec_bytes::push_encoded(bytes, row.instruction.0.to_le_bytes());
-        row.origin.encode_identity(bytes);
-        crate::codec_bytes::push_encoded(bytes, row.place.get().to_le_bytes());
-        crate::codec_bytes::push_encoded(bytes, row.byte_offset.to_le_bytes());
-        crate::codec_bytes::push_encoded(bytes, row.byte_count.to_le_bytes());
-        match row.role {
-            SelectedMemoryAccessRole::ReadByteSpan {
-                length,
-                obligation,
-                accepted_fact,
-            }
-            | SelectedMemoryAccessRole::WriteByteSpan {
-                length,
-                obligation,
-                accepted_fact,
-            } => {
-                bytes.push(
-                    if matches!(row.role, SelectedMemoryAccessRole::ReadByteSpan { .. }) {
-                        8
-                    } else {
-                        9
-                    },
-                );
-                crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                bytes.extend_from_slice(&accepted_fact.bytes());
-            }
-            SelectedMemoryAccessRole::WriteByteSequence {
-                index,
-                value,
-                length,
-                obligation,
-                accepted_fact,
-            } => {
-                bytes.push(7);
-                for identity in [index.get(), value.get(), length.get(), obligation.get()] {
-                    crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
-                }
-                bytes.extend_from_slice(&accepted_fact.bytes());
-            }
-            SelectedMemoryAccessRole::ReadByteSequence {
-                index,
-                length,
-                obligation,
-                accepted_fact,
-            } => {
-                bytes.push(3);
-                crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                bytes.extend_from_slice(&accepted_fact.bytes());
-            }
-            SelectedMemoryAccessRole::WriteIndexedPrimitive {
-                index,
-                value,
-                stride,
-                extent,
-                obligation,
-                accepted_fact,
-            } => {
-                bytes.push(10);
-                for identity in [index.get(), value.get(), obligation.get()] {
-                    crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
-                }
-                crate::codec_bytes::push_encoded(bytes, stride.to_le_bytes());
-                encode_option_u64(bytes, extent);
-                bytes.extend_from_slice(&accepted_fact.bytes());
-            }
-            SelectedMemoryAccessRole::WriteIndexedStructural {
-                index,
-                stride,
-                extent,
-                obligation,
-                accepted_fact,
-            } => {
-                bytes.push(13);
-                for identity in [index.get(), obligation.get()] {
-                    crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
-                }
-                crate::codec_bytes::push_encoded(bytes, stride.to_le_bytes());
-                encode_option_u64(bytes, extent);
-                bytes.extend_from_slice(&accepted_fact.bytes());
-            }
-            SelectedMemoryAccessRole::ReadIndexedPrimitive {
-                index,
-                stride,
-                extent,
-                obligation,
-                accepted_fact,
-            } => {
-                bytes.push(12);
-                for identity in [index.get(), obligation.get()] {
-                    crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
-                }
-                crate::codec_bytes::push_encoded(bytes, stride.to_le_bytes());
-                encode_option_u64(bytes, extent);
-                bytes.extend_from_slice(&accepted_fact.bytes());
-            }
-            SelectedMemoryAccessRole::ReadElementView {
-                index,
-                length,
-                obligation,
-                accepted_fact,
-            } => {
-                bytes.push(11);
-                crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                bytes.extend_from_slice(&accepted_fact.bytes());
-            }
-            SelectedMemoryAccessRole::WriteElementView {
-                index,
-                length,
-                obligation,
-                accepted_fact,
-            } => {
-                bytes.push(14);
-                crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                bytes.extend_from_slice(&accepted_fact.bytes());
-            }
-            SelectedMemoryAccessRole::WriteLocal { slot }
-            | SelectedMemoryAccessRole::AddressLocal { slot } => {
-                bytes.push(
-                    if matches!(row.role, SelectedMemoryAccessRole::WriteLocal { .. }) {
-                        4
-                    } else {
-                        5
-                    },
-                );
-                slot.encode_identity(bytes);
-            }
-            SelectedMemoryAccessRole::ReadReturnedView { producer } => {
-                bytes.push(15);
-                crate::codec_bytes::push_encoded(bytes, producer.get().to_le_bytes());
-            }
-            SelectedMemoryAccessRole::ReadMeasuredSpan { length } => {
-                bytes.push(16);
-                crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
-            }
-            SelectedMemoryAccessRole::ReadPlace => bytes.push(0),
-            SelectedMemoryAccessRole::ReadBacking => bytes.push(18),
-            SelectedMemoryAccessRole::WriteBacking => bytes.push(19),
-            SelectedMemoryAccessRole::ReadLocal { slot } => {
-                bytes.push(17);
-                slot.encode_identity(bytes);
-            }
-            SelectedMemoryAccessRole::WritePlace => bytes.push(6),
-            SelectedMemoryAccessRole::WriteOutgoing { slot } => {
-                bytes.push(1);
-                encode_slot(bytes, slot);
-            }
-            SelectedMemoryAccessRole::AddressOutgoing { slot } => {
-                bytes.push(2);
-                encode_slot(bytes, slot);
-            }
-        }
+        selected_instructions::plan_identity::encode_memory_access(bytes, row);
     }
     length(bytes, function.boundary_settlements.len());
     for row in &function.boundary_settlements {
@@ -297,37 +151,23 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
         |c| Ok(decode_signature(c)?),
         FixedViewCopyDecodeError::UnknownOption,
     )?;
-    let local_count = cursor.length()?;
-    for _ in 0..local_count {
-        function
-            .local_storage_slots
-            .push(selected_instructions::SelectedLocalStorageSlot {
-                id: decode_local_slot(cursor)?,
-                byte_size: cursor.u32()?,
-                alignment: cursor.u16()?,
-            });
-    }
-    let count = cursor.length()?;
-    for _ in 0..count {
-        function
-            .outgoing_arguments
-            .push(SelectedOutgoingArgumentSlot {
-                id: decode_slot(cursor)?,
-                byte_size: cursor.u32()?,
-                alignment: cursor.u16()?,
-                abi_stack_byte_offset: cursor.u32()?,
-            });
-    }
-    let count = cursor.length()?;
-    for _ in 0..count {
-        function.calls.push(decode_call(cursor)?);
-    }
-    let count = cursor.length()?;
-    for _ in 0..count {
-        function
-            .normalized_foreign_calls
-            .push(decode_normalized_foreign_call(cursor)?);
-    }
+    function.local_storage_slots = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
+        Ok(selected_instructions::SelectedLocalStorageSlot {
+            id: decode_local_slot(cursor)?,
+            byte_size: cursor.u32()?,
+            alignment: cursor.u16()?,
+        })
+    })?;
+    function.outgoing_arguments = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
+        Ok(SelectedOutgoingArgumentSlot {
+            id: decode_slot(cursor)?,
+            byte_size: cursor.u32()?,
+            alignment: cursor.u16()?,
+            abi_stack_byte_offset: cursor.u32()?,
+        })
+    })?;
+    function.calls = decode_list(cursor, decode_call)?;
+    function.normalized_foreign_calls = decode_list(cursor, decode_normalized_foreign_call)?;
     let count = cursor.length()?;
     for _ in 0..count {
         let instruction = SelectedInstructionId(cursor.u32()?);

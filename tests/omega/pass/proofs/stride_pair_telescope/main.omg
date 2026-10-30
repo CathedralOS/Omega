@@ -8,7 +8,7 @@ machine walk(remaining: u32, stride: u32)
 terminates by remaining in 0..=9;
 -> u32 {
     transition { _ -> pair(remaining, remaining, stride) }
-    state pair(live: u32, saved: u32, step: u32)
+    machine pair(live: u32, saved: u32, step: u32) -> u32
         requires 0 <= live && live <= 9 && 0 <= saved && saved <= 9 && 1 <= step && step <= 5
     {
         transition live >= step {

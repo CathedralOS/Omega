@@ -12,6 +12,7 @@ mod integer_constants_and_relations;
 mod integer_conversion;
 mod primitive_projection;
 mod routing;
+mod scalar_applications;
 mod shifts;
 mod structural_establishment;
 mod structural_leaf_copy;
@@ -27,6 +28,19 @@ use super::{LoweredAffineLocal, StructuralLiteral};
 use crate::lowering::LoweringError;
 use semantic_vocabulary::ScalarType;
 
+/// The exactly one row among `rows` that `accepts`, when a machine roster
+/// names one coordinate once. Zero rows and competing rows both answer `None`:
+/// without a unique row the join has no meaning, so ambiguity refuses like
+/// absence and no caller has to re-check the roster itself.
+pub(super) fn unique_row<T>(
+    rows: impl IntoIterator<Item = T>,
+    mut accepts: impl FnMut(&T) -> bool,
+) -> Option<T> {
+    let mut matches = rows.into_iter().filter(|row| accepts(row));
+    let row = matches.next()?;
+    matches.next().is_none().then_some(row)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_operation(
     operation: &terminal_psi::Operation,
@@ -34,6 +48,7 @@ pub(super) fn lower_operation(
     machine: &TerminalMachine,
     module: &terminal_psi::TerminalModule,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    scalar_applications: Option<&terminal_installation::AdmittedScalarApplications>,
     placed_view_plans: &[terminal_psi::TerminalPlacedViewPlan],
     value_types: &BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
     byte_sequence_literals: &[StructuralLiteral<'_>],
@@ -47,6 +62,7 @@ pub(super) fn lower_operation(
         machine,
         module,
         structural_types,
+        scalar_applications,
         placed_view_plans,
         value_types,
         byte_sequence_literals,

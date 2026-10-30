@@ -18,38 +18,38 @@ machine Application::main(application: &mut Application) reaches Console crashes
     transition standards.valid && unknowns.valid && standards.value >= 3.0 && standards.value <= 8.0 && unknowns.value >= 0.0 && unknowns.value <= 8.0 {
         true -> counts(application, standards.value, unknowns.value) _ -> invalid(application)
     }
-    state invalid(application: &mut Application) {
+    machine invalid(application: &mut Application) {
         Console::write_line("ERROR malformed or out-of-range input"); Console::exit_process(10);
     }
-    state degenerate(application: &mut Application) {
+    machine degenerate(application: &mut Application) {
         Console::write_line("ERROR rank-deficient or nonnegative calibration slope"); Console::exit_process(11);
     }
-    state numerical(application: &mut Application) {
+    machine numerical(application: &mut Application) {
         Console::write_line("ERROR nonrepresentable calibration or inversion"); Console::exit_process(12);
     }
-    state counts(application: &mut Application, standards: f64, unknowns: f64) {
+    machine counts(application: &mut Application, standards: f64, unknowns: f64) {
         let count: i32 in Saturating = I32::from_f64(standards);
         let unknown_count: i32 in Saturating = I32::from_f64(unknowns);
         transition F64::from_i32(count as i32) == standards && F64::from_i32(unknown_count as i32) == unknowns {
             true -> configure(application, count as i32 in Wrapping, unknown_count as i32 in Wrapping) _ -> invalid(application)
         }
     }
-    state configure(application: &mut Application, count: i32 in Wrapping, unknowns: i32 in Wrapping) {
+    machine configure(application: &mut Application, count: i32 in Wrapping, unknowns: i32 in Wrapping) {
         application.standards = count; application.unknown_count = unknowns;
         application.index = 0; application.mean_x = 0.0; application.mean_y = 0.0;
         application.minimum_x = 6.0; application.maximum_x = 0.0;
         application.minimum_y = 50.0; application.maximum_y = 0.0;
         transition { _ -> read_standard(application) }
     }
-    state read_standard(application: &mut Application) {
+    machine read_standard(application: &mut Application) {
         transition application.index >= 0 && application.index < application.standards && application.index < 8 { true -> standard(application) _ -> unknown_start(application) }
     }
-    state standard(application: &mut Application) {
+    machine standard(application: &mut Application) {
         let copies: Number = block number(&mut application.reader);
         let cq: Number = block number(&mut application.reader);
         transition copies.valid && cq.valid && copies.value >= 1.0 && copies.value <= 1000000.0 && cq.value >= 0.0 && cq.value <= 50.0 { true -> store_standard(application, copies.value, cq.value) _ -> invalid(application) }
     }
-    state store_standard(application: &mut Application, copies: f64, cq: f64) {
+    machine store_standard(application: &mut Application, copies: f64, cq: f64) {
         let logarithm: f64 = logarithm(copies);
         application.logarithms[application.index] = logarithm; application.cycles[application.index] = cq;
         application.mean_x = application.mean_x + logarithm; application.mean_y = application.mean_y + cq;
@@ -59,51 +59,51 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.maximum_y = match cq > application.maximum_y { true -> cq _ -> application.maximum_y };
         application.index = application.index + 1; transition { _ -> read_standard(application) }
     }
-    state unknown_start(application: &mut Application) { application.index = 0; transition { _ -> read_unknown(application) } }
-    state read_unknown(application: &mut Application) {
+    machine unknown_start(application: &mut Application) { application.index = 0; transition { _ -> read_unknown(application) } }
+    machine read_unknown(application: &mut Application) {
         transition application.index >= 0 && application.index < application.unknown_count && application.index < 8 { true -> unknown(application) _ -> finish_input(application) }
     }
-    state unknown(application: &mut Application) {
+    machine unknown(application: &mut Application) {
         let cq: Number = block number(&mut application.reader); let margin: Number = block number(&mut application.reader);
         transition cq.valid && margin.valid && cq.value >= 0.0 && cq.value <= 50.0 && margin.value >= 0.0 { true -> store_unknown(application, cq.value, margin.value) _ -> invalid(application) }
     }
-    state store_unknown(application: &mut Application, cq: f64, margin: f64) {
+    machine store_unknown(application: &mut Application, cq: f64, margin: f64) {
         application.unknowns[application.index] = cq; application.margins[application.index] = margin;
         application.index = application.index + 1; transition { _ -> read_unknown(application) }
     }
-    state finish_input(application: &mut Application) {
+    machine finish_input(application: &mut Application) {
         let complete: bool = block ended(&mut application.reader);
         transition complete { true -> center(application) _ -> invalid(application) }
     }
-    state center(application: &mut Application) {
+    machine center(application: &mut Application) {
         let count: f64 = F64::from_i32(application.standards as i32);
         application.mean_x = application.mean_x / count; application.mean_y = application.mean_y / count;
         application.variance_x = 0.0; application.variance_y = 0.0; application.covariance = 0.0;
         application.index = 0; transition { _ -> moments(application) }
     }
-    state moments(application: &mut Application) {
+    machine moments(application: &mut Application) {
         transition application.index >= 0 && application.index < application.standards && application.index < 8 { true -> moment(application) _ -> fit(application) }
     }
-    state moment(application: &mut Application) {
+    machine moment(application: &mut Application) {
         let x: f64 = application.logarithms[application.index] - application.mean_x;
         let y: f64 = application.cycles[application.index] - application.mean_y;
         application.variance_x = application.variance_x + x*x; application.variance_y = application.variance_y + y*y;
         application.covariance = application.covariance + x*y;
         application.index = application.index + 1; transition { _ -> moments(application) }
     }
-    state fit(application: &mut Application) {
+    machine fit(application: &mut Application) {
         transition application.minimum_x < application.maximum_x && application.minimum_y < application.maximum_y && application.variance_x > 0.0 && application.covariance < 0.0 { true -> coefficients(application) _ -> degenerate(application) }
     }
-    state coefficients(application: &mut Application) {
+    machine coefficients(application: &mut Application) {
         application.slope = application.covariance / application.variance_x;
         application.intercept = application.mean_y - application.slope * application.mean_x;
         transition F64::is_finite(application.slope) && F64::is_finite(application.intercept) && application.slope < 0.0 { true -> residual_start(application) _ -> numerical(application) }
     }
-    state residual_start(application: &mut Application) {
+    machine residual_start(application: &mut Application) {
         field(&mut application.reader, "slope=", application.slope); field(&mut application.reader, "intercept=", application.intercept);
         transition application.standards >= 3 && application.standards <= 8 { true -> residual_windows(application) _ -> invalid(application) }
     }
-    state residual_windows(application: &mut Application)
+    machine residual_windows(application: &mut Application)
     requires application.standards >= 3 && application.standards <= 8
     {
         let logarithms: &[f64] = &application.logarithms[0..application.standards];
@@ -112,28 +112,28 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.residual_square = residual_sum(logarithms, cycles, residuals, application.slope, application.intercept);
         application.index = 0; transition { _ -> residuals(application) }
     }
-    state residuals(application: &mut Application) {
+    machine residuals(application: &mut Application) {
         transition application.index >= 0 && application.index < application.standards && application.index < 8 { true -> residual(application) _ -> summary(application) }
     }
-    state residual(application: &mut Application) {
+    machine residual(application: &mut Application) {
         let residual: f64 = application.residual_values[application.index];
         field(&mut application.reader, "residual=", residual);
         application.index = application.index + 1; transition { _ -> residuals(application) }
     }
-    state summary(application: &mut Application) {
+    machine summary(application: &mut Application) {
         let argument: f64 = (0.0 - 2.3025850929940456840) / application.slope;
         transition F64::is_finite(argument) && argument <= 700.0 { true -> efficiency(application, argument) _ -> numerical(application) }
     }
-    state efficiency(application: &mut Application, argument: f64) {
+    machine efficiency(application: &mut Application, argument: f64) {
         let efficiency: f64 = exponential(argument) - 1.0;
         field(&mut application.reader, "r2=", 1.0 - application.residual_square / application.variance_y);
         field(&mut application.reader, "efficiency=", efficiency);
         application.index = 0; transition { _ -> quantify(application) }
     }
-    state quantify(application: &mut Application) {
+    machine quantify(application: &mut Application) {
         transition application.index >= 0 && application.index < application.unknown_count && application.index < 8 { true -> invert(application) _ -> done(application) }
     }
-    state invert(application: &mut Application) {
+    machine invert(application: &mut Application) {
         let cq: f64 = application.unknowns[application.index]; let margin: f64 = application.margins[application.index];
         let central: f64 = (cq - application.intercept) / application.slope;
         let lower: f64 = (cq + margin - application.intercept) / application.slope;
@@ -143,7 +143,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
             true -> concentrations(application, central, lower, upper) _ -> numerical(application)
         }
     }
-    state concentrations(application: &mut Application, central: f64, lower: f64, upper: f64) {
+    machine concentrations(application: &mut Application, central: f64, lower: f64, upper: f64) {
         field(&mut application.reader, "copies=", exponential(central * 2.3025850929940456840));
         field(&mut application.reader, "lower=", exponential(lower * 2.3025850929940456840));
         field(&mut application.reader, "upper=", exponential(upper * 2.3025850929940456840));
@@ -151,7 +151,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
         field(&mut application.reader, "interval_extrapolated=", match lower < application.minimum_x - 0.000000000001 || upper > application.maximum_x + 0.000000000001 { true -> 1.0 _ -> 0.0 });
         application.index = application.index + 1; transition { _ -> quantify(application) }
     }
-    state done(application: &mut Application) { Console::exit_process(0); }
+    machine done(application: &mut Application) { Console::exit_process(0); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -21,7 +21,7 @@ pub(crate) const MEMBER_MACHINE_NAME: &str = "member";
 
 pub(crate) const ARTIFACT_ONLY_MACHINE_NAME: &str = "artifact_only";
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct ProjectName(String);
 
 impl ProjectName {
@@ -50,13 +50,12 @@ impl ProjectName {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct WorkspaceMemberPath(String);
 
 impl WorkspaceMemberPath {
-    pub fn parse(value: impl Into<String>) -> Result<Self, InvalidWorkspaceMemberPath> {
-        let value = value.into();
-        if value.is_empty()
+    pub fn is_valid(value: &str) -> bool {
+        !(value.is_empty()
             || value.starts_with('/')
             || value.ends_with('/')
             || value.contains('\\')
@@ -65,8 +64,12 @@ impl WorkspaceMemberPath {
                 component.is_empty()
                     || matches!(component, "." | "..")
                     || !component.bytes().all(is_portable_path_byte)
-            })
-        {
+            }))
+    }
+
+    pub fn parse(value: impl Into<String>) -> Result<Self, InvalidWorkspaceMemberPath> {
+        let value = value.into();
+        if !Self::is_valid(&value) {
             return Err(InvalidWorkspaceMemberPath);
         }
         Ok(Self(value))
@@ -111,7 +114,7 @@ impl BuildDeclaration {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum BuildDeclarationKind {
     Package,
     Application,

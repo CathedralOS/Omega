@@ -12,14 +12,20 @@
 //! native ABI policy. Authored layout closure retains a separate exact overlay.
 //! Each consumer establishes its own invocation from these facts.
 
+mod component_memberships;
 mod component_provider;
 mod entry_values;
 mod private_entry_ram;
 mod provider_installation;
+mod scalar_applications;
+mod synchronous_calls;
 mod target_families;
+pub use synchronous_calls::{SynchronousCallClosure, SynchronousCallGraph};
 
 pub use component_provider::{AdmittedComponentProvider, admit_component_provider};
-pub use entry_values::{TerminalPlacedViewEstablishment, TerminalStructuralValue};
+pub use entry_values::{
+    TerminalPlacedViewEstablishment, TerminalScalarValue, TerminalStructuralValue,
+};
 pub use private_entry_ram::{
     CheckedPrivateEntryRamRecipe, PrivateEntryRamInitialization, PrivateEntryRamRecipe,
     PrivateEntryRamScalarInitialization, admit_private_entry_ram,
@@ -31,9 +37,14 @@ pub use provider_installation::{
     admit_provider_installation, admit_provider_installation_from_artifact,
     admit_provider_installation_with_assumed_bindings_from_artifact,
 };
+pub use scalar_applications::{
+    AdmittedScalarApplications, ScalarAddressModel, ScalarApplicationClosure,
+    ScalarApplicationObservations, ScalarApplicationValues, ScalarConditionSelection,
+    ScalarLayoutObservationError, ScalarScopeInputs,
+};
 pub use target_families::{
     AdmittedTargetMachineSelections, TargetMachineSelection, TargetMachineSelectionError,
-    admit_target_machine_selections, resolve_target_machine_member,
+    admit_target_machine_selections, admitted_boundary_member, resolve_target_machine_member,
 };
 
 mod target_layouts;

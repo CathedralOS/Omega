@@ -84,6 +84,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::StructuralCase { .. }
         | abstract_operations::return_or_return_unit_pattern!()
         | O::ReturnStructural { .. }
+        | O::InvokeNoNormal { .. }
         | O::ExternalCompletion { .. }
         | O::Crash { .. } => control::encode(bytes, operation),
     }

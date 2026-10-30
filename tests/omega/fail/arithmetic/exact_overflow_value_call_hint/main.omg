@@ -22,7 +22,7 @@ machine Main::main(main: &mut Main, input: i32 in Wrapping) reaches Console {
     // can overflow even though every return in triple is now followed.
     main.s = triple(input) + 100;
     transition { _ -> done(main) }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(main.s as i32);
     }
 }

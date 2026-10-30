@@ -67,13 +67,16 @@ mod delivered_types;
 pub(crate) use call_carriers::argument_matches_call_carrier;
 mod reference_values;
 mod result_type;
+pub(crate) use result_type::{
+    BuiltinBinaryResult, builtin_binary_result, builtin_binary_result_type_reference,
+};
 mod scalar_observations;
 
 pub use match_dispatch::match_subject_primitive_type;
 pub use match_dispatch::validate_match_dispatch;
 pub use match_dispatch::{
     structural_match_cases_are_covered, structural_match_pattern_case,
-    structural_match_subject_type,
+    structural_match_pattern_is_total, structural_match_subject_type,
 };
 pub use result_type::{
     arithmetic_result_type_reference, expression_result_type_reference,
@@ -82,17 +85,21 @@ pub use result_type::{
 
 pub(crate) use delivered_types::report_delivered_type_mismatch;
 pub(crate) use reference_values::{
-    StorageWriteAccess, declared_reference_access, owned_rvalue_exclusive_reference_access,
+    StorageWriteAccess, owned_rvalue_exclusive_reference_access,
     place_forwarded_exclusive_reference_access, place_permits_reference_borrow,
     place_storage_write_access,
 };
+// The declared borrow a reference type spells is a place query; the expression
+// module's consumers read it through this re-export.
+pub(crate) use crate::value_custody::places::declared_reference_access;
 pub(crate) use result_type::declaration_expression_result_type_reference;
 pub(crate) use result_type::domain_expression_result_type_reference;
 pub(crate) use result_type::{
     cast_result_type_reference, operand_arithmetic_domain, selected_operator_result_type_reference,
 };
 pub(crate) use scalar_observations::{
-    builtin_scalar_operand_references, scalar_observation_meaning,
+    builtin_scalar_operand_references, readable_observation_type_reference,
+    scalar_observation_meaning,
 };
 
 pub(crate) use cast_validation::validate_cast_types;
@@ -102,7 +109,7 @@ pub(crate) use float_coercions::{
 
 pub(crate) use operator_validation::{
     report_non_bool_logical_not, report_non_integer_bitwise_not, report_non_integer_index,
-    validate_binary_operand_types,
+    validate_binary_operand_types, validate_builtin_comparison_operand_landing,
 };
 
 pub(crate) use shape_validation::{
@@ -145,6 +152,48 @@ pub fn argument_matches_type_reference_handle(
     argument_matches_type_reference_with_substitutions(program, argument, type_reference, &[])
 }
 
+/// Compare completed value types without consulting a receiving expression.
+/// References use the same declaration-backed correspondence as ordinary
+/// arguments: a shared view may forget a referee qualification, but cannot
+/// acquire access or a required qualification. Other values retain identity.
+pub(crate) fn completed_value_type_matches(
+    program: &dyn crate::CheckingInput,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+) -> bool {
+    crate::value_custody::type_references::type_references_match(program, actual, required)
+        || (actual.is_valid()
+            && required.is_valid()
+            && reference_values::reference_type_matches(program, actual, required, &[], &[]))
+}
+
+/// A completed operand selects a callable using its actual type. The ordinary
+/// argument validator deliberately defers scalar compatibility to other checks;
+/// its permissive syntax cases cannot distinguish overload parameter families.
+/// Reference correspondence retains the same access direction and referent
+/// identity as completed value delivery, under the callee's exact application.
+pub(crate) fn completed_call_operand_matches(
+    program: &dyn crate::CheckingInput,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    actual.is_valid()
+        && required.is_valid()
+        && (program.type_identity(TypeIdentityRequest::ordinary(actual))
+            == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                substitutions: required_substitutions,
+                ..TypeIdentityRequest::ordinary(required)
+            })
+            || reference_values::reference_type_matches(
+                program,
+                actual,
+                required,
+                &[],
+                required_substitutions,
+            ))
+}
+
 /// Declaration-backed correspondence under an exact simultaneous telescope.
 /// This does not establish proof facts, conversions, or borrowing authority.
 pub(crate) fn argument_matches_type_reference_with_substitutions(
@@ -175,52 +224,6 @@ pub(crate) fn argument_matches_carrier(
         type_reference,
         required_substitutions,
     );
-    // The opaque service shell does not erase its requirement identity. Normal
-    // generic carrier matching may defer an open data argument, but a Binding
-    // value must carry the same closed requirement identity.
-    // This only compares denotation: borrowing and establishment remain with
-    // their independent source custody checks.
-    let required_service = match typed_trees::service::classify_exact_service_parameter_carrier(
-        program,
-        typed_trees::service::ServiceCarrierOccurrence {
-            type_reference,
-            lexical_owner: scope,
-            enclosing_data_applications: &[],
-        },
-    ) {
-        Ok(service) => service,
-        Err(_) => return false,
-    };
-    if let Some(required) = required_service {
-        let source = program
-            .expression_table
-            .borrow_expression(argument)
-            .map_or(argument, |borrow| borrow.target);
-        let mut substitutions = Vec::new();
-        let Some(actual) =
-            reference_values::declared_value_type(program, source, &mut substitutions)
-                .and_then(|reference| {
-                    reference_values::substituted_reference(program, reference, &substitutions)
-                })
-                .and_then(|reference| {
-                    typed_trees::service::classify_exact_service_parameter_carrier(
-                        program,
-                        typed_trees::service::ServiceCarrierOccurrence {
-                            type_reference: reference,
-                            lexical_owner: scope,
-                            enclosing_data_applications: &[],
-                        },
-                    )
-                    .ok()
-                    .flatten()
-                })
-        else {
-            return false;
-        };
-        if actual.carrier != required.carrier {
-            return false;
-        }
-    }
     // A call may attenuate an explicit mutable borrow to shared access. The
     // referent still passes through ordinary carrier matching; the caller
     // separately proves required domains and validates loan exclusivity.
@@ -264,6 +267,14 @@ fn argument_matches_type_reference_using(
         type_reference,
         required_substitutions,
     );
+    if scalar_observations::primitive_delivery_matches(
+        program,
+        argument,
+        type_reference,
+        required_substitutions,
+    ) {
+        return true;
+    }
     if let Some(dispatch) = program.expression_table.match_node(argument) {
         // Selection changes which value arrives, not its required carrier.
         // Reference arms obey the same exact referent/access correspondence;
@@ -468,6 +479,7 @@ fn argument_matches_type_reference_using(
         if delivered_types::delivered_carrier_conflict(
             program,
             scope,
+            argument,
             actual.reference,
             &actual.substitutions,
             type_reference,
@@ -652,6 +664,25 @@ fn argument_matches_type_reference_using(
             name: type_name,
         } => {
             if let Some(primitive_type) = PrimitiveType::from_name(type_name) {
+                if matches!(argument_node, ExpressionNode::Atomic(_)) {
+                    let Some(actual) = delivered_types::delivered_value_type(program, argument)
+                    else {
+                        return false;
+                    };
+                    // A selected load has an exact resident carrier. Its
+                    // syntax cannot authorize a different width or format;
+                    // access, ordering and destination predicates retain
+                    // their independent checking obligations.
+                    return program.type_identity(TypeIdentityRequest {
+                        substitutions: &actual.substitutions,
+                        ..TypeIdentityRequest::ordinary(actual.reference)
+                    }) == program.type_identity_with_simultaneous_substitutions(
+                        TypeIdentityRequest {
+                            substitutions: required_substitutions,
+                            ..TypeIdentityRequest::ordinary(type_reference)
+                        },
+                    );
+                }
                 if crate::value_custody::literals::land_anonymous_integer_expression(
                     program,
                     argument,
@@ -759,8 +790,9 @@ fn argument_matches_type_reference_using(
 }
 
 /// Compiler-owned value members have declaration types without being storage
-/// places in a callable telescope. Share this exact-symbol query with both
-/// abstract and executed result typing; spelling and the host width add none.
+/// places in a callable telescope. Exact symbol custody supplies only the type,
+/// never a value, model-bound premise or authority. Abstract and executed result
+/// typing share this query; ordinary names retain their scoped binder lookup.
 fn builtin_member_type_reference(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
@@ -795,10 +827,7 @@ pub(crate) fn named_value_type_reference(
     // supplies the declared carrier; a same-spelled binder supplies nothing.
     if path.symbol.is_valid()
         && path.head_symbol == path.symbol
-        && let Some((_, parameter)) = program
-            .data_type_parameters
-            .iter()
-            .find(|(_, parameter)| parameter.symbol == path.symbol)
+        && let Some(parameter) = program.first_data_type_parameter_by_symbol(path.symbol)
         && let typed_trees::data::TypeParameterKind::Const { type_reference }
         | typed_trees::data::TypeParameterKind::Value { type_reference } = parameter.kind
     {
@@ -820,46 +849,11 @@ pub(crate) fn named_value_type_reference(
         return Some(type_reference);
     }
 
-    // Bodyless operators and trait signatures have formals but no executable
-    // state to visit below. Their formals share the parameter arena with state
-    // formals, so the exact retained symbol supplies the same declared type.
-    // This matters for anonymous contract endpoints: `input: f32` compared
-    // with `128.0` must land that literal as f32, not guess a default format.
-    if path.symbol.is_valid()
-        && path.head_symbol == path.symbol
-        && let Some((_, parameter)) = program
-            .state_parameters
-            .iter()
-            .find(|(_, parameter)| parameter.symbol == path.symbol)
-    {
-        return Some(parameter.type_reference);
-    }
-
-    for machine in program.machines() {
-        if let Some(owned) = program
-            .machine_owned_data(machine)
-            .iter()
-            .find(|owned| matches_symbol(owned.symbol))
-        {
-            return Some(owned.type_reference);
-        }
-        for state in program.machine_states(machine) {
-            if let Some(type_reference) = state_symbol_declared_type(program, state, matches_symbol)
-            {
-                return Some(type_reference);
-            }
-        }
-    }
-    for proposition in program.propositions() {
-        if let Some(parameter) = program
-            .proposition_parameters(proposition)
-            .iter()
-            .find(|parameter| matches_symbol(parameter.symbol))
-        {
-            return Some(parameter.type_reference);
-        }
-    }
-    None
+    // The shared declaration owner retains the same flat-formal precedence and
+    // full authored first-match order for both exact symbols. A missing hinted
+    // binder still searches the complete roster, without a whole-program walk
+    // for each named operand.
+    program.first_named_value_declared_type(path.symbol, path.head_symbol)
 }
 
 /// Parent-hinted lookup for [`named_value_type_reference`]. The retained
@@ -902,6 +896,24 @@ fn hinted_named_value_type_reference(
         // another declaration or case.
         symbols::SymbolKind::Data => {
             let definition = program.data_definition_by_symbol(parent)?;
+            if definition.predicate_subject_symbol.is_valid()
+                && matches_symbol(definition.predicate_subject_symbol)
+                && program
+                    .symbols
+                    .get(definition.predicate_subject_symbol)
+                    .parent
+                    == definition.symbol
+                && program
+                    .symbols
+                    .get(definition.predicate_subject_symbol)
+                    .kind
+                    == symbols::SymbolKind::Parameter
+            {
+                return definition
+                    .predicate_subject_type
+                    .is_valid()
+                    .then_some(definition.predicate_subject_type);
+            }
             program
                 .data_members(definition)
                 .iter()
@@ -1085,6 +1097,54 @@ pub(crate) fn expression_type_name_handle(
             typed_trees::expression::UnaryOperator::BitwiseNot => "integer",
             typed_trees::expression::UnaryOperator::LogicalNot => "bool",
         },
+        ExpressionNode::TypeExpression(_) => "static type operand",
         ExpressionNode::ZeroValue(_) => "zero-value representation observation",
     }
+}
+
+/// The store checks one slot runs on the value delivered to it, in the order
+/// the statement validators report them: the nominal conflict first, then the
+/// array/scalar and scalar/data shape guards. Each check still decides on its
+/// own evidence; this only names the roster a slot owes.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn report_place_value_mismatches(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: Option<&typed_trees::state::State>,
+    value: ExpressionHandle,
+    target_type: TypeReferenceHandle,
+    slot_context: &str,
+    slot_noun: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    report_data_type_conflict(
+        program,
+        machine,
+        state,
+        value,
+        target_type,
+        slot_context,
+        slot_noun,
+        diagnostics,
+    );
+    report_array_scalar_shape_mismatch(
+        program,
+        machine,
+        state,
+        value,
+        target_type,
+        slot_context,
+        slot_noun,
+        diagnostics,
+    );
+    report_scalar_data_shape_mismatch(
+        program,
+        machine,
+        state,
+        value,
+        target_type,
+        slot_context,
+        slot_noun,
+        diagnostics,
+    );
 }

@@ -6,7 +6,16 @@
 
 use super::super::NativeCompilerBuiltinSettlement;
 use diagnostics::Diagnostic;
-use effects::provider_plan::ProviderPlan;
+use effects::CompilerIntrinsicExecutionIdentity;
+use effects::provider_plan::{ProviderPlan, ServiceSchema};
+
+/// A projected callable keeps its original semantic contract. Ordinary plans
+/// already own that contract, so their proposals retain only the plan index.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CompilerIntrinsicSemanticSchema {
+    SelectedPlan,
+    Satisfied(ServiceSchema),
+}
 
 /// What derivation settled for one demanded intrinsic row. Derivation covers
 /// the complete canonical program once and is shared by every entry (main and
@@ -18,8 +27,14 @@ use effects::provider_plan::ProviderPlan;
 /// calls) omits it with the rest of its out-of-scope occurrences.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalCompilerBuiltinSettlement {
-    /// The catalog execution the local target lowerer admits.
-    Execution(target_operations::CompilerBuiltinExecution),
+    /// The exact closed intrinsic identity derivation selected for this row and
+    /// the catalog execution the local target lowerer admits. Derivation
+    /// records both on the value it emits; admission reads them instead of
+    /// re-deriving the identity from the execution.
+    Execution {
+        identity: CompilerIntrinsicExecutionIdentity,
+        execution: target_operations::CompilerBuiltinExecution,
+    },
     /// The selected row's execution has no closed native catalog identity.
     NoClosedCatalogIdentity,
     /// The closed identity has no native boundary realization in the catalog.
@@ -37,20 +52,29 @@ pub struct TerminalCompilerBuiltinProposal {
     provider_plan_index: usize,
     boundary: semantic_vocabulary::BoundaryMachineId,
     settlement: TerminalCompilerBuiltinSettlement,
+    semantic_schema: CompilerIntrinsicSemanticSchema,
 }
 
 impl TerminalCompilerBuiltinProposal {
-    pub(crate) const fn new(
+    pub(crate) fn new(
         requirement_identity: String,
         provider_plan_index: usize,
         boundary: semantic_vocabulary::BoundaryMachineId,
         settlement: TerminalCompilerBuiltinSettlement,
+        semantic_schema: &ServiceSchema,
+        selected_schema: &ServiceSchema,
     ) -> Self {
+        let semantic_schema = if semantic_schema == selected_schema {
+            CompilerIntrinsicSemanticSchema::SelectedPlan
+        } else {
+            CompilerIntrinsicSemanticSchema::Satisfied(semantic_schema.clone())
+        };
         Self {
             requirement_identity,
             provider_plan_index,
             boundary,
             settlement,
+            semantic_schema,
         }
     }
 
@@ -68,6 +92,16 @@ impl TerminalCompilerBuiltinProposal {
 
     pub const fn settlement(&self) -> TerminalCompilerBuiltinSettlement {
         self.settlement
+    }
+
+    fn semantic_schema<'request>(
+        &'request self,
+        provider_plan: &'request ProviderPlan,
+    ) -> &'request ServiceSchema {
+        match &self.semantic_schema {
+            CompilerIntrinsicSemanticSchema::SelectedPlan => &provider_plan.schema,
+            CompilerIntrinsicSemanticSchema::Satisfied(schema) => schema,
+        }
     }
 }
 
@@ -91,6 +125,7 @@ pub(crate) fn prepare_retained_compiler_builtins<'request>(
             Ok(NativeCompilerBuiltinSettlement {
                 requirement_identity: builtin.requirement_identity(),
                 provider_plan,
+                semantic_schema: builtin.semantic_schema(provider_plan),
                 boundary: builtin.boundary(),
                 settlement: builtin.settlement(),
             })

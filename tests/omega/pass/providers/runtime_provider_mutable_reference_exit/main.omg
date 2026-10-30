@@ -13,5 +13,5 @@ machine main() reaches ErrorAccess crashes Trap {
  let error: &mut ErrorNumber = ErrorAccess::locate();
  error.value = 42;
  transition error.value == 42 { true -> done() false -> bad() }
- state done() {} state bad() { crash Trap; }
+ machine done() {} machine bad() { crash Trap; }
 }

@@ -3,6 +3,7 @@ use super::{
     SelectedInstructionKind, ValidatedPhysicalRegisterModel, encode_aarch64_selected_memory_form,
     validate_aarch64_selected_memory_form,
 };
+use crate::test_support::reject_every_bit_flip;
 #[test]
 fn pointer_store_known_bytes_preserve_the_requested_width() {
     let physical =
@@ -183,22 +184,17 @@ fn check_replay(
             MachineEncodedMemoryEffect::NoneV1
         }
     );
-    for bit in 0..encoded.bytes().len() * 8 {
-        let mut corrupt = encoded.bytes().to_vec();
-        corrupt[bit / 8] ^= 1 << (bit % 8);
-        assert!(
-            validate_aarch64_selected_memory_form(
-                physical,
-                kind,
-                alternative,
-                operands,
-                displacement,
-                &corrupt
-            )
-            .is_err(),
-            "{kind:?} bit {bit}"
-        );
-    }
+    reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |corrupt| {
+        validate_aarch64_selected_memory_form(
+            physical,
+            kind,
+            alternative,
+            operands,
+            displacement,
+            &corrupt,
+        )
+        .is_err()
+    });
     for end in 0..encoded.bytes().len() {
         assert!(
             validate_aarch64_selected_memory_form(

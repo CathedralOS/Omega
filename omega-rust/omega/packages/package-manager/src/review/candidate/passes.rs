@@ -45,19 +45,18 @@ pub(crate) fn review_resolved_packages(
     candidate: CandidateReview<'_, '_>,
     session: &mut PackageBuildSession,
     source_bindings: &mut PackageSourceBindings,
-    execute: PackageReviewExecutor,
+    execute: &mut PackageReviewExecutor<'_>,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
     session.require_open()?;
-    review_candidate(candidate, session, source_bindings, execute).map(|compiled| compiled.reviews)
+    review_candidate(candidate, source_bindings, execute).map(|compiled| compiled.reviews)
 }
 
 /// The candidate route shared by package commands and read-only audit;
 /// see [`CandidateReview`] for what the request carries.
 fn review_candidate(
     candidate: CandidateReview<'_, '_>,
-    session: &mut PackageBuildSession,
     source_bindings: &mut PackageSourceBindings,
-    execute: PackageReviewExecutor,
+    execute: &mut PackageReviewExecutor<'_>,
 ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
     let CandidateReview {
         target_closure,
@@ -81,7 +80,6 @@ fn review_candidate(
         note_pass_accounting("discovery", || {
             review_pass(
                 target_closure,
-                session,
                 &[],
                 root_build_snapshot,
                 TargetEntryDiscovery::Dependencies,
@@ -118,7 +116,6 @@ fn review_candidate(
     note_pass_accounting("bound", || {
         review_pass(
             target_closure,
-            session,
             &discovered,
             root_build_snapshot,
             TargetEntryDiscovery::Disabled,
@@ -166,13 +163,12 @@ fn note_pass_accounting(
 
 fn review_pass(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
-    session: &mut PackageBuildSession,
     bindings: &[ConsumerScopedSemanticBindingReviewInput],
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     discovery: TargetEntryDiscovery,
     prior: Option<&RetainedPackageReviews>,
     source_bindings: &mut PackageSourceBindings,
-    execute: PackageReviewExecutor,
+    execute: &mut PackageReviewExecutor<'_>,
 ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
     let execution_profile = target::TargetProfile::host_if_supported();
@@ -201,5 +197,5 @@ fn review_pass(
         discovery,
         prior,
     )?;
-    execute(plan, session, source_bindings)
+    execute(plan, source_bindings)
 }

@@ -27,8 +27,8 @@ machine exercise(initial: i32, replacement: i32) crashes Trap {
         replaced: Holder::replace(&mut holder, replacement)
     }, initial);
     transition accepted { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine Main::main(main: &mut Main) crashes Trap {

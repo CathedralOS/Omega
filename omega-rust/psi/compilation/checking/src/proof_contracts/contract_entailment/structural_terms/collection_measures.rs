@@ -34,12 +34,9 @@ pub(in crate::proof_contracts::contract_entailment) fn observed_collection_measu
     collection: impl FnOnce() -> Option<StructuralTerm>,
 ) -> Option<StructuralTerm> {
     if measure == CollectionMeasure::Length
-        && let Some(extent) =
-            crate::value_custody::places::fixed_array_type_length(program, receiver)
+        && let Some(extent) = fixed_array_extent_term(program, receiver)
     {
-        return Some(StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(
-            u64::try_from(extent).ok()?,
-        )));
+        return Some(extent);
     }
     // A direct view carries its own extent. Another reference around a slice
     // instead points at a replaceable descriptor home; its current extent
@@ -123,8 +120,22 @@ pub(in crate::proof_contracts::contract_entailment) fn completed_collection_meas
         }
         _ => return None,
     };
-    let extent = crate::value_custody::places::fixed_array_type_length(program, reference)?;
-    Some(StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(
-        u64::try_from(extent).ok()?,
-    )))
+    fixed_array_extent_term(program, reference)
+}
+
+fn fixed_array_extent_term(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<StructuralTerm> {
+    match crate::value_custody::places::fixed_array_type_extent(program, reference)? {
+        typed_trees::types::FixedArrayLength::Literal(extent) => Some(StructuralTerm::Integer(
+            numerics::bignum::BigInt::from_u64(u64::try_from(*extent).ok()?),
+        )),
+        typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. }
+            if symbol.is_valid() =>
+        {
+            Some(StructuralTerm::BoundValue(*symbol))
+        }
+        _ => None,
+    }
 }

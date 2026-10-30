@@ -25,22 +25,24 @@ use sections::plan_elf_sections;
 const EM_X86_64: u16 = 62;
 const EM_AARCH64: u16 = 183;
 
-pub fn emit_elf_aarch64_executable(image: FinalImage) -> Result<ExecutableImageOutput, Diagnostic> {
-    emit_elf_executable(image, EM_AARCH64, "elf64-aarch64-executable")
-}
-
-pub fn emit_elf_x86_64_executable(image: FinalImage) -> Result<ExecutableImageOutput, Diagnostic> {
-    emit_elf_executable(image, EM_X86_64, "elf64-x86-64-executable")
-}
-
-/// Shared ELF64 executable emitter. The ELF container is architecture-agnostic
-/// apart from `e_machine` and the relocation application, both derived from the
-/// image.
-fn emit_elf_executable(
-    mut image: FinalImage,
-    machine: u16,
-    format: &str,
-) -> Result<ExecutableImageOutput, Diagnostic> {
+/// Emit the static ELF64 executable for the image's own target: `e_machine` and
+/// the published format name are read off it, and a target off the two hosted
+/// ELF diagonals is refused before any byte is written.
+pub fn emit_elf_executable(mut image: FinalImage) -> Result<ExecutableImageOutput, Diagnostic> {
+    let (machine, format) = match (image.target.object_format, image.target.architecture) {
+        (target::ObjectFormat::Elf, target::Architecture::Aarch64) => {
+            (EM_AARCH64, "elf64-aarch64-executable")
+        }
+        (target::ObjectFormat::Elf, target::Architecture::X86_64) => {
+            (EM_X86_64, "elf64-x86-64-executable")
+        }
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "ELF64 executable emission cannot supply an image whose target is {:?}",
+                image.target,
+            )));
+        }
+    };
     let imports = canonical_referenced_imports(&image)?;
     if let Some(import) = imports.first() {
         let message = match &import.locator {

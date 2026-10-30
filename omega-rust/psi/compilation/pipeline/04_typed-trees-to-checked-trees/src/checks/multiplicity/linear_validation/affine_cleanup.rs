@@ -71,7 +71,7 @@ fn visit_owned_cleanup_events(
             .iter()
             .find(|place| place.root == root && place.path.is_empty());
         if let Some(place) = tracked_root {
-            if !place.live && !remaining.is_reserved(root) {
+            if !place.live && !remaining.has_storage_frontier(root) {
                 return;
             }
         } else if validation::reference_result_custody::result_multiplicity(program, type_reference)
@@ -88,7 +88,7 @@ fn visit_owned_cleanup_events(
         // still needs an ordinary exit disposition with the actual transfers
         // excluded. A whole-owner transfer, unlike a projection transfer,
         // leaves no source home to retire.
-        if !remaining.is_present(root, &[]) && !remaining.is_reserved(root) {
+        if !remaining.is_present(root, &[]) && !remaining.has_storage_frontier(root) {
             return;
         }
         let mut paths = remaining
@@ -179,6 +179,8 @@ fn visit_owned_cleanup_events(
 
 /// One exact owned region uses the same eligibility and claim receipts at a
 /// normal exit or replacement, including a retained skipped-transfer region.
+/// Returns false when that region has no eligible cleanup; an eligible
+/// unrestricted region may succeed without emitting an action.
 pub(crate) fn append_owned_region_cleanup_permission_events(
     program: &dyn validation::CheckingInput,
     reference: TypeReferenceHandle,
@@ -189,7 +191,7 @@ pub(crate) fn append_owned_region_cleanup_permission_events(
     template: FlowPermissionEventFact,
     segments: &mut arena::PagedArenaSet<facts::PlaceSegment>,
     permission_events: &mut Vec<FlowPermissionEventFact>,
-) {
+) -> bool {
     visit_owned_region_cleanup_events(
         program,
         reference,
@@ -202,7 +204,7 @@ pub(crate) fn append_owned_region_cleanup_permission_events(
             event.segments = segments.insert_many(path);
             permission_events.push(event);
         },
-    );
+    )
 }
 
 fn visit_owned_region_cleanup_events(
@@ -214,7 +216,7 @@ fn visit_owned_region_cleanup_events(
     remaining: &super::super::cleanup_dispositions::RemainingCustody,
     template: FlowPermissionEventFact,
     mut emit: impl FnMut(FlowPermissionEventFact, Vec<facts::PlaceSegment>),
-) {
+) -> bool {
     let region_claim = tracked_places
         .iter()
         .find(|place| place.root == root && place.path == path && place.live);
@@ -228,7 +230,7 @@ fn visit_owned_region_cleanup_events(
         |place| place.multiplicity,
     );
     if multiplicity == Multiplicity::Unrestricted {
-        return;
+        return true;
     }
     let Some(receipts) = super::super::owned_cleanup::claim_receipts(
         program,
@@ -239,7 +241,7 @@ fn visit_owned_region_cleanup_events(
         &remaining.removed_paths(program, root, path),
         &remaining.inactive_case_paths(root, path),
     ) else {
-        return;
+        return false;
     };
     let event = FlowPermissionEventFact {
         kind: if multiplicity == Multiplicity::Linear {
@@ -279,6 +281,7 @@ fn visit_owned_region_cleanup_events(
             .expect("eligible cleanup has exact provenance");
         emit(receipt, place.path.to_vec());
     }
+    true
 }
 
 /// Reconstruct the selected exit from current custody before accepting its

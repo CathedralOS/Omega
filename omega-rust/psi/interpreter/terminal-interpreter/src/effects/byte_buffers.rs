@@ -135,7 +135,9 @@ impl BoundaryArguments {
                         values.get(&parameter.place).ok_or_else(malformed)?,
                     )
             } else {
-                parameter.access == view.access()
+                terminal_semantics::borrowed_storage_reference_ceiling(parameter, types.values())
+                    .unwrap_or(parameter.access)
+                    == view.access()
                     && parameter.multiplicity == StructuralMultiplicity::Unrestricted
                     && if matches!(
                         types.get(&parameter.structural_type).map(|row| &row.shape),
@@ -178,7 +180,12 @@ impl BoundaryArguments {
                 ByteSequenceBinding::Immutable(_) => StructuralAccess::SharedBorrow,
                 ByteSequenceBinding::MutableField { .. }
                 | ByteSequenceBinding::MutableOwner { .. }
-                    if parameter.access == StructuralAccess::WriteOnlyBorrow =>
+                    if terminal_semantics::borrowed_storage_reference_ceiling(
+                        parameter,
+                        types.values(),
+                    )
+                    .unwrap_or(parameter.access)
+                        == StructuralAccess::WriteOnlyBorrow =>
                 {
                     StructuralAccess::WriteOnlyBorrow
                 }
@@ -186,7 +193,9 @@ impl BoundaryArguments {
                 | ByteSequenceBinding::MutableOwner { .. }
                 | ByteSequenceBinding::MutableArray { .. } => StructuralAccess::MutableBorrow,
             };
-            if parameter.access != access
+            if terminal_semantics::borrowed_storage_reference_ceiling(parameter, types.values())
+                .unwrap_or(parameter.access)
+                != access
                 || (parameter.multiplicity != StructuralMultiplicity::Unrestricted
                     && !terminal_semantics::view_descriptor_parameter(parameter, types.values()))
                 || !parameter.projected_qualifications.is_empty()
@@ -212,9 +221,18 @@ impl BoundaryArguments {
             values,
             byte_sequences,
             primitive_loans,
-            scalar_arrays: RuntimeRows::new(account),
+            scalar_arrays: crate::scalar_array::ScalarArrayBindings::new(account),
             element_views,
         })
+    }
+
+    pub(crate) fn capture_reference_inputs(
+        &mut self,
+        declaration: &terminal_psi::BoundaryMachineDeclaration,
+        arguments: &[StructuralArgument],
+    ) -> Result<(), TerminalInterpretError> {
+        self.storage_inputs
+            .capture_reference_inputs(declaration, arguments, &self.values)
     }
 
     /// A handler can reorder its slice, but cannot thereby retarget writeback.
@@ -222,6 +240,7 @@ impl BoundaryArguments {
     pub(crate) fn validate_writeback(
         &mut self,
         execution: &TerminalExecution,
+        declaration: &terminal_psi::BoundaryMachineDeclaration,
     ) -> Result<(), TerminalInterpretError> {
         if self.buffers.len() != self.bindings.len() {
             return Err(malformed());
@@ -229,7 +248,11 @@ impl BoundaryArguments {
         for (buffer, binding) in self.buffers.iter().zip(&self.bindings) {
             binding.validate(execution, buffer)?;
         }
-        self.storage_inputs.validate_writeback(execution)
+        self.storage_inputs.validate_writeback(
+            execution,
+            declaration,
+            &mut self.local_identity_cursor,
+        )
     }
 
     pub(crate) fn commit(
@@ -240,6 +263,22 @@ impl BoundaryArguments {
             binding.commit(execution, buffer)?;
         }
         self.storage_inputs.commit(execution)
+    }
+
+    pub(crate) fn prepare_original_storage(
+        &mut self,
+        execution: &mut TerminalExecution,
+        handler: &mut impl crate::effects::TerminalEffectHandler,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        original: bool,
+    ) -> Result<(), TerminalInterpretError> {
+        self.storage_inputs.prepare_original_storage(
+            execution,
+            handler,
+            boundary,
+            &mut self.local_identity_cursor,
+            original,
+        )
     }
 
     /// After input validation, publish the staged allocation cursor before a
@@ -259,6 +298,8 @@ impl TerminalExecution<'_> {
         parameters: &[StructuralParameterDeclaration],
         arguments: &[StructuralArgument],
         storage_arguments: &[usize],
+        normal_qualifications: &[terminal_psi::StructuralDomainRequirement],
+        original: bool,
     ) -> Result<BoundaryArguments, TerminalInterpretError> {
         if parameters.len() != arguments.len() {
             return Err(malformed());
@@ -310,6 +351,27 @@ impl TerminalExecution<'_> {
             }
             let parameter = parameters.get(argument_index).ok_or_else(malformed)?;
             let argument = arguments.get(argument_index).ok_or_else(malformed)?;
+            if original
+                && matches!(
+                    self.program
+                        .structural_types()
+                        .get(&parameter.structural_type)
+                        .ok_or_else(malformed)?
+                        .shape,
+                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
+                )
+            {
+                resolved.storage_inputs.capture_byte_view(
+                    self,
+                    parameter,
+                    &resolved.values[argument_index],
+                    resolved.byte_sequences[argument_index]
+                        .as_ref()
+                        .ok_or_else(malformed)?,
+                    argument_index,
+                )?;
+                continue;
+            }
             if !matches!(
                 parameter.access,
                 StructuralAccess::Owned | terminal_psi::reading_borrow_pair_pattern!()
@@ -326,28 +388,29 @@ impl TerminalExecution<'_> {
                     StructuralTypeShape::PrimitiveScalar(_)
                 )
             {
-                if resolved
-                    .aggregate_backings
-                    .get(argument_index)
-                    .is_some_and(Option::is_some)
-                {
-                    // Host replacement still requires an exact backing-cell
-                    // projection. Logical ingress alone cannot name its fields.
-                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                        "aggregate re-view host storage needs its backing field projection",
-                    ));
-                }
-                resolved.storage_inputs.capture_fields(
-                    self,
-                    parameter,
-                    argument,
-                    &resolved.values[argument_index],
-                    resolved.element_views[argument_index].as_ref(),
-                    argument_index,
-                )?;
+                resolved
+                    .storage_inputs
+                    .capture_fields(
+                        self,
+                        parameter,
+                        argument,
+                        &resolved.values[argument_index],
+                        resolved.element_views[argument_index].as_ref(),
+                        resolved.aggregate_backings[argument_index].as_ref(),
+                        argument_index,
+                        normal_qualifications,
+                    )
+                    .map_err(|error| error.in_argument_preparation("capture host storage cells"))?;
             }
         }
         for (argument_index, binding) in resolved.byte_sequences.iter().enumerate() {
+            if resolved.storage_inputs.buffers.iter().any(|buffer| matches!(buffer,
+                crate::TerminalBoundaryStorageBuffer::ByteView(buffer) if buffer.argument_index() == argument_index)) {
+                // Captured original windows have their own completion. Never
+                // also stage their native bytes into the legacy writeback path.
+                resolved.bytes.push(None);
+                continue;
+            }
             match binding {
                 None => resolved.bytes.push(None),
                 Some(ByteSequenceBinding::Immutable(view)) => {
@@ -500,6 +563,22 @@ impl TerminalExecution<'_> {
         local_array_roots: &mut RuntimeRows<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
     ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
     {
+        if terminal_semantics::borrowed_storage_parameter(
+            parameter,
+            self.program.structural_types().values(),
+        ) && self
+            .program
+            .structural_types()
+            .get(&parameter.structural_type)
+            .is_some_and(|row| terminal_semantics::stored_reference_access(&row.shape).is_some())
+            && terminal_semantics::borrowed_storage_reference_ceiling(
+                parameter,
+                self.program.structural_types().values(),
+            )
+            .is_none()
+        {
+            return Ok(None);
+        }
         if let Some(prepared) = self.prepare_byte_descriptor_argument(parameter, argument)? {
             return Ok(Some(prepared));
         }
@@ -641,10 +720,7 @@ impl TerminalExecution<'_> {
         if argument.access != StructuralAccess::SharedBorrow
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
             || !parameter.projected_qualifications.is_empty()
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(argument.place))
+            || crate::custody::place_is_claimed(&self.live_claims, argument.place)
         {
             return Err(malformed());
         }

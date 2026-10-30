@@ -10,6 +10,7 @@ use terminal_semantics::descriptor_results::{
 pub(crate) fn validate_compatibility(
     unit: &PsiOptimizationUnit,
     requirements: &BTreeMap<MachineId, Vec<DescriptorCompatibilityRequirement>>,
+    view_graph: Option<&[terminal_semantics::descriptor_results::DescriptorMachine]>,
 ) -> Result<(), OptimizationUnitValidationError> {
     if requirements.values().all(Vec::is_empty) {
         return Ok(());
@@ -31,21 +32,14 @@ pub(crate) fn validate_compatibility(
             place,
         )
     };
-    let graph = crate::descriptor_results::optimized_catalog_graph(
-        unit.functions.iter(),
-        &unit.boundary_machines,
-        &unit.structural_types,
-        &unit.dynamic_dispatch,
-        |_, node| Some(std::borrow::Cow::Borrowed(&node.operation)),
-    )
-    .ok_or_else(|| {
+    let graph = view_graph.ok_or_else(|| {
         let (&machine, rows) = requirements
             .iter()
             .find(|(_, rows)| !rows.is_empty())
             .expect("nonempty requirements");
         error(machine, rows[0].position)
     })?;
-    let mut analysis = DescriptorAnalysis::new(&unit.structural_types, &graph);
+    let mut analysis = DescriptorAnalysis::new(&unit.structural_types, graph);
     let residuals = analysis
         .compatibility_requirements(requirements)
         .map_err(|failure| error(failure.machine, failure.position))?;

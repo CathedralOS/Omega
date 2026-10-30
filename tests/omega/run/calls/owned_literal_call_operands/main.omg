@@ -10,6 +10,6 @@ machine main() crashes Trap {
  let first: bool = accepted(inspect("abc"));
  let second: bool = accepted(inspect("xyz"));
  transition first && second { true -> done() false -> wrong() }
- state done() {}
- state wrong() { crash Trap; }
+ machine done() {}
+ machine wrong() { crash Trap; }
 }

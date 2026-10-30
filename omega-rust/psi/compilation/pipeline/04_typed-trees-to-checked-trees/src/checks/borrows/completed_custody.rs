@@ -147,6 +147,11 @@ pub(crate) fn require_unborrowed_completion(
         }
         let borrowed = CapturedPlace {
             incoming_reference: loan.incoming_reference,
+            incoming_owner_path: facts
+                .borrow
+                .access_segments
+                .span_or_empty(loan.incoming_owner_path)
+                .to_vec(),
             root: loan.root,
             segments: facts
                 .borrow
@@ -157,6 +162,7 @@ pub(crate) fn require_unborrowed_completion(
         for parent in parents {
             let owned = CapturedPlace {
                 incoming_reference: Default::default(),
+                incoming_owner_path: Default::default(),
                 root: parent.root,
                 segments: parent.segments.clone(),
             };
@@ -251,10 +257,10 @@ pub(crate) fn require_unborrowed_completion(
                 facts,
                 state_flow,
                 operand.statement_index,
-                statement.entry_constraints,
                 active.iter().copied(),
                 CapturedPlace {
                     incoming_reference: Default::default(),
+                    incoming_owner_path: Default::default(),
                     root: access.root,
                     segments: facts.borrow.access_segments(access).to_vec(),
                 },
@@ -263,6 +269,7 @@ pub(crate) fn require_unborrowed_completion(
             for parent in parents {
                 let owned = CapturedPlace {
                     incoming_reference: Default::default(),
+                    incoming_owner_path: Default::default(),
                     root: parent.root,
                     segments: parent.segments.clone(),
                 };

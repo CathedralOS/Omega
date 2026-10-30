@@ -17,6 +17,7 @@ pub(super) fn validate_receiverless_call(
     scope: &CallScope<'_>,
     arguments: &[ExpressionHandle],
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let CallScope {
         program,
@@ -48,6 +49,7 @@ pub(super) fn validate_receiverless_call(
             &call.machine_arguments,
             writable_roots,
             diagnostics,
+            formation_obligations,
         );
         return;
     }
@@ -70,6 +72,7 @@ pub(super) fn validate_receiverless_call(
             writable_roots,
             diagnostics,
             state.name.as_str(),
+            formation_obligations,
         );
         return;
     }
@@ -93,6 +96,7 @@ pub(super) fn validate_receiverless_call(
             writable_roots,
             diagnostics,
             call.target.as_str(),
+            formation_obligations,
         );
         return;
     }
@@ -150,6 +154,7 @@ pub(super) fn validate_receiverless_call(
         writable_roots,
         diagnostics,
         call.target.as_str(),
+        formation_obligations,
     );
 }
 
@@ -171,6 +176,7 @@ fn validate_resolved_receiverless_call(
     // free-machine or sibling resolution, the resolved state's name when a
     // cross-machine symbol already named the callable.
     target_name: &str,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     validate_result_use(program, call, target_name, state.return_type, diagnostics);
     validate_resolved_call_arguments(
@@ -185,6 +191,7 @@ fn validate_resolved_receiverless_call(
         call,
         writable_roots,
         diagnostics,
+        formation_obligations,
     );
     validate_machine_call_type_parameter_bounds(
         program,

@@ -27,6 +27,21 @@ pub struct OptimizationPassManifestRecord {
     work_usage: OptimizationWorkUsage,
 }
 
+crate::record_views! {
+    record OptimizationPassManifestRecord;
+    shared {
+        pass: OptimizationPassIdentity,
+        input: OptimizationUnitIdentity,
+        output: OptimizationUnitIdentity,
+        ordered_rule_set: OptimizationRuleSetIdentity,
+        work_usage: OptimizationWorkUsage,
+    }
+    slice {
+        ordered_rules: OptimizationRuleIdentity,
+        decisions: OptimizationDecisionRecord,
+    }
+}
+
 impl OptimizationPassManifestRecord {
     pub fn new(
         pass: OptimizationPassIdentity,
@@ -99,34 +114,6 @@ impl OptimizationPassManifestRecord {
         encoded
     }
 
-    pub const fn pass(&self) -> OptimizationPassIdentity {
-        self.pass
-    }
-
-    pub const fn input(&self) -> OptimizationUnitIdentity {
-        self.input
-    }
-
-    pub const fn output(&self) -> OptimizationUnitIdentity {
-        self.output
-    }
-
-    pub const fn ordered_rule_set(&self) -> OptimizationRuleSetIdentity {
-        self.ordered_rule_set
-    }
-
-    pub fn ordered_rules(&self) -> &[OptimizationRuleIdentity] {
-        &self.ordered_rules
-    }
-
-    pub fn decisions(&self) -> &[OptimizationDecisionRecord] {
-        &self.decisions
-    }
-
-    pub const fn work_usage(&self) -> OptimizationWorkUsage {
-        self.work_usage
-    }
-
     pub fn decode(encoded: &[u8]) -> Result<Self, OptimizationManifestDecodeError> {
         let mut cursor = Cursor::new(encoded);
         if cursor.take(8)? != PASS_WIRE_FORMAT.magic {
@@ -140,18 +127,12 @@ impl OptimizationPassManifestRecord {
         let input = OptimizationUnitIdentity::from_bytes(cursor.array()?);
         let output = OptimizationUnitIdentity::from_bytes(cursor.array()?);
         let ordered_rule_set = OptimizationRuleSetIdentity::from_bytes(cursor.array()?);
-        let rule_count = cursor.u32()? as usize;
-        if rule_count > cursor.remaining() / 32 {
-            return Err(OptimizationManifestDecodeError::Truncated);
-        }
+        let rule_count = cursor.counted(32)?;
         let mut ordered_rules = Vec::with_capacity(rule_count);
         for _ in 0..rule_count {
             ordered_rules.push(OptimizationRuleIdentity::from_bytes(cursor.array()?));
         }
-        let decision_count = cursor.u32()? as usize;
-        if decision_count > cursor.remaining() / (4 + DECISION_FIXED_WIDTH) {
-            return Err(OptimizationManifestDecodeError::Truncated);
-        }
+        let decision_count = cursor.counted(4 + DECISION_FIXED_WIDTH)?;
         let mut decisions = Vec::with_capacity(decision_count);
         for _ in 0..decision_count {
             let length = cursor.u32()? as usize;

@@ -1,0 +1,27 @@
+// Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
+// Expected exit: 0
+data Counter [copy] where self.value <= 60 { value: i32; }
+
+machine produce(replacement: i32) -> Counter
+requires replacement <= 60
+{
+    let mut counter: Counter = Counter { value: 0 };
+    fill(&mut counter, replacement);
+    counter
+
+    machine fill(counter: &mut Counter, replacement: i32) {
+        counter.value = replacement;
+    }
+}
+
+machine compute(counter: Counter) -> i32 {
+    transition { _ -> next(counter) }
+    machine next(counter: Counter) -> i32 { 70 + counter.value }
+}
+machine main() crashes Trap {
+    let counter: Counter = produce(60);
+    let low: Counter = produce(-2147483648);
+    transition compute(counter) == 130 && compute(low) == -2147483578 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

@@ -1,8 +1,8 @@
 use omega::language::core::drop;
 data Registration [linear] { module: u64; atom: u64; }
-domain Registration::Held(registration) requires registration.module != 0 established by acquire, acquire_live;
-domain Registration::Vacant(registration) requires registration.atom == 0;
-domain Registration::Live(registration) requires registration.atom != 0 established by acquire_live;
+domain Registration::Held requires self.module != 0 established by acquire, acquire_live;
+domain Registration::Vacant requires self.atom == 0;
+domain Registration::Live requires self.atom != 0 established by acquire_live;
 domain Registration::Available = Held & Vacant;
 domain Registration::Installed = Held & Live;
 machine Registration::drop(registration: &mut Registration)

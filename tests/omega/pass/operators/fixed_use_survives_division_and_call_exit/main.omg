@@ -7,7 +7,7 @@ machine Main::main(main: &mut Main) reaches Console {
         ByteRead::Eof -> emit(main, 37)
         ByteRead::Byte { value } -> emit(main, (value as i32 in Wrapping) % 82)
     }
-    state emit(main: &mut Main, value: i32 in Wrapping) {
+    machine emit(main: &mut Main, value: i32 in Wrapping) {
         number(value);
         number(81);
         Console::exit_process(0);
@@ -21,11 +21,11 @@ machine number(value: i32 in Wrapping) reaches Console {
         true -> higher(value)
         _ -> digit(value)
     }
-    state higher(value: i32 in Wrapping) {
+    machine higher(value: i32 in Wrapping) {
         Console::write_byte(((value / 10) + 48) as i32);
         transition { _ -> digit(value % 10) }
     }
-    state digit(value: i32 in Wrapping) {
+    machine digit(value: i32 in Wrapping) {
         Console::write_byte((value + 48) as i32);
     }
 }

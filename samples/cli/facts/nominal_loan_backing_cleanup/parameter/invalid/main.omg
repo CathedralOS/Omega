@@ -81,13 +81,13 @@ requires room.count == 10
 reaches Console crashes Trap {
 
  transition { _ -> observe(&mut room) }
- state observe(room: &mut Room) {
+ machine observe(room: &mut Room) {
   Console::write_byte(79);
  room.count = 11;
   transition room.count == 11 { true -> seen() false -> bad() }
  }
- state seen() {}
- state bad() { crash Trap; }
+ machine seen() {}
+ machine bad() { crash Trap; }
 
 }
 data Main {}

@@ -10,14 +10,14 @@ public machine distance(x: f64, y: f64, site_x: f64, site_y: f64) -> f64 {
 }
 public machine area(polygon: &Polygon) -> f64 {
     transition { _ -> edge(polygon, 0, 0.0) }
-    state edge(polygon: &Polygon, index: u64, sum: f64) -> f64 {
+    machine edge(polygon: &Polygon, index: u64, sum: f64) -> f64 {
         let count: u64 = polygon.count;
         transition count > 0 && count <= 32 && index < count && index < 32 {
             true -> add(polygon, index, sum, count)
             false -> (sum * 0.5)
         }
     }
-    state add(polygon: &Polygon, index: u64, sum: f64, count: u64) -> f64
+    machine add(polygon: &Polygon, index: u64, sum: f64, count: u64) -> f64
     requires index < 32 && count > 0 && count <= 32
     {
         let next: u64 = (index + 1) % count;
@@ -29,14 +29,14 @@ public machine area(polygon: &Polygon) -> f64 {
 // This rejects repeated vertices, collinearity, self-intersections and CW order.
 public machine boundary_valid(polygon: &Polygon) -> bool {
     transition { _ -> edge(polygon, 0) }
-    state edge(polygon: &Polygon, index: u64) -> bool {
+    machine edge(polygon: &Polygon, index: u64) -> bool {
         let count: u64 = polygon.count;
         transition count > 0 && count <= 32 && index < count && index < 32 {
             true -> vertex(polygon, index, (index + 1) % count, 0)
             false -> (true)
         }
     }
-    state vertex(polygon: &Polygon, index: u64, next: u64, other: u64) -> bool
+    machine vertex(polygon: &Polygon, index: u64, next: u64, other: u64) -> bool
     requires index < 32 && next < 32
     {
         transition other < polygon.count && other < 32 {
@@ -44,7 +44,7 @@ public machine boundary_valid(polygon: &Polygon) -> bool {
             false -> advance(polygon, index)
         }
     }
-    state test(polygon: &Polygon, index: u64, next: u64, other: u64) -> bool
+    machine test(polygon: &Polygon, index: u64, next: u64, other: u64) -> bool
     requires index < 32 && next < 32
     {
         let cross: f64 = (polygon.x[next] - polygon.x[index]) * (polygon.y[other] - polygon.y[index])
@@ -54,7 +54,7 @@ public machine boundary_valid(polygon: &Polygon) -> bool {
             false -> (false)
         }
     }
-    state advance(polygon: &Polygon, index: u64) -> bool
+    machine advance(polygon: &Polygon, index: u64) -> bool
     requires index < 32
     {
         transition { _ -> edge(polygon, index + 1) }
@@ -62,13 +62,13 @@ public machine boundary_valid(polygon: &Polygon) -> bool {
 }
 public machine sites_valid(partition: &Partition) -> bool {
     transition { _ -> site(partition, 0, 0) }
-    state site(partition: &Partition, index: u64, edge: u64) -> bool {
+    machine site(partition: &Partition, index: u64, edge: u64) -> bool {
         transition index < partition.site_count && index < 8 {
             true -> boundary(partition, index, edge)
             false -> (true)
         }
     }
-    state boundary(partition: &Partition, index: u64, edge: u64) -> bool
+    machine boundary(partition: &Partition, index: u64, edge: u64) -> bool
     requires index < 8
     {
         let count: u64 = partition.boundary.count;
@@ -77,7 +77,7 @@ public machine sites_valid(partition: &Partition) -> bool {
             false -> duplicate(partition, index, 0)
         }
     }
-    state inside(partition: &Partition, index: u64, edge: u64, next: u64) -> bool
+    machine inside(partition: &Partition, index: u64, edge: u64, next: u64) -> bool
     requires index < 8 && edge < 32 && next < 32
     {
         let cross: f64 = (partition.boundary.x[next] - partition.boundary.x[edge]) * (partition.site_y[index] - partition.boundary.y[edge])
@@ -87,7 +87,7 @@ public machine sites_valid(partition: &Partition) -> bool {
             false -> (false)
         }
     }
-    state duplicate(partition: &Partition, index: u64, other: u64) -> bool
+    machine duplicate(partition: &Partition, index: u64, other: u64) -> bool
     requires index < 8
     {
         transition other < index && other < 8 {
@@ -95,7 +95,7 @@ public machine sites_valid(partition: &Partition) -> bool {
             false -> site(partition, index + 1, 0)
         }
     }
-    state distinct(partition: &Partition, index: u64, other: u64) -> bool
+    machine distinct(partition: &Partition, index: u64, other: u64) -> bool
     requires index < 8
     {
         transition partition.site_x[index] != partition.site_x[other] || partition.site_y[index] != partition.site_y[other] {

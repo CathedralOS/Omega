@@ -29,13 +29,13 @@ pub struct ActivationStorageContract {
 
 fn sealed(program: &dyn crate::CheckingInput, symbol: SymbolHandle, identity: &str) -> bool {
     program
-        .normalized_hermetic_symbol_identity(symbol)
-        .ok()
-        .as_deref()
-        == Some(identity)
+        .symbol_toolchain_relative_path(symbol)
+        .is_some_and(|path| path == std::path::Path::new(ACTIVATION_CORE_SOURCE))
         && program
-            .symbol_toolchain_relative_path(symbol)
-            .is_some_and(|path| path == std::path::Path::new(ACTIVATION_CORE_SOURCE))
+            .normalized_hermetic_symbol_identity(symbol)
+            .ok()
+            .as_deref()
+            == Some(identity)
 }
 
 fn plain_data<'a>(
@@ -101,6 +101,9 @@ pub fn exact_toolchain_activation_storage_contract(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
 ) -> Option<ActivationStorageContract> {
+    if machine.body_is_present || machine.supply_mode != MachineSupplyMode::Boundary {
+        return None;
+    }
     let operation = if sealed_machine(program, machine, "toolchain::Activation::try_claim") {
         ActivationStorageOperation::Establish
     } else if sealed_machine(program, machine, "toolchain::ActivationClaim::bytes") {
@@ -241,48 +244,13 @@ fn valid_header<'a>(
     machine: &'a Machine,
     operation: ActivationStorageOperation,
 ) -> Option<&'a typed_trees::state::State> {
-    // Specialization clones are executable implementation details and are
-    // deliberately private. Visibility belongs to the authenticated authored
-    // template, while the rest of this signature belongs to the selected body.
-    let declaration = program
-        .machine_specialization(machine.symbol)
-        .map_or(machine.symbol, |application| application.template);
-    let public_declaration = program
-        .machines()
-        .iter()
-        .find(|candidate| candidate.symbol == declaration)
-        .is_some_and(|candidate| candidate.is_public);
-    if !public_declaration
-        || machine.body_is_present
-        || machine.supply_mode != MachineSupplyMode::Boundary
-        || !machine.lifetime_parameters.is_empty()
-        || machine.spelling.is_some()
-        || !program.machine_trait_conformances(machine).is_empty()
-        || !machine.contracts.is_empty()
-        || machine.suspends
-        || machine.blocks
-        || !machine.conformance_bounds.is_empty()
-        || !machine.invokes.is_empty()
-        || machine.target.is_some()
-        || machine.authored_target.is_some()
-        || machine.target_family_interface
-        || machine.purpose != typed_trees::machine::MachinePurpose::Runtime
-        || !machine.owned_data.is_empty()
-        || machine.service_reach_is_installation_bound
-        || machine.admitted_same_stack_bytes != 0
-    {
-        return None;
-    }
-    let [state] = program.machine_states(machine) else {
-        return None;
-    };
+    let state = common_boundary_state(program, machine)?;
     let [parameter] = program.state_parameters(state) else {
         return None;
     };
     if parameter.is_const
         || (parameter.is_mutable && operation != ActivationStorageOperation::BorrowBytes)
         || parameter.relevance.is_erased()
-        || !state.contracts.is_empty()
     {
         return None;
     }
@@ -437,6 +405,9 @@ fn split_merge_contract(
     })
 }
 
+/// Specialization clones are executable implementation details and are
+/// deliberately private. Visibility belongs to the authenticated authored
+/// template, while the rest of this signature belongs to the selected body.
 fn common_boundary_state<'a>(
     program: &'a dyn crate::CheckingInput,
     machine: &'a Machine,
@@ -543,6 +514,12 @@ pub fn activation_claim_byte_carrier(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
+    // Every successful contract authenticates this exact claim declaration.
+    // Ordinary returned types need no activation-machine roster traversal.
+    // The full contract below still supplies the carrier, never this premise.
+    if !sealed(program, symbol, "toolchain::ActivationClaim") {
+        return None;
+    }
     program.machines().iter().find_map(|machine| {
         let contract = exact_toolchain_activation_storage_contract(program, machine)?;
         (contract.claim == symbol).then_some(contract.byte_type)

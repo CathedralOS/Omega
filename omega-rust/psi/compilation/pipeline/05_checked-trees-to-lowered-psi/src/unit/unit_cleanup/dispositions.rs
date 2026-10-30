@@ -10,6 +10,7 @@ pub(crate) fn outstanding_actions<'a>(
     actions: &'a [CheckedNormalCleanupAction],
     operations: &[CheckedUnitEffectOperationPlan],
     parameters: &[CheckedUnitStructuralParameterPlan],
+    control: &checked_trees::CheckedCleanupControlPlans,
 ) -> Vec<&'a CheckedNormalCleanupAction> {
     let mut outstanding = vec![true; actions.len()];
     for operation in operations {
@@ -21,6 +22,20 @@ pub(crate) fn outstanding_actions<'a>(
                     if cleanup_actions.contains(action) {
                         *retained = false;
                     }
+                }
+                CheckedUnitEffectOperationPlan::ReleaseReference { owner_cleanups, .. }
+                    if control
+                        .reference_owner_cleanups
+                        .span_or_empty(*owner_cleanups)
+                        .iter()
+                        .any(|owner| {
+                            control
+                                .actions
+                                .span_or_empty(owner.actions)
+                                .contains(action)
+                        }) =>
+                {
+                    *retained = false;
                 }
                 CheckedUnitEffectOperationPlan::Store(store) => {
                     if store.window_place(parameters).is_some_and(|destination| {

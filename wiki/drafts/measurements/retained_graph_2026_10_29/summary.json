@@ -1,0 +1,287 @@
+{
+  "warm": {
+    "length": {
+      "baseline": {
+        "wall_median_ms": 766.9026999938069,
+        "wall_range_ms": [
+          742.0259999926202,
+          870.7813000073656
+        ],
+        "cpu_median_ms": 734.375,
+        "private_commit_median_mib": 637.814453125,
+        "private_commit_range_mib": [
+          637.7734375,
+          637.8359375
+        ]
+      },
+      "candidate": {
+        "wall_median_ms": 790.3724000061629,
+        "wall_range_ms": [
+          761.9997000001604,
+          875.5189999938011
+        ],
+        "cpu_median_ms": 765.625,
+        "private_commit_median_mib": 521.662109375,
+        "private_commit_range_mib": [
+          521.6171875,
+          521.6796875
+        ]
+      },
+      "wall_change_percent": 3.060323038704338,
+      "commit_saved_mib": 116.15234375,
+      "commit_reduction_percent": 18.21099273948818
+    },
+    "dispatch": {
+      "baseline": {
+        "wall_median_ms": 795.0738500003354,
+        "wall_range_ms": [
+          736.145699993358,
+          877.507199998945
+        ],
+        "cpu_median_ms": 757.8125,
+        "private_commit_median_mib": 638.306640625,
+        "private_commit_range_mib": [
+          638.26953125,
+          638.3203125
+        ]
+      },
+      "candidate": {
+        "wall_median_ms": 770.5096999998204,
+        "wall_range_ms": [
+          744.0747000073316,
+          913.375799995265
+        ],
+        "cpu_median_ms": 750.0,
+        "private_commit_median_mib": 519.17578125,
+        "private_commit_range_mib": [
+          519.1640625,
+          519.20703125
+        ]
+      },
+      "wall_change_percent": -3.0895431915544114,
+      "commit_saved_mib": 119.130859375,
+      "commit_reduction_percent": 18.663578254231012
+    },
+    "stack32": {
+      "baseline": {
+        "wall_median_ms": 1119.3416499954765,
+        "wall_range_ms": [
+          1108.67970000254,
+          1270.450299998629
+        ],
+        "cpu_median_ms": 1109.375,
+        "private_commit_median_mib": 637.83984375,
+        "private_commit_range_mib": [
+          637.75390625,
+          637.87109375
+        ]
+      },
+      "candidate": {
+        "wall_median_ms": 1147.4019999950542,
+        "wall_range_ms": [
+          1120.1689000008628,
+          1218.0910000024596
+        ],
+        "cpu_median_ms": 1132.8125,
+        "private_commit_median_mib": 541.1875,
+        "private_commit_range_mib": [
+          541.16015625,
+          541.2265625
+        ]
+      },
+      "wall_change_percent": 2.5068619576240403,
+      "commit_saved_mib": 96.65234375,
+      "commit_reduction_percent": 15.153074035287561
+    }
+  },
+  "cold": {
+    "length": {
+      "baseline": {
+        "wall_median_ms": 1793.082450007205,
+        "wall_range_ms": [
+          1610.3344000002835,
+          2912.1431999956258
+        ],
+        "cpu_median_ms": 2718.75,
+        "private_commit_median_mib": 1001.37109375,
+        "private_commit_range_mib": [
+          968.0703125,
+          1042.328125
+        ]
+      },
+      "candidate": {
+        "wall_median_ms": 1832.1608999976888,
+        "wall_range_ms": [
+          1629.9098000017693,
+          2736.977200009278
+        ],
+        "cpu_median_ms": 3031.25,
+        "private_commit_median_mib": 1014.142578125,
+        "private_commit_range_mib": [
+          935.3125,
+          1067.46484375
+        ]
+      },
+      "wall_change_percent": 2.17940061765296,
+      "commit_saved_mib": -12.771484375,
+      "commit_reduction_percent": -1.275399744881042
+    },
+    "dispatch": {
+      "baseline": {
+        "wall_median_ms": 1680.2305500023067,
+        "wall_range_ms": [
+          1545.2036999922711,
+          3078.8226000004215
+        ],
+        "cpu_median_ms": 3093.75,
+        "private_commit_median_mib": 990.5546875,
+        "private_commit_range_mib": [
+          942.546875,
+          1012.171875
+        ]
+      },
+      "candidate": {
+        "wall_median_ms": 1758.578850000049,
+        "wall_range_ms": [
+          1553.6247999989428,
+          2666.0850000043865
+        ],
+        "cpu_median_ms": 2976.5625,
+        "private_commit_median_mib": 984.90234375,
+        "private_commit_range_mib": [
+          962.64453125,
+          1053.76171875
+        ]
+      },
+      "wall_change_percent": 4.662949379038173,
+      "commit_saved_mib": 5.65234375,
+      "commit_reduction_percent": 0.5706240979249316
+    },
+    "stack32": {
+      "baseline": {
+        "wall_median_ms": 3299.3447999979253,
+        "wall_range_ms": [
+          2890.828799994779,
+          4569.522100005997
+        ],
+        "cpu_median_ms": 5453.125,
+        "private_commit_median_mib": 1051.189453125,
+        "private_commit_range_mib": [
+          1031.6640625,
+          1095.28515625
+        ]
+      },
+      "candidate": {
+        "wall_median_ms": 3151.8147999959183,
+        "wall_range_ms": [
+          2957.730800000718,
+          4309.130400011782
+        ],
+        "cpu_median_ms": 5093.75,
+        "private_commit_median_mib": 1061.447265625,
+        "private_commit_range_mib": [
+          1036.87109375,
+          1098.78125
+        ]
+      },
+      "wall_change_percent": -4.471493855449715,
+      "commit_saved_mib": -10.2578125,
+      "commit_reduction_percent": -0.9758290924157715
+    }
+  },
+  "followup": {
+    "length": {
+      "baseline": {
+        "wall_median_ms": 754.6732500049984,
+        "wall_range_ms": [
+          736.2003000016557,
+          860.822399990866
+        ],
+        "cpu_median_ms": 742.1875,
+        "private_commit_median_mib": 637.779296875,
+        "private_commit_range_mib": [
+          637.76953125,
+          637.94140625
+        ]
+      },
+      "candidate": {
+        "wall_median_ms": 749.8382499979925,
+        "wall_range_ms": [
+          735.6923000043025,
+          929.9963999947067
+        ],
+        "cpu_median_ms": 757.8125,
+        "private_commit_median_mib": 521.63671875,
+        "private_commit_range_mib": [
+          521.609375,
+          521.65234375
+        ]
+      },
+      "wall_change_percent": -0.6406746240142813,
+      "commit_saved_mib": 116.142578125,
+      "commit_reduction_percent": 18.21046539046925
+    },
+    "dispatch": {
+      "baseline": {
+        "wall_median_ms": 785.6434999994235,
+        "wall_range_ms": [
+          740.9857000020565,
+          928.6626999964938
+        ],
+        "cpu_median_ms": 750.0,
+        "private_commit_median_mib": 638.298828125,
+        "private_commit_range_mib": [
+          638.2734375,
+          638.328125
+        ]
+      },
+      "candidate": {
+        "wall_median_ms": 762.9717999952845,
+        "wall_range_ms": [
+          743.4459999931278,
+          1138.42739998654
+        ],
+        "cpu_median_ms": 742.1875,
+        "private_commit_median_mib": 519.177734375,
+        "private_commit_range_mib": [
+          519.1640625,
+          519.1953125
+        ]
+      },
+      "wall_change_percent": -2.8857490711952205,
+      "commit_saved_mib": 119.12109375,
+      "commit_reduction_percent": 18.662276742684565
+    },
+    "stack32": {
+      "baseline": {
+        "wall_median_ms": 1138.6194000006071,
+        "wall_range_ms": [
+          1096.4119999989634,
+          1288.2171999954153
+        ],
+        "cpu_median_ms": 1109.375,
+        "private_commit_median_mib": 637.787109375,
+        "private_commit_range_mib": [
+          637.765625,
+          637.85546875
+        ]
+      },
+      "candidate": {
+        "wall_median_ms": 1150.2793500039843,
+        "wall_range_ms": [
+          1094.1075000009732,
+          1328.6691999965115
+        ],
+        "cpu_median_ms": 1140.625,
+        "private_commit_median_mib": 541.189453125,
+        "private_commit_range_mib": [
+          541.13671875,
+          541.27734375
+        ]
+      },
+      "wall_change_percent": 1.0240428016043746,
+      "commit_saved_mib": 96.59765625,
+      "commit_reduction_percent": 15.145752372552803
+    }
+  }
+}

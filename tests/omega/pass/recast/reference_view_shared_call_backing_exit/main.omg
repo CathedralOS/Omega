@@ -26,8 +26,8 @@ machine Main::main(main: &mut Main) reaches Child + Parent crashes Trap {
     main.source.count = 8u64;
     let observed: u64 = read(&mut main.source as &mut Counter);
     transition observed == 37u64 && main.source.count == 8u64 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

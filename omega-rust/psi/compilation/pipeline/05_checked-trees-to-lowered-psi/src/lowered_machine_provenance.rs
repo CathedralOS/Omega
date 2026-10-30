@@ -9,8 +9,8 @@ use terminal_psi::TerminalMachineProvenance;
 pub fn lowered_machine_provenance(
     checked: &CheckedTrees,
     lowered: &lowered_psi::LoweredPsi,
-    entry_machine_symbol: symbols::SymbolHandle,
-    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    entry: MachineId,
+    entry_name: Option<(&str, Option<source::SourceSpan>)>,
 ) -> TerminalMachineProvenance {
     let module = &lowered.semantic_module;
     let mut callee_by_operation = BTreeMap::new();
@@ -24,29 +24,19 @@ pub fn lowered_machine_provenance(
         }
     }
     let mut provenance = TerminalMachineProvenance::default();
-    let entry_identity = checked
-        .exact_owner_nominal_identity(entry_machine_symbol, exact_toolchain_sources)
-        .and_then(|identity| checked.type_identity_text(identity));
-    let entry = module
-        .machines
-        .iter()
-        .find(|machine| {
-            entry_identity.as_ref().is_some_and(|identity| {
-                machine.declaration.as_ref().is_some_and(|declaration| {
-                    module.identities.text(declaration.machine.identity())
-                        == Some(identity.as_str())
-                })
-            })
-        })
-        .map(|machine| machine.id);
-    if let Some(entry) = entry {
-        name(&mut provenance, checked, entry, entry_machine_symbol);
+    if let Some((name, span)) = entry_name {
+        provenance.name(entry, name.to_owned(), span);
     }
     for occurrence in &lowered.source_call_occurrences {
         if let Some(operation) = occurrence.terminal_site.operation()
             && let Some(callee) = callee_by_operation.get(&operation)
         {
-            name(&mut provenance, checked, *callee, occurrence.source_target);
+            // Module custody uses its selected state. Diagnostic attribution
+            // names that state's machine through the same exact occurrence join;
+            // it is neither a source-label fallback nor an execution premise.
+            if let Ok(target) = crate::call_sites::selected_module_target(checked, occurrence) {
+                name(&mut provenance, checked, *callee, target.machine.symbol);
+            }
         }
     }
     // Provider candidate bodies are reached through boundary dispatch,
@@ -77,8 +67,8 @@ pub fn lowered_machine_provenance(
     }
     // Static call parents from the entry, so an unnamed helper can be
     // attributed through the named machine that reaches it.
-    let mut pending = entry.into_iter().collect::<std::collections::VecDeque<_>>();
-    let mut visited = entry.into_iter().collect::<std::collections::BTreeSet<_>>();
+    let mut pending = std::collections::VecDeque::from([entry]);
+    let mut visited = std::collections::BTreeSet::from([entry]);
     while let Some(current) = pending.pop_front() {
         let Some(machine) = module.machine(current) else {
             continue;

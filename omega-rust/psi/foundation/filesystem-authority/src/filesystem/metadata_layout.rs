@@ -68,38 +68,14 @@ impl FilesystemMetadataField {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FilesystemMetadataFieldLayout {
-    pub(crate) field: FilesystemMetadataField,
-    pub(crate) offset: usize,
-    pub(crate) stored_width_bits: u16,
-}
-
-impl FilesystemMetadataFieldLayout {
-    pub const fn new(
-        field: FilesystemMetadataField,
-        offset: usize,
-        stored_width_bits: u16,
-    ) -> Self {
-        Self {
-            field,
-            offset,
-            stored_width_bits,
-        }
+filesystem_record!(
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct FilesystemMetadataFieldLayout {
+        pub(crate) field: FilesystemMetadataField,
+        pub(crate) offset: usize,
+        pub(crate) stored_width_bits: u16,
     }
-
-    pub const fn field(self) -> FilesystemMetadataField {
-        self.field
-    }
-
-    pub const fn offset(self) -> usize {
-        self.offset
-    }
-
-    pub const fn stored_width_bits(self) -> u16 {
-        self.stored_width_bits
-    }
-}
+);
 
 /// Checked physical carrier geometry for one selected target's `StatRecord`.
 ///

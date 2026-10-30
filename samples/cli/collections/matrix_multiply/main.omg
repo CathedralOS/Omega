@@ -27,11 +27,11 @@ machine Main::main(context: &mut Main) reaches Console {
     matrices.a = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];
     matrices.b = [[9, 8, 7], [6, 5, 4], [3, 2, 1]];
     transition { _ -> col(context, &mut matrices, 0, 0) }
-    state col(context: &mut Main, matrices: &mut Matrices, i: u64, j: u64)
+    machine col(context: &mut Main, matrices: &mut Matrices, i: u64, j: u64)
     requires i <= 2 requires j <= 2 {
         transition { _ -> dot(context, matrices, i, j, 0, 0) }
     }
-    state dot(context: &mut Main, matrices: &mut Matrices, i: u64, j: u64, k: u64, acc: i32 in Wrapping)
+    machine dot(context: &mut Main, matrices: &mut Matrices, i: u64, j: u64, k: u64, acc: i32 in Wrapping)
     requires i <= 2
     requires j <= 2
     requires k <= 2 {
@@ -42,7 +42,7 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> store(context, matrices, i, j, accumulated)
         }
     }
-    state store(context: &mut Main, matrices: &mut Matrices, i: u64, j: u64, acc: i32 in Wrapping)
+    machine store(context: &mut Main, matrices: &mut Matrices, i: u64, j: u64, acc: i32 in Wrapping)
     requires i <= 2
     requires j <= 2 {
         matrices.c[i][j] = acc;
@@ -52,14 +52,14 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> row_step(context, matrices, i)
         }
     }
-    state row_step(context: &mut Main, matrices: &mut Matrices, i: u64) requires i <= 2 {
+    machine row_step(context: &mut Main, matrices: &mut Matrices, i: u64) requires i <= 2 {
         let next_i: u64 = i + 1;
         transition next_i <= 2 {
             true -> col(context, matrices, next_i, 0)
             false -> checksum(context, matrices)
         }
     }
-    state checksum(context: &mut Main, matrices: &Matrices) {
+    machine checksum(context: &mut Main, matrices: &Matrices) {
         let total: i32 in Wrapping = matrices.c[0][0] + matrices.c[1][1] + matrices.c[2][2];
         let code: i32 in Wrapping = total % 256;
         Console::exit_process(code as i32);

@@ -17,18 +17,14 @@
 //! as authored until proof-context transport lets the question move with the
 //! rewrite.
 //!
-//! The scan proposes folds; the independent verifier re-derives the literal
-//! for each rewritten operation and checks the exact before/after relation
-//! and proof questions.
+//! The scan folds each operation in place. The corpus fixtures observe the
+//! rewrite; the stage does not re-derive its own output (verification
+//! placement, `omega-rust/pipeline.md`).
 
 mod folding;
-mod validation;
-
-pub(super) use validation::SparseConditionalConstantPropagationRewriteError;
 
 use crate::PsiOptimizationStageError;
 use lowered_psi::LoweredPsi;
-use validation::validate_sparse_conditional_constant_propagation;
 
 /// Every scalar the machine names and its declared type — machine
 /// parameters and result, then block parameters and operation results.
@@ -63,11 +59,6 @@ pub(super) fn propagate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizatio
             &before.semantic_module.boundary_application_demands,
         );
     }
-    validate_sparse_conditional_constant_propagation(
-        &before.semantic_module,
-        &after.semantic_module,
-    )
-    .map_err(PsiOptimizationStageError::InvalidSparseConditionalConstantPropagationRewrite)?;
     if let Some(debug) = after.debug_map.as_mut() {
         debug.semantic = terminal_codec::terminal_psi_identity(&after.semantic_module)
             .map_err(PsiOptimizationStageError::InvalidSemantic)?;

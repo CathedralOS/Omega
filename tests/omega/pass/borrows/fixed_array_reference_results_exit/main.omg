@@ -22,13 +22,13 @@ requires bin < 13 {
 }
 machine Main::main(main: &mut Main) crashes Trap {
     transition { _ -> depth(main, 2, 1) }
-    state depth(main: &mut Main, depth: u64 in Wrapping, richness: u64 in Wrapping) {
+    machine depth(main: &mut Main, depth: u64 in Wrapping, richness: u64 in Wrapping) {
         transition depth < 33 && richness < 13 {
             true -> add(main, depth, richness)
             false -> fail(main)
         }
     }
-    state add(main: &mut Main, depth: u64 in Wrapping, richness: u64 in Wrapping)
+    machine add(main: &mut Main, depth: u64 in Wrapping, richness: u64 in Wrapping)
     requires depth < 33 && richness < 13 {
         let row: &mut [u64 in Wrapping; 13] = forward_row(&mut main.weights, depth);
         accumulate(row, richness, 4);
@@ -40,8 +40,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         pair(forward(select_row(&mut main.weights, 1)), forward(select_row(&mut main.other, 3)));
         transition main.weights[1][1] == 5 && main.other[3][1] == 9 && main.other[1][1] == 0 && again == 4 && observed == 4 && main.weights[2][0] == 7 && main.weights[1][0] == 0 && main.weights[3][1] == 0 { true -> pass(main) false -> fail(main) }
     }
-    state pass(main: &mut Main) {}
-    state fail(main: &mut Main) { crash Trap; }
+    machine pass(main: &mut Main) {}
+    machine fail(main: &mut Main) { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

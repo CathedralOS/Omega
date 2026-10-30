@@ -11,7 +11,7 @@ use super::super::super::{
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::CheckedComposedUnitControlStatePlan;
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
 
 /// Emit the selected structural producer through ordinary operand preparation.
@@ -126,12 +126,12 @@ pub(super) fn emit(
         let mut selected_evaluation = evaluation.branch(selected, operations.len());
         let mut selected_values = values.clone();
         let mut selected_sequence = sequence.branch();
-        operations.length_observations.clear();
+        operations.storage_observations.clear();
         let terminator = emit_return(
             identities,
             checked,
             state,
-            super::cleanup::destination(catalogs.cleanup_control, state, &guard.destination)?,
+            &guard.destination,
             &return_values[position],
             catalogs,
             parameters,
@@ -167,15 +167,11 @@ pub(super) fn emit(
         evaluation.current = remaining;
         evaluation.operation_start = operations.len();
         operations.structural_values.truncate(retained_bindings);
-        operations.length_observations.clear();
+        operations.storage_observations.clear();
     }
-    let fallback_exit = super::cleanup::destination(
-        catalogs.cleanup_control,
-        state,
-        fallback.as_ref().ok_or(LoweringError::Unsupported(
-            "ordered return lost its fallback destination",
-        ))?,
-    )?;
+    let fallback_destination = fallback.as_ref().ok_or(LoweringError::Unsupported(
+        "ordered return lost its fallback destination",
+    ))?;
     let fallback =
         return_values
             .last()
@@ -187,7 +183,7 @@ pub(super) fn emit(
         identities,
         checked,
         state,
-        fallback_exit,
+        fallback_destination,
         fallback,
         catalogs,
         parameters,
@@ -210,7 +206,7 @@ pub(super) fn emit_return(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
-    exit: checked_trees::FlowClaimJoinExit,
+    destination: &checked_trees::CheckedScalarBranchDestination,
     operation: &CheckedUnitEffectOperationPlan,
     catalogs: &mut catalogs::ComposedCatalogs,
     parameters: &[StructuralParameterDeclaration],
@@ -242,6 +238,16 @@ pub(super) fn emit_return(
         operations,
         sequence,
     )?;
+    if operations.invocation_completion.is_some() {
+        sequence.require_closed()?;
+        return operations.take_invocation_completion(next_edge)?.ok_or(
+            LoweringError::Unsupported("ordered no-normal return lost its evaluated invocation"),
+        );
+    }
+    if !operation.has_normal_continuation() {
+        return unsupported("ordered no-normal value lost its evaluated invocation");
+    }
+    let exit = super::cleanup::destination(catalogs.cleanup_control, state, destination)?;
     complete_structural_return(
         identities, claims, checked, state, exit, operation, catalogs, parameters, evaluation,
         values, next_value, next_block, next_edge, operations,
@@ -267,6 +273,30 @@ pub(super) fn complete_structural_return(
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<Terminator, LoweringError> {
+    let binding = return_binding(operation, operations)?;
+    let mut regions = super::cleanup::for_exit_regions(
+        identities, claims, checked, state, exit, catalogs, parameters, evaluation, operations,
+    )?;
+    super::cleanup::selection(
+        state.state,
+        &state.operations,
+        evaluation,
+        operations,
+        &mut regions,
+    )?;
+    emit_return_binding(
+        identities, checked, binding, regions, catalogs, evaluation, values, next_value,
+        next_block, next_edge, operations,
+    )
+}
+
+/// Capture the actual completed result without emitting its exit cleanup.
+/// Conditional callers must collect every temporary and source disposition
+/// before the first cleanup region can create private control blocks.
+pub(super) fn return_binding(
+    operation: &CheckedUnitEffectOperationPlan,
+    operations: &OperationBuffer,
+) -> Result<StructuralBinding, LoweringError> {
     let result = operation
         .structural_result_binding()
         .ok_or(LoweringError::Unsupported(
@@ -280,21 +310,30 @@ pub(super) fn complete_structural_return(
         .ok_or(LoweringError::Unsupported(
             "ordered return value was not established",
         ))?;
+    Ok(binding)
+}
+
+/// Materialize a selected return only after its complete cleanup schedule is
+/// known. Both ordered guards and conditional arms use this same transport.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn emit_return_binding(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    binding: StructuralBinding,
+    regions: Vec<crate::unit::unit_cleanup::CleanupRegion>,
+    catalogs: &mut catalogs::ComposedCatalogs,
+    evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
+    values: &mut Vec<ValueDeclaration>,
+    next_value: &mut u64,
+    next_block: &mut u64,
+    next_edge: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<Terminator, LoweringError> {
     let source = binding.place();
     let mut returned_claims = binding.claims().to_vec();
     // The returned value carries every claim it holds; the caller binds them
     // by path.
     returned_claims.sort_by_key(|binding| binding.claim);
-    let mut regions = super::cleanup::for_exit_regions(
-        identities, claims, checked, state, exit, catalogs, parameters, evaluation, operations,
-    )?;
-    super::cleanup::selection(
-        state.state,
-        &state.operations,
-        evaluation,
-        operations,
-        &mut regions,
-    )?;
     let completion = Terminator::ReturnStructural {
         edge: edge_id(allocate_dense(next_edge)?),
         source,

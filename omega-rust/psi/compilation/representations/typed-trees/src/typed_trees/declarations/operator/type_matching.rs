@@ -341,7 +341,7 @@ fn fixed_array_lengths_match(
     )
 }
 
-pub(crate) fn closed_const_identity_from_type_reference(
+pub fn closed_const_identity_from_type_reference(
     program: &TypedTrees,
     actual: TypeReferenceHandle,
     declared_carrier: TypeReferenceHandle,
@@ -433,12 +433,6 @@ fn expected_type_parameter<'a>(
             base_name: name,
             ..
         } => find_type_parameter(type_parameters, symbol, name, allow_name_fallback),
-        TypeReferenceNode::Reference { .. }
-        | TypeReferenceNode::Constrained { .. }
-        | TypeReferenceNode::FixedArray { .. }
-        | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::Unit => None,
+        _ => None,
     }
 }

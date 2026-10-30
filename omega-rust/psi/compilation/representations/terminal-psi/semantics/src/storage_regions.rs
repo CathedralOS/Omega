@@ -90,7 +90,9 @@ pub fn canonical_field_storage_region<'a>(
     {
         match segment {
             // Active-case custody is not established by an ordinary field read.
-            CanonicalStructuralPathSegment::Case(_) => return Vec::new(),
+            CanonicalStructuralPathSegment::Case(_) | CanonicalStructuralPathSegment::Referent => {
+                return Vec::new();
+            }
             CanonicalStructuralPathSegment::FixedIndex(index) => {
                 region.push(StructuralPathSegment::FixedIndex(*index))
             }

@@ -98,7 +98,10 @@ impl TerminalExecution<'_> {
                 .ok_or_else(malformed)?
                 .shape
             {
-                StructuralTypeShape::FixedArray { length, .. } => length,
+                StructuralTypeShape::FixedArray {
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                    ..
+                } => length,
                 StructuralTypeShape::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
                 ) => capacity,

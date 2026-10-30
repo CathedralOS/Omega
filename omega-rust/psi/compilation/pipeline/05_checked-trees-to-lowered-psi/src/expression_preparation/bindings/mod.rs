@@ -17,18 +17,16 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use terminal_psi::find_structural_type;
 
+mod published_types;
+pub(crate) use published_types::PublishedStructuralTypes;
 mod formal_observations;
 pub(crate) use formal_observations::CapturedStructuralFormal;
 pub(crate) mod primitive_reads;
 pub(crate) use primitive_reads::primitive_storage_read;
 pub(crate) mod place_observations;
 pub(crate) mod structural_cases;
-mod structural_copy;
 pub(crate) mod structural_fields;
 pub(crate) mod structural_paths;
-pub(crate) use structural_copy::{
-    PreparedCopyPathSegment, PreparedStructuralCopy, StructuralCopySelector,
-};
 pub(crate) mod view_locals;
 pub(crate) use structural_fields::{StructuralFieldBindings, StructuralScalarFieldBinding};
 
@@ -163,32 +161,40 @@ pub(crate) fn owned_structural_home(
     Ok(home)
 }
 
+fn declared_structural_types<'a>(
+    parameters: &'a [(u32, StructuralParameterDeclaration)],
+    locals: &'a [StructuralLocalBinding],
+    completed: &'a [terminal_psi::StructuralPlaceDeclaration],
+) -> impl Iterator<Item = (PlaceId, StructuralTypeId)> + 'a {
+    parameters
+        .iter()
+        .map(|(_, parameter)| (parameter.place, parameter.structural_type))
+        .chain(
+            locals
+                .iter()
+                .filter(|local| local.argument.path.is_empty())
+                .map(|local| (local.argument.place, local.structural_type)),
+        )
+        .chain(completed.iter().filter_map(|declaration| {
+            declaration
+                .kind
+                .produced_structural_type()
+                .map(|carrier| (declaration.id, carrier))
+        }))
+}
+
 pub(crate) fn published_structural_type(
     parameters: &[(u32, StructuralParameterDeclaration)],
     locals: &[StructuralLocalBinding],
     completed: &[terminal_psi::StructuralPlaceDeclaration],
     place: PlaceId,
 ) -> Option<StructuralTypeId> {
-    let mut types = parameters
-        .iter()
-        .filter(|(_, source)| source.place == place)
-        .map(|(_, source)| source.structural_type)
-        .chain(
-            locals
-                .iter()
-                .filter(|local| local.argument.place == place && local.argument.path.is_empty())
-                .map(|local| local.structural_type),
-        )
-        .chain(
-            completed
-                .iter()
-                .filter(|declaration| declaration.id == place)
-                .filter_map(|declaration| declaration.kind.produced_structural_type()),
-        );
-    let structural_type = types.next()?;
+    let mut types = declared_structural_types(parameters, locals, completed)
+        .filter_map(|(candidate, carrier)| (candidate == place).then_some(carrier));
+    let carrier = types.next()?;
     types
-        .all(|candidate| candidate == structural_type)
-        .then_some(structural_type)
+        .all(|candidate| candidate == carrier)
+        .then_some(carrier)
 }
 
 /// One authored binding's evaluated value and, once addressed, its storage
@@ -231,6 +237,9 @@ pub(crate) struct ScalarBindings {
     /// Completed anonymous producers have physical homes without an authored
     /// local binding. Their emitted declarations retain backing type geometry.
     captured_place_declarations: Vec<terminal_psi::StructuralPlaceDeclaration>,
+    /// Captured and private-block homes retain geometry independently of the
+    /// current authored parameter telescope. These rows confer no liveness.
+    physical_root_types: Vec<(PlaceId, StructuralTypeId)>,
     structural_locals: Vec<StructuralLocalBinding>,
     structural_fields: StructuralFieldBindings,
     structural_cases: Vec<structural_cases::StructuralCaseBinding>,
@@ -270,7 +279,7 @@ impl ScalarBindings {
             .captured_storage_home(root)?
             .map(Ok)
             .unwrap_or_else(|| {
-                self.structural_fields.observation_home(
+                self.structural_fields.storage_home(
                     root,
                     &self.structural_locals,
                     &self.view_locals,
@@ -541,6 +550,9 @@ impl ScalarBindings {
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
                         symbol,
                         root_type_identity: checked.normalized_type_identity(alias.loan.root_type),
+                        // The captured loan already owns a root-relative path.
+                        // Its nested reference steps remain strict suffixes.
+                        root_reference_hops: 0,
                     }
                 }
                 checked_trees::CheckedPlaceLoanRoot::ScalarParameter { .. } => {
@@ -625,21 +637,56 @@ impl ScalarBindings {
         self.structural_fields.declarations()
     }
 
+    /// Capture the caller's published physical roots once for delayed call
+    /// emission. A logical view never overrides an existing physical root.
+    pub(crate) fn published_structural_types(
+        &self,
+    ) -> Result<PublishedStructuralTypes, LoweringError> {
+        let physical =
+            PublishedStructuralTypes::from_rows(self.physical_root_types.iter().copied().chain(
+                declared_structural_types(
+                    &self.structural_parameters,
+                    &self.structural_locals,
+                    &self.captured_place_declarations,
+                ),
+            ))?;
+        let views = PublishedStructuralTypes::from_rows(
+            self.view_locals
+                .iter()
+                .filter(|view| physical.get(view.place).is_none())
+                .map(|view| (view.place, view.structural_type)),
+        )?;
+        PublishedStructuralTypes::from_rows(physical.homes().chain(views.homes()))
+    }
+
     /// Resolve the exact published carrier at a live source place.
     pub(crate) fn structural_place_type(&self, place: PlaceId) -> Option<StructuralTypeId> {
-        published_structural_type(
-            &self.structural_parameters,
-            &self.structural_locals,
-            &self.captured_place_declarations,
-            place,
-        )
-        .or_else(|| {
-            let mut homes = self.view_locals.iter().filter(|local| local.place == place);
-            let first = homes.next()?;
-            homes
-                .all(|home| home.structural_type == first.structural_type)
-                .then_some(first.structural_type)
-        })
+        let mut physical = self
+            .physical_root_types
+            .iter()
+            .copied()
+            .chain(declared_structural_types(
+                &self.structural_parameters,
+                &self.structural_locals,
+                &self.captured_place_declarations,
+            ))
+            .filter_map(|(candidate, carrier)| (candidate == place).then_some(carrier));
+        if let Some(first) = physical.next() {
+            return physical.all(|other| other == first).then_some(first);
+        }
+        let mut homes = self.view_locals.iter().filter(|local| local.place == place);
+        let first = homes.next()?;
+        homes
+            .all(|home| home.structural_type == first.structural_type)
+            .then_some(first.structural_type)
+    }
+
+    pub(crate) fn with_physical_root_types(
+        mut self,
+        types: impl IntoIterator<Item = (PlaceId, StructuralTypeId)>,
+    ) -> Self {
+        self.physical_root_types = types.into_iter().collect();
+        self
     }
 
     pub(crate) fn with_completed_place_declarations(
@@ -765,6 +812,9 @@ impl ScalarBindings {
             segments
                 .iter()
                 .map(|segment| match segment {
+                    checked_trees::CheckedUnitStructuralPathSegment::Referent => {
+                        Ok(checked_trees::CheckedStructuralPredicatePathSegment::Referent)
+                    }
                     checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
                         Ok(checked_trees::CheckedStructuralPredicatePathSegment::Field(
                             identity.clone(),
@@ -773,7 +823,14 @@ impl ScalarBindings {
                     checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => Ok(
                         checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(*index),
                     ),
-                    _ => unsupported("runtime case observation has a non-field projection"),
+                    checked_trees::CheckedUnitStructuralPathSegment::Case(identity) => {
+                        Ok(checked_trees::CheckedStructuralPredicatePathSegment::Case(
+                            identity.clone(),
+                        ))
+                    }
+                    _ => {
+                        unsupported("runtime case observation has an unsupported static projection")
+                    }
                 })
                 .collect::<Result<Vec<_>, _>>()
         };
@@ -892,6 +949,7 @@ impl ScalarBindings {
             captured_structural_formals: Vec::new(),
             captured_storage_observations: Vec::new(),
             captured_place_declarations: Vec::new(),
+            physical_root_types: Vec::new(),
             structural_locals: Vec::new(),
             structural_fields: Default::default(),
             structural_cases: Vec::new(),
@@ -1535,7 +1593,8 @@ impl ScalarBindings {
             | CheckedScalarExpression::RepresentationView { operand, .. }
             | CheckedScalarExpression::IntegerExactCast { operand, .. } => self.scalar(operand)?,
             CheckedScalarExpression::Boolean(expression) => self.boolean(expression)?,
-            CheckedScalarExpression::IntegerLiteral { .. }
+            CheckedScalarExpression::ConstantApplication { .. }
+            | CheckedScalarExpression::IntegerLiteral { .. }
             | CheckedScalarExpression::IeeeFloatLiteral { .. }
             | CheckedScalarExpression::ImplementationSelection { .. }
             | CheckedScalarExpression::ErasedParameter { .. }
@@ -1613,14 +1672,58 @@ impl ScalarBindings {
         statement: u32,
         role: CheckedScalarExpressionRole,
     ) -> Result<LoweredDirectExpression, LoweringError> {
-        let (_, expression) = checked
+        let Some((_, expression)) = checked
             .facts
             .values
             .scalar_expressions
             .bound_expression_at(state, statement, role)
-            .ok_or(LoweringError::Unsupported(
-                "scalar computation needs one checked expression and one source binding",
-            ))?;
+        else {
+            // Diagnose the unchanged exact-pair refusal once. Current-row
+            // counts remain complete; nearby roles are capped diagnostic data,
+            // never a substitute binding or a second semantic lookup.
+            let plans = &checked.facts.values.scalar_expressions;
+            let mut source_binding_count = 0usize;
+            let mut expression_plan_count = 0usize;
+            let mut nearby_bindings = Vec::new();
+            let mut nearby_plans = Vec::new();
+            for (_, binding) in plans
+                .source_bindings
+                .iter()
+                .filter(|(_, binding)| binding.state == state)
+            {
+                if binding.statement_ordinal == statement && binding.role == role {
+                    source_binding_count += 1;
+                }
+                if binding.statement_ordinal.abs_diff(statement) <= 1 && nearby_bindings.len() < 8 {
+                    nearby_bindings.push((
+                        binding.statement_ordinal,
+                        binding.role,
+                        binding.expression,
+                    ));
+                }
+            }
+            for expression in plans
+                .expressions
+                .iter()
+                .filter(|expression| expression.state == state)
+            {
+                if expression.statement_ordinal == statement && expression.role == role {
+                    expression_plan_count += 1;
+                }
+                if expression.statement_ordinal.abs_diff(statement) <= 1 && nearby_plans.len() < 8 {
+                    nearby_plans.push((expression.statement_ordinal, expression.role));
+                }
+            }
+            let (machine, _) = crate::declarations::state_declaration(checked, state)?;
+            return Err(LoweringError::InvalidUnitMachinePlan {
+                machine: checked.symbols.display_path(machine.symbol, "::"),
+                reason: "scalar computation needs one checked expression and one source binding",
+                gap: Some(diagnostics::Diagnostic::error(format!(
+                    "scalar expression custody mismatch in state `{}` ({state:?}), statement {statement}, role {role:?}: source_bindings={source_binding_count}, expression_plans={expression_plan_count}; nearby_bindings={nearby_bindings:?}; nearby_plans={nearby_plans:?}",
+                    checked.symbols.display_path(state, "::"),
+                ))),
+            });
+        };
         self.expression(identities, &checked.facts.proven_scalar_indexes, expression)
     }
 

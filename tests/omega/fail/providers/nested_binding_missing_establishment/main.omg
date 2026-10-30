@@ -17,8 +17,8 @@ machine Main::main(main: &mut Main) reaches Reading {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() {}
+    machine done() {}
+    machine bad() {}
 }
 
 // The entry owns ordinary local state; selection supplies no context.

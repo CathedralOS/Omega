@@ -29,7 +29,7 @@ const SELECTED_COLUMN: u64 = 1;
 machine visit(rows: &mut [Row; 3], cursor: &mut Cursor, row: u64, column: u64)
 requires row == 2, column == 1 {
     transition { _ -> apply(&rows[choose_row(cursor, SELECTED_ROW)].data[choose_column(cursor, SELECTED_COLUMN)], replacement(cursor)) }
-    state apply(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { store(value, incoming); }
+    machine apply(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { store(value, incoming); }
 }
 machine main() crashes Trap {
     let mut rows: [Row; 3];
@@ -43,6 +43,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

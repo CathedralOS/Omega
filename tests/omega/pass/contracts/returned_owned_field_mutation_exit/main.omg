@@ -14,6 +14,6 @@ machine main() crashes Trap {
     let mut current: Counter = initial.counter;
     let taken: u64 = take(&mut current, 32, 8);
     transition consume(&current, taken) { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

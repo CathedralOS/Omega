@@ -8,21 +8,21 @@ data NameBuffer {
 machine NameBuffer::copy_name(buffer: &mut NameBuffer, name: &[u8], limit: u64) {
     transition { _ -> copy(buffer, name, limit, 0) }
 
-    state copy(buffer: &mut NameBuffer, name: &[u8], limit: u64, position: u64) {
+    machine copy(buffer: &mut NameBuffer, name: &[u8], limit: u64, position: u64) {
         transition position < name.len && position < limit && position < 256 {
             true -> store(buffer, name, limit, position)
             false -> done(buffer, position)
         }
     }
 
-    state store(buffer: &mut NameBuffer, name: &[u8], limit: u64, position: u64)
+    machine store(buffer: &mut NameBuffer, name: &[u8], limit: u64, position: u64)
         requires 0 <= position && position < name.len && position < limit && position < 256
     {
         buffer.bytes[position] = name[position];
         transition { _ -> copy(buffer, name, limit, position + 1) }
     }
 
-    state done(buffer: &mut NameBuffer, position: u64) {
+    machine done(buffer: &mut NameBuffer, position: u64) {
         buffer.length = position;
     }
 }
@@ -46,7 +46,7 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad(main)
     }
 
-    state zero_limit(main: &mut Main) {
+    machine zero_limit(main: &mut Main) {
         NameBuffer::copy_name(&mut main.destination, &main.source, 0);
         transition main.destination.length == 0 && main.destination.bytes[0] == 11 {
             true -> whole_input(main)
@@ -54,7 +54,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state whole_input(main: &mut Main) {
+    machine whole_input(main: &mut Main) {
         NameBuffer::copy_name(&mut main.destination, &main.source, 256);
         transition main.destination.length == 4 && main.destination.bytes[3] == 44 {
             true -> good(main)
@@ -62,8 +62,8 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

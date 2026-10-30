@@ -1,0 +1,12 @@
+public trait Readable {
+    machine keep(first: &[u8], second: &[u8]) -> u64
+    requires first.len == 7
+    ensures second.len == 7;
+}
+Direct satisfies Readable {
+    machine keep(first: &[u8], second: &[u8]) -> u64
+    requires first.len == 7
+    ensures first.len == 7
+    { 0 }
+}
+machine main() {}

@@ -1,4 +1,4 @@
-//! Canonical artifact assembly shared after separate production and replay traces.
+//! Canonical artifact assembly over the production trace.
 
 use optimization_core::OptimizationWorkBudget;
 

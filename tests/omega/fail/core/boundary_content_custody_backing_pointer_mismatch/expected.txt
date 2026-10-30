@@ -1,0 +1,2 @@
+cannot prove ensures contract for exit from WriterProvider::submit
+result.pointer == buffer.pointer

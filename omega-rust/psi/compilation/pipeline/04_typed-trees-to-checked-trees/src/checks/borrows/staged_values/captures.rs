@@ -27,13 +27,31 @@ pub(super) fn append(
     let capture = facts.flow.control.operands.get(operand);
     let copied = copied_parent
         || crate::borrow::accesses::is_owned_copy_type(program, capture.type_reference);
-    if !capture.alternatives.is_empty() {
-        for alternative in capture.alternatives.handles() {
+    if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion {
+        let rows = facts.flow.control.operand_alternatives.span(alternatives);
+        if rows.is_none_or(|rows| {
+            rows.is_empty()
+                || rows.iter().any(|row| {
+                    !row.source_arm.is_valid() || !facts.flow.control.operands.is_valid(row.value)
+                })
+        }) {
+            leaves.push(HeldLeaf {
+                expression: capture.expression,
+                completion: 0,
+                route: None,
+                until,
+                copied,
+                access: BorrowAccessKind::Mutable,
+                place: None,
+            });
+            return;
+        }
+        for alternative in rows.unwrap() {
             append(
                 program,
                 facts,
                 state,
-                alternative,
+                alternative.value,
                 until,
                 copied,
                 occurrences,
@@ -42,13 +60,37 @@ pub(super) fn append(
         }
         return;
     }
-    if !capture.children.is_empty() {
-        for child in facts
+    if !capture.constructed_children().is_empty() {
+        let Some(children) = facts
             .flow
             .control
             .operand_children
-            .span_or_empty(capture.children)
-        {
+            .span(capture.constructed_children())
+        else {
+            leaves.push(HeldLeaf {
+                expression: capture.expression,
+                completion: 0,
+                route: None,
+                until,
+                copied,
+                access: BorrowAccessKind::Mutable,
+                place: None,
+            });
+            return;
+        };
+        for child in children {
+            if !facts.flow.control.operands.is_valid(child.value) {
+                leaves.push(HeldLeaf {
+                    expression: capture.expression,
+                    completion: 0,
+                    route: None,
+                    until,
+                    copied,
+                    access: BorrowAccessKind::Mutable,
+                    place: None,
+                });
+                continue;
+            }
             append(
                 program,
                 facts,

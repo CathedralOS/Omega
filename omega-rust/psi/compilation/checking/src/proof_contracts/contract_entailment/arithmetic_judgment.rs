@@ -1,15 +1,27 @@
 use super::{
     BTreeMap, BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, Machine, RESULT_BINDER,
-    SymbolHandle, proof_integer_expression, proof_nat_cast,
+    SymbolHandle, proof_nat_cast,
 };
+use crate::proof_integer_expression;
+#[cfg(test)]
+mod difference_constraint_tests;
 mod difference_matrix;
 mod integer_operations;
+mod integer_policy;
 mod intervals;
-mod polynomial_bounds;
+mod lower_bound_queries;
 use crate::proof_contracts::arithmetic_domains::BigIntInterval as Interval;
+pub(super) use lower_bound_queries::{LowerBoundQueries, PreparedLowerBoundIndex};
 mod captured_calls;
 mod mathematical_terms;
 mod strict_bindings;
+impl<'program> Engine<'program> {
+    /// Prepare pure queries only after the invocation has finalized its facts.
+    pub(super) fn lower_bound_queries(&self) -> LowerBoundQueries<'_, 'program> {
+        LowerBoundQueries::prepared(self)
+    }
+}
+
 pub(super) enum Judgment {
     Proven,
     /// Disproved purely by folding both sides to constants.
@@ -246,6 +258,7 @@ pub(super) enum OpaqueTerm {
 /// Conditional facts of a completed Boolean observation. Keeping normalized
 /// operands, rather than its initializer, prevents later scope substitution
 /// from replaying the comparison against different values.
+#[derive(Clone)]
 pub(super) struct SavedCondition {
     pub(super) symbol: SymbolHandle,
     pub(super) holds: bool,
@@ -253,6 +266,7 @@ pub(super) struct SavedCondition {
     pub(super) fully_visible: bool,
 }
 
+#[derive(Clone)]
 pub(super) struct Engine<'program> {
     pub(super) program: &'program dyn crate::CheckingInput,
     /// The machine this engine judges (entry-range hypotheses resolve
@@ -261,6 +275,7 @@ pub(super) struct Engine<'program> {
     /// Source declaration for the currently installed scoped expression.
     /// Nested actual terms retain their own owner before formal substitution.
     source_owner: SymbolHandle,
+    source_type_bindings: Vec<(SymbolHandle, typed_trees::types::TypeReferenceHandle)>,
     /// Canonical atom names for the machine's parameters.
     pub(super) parameter_atoms: Vec<String>,
     /// Authority-bearing adapters bind resolved symbols directly. When this
@@ -281,6 +296,10 @@ pub(super) struct Engine<'program> {
     /// Exact numeric projections and quotient occurrences installed by the
     /// owning strict query after checking builtin meaning and source custody.
     strict_occurrences: Vec<(ExpressionHandle, Polynomial)>,
+    /// Completed remainders selected by the scoped-value owner. Their frozen
+    /// operands retain the occurrence's substitution while its hypotheses are
+    /// installed later; raw opaque terms carry no such admission authority.
+    admitted_integer_remainders: Vec<strict_bindings::AdmittedIntegerRemainder>,
     pub(super) saved_conditions: Vec<SavedCondition>,
     /// One call-observation namespace for this judgment. Reusing it prevents
     /// a shared public-clause expression from identifying different invocations
@@ -296,7 +315,7 @@ pub(super) struct Engine<'program> {
     /// applied to fixpoint during normalization.
     pub(super) substitutions: BTreeMap<String, Polynomial>,
     /// Lower bounds: each entry means `polynomial >= bound`.
-    bounds: Vec<(Polynomial, BigInt)>,
+    pub(super) bounds: Vec<(Polynomial, BigInt)>,
     /// Exact integer disequalities retained by strict adapters. A nonzero
     /// difference has no sign; it can establish disequality, not an order bound.
     nonzero_differences: Vec<Polynomial>,
@@ -310,7 +329,7 @@ pub(super) struct Engine<'program> {
     opaque_terms: Vec<(String, OpaqueTerm)>,
     /// Difference-bound matrix over atoms + the virtual ZERO atom:
     /// `matrix[a][b]` = best known lower bound of `a - b`.
-    matrix: BTreeMap<String, BTreeMap<String, BigInt>>,
+    matrix: difference_matrix::DifferenceBounds,
     pub(super) requires_unsatisfiable: bool,
 }
 
@@ -346,12 +365,14 @@ impl<'program> Engine<'program> {
             program,
             machine_symbol: owner,
             source_owner: owner,
+            source_type_bindings: Vec::new(),
             parameter_atoms: Vec::new(),
             strict_symbol_bindings,
             formal_arguments: None,
             strict_symbol_bindings_valid: true,
             strict_result_binding: None,
             strict_occurrences: Vec::new(),
+            admitted_integer_remainders: Vec::new(),
             saved_conditions: Vec::new(),
             captured_calls: None,
             proof_integer_formation: false,
@@ -361,9 +382,147 @@ impl<'program> Engine<'program> {
             nonzero_differences: Vec::new(),
             arithmetic_intervals: BTreeMap::new(),
             opaque_terms: Vec::new(),
-            matrix: BTreeMap::new(),
+            matrix: difference_matrix::DifferenceBounds::default(),
             requires_unsatisfiable: false,
         }
+    }
+
+    /// Numeric projection may register atoms, derived terms, intervals and the
+    /// symbolic address-model bound before a later operand proves unavailable.
+    /// This footprint distinguishes that partial work from a noninteger term.
+    pub(super) fn integer_projection_registrations(&self) -> (usize, usize, usize, usize) {
+        (
+            self.parameter_atoms.len(),
+            self.opaque_terms.len(),
+            self.arithmetic_intervals.len(),
+            self.bounds.len(),
+        )
+    }
+
+    pub(super) fn has_opaque_terms(&self) -> bool {
+        !self.opaque_terms.is_empty()
+    }
+
+    pub(super) fn truncate_opaque_terms_since(&mut self, start: usize) -> bool {
+        let mut removed_existing_interval = false;
+        while self.opaque_terms.len() > start {
+            if let Some((atom, _)) = self.opaque_terms.pop()
+                && self.arithmetic_intervals.remove(&atom).is_some()
+                && self
+                    .opaque_terms
+                    .iter()
+                    .any(|(existing, _)| *existing == atom)
+            {
+                removed_existing_interval = true;
+            }
+        }
+        removed_existing_interval
+    }
+
+    pub(super) fn restore_matrix_from(&mut self, source: &Self) {
+        self.matrix = source.matrix.clone();
+        self.requires_unsatisfiable = source.requires_unsatisfiable;
+    }
+
+    pub(super) fn restore_intervals_from(&mut self, source: &Self) {
+        self.arithmetic_intervals = source.arithmetic_intervals.clone();
+    }
+
+    pub(super) fn opaque_term_name_if_uncorrelated(&self, index: usize) -> Option<&str> {
+        self.opaque_terms
+            .get(index)
+            .and_then(|(name, term)| match term {
+                OpaqueTerm::IntegerPolicy { .. }
+                | OpaqueTerm::ShiftLeft { .. }
+                | OpaqueTerm::Bitwise { .. } => Some(name.as_str()),
+                OpaqueTerm::Quotient { .. }
+                | OpaqueTerm::Remainder { .. }
+                | OpaqueTerm::ShiftRight { .. } => None,
+            })
+    }
+
+    pub(super) fn opaque_term_name_if_uncorrelated_with_queries(
+        &self,
+        index: usize,
+        queries: &LowerBoundQueries<'_, 'program>,
+    ) -> Option<&str> {
+        self.opaque_terms
+            .get(index)
+            .and_then(|(name, term)| match term {
+                OpaqueTerm::IntegerPolicy { .. }
+                | OpaqueTerm::ShiftLeft { .. }
+                | OpaqueTerm::Bitwise { .. } => Some(name.as_str()),
+                OpaqueTerm::Quotient { dividend, .. }
+                | OpaqueTerm::Remainder {
+                    modulus: dividend, ..
+                }
+                | OpaqueTerm::ShiftRight {
+                    value: dividend, ..
+                } => {
+                    let interval = self.arithmetic_intervals.get(name.as_str())?;
+                    let Some(low) = &interval.low else {
+                        return Some(name.as_str());
+                    };
+                    if interval.high.as_ref() == Some(low) {
+                        return None;
+                    }
+                    let upper_bound_poly = match term {
+                        OpaqueTerm::Quotient { .. } => self.substituted(dividend),
+                        OpaqueTerm::Remainder { .. } | OpaqueTerm::ShiftRight { .. } => self
+                            .substituted(dividend)
+                            .sub(&Polynomial::constant(BigInt::from_i64(1))),
+                        _ => unreachable!(),
+                    };
+                    let proves_upper_le_low = queries.prove_at_least(
+                        &Polynomial::constant(low.clone()).sub(&upper_bound_poly),
+                        &BigInt::zero(),
+                    );
+                    (!proves_upper_le_low).then_some(name.as_str())
+                }
+            })
+    }
+
+    pub(super) fn opaque_terms_since_mention(&self, start: usize, atom: &str) -> bool {
+        let poly_mentions = |poly: &Polynomial| {
+            poly.terms
+                .keys()
+                .any(|monomial| monomial.contains_key(atom))
+        };
+        self.opaque_terms.get(start..).is_some_and(|terms| {
+            terms.iter().any(|(_, term)| match term {
+                OpaqueTerm::IntegerPolicy { value, .. } => poly_mentions(value),
+                OpaqueTerm::Remainder {
+                    operand, modulus, ..
+                } => poly_mentions(operand) || poly_mentions(modulus),
+                OpaqueTerm::Quotient { dividend, divisor } => {
+                    poly_mentions(dividend) || poly_mentions(divisor)
+                }
+                OpaqueTerm::ShiftLeft { value, count, .. }
+                | OpaqueTerm::ShiftRight { value, count, .. } => {
+                    poly_mentions(value) || poly_mentions(count)
+                }
+                OpaqueTerm::Bitwise { left, right, .. } => {
+                    poly_mentions(left) || poly_mentions(right)
+                }
+            })
+        })
+    }
+
+    pub(super) fn opaque_terms_since_only_wrapping_or_bitwise(&self, start: usize) -> bool {
+        self.opaque_terms.get(start..).is_some_and(|terms| {
+            terms.iter().all(|(_, term)| {
+                matches!(
+                    term,
+                    OpaqueTerm::IntegerPolicy {
+                        domain: numerics::arithmetic::ArithmeticDomain::Wrapping,
+                        ..
+                    } | OpaqueTerm::Bitwise {
+                        operator: BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor,
+                        ..
+                    }
+                )
+            })
+        })
     }
 
     /// Declare one atom identity: every declared atom is a parameter atom, and
@@ -382,21 +541,15 @@ impl<'program> Engine<'program> {
     /// Range queries mint endpoint terms before installing their hypotheses.
     /// Recompute dependent intervals in mint order once those facts are live:
     /// an inner quotient must tighten before an outer quotient reads it.
+    /// This updates only derived interval metadata. Correlated operation laws
+    /// and hypothesis/matrix publication belong to their admission owners;
+    /// refreshing a candidate cannot establish its own formation premises.
     pub(super) fn refresh_opaque_intervals(&mut self) {
         if self.opaque_terms.is_empty() {
             return;
         }
         for position in 0..self.opaque_terms.len() {
             let (atom, term) = self.opaque_terms[position].clone();
-            let operation = match &term {
-                OpaqueTerm::Quotient { dividend, divisor } => {
-                    Some((BinaryOperator::Divide, dividend.clone(), divisor.clone()))
-                }
-                OpaqueTerm::Remainder {
-                    operand, modulus, ..
-                } => Some((BinaryOperator::Modulo, operand.clone(), modulus.clone())),
-                _ => None,
-            };
             let interval = match term {
                 OpaqueTerm::IntegerPolicy {
                     primitive,
@@ -429,18 +582,8 @@ impl<'program> Engine<'program> {
                     signed,
                 } => self.bitwise_interval(operator, &left, &right, bits, signed),
             };
-            self.arithmetic_intervals.insert(atom.clone(), interval);
-            if let Some((operator, left, right)) = operation {
-                self.install_integer_operation_bounds(
-                    operator,
-                    &left,
-                    &right,
-                    &Polynomial::atom(atom),
-                );
-            }
+            self.arithmetic_intervals.insert(atom, interval);
         }
-        self.seed_matrix();
-        self.close_matrix();
     }
 
     /// Both operands mapped through the argument map together — `None` when
@@ -863,8 +1006,7 @@ impl<'program> Engine<'program> {
             self.bounds.push((polynomial, bound));
         }
 
-        self.seed_matrix();
-        self.close_matrix();
+        self.refresh_difference_bounds();
         // Disequality alone has no direction. Once the ordinary bounds prove
         // a direction, excluding zero strengthens that integer bound by one.
         // Strict integer adapters also retain an unoriented difference as
@@ -878,8 +1020,17 @@ impl<'program> Engine<'program> {
                 self.nonzero_differences.push(difference.clone());
             }
             let opposite = difference.neg();
-            let nonnegative = self.prove_at_least(&difference, &BigInt::zero());
-            let nonpositive = self.prove_at_least(&opposite, &BigInt::zero());
+            let (nonnegative, nonpositive) = {
+                // These two reads share one immutable premise snapshot. The
+                // prepared proportional-support index avoids rescanning unrelated
+                // captures for every residual. Drop it before installing the next
+                // directed bound so later disequalities retain the same live facts.
+                let queries = self.lower_bound_queries();
+                (
+                    queries.prove_at_least(&difference, &BigInt::zero()),
+                    queries.prove_at_least(&opposite, &BigInt::zero()),
+                )
+            };
             match (nonnegative, nonpositive) {
                 (true, true) => self.requires_unsatisfiable = true,
                 (true, false) => self.bounds.push((difference, BigInt::from_i64(1))),
@@ -888,8 +1039,7 @@ impl<'program> Engine<'program> {
             }
         }
         if self.bounds.len() != previous_bounds {
-            self.seed_matrix();
-            self.close_matrix();
+            self.refresh_difference_bounds();
         }
         fully_visible
     }
@@ -913,9 +1063,9 @@ impl<'program> Engine<'program> {
         if !self.install_hypotheses(comparisons) {
             return false;
         }
-        // Scoped observations retain admitted integer operations. Once their
-        // live premises are installed, recover operand/result correlations as
-        // well as intervals before asking whether the goal's complement fits.
+        // Recompute derived intervals under the new live premises. Operation
+        // correlations were published separately by their formation owner;
+        // refreshing a candidate cannot donate a new hypothesis here.
         self.refresh_opaque_intervals();
         if self.requires_unsatisfiable
             || equalities
@@ -923,6 +1073,15 @@ impl<'program> Engine<'program> {
                 .any(|difference| self.substituted(difference).excludes_integer_zero())
         {
             return true;
+        }
+        // Installation already closed every difference constraint and checked cycles.
+        // Opaque interval refresh can strengthen facts outside that closed matrix.
+        if self.opaque_terms.is_empty()
+            && self.bounds.iter().all(|(polynomial, _)| {
+                polynomial.as_atom_difference().is_some() || polynomial.as_single_atom().is_some()
+            })
+        {
+            return false;
         }
         self.bounds_are_inconsistent()
     }
@@ -1088,19 +1247,12 @@ impl<'program> Engine<'program> {
         if !self.selected_binary_meaning(fact, &binary) {
             return None;
         }
-        match binary.operator {
-            BinaryOperator::Equal
-            | BinaryOperator::NotEqual
-            | BinaryOperator::Less
-            | BinaryOperator::LessOrEqual
-            | BinaryOperator::Greater
-            | BinaryOperator::GreaterOrEqual => {
-                let left = self.normalize(binary.left)?;
-                let right = self.normalize(binary.right)?;
-                Some((binary.operator, left, right))
-            }
-            _ => None,
+        if !binary.operator.is_comparison() {
+            return None;
         }
+        let left = self.normalize(binary.left)?;
+        let right = self.normalize(binary.right)?;
+        Some((binary.operator, left, right))
     }
 
     /// Normalize a TERM expression to a polynomial. `None` = outside the
@@ -1690,8 +1842,7 @@ impl<'program> Engine<'program> {
             self.bounds
                 .push((bound.sub(&polynomial), BigInt::from_i64(1)));
         }
-        self.seed_matrix();
-        self.close_matrix();
+        self.refresh_difference_bounds();
         Some(polynomial)
     }
 }

@@ -1,6 +1,6 @@
-//! Hoisting scalar value calls and terminal value machine calls.
+//! Capture a shared guard-call subject once without changing terminal invocation position.
 
-use crate::lowering::statement::hoist_temps::{hoist_into_temp, mint_hoist_temp};
+use crate::lowering::statement::hoist_temps::mint_hoist_temp;
 use crate::lowering::statement::indexed_read_hoisting::is_integer_embedding_call;
 use crate::lowering::statement::statement_nodes::set_expression;
 use crate::resolution::lowerer::Lowerer;
@@ -165,56 +165,6 @@ pub(crate) fn hoist_scalar_value_call_comparison(
     set_expression(lowerer, resolved_cmp, ExpressionNode::Binary(rewritten));
 }
 
-/// A free or direct-self value-machine call (`sin(x)` or `self.finish()`; not a
-/// proof-only operation) as a transition's TERMINAL VALUE (or a state's trailing
-/// implicit return) has no dispatch return route: an acyclic callee poisons at the
-/// unlowered-terminal fence and a cyclic one refuses at the
-/// binding-substitution depth cap (neither ever lowered -- probed 2026-07-11,
-/// so this rewrite cannot regress a served shape). The let-bound spelling is
-/// the fully served path, so make it automatic: hoist the call into a
-/// `let __hoist_N` temp carrying the receiving state's declared result context
-/// when present, otherwise inferred from the callee's declared return, and
-/// deliver the local. Callers gate
-/// transition targets to ALWAYS-guard arms: a hoisted statement runs whenever
-/// control reaches it, and hoisting out of a guarded arm would run an
-/// effectful callee even when the arm is not taken (trailing returns are
-/// unconditional, so they hoist unconditionally).
-pub(crate) fn hoist_terminal_value_machine_call(
-    lowerer: &mut Lowerer,
-    expression: ExpressionHandle,
-    hoisted: &mut Vec<Statement>,
-) -> ExpressionHandle {
-    let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
-    let Some(call) = expressions.call_node(expression) else {
-        return expression;
-    };
-    if is_integer_embedding_call(lowerer, call) {
-        return expression;
-    }
-    if call.receiver.is_valid() {
-        let Some(path) = expressions.name_path_node(call.receiver) else {
-            return expression;
-        };
-        if !matches!(expressions.name_path_members(path.members), [member] if member.is_self_receiver())
-        {
-            // Contained/dynamic/proof receivers already have their own return
-            // routes, and their selected requirement is not a concrete state
-            // whose declared result `infer_hoist_temp_type` can copy. Only a
-            // direct `self.machine()` sibling call uses this normalization.
-            return expression;
-        }
-    }
-    // A terminal capture must retain the caller's result context so result
-    // overloads can select their exact domain before ordinary admission.
-    if let Some(declared) = lowerer.current_state_return_type.clone()
-        && !matches!(declared, TypeReference::Unit)
-    {
-        return mint_hoist_temp(lowerer, hoisted, declared, None, false, |_, _| expression);
-    }
-    // With no declared result context, infer the callee's declared return.
-    hoist_into_temp(lowerer, expression, hoisted)
-}
-
 fn expression_contains_call(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
     expression_contains(lowerer, expression, &|node| {
         matches!(node, ExpressionNode::Call(_))
@@ -275,64 +225,7 @@ pub(super) fn expression_contains(
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)
+        | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => false,
     }
-}
-
-/// Preserve the free scalar spelling for checked return computation planning.
-/// This is only a normalization boundary: typing and checked call custody still
-/// select the exact callee and reject unsupported operands before publication.
-pub(crate) fn is_scalar_computation_state(lowerer: &Lowerer) -> bool {
-    let scalar_type = |type_reference: &TypeReference| {
-        let mut type_reference = type_reference;
-        while let TypeReference::Constrained(constrained) = type_reference {
-            type_reference = lowerer
-                .symbol_resolved_trees
-                .child_type_reference(constrained.base_type);
-        }
-        // Floating values have the same expression/call boundary as integer
-        // scalars. Hoisting only those calls invents a local result in constant
-        // probes and loses the authored expression before typed evaluation.
-        type_reference.primitive_type().is_some()
-    };
-    lowerer
-            .current_state_return_type
-            .as_ref()
-            .is_some_and(scalar_type)
-        && lowerer
-            .current_state_parameters
-            .iter()
-            .all(|(_, type_reference, is_mutable)| {
-                !is_mutable
-                    && (scalar_type(type_reference)
-                        // Retain owned named inputs for checked mixed computation
-                        // admission. This syntax boundary grants no ownership,
-                        // qualification, cleanup, or termination authority.
-                        || (matches!(type_reference, TypeReference::Named { .. })
-                            && type_reference.primitive_type().is_none())
-                        || matches!(type_reference, TypeReference::Reference(reference)
-                            if scalar_type(lowerer.symbol_resolved_trees.child_type_reference(reference.referee))))
-            })
-}
-
-pub(crate) fn is_scalar_return_computation(
-    lowerer: &Lowerer,
-    expression: ExpressionHandle,
-) -> bool {
-    if !is_scalar_computation_state(lowerer) {
-        return false;
-    }
-    let ExpressionNode::Call(call) = lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .expression(expression)
-    else {
-        return false;
-    };
-    // Static arguments belong to ordinary checked specialization, not a
-    // different expression schedule. Hoisting them here loses the scalar
-    // constant probe before its complete application can be checked.
-    !call.receiver.is_valid() && !is_integer_embedding_call(lowerer, call)
 }

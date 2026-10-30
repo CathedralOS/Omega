@@ -11,7 +11,7 @@ machine Main::main(main: &mut Main) {
         _ -> miss(main)
     }
 
-    state half(main: &mut Main) { main.answer = 70; }
-    state full(main: &mut Main) { main.answer = 71; }
-    state miss(main: &mut Main) { main.answer = 72; }
+    machine half(main: &mut Main) { main.answer = 70; }
+    machine full(main: &mut Main) { main.answer = 71; }
+    machine miss(main: &mut Main) { main.answer = 72; }
 }

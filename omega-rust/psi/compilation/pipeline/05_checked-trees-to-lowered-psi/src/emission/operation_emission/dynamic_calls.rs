@@ -15,7 +15,7 @@ use super::buffer::{OperationBuffer, SourceCallCoordinate};
 use super::calls::{CallEmissionContext, PreparedStructuralArgument};
 use super::expressions::{LoweredDirectExpression, emit_direct_expression};
 use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::value_id;
+use crate::terminal_identities::{mint_with, value_id};
 use semantic_vocabulary::OperationId;
 use semantic_vocabulary::{QualifiedScalarType, ValueId};
 use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
@@ -50,6 +50,7 @@ pub(super) fn emit_dynamic_call_binding(
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
     call_emission: &mut CallEmissionContext<'_>,
+    current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
 ) -> Result<ValueId, LoweringError> {
     if !call.result_type.qualifications.is_empty() {
         return unsupported("a selector call's result carries qualifications");
@@ -90,13 +91,14 @@ pub(super) fn emit_dynamic_call_binding(
     let claim_transfers = crate::emission::claim_bindings::emit_prepared_claim_transfers(
         &call.claim_transfers,
         call_emission.claims.bindings(),
+        &structural_arguments,
+        current_claims,
     )?;
-    let result = value_id(*next_value_identity);
-    *next_value_identity = next_value_identity
-        .checked_add(1)
-        .ok_or(LoweringError::Unsupported(
-            "selector call value identity overflow",
-        ))?;
+    let result = mint_with(
+        next_value_identity,
+        value_id,
+        "selector call value identity overflow",
+    )?;
     let operation = operations.allocate();
     operations.record_source_call(
         call.source_coordinate,
@@ -145,12 +147,10 @@ pub(crate) fn emit_dynamic_call_leaf(
     operation: OperationId,
     operations: &mut OperationBuffer,
 ) {
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: operation,
-        result: produced,
-        kind: OperationKind::CallDynamic {
+    operations.push(Operation::unsuspended(
+        operation,
+        produced,
+        OperationKind::CallDynamic {
             selector,
             interface,
             slot,
@@ -163,7 +163,7 @@ pub(crate) fn emit_dynamic_call_leaf(
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
         },
-    });
+    ));
 }
 
 /// Emit one completed invocation, including finite-family row selection. Every

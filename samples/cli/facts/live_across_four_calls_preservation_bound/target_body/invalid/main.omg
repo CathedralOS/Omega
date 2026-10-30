@@ -30,88 +30,108 @@ machine step4(x: u64) -> u64
 }
 
 
-linux_x86_64 machine compute_target_body(saved: u64) -> i32
-    requires saved >= 39 && saved <= 80
-{
-    let c1: u64 = step1(10);
-    let c2: u64 = step2(c1);
-    let c3: u64 = step3(c2);
-    let c4: u64 = step4(c3);
-    let res: u64 = saved;
-    let head: u64 = 80 - res;
-    let underflow: u64 = res - 40;
-    transition head + underflow == 40 && c4 == 14 {
-        true -> done()
-        _ -> bad()
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    state done() -> i32 { 0 }
-    state bad() -> i32 { 1 }
 }
 
-linux_arm64 machine compute_target_body(saved: u64) -> i32
-    requires saved >= 39 && saved <= 80
-{
-    let c1: u64 = step1(10);
-    let c2: u64 = step2(c1);
-    let c3: u64 = step3(c2);
-    let c4: u64 = step4(c3);
-    let res: u64 = saved;
-    let head: u64 = 80 - res;
-    let underflow: u64 = res - 40;
-    transition head + underflow == 40 && c4 == 14 {
-        true -> done()
-        _ -> bad()
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    state done() -> i32 { 0 }
-    state bad() -> i32 { 1 }
 }
 
-macos_arm64 machine compute_target_body(saved: u64) -> i32
-    requires saved >= 39 && saved <= 80
-{
-    let c1: u64 = step1(10);
-    let c2: u64 = step2(c1);
-    let c3: u64 = step3(c2);
-    let c4: u64 = step4(c3);
-    let res: u64 = saved;
-    let head: u64 = 80 - res;
-    let underflow: u64 = res - 40;
-    transition head + underflow == 40 && c4 == 14 {
-        true -> done()
-        _ -> bad()
+boundary trait SelectedProbe {
+    machine compute_target_body(saved: u64) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+        requires saved >= 39 && saved <= 80;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine compute_target_body(saved: u64) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+        requires saved >= 39 && saved <= 80
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let c1: u64 = step1(10);
+        let c2: u64 = step2(c1);
+        let c3: u64 = step3(c2);
+        let c4: u64 = step4(c3);
+        let res: u64 = saved;
+        let head: u64 = 80 - res;
+        let underflow: u64 = res - 40;
+        transition head + underflow == 40 && c4 == 14 {
+            true -> done()
+            _ -> bad()
+        }
+        machine done() -> i32 { 0 }
+        machine bad() -> i32 { 1 }
     }
-    state done() -> i32 { 0 }
-    state bad() -> i32 { 1 }
 }
 
-windows_x86_64 machine compute_target_body(saved: u64) -> i32
-    requires saved >= 39 && saved <= 80
-{
-    let c1: u64 = step1(10);
-    let c2: u64 = step2(c1);
-    let c3: u64 = step3(c2);
-    let c4: u64 = step4(c3);
-    let res: u64 = saved;
-    let head: u64 = 80 - res;
-    let underflow: u64 = res - 40;
-    transition head + underflow == 40 && c4 == 14 {
-        true -> done()
-        _ -> bad()
+ArmProbe satisfies SelectedProbe {
+    machine compute_target_body(saved: u64) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+        requires saved >= 39 && saved <= 80
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let c1: u64 = step1(10);
+        let c2: u64 = step2(c1);
+        let c3: u64 = step3(c2);
+        let c4: u64 = step4(c3);
+        let res: u64 = saved;
+        let head: u64 = 80 - res;
+        let underflow: u64 = res - 40;
+        transition head + underflow == 40 && c4 == 14 {
+            true -> done()
+            _ -> bad()
+        }
+        machine done() -> i32 { 0 }
+        machine bad() -> i32 { 1 }
     }
-    state done() -> i32 { 0 }
-    state bad() -> i32 { 1 }
 }
 
-machine evaluate() -> i32 {
-    compute_target_body(39)
+
+
+
+
+
+
+
+
+machine evaluate() -> i32
+    reaches SelectedProbe, SelectedBodyCheck crashes Trap
+{
+    SelectedProbe::compute_target_body(39)
 }
 
-machine main() crashes Trap {
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
     let outcome: i32 = evaluate();
     transition outcome == 0 {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

@@ -70,15 +70,18 @@ pub(super) fn judgment(
     })();
     if proven == Some(true)
         || (proven != Some(false)
-            && captured_float_requirement(program, facts, state, call, expression) == Some(true))
+            && phase_profile::scope("05.d.7.3b.1d.4b.captured_float", || {
+                captured_float_requirement(program, facts, state, call, expression)
+            }) == Some(true))
     {
         return Some(true);
     }
     // Ordinary proof routes observe the authored actual, not its initializer.
     // A retained value-origin proof may discharge the requirement first; a
     // failed origin proof cannot weaken the original operand's epoch fence.
-    if source_substitution_preserves_captures(program, facts, state, call, requirement)
-        == Some(true)
+    if phase_profile::scope("05.d.7.3b.1d.5.preserves_captures", || {
+        source_substitution_preserves_captures(program, facts, state, call, requirement)
+    }) == Some(true)
     {
         None
     } else {
@@ -186,19 +189,23 @@ fn captured_contract_proven(
             // actuals of this call. This capture-owned proof must precede the
             // source-substitution fence; repeatability of either runtime call
             // is neither necessary nor inferred.
-            let result = super::super::prover::call_guarantees::proves(
-                program, facts, state, call, contexts, *required, frames,
-            ) || super::super::current_values::proves_call(
-                program, state, call, *required, frames,
-            ) || super::super::entailment::structural_call_requirement(
-                program,
-                facts,
-                state,
-                call,
-                *required,
-                Some(contract_handle),
-                frames,
-            );
+            let result = phase_profile::scope("05.d.7.3b.1d.1.call_guarantees", || {
+                super::super::prover::call_guarantees::proves(
+                    program, facts, state, call, contexts, *required, frames,
+                )
+            }) || phase_profile::scope("05.d.7.3b.1d.2.current_values", || {
+                super::super::current_values::proves_call(program, state, call, *required, frames)
+            }) || phase_profile::scope("05.d.7.3b.1d.3.structural", || {
+                super::super::entailment::structural_call_requirement(
+                    program,
+                    facts,
+                    state,
+                    call,
+                    *required,
+                    Some(contract_handle),
+                    frames,
+                )
+            });
             whole_contract_cache.push((contract_handle, result));
             result
         };
@@ -206,20 +213,26 @@ fn captured_contract_proven(
             return true;
         }
     }
-    captured_expression_proven(
-        program,
-        facts,
-        state,
-        call,
-        contexts,
-        contract,
-        target,
-        expression,
-        expression_intervals,
-        frames,
-    )
+    // The retained contract and its call inputs are invariant across children.
+    // Continue with expression-dependent attempts after this one fails.
+    phase_profile::scope("05.d.7.3b.1d.4.captured_expr", || {
+        captured_expression_proven(
+            program,
+            facts,
+            state,
+            call,
+            contexts,
+            contract,
+            target,
+            expression,
+            expression_intervals,
+            frames,
+        )
+    })
 }
 
+/// Compose expression-dependent evidence after the whole-contract attempt.
+/// Children retain the exact same captured context and fallback order.
 #[allow(clippy::too_many_arguments)]
 fn captured_expression_proven(
     program: &dyn ::validation::CheckingInput,
@@ -309,14 +322,7 @@ fn captured_expression_proven(
             expression_intervals,
             &|parameter| {
                 let name = program.expression_table.name_path_node(parameter)?;
-                if !name.symbol.is_valid()
-                    || name.symbol != name.head_symbol
-                    || program
-                        .expression_table
-                        .name_path_members(name.members)
-                        .len()
-                        != 1
-                {
+                if !program.expression_table.name_path_is_single_member(name) {
                     return None;
                 }
                 let declared = validation::canonical_place_from_expression(program, parameter)?;
@@ -360,28 +366,27 @@ fn captured_expression_proven(
                             &facts.flow.contexts,
                             &facts.flow.control,
                             &facts.semantic,
-                            value.operand,
+                            value.operand.row(),
                             value.type_reference,
                             value.producer_invocation(call.entry_constraints),
                         );
-                        let (source_state, source_statement) =
-                            value.producer_frontier(state.state_symbol, call.statement_index);
-                        let places =
-                            crate::flow::captured_value_places(program, &facts.flow, &value)?;
-                        if places.is_empty()
-                            || !places.iter().all(|place| {
-                                predicate.proven(
-                                    program,
-                                    facts,
-                                    facts::ProgramPoint::Statement {
-                                        machine_symbol: state.machine_symbol,
-                                        state_symbol: source_state,
-                                        statement_index: source_statement,
-                                    },
-                                    &contexts,
-                                    &place.projected,
-                                )
-                            })
+                        // A view observes the descriptor's completed referent,
+                        // not the storage slot from which its pointer was read.
+                        // Detached values and copied descriptor leaves use the
+                        // same captured-value projection as other memberships.
+                        // Missing view geometry supplies no convenient slot
+                        // fallback, and every possible referent owes the fact.
+                        if crate::flow::operand_binds_live_view(program, value.type_reference)
+                            && value.operand.referents.is_empty()
+                            && !matches!(
+                                value.operand.completion,
+                                checked_trees::FlowOperandCompletion::Copied { .. }
+                            )
+                        {
+                            return None;
+                        }
+                        if !predicate
+                            .proven_for_capture(program, facts, state, call, &contexts, &value)
                         {
                             return None;
                         }
@@ -475,7 +480,24 @@ fn bound_contract_predicate(
         &parameters,
         expression,
         &facts.operators.exact_integer_casts,
-    )?;
+    )
+    .or_else(|| {
+        // A checked predicate may expose a complete scalar formula only
+        // after proving its converse. Keep this exact declaration telescope;
+        // the caller below still binds every leaf to its captured operand and
+        // live-reference epoch rather than replaying a record initializer.
+        let mut remaining = 256;
+        crate::values::lower_callable_scalar_contract_predicate(
+            program,
+            &facts.operators,
+            owner,
+            &parameters,
+            typed_trees::types::TypeReferenceHandle::invalid(),
+            expression,
+            false,
+            &mut remaining,
+        )
+    })?;
     crate::facts::boolean_predicates::bind_parameters(
         program,
         owner,
@@ -559,7 +581,7 @@ fn source_substitution_preserves_captures(
                 facts,
                 state,
                 call,
-                value.observation,
+                value.observation.row(),
                 value.observation_type,
                 &value.observation_projection.remaining,
                 invocation?,
@@ -584,8 +606,13 @@ fn capture_preserves_source(
     remaining: &[facts::PlaceSegment],
     invocation: &checked_trees::FlowOperandFact,
 ) -> Option<bool> {
-    if remaining.is_empty() && !capture.children.is_empty() {
-        for child in facts.flow.control.operand_children.span(capture.children)? {
+    if remaining.is_empty() && !capture.constructed_children().is_empty() {
+        for child in facts
+            .flow
+            .control
+            .operand_children
+            .span(capture.constructed_children())?
+        {
             if !facts.flow.control.operands.is_valid(child.value) {
                 return None;
             }

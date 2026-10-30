@@ -133,7 +133,7 @@ terminates by fuel;
 {
     transition { _ -> declared(image, gates, members, ist, fuel, 0) }
 
-    state declared(
+    machine declared(
         image: [[u8; 16]; 33],
         gates: [InterruptGate; 33],
         members: [TableMemberDeclaration; 4],
@@ -152,7 +152,7 @@ terminates by fuel;
         }
     }
 
-    state declared_row(
+    machine declared_row(
         image: [[u8; 16]; 33],
         gates: [InterruptGate; 33],
         members: [TableMemberDeclaration; 4],
@@ -171,7 +171,7 @@ terminates by fuel;
         }
     }
 
-    state vector(
+    machine vector(
         image: [[u8; 16]; 33],
         gates: [InterruptGate; 33],
         members: [TableMemberDeclaration; 4],
@@ -189,7 +189,7 @@ terminates by fuel;
         }
     }
 
-    state member_probe(
+    machine member_probe(
         image: [[u8; 16]; 33],
         gates: [InterruptGate; 33],
         members: [TableMemberDeclaration; 4],
@@ -210,7 +210,7 @@ terminates by fuel;
         }
     }
 
-    state member_row(
+    machine member_row(
         image: [[u8; 16]; 33],
         gates: [InterruptGate; 33],
         members: [TableMemberDeclaration; 4],
@@ -230,7 +230,7 @@ terminates by fuel;
         }
     }
 
-    state member_fields(
+    machine member_fields(
         image: [[u8; 16]; 33],
         gates: [InterruptGate; 33],
         members: [TableMemberDeclaration; 4],
@@ -261,7 +261,7 @@ terminates by fuel;
         }
     }
 
-    state ist_probe(
+    machine ist_probe(
         image: [[u8; 16]; 33],
         gates: [InterruptGate; 33],
         members: [TableMemberDeclaration; 4],
@@ -283,7 +283,7 @@ terminates by fuel;
         }
     }
 
-    state ist_match(
+    machine ist_match(
         image: [[u8; 16]; 33],
         gates: [InterruptGate; 33],
         members: [TableMemberDeclaration; 4],
@@ -308,7 +308,7 @@ terminates by fuel;
         }
     }
 
-    state absent(
+    machine absent(
         image: [[u8; 16]; 33],
         gates: [InterruptGate; 33],
         members: [TableMemberDeclaration; 4],
@@ -337,7 +337,7 @@ terminates by fuel;
         }
     }
 
-    state advance(
+    machine advance(
         image: [[u8; 16]; 33],
         gates: [InterruptGate; 33],
         members: [TableMemberDeclaration; 4],
@@ -354,11 +354,11 @@ terminates by fuel;
         }
     }
 
-    state reject(at: u64, reason: u8) -> TableVerdict {
+    machine reject(at: u64, reason: u8) -> TableVerdict {
         TableVerdict::Rejected { vector: at as u8, reason: reason }
     }
 
-    state reject_index(row: u64, reason: u8) -> TableVerdict {
+    machine reject_index(row: u64, reason: u8) -> TableVerdict {
         TableVerdict::Rejected { vector: row as u8, reason: reason }
     }
 }
@@ -407,7 +407,7 @@ public machine TableMemberAdmission::admit(
         _ -> stack(member, facts)
     }
 
-    state stack(
+    machine stack(
         member: TableMemberDeclaration,
         facts: MemberFacts
     ) -> MemberAdmissionVerdict {
@@ -418,7 +418,7 @@ public machine TableMemberAdmission::admit(
         }
     }
 
-    state obligation(
+    machine obligation(
         member: TableMemberDeclaration,
         facts: MemberFacts
     ) -> MemberAdmissionVerdict {
@@ -433,7 +433,7 @@ public machine TableMemberAdmission::admit(
         }
     }
 
-    state reject(vector: u64, reason: u8) -> MemberAdmissionVerdict {
+    machine reject(vector: u64, reason: u8) -> MemberAdmissionVerdict {
         MemberAdmissionVerdict::Rejected { vector: vector, reason: reason }
     }
 }

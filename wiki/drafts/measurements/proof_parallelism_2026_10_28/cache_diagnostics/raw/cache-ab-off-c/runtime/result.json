@@ -1,0 +1,10 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\cache-ab-off-c\\native\\omega-program.exe"
+  ],
+  "wall_seconds": 0.02833859999998367,
+  "exit_code": 0,
+  "cpu_seconds": 0.015625,
+  "peak_working_set_bytes": 5902336,
+  "peak_commit_bytes": 1261568
+}

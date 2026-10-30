@@ -9,7 +9,9 @@ use super::structural_paths::{path_primitive_type, path_type_reference};
 use crate::values::scalar::boolean_lowering::construct_integer_comparison;
 use crate::values::scalar::expression_facts::{operator_is_builtin, scalar_expression_type};
 use crate::values::scalar::scalar_lowering::lower_scalar_operands;
-use crate::values::scalar::structural_fields::{structural_data, structural_parameter_field_path};
+use crate::values::scalar::structural_fields::{
+    structural_data, structural_parameter_case_path, structural_parameter_field_path,
+};
 use checked_trees::{
     CheckedBooleanExpression, CheckedOperatorFacts, CheckedStructuralParameterField,
 };
@@ -40,6 +42,7 @@ pub(crate) fn lower(
             == Some(PrimitiveType::Bool)
     {
         return Some(CheckedBooleanExpression::StructuralParameterField {
+            observation: expression,
             parameter_position,
             path,
         });
@@ -280,7 +283,7 @@ fn lower_structural_case_membership(
         };
     let mut path = Vec::new();
     let parameter_position =
-        structural_parameter_field_path(program, parameters, subject_expression, &mut path)?;
+        structural_parameter_case_path(program, parameters, subject_expression, &mut path)?;
     let subject_type = path_type_reference(program, parameters, parameter_position, &path)?;
     (structural_data(program, subject_type)?.symbol == data_symbol).then_some(
         CheckedBooleanExpression::StructuralCaseMembership {

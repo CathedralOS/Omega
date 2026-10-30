@@ -6,6 +6,15 @@ use crate::checks::current_scalar_values::CurrentScalarValues;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::{StatementNode, TransitionTargetHandle};
 
+/// One exit frontier is prepared once, including an explicitly unavailable one.
+pub(crate) type ExitValueCache<'program> = Option<
+    Option<(
+        &'program typed_trees::machine::Machine,
+        CurrentScalarValues<'program>,
+        Option<ExpressionHandle>,
+    )>,
+>;
+
 /// Current-state proof only. The exit owner separately requires exact incoming
 /// origins for every immutable invocation formal named by the guarantee.
 pub(crate) fn proves_exit<'program>(
@@ -14,13 +23,7 @@ pub(crate) fn proves_exit<'program>(
     exit: &checked_trees::FlowExitFact,
     fact: &facts::Fact,
     frames: Option<&validation::CallFrameResolver<'program>>,
-    cached_exit_values: &mut Option<
-        Option<(
-            &'program typed_trees::machine::Machine,
-            CurrentScalarValues<'program>,
-            ExpressionHandle,
-        )>,
-    >,
+    cached_exit_values: &mut ExitValueCache<'program>,
 ) -> bool {
     let facts::FactPayload::ContractBooleanExpression {
         expression,
@@ -30,6 +33,29 @@ pub(crate) fn proves_exit<'program>(
     else {
         return false;
     };
+    proves_exit_expression(
+        program,
+        facts,
+        exit,
+        contract,
+        expression,
+        frames,
+        cached_exit_values,
+    )
+}
+
+/// A Boolean contract's atoms consume the same completed frontier as its whole
+/// proposition. Case and scalar conjuncts keep their independent proof owners;
+/// no conjunction is assumed merely to form a result-field observation.
+pub(crate) fn proves_exit_expression<'program>(
+    program: &'program dyn ::validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
+    exit: &checked_trees::FlowExitFact,
+    contract: arena::Handle<typed_trees::domain::ProofFact>,
+    expression: ExpressionHandle,
+    frames: Option<&validation::CallFrameResolver<'program>>,
+    cached_exit_values: &mut ExitValueCache<'program>,
+) -> bool {
     let Some((machine, values, returned)) = cached_exit_values
         .get_or_insert_with(|| {
             let (machine, state) =
@@ -41,16 +67,30 @@ pub(crate) fn proves_exit<'program>(
                 Some(StatementNode::Expression(expression))
                     if !exit.transition_target.is_valid() =>
                 {
-                    *expression
+                    Some(*expression)
                 }
                 Some(StatementNode::Transition(_)) if exit.transition_target.is_valid() => {
-                    let typed_trees::statement::TransitionTargetNode::Value(expression) = program
+                    match program
                         .statement_table
                         .transition_target(exit.transition_target)
-                    else {
-                        return None;
-                    };
-                    *expression
+                    {
+                        typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                            Some(*expression)
+                        }
+                        // Normal unit completion has no result operand, but
+                        // its current borrowed storage still owes guarantees.
+                        typed_trees::statement::TransitionTargetNode::Terminal => None,
+                        typed_trees::statement::TransitionTargetNode::Named { .. } => return None,
+                    }
+                }
+                None if !exit.transition_target.is_valid()
+                    && exit.statement_index
+                        == program
+                            .statement_table
+                            .statements(state.statement_nodes)
+                            .len() =>
+                {
+                    None
                 }
                 _ => return None,
             };
@@ -62,18 +102,23 @@ pub(crate) fn proves_exit<'program>(
                 exit.transition_target,
                 frames,
             )?;
-            values.prepare_exit_return(returned);
+            // `at` is the incoming operation frontier. A postcondition reads
+            // current referents after the returned operation has completed.
+            // Retire its may-writes before consuming prefix scalar values;
+            // exact result/post-storage captures have their own proof owner.
+            if let Some(returned) = returned {
+                values.invalidate_operand_writes(
+                    frames.map(|frames| frames.expression_write_frame(machine, returned)),
+                );
+                values.prepare_exit_return(returned);
+            }
             Some((machine, values, returned))
         })
         .as_ref()
     else {
         return false;
     };
-    let origins = facts
-        .flow
-        .control
-        .exit_parameter_origins
-        .span_or_empty(exit.parameter_origins)
+    let origins = crate::flow::exit_parameter_origins(facts, exit)
         .iter()
         .filter(|origin| origin.contract == contract)
         .map(|origin| (origin.entry_parameter, origin.state_parameter));
@@ -113,23 +158,15 @@ pub(crate) fn proves_call(
     if arguments.len() != parameters.len() {
         return false;
     }
-    let target = if let validation::CallSite::TransitionNamed {
-        path, arguments, ..
-    } = &site
-    {
-        let Some(StatementNode::Transition(transition)) = program
-            .statement_table
-            .statement_at(state, call.statement_index)
-        else {
-            return false;
-        };
-        let Some(target) = [transition.target, transition.continuation].into_iter().find(|target| target.is_valid() && matches!(program.statement_table.transition_target(*target),
-            typed_trees::statement::TransitionTargetNode::Named { path: candidate, arguments: actuals, .. }
-                if candidate.symbol == path.symbol && actuals == arguments)) else { return false; };
-        target
-    } else {
-        TransitionTargetHandle::invalid()
-    };
+    let target = validation::transition_call_target(
+        program,
+        machine,
+        state,
+        call.statement_index,
+        call.call_ordinal,
+    )
+    .filter(|target| target.is_valid() && site.completes_transition(program, *target))
+    .unwrap_or_else(TransitionTargetHandle::invalid);
     let Some(mut values) = CurrentScalarValues::at(
         program,
         machine,
@@ -140,34 +177,36 @@ pub(crate) fn proves_call(
     ) else {
         return false;
     };
-    if !target.is_valid() {
-        let Some(statement) = program
-            .statement_table
-            .statement_at(state, call.statement_index)
-        else {
-            return false;
-        };
-        // The ordinal identifies a call inside this statement, but its earlier
-        // sibling operands may already have changed storage. Reuse the full
-        // operand frame conservatively until an ordered capture is available.
-        values.invalidate_operand_writes(
-            frames.map(|frames| frames.statement_value_write_frame(machine, statement)),
-        );
-    }
+    let Some(statement) = program
+        .statement_table
+        .statement_at(state, call.statement_index)
+    else {
+        return false;
+    };
+    // Requirements are judged after operand evaluation and before this
+    // invocation executes. The resolved completing occurrence shares the
+    // ranking frontier: guard and nested operand effects remain, while the
+    // callee's future writes cannot erase its own prepared actuals. An inner
+    // call still uses the conservative full statement until ordered captures
+    // supply its frontier; stripping its enclosing call would lose effects.
+    values.invalidate_operand_writes(frames.map(|frames| {
+        if target.is_valid() {
+            frames.transition_operand_write_frame(machine, statement)
+        } else {
+            frames.statement_value_write_frame(machine, statement)
+        }
+    }));
     let Some((callee, callee_state)) = validation::find_state(program, call.target_symbol)
         .or_else(|| validation::find_machine_head(program, call.target_symbol))
     else {
         return false;
     };
-    let Some(goal) = values.bind_call_parameters(
+    values.proves_parameter_substitution(
         callee,
         callee_state,
         expression,
         parameters,
         arguments,
         site,
-    ) else {
-        return false;
-    };
-    values.proves(program, machine, &goal)
+    )
 }

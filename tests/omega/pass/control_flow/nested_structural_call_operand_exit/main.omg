@@ -45,7 +45,7 @@ machine Main::main(context: &mut Main) reaches Console {
     context.total = 0;
     transition { _ -> body(context) }
 
-    state body(context: &mut Main) {
+    machine body(context: &mut Main) {
         let p: Pair = Main::shift(&mut context.counter, Pair { a: 1, b: 2 }, 10);
         let q: Pair = Main::shift(&mut context.counter, Pair { a: Main::seed(&mut context.seeds, 3), b: 2 }, 5);
         let s: Pair = Main::settle(&mut context.counter, Owned { value: 7 });
@@ -53,7 +53,7 @@ machine Main::main(context: &mut Main) reaches Console {
         transition { _ -> finish((context.total + context.counter.calls + context.seeds.calls) as i32, context) }
     }
 
-    state finish(code: i32, context: &mut Main) {
+    machine finish(code: i32, context: &mut Main) {
         Console::exit_process(code);
     }
 }

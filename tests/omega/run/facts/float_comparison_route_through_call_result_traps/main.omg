@@ -7,6 +7,6 @@ machine main() crashes Trap {
     let right: f64 = right_value();
     let equal: bool = left == right;
     transition equal { true -> bad() _ -> done() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

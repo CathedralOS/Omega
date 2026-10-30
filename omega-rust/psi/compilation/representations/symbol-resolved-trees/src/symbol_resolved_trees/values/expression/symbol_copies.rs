@@ -205,6 +205,10 @@ impl SymbolCopy<'_, '_> {
                 self.expression_payloads(call.receiver);
                 self.expression_span_payloads(call.arguments);
                 call.target_symbol = self.symbol(call.target_symbol);
+                if let Some(binding) = &mut call.authored_call_binding {
+                    binding.selected = self.symbol(binding.selected);
+                    // Authored-selection occurrences retain their source binder.
+                }
                 for argument in call.machine_arguments.iter_mut() {
                     self.static_argument(argument);
                 }
@@ -272,7 +276,9 @@ impl SymbolCopy<'_, '_> {
                 }
             }
             ExpressionNode::Unary(unary) => self.expression_payloads(unary.operand),
-            ExpressionNode::ZeroValue(reference) => *reference = self.type_reference(*reference),
+            ExpressionNode::TypeExpression(reference) | ExpressionNode::ZeroValue(reference) => {
+                *reference = self.type_reference(*reference)
+            }
             ExpressionNode::Boolean(_)
             | ExpressionNode::Float(_)
             | ExpressionNode::UndeterminedNaN(_)
@@ -306,6 +312,24 @@ impl SymbolCopy<'_, '_> {
         if let Some(application) = &mut argument.application {
             for child in application.arguments.iter_mut() {
                 self.static_argument(child);
+            }
+            if application.member.is_valid() {
+                let mut member = self
+                    .program
+                    .tables
+                    .bodies
+                    .expressions
+                    .static_member(application.member)
+                    .expect("copied static member belongs to the receiving expression table")
+                    .clone();
+                self.static_argument(&mut member);
+                *self
+                    .program
+                    .tables
+                    .bodies
+                    .expressions
+                    .static_member_mut(application.member)
+                    .expect("copied static member remains present") = member;
             }
         }
     }
@@ -715,12 +739,14 @@ mod tests {
             .bodies
             .expressions
             .insert(ExpressionNode::Call(TableCallExpression {
+                authored_call_binding: None,
                 receiver: ExpressionHandle::invalid(),
                 target_symbol: original,
                 target: DiagnosticName::generated("run"),
                 requirement_application: arena::Handle::invalid(),
                 machine_arguments: vec![StaticMachineArgument {
                     application: Some(Box::new(StaticSymbolApplication {
+                        member: arena::Handle::invalid(),
                         lifetime_arguments: Box::new([]),
                         arguments: vec![argument.clone()].into_boxed_slice(),
                     })),

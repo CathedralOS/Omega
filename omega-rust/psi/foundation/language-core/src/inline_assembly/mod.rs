@@ -30,6 +30,11 @@ pub enum AsmInstructionShape {
     /// decoded destination and arithmetic status flags. Other flag views
     /// remain unavailable until their complete state semantics are modeled.
     Subtract,
+    /// AArch64 SUBS over W-registers: destination, left input, and a matching
+    /// register or encodable immediate right input. The destination need not
+    /// be initialized and is not an input. Subtract modulo 2^32 and establish
+    /// NZCV; this cohort exposes the result's zero condition to local edges.
+    SubtractThreeOperand,
     /// Modular, destination-width x86 addition; establishes arithmetic flags.
     /// Decode a 32-bit GPR read/write and a 32-bit GPR or fitting immediate.
     /// Add modulo 2^32. Carry is the unsigned overflow of that sum. Signed
@@ -249,7 +254,7 @@ impl AsmSchedulingHintKind {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum AsmControlRegister {
     Cr0,
     Cr2,
@@ -334,7 +339,7 @@ impl AsmControlRegister {
 /// for plus its read-only syndrome registers; ELR_EL1/SPSR_EL1 stay out —
 /// writing them participates in a mode transition (eret's regime contract),
 /// which AsmInstructionContract does not model.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum AsmSystemRegister {
     /// x86 control registers share the retained scalar register-event route.
     Control(AsmControlRegister),
@@ -535,7 +540,7 @@ impl AsmSystemRegister {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum AsmTargetApplicability {
     #[default]
     Any,
@@ -576,11 +581,16 @@ pub enum AsmAuthorityRequirement {
     IdtControl,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum AsmFenceKind {
     Load,
     Store,
     Full,
+    /// A64 DMB, with full-system scope and the exact LD/ST/SY access mask.
+    /// These are not aliases for the x86 fences: LD also orders later stores.
+    Aarch64Load,
+    Aarch64Store,
+    Aarch64Full,
 }
 
 impl AsmFenceKind {
@@ -589,6 +599,7 @@ impl AsmFenceKind {
             Self::Load => "lfence",
             Self::Store => "sfence",
             Self::Full => "mfence",
+            Self::Aarch64Load | Self::Aarch64Store | Self::Aarch64Full => "dmb",
         }
     }
 
@@ -597,13 +608,41 @@ impl AsmFenceKind {
             Self::Load => "asm#lfence",
             Self::Store => "asm#sfence",
             Self::Full => "asm#mfence",
+            Self::Aarch64Load => "asm#dmb_ld",
+            Self::Aarch64Store => "asm#dmb_st",
+            Self::Aarch64Full => "asm#dmb_sy",
         }
     }
 
     pub fn from_intrinsic_name(name: &str) -> Option<Self> {
-        [Self::Load, Self::Store, Self::Full]
+        Self::ALL
             .into_iter()
             .find(|kind| kind.intrinsic_name() == name)
+    }
+
+    pub const ALL: [Self; 6] = [
+        Self::Load,
+        Self::Store,
+        Self::Full,
+        Self::Aarch64Load,
+        Self::Aarch64Store,
+        Self::Aarch64Full,
+    ];
+
+    pub const fn target(self) -> AsmTargetApplicability {
+        match self {
+            Self::Load | Self::Store | Self::Full => AsmTargetApplicability::X86_64,
+            _ => AsmTargetApplicability::Aarch64,
+        }
+    }
+
+    pub fn from_aarch64_option(option: &str) -> Option<Self> {
+        match option {
+            "ld" => Some(Self::Aarch64Load),
+            "st" => Some(Self::Aarch64Store),
+            "sy" => Some(Self::Aarch64Full),
+            _ => None,
+        }
     }
 }
 
@@ -613,7 +652,7 @@ pub enum AsmMemoryOrdering {
     Fence(AsmFenceKind),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum AsmInterruptControlKind {
     Disable,
     Enable,
@@ -816,16 +855,14 @@ impl AsmInstructionContract {
         }
     }
 
-    /// Contract for one modeled memory-ordering fence. The fence kind is
-    /// both the instruction's shape and the ordering it establishes, and
-    /// the serializing fence carries no authority, operands, flag effect
-    /// or clobbers of its own; each fence mnemonic therefore presents the
-    /// kind once instead of restating the coupling per arm.
-    fn memory_fence(kind: AsmFenceKind) -> Self {
+    /// Contract for one modeled ordering event. The closed kind owns its
+    /// target and access mask. A64's source option is resolved to this kind;
+    /// there is no runtime operand, service authority, flag effect or clobber.
+    pub fn memory_fence(kind: AsmFenceKind) -> Self {
         Self {
             availability: AsmInstructionAvailability::UserChecked,
             shape: AsmInstructionShape::MemoryFence(kind),
-            target: AsmTargetApplicability::X86_64,
+            target: kind.target(),
             required_authority: AsmAuthorityRequirement::None,
             operands: NO_OPERANDS,
             memory_ordering: AsmMemoryOrdering::Fence(kind),
@@ -1132,6 +1169,14 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             clobbers: &["rflags"],
             ..AsmInstructionContract::without_side_effects(AsmInstructionShape::Subtract, X86_64)
         }),
+        "subs" => Contract(AsmInstructionContract {
+            flags_data_flow: AsmFlagsDataFlow::ArithmeticResult,
+            clobbers: &["nzcv"],
+            ..AsmInstructionContract::without_side_effects(
+                AsmInstructionShape::SubtractThreeOperand,
+                Aarch64,
+            )
+        }),
         // The structured register operands select x86 RFLAGS or AArch64 NZCV.
         "cmp" => Contract(AsmInstructionContract {
             flags_data_flow: AsmFlagsDataFlow::ArithmeticResult,
@@ -1196,6 +1241,11 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         "lfence" => Contract(AsmInstructionContract::memory_fence(Load)),
         "sfence" => Contract(AsmInstructionContract::memory_fence(Store)),
         "mfence" => Contract(AsmInstructionContract::memory_fence(Full)),
+        // The parser closes the mandatory LD/ST/SY option before emitting an
+        // intrinsic. Other scopes and reserved immediates remain unsupported.
+        "dmb" => Contract(AsmInstructionContract::memory_fence(
+            AsmFenceKind::Aarch64Full,
+        )),
         "cli" => Contract(AsmInstructionContract {
             availability: UserChecked,
             shape: InterruptControl(Disable),
@@ -1419,7 +1469,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         // descriptor-table memory operands, the memory-destination
         // non-temporal stores, and frame setup — each always reads or writes
         // memory, so no spelling here is a register-only contract candidate.
-        // Address-arithmetic (`lea`), ordering (`dmb`/`dsb`), cache/TLB
+        // Address-arithmetic (`lea`), unsupported ordering (`dsb`), cache/TLB
         // maintenance (`cl*`/`tlbi`/`ic`/`dc`), and SIMD register-only moves
         // do not access memory or belong to a different contract family, and
         // stay unrecognized rather than borrowing this refusal.
@@ -1471,6 +1521,50 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         _ => return None,
     };
     Some(entry)
+}
+
+/// Receiving-host selected x86 processor flags, independent of host authority.
+/// The model supplies an architectural state, never an instruction callback.
+/// Arithmetic flag restores merge the six condition bits into this image.
+/// Reserved bits stay the bits captured from the host.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86FlagsEnvironment {
+    rflags: u64,
+}
+
+/// The supplied image violates x86 reserved-bit layout: bit 1 is always set,
+/// bits 3, 5, 15 and 22..63 are always clear.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86FlagsEnvironmentError;
+
+impl core::fmt::Display for X86FlagsEnvironmentError {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str("invalid x86 flags environment: reserved RFLAGS bits")
+    }
+}
+
+impl X86FlagsEnvironment {
+    /// Reserved bits are fixed: bit 1 is set; bits 3, 5, 15 and 22..63 are
+    /// clear. RF/VM may exist in the state but PUSHFQ clears their image.
+    pub fn new(rflags: u64) -> Result<Self, X86FlagsEnvironmentError> {
+        if rflags & 2 == 0 || rflags & !0x3f7fd7 != 0 {
+            return Err(X86FlagsEnvironmentError);
+        }
+        Ok(Self { rflags })
+    }
+
+    /// The image a PUSHFQ observation of this environment reads.
+    pub fn snapshot(self) -> u64 {
+        self.rflags & !((1 << 16) | (1 << 17))
+    }
+
+    /// Keep reserved bits from the supplied image. The saved place carries the
+    /// arithmetic flags recorded by the producing instruction, not a complete
+    /// RFLAGS image, so only CF, PF, AF, ZF, SF and OF move.
+    pub fn restore_arithmetic_bits(&mut self, image: u64) {
+        const ARITHMETIC: u64 = 0x8d5;
+        self.rflags = (self.rflags & !ARITHMETIC) | (image & ARITHMETIC);
+    }
 }
 
 #[cfg(test)]

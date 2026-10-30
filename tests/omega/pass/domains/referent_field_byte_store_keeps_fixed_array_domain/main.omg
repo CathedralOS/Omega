@@ -4,7 +4,7 @@
 // attached machine field follows -- so the normal return still proves the
 // field's declared domain. The guard is spelled as a transition SUBJECT, whose
 // capture must carry the same bound an authored arm guard would.
-domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 4]::Utf8 requires valid_utf8(self);
 
 data Buffer { label: [u8; 4] in Utf8; }
 
@@ -14,6 +14,6 @@ machine store(buffer: &mut Buffer, byte: u8) {
         true -> write(buffer, byte)
         _ -> keep(buffer)
     }
-    state write(buffer: &mut Buffer, byte: u8) { buffer.label[1] = byte; }
-    state keep(buffer: &mut Buffer) { }
+    machine write(buffer: &mut Buffer, byte: u8) { buffer.label[1] = byte; }
+    machine keep(buffer: &mut Buffer) { }
 }

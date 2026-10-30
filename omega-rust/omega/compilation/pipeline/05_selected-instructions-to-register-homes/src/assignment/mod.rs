@@ -8,11 +8,12 @@
 //! victims directly. The crate root re-exports each owner's public names by
 //! module.
 
-/// Every assignment context hands callers its produced homes and the
-/// post-allocation manifest it was built from — one getter pair each
-/// assignment-mode context used to restate.
+/// Every assignment context hands callers its produced homes, the
+/// post-allocation manifest it was built from, and the retained
+/// optimized-target proof input — one getter trio each assignment-mode context
+/// used to restate beside its own retained-stage path.
 macro_rules! assignment_context_accessors {
-    () => {
+    ($field:ident $(. $step:ident())*) => {
         pub const fn homes(&self) -> &crate::ValidatedRegisterHomes {
             &self.homes
         }
@@ -21,7 +22,59 @@ macro_rules! assignment_context_accessors {
         ) -> &crate::ValidatedPostAllocationOptimizationManifest {
             &self.manifest
         }
+        /// The retained optimized-target proof input, kept as replay evidence;
+        /// downstream custody checks compare the owner handle by identity.
+        pub fn optimized_target_owner(
+            &self,
+        ) -> &std::sync::Arc<
+            abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+        > {
+            self.$field$(.$step())*.optimized_target_owner()
+        }
     };
+}
+
+/// The one post-home custody receipt every staging route publishes: the source
+/// receipt that route retained, the homes and manifest it built over it, and
+/// the two counts it published. A route whose source receipt is a different
+/// type parameterizes this owner instead of re-declaring its shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PostHomeCustodyReceipt<Source> {
+    source: Source,
+    homes: register_homes::RegisterHomeIdentity,
+    post_allocation_manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
+    function_count: usize,
+    assignment_count: usize,
+}
+
+impl<Source> PostHomeCustodyReceipt<Source> {
+    /// The one constructor every staging route publishes through: the source
+    /// receipt that route retained, the homes built over it, the manifest that
+    /// admitted them, and the two counts. Routes delegate here instead of
+    /// restating the same five-field shape beside their own type alias.
+    pub(crate) fn new(
+        source: Source,
+        homes: crate::RegisterHomeValidationReceipt,
+        post_allocation_manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
+    ) -> Self {
+        Self {
+            source,
+            homes: homes.identity(),
+            post_allocation_manifest,
+            function_count: homes.function_count(),
+            assignment_count: homes.assignment_count(),
+        }
+    }
+
+    receipt_accessor_rows!(borrow PostHomeCustodyReceipt {
+        source: &Source,
+    });
+    receipt_accessor_rows!(ref PostHomeCustodyReceipt {
+        homes: register_homes::RegisterHomeIdentity,
+        post_allocation_manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
+        function_count: usize,
+        assignment_count: usize,
+    });
 }
 
 pub(crate) mod baseline;

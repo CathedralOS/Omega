@@ -8,7 +8,7 @@ machine Main::fill_literal(bag: &mut Bag, fresh: Node) {
     let pick: i32 = 2;
     nodes[pick] = fresh;
     transition { _ -> done() }
-    state done() {}
+    machine done() {}
 }
 
 data Main { bag: Bag; }
@@ -20,6 +20,6 @@ machine Main::main(main: &mut Main) {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() {}
+    machine done() {}
+    machine bad() {}
 }

@@ -2,9 +2,9 @@
 // arriving edge establishes no such fact -- the contract prover demands it
 // at the call site ("needs fact `valid_utf8(view)` here"). The guarded
 // sibling PASSES (pass/dependent/state_arrival_byte_predicate_guarded_compile).
-domain [u8]::Utf8(bytes)
+domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 
 data Main {
     buffer: [u8; 8];
@@ -19,11 +19,11 @@ machine Main::main(main: &mut Main) {
         true -> checked(main, view)
         false -> bad()
     }
-    state checked(main: &mut Main, view: &[u8])
+    machine checked(main: &mut Main, view: &[u8])
     requires
         valid_utf8(view)
     {
         main.result = view.len;
     }
-    state bad() { }
+    machine bad() { }
 }

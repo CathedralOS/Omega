@@ -6,6 +6,6 @@ machine read_call(index: u64) -> u8 {
 }
 machine main() crashes Trap {
     transition read_call(1) == 8 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -15,6 +15,7 @@ pub(crate) mod canonical_order;
 pub(crate) mod content_wire;
 pub(crate) mod contract_wire;
 pub(crate) mod dynamic_result_admission;
+mod external_provider_wire;
 pub(crate) mod integer_math_term_wire;
 mod machine_declaration_wire;
 pub(crate) mod machine_wire;
@@ -38,6 +39,10 @@ pub(crate) mod wire;
 
 #[cfg(test)]
 mod counted_collection_bound_tests;
+#[cfg(test)]
+mod external_provider_tests;
+#[cfg(test)]
+mod numeric_intrinsic_tests;
 #[cfg(test)]
 mod routed_scalar_tests;
 #[cfg(test)]
@@ -111,7 +116,34 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Whole-value placement demands retain normalized geometry without requiring a view.
 // Content reunion retains completed producer operations and exact claim frontiers.
 // Logical source copy permission is separate from descriptor retirement.
-pub(crate) const FORMAT_MARKER: u16 = 187;
+// Combined descriptor-copy, completed-custody and closed-reach capture wire changes.
+// Borrowed storage slots and owned stored-descriptor arrivals have distinct roles.
+// Earlier borrowed Some-access value arrivals must not be reinterpreted as slots.
+// Nominal evidence lanes retain complete typed argument subjects.
+// Scalar reads have one explicit Referent lane; the former nested-static
+// spelling is noncanonical even though both old grammars used tag five.
+// Normal-return parameter membership preservation is distinct from entry demands.
+// Fresh union marker distinguishes both prior wire schemas.
+// Content transformations retain a complete root roster, including n-to-m joins.
+// Issuer routes, generic templates and conformance rows retain explicit
+// declaration owners; older layouts cannot infer these missing coordinates.
+// Suspension capture coordinates include retained ingress permissions, distinct
+// from local formations and evaluated outgoing actuals.
+// This union retains ingress captures, ordinary no-normal invocations and
+// inherited scalar memberships; neither independent marker-196 layout suffices.
+// Machines retain authored runtime ordering across scalar and structural lanes.
+// Task frames retain alternative state and crossing storage, not a flat sum.
+// Normal structural guarantees also retain their exact formal-relative path;
+// this combined layout is distinct from either independent wire format.
+// Target-dependent scalar applications retain their portable computation roots.
+// Pending scalar applications and explicit array extents have their own wire
+// form. Proof conditions retain declarations independently of emitted bodies,
+// beside the source-free application scope graph. Predicate graphs retain both
+// operands, builtin Boolean meaning and whole-graph formation independently of
+// selective evaluation. Structural case edges also retain simultaneous bindings.
+// This union differs from both upstream 204 and the scalar-only 211 format.
+// Callback uses retain missing entry admission as an explicit native obligation.
+pub(crate) const FORMAT_MARKER: u16 = 213;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -127,6 +159,17 @@ pub(crate) const MAX_CONTENT_IDENTITY_BYTES: usize = 1 << 20;
 /// structural relationships. A fingerprint of these bytes is identity, not
 /// evidence of validity. Untrusted bytes must enter through [`decode_module`].
 pub fn encode_module(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
+    if module.identities.invocation_scope().is_some() {
+        return Err(CodecError::MalformedStructuralFoundation(
+            "invocation code cannot enter a portable Terminal artifact",
+        ));
+    }
+    encode_execution_module(module)
+}
+
+/// Internal encoding for identity of retained execution code. These bytes are
+/// never an ingress/egress format: private declarations retain their live owner.
+fn encode_execution_module(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     scalar_qualification_wire::validate(&module.scalar_qualifications)?;
     validate_canonical_order(module)?;
     encode_raw(module)
@@ -220,8 +263,20 @@ pub fn decode_canonical_proposition(
 }
 
 pub fn semantic_fingerprint(module: &TerminalModule) -> Result<SemanticFingerprint, CodecError> {
-    let bytes = encode_module(module)?;
-    Ok(fingerprint_bytes(&bytes))
+    let bytes = encode_execution_module(module)?;
+    let local = module.identities.invocation_local_entries();
+    if local.is_empty() {
+        return Ok(fingerprint_bytes(&bytes));
+    }
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(b"psi-invocation-code-fingerprint\0");
+    digest.raw(&(bytes.len() as u64).to_le_bytes());
+    digest.raw(&bytes);
+    digest.raw(&(local.len() as u64).to_le_bytes());
+    for identity in local {
+        digest.raw(&identity.0.to_le_bytes());
+    }
+    Ok(SemanticFingerprint::from_bytes(digest.finish()))
 }
 
 pub fn terminal_psi_identity(module: &TerminalModule) -> Result<TerminalPsiIdentity, CodecError> {
@@ -239,3 +294,6 @@ fn fingerprint_bytes(bytes: &[u8]) -> SemanticFingerprint {
     digest.raw(&bytes);
     SemanticFingerprint::from_bytes(digest.finish())
 }
+
+#[cfg(test)]
+mod normal_qualification_tests;

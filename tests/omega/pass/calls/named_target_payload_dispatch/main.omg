@@ -25,7 +25,7 @@ machine Wrap::get_count(wrap: &Wrap) -> u64 {
         Wrap::Has { list } -> at(list)
         _ -> (0)
     }
-    state at(list: &ItemList) -> u64 {
+    machine at(list: &ItemList) -> u64 {
         ItemList::get_count(list)
     }
 }
@@ -37,7 +37,7 @@ machine Main::main(main: &mut Main) reaches Console {
     transition {
         _ -> done(main)
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(0);
     }
 }

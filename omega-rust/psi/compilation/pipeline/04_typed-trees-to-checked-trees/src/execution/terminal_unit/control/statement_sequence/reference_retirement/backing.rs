@@ -7,7 +7,7 @@ impl Retirement<'_> {
         &self,
         value: checked_trees::CheckedStructuralValueHandle,
         path: &[checked_trees::BorrowLoanOwnerSegment],
-        active: &mut Vec<arena::Handle<BorrowLoanFact>>,
+        active: &mut Vec<RetirementNode>,
     ) -> bool {
         let values = &self.facts.values.structural_values;
         if !values.nodes.is_valid(value) {
@@ -35,12 +35,11 @@ impl Retirement<'_> {
         // A projected receiving region may finish independently. Follow its
         // exact stored loan occurrences, including every descriptor beneath
         // the transferred subtree. Missing receiving metadata stays live.
+        let Some(resources) = self.resource_loans() else {
+            return false;
+        };
         let mut found = false;
-        let retired = self
-            .facts
-            .borrow
-            .loans
-            .iter()
+        let retired = resources
             .filter(|(_, loan)| {
                 loan.storage_owner == owner
                     && loan.statement_index == node.statement_index as usize

@@ -17,7 +17,7 @@ requires observed == items[0] && observed == 7
     let held: u64 = expose(&mut items[0]);
     let agreed: u64 = agree(observed, items[0]);
     transition { _ -> finish(agreed, held) }
-    state finish(agreed: u64, held: u64) -> u64 {
+    machine finish(agreed: u64, held: u64) -> u64 {
         transition held == held { true -> agreed _ -> agreed }
     }
 }
@@ -26,6 +26,6 @@ machine main() crashes Trap {
     let mut items: [u64; 2] = [7, 1];
     let saved: u64 = items[0];
     transition hold(&mut items, saved) == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

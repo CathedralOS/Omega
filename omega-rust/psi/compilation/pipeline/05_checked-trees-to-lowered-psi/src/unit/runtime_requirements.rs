@@ -6,6 +6,8 @@
 //! restoration. Validate the entire entry namespace before simplifying Boolean
 //! expressions, then use the shared contract converter for IEEE comparisons so
 //! unordered negation and exact binary32/binary64 formats survive publication.
+//! Entry leaves retain their exact carrier, including addresses. Comparing an
+//! address neither interprets it as count geometry nor grants storage authority.
 use super::{
     BTreeMap, CheckedBooleanExpression, CheckedScalarExpression, LoweringError, PrimitiveType,
     Proposition, ScalarTerm, ScalarType, StructuralParameterDeclaration, StructuralTypeDeclaration,
@@ -114,9 +116,6 @@ fn validate_integer_namespace(expression: &CheckedScalarExpression) -> Result<()
         CheckedScalarExpression::Parameter { primitive_type, .. }
         | CheckedScalarExpression::ErasedParameter { primitive_type, .. }
         | CheckedScalarExpression::StructuralParameterField { primitive_type, .. } => {
-            if *primitive_type == PrimitiveType::Addr {
-                return unsupported("runtime requirement cannot use an address carrier");
-            }
             integer_scalar_type(*primitive_type).map(|_| ())
         }
         CheckedScalarExpression::IntegerLiteral { .. }
@@ -229,6 +228,7 @@ impl RuntimeRequirementTerms<'_> {
                 parameter_position,
                 path,
                 primitive_type,
+                ..
             } => lower_structural_member_term(
                 identities,
                 *parameter_position,
@@ -320,6 +320,7 @@ impl PredicateTerms for RuntimeRequirementTerms<'_> {
             CheckedBooleanExpression::StructuralParameterField {
                 parameter_position,
                 path,
+                ..
             } => lower_structural_member_term(
                 identities,
                 *parameter_position,
@@ -348,6 +349,7 @@ pub(crate) fn substitute_runtime_requirement_scalar_values(
             substitutions: &BTreeMap<ValueId, ValueDeclaration>,
         ) -> Result<(), LoweringError> {
             match term {
+                ScalarTerm::Application { .. } => Ok(()),
                 ScalarTerm::StructuralRead { path, .. } => {
                     for projection in path {
                         if let semantic_vocabulary::ScalarReadProjection::Index(selector) =

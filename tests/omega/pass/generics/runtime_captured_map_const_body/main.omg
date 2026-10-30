@@ -22,6 +22,6 @@ machine main() blocks; crashes Trap {
     let selected: i32 = block choose<ConstantThree>(5, 6);
     let applied: i32 = block choose<Selected<7>>(5, 6);
     transition selected == 3 && applied == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

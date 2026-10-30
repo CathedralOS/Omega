@@ -6,9 +6,9 @@ use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, IntegerType, IntegerValu
 
 pub(crate) fn integer_scalar_type(primitive: PrimitiveType) -> Result<ScalarType, LoweringError> {
     if primitive == PrimitiveType::Addr {
-        return IntegerType::address(64)
-            .map(ScalarType::Integer)
-            .map_err(|_| LoweringError::InvalidPsiIntegerType);
+        return Ok(ScalarType::Integer(
+            IntegerType::supported_address_representation(),
+        ));
     }
     let (sign, bits) = match primitive {
         // A selector is one opaque word naming an implementation table; no

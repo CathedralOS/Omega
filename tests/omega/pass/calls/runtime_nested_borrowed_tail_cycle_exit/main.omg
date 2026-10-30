@@ -1,0 +1,17 @@
+// Expected exit: 0
+data Cell { value: u64; }
+machine main() crashes Trap {
+    let mut storage: Cell = Cell { value: 0 };
+    first(&mut storage, 1000000);
+    transition storage.value == 42 { true -> good() _ -> bad() }
+    machine first(storage: &mut Cell, remaining: u64) {
+        transition remaining > 0 { true -> second(storage, remaining - 1) _ -> finish() }
+    }
+    machine second(storage: &mut Cell, remaining: u64) {
+        storage.value = 42;
+        transition { _ -> first(storage, remaining) }
+    }
+    machine finish() {}
+    machine good() {}
+    machine bad() crashes Trap { crash Trap; }
+}

@@ -55,19 +55,9 @@ impl ExitScalars<'_, '_> {
             parameter.is_const
                 || (parameter.is_mutable
                     && !crate::values::exclusive_reference(self.program, parameter.type_reference))
-        }) || self
-            .facts
-            .flow
-            .control
-            .exit_parameter_origins
-            .span_or_empty(self.exit.parameter_origins)
-            .iter()
-            .any(|origin| {
-                origin.contract == self.contract
-                    && (!origin.state_parameter.is_valid()
-                        || origin.entry_parameter != origin.state_parameter)
-            })
-        {
+        }) || self.contract_origins().any(|origin| {
+            !origin.state_parameter.is_valid() || origin.entry_parameter != origin.state_parameter
+        }) {
             return None;
         }
         let primitive = [binary.left, binary.right]
@@ -155,6 +145,63 @@ impl ExitScalars<'_, '_> {
         if !self.return_expression_is_stable(returned) {
             return None;
         }
+        // Completed values publish their checked bounds independently of the
+        // source construct. Read that immutable result occurrence before the
+        // older signed-enclosure adapters; u64's unstated upper bound remains
+        // its actual carrier maximum, not an i64 ceiling.
+        if let Some(subject) = validation::canonical_place_from_expression_in_state(
+            self.program,
+            state.symbol,
+            self.exit.statement_index,
+            result_expression,
+        ) && let Some(result_bounds) = crate::values::integer_bounds_at_place(
+            self.program,
+            &self.facts.semantic,
+            self.contexts
+                .iter()
+                .map(|context| self.facts.semantic.contexts.get(*context)),
+            &subject,
+        ) && let Some(value) = validation::closed_integer_range_bound(self.program, argument)
+        {
+            let argument_type = validation::expression_result_type_reference(
+                self.program,
+                self.machine,
+                entry,
+                argument,
+            );
+            if argument_type.is_none_or(|reference| {
+                exact_integer_carrier(self.program, reference) == Some(primitive)
+            }) && typed_trees::closed_numeric::land_integer(&value, primitive).is_some()
+            {
+                let argument_bounds = facts::IntegerRange {
+                    minimum: value.clone(),
+                    maximum: value,
+                };
+                let (left, right, types) = if result_on_left {
+                    (
+                        &result_bounds,
+                        &argument_bounds,
+                        [Some(result_type), argument_type],
+                    )
+                } else {
+                    (
+                        &argument_bounds,
+                        &result_bounds,
+                        [argument_type, Some(result_type)],
+                    )
+                };
+                if typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    self.program,
+                    self.machine.symbol,
+                    expression,
+                    spelling,
+                    &types,
+                ) && let Some(verdict) = interval_comparison(binary.operator, left, right)
+                {
+                    return Some(verdict);
+                }
+            }
+        }
         // Standing bounds describe every legal observation, including copied
         // constructor children. The occurrence owner can additionally bound
         // this exact evaluated return (for example a numeric conversion).
@@ -239,6 +286,89 @@ impl ExitScalars<'_, '_> {
                 maximum: BigInt::from_i64(right.1),
             },
         )
+    }
+
+    /// Compare a complete evaluated return enclosure with an independently
+    /// closed endpoint. This is mathematical interval inclusion, not executable
+    /// subtraction; no intermediate machine-width overflow is introduced.
+    pub(super) fn result_range_condition(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<checked_trees::IntegerRangeObligation> {
+        let binary = self.program.expression_table.binary_node(expression)?;
+        let (returned, result_type, bound, operator) =
+            if let Some((returned, result_type)) = self.result_bound_operand(binary.left) {
+                (returned, result_type, binary.right, binary.operator)
+            } else {
+                let (returned, result_type) = self.result_bound_operand(binary.right)?;
+                (
+                    returned,
+                    result_type,
+                    binary.left,
+                    binary.operator.mirrored(),
+                )
+            };
+        let primitive = exact_integer_carrier(self.program, result_type)?;
+        let carrier = validation::carrier_integer_range(primitive)?;
+        let entry = self.program.machine_states(self.machine).first()?;
+        let bound_type =
+            validation::expression_result_type_reference(self.program, self.machine, entry, bound)?;
+        if exact_integer_carrier(self.program, bound_type)? != primitive
+            || !self
+                .program
+                .constant_recipe_for_contract_expression(bound)
+                .is_valid()
+            || !self.return_expression_is_stable(exit_return_expression(self.program, self.exit))
+        {
+            return None;
+        }
+        let (spelling, types) = if self.result_bound_operand(binary.left).is_some() {
+            (
+                validation::comparison_operator_spelling(binary.operator)?,
+                [Some(result_type), Some(bound_type)],
+            )
+        } else {
+            (
+                validation::comparison_operator_spelling(binary.operator)?,
+                [Some(bound_type), Some(result_type)],
+            )
+        };
+        if !typed_trees::operator::has_builtin_spelled_expression_meaning(
+            self.program,
+            self.machine.symbol,
+            expression,
+            spelling,
+            &types,
+        ) {
+            return None;
+        }
+        let state = self.state()?;
+        let observed = validation::occurrence_integer_expression_recipe(
+            self.program,
+            self.machine.symbol,
+            state.symbol,
+            self.exit.statement_index,
+            returned,
+        )?;
+        let endpoint = checked_trees::IntegerRangeRecipe::observation(bound, self.machine.symbol);
+        let difference = observed.binary(BinaryOperator::Subtract, &endpoint)?;
+        let span = carrier.maximum.sub(&carrier.minimum);
+        let (minimum, maximum) = match operator {
+            BinaryOperator::LessOrEqual => (span.negate(), BigInt::from_i64(0)),
+            BinaryOperator::Less => (span.negate(), BigInt::from_i64(-1)),
+            BinaryOperator::GreaterOrEqual => (BigInt::from_i64(0), span),
+            BinaryOperator::Greater => (BigInt::from_i64(1), span),
+            BinaryOperator::Equal => (BigInt::from_i64(0), BigInt::from_i64(0)),
+            _ => return None,
+        };
+        Some(checked_trees::IntegerRangeObligation::retain(
+            expression,
+            self.machine.symbol,
+            difference,
+            minimum,
+            maximum,
+            "ensures return comparison".to_owned(),
+        ))
     }
 
     /// The expression and declared type whose immutable bounds a result

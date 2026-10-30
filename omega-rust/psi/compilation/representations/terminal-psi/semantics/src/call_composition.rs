@@ -307,8 +307,16 @@ macro_rules! call_composition_rows {
             ];
         }
 
-        const fn is_call_composition_tag(tag: OperationSemanticTag) -> bool {
-            matches!(tag, $( OperationSemanticTag::$tag )|+)
+        crate::semantic_rows::operation_semantic_cohort! {
+            rows: CallCompositionSemanticRow,
+            tags: CALL_COMPOSITION_TAGS,
+            is_tag: is_call_composition_tag,
+            exact_row: exact_call_composition_semantic_row_in,
+            reject_unexpected: reject_unexpected_call_composition_rows,
+            missing: MissingCallCompositionRow,
+            duplicate: DuplicateCallCompositionRow,
+            unexpected: UnexpectedCallCompositionRow,
+            $( $tag ),+
         }
     };
     (@count $( $variant:ident )+) => {
@@ -326,23 +334,6 @@ call_composition_rows! {
     BoundaryCall => (ExactBoundaryMachine, BoundaryDeclaredResult, BoundaryScalarAndStructuralPositionalArguments, ValidateBoundaryRequirements, ExactCompletionReceipts, BoundaryDeclaredCompletion, BoundaryHasNoCallRoutes, ExactBoundaryDeclarationEvidence, SettlesBoundaryFrontier),
 }
 
-pub fn exact_call_composition_semantic_row_in(
-    tag: OperationSemanticTag,
-    rows: &[CallCompositionSemanticRow],
-) -> Result<Option<&CallCompositionSemanticRow>, OperationSemanticError> {
-    if !is_call_composition_tag(tag) {
-        return Ok(None);
-    }
-    crate::semantic_rows::exactly_one_row_for_tag(
-        rows,
-        tag,
-        |row| row.tag,
-        OperationSemanticError::MissingCallCompositionRow,
-        OperationSemanticError::DuplicateCallCompositionRow,
-    )
-    .map(Some)
-}
-
 fn canonical_schema(tag: OperationSemanticTag) -> Option<CallCompositionSchema> {
     CallCompositionSemanticRow::ALL
         .iter()
@@ -353,21 +344,8 @@ fn canonical_schema(tag: OperationSemanticTag) -> Option<CallCompositionSchema> 
 pub fn validate_call_composition_semantic_rows(
     rows: &[CallCompositionSemanticRow],
 ) -> Result<(), OperationSemanticError> {
-    for row in rows {
-        if !is_call_composition_tag(row.tag) {
-            return Err(OperationSemanticError::UnexpectedCallCompositionRow(
-                row.tag,
-            ));
-        }
-    }
-    for tag in [
-        OperationSemanticTag::Call,
-        OperationSemanticTag::CallUnit,
-        OperationSemanticTag::CallStructuralScalar,
-        OperationSemanticTag::CallStructural,
-        OperationSemanticTag::CallStructuralWithScalarArguments,
-        OperationSemanticTag::BoundaryCall,
-    ] {
+    reject_unexpected_call_composition_rows(rows)?;
+    for tag in CALL_COMPOSITION_TAGS {
         let row = exact_call_composition_semantic_row_in(tag, rows)?
             .expect("the requested tag belongs to call composition");
         if Some(row.schema) != canonical_schema(tag) {

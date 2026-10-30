@@ -15,7 +15,7 @@ public machine expected_result(lab:&Lab,choice:i32)->bool {
   6 -> case_6(lab)
   _ -> rejected()
  }
- state case_0(lab:&Lab)->bool {
+ machine case_0(lab:&Lab)->bool {
   lab.events == 1 &&
   abs_f64(lab.time-(3.0)) <= 0.000000001 &&
   abs_f64(lab.momentum_x-(1.0)) <= 0.000000001 &&
@@ -31,7 +31,7 @@ public machine expected_result(lab:&Lab,choice:i32)->bool {
   abs_f64(lab.disks[1].vx-(0.5)) <= 0.000000001 &&
   abs_f64(lab.disks[1].vy-(0.0)) <= 0.000000001
  }
- state case_1(lab:&Lab)->bool {
+ machine case_1(lab:&Lab)->bool {
   lab.events == 1 &&
   abs_f64(lab.time-(3.0)) <= 0.000000001 &&
   abs_f64(lab.momentum_x-(1.0)) <= 0.000000001 &&
@@ -47,7 +47,7 @@ public machine expected_result(lab:&Lab,choice:i32)->bool {
   abs_f64(lab.disks[1].vx-(0.0)) <= 0.000000001 &&
   abs_f64(lab.disks[1].vy-(0.0)) <= 0.000000001
  }
- state case_2(lab:&Lab)->bool {
+ machine case_2(lab:&Lab)->bool {
   lab.events == 2 &&
   abs_f64(lab.time-(3.0)) <= 0.000000001 &&
   abs_f64(lab.momentum_x-(3.0)) <= 0.000000001 &&
@@ -71,7 +71,7 @@ public machine expected_result(lab:&Lab,choice:i32)->bool {
   abs_f64(lab.disks[3].vx-(1.0)) <= 0.000000001 &&
   abs_f64(lab.disks[3].vy-(0.0)) <= 0.000000001
  }
- state case_3(lab:&Lab)->bool {
+ machine case_3(lab:&Lab)->bool {
   lab.events == 0 &&
   abs_f64(lab.time-(3.0)) <= 0.000000001 &&
   abs_f64(lab.momentum_x-(-1.0)) <= 0.000000001 &&
@@ -87,7 +87,7 @@ public machine expected_result(lab:&Lab,choice:i32)->bool {
   abs_f64(lab.disks[1].vx-(0.0)) <= 0.000000001 &&
   abs_f64(lab.disks[1].vy-(0.0)) <= 0.000000001
  }
- state case_4(lab:&Lab)->bool {
+ machine case_4(lab:&Lab)->bool {
   lab.events == 1 &&
   abs_f64(lab.time-(2.0)) <= 0.000000001 &&
   abs_f64(lab.momentum_x-(3.0)) <= 0.000000001 &&
@@ -111,7 +111,7 @@ public machine expected_result(lab:&Lab,choice:i32)->bool {
   abs_f64(lab.disks[3].vx-(0.0)) <= 0.000000001 &&
   abs_f64(lab.disks[3].vy-(0.0)) <= 0.000000001
  }
- state case_5(lab:&Lab)->bool {
+ machine case_5(lab:&Lab)->bool {
   lab.events == 1 &&
   abs_f64(lab.time-(3.0)) <= 0.000000001 &&
   abs_f64(lab.momentum_x-(1.0)) <= 0.000000001 &&
@@ -127,7 +127,7 @@ public machine expected_result(lab:&Lab,choice:i32)->bool {
   abs_f64(lab.disks[1].vx-(0.375)) <= 0.000000001 &&
   abs_f64(lab.disks[1].vy-(0.0)) <= 0.000000001
  }
- state case_6(lab:&Lab)->bool {
+ machine case_6(lab:&Lab)->bool {
   lab.events == 1 &&
   abs_f64(lab.time-(3.0)) <= 0.000000001 &&
   abs_f64(lab.momentum_x-(1.0)) <= 0.000000001 &&
@@ -143,7 +143,7 @@ public machine expected_result(lab:&Lab,choice:i32)->bool {
   abs_f64(lab.disks[1].vx-(0.36)) <= 0.000000001 &&
   abs_f64(lab.disks[1].vy-(0.48)) <= 0.000000001
  }
- state rejected()->bool {false}
+ machine rejected()->bool {false}
 }
 
 public machine expected_contact(lab:&Lab,choice:i32)->bool {
@@ -157,27 +157,27 @@ public machine expected_contact(lab:&Lab,choice:i32)->bool {
   6 -> case_6(lab)
   _ -> rejected()
  }
- state case_0(lab:&Lab)->bool {
+ machine case_0(lab:&Lab)->bool {
   (lab.events == 1 && lab.first == 0 && lab.second == 1 && abs_f64(lab.time-2.0) <= 0.000000001 && abs_f64(lab.impulse-1.5) <= 0.000000001)
  }
- state case_1(lab:&Lab)->bool {
+ machine case_1(lab:&Lab)->bool {
   (lab.events == 1 && lab.first == 0 && lab.second == 1 && abs_f64(lab.time-2.0) <= 0.000000001 && abs_f64(lab.impulse-0.0) <= 0.000000001)
  }
- state case_2(lab:&Lab)->bool {
+ machine case_2(lab:&Lab)->bool {
   (lab.events == 1 && lab.first == 0 && lab.second == 1 && abs_f64(lab.time-2.0) <= 0.000000001 && abs_f64(lab.impulse-1.0) <= 0.000000001) ||
   (lab.events == 2 && lab.first == 2 && lab.second == 3 && abs_f64(lab.time-2.0) <= 0.000000001 && abs_f64(lab.impulse-2.0) <= 0.000000001)
  }
- state case_3(lab:&Lab)->bool {
+ machine case_3(lab:&Lab)->bool {
   false
  }
- state case_4(lab:&Lab)->bool {
+ machine case_4(lab:&Lab)->bool {
   (lab.events == 1 && lab.first == 0 && lab.second == 1 && abs_f64(lab.time-2.0) <= 0.000000001 && abs_f64(lab.impulse-1.0) <= 0.000000001)
  }
- state case_5(lab:&Lab)->bool {
+ machine case_5(lab:&Lab)->bool {
   (lab.events == 1 && lab.first == 0 && lab.second == 1 && abs_f64(lab.time-2.0) <= 0.000000001 && abs_f64(lab.impulse-1.125) <= 0.000000001)
  }
- state case_6(lab:&Lab)->bool {
+ machine case_6(lab:&Lab)->bool {
   (lab.events == 1 && lab.first == 0 && lab.second == 1 && abs_f64(lab.time-2.0) <= 0.000000001 && abs_f64(lab.impulse-0.6) <= 0.000000001)
  }
- state rejected()->bool {false}
+ machine rejected()->bool {false}
 }

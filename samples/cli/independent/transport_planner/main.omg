@@ -21,13 +21,13 @@ machine Main::main(main: &mut Main) reaches Console {
         LineReadResult::EndOfInput { count } -> parse(main, &bytes, count)
         _ -> malformed(main)
     }
-    state parse(main: &mut Main, bytes: &[u8; 256], count: u64) {
+    machine parse(main: &mut Main, bytes: &[u8; 256], count: u64) {
         transition count < bytes.len {
             true -> decode(main, bytes[..count])
             false -> malformed(main)
         }
     }
-    state decode(main: &mut Main, bytes: &[u8]) {
+    machine decode(main: &mut Main, bytes: &[u8]) {
         let mut input: TransportInput;
         let valid: bool = parse_transport(bytes, &mut input);
         transition valid {
@@ -35,14 +35,14 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> malformed(main)
         }
     }
-    state margins(main: &mut Main, input: &TransportInput) {
+    machine margins(main: &mut Main, input: &TransportInput) {
         let valid: bool = valid_margins(input);
         transition valid {
             true -> balanced(main, input)
             false -> malformed(main)
         }
     }
-    state balanced(main: &mut Main, input: &TransportInput) {
+    machine balanced(main: &mut Main, input: &TransportInput) {
         let supply: i32 in Wrapping = (input.values[0] as i32 in Wrapping)
             + (input.values[1] as i32 in Wrapping) + (input.values[2] as i32 in Wrapping);
         let demand: i32 in Wrapping = (input.values[3] as i32 in Wrapping)
@@ -52,7 +52,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> infeasible(main, supply, demand)
         }
     }
-    state optimize(main: &mut Main, input: &TransportInput) {
+    machine optimize(main: &mut Main, input: &TransportInput) {
         let mut plan: TransportPlan;
         let found: bool = solve_transport(input, &mut plan);
         transition found {
@@ -60,11 +60,11 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> internal_error(main)
         }
     }
-    state emit(main: &mut Main, plan: &TransportPlan) {
+    machine emit(main: &mut Main, plan: &TransportPlan) {
         emit_plan(plan);
         Console::exit_process(0);
     }
-    state infeasible(main: &mut Main, supply: i32 in Wrapping, demand: i32 in Wrapping) {
+    machine infeasible(main: &mut Main, supply: i32 in Wrapping, demand: i32 in Wrapping) {
         Console::write_line("INFEASIBLE: unequal totals");
         Console::write("supply ");
         emit_integer(supply);
@@ -72,11 +72,11 @@ machine Main::main(main: &mut Main) reaches Console {
         emit_integer(demand);
         Console::exit_process(3);
     }
-    state malformed(main: &mut Main) {
+    machine malformed(main: &mut Main) {
         Console::write_line("INVALID: expected 15 integers; margins 0..9, costs -99..99; one line below 256 bytes");
         Console::exit_process(2);
     }
-    state internal_error(main: &mut Main) {
+    machine internal_error(main: &mut Main) {
         Console::write_line("ERROR: balanced complete transport has no plan");
         Console::exit_process(4);
     }

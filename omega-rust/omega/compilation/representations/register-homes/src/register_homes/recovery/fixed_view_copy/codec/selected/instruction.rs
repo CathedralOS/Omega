@@ -1,4 +1,3 @@
-use legalized_operations::encode_integer;
 use register_model::encode_constraint_key;
 use register_model::{RegisterClassId, RegisterUnitId, RegisterViewId};
 use selected_instructions::effects::program::encoding::saturating_kind;
@@ -16,8 +15,8 @@ use crate::FixedViewCopyDecodeError;
 use super::provenance::{decode_provenance, encode_provenance};
 use crate::register_homes::recovery::fixed_view_copy::codec::{
     primitives::{
-        Cursor, decode_accepted_fact, decode_id, decode_option_u16, decode_u16s, encode_option_u16,
-        encode_u16s, length,
+        Cursor, decode_accepted_fact, decode_id, decode_list, decode_option_u16, decode_u16s,
+        encode_option_u16, encode_u16s, length,
     },
     values::{decode_access, decode_bool, decode_constraint_key, decode_integer},
 };
@@ -48,10 +47,8 @@ pub(super) fn decode_instruction(
     let id = SelectedInstructionId(cursor.u32()?);
     let kind = decode_kind(cursor)?;
     let constraint = decode_constraint_key(cursor)?;
-    let operand_count = cursor.length()?;
-    let mut operands = Vec::with_capacity(operand_count.min(cursor.remaining()));
-    for _ in 0..operand_count {
-        operands.push(SelectedOperand {
+    let operands = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
+        Ok(SelectedOperand {
             operand: cursor.u16()?,
             virtual_register: VirtualRegisterId(cursor.u32()?),
             access: decode_access(cursor)?,
@@ -59,8 +56,8 @@ pub(super) fn decode_instruction(
             fixed_view: decode_option_u16(cursor)?.map(RegisterViewId),
             tied_to: decode_option_u16(cursor)?,
             early_clobber: decode_bool(cursor)?,
-        });
-    }
+        })
+    })?;
     Ok(SelectedInstruction {
         id,
         kind,
@@ -110,6 +107,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CopyBytes => 59,
         SelectedInstructionKind::Store64 { .. } => 17,
         SelectedInstructionKind::FrameAddress { .. } => 18,
+        SelectedInstructionKind::InvokeNoNormal { .. } => 248,
         SelectedInstructionKind::CallUnit { .. } => 19,
         SelectedInstructionKind::Jump => 14,
         SelectedInstructionKind::CompareI64Zero => 0,
@@ -192,151 +190,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ExactShiftRightI64 { .. } => 109,
         SelectedInstructionKind::ExactShiftRightU64 { .. } => 110,
     };
-    bytes.push(tag);
-    match kind {
-        SelectedInstructionKind::RegisterAccess { operation } => {
-            bytes.extend_from_slice(&operation.catalog_tag().to_le_bytes());
-        }
-        SelectedInstructionKind::PortWrite { port, value } => {
-            bytes.extend_from_slice(&port.to_le_bytes());
-            bytes.push(value);
-        }
-        // Every float form shares one tag; its dense ordinal follows.
-        SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
-            bytes.push(form.machine_payload())
-        }
-        SelectedInstructionKind::PlacedScalarAccess {
-            form,
-            contract,
-            byte_offset,
-        } => {
-            bytes.push(form.machine_payload());
-            bytes.extend_from_slice(&contract);
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
-        }
-        SelectedInstructionKind::FloatResultPolicy { form } => bytes.push(form.machine_payload()),
-        SelectedInstructionKind::LoadPacked { byte_offset, width }
-        | SelectedInstructionKind::StorePacked { byte_offset, width } => {
-            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
-            bytes.push(width.byte_size());
-        }
-        SelectedInstructionKind::Store {
-            byte_offset,
-            byte_size,
-        } => {
-            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
-            bytes.push(byte_size);
-        }
-        SelectedInstructionKind::AddressOffset { byte_offset } => {
-            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
-        }
-        SelectedInstructionKind::Load64 { byte_offset }
-        | selected_instructions::load_width_triple_pattern!(byte_offset, ..) => {
-            bytes.extend_from_slice(&byte_offset.to_le_bytes())
-        }
-        SelectedInstructionKind::Store64 { slot, byte_offset }
-        | SelectedInstructionKind::FrameAddress { slot, byte_offset } => {
-            match slot {
-                selected_instructions::FrameStorageSlotId::Incoming {
-                    parameter_index,
-                    abi_stack_byte_offset,
-                } => {
-                    bytes.push(2);
-                    crate::codec_bytes::push_encoded(bytes, parameter_index.to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, abi_stack_byte_offset.to_le_bytes());
-                }
-                selected_instructions::FrameStorageSlotId::Outgoing(slot) => {
-                    bytes.push(match slot.role {
-                        selected_instructions::OutgoingArgumentSlotRole::Argument => 0,
-                        selected_instructions::OutgoingArgumentSlotRole::ValueCopy => 3,
-                    });
-                    slot.invocation_site.encode_identity(bytes);
-                    crate::codec_bytes::push_encoded(bytes, slot.argument_index.to_le_bytes());
-                }
-                selected_instructions::FrameStorageSlotId::Local(slot) => {
-                    bytes.push(1);
-                    slot.encode_identity(bytes);
-                }
-            }
-            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
-        }
-        selected_instructions::hosted_slot_quad_pattern!(slot, ..) => slot.encode_identity(bytes),
-        SelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),
-        SelectedInstructionKind::CompareI64Immediate { immediate } => {
-            encode_integer(bytes, immediate)
-        }
-        selected_instructions::exact_wrapping_divrem_set_pattern!(
-            obligation,
-            accepted_fact,
-            ..
-        )
-        | SelectedInstructionKind::SaturatingDivide {
-            obligation,
-            accepted_fact,
-            ..
-        }
-        | SelectedInstructionKind::SaturatingRemainder {
-            obligation,
-            accepted_fact,
-            ..
-        }
-        | SelectedInstructionKind::ExactDivideU64 {
-            obligation,
-            accepted_fact,
-        }
-        | SelectedInstructionKind::ExactAddI64 {
-            obligation,
-            accepted_fact,
-        }
-        | SelectedInstructionKind::ExactSubtractI64 {
-            obligation,
-            accepted_fact,
-        }
-        | SelectedInstructionKind::ExactMultiplyI64 {
-            obligation,
-            accepted_fact,
-        }
-        | SelectedInstructionKind::ExactShiftLeftI64 {
-            obligation,
-            accepted_fact,
-        }
-        | SelectedInstructionKind::ExactShiftRightI64 {
-            obligation,
-            accepted_fact,
-        }
-        | SelectedInstructionKind::ExactShiftRightU64 {
-            obligation,
-            accepted_fact,
-        } => {
-            crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-            bytes.extend_from_slice(&accepted_fact.bytes());
-        }
-        selected_instructions::exact_add_or_sub_pair_pattern!(
-            immediate,
-            obligation,
-            accepted_fact,
-            ..
-        ) => {
-            encode_integer(bytes, immediate);
-            crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-            bytes.extend_from_slice(&accepted_fact.bytes());
-        }
-        selected_instructions::selected_call_triple_pattern!(target, ..) => {
-            target.encode_identity(bytes);
-        }
-        SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => {
-            crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, ordinal.to_le_bytes());
-        }
-        SelectedInstructionKind::ImageAddress { reference } => {
-            reference.encode_identity(bytes);
-        }
-        SelectedInstructionKind::ScanByteSequence { predicate } => {
-            bytes.push(predicate.mask_bit());
-        }
-        SelectedInstructionKind::ReturnAggregate { fragment_count } => bytes.push(fragment_count),
-        _ => {}
-    }
+    selected_instructions::kind_encoding::encode_kind(bytes, tag, kind);
 }
 
 #[cfg(test)]
@@ -526,6 +380,9 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
                 SelectedInstructionKind::FrameAddress { slot, byte_offset }
             }
         }
+        248 => SelectedInstructionKind::InvokeNoNormal {
+            target: decode_call_target(cursor)?,
+        },
         19 => SelectedInstructionKind::CallUnit {
             target: decode_call_target(cursor)?,
         },

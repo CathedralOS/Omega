@@ -39,27 +39,27 @@ machine Audit::prepare(audit: &mut Audit, input: &Input) {
     audit.turning_count = 0;
     audit.index = 3;
     transition { _ -> loop(audit, input) }
-    state loop(audit: &mut Audit, input: &Input) {
+    machine loop(audit: &mut Audit, input: &Input) {
         transition audit.index < input.count && audit.index < 19 {
             true -> load(audit, input)
             false -> done()
         }
     }
-    state load(audit: &mut Audit, input: &Input) {
+    machine load(audit: &mut Audit, input: &Input) {
         audit.current = input.values[audit.index];
         transition audit.turning_count == 0 { true -> append_guard(audit, input) false -> tail_guard(audit, input) }
     }
-    state tail_guard(audit: &mut Audit, input: &Input) {
+    machine tail_guard(audit: &mut Audit, input: &Input) {
         transition audit.turning_count >= 1 && audit.turning_count <= 16 {
             true -> tail(audit, input)
             false -> done()
         }
     }
-    state tail(audit: &mut Audit, input: &Input) {
+    machine tail(audit: &mut Audit, input: &Input) {
         audit.second = audit.turning_count - 1;
         transition audit.second < 16 { true -> compare(audit, input) false -> done() }
     }
-    state compare(audit: &mut Audit, input: &Input) {
+    machine compare(audit: &mut Audit, input: &Input) {
         audit.right = audit.turning[audit.second];
         transition {
             audit.current == audit.right -> next(audit, input)
@@ -67,68 +67,68 @@ machine Audit::prepare(audit: &mut Audit, input: &Input) {
             _ -> append_guard(audit, input)
         }
     }
-    state prior(audit: &mut Audit, input: &Input) {
+    machine prior(audit: &mut Audit, input: &Input) {
         audit.first = audit.turning_count - 2;
         transition audit.first < 16 { true -> direction(audit, input) false -> done() }
     }
-    state direction(audit: &mut Audit, input: &Input) {
+    machine direction(audit: &mut Audit, input: &Input) {
         audit.left = audit.turning[audit.first];
         transition (audit.left < audit.right && audit.right < audit.current) || (audit.left > audit.right && audit.right > audit.current) {
             true -> replace_guard(audit, input)
             false -> append_guard(audit, input)
         }
     }
-    state replace_guard(audit: &mut Audit, input: &Input) {
+    machine replace_guard(audit: &mut Audit, input: &Input) {
         transition audit.second < 16 { true -> replace(audit, input) false -> done() }
     }
-    state replace(audit: &mut Audit, input: &Input) {
+    machine replace(audit: &mut Audit, input: &Input) {
         audit.turning[audit.second] = audit.current;
         transition { _ -> next(audit, input) }
     }
-    state append_guard(audit: &mut Audit, input: &Input) {
+    machine append_guard(audit: &mut Audit, input: &Input) {
         transition audit.turning_count < 16 { true -> append(audit, input) false -> done() }
     }
-    state append(audit: &mut Audit, input: &Input) {
+    machine append(audit: &mut Audit, input: &Input) {
         audit.turning[audit.turning_count] = audit.current;
         audit.turning_count = audit.turning_count + 1;
         transition { _ -> next(audit, input) }
     }
-    state next(audit: &mut Audit, input: &Input) {
+    machine next(audit: &mut Audit, input: &Input) {
         transition audit.index < 19 { true -> increment(audit, input) false -> done() }
     }
-    state increment(audit: &mut Audit, input: &Input) {
+    machine increment(audit: &mut Audit, input: &Input) {
         audit.index = audit.index + 1;
         transition { _ -> loop(audit, input) }
     }
-    state done() {}
+    machine done() {}
 }
 
 machine Audit::distance(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping {
     transition left >= right { true -> descending(left, right) false -> ascending(left, right) }
-    state descending(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping { left - right }
-    state ascending(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping { right - left }
+    machine descending(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping { left - right }
+    machine ascending(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping { right - left }
 }
 
 machine Audit::record(audit: &mut Audit) {
     transition audit.cycle_count < 16 { true -> store(audit) false -> done() }
-    state store(audit: &mut Audit) {
+    machine store(audit: &mut Audit) {
         audit.ranges[audit.cycle_count] = audit.range;
         audit.weights[audit.cycle_count] = audit.weight;
         transition audit.exponent == 2 { true -> square(audit) false -> linear(audit) }
     }
-    state square(audit: &mut Audit) {
+    machine square(audit: &mut Audit) {
         audit.total = audit.total + audit.weight * audit.range * audit.range;
         transition { _ -> next(audit) }
     }
-    state linear(audit: &mut Audit) {
+    machine linear(audit: &mut Audit) {
         audit.total = audit.total + audit.weight * audit.range;
         transition { _ -> next(audit) }
     }
-    state next(audit: &mut Audit) {
+    machine next(audit: &mut Audit) {
         transition audit.cycle_count < 16 { true -> increment(audit) false -> done() }
     }
-    state increment(audit: &mut Audit) { audit.cycle_count = audit.cycle_count + 1; }
-    state done() {}
+    machine increment(audit: &mut Audit) { audit.cycle_count = audit.cycle_count + 1; }
+    machine done() {}
 }
 
 machine Audit::count(audit: &mut Audit) {
@@ -137,67 +137,67 @@ machine Audit::count(audit: &mut Audit) {
     audit.cycle_count = 0;
     audit.total = 0;
     transition { _ -> feed_guard(audit) }
-    state feed_guard(audit: &mut Audit) {
+    machine feed_guard(audit: &mut Audit) {
         transition audit.index < audit.turning_count && audit.index < 16 && audit.stack_count < 16 {
             true -> feed(audit)
             false -> residual_start(audit)
         }
     }
-    state feed(audit: &mut Audit) {
+    machine feed(audit: &mut Audit) {
         audit.current = audit.turning[audit.index];
         audit.stack[audit.stack_count] = audit.current;
         audit.stack_count = audit.stack_count + 1;
         audit.index = audit.index + 1;
         transition { _ -> close_guard(audit) }
     }
-    state close_guard(audit: &mut Audit) {
+    machine close_guard(audit: &mut Audit) {
         transition audit.stack_count >= 4 && audit.stack_count <= 16 { true -> selectors(audit) false -> feed_guard(audit) }
     }
-    state selectors(audit: &mut Audit) {
+    machine selectors(audit: &mut Audit) {
         audit.first = audit.stack_count - 4;
         audit.second = audit.stack_count - 3;
         audit.third = audit.stack_count - 2;
         audit.fourth = audit.stack_count - 1;
         transition audit.first < 16 && audit.second < 16 && audit.third < 16 && audit.fourth < 16 { true -> ranges(audit) false -> done() }
     }
-    state ranges(audit: &mut Audit) {
+    machine ranges(audit: &mut Audit) {
         audit.left = Audit::distance(audit.stack[audit.first], audit.stack[audit.second]);
         audit.middle = Audit::distance(audit.stack[audit.second], audit.stack[audit.third]);
         audit.right = Audit::distance(audit.stack[audit.third], audit.stack[audit.fourth]);
         transition audit.middle <= audit.left && audit.middle <= audit.right { true -> close(audit) false -> feed_guard(audit) }
     }
-    state close(audit: &mut Audit) {
+    machine close(audit: &mut Audit) {
         audit.range = audit.middle;
         audit.weight = 2;
         Audit::record(audit);
         transition audit.second < 16 && audit.fourth < 16 && audit.stack_count >= 4 && audit.stack_count <= 16 { true -> remove(audit) false -> done() }
     }
-    state remove(audit: &mut Audit) {
+    machine remove(audit: &mut Audit) {
         audit.current = audit.stack[audit.fourth];
         audit.stack[audit.second] = audit.current;
         audit.stack_count = audit.stack_count - 2;
         transition { _ -> close_guard(audit) }
     }
-    state residual_start(audit: &mut Audit) {
+    machine residual_start(audit: &mut Audit) {
         audit.index = 1;
         transition { _ -> residual_guard(audit) }
     }
-    state residual_guard(audit: &mut Audit) {
+    machine residual_guard(audit: &mut Audit) {
         transition audit.index >= 1 && audit.index < audit.stack_count && audit.index < 16 { true -> residual_select(audit) false -> done() }
     }
-    state residual_select(audit: &mut Audit) {
+    machine residual_select(audit: &mut Audit) {
         audit.first = audit.index - 1;
         transition audit.first < 16 && audit.index < 16 { true -> residual(audit) false -> done() }
     }
-    state residual(audit: &mut Audit) {
+    machine residual(audit: &mut Audit) {
         audit.range = Audit::distance(audit.stack[audit.first], audit.stack[audit.index]);
         audit.weight = 1;
         Audit::record(audit);
         transition audit.index < 16 { true -> next(audit) false -> done() }
     }
-    state next(audit: &mut Audit) {
+    machine next(audit: &mut Audit) {
         audit.index = audit.index + 1;
         transition { _ -> residual_guard(audit) }
     }
-    state done() {}
+    machine done() {}
 }

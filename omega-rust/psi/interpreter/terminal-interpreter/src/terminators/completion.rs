@@ -10,44 +10,93 @@ use terminal_psi::{NominalAffineCleanup, TerminalAffineCleanupAction};
 mod tests;
 
 impl TerminalExecution<'_> {
+    /// Refuse an impossible normal edge before reading a result or preparing
+    /// cleanup. Nested ordinary helpers still return to their own frame; only
+    /// this machine's immediate receiving continuation determines the rule.
+    pub(super) fn reject_no_normal_return(&self) -> Result<(), TerminalInterpretError> {
+        if let Some(SuspendedCall {
+            result: SuspendedCallResult::NoNormal { callee, edge },
+            ..
+        }) = self.call_stack.last()
+        {
+            return Err(TerminalInterpretError::NoNormalInvocationReturned {
+                callee: *callee,
+                edge: *edge,
+            });
+        }
+        Ok(())
+    }
+
+    /// A retired binding's descriptor companions are not live roots. Captured
+    /// outputs and descriptor cells carry their own retained associations.
+    fn retire_home_companions(&mut self, place: PlaceId) {
+        self.aggregate_argument_backings.remove(&place);
+        self.byte_sequence_values.remove(&place);
+        self.element_view_values.remove(&place);
+        self.primitive_loan_values.remove(&place);
+    }
+
     pub(super) fn continue_cleanup_actions(
         &mut self,
         mut remaining: std::vec::IntoIter<TerminalAffineCleanupAction>,
         continuation: CleanupContinuation,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         while let Some(action) = remaining.next() {
+            self.collect_retired_descriptor_storage(Some(&continuation));
+            let retired = match &action {
+                TerminalAffineCleanupAction::RetireHome(place) => {
+                    self.structural_values.get(place).cloned()
+                }
+                _ => None,
+            };
             let nominal = commit_cleanup_action(
                 &self.program.structural_types(),
                 self.structural_cases.as_map(),
                 &self.program.machines(),
                 self.program.verified_machine(self.current_machine)?,
                 &mut self.structural_values,
+                &mut self.scalar_array_values,
                 &mut self.reference_referents,
                 &mut self.structural_element_view_fields,
                 &mut self.live_affine_frontier,
                 &mut self.live_claims,
                 &action,
             )?;
+            if let Some(retired) = retired {
+                self.queue_retired_descriptor_home((&retired).into());
+            }
+            if let TerminalAffineCleanupAction::RetireHome(place) = &action {
+                self.retire_home_companions(*place);
+            }
+            self.collect_retired_descriptor_storage(Some(&continuation));
             if let Some(completed) = nominal {
                 return self.start_nominal_cleanup(completed, remaining, continuation);
             }
         }
-        match continuation {
-            CleanupContinuation::Return(result) => {
-                if !self.live_affine_frontier.is_empty() || !self.live_claims.is_empty() {
-                    return Err(TerminalInterpretError::AffineFrontierMismatch);
-                }
-                // Initialized homes are not ownership obligations. A partial
-                // move or release can settle every resource while scalar
-                // siblings remain observable until this frame completes.
-                // The checked cleanup schedule has now finished; retire its
-                // bindings without pruning backing retained by outgoing values.
-                // Retiring views before this point would erase homes still
-                // named by explicit cleanup or by a suspended cleanup hook.
-                self.retire_plain_locals();
-                self.structural_values.clear();
-                self.finish_return(result)
+        if matches!(&continuation, CleanupContinuation::Return(_)) {
+            if !self.live_affine_frontier.is_empty() || !self.live_claims.is_empty() {
+                return Err(TerminalInterpretError::UnsettledReturnFrontier {
+                    affine: self.live_affine_frontier.iter().cloned().collect(),
+                    claims: self.live_claims.keys().copied().collect(),
+                });
             }
+            // Initialized homes are not ownership obligations. A partial
+            // move or release can settle every resource while scalar
+            // siblings remain observable until this frame completes.
+            // The checked cleanup schedule has now finished; retire its
+            // bindings without pruning backing retained by outgoing values.
+            // Retiring views before this point would erase homes still
+            // named by explicit cleanup or by a suspended cleanup hook.
+            let retired: Vec<_> = self.structural_values.values().map(Into::into).collect();
+            self.retire_plain_locals();
+            self.structural_values.clear();
+            for root in retired {
+                self.queue_retired_descriptor_home(root);
+            }
+            self.collect_retired_descriptor_storage(Some(&continuation));
+        }
+        match continuation {
+            CleanupContinuation::Return(result) => self.finish_return(result),
             CleanupContinuation::Successor { target, bindings } => {
                 bindings.commit(self, target)?;
                 self.current = target;
@@ -125,7 +174,10 @@ impl TerminalExecution<'_> {
                 });
                 return Err(malformed());
             }
-            if let Err(error) = self.charge_completed_result(&completed) {
+            if let Err(error) = self
+                .require_entry_results_complete()
+                .and_then(|()| self.charge_completed_result(&completed))
+            {
                 self.failed_return = Some(FailedReturn {
                     _completed: completed,
                     _expected: None,
@@ -175,6 +227,12 @@ impl TerminalExecution<'_> {
         expected: &SuspendedCallResult,
         loan_completions: &[terminal_psi::LoanCompletion],
     ) -> Result<(), TerminalInterpretError> {
+        if let SuspendedCallResult::NoNormal { callee, edge } = expected {
+            return Err(TerminalInterpretError::NoNormalInvocationReturned {
+                callee: *callee,
+                edge: *edge,
+            });
+        }
         if let SuspendedCallResult::ExternalCompletion { boundary, edge } = expected {
             return Err(TerminalInterpretError::ExternalCompletionProviderReturned {
                 boundary: *boundary,
@@ -189,6 +247,12 @@ impl TerminalExecution<'_> {
         }
         self.complete_loan_custody(loan_completions)?;
         match expected {
+            SuspendedCallResult::NoNormal { callee, edge } => {
+                Err(TerminalInterpretError::NoNormalInvocationReturned {
+                    callee: *callee,
+                    edge: *edge,
+                })
+            }
             SuspendedCallResult::ExternalCompletion { boundary, edge } => {
                 Err(TerminalInterpretError::ExternalCompletionProviderReturned {
                     boundary: *boundary,
@@ -203,10 +267,15 @@ impl TerminalExecution<'_> {
                 }
                 crate::custody::complete_nominal_cleanup(
                     &mut self.structural_values,
+                    &mut self.scalar_array_values,
                     &mut self.live_affine_frontier,
                     &self.live_claims,
                     &cleanup.0,
                 )?;
+                if !self.structural_values.contains_key(&cleanup.0.place) {
+                    self.retire_home_companions(cleanup.0.place);
+                    self.queue_retired_descriptor_home((&cleanup.1).into());
+                }
                 Ok(())
             }
             SuspendedCallResult::Unit => {
@@ -220,7 +289,7 @@ impl TerminalExecution<'_> {
                     return Err(malformed());
                 };
                 self.values.insert(*destination, *value)?;
-                Ok(())
+                self.observe_completed_entry_result(*destination)
             }
             SuspendedCallResult::Structural {
                 result,
@@ -252,13 +321,8 @@ impl TerminalExecution<'_> {
                         }
                     }
                     TerminalExecutionResult::ScalarArray(returned) => {
-                        if self
-                            .scalar_array_values
-                            .insert(result.place, returned.value.clone())?
-                            .is_some()
-                        {
-                            return Err(malformed());
-                        }
+                        self.scalar_array_values
+                            .publish(result.place, returned.value.clone())?;
                     }
                     _ => return Err(malformed()),
                 }

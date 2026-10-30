@@ -13,8 +13,8 @@ machine call_mark(selected: dyn ReadContract) -> u64 { ReadContract::read(select
 
 machine accept(value: u64) crashes Trap {
     transition value == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine main() reaches crashes Trap {
     accept(call_mark(Selected as dyn ReadContract));

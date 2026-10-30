@@ -290,3 +290,53 @@ mod tests {
         assert!(panic.is_err());
     }
 }
+
+impl<T: HierarchyNode + compiler_storage::Record> compiler_storage::Record for HierarchyArena<T> {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        self.nodes.write(output)
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        let nodes = Arena::<T>::read(input)?;
+        for (handle, node) in nodes.iter() {
+            if node.parent().is_valid() && !nodes.is_valid(node.parent()) {
+                return Err(input.error("hierarchy parent does not name live storage"));
+            }
+            let children = nodes
+                .span(node.children())
+                .ok_or_else(|| input.error("hierarchy child range does not name live storage"))?;
+            if children.iter().any(|child| child.parent() != handle) {
+                return Err(input.error("hierarchy child range disagrees with its parent"));
+            }
+        }
+        // Parent chains may contain supplemental children outside the primary
+        // range. Check acyclicity without requiring a particular allocation order.
+        let mut completed = vec![false; nodes.storage_slice().len()];
+        let mut visiting = vec![false; completed.len()];
+        for (handle, _) in nodes.iter() {
+            let mut chain = Vec::new();
+            let mut current = handle;
+            while current.is_valid() {
+                let position = current.arena_index() as usize - 1;
+                if completed[position] {
+                    break;
+                }
+                if visiting[position] {
+                    return Err(input.error("hierarchy parent chain is cyclic"));
+                }
+                visiting[position] = true;
+                chain.push(position);
+                current = nodes.get(current).parent();
+            }
+            for position in chain {
+                visiting[position] = false;
+                completed[position] = true;
+            }
+        }
+        Ok(Self { nodes })
+    }
+}

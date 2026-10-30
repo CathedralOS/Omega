@@ -30,6 +30,7 @@ use typed_trees as typed;
 
 mod arithmetic_results;
 mod computed_results;
+mod const_arguments;
 mod constraints;
 mod direct;
 mod generic_origins;
@@ -65,6 +66,7 @@ pub(super) fn retain_supplied_operand_owner(
 
 pub(crate) use arithmetic_results::retain_arithmetic_result_type;
 pub(crate) use computed_results::retain_computed_result_types;
+pub(crate) use const_arguments::normalize_const_argument_carriers;
 pub(crate) use generic_origins::validate_range_arguments;
 
 use direct::lower_type_reference_handle_with_context;
@@ -108,6 +110,77 @@ pub(crate) fn lower_type_reference_handle_from_table(
         type_reference,
         Some(language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation),
     )
+}
+
+/// Issue selection custody from a real original source type token before
+/// Product substitution. This reuses ordinary retention for resolved names;
+/// an unresolved Product recipe remains late-bound until immutable checking.
+/// Binder/local tokens never acquire the supplying actual's declaration ID.
+pub(crate) fn retain_type_reference_recipe_selection(
+    source: &resolved::SymbolResolvedTrees,
+    typed: &mut typed::TypedTrees,
+    name: &resolved::name::DiagnosticName,
+    symbol: symbols::SymbolHandle,
+    exposure: Option<
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    >,
+    kind: language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
+) -> Result<
+    Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
+    Diagnostic,
+> {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionCoordinateError as CoordinateError,
+        AuthoredDeclarationSelectionLateBinding as Binding,
+    };
+    let Some(exposure) = exposure else {
+        return Ok(None);
+    };
+    if !name.is_source_backed() {
+        return Ok(None);
+    }
+    if symbol.is_valid()
+        && (source.symbols.builtin_type_atom(symbol).is_some()
+            || matches!(
+                source.symbols.get(symbol).kind,
+                symbols::SymbolKind::Parameter
+                    | symbols::SymbolKind::TypeParameter
+                    | symbols::SymbolKind::MachineParameter
+                    | symbols::SymbolKind::ConformanceParameter
+                    | symbols::SymbolKind::PropositionParameter
+                    | symbols::SymbolKind::PropositionMachineParameter
+                    | symbols::SymbolKind::Local
+            ))
+    {
+        return Ok(None);
+    }
+    if symbol.is_valid() {
+        retain_type_reference_selection(source, typed, name, symbol, Some(exposure), kind)?;
+    }
+    match typed
+        .authored_declaration_selections()
+        .source_coordinate_occurrence(name.source_span(), exposure, kind)
+    {
+        Ok(occurrence) => Ok(Some(occurrence)),
+        Err(CoordinateError::Missing) if !symbol.is_valid() => typed
+            .record_late_bound_authored_declaration_selection(
+                name.source_span(),
+                exposure,
+                kind,
+                Binding::CheckedStaticPathSegment,
+            )
+            .map(Some)
+            .map_err(|reason| {
+                Diagnostic::error(format!(
+                    "failed to retain original static type recipe selection: {reason:?}"
+                ))
+                .with_source_span(name.source_span())
+            }),
+        Err(reason) => Err(Diagnostic::error(format!(
+            "original static type recipe selection has no unique source custody: {reason}"
+        ))
+        .with_source_span(name.source_span())),
+    }
 }
 
 pub(super) fn retain_type_reference_selection(
@@ -214,12 +287,26 @@ pub(super) fn lower_named_type_reference(
         exposure,
         language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
     )?;
-    Ok(typed_trees
-        .type_reference_table
-        .insert(typed::types::TypeReferenceNode::Named {
-            symbol,
-            name: crate::lowerer::name::lower_name(name),
-        }))
+    let reference =
+        typed_trees
+            .type_reference_table
+            .insert(typed::types::TypeReferenceNode::Named {
+                symbol,
+                name: crate::lowerer::name::lower_name(name),
+            });
+    if source_trees.const_declaration(symbol).is_some() {
+        typed_trees
+            .type_reference_table
+            .attach_constant_origins(
+                reference,
+                [typed::types::TypeConstantOrigin {
+                    declaration: symbol,
+                    reference: name.source_span(),
+                }],
+            )
+            .map_err(Diagnostic::error)?;
+    }
+    Ok(reference)
 }
 
 pub(crate) fn retain_static_path_selection(
@@ -251,18 +338,34 @@ pub(crate) fn retain_path_selection(
     kind: language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
     context: &str,
 ) -> Result<(), Diagnostic> {
+    retain_path_selection_occurrence(typed_trees, path, symbol, exposure, kind, context).map(|_| ())
+}
+
+pub(crate) fn retain_path_selection_occurrence(
+    typed_trees: &mut typed::TypedTrees,
+    path: &[resolved::name::DiagnosticName],
+    symbol: symbols::SymbolHandle,
+    exposure: impl Into<
+        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
+    >,
+    kind: language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
+    context: &str,
+) -> Result<
+    Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
+    Diagnostic,
+> {
     let Some(exposure) = exposure.into() else {
-        return Ok(());
+        return Ok(None);
     };
     if !symbol.is_valid() {
-        return Ok(());
+        return Ok(None);
     }
     let authored = path
         .iter()
         .filter(|member| member.is_source_backed())
         .collect::<Vec<_>>();
     let (Some(first), Some(last)) = (authored.first(), authored.last()) else {
-        return Ok(());
+        return Ok(None);
     };
     if first.source_span().source_id != last.source_span().source_id {
         return Err(Diagnostic::error(format!(
@@ -276,7 +379,7 @@ pub(crate) fn retain_path_selection(
     );
     typed_trees
         .record_resolved_authored_declaration_selection_once(source_span, exposure, kind, symbol)
-        .map(|_| ())
+        .map(Some)
         .map_err(|error| {
             Diagnostic::error(format!(
                 "failed to retain authored {context} selection: {error:?}"

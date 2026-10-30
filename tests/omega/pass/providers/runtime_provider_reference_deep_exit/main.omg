@@ -13,6 +13,6 @@ NativeLocale satisfies LocaleAccess {
 machine main() reaches LocaleAccess crashes Trap {
  let locale: &Locale = LocaleAccess::locate();
  transition locale.decimal_point.value == 46 { true -> done() false -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }

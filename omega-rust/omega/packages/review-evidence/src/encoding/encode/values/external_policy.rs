@@ -3,7 +3,7 @@
 mod locator;
 mod signatures;
 use super::identity::encode_nominal;
-use crate::encoding::encode::encoder::Encoder;
+use crate::encoding::encode::encoder::{Encoder, encode_canonical_component};
 use crate::encoding::{
     EXTERNAL_SUPPLY_POLICY_MAGIC, PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION,
     PackageReviewEncodingError,
@@ -14,25 +14,12 @@ use crate::record::{
 };
 pub(crate) use locator::encode_locator;
 
-const MAXIMUM_BYTES: usize = 4 * 1024 * 1024;
-
 impl PackagePolicyExternalExecutableSupply {
-    /// Bounded component-schema bytes for policy comparison. They contain no
-    /// acceptance decision, evaluation receipt or executable authority.
-    pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
-        encode(self, MAXIMUM_BYTES)
-    }
-}
-
-fn encode(
-    supply: &PackagePolicyExternalExecutableSupply,
-    maximum_bytes: usize,
-) -> Result<Vec<u8>, PackageReviewEncodingError> {
-    let mut encoder = Encoder::policy_bounded(maximum_bytes);
-    encoder.fixed_bytes(EXTERNAL_SUPPLY_POLICY_MAGIC);
-    encoder.u16(PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION);
-    policy(&mut encoder, supply)?;
-    encoder.finish()
+    encode_canonical_component!(
+        EXTERNAL_SUPPLY_POLICY_MAGIC,
+        PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION,
+        policy,
+    );
 }
 
 pub(in crate::encoding::encode) fn policy(
@@ -47,36 +34,26 @@ pub(in crate::encoding::encode) fn validated_value(
     encoder: &mut Encoder,
     supply: &PackagePolicyExternalExecutableSupply,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("callable", |encoder| {
-        encode_nominal(encoder, &supply.callable)
-    })?;
-    encoder.field("target_context", |encoder| {
-        super::identity::encode_target_context(encoder, &supply.target_context)
-    })?;
-    encoder.field("signature", |encoder| {
-        signatures::signature(encoder, &supply.signature)
-    })?;
-    encoder.field("requirement", |encoder| {
-        signatures::requirement(encoder, &supply.requirement)
-    })?;
+    encoder.field_by("callable", &supply.callable, encode_nominal)?;
+    encoder.field_by(
+        "target_context",
+        &supply.target_context,
+        super::identity::encode_target_context,
+    )?;
+    encoder.field_by("signature", &supply.signature, signatures::signature)?;
+    encoder.field_by("requirement", &supply.requirement, signatures::requirement)?;
     encoder.field("binding", |encoder| {
         // Tag 0 carried the retired string-backed import row; recovery
         // rejects it by name and no policy produces it again.
         match &supply.binding {
             PackagePolicyExternalBinding::Syscall { number } => {
                 encoder.tag("syscall", 1);
-                encoder.field("number", |encoder| {
-                    encoder.i64(*number);
-                    Ok(())
-                })?;
+                encoder.i64_field("number", *number)?;
             }
             PackagePolicyExternalBinding::CompilerIntrinsic => encoder.tag("compiler_intrinsic", 2),
             PackagePolicyExternalBinding::VtableSlot { index } => {
                 encoder.tag("vtable_slot", 3);
-                encoder.field("index", |encoder| {
-                    encoder.i64(*index);
-                    Ok(())
-                })?;
+                encoder.i64_field("index", *index)?;
             }
             PackagePolicyExternalBinding::VtableField { field } => {
                 encoder.tag("vtable_field", 4);
@@ -103,10 +80,7 @@ pub(in crate::encoding::encode) fn validated_value(
             } => {
                 encoder.tag("normalized_syscall", 7);
                 encoder.field("target", |encoder| encode_target(encoder, target))?;
-                encoder.field("number", |encoder| {
-                    encoder.i64(*number);
-                    Ok(())
-                })?;
+                encoder.i64_field("number", *number)?;
                 encoder.field("producer", |encoder| encode_producer(encoder, producer))?;
             }
         }
@@ -130,14 +104,7 @@ pub(crate) fn encode_producer(
     encoder: &mut Encoder,
     producer: &PackagePolicyEvaluatedBindingProducer,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("declaration", |encoder| {
-        encode_nominal(encoder, &producer.declaration)
-    })?;
-    encoder.field("package", |encoder| {
-        encoder.optional_package_identity(producer.package);
-        Ok(())
-    })?;
-    encoder.field("callable_identity", |encoder| {
-        encoder.string(&producer.callable_identity)
-    })
+    encoder.field_by("declaration", &producer.declaration, encode_nominal)?;
+    encoder.optional_package_identity_field("package", producer.package)?;
+    encoder.string_field("callable_identity", &producer.callable_identity)
 }

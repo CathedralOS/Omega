@@ -30,22 +30,22 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad_prior(main)
     }
 
-    state check_value(main: &mut Main) {
+    machine check_value(main: &mut Main) {
         transition main.cell.value == 15 {
             true -> good(main)
             false -> bad_value(main)
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state bad_prior(main: &mut Main) {
+    machine bad_prior(main: &mut Main) {
         Console::exit_process(71);
     }
 
-    state bad_value(main: &mut Main) {
+    machine bad_value(main: &mut Main) {
         Console::exit_process(72);
     }
 }

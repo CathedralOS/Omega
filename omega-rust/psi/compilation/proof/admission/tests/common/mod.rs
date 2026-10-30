@@ -402,3 +402,125 @@ pub(crate) fn assert_check_type_mismatch(
         proof_admission::argument_error_pair_pattern!()
     ));
 }
+
+// ── The length-indexed vector description ──────────────────────────────
+//
+// `Vec n = IW Nat A_v B_v out_v next_v n` over the assumed `Nat`/`Elem`:
+// the one vector description every indexed fixture shares — the vector
+// demonstration itself and the nested rose tree whose payload carries it.
+// Each fixture used to re-encode these functions verbatim.
+
+/// `Id Two zero one` — the empty child position: no closed inhabitant,
+/// so a node whose `B` selects it has no reachable children.
+
+/// `Id Two zero zero` — the single child position, inhabited by `refl`.
+
+/// `B = λ(a : A). caseTwo(λ_.Type 0, Id Two zero one, Id Two zero zero,
+/// fst a)` — child positions selected by tag: none under nil, one under
+/// cons.
+pub(crate) fn vector_branching(arena: &mut TermArena) -> TermHandle {
+    let motive = type_motive(arena);
+    let empty = empty_positions(arena);
+    let unit = unit_position(arena);
+    let bound = variable(arena, 0);
+    let tag = fst(arena, bound);
+    let body = case_two(arena, motive, empty, unit, tag);
+    let domain = carrier(arena, elem_nat_payload);
+    lambda(arena, domain, body)
+}
+
+/// `out = λ(a : A). caseTwo(M, λ_. zeroN, λp. succN (snd p), fst a)
+/// (snd a)` with `M tag = Π(_ : Payload tag). Nat` — the index a node
+/// produces: `zeroN` under nil, `succN n` under `cons ⟨e, n⟩`.
+pub(crate) fn vector_out_index(arena: &mut TermArena) -> TermHandle {
+    let motive = {
+        // Under the tag binder: `Π(_ : Payload tag). Nat`.
+        let tag = variable(arena, 0);
+        let payload_fn = elem_nat_payload(arena);
+        let payload_at = apply(arena, payload_fn, tag);
+        let length = nat(arena);
+        let codomain = pi(arena, payload_at, length);
+        let domain = two(arena);
+        lambda(arena, domain, codomain)
+    };
+    let zero_branch = {
+        // `λ(_ : Two). zeroN`, checked at `Π(_ : Payload zero ≡ Two). Nat`.
+        let domain = two(arena);
+        let zero = nat_zero(arena);
+        lambda(arena, domain, zero)
+    };
+    let one_branch = {
+        // `λ(p : Σ(e : Elem). Nat). succN (snd p)` at
+        // `Π(_ : Payload one ≡ Σ(e : Elem). Nat). Nat`.
+        let domain = {
+            let element = elem(arena);
+            let length = nat(arena);
+            sigma(arena, element, length)
+        };
+        let bound = variable(arena, 0);
+        let predecessor = snd(arena, bound);
+        let body = nat_succ(arena, predecessor);
+        lambda(arena, domain, body)
+    };
+    let carrier_handle = carrier(arena, elem_nat_payload);
+    tag_selected_children(arena, carrier_handle, motive, zero_branch, one_branch)
+}
+
+/// `next = λ(a : A). caseTwo(M, λp.λ_. zeroN, λp.λ_. snd p, fst a)
+/// (snd a)` with `M tag = Π(p : Payload tag). Π(_ : B' tag). Nat` and
+/// `B' tag = caseTwo(λ_.Type 0, Id Two zero one, Id Two zero zero, tag)`
+/// — the index each child position requires: unreachable under nil
+/// (any `Nat` answers), and `snd p = n`, the predecessor, under cons.
+pub(crate) fn vector_next_index(arena: &mut TermArena) -> TermHandle {
+    let motive = {
+        // `λ(tag : Two). Π(p : Payload tag). Π(_ : B' tag). Nat`.
+        let tag = variable(arena, 0);
+        let payload_fn = elem_nat_payload(arena);
+        let payload_at = apply(arena, payload_fn, tag);
+        let branching_at = {
+            // Under the `p` binder the tag is index 1.
+            let motive = type_motive(arena);
+            let empty = empty_positions(arena);
+            let unit = unit_position(arena);
+            let tag = variable(arena, 1);
+            case_two(arena, motive, empty, unit, tag)
+        };
+        let length = nat(arena);
+        let inner = pi(arena, branching_at, length);
+        let body = pi(arena, payload_at, inner);
+        let domain = two(arena);
+        lambda(arena, domain, body)
+    };
+    // `λ(p : Two). λ(_ : Id Two zero one). zeroN` — the dead position is
+    // answered by any length.
+    let zero_branch = zero_nat_branch(arena);
+    let one_branch = {
+        // `λ(p : Σ(e : Elem). Nat). λ(_ : Id Two zero zero). snd p` —
+        // the child's required index is the recorded predecessor.
+        let payload_domain = {
+            let element = elem(arena);
+            let length = nat(arena);
+            sigma(arena, element, length)
+        };
+        let position_domain = unit_position(arena);
+        let bound = variable(arena, 1);
+        let body = snd(arena, bound);
+        let inner = lambda(arena, position_domain, body);
+        lambda(arena, payload_domain, inner)
+    };
+    let carrier_handle = carrier(arena, elem_nat_payload);
+    tag_selected_children(arena, carrier_handle, motive, zero_branch, one_branch)
+}
+
+/// The length-indexed vector family over the assumed `Nat`/`Elem`:
+/// `Vec n = IW Nat A B out next n` with the computed description above.
+pub(crate) fn vector_family(arena: &mut TermArena) -> IndexedFamily {
+    IndexedFamily {
+        levels: [Level::Constant(0), Level::Constant(0), Level::Constant(0)],
+        index: nat(arena),
+        carrier: carrier(arena, elem_nat_payload),
+        children: vector_branching(arena),
+        out: vector_out_index(arena),
+        next: vector_next_index(arena),
+    }
+}

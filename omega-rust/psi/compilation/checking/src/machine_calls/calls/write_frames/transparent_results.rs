@@ -42,6 +42,89 @@ pub(crate) fn transparent_call_result_origins(
         &mut FrameInference,
     ) -> Option<Vec<FramePlaceOrigin>>,
 ) -> Option<Vec<FramePlaceOrigin>> {
+    map_call_result_origins(
+        program,
+        call,
+        symbols,
+        inference,
+        |machine, parameter, result, actual, inference| {
+            Some(
+                resolve_actual_origins(machine, parameter, result, actual, inference)?
+                    .into_iter()
+                    .map(|origin| project_result_origin(program, origin, result))
+                    .collect(),
+            )
+        },
+    )
+}
+
+/// Completed actuals retain their observation cut while the selected body adds
+/// its return projection. New pointer boundaries load from this inventory;
+/// forwarding the input itself never reloads its former descriptor home.
+pub(crate) fn captured_call_result_origins(
+    program: &dyn crate::CheckingInput,
+    call: &TableCallExpression,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    resolve_actual_origins: impl Fn(
+        &Machine,
+        &StateParameter,
+        &FramePlaceOrigin,
+        ExpressionHandle,
+        &mut FrameInference,
+    ) -> Option<Vec<FramePlaceOrigin>>,
+    stored: &[super::stored_origins::StoredLocalOrigins],
+) -> Option<Vec<FramePlaceOrigin>> {
+    map_call_result_origins(
+        program,
+        call,
+        symbols,
+        inference,
+        |machine, parameter, result, actual, inference| {
+            let mut completed = Vec::new();
+            for origin in resolve_actual_origins(machine, parameter, result, actual, inference)? {
+                let projected = project_result_origin(program, origin.clone(), result);
+                for source in super::stored_origins::captured_reference_projection_origins(
+                    program, &origin, &projected, stored,
+                ) {
+                    push_unique_origin(&mut completed, source?);
+                }
+            }
+            (!completed.is_empty()).then_some(completed)
+        },
+    )
+}
+
+fn project_result_origin(
+    program: &dyn crate::CheckingInput,
+    origin: FramePlaceOrigin,
+    result: &FramePlaceOrigin,
+) -> FramePlaceOrigin {
+    let (_, suffix) = split_place_root(&result.path);
+    let source = origin.source.append_relative(program, &result.source);
+    match origin.precision {
+        FramePathPrecision::Exact => FramePlaceOrigin {
+            path: append_place_suffix(&origin.path, suffix),
+            precision: result.precision,
+            source,
+        },
+        FramePathPrecision::CollectionCoarse => FramePlaceOrigin { source, ..origin },
+    }
+}
+
+fn map_call_result_origins(
+    program: &dyn crate::CheckingInput,
+    call: &TableCallExpression,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    resolve_actual_origins: impl Fn(
+        &Machine,
+        &StateParameter,
+        &FramePlaceOrigin,
+        ExpressionHandle,
+        &mut FrameInference,
+    ) -> Option<Vec<FramePlaceOrigin>>,
+) -> Option<Vec<FramePlaceOrigin>> {
     let (callee_machine, callee_state) = machine_state_by_symbol(program, call.target_symbol)?;
     if call.receiver.is_valid() != callee_machine.attached_data.is_some() {
         return None;
@@ -75,7 +158,6 @@ pub(crate) fn transparent_call_result_origins(
         let result_parameter = parameters
             .iter()
             .find(|parameter| parameter.symbol == result_origin.parameter_symbol)?;
-        let (_, result_suffix) = split_place_root(&result_origin.place.path);
         let actual = {
             let (argument_index, _) = parameters
                 .iter()
@@ -86,32 +168,17 @@ pub(crate) fn transparent_call_result_origins(
                 .expression_handles(call.arguments)
                 .get(argument_index)?
         };
-        for argument_origin in resolve_actual_origins(
+        for origin in resolve_actual_origins(
             callee_machine,
             result_parameter,
             &result_origin.place,
             actual,
             inference,
         )? {
-            let source = argument_origin
-                .source
-                .append_relative(program, &result_origin.place.source);
-            push_unique_origin(
-                &mut origins,
-                match argument_origin.precision {
-                    FramePathPrecision::Exact => FramePlaceOrigin {
-                        path: append_place_suffix(&argument_origin.path, result_suffix),
-                        precision: result_origin.place.precision,
-                        source,
-                    },
-                    FramePathPrecision::CollectionCoarse => FramePlaceOrigin {
-                        source,
-                        ..argument_origin
-                    },
-                },
-            );
+            push_unique_origin(&mut origins, origin);
         }
     }
+
     (!origins.is_empty()).then_some(origins)
 }
 
@@ -232,7 +299,7 @@ pub(crate) fn transparent_callee_result_origins(
         if !leaf.local_suffix.is_empty() || !leaf.local_segments.is_empty() {
             return None;
         }
-        let place = leaf.origin?;
+        let place = leaf.origin?.into_symbolic_place()?;
         let parameter_symbol = if place.source.is_static() {
             SymbolHandle::invalid()
         } else {
@@ -280,7 +347,7 @@ struct ResultSelection {
 impl ResultSelection {
     fn new(program: &dyn crate::CheckingInput, state: &State, actual_values: &[BoolTruth]) -> Self {
         Self {
-            values: ParameterValues::new(program, state, actual_values),
+            values: ParameterValues::new(program, state, actual_values, &[]),
             captured_results: Vec::new(),
         }
     }
@@ -612,17 +679,11 @@ fn contributed_named_target(
     reachability: &mut ResultReachability,
     edge: typed_trees::statement::TransitionTargetHandle,
 ) -> Option<Vec<SymbolHandle>> {
-    let TransitionTargetNode::Named {
-        arguments,
-        static_machine_parameter,
-        ..
-    } = program.statement_table.transition_target(edge)
+    let TransitionTargetNode::Named { arguments, .. } =
+        program.statement_table.transition_target(edge)
     else {
         return None;
     };
-    if static_machine_parameter.is_valid() {
-        return None;
-    }
     let machine = program.machine_holding_state(state.symbol)?;
     let call_symbol = super::terminal_calls::target(program, machine, edge);
     let target_state = if call_symbol.is_valid() {

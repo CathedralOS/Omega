@@ -52,14 +52,14 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::write_line("PASS: final scores 60 + 10 total 70 (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(70);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::write_line("FAIL: event replay total did not equal 70 (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
@@ -76,52 +76,52 @@ machine Main::apply(main: &mut Main, event: Event) {
         _ -> done(main)
     }
 
-    state add_score(main: &mut Main, player: i32 in Saturating, points: i32 in Saturating) {
+    machine add_score(main: &mut Main, player: i32 in Saturating, points: i32 in Saturating) {
         transition player == 0 {
             true -> add_p0(main, points)
             _ -> add_p1(main, points)
         }
     }
 
-    state add_p0(main: &mut Main, points: i32 in Saturating) {
+    machine add_p0(main: &mut Main, points: i32 in Saturating) {
         main.scores[0] = main.scores[0] + points;
     }
 
-    state add_p1(main: &mut Main, points: i32 in Saturating) {
+    machine add_p1(main: &mut Main, points: i32 in Saturating) {
         main.scores[1] = main.scores[1] + points;
     }
 
-    state double_score(main: &mut Main, player: i32 in Saturating) {
+    machine double_score(main: &mut Main, player: i32 in Saturating) {
         transition player == 0 {
             true -> double_p0(main)
             _ -> double_p1(main)
         }
     }
 
-    state double_p0(main: &mut Main) {
+    machine double_p0(main: &mut Main) {
         main.scores[0] = main.scores[0] * 2;
     }
 
-    state double_p1(main: &mut Main) {
+    machine double_p1(main: &mut Main) {
         main.scores[1] = main.scores[1] * 2;
     }
 
-    state reset_score(main: &mut Main, player: i32 in Saturating) {
+    machine reset_score(main: &mut Main, player: i32 in Saturating) {
         transition player == 0 {
             true -> reset_p0(main)
             _ -> reset_p1(main)
         }
     }
 
-    state reset_p0(main: &mut Main) {
+    machine reset_p0(main: &mut Main) {
         main.scores[0] = 0;
     }
 
-    state reset_p1(main: &mut Main) {
+    machine reset_p1(main: &mut Main) {
         main.scores[1] = 0;
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
     }
 }
 

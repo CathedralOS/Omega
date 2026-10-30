@@ -18,13 +18,13 @@ data Socket [copy] {
     authenticated: bool;
 }
 
-domain Socket::Connected(socket)
+domain Socket::Connected
 requires
-    socket.connected;
+    self.connected;
 
-domain Socket::Authenticated(socket)
+domain Socket::Authenticated
 requires
-    socket.authenticated;
+    self.authenticated;
 
 domain Socket::Usable = Socket::Connected & Socket::Authenticated;
 

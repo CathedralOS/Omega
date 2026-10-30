@@ -1,10 +1,7 @@
-// FAIL CANARY. A mixed-range call component must conserve the projected
-// endpoint `limits.cap`: `outer` pins `remaining in 0..=limits.cap` and the
-// unranged `inner` hands back `spare`, a record that never traced to the
-// authored input (it arrives as a fresh literal). Membership
-// `n - 1 <= spare.cap` still proves from the authored requires, but the
-// ceiling coordinate at the `outer` boundary is `spare.cap` rather than the
-// transported `bounds.cap`, so the dependent endpoint is not conserved.
+// A fresh spare has cap 5, while outer permits remaining up to limits.cap.
+// The helper's entry condition n <= spare.cap is therefore not established.
+// Optional interval bounds may change across invocations; that does not waive
+// ordinary callee Requires under exact actual substitution.
 data Limits where cap <= 9 { cap: u64; }
 
 machine outer(remaining: u64, limits: Limits)

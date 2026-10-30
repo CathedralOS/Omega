@@ -9,13 +9,13 @@ use crate::{ContentDomainId, PlaceId, PropositionError, StructuralPlaceKind};
 /// One compiler-owned closed content algebra and its normalized parameter
 /// identity. The parameter is the canonical coordinate-space or unit type
 /// identity emitted by the Psi frontend.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct ContentAlgebra {
     pub kind: ContentAlgebraKind,
     pub parameter: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ContentAlgebraKind {
     IntervalSet,
     CountedQuantity,
@@ -27,7 +27,7 @@ pub enum ContentAlgebraKind {
 /// domain retains the exact algebra and expression, and every use rejoins and
 /// replays that definition. Arena-local machine symbols are deliberately not
 /// part of terminal Psi.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct ContentProjectionIdentity {
     pub domain: ContentDomainId,
     pub projection_report_fingerprint: u64,
@@ -36,7 +36,7 @@ pub struct ContentProjectionIdentity {
 /// Source-handle-free scalar expression defining one installed root's
 /// per-occurrence capacity. Field segments are stable structural identities,
 /// never frontend arena handles.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ContentProjectionScalar {
     SubjectField(Vec<String>),
     RuntimeScalarEmbedding(Vec<String>),
@@ -50,19 +50,19 @@ pub enum ContentProjectionScalar {
 /// Exact finite content expression selected by the qualification owner's
 /// `Content<A>` projection. This is semantic schema, not a trusted manifest
 /// total and not an authority occurrence.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ContentProjectionExpression {
     IntervalSet(Vec<(ContentProjectionScalar, ContentProjectionScalar)>),
     CountedQuantity(ContentProjectionScalar),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ContentPlaceVersion {
     Entry,
     Current,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ContentPlaceSegment {
     /// Stable sum-case spelling within the statically typed parent path.
     Case(String),
@@ -71,7 +71,7 @@ pub enum ContentPlaceSegment {
     FixedIndex(u64),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct ContentStructuralPlace {
     pub version: ContentPlaceVersion,
     pub root: PlaceId,
@@ -100,7 +100,7 @@ impl ContentStructuralPlace {
 
 /// Closed symbolic content term. `Separate` children are flat and strictly
 /// ordered in canonical terminal modules.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ContentTerm {
     Projection {
         projection: ContentProjectionIdentity,
@@ -132,7 +132,7 @@ impl ContentTerm {
 }
 
 /// One normalized equality in one closed content algebra.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct ContentConservation {
     algebra: ContentAlgebra,
     left: ContentTerm,

@@ -13,10 +13,10 @@ Actual satisfies Provider {
 
 machine run() -> u64 reaches Provider {
     transition { _ -> evaluate(Provider::get()) }
-    state evaluate(val: u64) requires val >= 100u64 && val <= 100u64 {
+    machine evaluate(val: u64) -> u64 requires val >= 100u64 && val <= 100u64 {
         transition { _ -> finish(val - 100u64) }
     }
-    state finish(outcome: u64) -> u64 { outcome }
+    machine finish(outcome: u64) -> u64 { outcome }
 }
 
 machine main() crashes Trap {
@@ -24,6 +24,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

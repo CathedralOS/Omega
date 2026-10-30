@@ -32,11 +32,11 @@ pub(in crate::checks) fn fixed_array_type_recipe(
         return Default::default();
     }
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::FixedArray {
-            length: FixedArrayLength::ConstCall { .. },
-            ..
-        } => program.constant_recipe_for_array_length(type_reference),
-        TypeReferenceNode::FixedArray { .. } => Default::default(),
+        TypeReferenceNode::FixedArray { .. } => match program.declared_array_extent(type_reference)
+        {
+            Some(typed_trees::constant_recipes::DeclaredArrayExtent::Recipe(recipe)) => recipe,
+            _ => Default::default(),
+        },
         TypeReferenceNode::Reference { referee, .. }
         | TypeReferenceNode::Constrained {
             base_type: referee, ..
@@ -59,26 +59,11 @@ pub(in crate::checks) fn fixed_array_type_symbolic_extent(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<(SymbolHandle, typed_trees::name::Identifier)> {
-    if bounded_byte_type_capacity(program, type_reference).is_some() {
-        return None;
-    }
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::FixedArray { length, .. } => match length {
-            FixedArrayLength::ConstParameter { symbol, name } => Some((*symbol, name.clone())),
-            FixedArrayLength::Literal(_)
-            | FixedArrayLength::Expression(_)
-            | FixedArrayLength::ConstCall { .. } => None,
-        },
-        TypeReferenceNode::Reference { referee, .. }
-        | TypeReferenceNode::Constrained {
-            base_type: referee, ..
-        } => fixed_array_type_symbolic_extent(program, *referee),
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::Generic { .. }
-        | TypeReferenceNode::Named { .. }
-        | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::Unit => None,
+    match validation::fixed_array_type_extent(program, type_reference)? {
+        FixedArrayLength::ConstParameter { symbol, name } => Some((*symbol, name.clone())),
+        FixedArrayLength::Literal(_)
+        | FixedArrayLength::Expression(_)
+        | FixedArrayLength::ConstCall { .. } => None,
     }
 }
 

@@ -11,6 +11,6 @@ data Main { c: Color; }
 machine Main::main(main: &mut Main) {
     main.c = Color::Red;
     transition main.c in Direction::North { true -> hit(main) _ -> miss(main) }
-    state hit(main: &mut Main) { Console::exit_process(1); }
-    state miss(main: &mut Main) { Console::exit_process(2); }
+    machine hit(main: &mut Main) { Console::exit_process(1); }
+    machine miss(main: &mut Main) { Console::exit_process(2); }
 }

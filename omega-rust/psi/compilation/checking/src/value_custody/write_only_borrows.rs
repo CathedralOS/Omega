@@ -37,6 +37,20 @@ struct WriteOnlyRoot {
     access: ReferenceAccess,
 }
 
+fn declared_reference_shell(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    reference: TypeReferenceHandle,
+) -> Option<crate::ReferenceShell> {
+    let substitutions =
+        crate::value_custody::places::declaration_type_equations(program, machine.symbol);
+    crate::value_custody::reference_shells::reference_shell_with_substitutions(
+        program,
+        reference,
+        &substitutions,
+    )
+}
+
 /// A generated target-family interface supplies no body itself. Non-observation
 /// comes from its complete checked member roster, never from one host's selected
 /// body. Opaque members still require boundary evidence, and checked adapters
@@ -60,6 +74,25 @@ fn has_checked_write_only_implementation(
                 })
             },
         )
+        || satisfied_by_checked_implementations(program, machine.symbol)
+}
+
+/// A boundary requirement's satisfiers carry its non-observation evidence:
+/// whichever implementation the build selects, every one is a checked Omega
+/// body, so the selected receipt can never read through the write-only loan.
+/// An unsatisfied requirement supplies no receipt at all.
+fn satisfied_by_checked_implementations(
+    program: &dyn crate::CheckingInput,
+    requirement: symbols::SymbolHandle,
+) -> bool {
+    let satisfiers =
+        crate::machine_calls::denotational_calls::requirement_satisfiers(program, requirement);
+    !satisfiers.is_empty()
+        && satisfiers.iter().all(|satisfier| {
+            program
+                .machine(*satisfier)
+                .is_some_and(Machine::supplies_checked_body)
+        })
 }
 
 pub(crate) fn validate_checked_write_only_slice(
@@ -75,21 +108,16 @@ pub(crate) fn validate_checked_write_only_slice(
                 .state_parameters(state)
                 .iter()
                 .filter_map(|parameter| {
-                    let TypeReferenceNode::Reference {
-                        referee,
-                        access: ReferenceAccess::WriteOnly,
-                        ..
-                    } = program
-                        .type_reference_table
-                        .type_reference(parameter.type_reference)
-                    else {
+                    let shell =
+                        declared_reference_shell(program, machine, parameter.type_reference)?;
+                    if shell.access != ReferenceAccess::WriteOnly {
                         return None;
-                    };
+                    }
                     Some(WriteOnlyRoot {
                         symbol: parameter.symbol,
                         receiver_machine: { SymbolHandle::invalid() },
                         name: parameter.name.as_str().to_owned(),
-                        referee: *referee,
+                        referee: shell.referee,
                         access: ReferenceAccess::WriteOnly,
                     })
                 })
@@ -101,21 +129,16 @@ pub(crate) fn validate_checked_write_only_slice(
                     .iter()
                     .filter_map(|statement| {
                         let local = statement.as_local_data()?;
-                        let TypeReferenceNode::Reference {
-                            referee,
-                            access: ReferenceAccess::WriteOnly,
-                            ..
-                        } = program
-                            .type_reference_table
-                            .type_reference(local.type_reference)
-                        else {
+                        let shell =
+                            declared_reference_shell(program, machine, local.type_reference)?;
+                        if shell.access != ReferenceAccess::WriteOnly {
                             return None;
-                        };
+                        }
                         Some(WriteOnlyRoot {
                             symbol: local.symbol,
                             receiver_machine: SymbolHandle::invalid(),
                             name: local.name.as_str().to_owned(),
-                            referee: *referee,
+                            referee: shell.referee,
                             access: ReferenceAccess::WriteOnly,
                         })
                     }),
@@ -559,6 +582,24 @@ fn write_only_assignment_leaf(
 ) -> bool {
     is_discardable_write_only_field_leaf(program, field_type)
         || is_qualified_write_only_leaf(program, field_type)
+        || is_stored_reference_leaf(program, field_type)
+}
+
+/// A displaced reference leaf ends only through the retained replacement
+/// custody transaction, the same disposal authority a whole-aggregate store
+/// already exercises over descriptor members: the incoming descriptor
+/// installs its own backing loan and the displaced one retires without
+/// observing its referent. The ordinary store and borrow checks still own the
+/// incoming value's type, authority, and loan installation; this gate adds
+/// only the non-observation judgment that replacing a descriptor slot needs.
+fn is_stored_reference_leaf(
+    program: &dyn crate::CheckingInput,
+    field_type: TypeReferenceHandle,
+) -> bool {
+    matches!(
+        program.type_reference_table.type_reference(field_type),
+        TypeReferenceNode::Reference { .. }
+    )
 }
 
 /// One qualified leaf a common-field store may displace: an already-admissible
@@ -1421,7 +1462,7 @@ fn validate_received_value(
     // observed normally; a reference-valued arm is descriptor transport only
     // under its receiving declaration, never because another arm supplied it.
     if receiving_type.is_some_and(|reference| {
-        crate::reference_shell(program, reference)
+        declared_reference_shell(program, machine, reference)
             .is_some_and(|shell| shell.access == ReferenceAccess::WriteOnly)
     }) && let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression)
     {
@@ -1475,8 +1516,8 @@ fn validate_received_value(
             Some(state),
             expression,
         )
-        && let Some(required) = crate::reference_shell(program, required)
-        && let Some(produced) = crate::reference_shell(program, produced)
+        && let Some(required) = declared_reference_shell(program, machine, required)
+        && let Some(produced) = declared_reference_shell(program, machine, produced)
         && required.access == ReferenceAccess::WriteOnly
         && produced.access == ReferenceAccess::WriteOnly
         && crate::value_custody::type_references::type_references_match(
@@ -1550,14 +1591,21 @@ fn validate_opaque_call_inputs(
         crate::machine_calls::calls::selected_requirement_signature(program, target)
             .filter(|(declaration, _)| declaration.is_boundary)
     {
-        // A boundary namespace supplies an interface, not a checked selected
-        // realization or its non-observation receipt. Its generic external
-        // supplier may remain universal while the call's formals are closed.
-        // Judge that exact application here; scanning machine declarations
-        // alone would miss stored authority behind the supplier's `&mut T`.
-        // Source-selected checked implementations took the Machine arm above.
-        // This is missing realization evidence, not a prohibition on checked
-        // providers implementing an abstract write-only interface.
+        // A boundary requirement satisfied only by checked implementations
+        // carries its non-observation evidence through whichever binding the
+        // build selects; this judgment has no selected row, so every
+        // satisfier must supply it. An unsatisfied or opaquely satisfied
+        // requirement supplies an interface, not a receipt.
+        if satisfied_by_checked_implementations(program, signature.symbol) {
+            return;
+        }
+        // Its generic external supplier may remain universal while the call's
+        // formals are closed. Judge that exact application here; scanning
+        // machine declarations alone would miss stored authority behind the
+        // supplier's `&mut T`. Source-selected checked implementations took
+        // the Machine arm above. This is missing realization evidence, not a
+        // prohibition on checked providers implementing an abstract
+        // write-only interface.
         let local_parameters = program.state_signature_type_parameters(signature);
         let bindings = if local_parameters.is_empty() {
             // Closed rows retain authored operands after substitution. They
@@ -1775,7 +1823,7 @@ fn validate_expression(
         ExpressionNode::Unary(unary) => {
             validate_expression(program, machine, state, unary.operand, roots, diagnostics)
         }
-        typed_trees::spelled_literal_expression_pattern!() => {}
+        ExpressionNode::TypeExpression(_) | typed_trees::spelled_literal_expression_pattern!() => {}
     }
 }
 
@@ -1794,6 +1842,14 @@ fn validate_metadata_receiver(
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(_) => {}
         ExpressionNode::Member(member) => {
+            reject_stored_pointer_metadata_receiver(
+                program,
+                machine,
+                state,
+                member.receiver,
+                roots,
+                diagnostics,
+            );
             validate_metadata_receiver(
                 program,
                 machine,
@@ -1804,6 +1860,14 @@ fn validate_metadata_receiver(
             );
         }
         ExpressionNode::Indexed(indexed) => {
+            reject_stored_pointer_metadata_receiver(
+                program,
+                machine,
+                state,
+                indexed.collection,
+                roots,
+                diagnostics,
+            );
             validate_metadata_receiver(
                 program,
                 machine,
@@ -1815,6 +1879,49 @@ fn validate_metadata_receiver(
             validate_expression(program, machine, state, indexed.index, roots, diagnostics);
         }
         _ => validate_expression(program, machine, state, expression, roots, diagnostics),
+    }
+}
+
+/// A `.len` receiver hop through a stored reference leaves the loan's storage:
+/// the observed descriptor lives in another object's referent, which `&write`
+/// never authorizes. Only the root's own borrow crosses for free — it names the
+/// loan directly, and its referent is the authorized storage.
+fn reject_stored_pointer_metadata_receiver(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    receiver: ExpressionHandle,
+    roots: &[WriteOnlyRoot],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if matches!(
+        program.expression_table.expression(receiver),
+        ExpressionNode::Name(_)
+    ) {
+        return;
+    }
+    let Some(root) = write_only_place_root(program, receiver, roots) else {
+        return;
+    };
+    let Some(reference) = crate::value_custody::places::declared_place_type_raw(
+        program,
+        machine,
+        Some(state),
+        receiver,
+    ) else {
+        return;
+    };
+    let reference = program
+        .type_reference_table
+        .unconstrained_type_reference(reference);
+    if matches!(
+        program.type_reference_table.type_reference(reference),
+        TypeReferenceNode::Reference { .. }
+    ) {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` reaches `.len` metadata below a stored pointer of write-only parameter `{}`; the observed descriptor lives in another referent's storage — `&write` admits descriptor metadata only below its own referent",
+            machine.name, state.name, root.name,
+        )));
     }
 }
 
@@ -1882,17 +1989,18 @@ fn validate_observation_access(
         ) else {
             return false;
         };
-        loop {
-            match program.type_reference_table.type_reference(reference) {
-                TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-                TypeReferenceNode::Reference {
-                    access: ReferenceAccess::WriteOnly,
-                    ..
-                } => return true,
-                TypeReferenceNode::Reference { referee, .. } => reference = *referee,
-                _ => return false,
+        let mut visited = Vec::new();
+        while !visited.contains(&reference) {
+            visited.push(reference);
+            let Some(shell) = declared_reference_shell(program, machine, reference) else {
+                return false;
+            };
+            if shell.access == ReferenceAccess::WriteOnly {
+                return true;
             }
+            reference = shell.referee;
         }
+        false
     });
     if !declared_write_only && root.is_none() {
         return false;
@@ -2043,18 +2151,8 @@ fn expression_mentions_root(
             .saved_value_source(saved)
             .is_some_and(|subject| expression_mentions_root(program, subject, root)),
         ExpressionNode::Match(dispatch) => {
-            expression_mentions_root(program, dispatch.subject, root)
-                || program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .any(|arm| {
-                        program
-                            .expression_table
-                            .match_pattern_operands(arm.pattern)
-                            .any(|pattern| expression_mentions_root(program, pattern, root))
-                            || expression_mentions_root(program, arm.value, root)
-                    })
+            crate::expression_traversal::match_children(program, *dispatch)
+                .any(|child| expression_mentions_root(program, child, root))
         }
         ExpressionNode::Name(path) => receiver::mentions_name(program, root, path),
         ExpressionNode::Borrow(value) => expression_mentions_root(program, value.target, root),
@@ -2095,6 +2193,8 @@ fn expression_mentions_root(
             .iter()
             .any(|field| expression_mentions_root(program, field.value, root)),
         ExpressionNode::Unary(unary) => expression_mentions_root(program, unary.operand, root),
-        typed_trees::spelled_literal_expression_pattern!() => false,
+        ExpressionNode::TypeExpression(_) | typed_trees::spelled_literal_expression_pattern!() => {
+            false
+        }
     }
 }

@@ -8,8 +8,8 @@
 
 mod lowered_psi;
 pub use lowered_psi::{
-    LoweredPsi, LoweredSelectedComparisonOccurrence, LoweredSelectedComparisonOperandOrder,
-    LoweredSourceCallOccurrence, LoweredSourceCallSite, LoweredSourceCustody,
-    LoweredSourceFrontierBindings, LoweredSourceLoanCapture, LoweredSourceScalarBinding,
-    LoweredSourceStructuralBinding, LoweredStateBlock,
+    LoweredBuildProviderRequirement, LoweredPsi, LoweredSelectedComparisonOccurrence,
+    LoweredSelectedComparisonOperandOrder, LoweredSourceCallOccurrence, LoweredSourceCallSite,
+    LoweredSourceCustody, LoweredSourceFrontierBindings, LoweredSourceLoanCapture,
+    LoweredSourceScalarBinding, LoweredSourceStructuralBinding, LoweredStateBlock,
 };

@@ -31,8 +31,8 @@ machine reordered_calls(first: Ticket, second: Ticket) -> u64 {
 }
 machine verify(valid: bool) crashes Trap {
     transition valid { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine selected(choice: bool, ticket: Ticket) crashes Trap {
     verify(match choice { true -> observe(&ticket) false -> take(ticket) });

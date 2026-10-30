@@ -65,3 +65,39 @@ pub(crate) fn occupant(
             })?,
     }
 }
+
+/// Resolve one owned operand to its already produced value in this operation
+/// prefix. Expression roots name immutable producers, while named homes select
+/// their current occupant. A future or ambiguous producer grants no custody.
+pub(crate) fn operand_source(
+    program: &dyn validation::CheckingInput,
+    state: &typed_trees::state::State,
+    operations: &[CheckedUnitEffectOperationPlan],
+    results: &[(
+        checked_trees::CheckedUnitStructuralResultBindingPlan,
+        facts::PlaceRoot,
+    )],
+    operand: &CheckedUnitStructuralArgumentSourcePlan,
+) -> Option<CheckedUnitStructuralArgumentSourcePlan> {
+    match operand {
+        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+            source(program, state, operations, *symbol)
+        }
+        CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
+            let mut matching = results.iter().filter(|(binding, root)| {
+                *root == facts::PlaceRoot::Expression(*expression)
+                    && operations
+                        .iter()
+                        .any(|operation| operation.structural_result_binding() == Some(binding))
+            });
+            let (result, _) = matching.next()?;
+            if matching.next().is_some() {
+                return None;
+            }
+            Some(CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: result.binding_ordinal,
+            })
+        }
+        source => Some(source.clone()),
+    }
+}

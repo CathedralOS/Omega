@@ -73,9 +73,12 @@ pub(super) fn apply_definition(
                 CheckedIntegerEndpointStep::Multiply(literal),
             )
         }
-        // A division step is the truncating image under either policy, except
-        // signed `MIN / -1`: its wrapped result is not that image, so the
-        // wrapping spelling rejects the step rather than pretend.
+        // A divisor step is the truncating image under either policy: the literal
+        // divisor must be nonzero, and a signed wrapping `MIN / -1` has no
+        // truncating image (its wrapped result is not one), so that step is
+        // refused while a signed `MIN % -1` still has the ordinary remainder
+        // image, zero. One arm answers for both divisor operations instead of
+        // one arm per operation and policy spelling.
         ScalarTerm::ExactIntegerDivide {
             scalar_type,
             left,
@@ -85,28 +88,8 @@ pub(super) fn apply_definition(
             scalar_type,
             left,
             right,
-        } if *scalar_type == integer_type && left.as_ref() == current => {
-            let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
-            if literal == 0 {
-                return Some(Err(IntegerAffineWitnessError::ZeroDivisionLiteral));
-            }
-            if matches!(expression, ScalarTerm::WrappingIntegerDivide { .. })
-                && integer_type.sign() == IntegerSign::Signed
-                && literal == -1
-            {
-                return None;
-            }
-            (
-                Some(coefficient),
-                Some(offset),
-                used_landing,
-                CheckedIntegerEndpointStep::Divide(literal),
-            )
         }
-        // A remainder step keeps the dividend's sign under either policy, and
-        // signed `MIN % -1` still has the ordinary remainder image (zero):
-        // only a zero divisor prevents the bounded image.
-        ScalarTerm::ExactIntegerRemainder {
+        | ScalarTerm::ExactIntegerRemainder {
             scalar_type,
             left,
             right,
@@ -120,12 +103,19 @@ pub(super) fn apply_definition(
             if literal == 0 {
                 return Some(Err(IntegerAffineWitnessError::ZeroDivisionLiteral));
             }
-            (
-                Some(coefficient),
-                Some(offset),
-                used_landing,
-                CheckedIntegerEndpointStep::Remainder(literal),
-            )
+            let step = match expression {
+                ScalarTerm::ExactIntegerDivide { .. } => {
+                    CheckedIntegerEndpointStep::Divide(literal)
+                }
+                ScalarTerm::WrappingIntegerDivide { .. } => {
+                    if integer_type.sign() == IntegerSign::Signed && literal == -1 {
+                        return None;
+                    }
+                    CheckedIntegerEndpointStep::Divide(literal)
+                }
+                _ => CheckedIntegerEndpointStep::Remainder(literal),
+            };
+            (Some(coefficient), Some(offset), used_landing, step)
         }
         // `x & mask` carries no affine slope, but a non-negative mask pins
         // the whole image to `[0, mask]`: the result keeps only mask bits.
@@ -316,14 +306,7 @@ fn bounded_bitwise_sibling<'a>(
             let Proposition::LessOrEqual(left, right) = proposition else {
                 return false;
             };
-            right == mask
-                && left.integer_value().is_some_and(|(value_type, value)| {
-                    value_type == integer_type
-                        && match value {
-                            IntegerValue::Signed(value) => value == 0,
-                            IntegerValue::Unsigned(value) => value == 0,
-                        }
-                })
+            right == mask && fixed_integer_as_i128(left, integer_type) == Some(0)
         });
         if nonnegative {
             return Some((mask, upper));
@@ -540,4 +523,17 @@ pub(super) fn apply_exact_add_inverse(
         exact_integer_add,
         |_, literal| CheckedIntegerEndpointStep::Subtract(literal),
     )
+}
+
+/// Both orientations of one definition shape: the shape's own reading of
+/// `(left, right)`, then its reading of `(right, left)`. A chain row may be
+/// traversed toward either endpoint of its equation, so every shape is tried
+/// both ways; one owner tries them, so a shape cannot be added with only one
+/// direction and a mirrored call cannot drift from the call it mirrors.
+pub(super) fn both_orientations<T>(
+    left: &ScalarTerm,
+    right: &ScalarTerm,
+    read: impl Fn(&ScalarTerm, &ScalarTerm) -> T,
+) -> [T; 2] {
+    [read(left, right), read(right, left)]
 }

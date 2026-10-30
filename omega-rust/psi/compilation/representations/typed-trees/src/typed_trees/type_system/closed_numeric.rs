@@ -81,6 +81,41 @@ pub fn evaluate_anonymous_value<const ALLOW_DECIMAL_LITERALS: bool>(
     })
 }
 
+/// Absence of a discovered type is not evidence of anonymity. Result joins
+/// inherit a destination only when every leaf is an actual anonymous number;
+/// named values, typed operations and suffixed floats remain conversions.
+/// Operator selection and destination checking share this classification.
+pub fn has_anonymous_numeric_results(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    fn visit(
+        program: &TypedTrees,
+        expression: ExpressionHandle,
+        active: &mut Vec<ExpressionHandle>,
+    ) -> bool {
+        if !program.expression_table.expression_is_valid(expression) || active.contains(&expression)
+        {
+            return false;
+        }
+        if let Some(dispatch) = program.expression_table.match_node(expression) {
+            active.push(expression);
+            let anonymous = !program
+                .expression_table
+                .match_arms(dispatch.arms)
+                .is_empty()
+                && program
+                    .expression_table
+                    .match_arms_all(dispatch.arms, |_, value| visit(program, value, active));
+            active.pop();
+            anonymous
+        } else {
+            evaluate_anonymous_value::<true>(program, expression, &[], &mut |expression| {
+                has_anonymous_operator_meaning(program, expression)
+            })
+            .is_some()
+        }
+    }
+    visit(program, expression, &mut Vec::new())
+}
+
 impl TypedTrees {
     /// Exact closed integer meaning, without runtime bindings or flow facts.
     /// Context-free typed operators retain the conservative specialization veto.
@@ -106,6 +141,10 @@ impl TypedTrees {
         expression: ExpressionHandle,
         machine: symbols::SymbolHandle,
     ) -> Option<BigInt> {
+        let recipe = self.constant_recipe_for_contract_expression(expression);
+        if let Some(value) = self.closed_constant_recipe_value(recipe) {
+            return Some(value.clone());
+        }
         Some(self.closed_integer_value_in(expression, machine)?.value)
     }
 
@@ -583,6 +622,15 @@ pub fn has_builtin_anonymous_operands(
                             | symbols::SymbolKind::State
                             | symbols::SymbolKind::Operator
                     ),
+                    // Expanding a membership retains the selected domain on
+                    // the predicate root beside its own operator occurrence.
+                    // That row records membership provenance, not an operator
+                    // override. Every predicate operator still passes this
+                    // same complete occurrence check independently.
+                    Target::Resolved(resolved) if selection.kind() == Kind::DomainMembership => {
+                        program.symbols.get(resolved.selected_symbol()).kind
+                            == symbols::SymbolKind::Domain
+                    }
                     Target::Intrinsic(Intrinsic::BuiltinOperator)
                     | Target::LateBound(LateBinding::CheckedOperator) => true,
                     // A compile-time value declaration retains only

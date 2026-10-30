@@ -1,0 +1,1 @@
+build selects provider `UnusedNumericProvider` for slot `operator::F32::negate(named(name(f32)))->named(name(f32))`, but no candidate exists in the loaded dependency closure

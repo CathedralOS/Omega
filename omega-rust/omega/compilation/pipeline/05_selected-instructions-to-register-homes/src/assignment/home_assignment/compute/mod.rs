@@ -6,10 +6,10 @@ mod placement;
 mod prepared_affinities;
 mod prepared_conflicts;
 
+use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{
-    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
-    ValidatedRegisterReservationProfile, infrastructure_environment_agrees,
+    TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
+    infrastructure_environment_agrees,
 };
 
 use std::sync::Arc;
@@ -99,17 +99,21 @@ impl FunctionHomeReuse {
             self.register_environment = Some(register_environment);
             self.functions.clear();
         }
-        for (index, (legality, ranges)) in legality_functions
-            .iter()
-            .zip(range_functions)
-            .enumerate()
+        for (index, (legality, ranges)) in
+            legality_functions.iter().zip(range_functions).enumerate()
         {
+            if let Some(Some(prior)) = self.functions.get(index)
+                && Arc::ptr_eq(&prior.legality, legality)
+                && Arc::ptr_eq(&prior.ranges, ranges)
+            {
+                continue;
+            }
             if legality.machine != ranges.machine {
                 return Err(RegisterHomeError::FunctionMismatch { function: index });
             }
             if let Some(Some(prior)) = self.functions.get(index)
-                && (Arc::ptr_eq(&prior.legality, legality) || prior.legality == *legality)
-                && (Arc::ptr_eq(&prior.ranges, ranges) || prior.ranges == *ranges)
+                && prior.legality == *legality
+                && prior.ranges == *ranges
             {
                 continue;
             }
@@ -122,22 +126,19 @@ impl FunctionHomeReuse {
 pub(crate) fn compute_terminal_register_homes(
     legality: &ValidatedAllocationLegality,
     ranges: &ValidatedLiveRanges,
-    register_environment: TargetRegisterEnvironmentIdentity,
-    physical: &ValidatedPhysicalRegisterModel,
-    constraints: &ValidatedRegisterConstraintCatalog,
-    reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
+    environment: &ValidatedTargetRegisterEnvironment,
     mut reuse: Option<&mut FunctionHomeReuse>,
 ) -> Result<RegisterHomePlan, RegisterHomeError> {
+    let register_environment = environment.identity();
     if legality.receipt().ranges() != ranges.receipt().identity()
         || legality.receipt().register_environment() != register_environment
-        || ranges.plan().target.architecture != physical.model().architecture
+        || ranges.plan().target.architecture != environment.physical().model().architecture
         || !infrastructure_environment_agrees(
             ranges.plan().target,
-            physical,
-            constraints,
-            reservations,
-            selected_keys,
+            environment.physical(),
+            environment.constraints(),
+            environment.reservations(),
+            &environment.allocation_constraint_keys(),
             register_environment,
         )
         || legality.plan().functions.len() != ranges.plan().functions.len()
@@ -158,10 +159,14 @@ pub(crate) fn compute_terminal_register_homes(
                 return Err(RegisterHomeError::FunctionMismatch { function: index });
             }
             match reuse.as_deref_mut() {
-                Some(reuse) => {
-                    reuse.compute(register_environment, index, legality, ranges, physical)
-                }
-                None => compute_function(index, legality, ranges, physical, None),
+                Some(reuse) => reuse.compute(
+                    register_environment,
+                    index,
+                    legality,
+                    ranges,
+                    environment.physical(),
+                ),
+                None => compute_function(index, legality, ranges, environment.physical(), None),
             }
         })
         .collect::<Result<Vec<_>, _>>()?;

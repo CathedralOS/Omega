@@ -22,15 +22,15 @@ machine report(value:u32 in Wrapping,cursor:&Cursor)->u32 in Wrapping {
 machine pack(prefix:u32 in Wrapping,value:u32 in Wrapping)->u32 in Wrapping {prefix*10000+value}
 machine update(cells:&mut [Cell;2],others:&mut [OtherCell;2],cursor:&mut Cursor,flag:bool)->u32 in Wrapping {
  transition flag { true -> choose_first(&mut cells[0],cursor) _ -> choose_second(&mut others[0],cursor) }
- state choose_first(cell:&mut Cell,cursor:&Cursor)->u32 in Wrapping {
+ machine choose_first(cell:&mut Cell,cursor:&Cursor)->u32 in Wrapping {
   let changed:u32 in Wrapping=mark(cell,5);
   transition { _ -> audit(changed,&cell.payload,cursor) }
  }
- state choose_second(cell:&mut OtherCell,cursor:&Cursor)->u32 in Wrapping {
+ machine choose_second(cell:&mut OtherCell,cursor:&Cursor)->u32 in Wrapping {
   let changed:u32 in Wrapping=mark_other(cell,5);
   transition { _ -> audit(changed,&cell.payload,cursor) }
  }
- state audit(changed:u32 in Wrapping,cell:&Payload,cursor:&Cursor)->u32 in Wrapping { observe(changed,cell,cursor) }
+ machine audit(changed:u32 in Wrapping,cell:&Payload,cursor:&Cursor)->u32 in Wrapping { observe(changed,cell,cursor) }
 }
 machine main() crashes Trap {
  let mut cells:[Cell;2]=[Cell{payload:Payload{value:7}},Cell{payload:Payload{value:3}}];
@@ -39,5 +39,5 @@ machine main() crashes Trap {
  let observed:u32 in Wrapping=update(&mut cells,&mut others,&mut cursor,true);
  let second:u32 in Wrapping=update(&mut cells,&mut others,&mut cursor,false);
  transition observed==1320 && second==1320 && cells[0].payload.value==12 && cells[1].payload.value==3 && others[0].payload.value==12 && others[1].payload.value==3 && cursor.calls==0 && cursor.position==0 {true->done() _->bad()}
- state done(){} state bad(){crash Trap;}
+ machine done(){} machine bad(){crash Trap;}
 }

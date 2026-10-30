@@ -4,7 +4,7 @@ crashes Abort left == right {
         true -> incomplete()
         false -> done()
     }
-    state incomplete() { crash Abort; }
-    state done() {}
+    machine incomplete() { crash Abort; }
+    machine done() {}
 }
 machine main() {}

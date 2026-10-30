@@ -28,11 +28,11 @@ machine exercise(lhs: u32 in Saturating, rhs: u32 in Saturating) -> u32 crashes 
         true -> step(prod)
         _ -> bad()
     }
-    state step(p: u32) -> u32 {
+    machine step(p: u32) -> u32 {
         let relayed: u32 = Relay::forward(p);
         verify_prod(relayed)
     }
-    state bad() { crash Trap; }
+    machine bad() -> u32 { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -41,6 +41,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

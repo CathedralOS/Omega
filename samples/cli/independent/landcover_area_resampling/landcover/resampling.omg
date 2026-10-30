@@ -12,10 +12,10 @@ public machine deposit(areas: &mut Areas, category: i32 in Wrapping, area: i32 i
         3 -> urban(areas, area)
         _ -> nodata(areas, area)
     }
-    state forest(areas: &mut Areas, area: i32 in Wrapping) { areas.forest = areas.forest + area; }
-    state water(areas: &mut Areas, area: i32 in Wrapping) { areas.water = areas.water + area; }
-    state urban(areas: &mut Areas, area: i32 in Wrapping) { areas.urban = areas.urban + area; }
-    state nodata(areas: &mut Areas, area: i32 in Wrapping) { areas.nodata = areas.nodata + area; }
+    machine forest(areas: &mut Areas, area: i32 in Wrapping) { areas.forest = areas.forest + area; }
+    machine water(areas: &mut Areas, area: i32 in Wrapping) { areas.water = areas.water + area; }
+    machine urban(areas: &mut Areas, area: i32 in Wrapping) { areas.urban = areas.urban + area; }
+    machine nodata(areas: &mut Areas, area: i32 in Wrapping) { areas.nodata = areas.nodata + area; }
 }
 public machine resample(areas: &mut Areas, x: i32 in Wrapping, y: i32 in Wrapping,
     width: i32 in Wrapping, height: i32 in Wrapping,
@@ -34,10 +34,10 @@ public machine dominant(areas: &Areas) -> i32 in Wrapping {
         true -> 1
         false -> other(areas)
     }
-    state other(areas: &Areas) -> i32 in Wrapping {
+    machine other(areas: &Areas) -> i32 in Wrapping {
         transition areas.water >= areas.urban && areas.water > 0 { true -> 2 false -> last(areas) }
     }
-    state last(areas: &Areas) -> i32 in Wrapping {
+    machine last(areas: &Areas) -> i32 in Wrapping {
         transition areas.urban > 0 { true -> 3 false -> 0 }
     }
 }

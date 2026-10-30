@@ -12,6 +12,6 @@ machine main() crashes Trap {
     let holder: Holder = Holder { child: Bonus { value: 1 } };
     let accepted: bool = consume(holder.child);
     transition accepted { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

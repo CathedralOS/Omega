@@ -7,71 +7,71 @@ use omega::language::core::float_operations;
 // A finite cap and finite/positive curvature checks report failure explicitly.
 machine multiply(grid:&mut domain::grid::Grid, direction:bool) {
  transition { _ -> row(grid,direction,0) }
- state row(grid:&mut domain::grid::Grid,direction:bool,index:u64 in Saturating) {
+ machine row(grid:&mut domain::grid::Grid,direction:bool,index:u64 in Saturating) {
   transition index < grid.count { true -> begin(grid,direction,index) false -> done() }
  }
- state begin(grid:&mut domain::grid::Grid,direction:bool,index:u64 in Saturating) {
+ machine begin(grid:&mut domain::grid::Grid,direction:bool,index:u64 in Saturating) {
   grid.image[index%144]=0.0;
   transition { _ -> csr_entry(grid,direction,index,grid.offsets[index%145] as u64 in Saturating) }
  }
- state csr_entry(grid:&mut domain::grid::Grid,direction:bool,index:u64 in Saturating,position:u64 in Saturating) {
+ machine csr_entry(grid:&mut domain::grid::Grid,direction:bool,index:u64 in Saturating,position:u64 in Saturating) {
   transition position < grid.offsets[(index+1)%145] && position < 720 {
    true -> value(grid,direction,index,position)
    false -> row(grid,direction,index+1)
   }
  }
- state value(grid:&mut domain::grid::Grid,direction:bool,index:u64 in Saturating,position:u64 in Saturating) {
+ machine value(grid:&mut domain::grid::Grid,direction:bool,index:u64 in Saturating,position:u64 in Saturating) {
   let column:u64=grid.columns[position%720];
   transition direction { true -> search(grid,index,position,column) false -> solution(grid,index,position,column) }
  }
- state search(grid:&mut domain::grid::Grid,index:u64 in Saturating,position:u64 in Saturating,column:u64) {
+ machine search(grid:&mut domain::grid::Grid,index:u64 in Saturating,position:u64 in Saturating,column:u64) {
   grid.image[index%144]=grid.image[index%144]+grid.values[position%720]*grid.direction[column%144];
   transition { _ -> csr_entry(grid,true,index,position+1) }
  }
- state solution(grid:&mut domain::grid::Grid,index:u64 in Saturating,position:u64 in Saturating,column:u64) {
+ machine solution(grid:&mut domain::grid::Grid,index:u64 in Saturating,position:u64 in Saturating,column:u64) {
   grid.image[index%144]=grid.image[index%144]+grid.values[position%720]*grid.solution[column%144];
   transition { _ -> csr_entry(grid,false,index,position+1) }
  }
- state done() { }
+ machine done() { }
 }
 machine true_residual(grid:&mut domain::grid::Grid) {
  multiply(grid,false);
  grid.norm=0.0;
  grid.error=0.0;
  transition { _ -> row(grid,0) }
- state row(grid:&mut domain::grid::Grid,index:u64 in Saturating) {
+ machine row(grid:&mut domain::grid::Grid,index:u64 in Saturating) {
   transition index < grid.count && grid.n > 0 { true -> measure(grid,index) false -> done() }
  }
- state measure(grid:&mut domain::grid::Grid,index:u64 in Saturating) requires grid.n > 0 {
+ machine measure(grid:&mut domain::grid::Grid,index:u64 in Saturating) requires grid.n > 0 {
   let difference:f64=grid.right[index%144]-grid.image[index%144];
   transition domain::grid::finite(difference) { true -> finite_measure(grid,index,difference) false -> nonfinite(grid) }
  }
- state nonfinite(grid:&mut domain::grid::Grid) { let zero:f64=0.0; let one:f64=1.0; grid.norm=one/zero; }
- state finite_measure(grid:&mut domain::grid::Grid,index:u64 in Saturating,difference:f64) requires grid.n > 0 {
+ machine nonfinite(grid:&mut domain::grid::Grid) { let zero:f64=0.0; let one:f64=1.0; grid.norm=one/zero; }
+ machine finite_measure(grid:&mut domain::grid::Grid,index:u64 in Saturating,difference:f64) requires grid.n > 0 {
   let x:f64=(F64::from_u64((index%grid.n) as u64)+0.5)/F64::from_u64(grid.n as u64);
   let y:f64=(F64::from_u64((index/grid.n) as u64)+0.5)/F64::from_u64(grid.n as u64);
   grid.norm=F64::maximum(grid.norm,domain::grid::magnitude(difference));
   grid.error=F64::maximum(grid.error,domain::grid::magnitude(grid.solution[index%144]-domain::grid::exact(grid.linear,x,y)));
   transition { _ -> row(grid,index+1) }
  }
- state done() { }
+ machine done() { }
 }
 public machine solve(grid:&mut domain::grid::Grid) -> i32 {
  transition domain::grid::valid(grid) {
   true -> start(grid)
   false -> 4
  }
- state start(grid:&mut domain::grid::Grid) -> i32 {
+ machine start(grid:&mut domain::grid::Grid) -> i32 {
  domain::grid::assemble(grid);
  grid.iterations=0;
  grid.squares=0.0;
  grid.norm=0.0;
  transition { _ -> initialize(grid,0) }
  }
- state initialize(grid:&mut domain::grid::Grid,index:u64 in Saturating) -> i32 {
+ machine initialize(grid:&mut domain::grid::Grid,index:u64 in Saturating) -> i32 {
   transition index < grid.count { true -> vector(grid,index) false -> threshold(grid) }
  }
- state vector(grid:&mut domain::grid::Grid,index:u64 in Saturating) -> i32 {
+ machine vector(grid:&mut domain::grid::Grid,index:u64 in Saturating) -> i32 {
   grid.solution[index%144]=0.0;
   grid.residual[index%144]=grid.right[index%144];
   grid.direction[index%144]=grid.right[index%144];
@@ -79,46 +79,46 @@ public machine solve(grid:&mut domain::grid::Grid) -> i32 {
   grid.norm=F64::maximum(grid.norm,domain::grid::magnitude(grid.right[index%144]));
   transition { _ -> initialize(grid,index+1) }
  }
- state threshold(grid:&mut domain::grid::Grid) -> i32 {
+ machine threshold(grid:&mut domain::grid::Grid) -> i32 {
   grid.threshold=0.000000001+grid.tolerance*grid.norm;
   true_residual(grid);
   transition { _ -> convergence(grid) }
  }
- state convergence(grid:&mut domain::grid::Grid) -> i32 {
+ machine convergence(grid:&mut domain::grid::Grid) -> i32 {
   transition domain::grid::finite(grid.norm) && grid.norm <= grid.threshold {
    true -> 0
    false -> limit(grid)
   }
  }
- state limit(grid:&mut domain::grid::Grid) -> i32 {
+ machine limit(grid:&mut domain::grid::Grid) -> i32 {
   transition grid.iterations >= grid.maximum { true -> 2 false -> image(grid) }
  }
- state image(grid:&mut domain::grid::Grid) -> i32 {
+ machine image(grid:&mut domain::grid::Grid) -> i32 {
   multiply(grid,true);
   grid.curvature=0.0;
   transition { _ -> product(grid,0) }
  }
- state product(grid:&mut domain::grid::Grid,index:u64 in Saturating) -> i32 {
+ machine product(grid:&mut domain::grid::Grid,index:u64 in Saturating) -> i32 {
   transition index < grid.count { true -> term(grid,index) false -> positive(grid) }
  }
- state term(grid:&mut domain::grid::Grid,index:u64 in Saturating) -> i32 {
+ machine term(grid:&mut domain::grid::Grid,index:u64 in Saturating) -> i32 {
   grid.curvature=grid.curvature+grid.direction[index%144]*grid.image[index%144];
   transition { _ -> product(grid,index+1) }
  }
- state positive(grid:&mut domain::grid::Grid) -> i32 {
+ machine positive(grid:&mut domain::grid::Grid) -> i32 {
   let ratio:f64=grid.squares/grid.curvature;
   transition domain::grid::finite(grid.curvature) && grid.curvature > 0.0 && domain::grid::finite(grid.squares) && grid.squares > 0.0 {
    true -> alpha(grid,ratio)
    false -> 3
   }
  }
- state alpha(grid:&mut domain::grid::Grid,value:f64) -> i32 {
+ machine alpha(grid:&mut domain::grid::Grid,value:f64) -> i32 {
   transition domain::grid::finite(value) { true -> update(grid,0,value,0.0) false -> 3 }
  }
- state update(grid:&mut domain::grid::Grid,index:u64 in Saturating,alpha:f64,squares:f64) -> i32 {
+ machine update(grid:&mut domain::grid::Grid,index:u64 in Saturating,alpha:f64,squares:f64) -> i32 {
   transition index < grid.count { true -> move(grid,index,alpha,squares) false -> recurrence(grid,squares) }
  }
- state move(grid:&mut domain::grid::Grid,index:u64 in Saturating,alpha:f64,squares:f64) -> i32 {
+ machine move(grid:&mut domain::grid::Grid,index:u64 in Saturating,alpha:f64,squares:f64) -> i32 {
   let value:f64=grid.solution[index%144]+alpha*grid.direction[index%144];
   let residual:f64=grid.residual[index%144]-alpha*grid.image[index%144];
   let next:f64=squares+residual*residual;
@@ -127,22 +127,22 @@ public machine solve(grid:&mut domain::grid::Grid) -> i32 {
    false -> 3
   }
  }
- state store(grid:&mut domain::grid::Grid,index:u64 in Saturating,alpha:f64,squares:f64,value:f64,residual:f64) -> i32 {
+ machine store(grid:&mut domain::grid::Grid,index:u64 in Saturating,alpha:f64,squares:f64,value:f64,residual:f64) -> i32 {
   grid.solution[index%144]=value;
   grid.residual[index%144]=residual;
   transition { _ -> update(grid,index+1,alpha,squares) }
  }
- state recurrence(grid:&mut domain::grid::Grid,squares:f64) -> i32 {
+ machine recurrence(grid:&mut domain::grid::Grid,squares:f64) -> i32 {
   let beta:f64=squares/grid.squares;
   grid.squares=squares;
   grid.iterations=grid.iterations+1;
   true_residual(grid);
   transition grid.norm <= grid.threshold && domain::grid::finite(grid.norm) { true -> 0 false -> direction(grid,0,beta) }
  }
- state direction(grid:&mut domain::grid::Grid,index:u64 in Saturating,beta:f64) -> i32 {
+ machine direction(grid:&mut domain::grid::Grid,index:u64 in Saturating,beta:f64) -> i32 {
   transition index < grid.count { true -> combine(grid,index,beta) false -> convergence(grid) }
  }
- state combine(grid:&mut domain::grid::Grid,index:u64 in Saturating,beta:f64) -> i32 {
+ machine combine(grid:&mut domain::grid::Grid,index:u64 in Saturating,beta:f64) -> i32 {
   grid.direction[index%144]=grid.residual[index%144]+beta*grid.direction[index%144];
   transition { _ -> direction(grid,index+1,beta) }
  }

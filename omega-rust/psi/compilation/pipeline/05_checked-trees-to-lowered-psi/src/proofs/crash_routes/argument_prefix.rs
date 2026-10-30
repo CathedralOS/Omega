@@ -2,12 +2,10 @@
 
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
-use crate::unit::attached_unit::primitive_locals::PrimitiveLocal;
-use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralPlaceKind};
+use semantic_vocabulary::CanonicalStructuralPathSegment;
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralArgument, StructuralFieldType,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, find_structural_type,
+    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, find_structural_type,
 };
 
 /// A reference operand's physical descriptor is not its observed backing.
@@ -130,6 +128,8 @@ pub(crate) fn captured_crash_argument(
         for supplier in suppliers {
             let supplying = borrow.loans.get(*supplier);
             if occurrence.incoming_reference != supplying.incoming_reference
+                || borrow.access_segments.span(occurrence.incoming_owner_path)
+                    != borrow.access_segments.span(supplying.incoming_owner_path)
                 || occurrence.root != supplying.root
                 || borrow.access_segments.span_or_empty(occurrence.segments)
                     != borrow.access_segments.span_or_empty(supplying.segments)
@@ -211,61 +211,6 @@ fn observed_referent(
     Ok(observed)
 }
 
-pub(crate) fn structural_crash_argument_type(
-    argument: &StructuralArgument,
-    parameters: &[StructuralParameterDeclaration],
-    trivial_affine_locals: &[StructuralPlaceDeclaration],
-    structural_results: &[(Option<StructuralPlaceDeclaration>, bool)],
-    primitive_locals: &[PrimitiveLocal],
-    operations: &[terminal_psi::Operation],
-) -> Result<semantic_vocabulary::StructuralTypeId, LoweringError> {
-    parameters
-        .iter()
-        .find(|parameter| parameter.place == argument.place)
-        .map(|parameter| parameter.structural_type)
-        .or_else(|| {
-            trivial_affine_locals.iter().find_map(|local| {
-                (local.id == argument.place)
-                    .then_some(match local.kind {
-                        StructuralPlaceKind::TrivialAffineLocal {
-                            structural_type, ..
-                        } => Some(structural_type),
-                        _ => None,
-                    })
-                    .flatten()
-            })
-        })
-        .or_else(|| {
-            structural_results
-                .iter()
-                .filter_map(|(place, _)| place.as_ref())
-                // These are the established caller referents, with their original producers.
-                .chain(primitive_locals.iter().map(|local| &local.declaration))
-                .find_map(|local| {
-                    (local.id == argument.place)
-                        .then_some(match local.kind {
-                            StructuralPlaceKind::OperationResult {
-                                structural_type, ..
-                            } => Some(structural_type),
-                            _ => None,
-                        })
-                        .flatten()
-                })
-        })
-        .or_else(|| {
-            operations.iter().find_map(|operation| {
-                operation
-                    .result
-                    .structural()
-                    .filter(|result| result.place == argument.place)
-                    .map(|result| result.structural_type)
-            })
-        })
-        .ok_or(LoweringError::Unsupported(
-            "structural crash route argument has no caller structural source",
-        ))
-}
-
 pub(crate) fn structural_crash_route_prefix_from_type(
     argument: &StructuralArgument,
     mut structural_type: semantic_vocabulary::StructuralTypeId,
@@ -311,9 +256,17 @@ pub(crate) fn structural_crash_route_prefix_from_type(
                 );
             }
             StructuralPathSegment::Referent => {
-                return unsupported(
-                    "reference crash paths require retained referent projection custody",
-                );
+                if selected_case.is_some() {
+                    return unsupported("reference predicate path has an unfinished case");
+                }
+                let StructuralTypeShape::Reference { referent, access } = declaration.shape else {
+                    return unsupported("reference predicate prefix requires a reference carrier");
+                };
+                if access == StructuralAccess::WriteOnlyBorrow {
+                    return unsupported("reference predicate prefix requires readable access");
+                }
+                prefix.push(CanonicalStructuralPathSegment::Referent);
+                structural_type = referent;
             }
             StructuralPathSegment::RuntimeIndex { .. } => {
                 return unsupported(
@@ -356,7 +309,11 @@ pub(crate) fn structural_crash_route_prefix_from_type(
                 }
             }
             StructuralPathSegment::FixedIndex(index) => {
-                let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+                let StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                } = declaration.shape
+                else {
                     return unsupported(
                         "structural crash route argument fixed index receiver is not an array",
                     );

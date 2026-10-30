@@ -15,7 +15,7 @@ use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::executable::executor::GitExecutor;
 use crate::git::git_command::reconciliation::reconcile_git_cache_operation_result;
 use crate::git::git_command::{GitCommandCapture, run_git_output};
-use crate::git::objects::{GitTreeEntry, GitTreeEntryKind};
+use crate::git::objects::GitTreeEntry;
 use crate::limits::LocalSourceLimits;
 #[cfg(test)]
 use crate::limits::STAGING_SEQUENCE;
@@ -33,24 +33,16 @@ pub(in crate::git::objects) fn read_git_blobs_batch(
     entries: &mut [GitTreeEntry],
     limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {
-    executor.verify_budget()?;
-    for entry in entries.iter() {
-        entry.validate_source_entry()?;
-    }
-    if entries
-        .iter()
-        .all(|entry| matches!(&entry.kind, GitTreeEntryKind::Tree))
-    {
+    let Some((stdout_limit, request_bytes)) = git_batch_plan(executor, entries, limits)? else {
         return Ok(());
-    }
-    let stdout_limit = git_batch_output_limit(entries, limits)?;
-    let request_bytes = git_batch_request_bytes(entries);
+    };
     repository.verify_identity()?;
-    let cache_root =
-        repository
-            .entry_root
-            .parent()
-            .ok_or_else(|| cache_invalid(&repository.entry_root, "Git cache entry has no retained parent"))?;
+    let cache_root = repository.entry_root.parent().ok_or_else(|| {
+        cache_invalid(
+            &repository.entry_root,
+            "Git cache entry has no retained parent",
+        )
+    })?;
     // The verified cache entry is reopened as immutable custody. Keep the
     // transient cat-file request beside it in the retained mutable cache lane;
     // a Windows read-only directory handle cannot create children.
@@ -79,18 +71,9 @@ pub(crate) fn read_git_blobs_batch_from_path(
     entries: &mut [GitTreeEntry],
     limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {
-    executor.verify_budget()?;
-    for entry in entries.iter() {
-        entry.validate_source_entry()?;
-    }
-    if entries
-        .iter()
-        .all(|entry| matches!(&entry.kind, GitTreeEntryKind::Tree))
-    {
+    let Some((stdout_limit, request_bytes)) = git_batch_plan(executor, entries, limits)? else {
         return Ok(());
-    }
-    let stdout_limit = git_batch_output_limit(entries, limits)?;
-    let request_bytes = git_batch_request_bytes(entries);
+    };
     let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let request_path = repository
         .parent()
@@ -114,6 +97,19 @@ pub(crate) fn read_git_blobs_batch_from_path(
     let result = execute_git_blob_batch(executor, repository, request, entries, stdout_limit);
     drop(request_guard);
     result
+}
+
+/// Derives one batch's output bound and exact request; an empty request means every
+/// entry is a tree, so there is nothing to fetch.
+fn git_batch_plan(
+    executor: &GitExecutor,
+    entries: &[GitTreeEntry],
+    limits: LocalSourceLimits,
+) -> Result<Option<(usize, Vec<u8>)>, SourceResolveError> {
+    executor.verify_budget()?;
+    let stdout_limit = git_batch_output_limit(entries, limits)?;
+    let request_bytes = git_batch_request_bytes(entries);
+    Ok((!request_bytes.is_empty()).then_some((stdout_limit, request_bytes)))
 }
 
 fn write_git_batch_request(

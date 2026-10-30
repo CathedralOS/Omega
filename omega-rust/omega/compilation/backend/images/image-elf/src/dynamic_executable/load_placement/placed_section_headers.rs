@@ -10,8 +10,6 @@
 //! headers; resolve payload-internal dynamic/procedure/source relocations;
 //! mutate the retained `FinalImage`; or claim a runnable image.
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
 use crate::constants::{ELF64_SECTION_HEADER_SIZE, SECTION_COUNT};
 use crate::dynamic_executable::checked::{
@@ -59,6 +57,7 @@ impl ValidatedElfPlacedSectionHeaderTable {
         &self.contents.bytes
     }
 
+    #[cfg(test)]
     pub(crate) fn applied_placements(&self) -> &[ElfAppliedSectionHeaderPlacement] {
         &self.contents.applications
     }
@@ -107,25 +106,12 @@ struct Candidate {
 pub(crate) fn apply_elf_section_header_placements(
     load_layout: ValidatedElfDynamicLoadLayout,
 ) -> Result<ValidatedElfPlacedSectionHeaderTable, Box<ElfSectionHeaderPlacementApplicationError>> {
-    checked::plan_candidate(
-        load_layout,
-        derive_contents,
-        |load_layout, contents| {
-            non_authoritative_placed_compatibility_fingerprint(&load_layout, &contents)
-        },
-        |load_layout, contents, fingerprint| Candidate {
-            load_layout: load_layout,
-            contents: contents,
-            non_authoritative_placed_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.load_layout,
-        |load_layout, diagnostic| {
-            Box::new(ElfSectionHeaderPlacementApplicationError {
-                load_layout: load_layout,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: load_layout,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_placed_compatibility_fingerprint,
+        error: ElfSectionHeaderPlacementApplicationError,
     )
 }
 
@@ -186,28 +172,14 @@ fn derive_contents(
     })
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfPlacedSectionHeaderTable, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.load_layout, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_placed_compatibility_fingerprint != 0
-                && candidate.non_authoritative_placed_compatibility_fingerprint
-                    == non_authoritative_placed_compatibility_fingerprint(
-                        &candidate.load_layout,
-                        &candidate.contents,
-                    )
-        },
-        "placed ELF section-header compatibility fingerprint does not replay",
-        |candidate| ValidatedElfPlacedSectionHeaderTable {
-            load_layout: candidate.load_layout,
-            contents: candidate.contents,
-            non_authoritative_placed_compatibility_fingerprint: candidate
-                .non_authoritative_placed_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: load_layout,
+    contents: contents,
+    validated: ValidatedElfPlacedSectionHeaderTable,
+    validate: validate_contents,
+    fingerprint: non_authoritative_placed_compatibility_fingerprint,
+    nonzero,
+    message: "placed ELF section-header compatibility fingerprint does not replay",
 }
 
 fn validate_contents(
@@ -406,12 +378,9 @@ fn non_authoritative_placed_compatibility_fingerprint(
     load_layout: &ValidatedElfDynamicLoadLayout,
     contents: &ElfPlacedSectionHeaderContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf.placed-section-header-table.v1");
-    hash.bytes(
-        &load_layout
-            .non_authoritative_layout_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf.placed-section-header-table.v1",
+        load_layout.non_authoritative_layout_compatibility_fingerprint(),
     );
     hash.bytes(&contents.bytes);
     hash.bytes(&(contents.applications.len() as u64).to_le_bytes());

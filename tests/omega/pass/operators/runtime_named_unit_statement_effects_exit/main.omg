@@ -23,11 +23,11 @@ machine main() crashes Trap {
         true -> later()
         _ -> bad()
     }
-    state later() {
+    machine later() {
         let mut value: u32 = 4;
         Actions::set(&mut value);
         transition value == 7 { true -> done() _ -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

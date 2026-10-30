@@ -1,7 +1,7 @@
 machine main() -> u64 {
     let mut row: [u64; 4] = [0, 0, 0, 0];
     transition { _ -> overlap(&mut row[0..3], &mut row[2..4]) }
-    state overlap(left: &mut [u64], right: &mut [u64]) {
+    machine overlap(left: &mut [u64], right: &mut [u64]) -> u64 {
         left[0] = 1;
         right[0] = 2;
         transition { _ -> (left.len) }

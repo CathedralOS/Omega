@@ -6,7 +6,7 @@ data Main { bytes: [u8; 2]; }
 // Keep the loan live through an internal state and a boundary invocation.
 machine Main::publish(bytes: &[u8]) reaches Console {
     transition { _ -> forward(bytes) }
-    state forward(bytes: &[u8]) {
+    machine forward(bytes: &[u8]) {
         Console::write_line(bytes);
     }
 }

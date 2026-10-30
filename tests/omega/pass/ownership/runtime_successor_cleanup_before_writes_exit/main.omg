@@ -20,7 +20,7 @@ machine internal(counter: &mut Counter) -> u64 {
     // The cleanup record holds the live exclusive loan until departure.
     // Argument evaluation uses that child, not its suspended parent.
     transition { _ -> entered(prepare(cleanup.counter), counter) }
-    state entered(captured: u64, counter: &mut Counter) -> u64 {
+    machine entered(captured: u64, counter: &mut Counter) -> u64 {
         let arrival: u64 = counter.value;
         counter.value = 29;
         transition captured == 7 {
@@ -36,7 +36,7 @@ machine nested(counter: &mut Counter, select_first: bool) -> u64 {
         true -> entered(prepare(wrapper.cleanup.counter), counter)
         _ -> entered(prepare(wrapper.cleanup.counter), counter)
     }
-    state entered(captured: u64, counter: &mut Counter) -> u64 {
+    machine entered(captured: u64, counter: &mut Counter) -> u64 {
         let arrival: u64 = counter.value;
         counter.value = 29;
         transition captured == 7 {
@@ -59,6 +59,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

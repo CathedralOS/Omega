@@ -11,12 +11,12 @@ machine Invalid::main(entry: &mut Invalid) reaches Console {
         ByteRead::Byte { value } -> index(entry, &input, value as u64)
         ByteRead::Eof -> done(entry)
     }
-    state index(entry: &mut Invalid, input: &[u8; 8], position: u64) {
+    machine index(entry: &mut Invalid, input: &[u8; 8], position: u64) {
         let base: u8 = unchecked_base(input, position);
         Console::write_byte(base as i32);
         transition { _ -> done(entry) }
     }
-    state done(entry: &mut Invalid) { Console::exit_process(0); }
+    machine done(entry: &mut Invalid) { Console::exit_process(0); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

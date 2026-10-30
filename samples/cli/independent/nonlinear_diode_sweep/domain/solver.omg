@@ -36,14 +36,14 @@ machine solve(circuit: &Circuit, solver: &mut Solver, source: f64,
         true -> endpoint(circuit, solver, circuit.lower)
         false -> scan(circuit, solver, budget)
     }
-    state endpoint(circuit: &Circuit, solver: &mut Solver, voltage: f64) {
+    machine endpoint(circuit: &Circuit, solver: &mut Solver, voltage: f64) {
         solver.voltage = voltage;
         solver.current = diode_current(circuit, voltage);
         solver.residual = 0.0;
         solver.width = 0.0;
         solver.status = 1;
     }
-    state scan(circuit: &Circuit, solver: &mut Solver, budget: i32 in Wrapping) {
+    machine scan(circuit: &Circuit, solver: &mut Solver, budget: i32 in Wrapping) {
         let offset: f64 = solver.scan_step * solver.scan_position;
         let voltage: f64 = circuit.lower + offset;
         let residual: f64 = circuit_residual(circuit, voltage, solver.source);
@@ -53,14 +53,14 @@ machine solve(circuit: &Circuit, solver: &mut Solver, source: f64,
             false -> bracket(circuit, solver, budget, voltage, residual)
         }
     }
-    state bracket(circuit: &Circuit, solver: &mut Solver, budget: i32 in Wrapping,
+    machine bracket(circuit: &Circuit, solver: &mut Solver, budget: i32 in Wrapping,
         voltage: f64, residual: f64) {
         transition solver.previous_residual < 0.0 && residual > 0.0 {
             true -> start(circuit, solver, budget, voltage)
             false -> advance(circuit, solver, budget, voltage, residual)
         }
     }
-    state advance(circuit: &Circuit, solver: &mut Solver, budget: i32 in Wrapping,
+    machine advance(circuit: &Circuit, solver: &mut Solver, budget: i32 in Wrapping,
         voltage: f64, residual: f64) {
         solver.previous_voltage = voltage;
         solver.previous_residual = residual;
@@ -71,15 +71,15 @@ machine solve(circuit: &Circuit, solver: &mut Solver, source: f64,
             false -> absent(solver)
         }
     }
-    state absent(solver: &mut Solver) { solver.status = 3; }
-    state start(circuit: &Circuit, solver: &mut Solver, budget: i32 in Wrapping,
+    machine absent(solver: &mut Solver) { solver.status = 3; }
+    machine start(circuit: &Circuit, solver: &mut Solver, budget: i32 in Wrapping,
         voltage: f64) {
         solver.lower = solver.previous_voltage;
         solver.upper = voltage;
         solver.width = solver.scan_step;
         transition { _ -> bisect(circuit, solver, budget) }
     }
-    state bisect(circuit: &Circuit, solver: &mut Solver, budget: i32 in Wrapping) {
+    machine bisect(circuit: &Circuit, solver: &mut Solver, budget: i32 in Wrapping) {
         // Carry the nominal interval width through exact binary halvings.
         // Subtracting nearly equal endpoints loses relative diagnostic accuracy.
         let half: f64 = solver.width * 0.5;
@@ -96,26 +96,26 @@ machine solve(circuit: &Circuit, solver: &mut Solver, source: f64,
             false -> limit(circuit, solver, budget)
         }
     }
-    state converged(solver: &mut Solver) { solver.status = 1; }
-    state limit(circuit: &Circuit, solver: &mut Solver, budget: i32 in Wrapping) {
+    machine converged(solver: &mut Solver) { solver.status = 1; }
+    machine limit(circuit: &Circuit, solver: &mut Solver, budget: i32 in Wrapping) {
         transition solver.iterations >= budget {
             true -> exhausted(solver)
             false -> narrow(circuit, solver, budget)
         }
     }
-    state exhausted(solver: &mut Solver) { solver.status = 2; }
-    state narrow(circuit: &Circuit, solver: &mut Solver, budget: i32 in Wrapping) {
+    machine exhausted(solver: &mut Solver) { solver.status = 2; }
+    machine narrow(circuit: &Circuit, solver: &mut Solver, budget: i32 in Wrapping) {
         solver.width = solver.width * 0.5;
         transition solver.residual < 0.0 {
             true -> move_lower(circuit, solver, budget)
             false -> move_upper(circuit, solver, budget)
         }
     }
-    state move_lower(circuit: &Circuit, solver: &mut Solver, budget: i32 in Wrapping) {
+    machine move_lower(circuit: &Circuit, solver: &mut Solver, budget: i32 in Wrapping) {
         solver.lower = solver.voltage;
         transition { _ -> bisect(circuit, solver, budget) }
     }
-    state move_upper(circuit: &Circuit, solver: &mut Solver, budget: i32 in Wrapping) {
+    machine move_upper(circuit: &Circuit, solver: &mut Solver, budget: i32 in Wrapping) {
         solver.upper = solver.voltage;
         transition { _ -> bisect(circuit, solver, budget) }
     }

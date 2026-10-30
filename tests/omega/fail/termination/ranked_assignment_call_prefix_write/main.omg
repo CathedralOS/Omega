@@ -12,7 +12,7 @@ requires remaining <= 9;
 terminates by remaining in 0..=9;
 {
     transition { _ -> scan(scratch, remaining) }
-    state scan(scratch: &mut Scratch, mut remaining: u32) -> u32
+    machine scan(scratch: &mut Scratch, mut remaining: u32) -> u32
     requires remaining <= 9;
     {
         // A disjoint destination does not hide a nested write to the rank.

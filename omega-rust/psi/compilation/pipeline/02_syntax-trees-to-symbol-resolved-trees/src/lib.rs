@@ -47,9 +47,10 @@ mod constant;
 // The entrance, its post-base re-entry, and the requests and carriers both
 // name.
 pub use resolution::{
-    DeferredResolvedFrontier, ExtensionRequest, RebasedResolvedBodyCompletion,
-    RebasedSeededSymbolResolvedTrees, ResolutionRequest, ResolvedBodyCompletion,
-    SeededSymbolResolvedTrees, resolve, resolve_deferred, resolve_extension,
+    DeferredResolvedExtension, DeferredResolvedFrontier, ExtensionRequest,
+    RebasedResolvedBodyCompletion, RebasedSeededSymbolResolvedTrees, ResolutionRequest,
+    ResolvedBodyCompletion, SeededSymbolResolvedTrees, resolve, resolve_deferred,
+    resolve_deferred_extension, resolve_extension,
 };
 
 /// What build-time evaluation drives before this stage can run.
@@ -62,18 +63,21 @@ pub mod pre_resolution {
     pub use crate::constant::initializer_dependencies::{
         ConstInitializerDependencies, ResolvedMachineBodyDemand,
     };
+    pub use crate::constant::initializer_normalization::InitializerCustodyPurpose;
     pub use crate::constant::requires_const_initializer_evaluation;
     pub use crate::preparation::declaration_selection::select_data_declarations;
     pub use crate::preparation::generic_data::{
-        GenericDataRequest, canonicalize_declared_const_definition,
-        closed_array_extent_expressions, closed_data_const_argument_expressions,
-        closed_machine_const_arguments, normalize_generic_data, normalize_initializer_probe_data,
-        retain_deferred_array_extent,
+        ClosedConstArguments, GenericDataRequest, canonicalize_declared_const_definition,
+        closed_array_extent_expressions, closed_const_arguments,
+        closed_data_const_argument_expressions, closed_machine_const_arguments,
+        normalize_generic_data, normalize_initializer_probe_data, retain_deferred_array_extent,
     };
     pub use crate::preparation::trait_defaults::synthesize_trait_defaults;
     pub use crate::resolution::{
+        ConstArgumentSelection, ConstDestinationObligation, ConstInitializerPayload,
         ConstInitializerSelection, prepare_const_initializer_selection,
-        resolve_call_result_selection, resolve_const_argument_selection,
-        resolve_deferred_initializer_probe, resolve_deferred_numeric_probe, resolve_numeric_probe,
+        prepare_const_qualification_selection, resolve_call_result_selection,
+        resolve_const_argument_selection, resolve_deferred_initializer_probe,
+        resolve_deferred_numeric_probe, resolve_numeric_probe,
     };
 }

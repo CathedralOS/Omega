@@ -31,48 +31,48 @@ public machine solve(problem: &mut Problem) -> bool {
         true -> diagonalize(problem)
         false -> bad()
     }
-    state diagonalize(problem: &mut Problem) -> bool {
+    machine diagonalize(problem: &mut Problem) -> bool {
         initialize(problem); sweeps(problem, 0);
         transition { _ -> select(problem, 0, 1) }
     }
-    state select(problem: &mut Problem, best: u64, index: u64) -> bool requires best < 4 {
+    machine select(problem: &mut Problem, best: u64, index: u64) -> bool requires best < 4 {
         transition index < 4 { true -> compare(problem, best, index) false -> gap(problem, best, 0) }
     }
-    state compare(problem: &mut Problem, best: u64, index: u64) -> bool requires best < 4, index < 4 {
+    machine compare(problem: &mut Problem, best: u64, index: u64) -> bool requires best < 4, index < 4 {
         transition problem.matrix.values[index * 4 + index] > problem.matrix.values[best * 4 + best] {
             true -> select(problem, index, index + 1)
             false -> select(problem, best, index + 1)
         }
     }
-    state gap(problem: &mut Problem, best: u64, index: u64) -> bool requires best < 4 {
+    machine gap(problem: &mut Problem, best: u64, index: u64) -> bool requires best < 4 {
         transition index < 4 { true -> test_gap(problem, best, index) false -> result(problem, best) }
     }
-    state test_gap(problem: &mut Problem, best: u64, index: u64) -> bool requires best < 4, index < 4 {
+    machine test_gap(problem: &mut Problem, best: u64, index: u64) -> bool requires best < 4, index < 4 {
         transition index == best || problem.matrix.values[best * 4 + best] - problem.matrix.values[index * 4 + index] > 0.000000000001 * magnitude(problem.matrix.values[best * 4 + best]) {
             true -> gap(problem, best, index + 1)
             false -> bad()
         }
     }
-    state result(problem: &mut Problem, best: u64) -> bool requires best < 4 {
+    machine result(problem: &mut Problem, best: u64) -> bool requires best < 4 {
         problem.quaternion[0] = problem.vectors.values[0 + best];
         problem.quaternion[1] = problem.vectors.values[4 + best];
         problem.quaternion[2] = problem.vectors.values[8 + best];
         problem.quaternion[3] = problem.vectors.values[12 + best];
         rotation(problem); true
     }
-    state bad() -> bool { false }
+    machine bad() -> bool { false }
 }
-machine magnitude(value: f64) -> f64 { transition value < 0.0 { true -> negative(value) false -> positive(value) } state negative(value: f64) -> f64 { 0.0 - value } state positive(value: f64) -> f64 { value } }
+machine magnitude(value: f64) -> f64 { transition value < 0.0 { true -> negative(value) false -> positive(value) } machine negative(value: f64) -> f64 { 0.0 - value } machine positive(value: f64) -> f64 { value } }
 machine centers(problem: &mut Problem, index: u64) {
     transition index < problem.count && index < 16 { true -> add(problem, index) false -> done() }
-    state add(problem: &mut Problem, index: u64) requires index < 16 {
+    machine add(problem: &mut Problem, index: u64) requires index < 16 {
         let weight: f64 = problem.weights[index]; problem.total_weight = problem.total_weight + weight;
         problem.source_center[0] = problem.source_center[0] + weight * problem.source[index * 3 + 0]; problem.target_center[0] = problem.target_center[0] + weight * problem.target[index * 3 + 0];
         problem.source_center[1] = problem.source_center[1] + weight * problem.source[index * 3 + 1]; problem.target_center[1] = problem.target_center[1] + weight * problem.target[index * 3 + 1];
         problem.source_center[2] = problem.source_center[2] + weight * problem.source[index * 3 + 2]; problem.target_center[2] = problem.target_center[2] + weight * problem.target[index * 3 + 2];
         transition { _ -> centers(problem, index + 1) }
     }
-    state done() { }
+    machine done() { }
 }
 machine normalize_centers(problem: &mut Problem) {
     problem.source_center[0] = problem.source_center[0] / problem.total_weight; problem.target_center[0] = problem.target_center[0] / problem.total_weight;
@@ -81,7 +81,7 @@ machine normalize_centers(problem: &mut Problem) {
 }
 machine covariance(problem: &mut Problem, index: u64) {
     transition index < problem.count && index < 16 { true -> add(problem, index) false -> done() }
-    state add(problem: &mut Problem, index: u64) requires index < 16 {
+    machine add(problem: &mut Problem, index: u64) requires index < 16 {
         let weight: f64 = problem.weights[index] / problem.total_weight;
         let source0: f64 = problem.source[index * 3 + 0] - problem.source_center[0]; let target0: f64 = problem.target[index * 3 + 0] - problem.target_center[0];
         let source1: f64 = problem.source[index * 3 + 1] - problem.source_center[1]; let target1: f64 = problem.target[index * 3 + 1] - problem.target_center[1];
@@ -97,7 +97,7 @@ machine covariance(problem: &mut Problem, index: u64) {
         problem.covariance.values[8] = problem.covariance.values[8] + weight * source2 * target2; problem.scatter.values[8] = problem.scatter.values[8] + weight * source2 * source2;
         transition { _ -> covariance(problem, index + 1) }
     }
-    state done() { }
+    machine done() { }
 }
 machine initialize(problem: &mut Problem) {
     let c0: f64 = problem.covariance.values[0];
@@ -132,7 +132,7 @@ machine initialize(problem: &mut Problem) {
 }
 machine sweeps(problem: &mut Problem, iteration: u64) {
     transition iteration < 24 { true -> sweep(problem, iteration) false -> done() }
-    state sweep(problem: &mut Problem, iteration: u64) {
+    machine sweep(problem: &mut Problem, iteration: u64) {
         pair01(problem);
         pair02(problem);
         pair03(problem);
@@ -141,12 +141,12 @@ machine sweeps(problem: &mut Problem, iteration: u64) {
         pair23(problem);
         transition { _ -> sweeps(problem, iteration + 1) }
     }
-    state done() { }
+    machine done() { }
 }
 machine pair01(problem: &mut Problem) {
     let off: f64 = problem.matrix.values[1];
     transition magnitude(off) > 0.000000000000001 * (magnitude(problem.matrix.values[0]) + magnitude(problem.matrix.values[5])) { true -> rotate(problem, off) false -> done() }
-    state rotate(problem: &mut Problem, off: f64) {
+    machine rotate(problem: &mut Problem, off: f64) {
         let theta: f64 = (problem.matrix.values[5] - problem.matrix.values[0]) / (2.0 * off);
         let unsigned: f64 = 1.0 / (magnitude(theta) + F64::square_root(1.0 + theta * theta));
         let tangent: f64 = signed_tangent(unsigned, theta);
@@ -170,12 +170,12 @@ machine pair01(problem: &mut Problem) {
         let vector_left3: f64 = problem.vectors.values[12]; let vector_right3: f64 = problem.vectors.values[13];
         problem.vectors.values[12] = cosine * vector_left3 - sine * vector_right3; problem.vectors.values[13] = sine * vector_left3 + cosine * vector_right3;
     }
-    state done() { }
+    machine done() { }
 }
 machine pair02(problem: &mut Problem) {
     let off: f64 = problem.matrix.values[2];
     transition magnitude(off) > 0.000000000000001 * (magnitude(problem.matrix.values[0]) + magnitude(problem.matrix.values[10])) { true -> rotate(problem, off) false -> done() }
-    state rotate(problem: &mut Problem, off: f64) {
+    machine rotate(problem: &mut Problem, off: f64) {
         let theta: f64 = (problem.matrix.values[10] - problem.matrix.values[0]) / (2.0 * off);
         let unsigned: f64 = 1.0 / (magnitude(theta) + F64::square_root(1.0 + theta * theta));
         let tangent: f64 = signed_tangent(unsigned, theta);
@@ -199,12 +199,12 @@ machine pair02(problem: &mut Problem) {
         let vector_left3: f64 = problem.vectors.values[12]; let vector_right3: f64 = problem.vectors.values[14];
         problem.vectors.values[12] = cosine * vector_left3 - sine * vector_right3; problem.vectors.values[14] = sine * vector_left3 + cosine * vector_right3;
     }
-    state done() { }
+    machine done() { }
 }
 machine pair03(problem: &mut Problem) {
     let off: f64 = problem.matrix.values[3];
     transition magnitude(off) > 0.000000000000001 * (magnitude(problem.matrix.values[0]) + magnitude(problem.matrix.values[15])) { true -> rotate(problem, off) false -> done() }
-    state rotate(problem: &mut Problem, off: f64) {
+    machine rotate(problem: &mut Problem, off: f64) {
         let theta: f64 = (problem.matrix.values[15] - problem.matrix.values[0]) / (2.0 * off);
         let unsigned: f64 = 1.0 / (magnitude(theta) + F64::square_root(1.0 + theta * theta));
         let tangent: f64 = signed_tangent(unsigned, theta);
@@ -228,12 +228,12 @@ machine pair03(problem: &mut Problem) {
         let vector_left3: f64 = problem.vectors.values[12]; let vector_right3: f64 = problem.vectors.values[15];
         problem.vectors.values[12] = cosine * vector_left3 - sine * vector_right3; problem.vectors.values[15] = sine * vector_left3 + cosine * vector_right3;
     }
-    state done() { }
+    machine done() { }
 }
 machine pair12(problem: &mut Problem) {
     let off: f64 = problem.matrix.values[6];
     transition magnitude(off) > 0.000000000000001 * (magnitude(problem.matrix.values[5]) + magnitude(problem.matrix.values[10])) { true -> rotate(problem, off) false -> done() }
-    state rotate(problem: &mut Problem, off: f64) {
+    machine rotate(problem: &mut Problem, off: f64) {
         let theta: f64 = (problem.matrix.values[10] - problem.matrix.values[5]) / (2.0 * off);
         let unsigned: f64 = 1.0 / (magnitude(theta) + F64::square_root(1.0 + theta * theta));
         let tangent: f64 = signed_tangent(unsigned, theta);
@@ -257,12 +257,12 @@ machine pair12(problem: &mut Problem) {
         let vector_left3: f64 = problem.vectors.values[13]; let vector_right3: f64 = problem.vectors.values[14];
         problem.vectors.values[13] = cosine * vector_left3 - sine * vector_right3; problem.vectors.values[14] = sine * vector_left3 + cosine * vector_right3;
     }
-    state done() { }
+    machine done() { }
 }
 machine pair13(problem: &mut Problem) {
     let off: f64 = problem.matrix.values[7];
     transition magnitude(off) > 0.000000000000001 * (magnitude(problem.matrix.values[5]) + magnitude(problem.matrix.values[15])) { true -> rotate(problem, off) false -> done() }
-    state rotate(problem: &mut Problem, off: f64) {
+    machine rotate(problem: &mut Problem, off: f64) {
         let theta: f64 = (problem.matrix.values[15] - problem.matrix.values[5]) / (2.0 * off);
         let unsigned: f64 = 1.0 / (magnitude(theta) + F64::square_root(1.0 + theta * theta));
         let tangent: f64 = signed_tangent(unsigned, theta);
@@ -286,12 +286,12 @@ machine pair13(problem: &mut Problem) {
         let vector_left3: f64 = problem.vectors.values[13]; let vector_right3: f64 = problem.vectors.values[15];
         problem.vectors.values[13] = cosine * vector_left3 - sine * vector_right3; problem.vectors.values[15] = sine * vector_left3 + cosine * vector_right3;
     }
-    state done() { }
+    machine done() { }
 }
 machine pair23(problem: &mut Problem) {
     let off: f64 = problem.matrix.values[11];
     transition magnitude(off) > 0.000000000000001 * (magnitude(problem.matrix.values[10]) + magnitude(problem.matrix.values[15])) { true -> rotate(problem, off) false -> done() }
-    state rotate(problem: &mut Problem, off: f64) {
+    machine rotate(problem: &mut Problem, off: f64) {
         let theta: f64 = (problem.matrix.values[15] - problem.matrix.values[10]) / (2.0 * off);
         let unsigned: f64 = 1.0 / (magnitude(theta) + F64::square_root(1.0 + theta * theta));
         let tangent: f64 = signed_tangent(unsigned, theta);
@@ -315,9 +315,9 @@ machine pair23(problem: &mut Problem) {
         let vector_left3: f64 = problem.vectors.values[14]; let vector_right3: f64 = problem.vectors.values[15];
         problem.vectors.values[14] = cosine * vector_left3 - sine * vector_right3; problem.vectors.values[15] = sine * vector_left3 + cosine * vector_right3;
     }
-    state done() { }
+    machine done() { }
 }
-machine signed_tangent(value: f64, theta: f64) -> f64 { transition theta < 0.0 { true -> negative(value) false -> positive(value) } state negative(value: f64) -> f64 { 0.0 - value } state positive(value: f64) -> f64 { value } }
+machine signed_tangent(value: f64, theta: f64) -> f64 { transition theta < 0.0 { true -> negative(value) false -> positive(value) } machine negative(value: f64) -> f64 { 0.0 - value } machine positive(value: f64) -> f64 { value } }
 machine rotation(problem: &mut Problem) {
     let norm: f64 = F64::square_root(problem.quaternion[0] * problem.quaternion[0] + problem.quaternion[1] * problem.quaternion[1] + problem.quaternion[2] * problem.quaternion[2] + problem.quaternion[3] * problem.quaternion[3]);
     let w: f64 = problem.quaternion[0] / norm; let x: f64 = problem.quaternion[1] / norm; let y: f64 = problem.quaternion[2] / norm; let z: f64 = problem.quaternion[3] / norm;

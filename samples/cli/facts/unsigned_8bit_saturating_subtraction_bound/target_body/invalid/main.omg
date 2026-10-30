@@ -12,64 +12,96 @@ requires value >= 60u8 && value <= 160u8
     }
 }
 
-linux_x86_64 machine exercise(lhs: u8 in Saturating, rhs: u8 in Saturating) -> u8 crashes Trap {
-    let diff_sat: u8 in Saturating = lhs - rhs;
-    let diff: u8 = diff_sat as u8;
-    transition diff >= 60u8 && diff <= 161u8 {
-        true -> step(diff)
-        _ -> bad()
-    }
-    state step(d: u8) -> u8 {
-        verify_diff(d)
-    }
-    state bad() { crash Trap; }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine exercise(lhs: u8 in Saturating, rhs: u8 in Saturating) -> u8 crashes Trap {
-    let diff_sat: u8 in Saturating = lhs - rhs;
-    let diff: u8 = diff_sat as u8;
-    transition diff >= 60u8 && diff <= 161u8 {
-        true -> step(diff)
-        _ -> bad()
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    state step(d: u8) -> u8 {
-        verify_diff(d)
-    }
-    state bad() { crash Trap; }
 }
 
-macos_arm64 machine exercise(lhs: u8 in Saturating, rhs: u8 in Saturating) -> u8 crashes Trap {
-    let diff_sat: u8 in Saturating = lhs - rhs;
-    let diff: u8 = diff_sat as u8;
-    transition diff >= 60u8 && diff <= 161u8 {
-        true -> step(diff)
-        _ -> bad()
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    state step(d: u8) -> u8 {
-        verify_diff(d)
-    }
-    state bad() { crash Trap; }
 }
 
-windows_x86_64 machine exercise(lhs: u8 in Saturating, rhs: u8 in Saturating) -> u8 crashes Trap {
-    let diff_sat: u8 in Saturating = lhs - rhs;
-    let diff: u8 = diff_sat as u8;
-    transition diff >= 60u8 && diff <= 161u8 {
-        true -> step(diff)
-        _ -> bad()
-    }
-    state step(d: u8) -> u8 {
-        verify_diff(d)
-    }
-    state bad() { crash Trap; }
+boundary trait SelectedProbe {
+    machine exercise(lhs: u8 in Saturating, rhs: u8 in Saturating) -> u8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        crashes Trap;
 }
 
-machine main() crashes Trap {
-    let rc: u8 = exercise(140u8, 30u8);
+X86Probe satisfies SelectedProbe {
+    machine exercise(lhs: u8 in Saturating, rhs: u8 in Saturating) -> u8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let diff_sat: u8 in Saturating = lhs - rhs;
+        let diff: u8 = diff_sat as u8;
+        transition diff >= 60u8 && diff <= 161u8 {
+            true -> step(diff)
+            _ -> bad()
+        }
+        machine step(d: u8) -> u8 {
+            verify_diff(d)
+        }
+        machine bad() -> u8 { crash Trap; }
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine exercise(lhs: u8 in Saturating, rhs: u8 in Saturating) -> u8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let diff_sat: u8 in Saturating = lhs - rhs;
+        let diff: u8 = diff_sat as u8;
+        transition diff >= 60u8 && diff <= 161u8 {
+            true -> step(diff)
+            _ -> bad()
+        }
+        machine step(d: u8) -> u8 {
+            verify_diff(d)
+        }
+        machine bad() -> u8 { crash Trap; }
+    }
+}
+
+
+
+
+
+
+
+
+
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
+    let rc: u8 = SelectedProbe::exercise(140u8, 30u8);
     transition rc == 0u8 {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

@@ -11,5 +11,5 @@ machine Main::main(main: &mut Main) {
         true -> good(main)
         _ -> vanished(main)
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
 }

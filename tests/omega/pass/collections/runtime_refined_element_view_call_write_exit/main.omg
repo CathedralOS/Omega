@@ -17,12 +17,12 @@ machine store(cells: &mut [Cell], cursor: &mut Cursor) {
         true -> at(cells, cursor)
         _ -> done()
     }
-    state at(cells: &mut [Cell], cursor: &mut Cursor)
+    machine at(cells: &mut [Cell], cursor: &mut Cursor)
     requires cursor.index >= 0 && cursor.index < cells.len
     {
         cells[cursor.index].value = value(cursor);
     }
-    state done() {}
+    machine done() {}
 }
 
 machine main() crashes Trap {
@@ -35,6 +35,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

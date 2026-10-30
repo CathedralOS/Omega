@@ -16,7 +16,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Cell::Door -> finish(main, 7)
         _ -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) {
+    machine finish(main: &mut Main, code: i32) {
         Console::exit_process(code);
     }
 }

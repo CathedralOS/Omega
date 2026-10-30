@@ -1,0 +1,2 @@
+machine outer() { machine hidden() {} }
+machine main() { outer::hidden(); }

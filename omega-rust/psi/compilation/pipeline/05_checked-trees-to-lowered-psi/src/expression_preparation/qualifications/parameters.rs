@@ -32,6 +32,7 @@ pub(super) struct ParameterQualification {
 pub(super) fn prepare(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    constant_views: &crate::scalar_lowering::contracts::ContractViewNamespace<'_>,
     bodies: &[SymbolHandle],
     catalog: &mut ScalarQualificationCatalog,
     atom_sets: &mut Vec<Vec<String>>,
@@ -89,16 +90,19 @@ pub(super) fn prepare(
                             &checked.typed,
                             membership.domain_symbol,
                         );
-                        let vacuous = validation::field_domains::domain_is_vacuous(
+                        let tag = validation::scalar_membership_is_tag(
                             &checked.typed,
-                            membership.domain_symbol,
-                            &mut Vec::new(),
+                            membership,
+                            primitive,
                         );
-                        if !routed && !vacuous {
+                        if !routed && !tag {
                             continue;
                         }
-                        if validation::scalar_membership_value_carrier(&checked.typed, membership)
-                            != Some(primitive)
+                        if routed
+                            && validation::scalar_membership_value_carrier(
+                                &checked.typed,
+                                membership,
+                            ) != Some(primitive)
                         {
                             return unsupported(
                                 "scalar entry membership has no exact primitive application",
@@ -123,7 +127,12 @@ pub(super) fn prepare(
                                 right: Box::new(right),
                             })
                             .unwrap_or(checked_trees::CheckedBooleanExpression::Constant(true));
-                            Some(retained_domain_predicate(identities, &predicate, carrier)?)
+                            Some(retained_domain_predicate(
+                                identities,
+                                constant_views,
+                                &predicate,
+                                carrier,
+                            )?)
                         } else {
                             None
                         };
@@ -131,6 +140,7 @@ pub(super) fn prepare(
                             catalog,
                             identities,
                             checked,
+                            constant_views,
                             membership.domain_symbol,
                             membership.semantic_domain,
                             carrier,
@@ -227,6 +237,7 @@ pub(super) fn resolve(
 impl PreparedScalarQualifications {
     pub(crate) fn parameter_value_type(
         &self,
+        checked: &CheckedTrees,
         state: SymbolHandle,
         position: u32,
     ) -> Result<QualifiedScalarType, LoweringError> {
@@ -234,8 +245,15 @@ impl PreparedScalarQualifications {
             .iter()
             .find(|parameter| parameter.state == state && parameter.position == position)
             .map(|parameter| parameter.value_type)
-            .ok_or(LoweringError::Unsupported(
-                "scalar formal has no prepared entry qualification",
-            ))
+            .ok_or_else(|| LoweringError::MissingScalarParameterQualification {
+                state: checked.symbols.display_path(state, "::"),
+                source_position: position,
+                prepared_positions: self
+                    .parameters
+                    .iter()
+                    .filter(|parameter| parameter.state == state)
+                    .map(|parameter| parameter.position)
+                    .collect(),
+            })
     }
 }

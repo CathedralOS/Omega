@@ -24,8 +24,8 @@ machine exercise(select: bool) -> bool {
 }
 machine main() crashes Trap {
     transition exercise(true) && exercise(false) { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine replace_and_carve(strategy: &mut Strategy) -> Region in Owned
 requires strategy.tail.length == 48

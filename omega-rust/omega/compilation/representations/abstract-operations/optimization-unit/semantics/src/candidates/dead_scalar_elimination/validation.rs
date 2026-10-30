@@ -4,15 +4,15 @@ use crate::{
     OptimizationUnitValidationError, ValidatedPsiRewrite, reconstruct_closed_scalar_node_boundary,
 };
 use optimization_unit::{
-    OptimizationFact, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch, ValueDefinition,
-    ValueDefinitionSite,
+    OptimizationFact, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
 };
 
 use super::operation_partition::independently_validated_dead_scalar_shape;
 use crate::candidates::{
-    accept_region_rewrite, candidate_block, candidate_function, rebuild_node_metadata,
-    set_node_effect_link,
+    accept_region_rewrite, candidate_block, candidate_function, retire_node_custody,
+    sweep_output_nodes,
 };
+use optimization_unit::{receiver_custody_distinct, retirable_scalar_node};
 
 pub(super) fn validate_dead_scalar_node_candidate(
     input: &PsiOptimizationUnit,
@@ -37,18 +37,7 @@ pub(super) fn validate_dead_scalar_node_candidate(
     if source_operation != patch.source_operation
         || result != patch.result
         || scalar_type != patch.scalar_type
-        || node.definitions
-            != [ValueDefinition {
-                value: result,
-                scalar_type,
-                site: ValueDefinitionSite::Node {
-                    block: block.id,
-                    node: patch.location.node,
-                },
-            }]
-        || !node.successors.is_empty()
-        || !node.ownership.is_empty()
-        || block.nodes.get(node_index + 1).is_none()
+        || !retirable_scalar_node(block, node_index, node, result, scalar_type)
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
@@ -101,22 +90,12 @@ pub(super) fn validate_dead_scalar_node_candidate(
             return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
         }
     }
-    let receiver = &block.nodes[node_index + 1];
-    if receiver
-        .provenance
-        .iter()
-        .any(|source| node.provenance.contains(source))
-    {
+    if !receiver_custody_distinct(block, node_index, node) {
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     }
     let (expected_blocks, accepted_provenance) =
         reconstruct_dead_scalar_node_accounting(function, patch)
             .ok_or(OptimizationUnitValidationError::CandidateProvenanceMismatch)?;
-    if candidate.affected_blocks() != expected_blocks
-        || candidate.provenance() != accepted_provenance
-    {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
 
     accept_region_rewrite(
         input,
@@ -133,20 +112,8 @@ pub(super) fn validate_dead_scalar_node_candidate(
             let output_block = output_function
                 .block_mut(patch.location.block)
                 .expect("candidate block exists");
-            let removed = output_block.nodes.remove(node_index);
-            let receiver = output_block
-                .nodes
-                .get_mut(node_index)
-                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-            receiver.provenance.extend_from_slice(&removed.provenance);
-            receiver.fuel.extend_from_slice(&removed.fuel);
-            let mut effect = 0u64;
-            for block in &mut output_function.blocks {
-                for (node_index, node) in block.nodes.iter_mut().enumerate() {
-                    rebuild_node_metadata(node, block.id, node_index)?;
-                    effect = set_node_effect_link(node, effect)?;
-                }
-            }
+            retire_node_custody(output_block, node_index)?;
+            sweep_output_nodes(output_function, |_| Ok(()))?;
             Ok(())
         },
     )

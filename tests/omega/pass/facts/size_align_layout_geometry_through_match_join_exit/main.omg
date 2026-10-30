@@ -19,10 +19,10 @@ machine main() crashes Trap {
         _ -> a
     };
     let diff: u64 = joined_size - (joined_align * 2u64);
-    transition diff == 0 {
+    transition diff == 0 && joined_size == 16u64 && joined_align == 8u64 {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

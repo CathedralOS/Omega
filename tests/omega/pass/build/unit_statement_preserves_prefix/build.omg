@@ -1,0 +1,17 @@
+machine build(builder: &mut Build)
+requires addr::Bound == 18446744073709551616 {
+    Build::application(builder, "build_unit_prefix");
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    let address: addr = 64;
+    transition address == 64 {
+        true -> done()
+        _ -> wrong(builder)
+    }
+    machine done() {}
+    machine wrong(builder: &mut Build) {
+        Build::application(builder, "wrong_prefix");
+    }
+}

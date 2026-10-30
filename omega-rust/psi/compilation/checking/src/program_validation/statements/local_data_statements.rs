@@ -11,6 +11,52 @@ use crate::{
 use diagnostics::Diagnostic;
 use typed_trees::statement::StatementNode;
 
+/// Form the local's authored application before evaluating its initializer.
+/// Runtime index subjects capture this point; later initializer writes neither
+/// retag that application nor provide premises for its formation. Initializer
+/// values still use the ordinary may-write-invalidated environment below.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::program_validation) fn validate_type_reference(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    current_state: Option<&typed_trees::state::State>,
+    state_name: &str,
+    local_data: &typed_trees::statement::TableLocalData,
+    symbols: &crate::TopLevelSymbols<'_>,
+    value_environment: &arithmetic_domains::ValueEnvironment,
+    diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
+) {
+    if !local_data.role.is_runtime_binding() {
+        return;
+    }
+    let (type_parameters, lifetime_parameters) = program
+        .machine_type_reference_scope(machine, |existing, parameter| {
+            existing.symbol == parameter.symbol
+        });
+    validate_type_reference_handle(
+        program,
+        local_data.type_reference,
+        symbols,
+        diagnostics,
+        TypeReferenceOwner::StateLocalData {
+            machine,
+            current_state,
+            state: state_name,
+            local: local_data.name.as_str(),
+            value_environment,
+            generic_depth: 0,
+        },
+        crate::value_custody::type_references::TypeParameterScope {
+            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
+            lexical_owner: machine.symbol,
+            type_parameters: &type_parameters,
+            lifetime_parameters: &lifetime_parameters,
+        },
+        formation_obligations,
+    );
+}
+
 pub(super) fn validate(
     scope: &StatementScope<'_>,
     outputs: &mut StatementOutputs<'_>,
@@ -27,42 +73,29 @@ pub(super) fn validate(
     if !local_data.role.is_runtime_binding() {
         return;
     }
-    let StatementScope {
-        program,
-        machine,
-        state_name,
-        current_state,
-        statement_index,
-        symbols,
-        ..
-    } = *scope;
+    let (program, machine, state_name, current_state, symbols, _) = scope.reads();
+    let statement_index = scope.statement_index;
     let value_environment = &mut *outputs.value_environment;
     let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
     let diagnostics = &mut *outputs.diagnostics;
-    let (type_parameters, lifetime_parameters) = program
-        .machine_type_reference_scope(machine, |existing, parameter| {
-            existing.symbol == parameter.symbol
-        });
-    validate_type_reference_handle(
-        program,
-        local_data.type_reference,
-        symbols,
-        diagnostics,
-        TypeReferenceOwner::StateLocalData {
+    // Derived runtime bindings, inferred results and operand captures belong
+    // to completed operands, not an authored receiving application at entry.
+    if local_data.role != language_core::LocalBindingRole::Value
+        || local_data.type_is_inferred
+        || local_data.is_operand_capture
+    {
+        validate_type_reference(
+            program,
             machine,
             current_state,
+            state_name,
+            local_data,
+            symbols,
             value_environment,
-            state: state_name,
-            local: local_data.name.as_str(),
-            generic_depth: 0,
-        },
-        crate::value_custody::type_references::TypeParameterScope {
-            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-            lexical_owner: machine.symbol,
-            type_parameters: &type_parameters,
-            lifetime_parameters: &lifetime_parameters,
-        },
-    );
+            diagnostics,
+            &mut arithmetic_decisions.integer_range_obligations,
+        );
+    }
     let local_target_primitive = program.primitive_type_reference(local_data.type_reference);
     // An array-literal initializer (`let a: [T; N] = [300, ..]`) is checked
     // element-wise against T.
@@ -74,6 +107,7 @@ pub(super) fn validate(
             local_data.initial_value,
             local_data.type_reference,
             diagnostics,
+            &mut arithmetic_decisions.integer_range_obligations,
         );
     }
     let owner = format!(
@@ -171,6 +205,16 @@ pub(super) fn validate(
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type"
             )));
+        } else {
+            super::atomic_establishment::validate_once_resident(
+                scope,
+                local_data,
+                &carrier,
+                value_environment,
+                arithmetic_decisions,
+                &owner,
+                diagnostics,
+            );
         }
     }
     // Unit is not storage for an initializer's value. Generated
@@ -238,30 +282,11 @@ pub(super) fn validate(
                 diagnostics,
             );
         }
-        expression_types::report_data_type_conflict(
-            program,
-            machine,
-            current_state,
-            local_data.initial_value,
-            local_data.type_reference,
-            &owner,
-            "local",
-            diagnostics,
-        );
-        // Shape guard: `let y: i32 = self.xs` (array -> scalar) or
-        // `let xs: [i32; 3] = 5` (scalar -> array) otherwise bind a
-        // wrong-shaped value silently (the array case read a ZII 0).
-        expression_types::report_array_scalar_shape_mismatch(
-            program,
-            machine,
-            current_state,
-            local_data.initial_value,
-            local_data.type_reference,
-            &owner,
-            "local",
-            diagnostics,
-        );
-        expression_types::report_scalar_data_shape_mismatch(
+        // Nominal conflict, then the shape guards: `let y: i32 = self.xs`
+        // (array -> scalar) or `let xs: [i32; 3] = 5` (scalar -> array)
+        // otherwise bind a wrong-shaped value silently (the array case read a
+        // ZII 0).
+        expression_types::report_place_value_mismatches(
             program,
             machine,
             current_state,
@@ -383,6 +408,54 @@ pub(super) fn validate(
         }
     }
     if local_data.initial_value.is_valid() {
+        let mut completed_values = Vec::new();
+        let aggregate_with_writes = matches!(
+            program
+                .expression_table
+                .expression(local_data.initial_value),
+            typed_trees::expression::ExpressionNode::StructLiteral(_)
+                | typed_trees::expression::ExpressionNode::ArrayLiteral(_)
+        ) && calls::expression_has_calls(
+            program,
+            local_data.initial_value,
+        ) && scope
+            .call_frames
+            .and_then(|frames| frames.expression_may_write_paths(machine, local_data.initial_value))
+            .is_none_or(|written| !written.is_empty());
+        let captured_values = if aggregate_with_writes
+            && let Some(state) = current_state
+            && let Some(captured) = arithmetic_domains::occurrence_integer_child_values(
+                program,
+                machine.symbol,
+                state.symbol,
+                statement_index,
+                local_data.initial_value,
+            ) {
+            let keys = captured
+                .iter()
+                .map(|value| {
+                    (
+                        value.expression.arena_index(),
+                        value.expression.generation(),
+                    )
+                })
+                .collect::<std::collections::BTreeSet<_>>();
+            completed_values.extend(
+                arithmetic_decisions.expression_values[first_checked_interval..]
+                    .iter()
+                    .filter(|value| {
+                        !keys.contains(&(
+                            value.expression.arena_index(),
+                            value.expression.generation(),
+                        ))
+                    })
+                    .cloned(),
+            );
+            completed_values.extend(captured);
+            &completed_values[..]
+        } else {
+            &arithmetic_decisions.expression_values[first_checked_interval..]
+        };
         let mut copied_value = arithmetic_domains::CopiedIntegerValue::capture(
             program,
             machine,
@@ -390,7 +463,7 @@ pub(super) fn validate(
             local_data.initial_value,
             local_data.type_reference,
             value_environment,
-            &arithmetic_decisions.expression_values[first_checked_interval..],
+            captured_values,
         );
         copied_value.capture_local_relations(
             program,

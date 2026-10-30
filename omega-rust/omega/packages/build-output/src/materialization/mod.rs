@@ -4,17 +4,20 @@
 //! host export is a separate trust boundary: the completed-output product owner
 //! checks its manifest and files against the retained content before reuse.
 
-use crate::portable_paths::{
-    canonical_relative_path, canonical_symlink_target, validate_portable_component,
-};
+#[cfg(test)]
+use crate::portable_paths::canonical_symlink_target;
+use crate::portable_paths::{canonical_relative_path, validate_portable_component};
+use crate::staged_output_tree::RetainedStagedOutputEntryKind;
+#[cfg(test)]
 use crate::staged_output_tree::{
     MAX_STAGED_OUTPUT_ENTRIES, MAX_STAGED_OUTPUT_PATH_BYTES, MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES,
-    RetainedStagedOutputEntryKind, commitment_for_retained_entries,
+    commitment_for_retained_entries,
 };
 use crate::{
     BuildStagedOutputMaterializationError, BuildStagedOutputTree, BuildStagedOutputTreeCommitment,
 };
 use diagnostics::Diagnostic;
+#[cfg(test)]
 use std::collections::BTreeSet;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -65,6 +68,7 @@ pub(crate) fn materialize_retained_tree(
     Ok(tree.commitment)
 }
 
+#[cfg(test)]
 pub(crate) fn validate_retained_tree(
     tree: &BuildStagedOutputTree,
 ) -> Result<(), BuildStagedOutputMaterializationError> {
@@ -222,6 +226,7 @@ fn retained_symlink_target(
     Ok(PathBuf::from(spelling))
 }
 
+#[cfg(test)]
 fn reserve_materialization_path_bytes(
     current: usize,
     additional: usize,
@@ -249,14 +254,14 @@ fn reject_unsupported_executable_mode(
     }
 }
 
-#[cfg(unix)]
+#[cfg(all(test, unix))]
 fn validate_retained_executable_mode(
     _executable: bool,
 ) -> Result<(), BuildStagedOutputMaterializationError> {
     Ok(())
 }
 
-#[cfg(not(unix))]
+#[cfg(all(test, not(unix)))]
 fn validate_retained_executable_mode(
     executable: bool,
 ) -> Result<(), BuildStagedOutputMaterializationError> {
@@ -289,13 +294,13 @@ fn set_materialized_file_mode(
     reject_unsupported_executable_mode(executable)
 }
 
-#[cfg(unix)]
+#[cfg(all(test, unix))]
 fn validate_retained_symlink_materialization() -> Result<(), BuildStagedOutputMaterializationError>
 {
     Ok(())
 }
 
-#[cfg(not(unix))]
+#[cfg(all(test, not(unix)))]
 fn validate_retained_symlink_materialization() -> Result<(), BuildStagedOutputMaterializationError>
 {
     Err(materialization_error(

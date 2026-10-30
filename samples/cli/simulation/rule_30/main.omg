@@ -24,56 +24,56 @@ machine Main::main(main: &mut Main) reaches Console {
     main.g = 0;
     transition { _ -> gen_loop(main) }
 
-    state gen_loop(main: &mut Main) {
+    machine gen_loop(main: &mut Main) {
         transition main.g < 16 { true -> render_init(main) _ -> finish(main) }
     }
 
     // --- render the current generation as one row of '#'/' ' bytes ---
-    state render_init(main: &mut Main) {
+    machine render_init(main: &mut Main) {
         main.i = 0;
         transition { _ -> render_loop(main) }
     }
-    state render_loop(main: &mut Main) {
+    machine render_loop(main: &mut Main) {
         transition main.i >= 0 && main.i < 31 { true -> render_cell(main) _ -> emit(main) }
     }
-    state render_cell(main: &mut Main) {
+    machine render_cell(main: &mut Main) {
         main.b = (main.cells >> main.i) as u64;
         transition main.b % 2 == 1 { true -> mark(main) _ -> blank(main) }
     }
     // A host call kills carried facts: re-guard the index before incrementing.
-    state mark(main: &mut Main) {
+    machine mark(main: &mut Main) {
         Console::write_byte(35);
         transition main.i >= 0 && main.i < 31 { true -> render_bump(main) _ -> render_loop(main) }
     }
-    state blank(main: &mut Main) {
+    machine blank(main: &mut Main) {
         Console::write_byte(32);
         transition main.i >= 0 && main.i < 31 { true -> render_bump(main) _ -> render_loop(main) }
     }
-    state render_bump(main: &mut Main) {
+    machine render_bump(main: &mut Main) {
         main.i = main.i + 1;
         transition { _ -> render_loop(main) }
     }
-    state emit(main: &mut Main) {
+    machine emit(main: &mut Main) {
         Console::write_line("");
         transition { _ -> evolve(main) }
     }
 
     // --- one bit-parallel generation step, clipped back into the row ---
-    state evolve(main: &mut Main) {
+    machine evolve(main: &mut Main) {
         main.cells =
             ((main.cells << 1) ^ (main.cells | (main.cells >> 1))) % 2147483648;
         transition { _ -> gen_next(main) }
     }
     // Re-guard `g < 16` so the increment proves into [1..=16].
-    state gen_next(main: &mut Main) {
+    machine gen_next(main: &mut Main) {
         transition main.g < 16 { true -> g_bump(main) _ -> gen_loop(main) }
     }
-    state g_bump(main: &mut Main) {
+    machine g_bump(main: &mut Main) {
         main.g = main.g + 1;
         transition { _ -> gen_loop(main) }
     }
 
-    state finish(main: &mut Main) {
+    machine finish(main: &mut Main) {
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(0);

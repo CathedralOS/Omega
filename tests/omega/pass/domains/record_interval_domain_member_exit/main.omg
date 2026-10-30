@@ -8,7 +8,7 @@
 // bounded carrier and its independently checked member range obligation.
 use omega_language_std::console;
 
-domain i32::Ten(value) requires 0 <= value && value <= 10;
+domain i32::Ten requires 0 <= self && self <= 10;
 
 data Gauge { level: i32 in Ten; }
 
@@ -29,8 +29,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> passed(main)
         false -> failed(main)
     }
-    state passed(main: &mut Main) { Console::exit_process(70); }
-    state failed(main: &mut Main) { Console::exit_process(71); }
+    machine passed(main: &mut Main) { Console::exit_process(70); }
+    machine failed(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -7,7 +7,7 @@ use symbols::SymbolHandle;
 /// and package custody must survive value erasure. Resolution continuations
 /// retain the detached initializer in this same arena for future substitution;
 /// typing does not carry this link into a runtime constant representation.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ConstDeclaration {
     pub symbol: SymbolHandle,
     pub is_public: bool,
@@ -20,6 +20,9 @@ pub struct ConstDeclaration {
     pub authored_initializer: crate::expression::ExpressionHandle,
     /// Declaration-side source occurrence, independent of each use-site copy.
     pub initializer_source_span: source::SourceSpan,
+    /// The initializer depends on target-selected meaning and cannot be folded
+    /// before the selected realization is available.
+    pub pending_target_observation: bool,
     /// Completed semantic value. An encoding is available only when its bits
     /// are determined; generic-index eligibility remains a separate judgment.
     pub evaluated_value: Option<language_core::constant_value::EvaluatedConstant>,

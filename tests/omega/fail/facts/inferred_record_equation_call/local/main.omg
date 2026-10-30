@@ -12,5 +12,5 @@ machine main() crashes Trap {
     let items: Token<SEVEN> = original;
     let observed: u64 = read<Token<SEVEN>, EIGHT>(items);
     transition observed == 7 { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

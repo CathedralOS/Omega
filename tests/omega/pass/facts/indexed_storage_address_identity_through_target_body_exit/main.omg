@@ -49,6 +49,6 @@ machine main() crashes Trap {
     let zero: bool = probe(0);
     let one: bool = probe(1);
     transition zero && one { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

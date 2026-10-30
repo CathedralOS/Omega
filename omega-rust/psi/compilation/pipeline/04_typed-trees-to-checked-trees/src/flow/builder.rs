@@ -13,13 +13,14 @@
 //! Value inputs cross state boundaries along transitions and ordinary call
 //! argument deliveries, including another machine's entry, so machines
 //! joined by such invocations form independent groups. Each group reaches its
-//! own fixed point, or its own unknown-input fallback, on a worker over a copy
-//! of the baseline plan, writing every machine on page
+//! own fixed point, or its own unknown-input fallback, on a worker over a fork
+//! of the shared baseline plan, writing every machine on page
 //! `MACHINE_PAGE_BASE + roster position` of each output arena; the owner
 //! adopts those pages, so handles and order follow the roster. A group's facts
 //! depend only on machines its values reach: a loop in an unrelated machine
 //! neither re-sweeps it nor sends it to the fallback.
 use crate::flow::FlowBuildContext;
+use crate::flow::SharedFlowTables;
 use crate::flow::StateMutationSummaryCache;
 use crate::flow::attach_reach_summaries;
 use crate::flow::build_state_flow_fact;
@@ -53,6 +54,7 @@ pub(crate) fn build_flow_facts(
     scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
     operators: &checked_trees::CheckedOperatorFacts,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
+    expression_intervals: &[validation::ExpressionInterval],
     state_mutation_summary_cache: &StateMutationSummaryCache,
     shared_call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> FlowFacts {
@@ -93,8 +95,9 @@ pub(crate) fn build_flow_facts(
     // changes with the incoming value inputs. Keep first-demand construction
     // lazy; the check pass owns the table so later consumers reuse it rather
     // than rebuilding identical rows.
+    let shared_tables = std::sync::Arc::new(SharedFlowTables::new(program, scalar_expressions));
     let new_build = || {
-        FlowBuildContext::new(
+        FlowBuildContext::with_shared_tables(
             program,
             borrow,
             proof,
@@ -102,12 +105,19 @@ pub(crate) fn build_flow_facts(
             scalar_expressions,
             operators,
             exact_integer_casts,
+            expression_intervals,
             call_frames,
             state_mutation_summary_cache,
+            shared_tables.clone(),
         )
     };
 
     let groups = machine_groups(program, borrow);
+    phase_profile::count("05.d.3.b.flow.groups", groups.len() as u64);
+    phase_profile::count(
+        "05.d.3.b.flow.max_group_machines",
+        groups.iter().map(Vec::len).max().unwrap_or(0) as u64,
+    );
     let mut flow = build_groups(&inputs, &groups, &new_build, semantic);
     attach_reach_summaries(program, &mut flow, service_reaches, operational);
     flow
@@ -143,7 +153,6 @@ fn build_groups<'plans>(
             .adopt_additional_pages(pages.invalidations);
         flow.borrow_lifetimes
             .adopt_additional_pages(pages.borrow_lifetimes);
-        flow.ownership.adopt_additional_pages(pages.ownership);
         flow.boundaries.adopt_additional_pages(pages.boundaries);
         flow.control.adopt_additional_pages(pages.control);
         semantic.adopt_additional_pages(semantic_pages);
@@ -268,9 +277,11 @@ fn sweep<'plans>(
     }
 }
 
-/// Roster positions grouped by a call into another machine. The callee's entry
-/// reads the caller's selected-case and scalar actuals, so the two machines
-/// share one value-input fixed point. Groups keep roster order, inside and
+/// Roster positions grouped by an invocation that writes another machine's
+/// `state_value_inputs`: a call to a non-entry state of another machine, or an
+/// extracted lexical region and its origin machine. Ordinary machine-entry
+/// calls check the callee under its declared premises and do not couple the
+/// two machines' value-input fixed points. Groups keep roster order, inside and
 /// across groups, so adopted pages publish in that order.
 fn machine_groups(
     program: &dyn ::validation::CheckingInput,
@@ -293,21 +304,50 @@ fn machine_groups(
         }
     }
     let mut owner = (0..machines.len()).collect::<Vec<_>>();
+    for (position, machine) in machines.iter().enumerate() {
+        let lexical_parent = machine.lexical_region_origin.map(|origin| origin.machine).or_else(
+            || {
+                let scope = program.declaration_scope_parent(machine.symbol);
+                scope
+                    .is_valid()
+                    .then(|| program.machine_declaration_for_lexical_scope(scope))
+                    .flatten()
+                    .map(|declaring| declaring.symbol)
+            },
+        );
+        if let Some(origin_machine) = lexical_parent
+            && let Some(origin_position) = program.machine_position_by_symbol(origin_machine)
+            && origin_position != position
+        {
+            let (left, right) = (
+                root(&mut owner, position),
+                root(&mut owner, origin_position),
+            );
+            owner[left.max(right)] = left.min(right);
+        }
+    }
     for (_, row) in borrow.states.iter() {
         let Some(caller) = program.machine_position_by_symbol(row.machine_symbol) else {
             continue;
         };
         for call in borrow.calls.span_or_empty(row.calls) {
-            let Some(callee) = state_locations
-                .get(&call.target_symbol)
-                .map(|(machine, _)| *machine)
-                .or_else(|| program.machine_position_by_symbol(call.target_symbol))
-            else {
+            let Some(&(callee, state_position)) = state_locations.get(&call.target_symbol) else {
                 continue;
             };
-            // Entry calls carry selected-case and scalar actuals. A target
-            // family schedules every authored body with the caller, because
-            // each body is checked against those actuals.
+            let callee_machine = &machines[callee];
+            if callee_machine.lexical_region_origin.is_none()
+                && !super::state_values::lexically_nested_machine(
+                    program,
+                    callee_machine.symbol,
+                )
+                && super::state_values::entry_state_index(program, callee_machine)
+                    == Some(state_position)
+            {
+                continue;
+            }
+            // Keep every authored family body in the same dependency group.
+            // Each body is checked under its declared premises; grouping grants
+            // no selected-case or scalar assumption from a caller.
             let mut callees = vec![callee];
             let machine_symbol = machines[callee].symbol;
             if let Some(family) = program.target_machine_families.iter().find(|family| {
@@ -321,9 +361,7 @@ fn machine_groups(
                     .chain(family.members.iter().map(|member| member.machine))
                 {
                     if let Some(position) = program.machine_position_by_symbol(member) {
-                        if !callees.contains(&position) {
-                            callees.push(position);
-                        }
+                        crate::collections::push_unique(&mut callees, position);
                     }
                 }
             }

@@ -4,11 +4,11 @@ use mechanics::model;
 use omega::language::core::float_operations;
 public machine solve(model: &mut Laminate) {
     transition { _ -> pivot(model,0) }
-    state pivot(model: &mut Laminate,pivot_index: u64) requires pivot_index <= 5 {
+    machine pivot(model: &mut Laminate,pivot_index: u64) requires pivot_index <= 5 {
         let magnitude: f64 = absolute(model.augmented[pivot_index][pivot_index]);
         transition { _ -> search(model,pivot_index,0,pivot_index,magnitude) }
     }
-    state search(model: &mut Laminate,pivot_index: u64,row: u64,best: u64,magnitude: f64)
+    machine search(model: &mut Laminate,pivot_index: u64,row: u64,best: u64,magnitude: f64)
     requires pivot_index <= 5 requires row <= 5 requires best <= 5 {
         let candidate: f64 = absolute(model.augmented[row][pivot_index]);
         transition row >= pivot_index && candidate > magnitude {
@@ -16,16 +16,16 @@ public machine solve(model: &mut Laminate) {
             false -> advance_search(model,pivot_index,row,best,magnitude)
         }
     }
-    state advance_search(model: &mut Laminate,pivot_index: u64,row: u64,best: u64,magnitude: f64)
+    machine advance_search(model: &mut Laminate,pivot_index: u64,row: u64,best: u64,magnitude: f64)
     requires pivot_index <= 5 requires row <= 5 requires best <= 5 {
         let next: u64 = row+1;
         transition next <= 5 { true -> search(model,pivot_index,next,best,magnitude) false -> admit(model,pivot_index,best,magnitude) }
     }
-    state admit(model: &mut Laminate,pivot_index: u64,best: u64,magnitude: f64)
+    machine admit(model: &mut Laminate,pivot_index: u64,best: u64,magnitude: f64)
     requires pivot_index <= 5 requires best <= 5 {
         transition magnitude > 0.000000000001 { true -> swap(model,pivot_index,best,0) false -> singular(model) }
     }
-    state swap(model: &mut Laminate,pivot_index: u64,best: u64,column: u64)
+    machine swap(model: &mut Laminate,pivot_index: u64,best: u64,column: u64)
     requires pivot_index <= 5 requires best <= 5 requires column <= 6 {
         let temporary: f64 = model.augmented[pivot_index][column];
         model.augmented[pivot_index][column] = model.augmented[best][column];
@@ -33,17 +33,17 @@ public machine solve(model: &mut Laminate) {
         let next: u64 = column+1;
         transition next <= 6 { true -> swap(model,pivot_index,best,next) false -> normalize_start(model,pivot_index) }
     }
-    state normalize_start(model: &mut Laminate,pivot_index: u64) requires pivot_index <= 5 {
+    machine normalize_start(model: &mut Laminate,pivot_index: u64) requires pivot_index <= 5 {
         let divisor: f64 = model.augmented[pivot_index][pivot_index];
         transition { _ -> normalize(model,pivot_index,0,divisor) }
     }
-    state normalize(model: &mut Laminate,pivot_index: u64,column: u64,divisor: f64)
+    machine normalize(model: &mut Laminate,pivot_index: u64,column: u64,divisor: f64)
     requires pivot_index <= 5 requires column <= 6 {
         model.augmented[pivot_index][column] = model.augmented[pivot_index][column]/divisor;
         let next: u64 = column+1;
         transition next <= 6 { true -> normalize(model,pivot_index,next,divisor) false -> row(model,pivot_index,0) }
     }
-    state row(model: &mut Laminate,pivot_index: u64,row_index: u64)
+    machine row(model: &mut Laminate,pivot_index: u64,row_index: u64)
     requires pivot_index <= 5 requires row_index <= 5 {
         let factor: f64 = model.augmented[row_index][pivot_index];
         transition row_index == pivot_index {
@@ -51,26 +51,26 @@ public machine solve(model: &mut Laminate) {
             false -> eliminate(model,pivot_index,row_index,0,factor)
         }
     }
-    state eliminate(model: &mut Laminate,pivot_index: u64,row_index: u64,column: u64,factor: f64)
+    machine eliminate(model: &mut Laminate,pivot_index: u64,row_index: u64,column: u64,factor: f64)
     requires pivot_index <= 5 requires row_index <= 5 requires column <= 6 {
         model.augmented[row_index][column] = model.augmented[row_index][column] - factor*model.augmented[pivot_index][column];
         let next: u64 = column+1;
         transition next <= 6 { true -> eliminate(model,pivot_index,row_index,next,factor) false -> next_row(model,pivot_index,row_index) }
     }
-    state next_row(model: &mut Laminate,pivot_index: u64,row_index: u64)
+    machine next_row(model: &mut Laminate,pivot_index: u64,row_index: u64)
     requires pivot_index <= 5 requires row_index <= 5 {
         let next: u64 = row_index+1;
         transition next <= 5 { true -> row(model,pivot_index,next) false -> next_pivot(model,pivot_index) }
     }
-    state next_pivot(model: &mut Laminate,pivot_index: u64) requires pivot_index <= 5 {
+    machine next_pivot(model: &mut Laminate,pivot_index: u64) requires pivot_index <= 5 {
         let next: u64 = pivot_index+1;
         transition next <= 5 { true -> pivot(model,next) false -> response(model,0) }
     }
-    state response(model: &mut Laminate,row: u64) requires row <= 5 {
+    machine response(model: &mut Laminate,row: u64) requires row <= 5 {
         model.response[row] = model.augmented[row][6];
         let next: u64 = row+1;
         transition next <= 5 { true -> response(model,next) false -> done() }
     }
-    state singular(model: &mut Laminate) { model.singular = true; }
-    state done() { }
+    machine singular(model: &mut Laminate) { model.singular = true; }
+    machine done() { }
 }

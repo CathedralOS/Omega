@@ -252,4 +252,18 @@ fn history_extension_requires_identical_incoming_edges_for_every_retained_positi
         edges: BTreeSet::from([(position(1), 0), (position(2), 0)]),
     };
     assert!(after.extension_frontier(&filtered, &graph.flow).is_none());
+    assert!(after.compatible_frontier(&filtered, &graph.flow).is_none());
+    assert!(filtered.compatible_frontier(&after, &graph.flow).is_none());
+
+    let mut left = graph.query().predecessors(position(2)).unwrap();
+    let right = graph.query().predecessors(position(3)).unwrap();
+    assert_eq!(
+        right.compatible_frontier(&left, &graph.flow).unwrap(),
+        VecDeque::from([position(1)])
+    );
+    left.merge(right);
+    assert_eq!(
+        after.compatible_frontier(&left, &graph.flow).unwrap(),
+        VecDeque::from([position(2), position(3)])
+    );
 }

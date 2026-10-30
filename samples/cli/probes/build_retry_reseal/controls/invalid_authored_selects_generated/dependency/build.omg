@@ -24,9 +24,9 @@ machine settle_first(builder: &mut Build, completion: OutputCompletion, writer: 
         OutputCompletion::Sealed { receipt } -> sealed(builder)
         OutputCompletion::Retry { obligation, file } -> reseal(builder, obligation, file, writer)
     }
-    state sealed(builder: &mut Build) {
+    machine sealed(builder: &mut Build) {
     }
-    state reseal(builder: &mut Build, obligation: RequiredOutput, file: BuildPath, writer: i32) {
+    machine reseal(builder: &mut Build, obligation: RequiredOutput, file: BuildPath, writer: i32) {
         let _sealed: i32 = BuildOutput::close(&mut builder.output, writer);
         BuildOutput::include_source(&mut builder.output, file);
         let second: OutputCompletion = BuildOutput::complete(&mut builder.output, obligation, file);
@@ -39,9 +39,9 @@ machine settle_second(builder: &mut Build, completion: OutputCompletion) {
         OutputCompletion::Sealed { receipt } -> sealed(builder)
         OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
     }
-    state sealed(builder: &mut Build) {
+    machine sealed(builder: &mut Build) {
     }
-    state failed(builder: &mut Build, obligation: RequiredOutput) {
+    machine failed(builder: &mut Build, obligation: RequiredOutput) {
         BuildOutput::fail(&mut builder.output, obligation, "resealed output did not settle");
     }
 }

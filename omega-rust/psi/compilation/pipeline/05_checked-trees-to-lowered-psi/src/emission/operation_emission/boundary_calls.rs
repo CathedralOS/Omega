@@ -15,7 +15,7 @@ use super::buffer::{OperationBuffer, SourceCallCoordinate};
 use super::calls::{CallEmissionContext, PreparedStructuralArgument};
 use super::expressions::{LoweredDirectExpression, emit_direct_expression};
 use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::value_id;
+use crate::terminal_identities::{mint_with, value_id};
 use result_policy::BoundaryResultPolicy;
 use semantic_vocabulary::{QualifiedScalarType, ValueId};
 use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
@@ -37,6 +37,7 @@ pub(crate) fn complete_operands(
     structural_arguments: Vec<terminal_psi::StructuralArgument>,
     receipts: &[crate::emission::claim_bindings::PreparedClaimTransfer],
     calls: &mut CallEmissionContext<'_>,
+    current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
 ) -> Result<BoundaryOperands, LoweringError> {
     if structural_arguments.len() != target.structural.len() {
         return unsupported("boundary arguments disagree with their declared structural roster");
@@ -48,14 +49,17 @@ pub(crate) fn complete_operands(
     .iter()
     .map(|value| value.id)
     .collect();
+    let completion_receipts = crate::emission::claim_bindings::emit_completion_receipts(
+        receipts,
+        calls.claims.bindings(),
+        &structural_arguments,
+        current_claims,
+    )?;
     Ok(BoundaryOperands {
         boundary: target.id,
         arguments,
         structural_arguments,
-        completion_receipts: crate::emission::claim_bindings::emit_completion_receipts(
-            receipts,
-            calls.claims.bindings(),
-        )?,
+        completion_receipts,
         requirement_obligations: (0..target.requirement_count)
             .map(|_| calls.allocate_requirement())
             .collect::<Result<Vec<_>, _>>()?,
@@ -97,6 +101,7 @@ pub(super) fn emit_boundary_call_binding(
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
     call_emission: &mut CallEmissionContext<'_>,
+    current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
 ) -> Result<ValueId, LoweringError> {
     let mut targets = call_emission
         .boundaries
@@ -141,13 +146,13 @@ pub(super) fn emit_boundary_call_binding(
         structural_arguments,
         &call.completion_receipts,
         call_emission,
+        current_claims,
     )?;
-    let result = value_id(*next_value_identity);
-    *next_value_identity = next_value_identity
-        .checked_add(1)
-        .ok_or(LoweringError::Unsupported(
-            "nested boundary application value identity overflow",
-        ))?;
+    let result = mint_with(
+        next_value_identity,
+        value_id,
+        "nested boundary application value identity overflow",
+    )?;
     let raw = ValueDeclaration {
         id: result,
         scalar_type: call.result_type.scalar_type,
@@ -174,12 +179,10 @@ pub(super) fn emit_boundary_call_binding(
         call.target_machine,
         frontier,
     )?;
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: operation,
-        result: OperationResult::Scalar(raw),
-        kind: operands.into_kind(),
-    });
+    operations.push(Operation::unsuspended(
+        operation,
+        OperationResult::Scalar(raw),
+        operands.into_kind(),
+    ));
     Ok(result_policy::emit(policy, raw, next_value_identity, operations)?.id)
 }

@@ -27,10 +27,10 @@ ensures result == 0u64
         true -> ok()
         _ -> bad()
     }
-    state ok() {
+    machine ok() -> u64 {
         0u64
     }
-    state bad() {
+    machine bad() -> u64 {
         crash Trap;
     }
 }
@@ -47,6 +47,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

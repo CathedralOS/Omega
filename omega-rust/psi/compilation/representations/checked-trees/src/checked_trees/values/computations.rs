@@ -14,7 +14,7 @@ pub type CheckedScalarComputationHandle = Handle<CheckedScalarComputation>;
 /// The completed value a dispatch retains before testing its alternatives.
 /// A structural place is existing custody, not a fresh owned copy. A nonzero
 /// `value` establishes computed storage once before the place can be used.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedDispatchSubject {
     Scalar(CheckedScalarComputationHandle),
     Structural {
@@ -27,7 +27,10 @@ pub enum CheckedDispatchSubject {
 }
 
 impl CheckedDispatchSubject {
-    pub fn scalar_operands(&self) -> impl Iterator<Item = CheckedScalarComputationHandle> + '_ {
+    pub fn scalar_operands<'a>(
+        &'a self,
+        operands: &'a arena::Arena<CheckedScalarComputationHandle>,
+    ) -> impl Iterator<Item = CheckedScalarComputationHandle> + 'a {
         let (scalar, place) = match self {
             Self::Scalar(value) => (Some(*value), None),
             Self::Structural { place, .. } => (None, Some(place)),
@@ -35,7 +38,7 @@ impl CheckedDispatchSubject {
         scalar.into_iter().chain(
             place
                 .into_iter()
-                .flat_map(|place| place.computation_operands()),
+                .flat_map(move |place| place.computation_operands(operands)),
         )
     }
 
@@ -50,7 +53,7 @@ impl CheckedDispatchSubject {
 /// A real structural value whose scalar payload is evaluated in authored order.
 /// Field and case symbols retain nominal identity; no tag occupies a scalar
 /// parameter slot, and evaluation is not permission to copy an affine value.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarCaseConstruction {
     pub expression: typed_trees::expression::ExpressionHandle,
     pub type_reference: typed_trees::types::TypeReferenceHandle,
@@ -58,7 +61,7 @@ pub struct CheckedScalarCaseConstruction {
     pub fields: HandleSpan<CheckedScalarCaseComputationField>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarCaseComputationField {
     pub symbol: SymbolHandle,
     pub value: CheckedScalarComputationHandle,
@@ -67,7 +70,7 @@ pub struct CheckedScalarCaseComputationField {
 /// Call operands name existing storage or retained structural expression roots.
 /// A membership observation may also carry a direct case construction. Neither
 /// representation invents source locals or gives structural values scalar slots.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarComputationStructuralArgument {
     Place(CheckedUnitStructuralArgumentPlan),
     Case(CheckedScalarCaseConstruction),
@@ -94,7 +97,7 @@ impl CheckedScalarComputationStructuralArgument {
 /// The exact maximal complement may be empty; the row still names the dying
 /// owner's normal continuation. Each action either discards a cleanup-free
 /// subtree or invokes its checked nominal hook; their order stays intact.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarComputationTemporaryCleanup {
     /// None selects the call's authority value; Some selects an ordinary
     /// structural formal. Authority never consumes a formal position.
@@ -111,11 +114,29 @@ pub struct CheckedScalarComputationTemporaryCleanup {
     pub actions: HandleSpan<crate::CheckedNormalCleanupAction>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+/// One actual value completed before a scoped scalar consumer. Scalar
+/// observations capture their value without copying the structural carrier;
+/// owned dependencies retain the ordinary value producer and its custody.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedScalarEvaluationOperand {
+    Scalar(CheckedScalarComputationHandle),
+    Structural(super::structural_values::CheckedStructuralValueHandle),
+}
+
+impl Default for CheckedScalarEvaluationOperand {
+    fn default() -> Self {
+        Self::Scalar(CheckedScalarComputationHandle::invalid())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarComputationPlans {
     pub roots: Arena<CheckedScalarComputationRoot>,
+    pub projection_selectors: Arena<CheckedProjectionSelectorRoot>,
     pub nodes: Arena<CheckedScalarComputation>,
     pub operands: Arena<CheckedScalarComputationHandle>,
+    /// Ordered mixed dependencies, published once by their expression owner.
+    pub evaluation_operands: Arena<CheckedScalarEvaluationOperand>,
     pub observation_collections: Arena<typed_trees::types::TypeReferenceHandle>,
     pub structural_arguments: Arena<CheckedScalarComputationStructuralArgument>,
     pub temporary_cleanups: Arena<CheckedScalarComputationTemporaryCleanup>,
@@ -125,9 +146,47 @@ pub struct CheckedScalarComputationPlans {
     pub case_fields: Arena<CheckedScalarCaseComputationField>,
     #[doc(hidden)]
     pub roots_by_state: KeyedRows<SymbolHandle, CheckedScalarComputationRoot>,
+    #[doc(hidden)]
+    pub roots_by_machine: KeyedRows<SymbolHandle, CheckedScalarComputationRoot>,
+    #[doc(hidden)]
+    pub projection_selectors_by_state: KeyedRows<SymbolHandle, CheckedProjectionSelectorRoot>,
 }
 
 impl CheckedScalarComputationPlans {
+    pub fn seal(&mut self) {
+        self.roots_by_state.seal(&self.roots, |root| root.state);
+        self.roots_by_machine.seal(&self.roots, |root| root.machine);
+        self.projection_selectors_by_state
+            .seal(&self.projection_selectors, |root| root.state);
+    }
+
+    pub fn projection_selectors_at(
+        &self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        statement: u32,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<HandleSpan<CheckedScalarComputationHandle>> {
+        self.projection_selectors_by_state.with_rows(
+            &self.projection_selectors,
+            |root| root.state,
+            &state,
+            |handles| {
+                let mut roots = handles
+                    .iter()
+                    .map(|handle| self.projection_selectors.get(*handle))
+                    .filter(|root| {
+                        root.machine == machine
+                            && root.state == state
+                            && root.statement_ordinal == statement
+                            && root.expression == expression
+                    });
+                let root = roots.next()?;
+                roots.next().is_none().then_some(root.evaluations)
+            },
+        )
+    }
+
     fn with_state_roots<R>(
         &self,
         state: SymbolHandle,
@@ -135,6 +194,15 @@ impl CheckedScalarComputationPlans {
     ) -> R {
         self.roots_by_state
             .with_rows(&self.roots, |root| root.state, &state, run)
+    }
+
+    fn with_machine_roots<R>(
+        &self,
+        machine: SymbolHandle,
+        run: impl FnOnce(&[Handle<CheckedScalarComputationRoot>]) -> R,
+    ) -> R {
+        self.roots_by_machine
+            .with_rows(&self.roots, |root| root.machine, &machine, run)
     }
 
     pub fn root_at(
@@ -202,6 +270,20 @@ impl CheckedScalarComputationPlans {
         })
     }
 
+    /// Root records retain statement ownership and roles beside their nodes.
+    pub fn root_records_for_state(
+        &self,
+        state: SymbolHandle,
+    ) -> Vec<&CheckedScalarComputationRoot> {
+        self.with_state_roots(state, |handles| {
+            handles
+                .iter()
+                .map(|handle| self.roots.get(*handle))
+                .filter(|root| root.state == state)
+                .collect()
+        })
+    }
+
     /// Root handles of computations owned by `state`, in arena order.
     pub fn roots_for_state(&self, state: SymbolHandle) -> Vec<CheckedScalarComputationHandle> {
         self.with_state_roots(state, |handles| {
@@ -215,10 +297,40 @@ impl CheckedScalarComputationPlans {
 
     /// Root handles of computations owned by `machine`, in arena order.
     pub fn roots_for_machine(&self, machine: SymbolHandle) -> Vec<CheckedScalarComputationHandle> {
-        self.roots
-            .iter()
-            .filter_map(|(_, root)| (root.machine == machine).then_some(root.root))
-            .collect()
+        self.with_machine_roots(machine, |handles| {
+            handles
+                .iter()
+                .map(|handle| self.roots.get(*handle))
+                .filter_map(|root| (root.machine == machine).then_some(root.root))
+                .collect()
+        })
+    }
+
+    fn machine_root_handles(
+        &self,
+        machines: &[SymbolHandle],
+    ) -> Vec<Handle<CheckedScalarComputationRoot>> {
+        match machines {
+            [] => Vec::new(),
+            [machine] => self.with_machine_roots(*machine, |handles| handles.to_vec()),
+            _ => {
+                let mut seen_machines = Vec::with_capacity(machines.len());
+                let mut all_handles = Vec::new();
+                for &machine in machines {
+                    if !seen_machines.contains(&machine) {
+                        seen_machines.push(machine);
+                        self.with_machine_roots(machine, |handles| {
+                            all_handles.extend_from_slice(handles);
+                        });
+                    }
+                }
+                if seen_machines.len() > 1 {
+                    all_handles.sort_unstable_by_key(|handle| handle.arena_index());
+                    all_handles.dedup();
+                }
+                all_handles
+            }
+        }
     }
 
     /// Whether `root` points at a valid computation node authored by
@@ -243,9 +355,9 @@ impl CheckedScalarComputationPlans {
         &self,
         machines: &[SymbolHandle],
     ) -> Vec<CheckedScalarComputationHandle> {
-        self.roots
-            .iter()
-            .filter_map(|(_, root)| machines.contains(&root.machine).then_some(root.root))
+        self.machine_root_handles(machines)
+            .into_iter()
+            .map(|handle| self.roots.get(handle).root)
             .collect()
     }
 
@@ -254,13 +366,36 @@ impl CheckedScalarComputationPlans {
         &'plans self,
         machines: &'plans [SymbolHandle],
     ) -> impl Iterator<Item = &'plans CheckedScalarComputationRoot> {
-        self.roots
-            .iter()
-            .filter_map(move |(_, root)| machines.contains(&root.machine).then_some(root))
+        self.machine_root_handles(machines)
+            .into_iter()
+            .map(move |handle| self.roots.get(handle))
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// One exact authored projection occurrence. Child computations live in the
+/// ordinary operand arena; frozen execution planning borrows this published span.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedProjectionSelectorRoot {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub statement_ordinal: u32,
+    pub expression: typed_trees::expression::ExpressionHandle,
+    pub evaluations: HandleSpan<CheckedScalarComputationHandle>,
+}
+
+impl Default for CheckedProjectionSelectorRoot {
+    fn default() -> Self {
+        Self {
+            machine: SymbolHandle::invalid(),
+            state: SymbolHandle::invalid(),
+            statement_ordinal: 0,
+            expression: typed_trees::expression::ExpressionHandle::invalid(),
+            evaluations: HandleSpan::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarComputationRoot {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -281,7 +416,7 @@ impl Default for CheckedScalarComputationRoot {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarComputation {
     /// Exact authored expression for a destination or call-argument root.
     /// Other intermediate nodes use the zero handle; source spans are not identity.
@@ -366,6 +501,9 @@ impl CheckedScalarComputation {
             }
             | CheckedScalarComputationKind::Apply {
                 source_expression, ..
+            }
+            | CheckedScalarComputationKind::WithOperands {
+                source_expression, ..
             } => *source_expression,
             CheckedScalarComputationKind::CaseMembership {
                 completion_expression,
@@ -381,7 +519,7 @@ impl CheckedScalarComputation {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarComputationKind {
     /// Expose the checked current referent. The numeric result owns no loan;
     /// its operand retains ordinary storage access and selector obligations.
@@ -556,6 +694,15 @@ pub enum CheckedScalarComputationKind {
         operands: HandleSpan<CheckedScalarComputationHandle>,
         collections: HandleSpan<typed_trees::types::TypeReferenceHandle>,
     },
+    /// Complete scalar snapshots and ordinary structural values in source
+    /// order, then evaluate one scalar consumer in that exact operand prefix.
+    /// Normal completion belongs to this whole occurrence; nested observations
+    /// cannot replay the producers or lengthen the checked owner lifetimes.
+    WithOperands {
+        source_expression: typed_trees::expression::ExpressionHandle,
+        operands: HandleSpan<CheckedScalarEvaluationOperand>,
+        operand: CheckedScalarComputationHandle,
+    },
     /// Evaluate operands left-to-right once, then apply a pure template whose
     /// Parameter positions name only these computed operands, not source locals.
     Apply {
@@ -566,9 +713,23 @@ pub enum CheckedScalarComputationKind {
     },
 }
 
+impl CheckedScalarComputationKind {
+    /// Complete retained value read by a scalar observation. Zero means there
+    /// is no computed receiver for this node. Preparation, intrinsic receiver
+    /// retirement and cleanup finalization share this semantic inventory;
+    /// choosing an operation's source spelling supplies no receiver authority.
+    pub fn observed_receiver(&self) -> super::structural_values::CheckedStructuralValueHandle {
+        match self {
+            Self::StructuralField { receiver_value, .. }
+            | Self::CaseMembership { receiver_value, .. } => *receiver_value,
+            _ => super::structural_values::CheckedStructuralValueHandle::invalid(),
+        }
+    }
+}
+
 /// Which executable one scalar invocation enters. Operand order, custody and
 /// temporary retirement are independent of the callee kind.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarCallee {
     /// A checked body in this program.
     Body {
@@ -642,7 +803,7 @@ impl CheckedScalarCallee {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarDispatchArm {
     /// Zero for builtin comparisons; otherwise the exact implicit arm use.
     pub equality_use: Handle<crate::CheckedOperatorUseFact>,
@@ -651,7 +812,7 @@ pub struct CheckedScalarDispatchArm {
     pub value: CheckedScalarComputationHandle,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarDispatchPattern {
     Value(CheckedScalarComputationHandle),
     /// A case/field/domain predicate over the already captured subject.

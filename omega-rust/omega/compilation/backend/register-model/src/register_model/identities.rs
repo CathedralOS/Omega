@@ -2,15 +2,14 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 
 use crate::{
     PhysicalRegisterModel, PreservationConvention, RegisterConstraintCatalog,
-    RegisterConstraintFamily, RegisterInstructionConstraint, RegisterOperandAccess,
-    RegisterReservationProfile, RegisterUnitId, RegisterUnitKind, RegisterWriteSemantics,
-    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
-    ValidatedRegisterReservationProfile,
+    RegisterInstructionConstraint, RegisterReservationProfile, RegisterUnitId, RegisterUnitKind,
+    RegisterWriteSemantics, ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+    ValidatedRegisterReservationProfile, encode_constraint_key,
 };
 
-const IDENTITY_WIDTH: usize = 32;
+pub(crate) const IDENTITY_WIDTH: usize = 32;
 
-fn domain_digest(domain: &[u8], canonical: &[u8]) -> [u8; IDENTITY_WIDTH] {
+pub(crate) fn domain_digest(domain: &[u8], canonical: &[u8]) -> [u8; IDENTITY_WIDTH] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(domain);
     digest.raw(
         &u64::try_from(canonical.len())
@@ -24,23 +23,29 @@ fn domain_digest(domain: &[u8], canonical: &[u8]) -> [u8; IDENTITY_WIDTH] {
 macro_rules! identity {
     ($name:ident, $domain:literal) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub struct $name([u8; IDENTITY_WIDTH]);
+        pub struct $name([u8; $crate::register_model::identities::IDENTITY_WIDTH]);
 
         impl $name {
             fn from_canonical_bytes(canonical: &[u8]) -> Self {
-                Self(domain_digest($domain, canonical))
+                Self($crate::register_model::identities::domain_digest(
+                    $domain, canonical,
+                ))
             }
 
-            pub const fn from_bytes(bytes: [u8; IDENTITY_WIDTH]) -> Self {
+            pub const fn from_bytes(
+                bytes: [u8; $crate::register_model::identities::IDENTITY_WIDTH],
+            ) -> Self {
                 Self(bytes)
             }
 
-            pub const fn bytes(self) -> [u8; IDENTITY_WIDTH] {
+            pub const fn bytes(self) -> [u8; $crate::register_model::identities::IDENTITY_WIDTH] {
                 self.0
             }
         }
     };
 }
+
+pub(crate) use identity;
 
 identity!(
     PhysicalRegisterModelIdentity,
@@ -113,7 +118,7 @@ pub(crate) fn register_constraint_catalog_identity(
     architecture(&mut bytes, catalog.architecture);
     length(&mut bytes, catalog.required.len());
     for key in &catalog.required {
-        constraint_key(&mut bytes, key.family, key.variant);
+        encode_constraint_key(&mut bytes, *key);
     }
     length(&mut bytes, catalog.constraints.len());
     for constraint in &catalog.constraints {
@@ -186,6 +191,7 @@ pub fn target_register_environment_identity(
         selected_keys.model_specific_write,
         selected_keys.processor_halt,
         selected_keys.interrupt_control,
+        selected_keys.memory_fence,
         selected_keys.atomic_fence,
         selected_keys.atomic_load,
         selected_keys.placed_read,
@@ -235,15 +241,15 @@ pub fn target_register_environment_identity(
     }
     u64_value(&mut bytes, selected_keys.call_unit.len() as u64);
     for key in &selected_keys.call_unit {
-        constraint_key(&mut bytes, key.family, key.variant);
+        encode_constraint_key(&mut bytes, *key);
     }
     u64_value(&mut bytes, selected_keys.call_scalar.len() as u64);
     u64_value(&mut bytes, selected_keys.call_unit_mixed.len() as u64);
     for key in &selected_keys.call_unit_mixed {
-        constraint_key(&mut bytes, key.family, key.variant);
+        encode_constraint_key(&mut bytes, *key);
     }
     for key in &selected_keys.call_scalar {
-        constraint_key(&mut bytes, key.family, key.variant);
+        encode_constraint_key(&mut bytes, *key);
     }
     for keys in [
         &selected_keys.call_aggregate,
@@ -252,7 +258,7 @@ pub fn target_register_environment_identity(
     ] {
         u64_value(&mut bytes, keys.len() as u64);
         for key in keys {
-            constraint_key(&mut bytes, key.family, key.variant);
+            encode_constraint_key(&mut bytes, *key);
         }
     }
     for key in [
@@ -289,12 +295,12 @@ pub fn target_register_environment_identity(
         selected_keys.trapping_shift,
         selected_keys.trapping_convert,
     ] {
-        constraint_key(&mut bytes, key.family, key.variant);
+        encode_constraint_key(&mut bytes, key);
     }
     if !selected_keys.return_float.is_empty() {
         u64_value(&mut bytes, selected_keys.return_float.len() as u64);
         for key in &selected_keys.return_float {
-            constraint_key(&mut bytes, key.family, key.variant);
+            encode_constraint_key(&mut bytes, *key);
         }
     }
     TargetRegisterEnvironmentIdentity::from_canonical_bytes(&bytes)
@@ -332,11 +338,11 @@ fn preservation_convention(bytes: &mut Vec<u8>, convention: &PreservationConvent
 
 fn instruction_constraint(bytes: &mut Vec<u8>, constraint: &RegisterInstructionConstraint) {
     u16_value(bytes, constraint.id.0);
-    constraint_key(bytes, constraint.key.family, constraint.key.variant);
+    encode_constraint_key(bytes, constraint.key);
     length(bytes, constraint.operands.len());
     for operand in &constraint.operands {
         u16_value(bytes, operand.operand);
-        byte(bytes, operand_access(operand.access));
+        byte(bytes, operand.access.access_tag());
         u16_value(bytes, operand.class.0);
         optional_u16(bytes, operand.fixed_view.map(|view| view.0));
         optional_u16(bytes, operand.tied_to);
@@ -347,22 +353,17 @@ fn instruction_constraint(bytes: &mut Vec<u8>, constraint: &RegisterInstructionC
     unit_ids(bytes, &constraint.clobbers);
 }
 
-fn constraint_key(bytes: &mut Vec<u8>, family: RegisterConstraintFamily, variant: u32) {
-    byte(bytes, family.tag());
-    crate::codec_bytes::push_encoded(bytes, variant.to_le_bytes());
-}
-
 fn optional_constraint_key(bytes: &mut Vec<u8>, key: Option<crate::RegisterConstraintKey>) {
     match key {
         None => byte(bytes, 0),
         Some(key) => {
             byte(bytes, 1);
-            constraint_key(bytes, key.family, key.variant);
+            encode_constraint_key(bytes, key);
         }
     }
 }
 
-fn unit_ids(bytes: &mut Vec<u8>, values: &[RegisterUnitId]) {
+pub(crate) fn unit_ids(bytes: &mut Vec<u8>, values: &[RegisterUnitId]) {
     length(bytes, values.len());
     for value in values {
         u16_value(bytes, value.0);
@@ -391,11 +392,11 @@ pub(crate) fn length(bytes: &mut Vec<u8>, value: usize) {
     );
 }
 
-fn u64_value(bytes: &mut Vec<u8>, value: u64) {
+pub(crate) fn u64_value(bytes: &mut Vec<u8>, value: u64) {
     crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
 }
 
-fn u16_value(bytes: &mut Vec<u8>, value: u16) {
+pub(crate) fn u16_value(bytes: &mut Vec<u8>, value: u16) {
     crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
 }
 
@@ -465,13 +466,5 @@ const fn reservation_reason(value: crate::ReservationReason) -> u8 {
         crate::ReservationReason::Syscall => 6,
         crate::ReservationReason::InlineAssembly => 7,
         crate::ReservationReason::Backend => 8,
-    }
-}
-
-const fn operand_access(value: RegisterOperandAccess) -> u8 {
-    match value {
-        RegisterOperandAccess::Use => 0,
-        RegisterOperandAccess::Def => 1,
-        RegisterOperandAccess::UseDef => 2,
     }
 }

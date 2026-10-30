@@ -47,6 +47,7 @@ pub(super) fn complete_argument_tuple(
         kind: "data",
         name: &base_info.name,
         parameters: definition.type_parameters,
+        invocation_lifetimes: &[],
         parameter_names: &base_info.parameter_names,
         const_parameter_types: &base_info.const_parameter_types,
         type_equations: &base_info.type_equations,
@@ -251,6 +252,20 @@ pub(crate) fn type_reference_slug(
             type_reference_slug(syntax, *element_type, selection)?
         )),
         TypeReferenceNode::Named(name) => Some(name.as_str(syntax).to_string()),
+        TypeReferenceNode::ConstExpression(expression) => {
+            match syntax.expressions.expression(*expression) {
+                syntax_trees::expression::ExpressionNode::Integer(literal) => {
+                    super::integer_literal_value(literal).map(|value| value.to_string())
+                }
+                syntax_trees::expression::ExpressionNode::Name(path) => {
+                    let [member] = syntax.expressions.identifier_path_members(*path) else {
+                        return None;
+                    };
+                    Some(member.as_str(syntax).to_owned())
+                }
+                _ => None,
+            }
+        }
         TypeReferenceNode::Generic {
             base_name,
             lifetime_arguments,
@@ -372,7 +387,7 @@ fn closed_argument_identities(
                 syntax,
                 selection,
                 *argument,
-                matches!(parameter.kind, TypeParameterKind::Const { .. }),
+                parameter.kind.is_const_or_value(),
             )
         })
         .collect::<Option<Vec<_>>>()
@@ -458,10 +473,26 @@ pub(crate) fn closed_argument_identity(
         TypeReferenceNode::Named(name) if is_constant => Some(ClosedArgumentIdentity::Constant(
             name.as_str(syntax).to_owned(),
         )),
+        TypeReferenceNode::ConstExpression(expression) if is_constant => {
+            match syntax.expressions.expression(*expression) {
+                syntax_trees::expression::ExpressionNode::Integer(literal) => {
+                    super::integer_literal_value(literal)
+                        .map(|value| ClosedArgumentIdentity::Constant(value.to_string()))
+                }
+                syntax_trees::expression::ExpressionNode::Name(path) => {
+                    let [member] = syntax.expressions.identifier_path_members(*path) else {
+                        return None;
+                    };
+                    Some(ClosedArgumentIdentity::Constant(
+                        member.as_str(syntax).to_owned(),
+                    ))
+                }
+                _ => None,
+            }
+        }
         TypeReferenceNode::Named(name) => {
-            if let Some(atom) = symbols::BuiltinTypeAtom::ALL
-                .into_iter()
-                .find(|atom| atom.symbol_name() == name.as_str(syntax))
+            if let Some(atom) =
+                crate::symbols::builtin_type_atom_by_symbol_name(name.as_str(syntax))
             {
                 return Some(ClosedArgumentIdentity::Builtin(atom));
             }

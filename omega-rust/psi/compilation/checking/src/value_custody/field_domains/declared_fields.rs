@@ -31,6 +31,25 @@ fn collect_data_field_domain_rows(
     }
 }
 
+pub(crate) struct DeclaredTypeDomainQueries {
+    rows: Vec<(
+        TypeReferenceHandle,
+        std::sync::OnceLock<Vec<FieldDomainRow>>,
+    )>,
+}
+
+impl DeclaredTypeDomainQueries {
+    fn of(program: &dyn crate::CheckingInput) -> Self {
+        let mut rows: Vec<_> = program
+            .type_reference_table
+            .type_reference_rows()
+            .map(|(reference, _)| (reference, std::sync::OnceLock::new()))
+            .collect();
+        rows.sort_by_key(|(reference, _)| (reference.arena_index(), reference.generation()));
+        Self { rows }
+    }
+}
+
 /// All live declaration obligations below a readable value, including a
 /// qualified scalar element. A collection element's own qualification and a
 /// record element's fields use the same extent coordinates and invalidation.
@@ -39,16 +58,34 @@ pub fn declared_type_domain_rows(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Vec<FieldDomainRow> {
-    let mut rows = Vec::new();
-    collect_type_domain_rows(
-        program,
-        false,
-        reference,
-        &mut Vec::new(),
-        &mut Vec::new(),
-        &mut rows,
-    );
-    rows
+    if !reference.is_valid() {
+        return Vec::new();
+    }
+    let compute = || {
+        let mut rows = Vec::new();
+        collect_type_domain_rows(
+            program,
+            false,
+            reference,
+            &mut Vec::new(),
+            &mut Vec::new(),
+            &mut rows,
+        );
+        rows
+    };
+    let Some(memos) = program.checking_memos() else {
+        return compute();
+    };
+    let queries = memos
+        .declared_type_domains
+        .get_or_init(|| DeclaredTypeDomainQueries::of(program));
+    let Ok(position) = queries.rows.binary_search_by_key(
+        &(reference.arena_index(), reference.generation()),
+        |(reference, _)| (reference.arena_index(), reference.generation()),
+    ) else {
+        return compute();
+    };
+    queries.rows[position].1.get_or_init(compute).clone()
 }
 
 fn collect_type_domain_rows(
@@ -140,6 +177,7 @@ fn place_element_rows(
 /// way makes the row evidence (`StatementTransfer`) rather than an obligation.
 /// The rows depend only on the data definition, so every state parameter of
 /// that type replays one walk.
+#[derive(Clone)]
 pub struct FieldDomainRow {
     pub path: Vec<PlaceSegment>,
     pub domain_symbol: SymbolHandle,

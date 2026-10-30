@@ -1,5 +1,6 @@
 //! Stable target identity retained by representation demand evidence.
 
+use crate::record::accessors::field_projection_accessors;
 mod validation;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -56,23 +57,8 @@ pub struct PackageReviewRepresentationTarget {
 }
 
 impl PackageReviewRepresentationTarget {
-    pub const fn profile(self) -> PackageReviewRepresentationTargetProfile {
-        self.profile
-    }
-
-    pub const fn architecture(self) -> PackageReviewRepresentationArchitecture {
-        self.architecture
-    }
-
-    pub const fn object_format(self) -> PackageReviewRepresentationObjectFormat {
-        self.object_format
-    }
-
-    pub const fn pointer_size(self) -> u16 {
-        self.pointer_size
-    }
-
-    pub const fn pointer_alignment(self) -> u16 {
-        self.pointer_alignment
-    }
+    field_projection_accessors!(valued profile: PackageReviewRepresentationTargetProfile);
+    field_projection_accessors!(valued architecture: PackageReviewRepresentationArchitecture);
+    field_projection_accessors!(valued object_format: PackageReviewRepresentationObjectFormat);
+    field_projection_accessors!(valued pointer_size: u16, pointer_alignment: u16);
 }

@@ -17,6 +17,31 @@
 //! crash route buckets and plans, `resource_envelopes.rs` resource axes and
 //! envelopes and `scalar_contracts.rs` closed scalar value contracts.
 
+/// The four reads that carry one exact contract identity — the machine, its
+/// state or entry, the report fingerprint and the commitment. The fingerprint
+/// and its commitment always travel together, so the crash capsule, the crash
+/// call site and both resource carriers declare these reads once, here.
+macro_rules! contract_identity_accessors {
+    ($machine:ident, $entry:ident, $fingerprint:ident, $commitment:ident) => {
+        pub const fn $machine(&self) -> SymbolHandle {
+            self.$machine
+        }
+
+        pub const fn $entry(&self) -> SymbolHandle {
+            self.$entry
+        }
+
+        pub const fn $fingerprint(&self) -> u64 {
+            self.$fingerprint
+        }
+
+        pub const fn $commitment(&self) -> MachineContractCommitment {
+            self.$commitment
+        }
+    };
+}
+pub(crate) use contract_identity_accessors;
+
 mod contract_identity;
 mod crash_plans;
 mod crash_predicates;
@@ -30,7 +55,9 @@ pub use contract_identity::{
     DeclaredTermination, contract_declarations_commitment, contract_identity,
     declared_termination_commitment,
 };
-pub use crash_plans::{CheckedRuntimeMembershipSubject, CrashPlan, CrashRouteBucket};
+pub use crash_plans::{
+    CheckedRuntimeMembershipSubject, CheckedTrappingSite, CrashPlan, CrashRouteBucket,
+};
 pub use crash_predicates::{
     CrashCause, CrashInterface, CrashPredicateExpression, CrashPredicateIdentity,
     CrashRouteBucketId, CrashRouteGuard,
@@ -51,7 +78,7 @@ pub use scalar_contracts::{
 use std::hash::Hash;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct MachineContractPlans {
     /// One entry per machine, in machine order.
     pub machines: Vec<MachineContractPlan>,
@@ -105,48 +132,18 @@ impl MachineContractPlans {
     /// at checked-Psi time. It does not accept a stack number, a fuel number,
     /// a target footprint, or an installation receipt as an input.
     pub fn validate_resource_envelopes(&self) -> Result<(), &'static str> {
-        let aligned = self.machines.len() == self.realized_envelopes.len()
-            && self
-                .machines
-                .iter()
-                .zip(&self.realized_envelopes)
-                .all(|(contract, realized)| contract.machine == realized.machine)
-            && {
-                let mut seen = symbols::SymbolKeyMap::<SymbolHandle, ()>::default();
-                self.machines
-                    .iter()
-                    .all(|contract| seen.insert(contract.machine, ()).is_none())
-            };
-        if aligned {
-            for (contract, realized) in self.machines.iter().zip(&self.realized_envelopes) {
-                if contract.report_fingerprint == 0 {
-                    return Err(
-                        "checked resource envelope requires a nonzero contract report coordinate",
-                    );
-                }
-                if contract.commitment.is_zero() {
-                    return Err(
-                        "checked resource envelope requires a nonzero machine contract commitment",
-                    );
-                }
-                if realized.contract_report_fingerprint != contract.report_fingerprint
-                    || realized.contract_commitment != contract.commitment
-                {
-                    return Err(
-                        "checked resource envelope contract identity disagrees with its realized machine row",
-                    );
-                }
-                realized.resources.validate()?;
-                if realized.resources.machine != contract.machine
-                    || realized.resources.contract_report_fingerprint != contract.report_fingerprint
-                    || realized.resources.contract_commitment != contract.commitment
-                {
-                    return Err(
-                        "checked resource roster does not bind its exact realized machine contract",
-                    );
-                }
+        // Resolve the realized roster once: one row per exact machine
+        // contract. Both shapes the roster can arrive in — positionally
+        // aligned with `machines`, or merely keyed by the same machines — then
+        // share one obligation body instead of re-stating it per branch.
+        let mut realized_by_machine = symbols::SymbolKeyMap::default();
+        for (index, realized) in self.realized_envelopes.iter().enumerate() {
+            if realized_by_machine
+                .insert(realized.machine, index)
+                .is_some()
+            {
+                return Err("checked resource envelope has duplicate realized machine rows");
             }
-            return Ok(());
         }
         for contract in &self.machines {
             if contract.report_fingerprint == 0 {
@@ -159,16 +156,10 @@ impl MachineContractPlans {
                     "checked resource envelope requires a nonzero machine contract commitment",
                 );
             }
-            let mut matching = self
-                .realized_envelopes
-                .iter()
-                .filter(|envelope| envelope.machine == contract.machine);
-            let Some(realized) = matching.next() else {
+            let Some(index) = realized_by_machine.get(&contract.machine).copied() else {
                 return Err("checked resource envelope is missing its exact realized machine row");
             };
-            if matching.next().is_some() {
-                return Err("checked resource envelope has duplicate realized machine rows");
-            }
+            let realized = &self.realized_envelopes[index];
             if realized.contract_report_fingerprint != contract.report_fingerprint
                 || realized.contract_commitment != contract.commitment
             {
@@ -206,7 +197,7 @@ pub fn contract_plan_by_machine<'plans>(
     plans.iter().find(|plan| plan.machine == machine)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct MachineContractPlan {
     pub machine: SymbolHandle,
     /// Projection of unbound requires/ensures clauses into the closed
@@ -237,21 +228,11 @@ pub struct MachineContractPlan {
     pub commitment: MachineContractCommitment,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct MachineContractCommitment([u8; 32]);
-
-impl MachineContractCommitment {
-    pub const fn from_digest(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
-
-    pub const fn as_bytes(self) -> [u8; 32] {
-        self.0
-    }
-
-    pub fn is_zero(self) -> bool {
-        self.0 == [0; 32]
-    }
+typed_trees::digest_commitment! {
+    /// Domain-separated commitment to one machine's complete canonical public
+    /// contract, declared through `typed_trees`'s shared digest carrier.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    MachineContractCommitment
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

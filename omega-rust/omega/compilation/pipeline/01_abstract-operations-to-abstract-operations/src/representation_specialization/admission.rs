@@ -11,9 +11,9 @@ use super::{
     FoldedCaseMembershipRow, NodeLocation, O, OperationId, PlaceId, PsiOptimizationFunction,
     PsiOptimizationUnit, ScalarType,
 };
-use optimization_unit::{argument_rewrites_place, declared_structural_type, resolved_sole_case};
+use optimization_unit::{declared_structural_type, resolved_sole_case};
 use semantic_vocabulary::{StructuralCaseId, StructuralTypeId};
-use terminal_psi::{StructuralArgument, StructuralPlaceDeclaration};
+use terminal_psi::StructuralPlaceDeclaration;
 
 /// The evidence every membership observing `place` resolves against: the
 /// place's rostered declaration, its declared structural type (when the place
@@ -38,7 +38,7 @@ pub(super) fn membership_evidence<'a>(
     Some(MembershipEvidence {
         declaration,
         root_type: declared_structural_type(function, declaration),
-        root_basis: optimization_unit::proof_basis(unit, function, declaration, &bound_place),
+        root_basis: optimization_unit::proof_basis(unit, function, declaration),
         function,
     })
 }
@@ -77,15 +77,12 @@ pub(super) fn admit_membership_node(
     // projection the walk prefixes. Failing an
     // establishment, the sole-case roster at the resolved end type proves
     // the verdict without custody evidence.
-    let (proven_case, producer) = optimization_unit::established_case_at(
-        unit,
-        evidence.function,
-        evidence.declaration,
-        path,
-        &bound_place,
-    )
-    .map(|(operation, case)| (case, Some(operation)))
-    .or_else(|| resolved_sole_case(unit, evidence.root_type?, path).map(|case| (case, None)))?;
+    let (proven_case, producer) =
+        optimization_unit::established_case_at(unit, evidence.function, evidence.declaration, path)
+            .map(|(operation, case)| (case, Some(operation)))
+            .or_else(|| {
+                resolved_sole_case(unit, evidence.root_type?, path).map(|case| (case, None))
+            })?;
     Some(FoldedCaseMembershipRow {
         site: NodeLocation {
             machine,
@@ -100,68 +97,4 @@ pub(super) fn admit_membership_node(
         proven_case,
         outcome: proven_case == *case,
     })
-}
-
-/// The one place `place` is bound to by every incoming edge when `place` is
-/// a structural block parameter, or `None` when it is not a block
-/// parameter, when any incoming edge fails to bind it or binds a different
-/// place, when any bound argument is pathed or carries write authority, or
-/// when the parameter's contents may still be rewritten or mutably re-lent
-/// inside `function`. A uniform whole `Owned`/`SharedBorrow` argument means
-/// the parameter's contents are exactly the bound place's for the block's
-/// lifetime — an owned binding transfers the storage itself, and a shared
-/// loan freezes the bound place's contents for the borrow — so the bound
-/// place's establishment is the parameter's own.
-pub(crate) fn bound_place(function: &PsiOptimizationFunction, place: PlaceId) -> Option<PlaceId> {
-    optimization_unit::bound_place(function, place, &operation_rewrites_place)
-}
-
-/// Whether `operation` writes or vacates `place`, or re-lends it with
-/// authority another party can write through.
-fn operation_rewrites_place(operation: &O, place: PlaceId) -> bool {
-    if match operation {
-        // Bare-place destinations that replace or re-establish contents.
-        O::PrimitiveLocalStore { destination, .. }
-        | O::ByteSequenceWrite { destination, .. }
-        | O::StructuralByteSequenceFieldByteStore { destination, .. }
-        | O::ByteSequenceStore { destination, .. }
-        | O::StructuralByteSequenceFieldStore { destination, .. }
-        | O::EstablishElementView { destination, .. } => *destination == place,
-        // Parameter-row destinations and vacating move sources.
-        O::WriteOnlyPrimitiveStore { destination, .. } => destination.place() == place,
-        O::StoreStructuralField { destination, .. } => destination.place() == place,
-        O::StructuralScalarFieldStore { destination, .. } => destination.place() == place,
-        O::MoveStructuralField { source, .. } => source.place() == place,
-        // An atomic resident's contents may change under another event.
-        O::AtomicEvent { event, .. } => event.place() == Some(place),
-        _ => false,
-    } {
-        return true;
-    }
-    structural_argument_operands(operation).any(|argument| argument_rewrites_place(argument, place))
-}
-
-/// Every structural-argument operand `operation` carries: record children
-/// stored whole, element-view and reference sources, a reseating store's
-/// delivered value, and call argument rows.
-fn structural_argument_operands(operation: &O) -> impl Iterator<Item = &StructuralArgument> {
-    let mut operands: Vec<&StructuralArgument> = Vec::new();
-    match operation {
-        abstract_operations::establish_case_or_record_fields_pattern!(fields) => {
-            for initializer in fields {
-                if let Some(argument) = initializer.value.as_structural() {
-                    operands.push(argument);
-                }
-            }
-        }
-        O::EstablishElementView { source, .. } | O::EstablishReference { source, .. } => {
-            operands.push(source);
-        }
-        O::StoreStructuralField { value, .. } => operands.push(value),
-        abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => {
-            operands.extend(structural_arguments.iter())
-        }
-        _ => {}
-    }
-    operands.into_iter()
 }

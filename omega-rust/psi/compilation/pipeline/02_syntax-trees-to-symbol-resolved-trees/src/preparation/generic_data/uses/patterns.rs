@@ -4,9 +4,8 @@ use super::super::{
     TypeReferenceNode,
 };
 use crate::preparation::generic_data::uses::{
-    ConstructorFrontier, closed_constructor_carrier, collect_statement_expression_handles,
-    concrete_state_local_types, constructor_carrier_span, constructor_path_name, expected_instance,
-    selected_case_value, selected_constructor, selected_machine_state_handles,
+    closed_constructor_carrier, collect_statement_expression_handles, concrete_state_local_types,
+    constructor_carrier_span, constructor_path_name, expected_instance, selected_constructor,
 };
 
 use crate::preparation::generic_data::Instantiation;
@@ -128,95 +127,6 @@ pub(in crate::preparation::generic_data) fn named_type_name(
     }
 }
 
-/// When a generic sum has exactly one closed instance, every remaining
-/// `Base::Case` constructor value is unambiguous. Rewrite that
-/// fallback cohort to the synthesized nominal identity before symbol
-/// resolution. Multiple-instance uses must already have been selected by exact
-/// context above. Generic template bodies remain parameterized declarations.
-/// Membership classifiers are not constructor values: an early preparation
-/// round's unique instance says nothing about the tested subject. Leave those
-/// authored paths intact for typed subject/application correspondence.
-pub(in crate::preparation::generic_data) fn relabel_unique_closed_sum_paths(
-    syntax: &mut SyntaxTrees,
-    instances: &[Instantiation],
-    selection: Option<&declaration_selection::ConstantSelection>,
-    declarations: &[syntax_trees::item::ItemHandle],
-) {
-    for state in selected_machine_state_handles(syntax, declarations) {
-        let state = syntax.items.state(state).clone();
-        let statements = syntax.items.statements(state.statements).to_vec();
-        for (index, statement) in statements.iter().enumerate() {
-            let frontier = ConstructorFrontier {
-                parameters: state.parameters,
-                prior_statements: &statements[..index],
-            };
-            let mut expressions = HashSet::new();
-            collect_statement_expression_handles(syntax, *statement, &mut expressions);
-            let mut expressions = expressions.into_iter().collect::<Vec<_>>();
-            expressions.sort_unstable_by_key(|handle| (handle.generation(), handle.arena_index()));
-            let replacements = expressions
-                .into_iter()
-                .filter_map(|handle| {
-                    let expression = syntax.expressions.expression(handle);
-                    if let ExpressionNode::Name(path) = expression
-                        && frontier.captures(syntax, *path)
-                    {
-                        return None;
-                    }
-                    let (name, kind, carrier_span) = match expression {
-                        ExpressionNode::Name(path) => (
-                            constructor_path_name(syntax, *path)?,
-                            SumPathExpressionKind::Name,
-                            constructor_carrier_span(syntax, *path)?,
-                        ),
-                        ExpressionNode::StructLiteral(literal) => (
-                            literal.constructor_name.clone(),
-                            SumPathExpressionKind::StructLiteral(literal.clone()),
-                            literal.constructor_name.source_span(),
-                        ),
-                        _ => return None,
-                    };
-                    let (template, case) = if matches!(kind, SumPathExpressionKind::Name) {
-                        selected_case_value(syntax, selection, &name)?
-                    } else {
-                        selected_constructor(syntax, selection, &name)?
-                    };
-                    let case = case?;
-                    let mut candidates = instances
-                        .iter()
-                        .filter(|instance| instance.template == template);
-                    let instance = candidates.next()?;
-                    if candidates.next().is_some() {
-                        return None;
-                    }
-                    let closed =
-                        closed_constructor_carrier(syntax, selection, instance, &name, true)?;
-                    Some((handle, kind, closed, carrier_span, case))
-                })
-                .collect::<Vec<_>>();
-            for (handle, kind, closed, carrier_span, case) in replacements {
-                let replacement = match kind {
-                    SumPathExpressionKind::Name => {
-                        ExpressionNode::Name(closed_sum_path(syntax, closed, carrier_span, case))
-                    }
-                    SumPathExpressionKind::StructLiteral(mut literal) => {
-                        literal.constructor_name = Identifier::new(
-                            format!(
-                                "{closed}::{case}",
-                                closed = closed.as_str(syntax),
-                                case = case.as_str(syntax)
-                            ),
-                            literal.constructor_name.source_span(),
-                        );
-                        ExpressionNode::StructLiteral(literal)
-                    }
-                };
-                syntax.expressions.replace_expression(handle, replacement);
-            }
-        }
-    }
-}
-
 pub(in crate::preparation::generic_data) fn closed_sum_path(
     syntax: &mut SyntaxTrees,
     closed: Identifier,
@@ -234,10 +144,4 @@ pub(in crate::preparation::generic_data) fn closed_sum_path(
         .expressions
         .append_identifier_path_member_to_span(&mut path, case);
     path
-}
-
-#[derive(Clone)]
-pub(in crate::preparation::generic_data) enum SumPathExpressionKind {
-    Name,
-    StructLiteral(syntax_trees::expression::TableStructLiteral),
 }

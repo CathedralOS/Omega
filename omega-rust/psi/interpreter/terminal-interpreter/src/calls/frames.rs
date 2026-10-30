@@ -167,6 +167,18 @@ impl TerminalExecution<'_> {
             let StructuralTypeShape::ByteSequence(carrier) = &declaration.shape else {
                 continue;
             };
+            if terminal_semantics::borrowed_storage_parameter(
+                parameter,
+                self.program.structural_types().values(),
+            ) && terminal_semantics::stored_reference_access(&declaration.shape).is_some()
+                && terminal_semantics::borrowed_storage_reference_ceiling(
+                    parameter,
+                    self.program.structural_types().values(),
+                )
+                .is_none()
+            {
+                continue;
+            }
             if let Some((value, binding)) =
                 self.prepare_owned_byte_descriptor_argument(parameter, argument, resolved)?
             {
@@ -217,7 +229,7 @@ impl TerminalExecution<'_> {
                     || values
                         .insert(
                             parameter.place,
-                            ByteSequenceBinding::Immutable(snapshot.detached_descriptor()),
+                            ByteSequenceBinding::Immutable(snapshot.owned_snapshot()),
                         )?
                         .is_some()
                 {
@@ -258,6 +270,17 @@ impl TerminalExecution<'_> {
             if !matches!(declaration.shape, StructuralTypeShape::ElementView { .. }) {
                 continue;
             }
+            if terminal_semantics::borrowed_storage_parameter(
+                parameter,
+                self.program.structural_types().values(),
+            ) && terminal_semantics::borrowed_storage_reference_ceiling(
+                parameter,
+                self.program.structural_types().values(),
+            )
+            .is_none()
+            {
+                continue;
+            }
             // Lookup uses the source's physical descriptor identity. The
             // callee may present its canonical borrowed type at that same
             // home; this must never choose another descriptor or window.
@@ -285,6 +308,21 @@ impl TerminalExecution<'_> {
                     return Err(malformed());
                 }
                 view.access()
+            } else if terminal_semantics::borrowed_storage_parameter(
+                parameter,
+                self.program.structural_types().values(),
+            ) {
+                // Preserve the resident descriptor home behind the outer loan.
+                // Its view companion is attenuated, never a copied value home.
+                if argument.access != parameter.access {
+                    return Err(malformed());
+                }
+                self.validate_descriptor_borrow(argument, parameter.access)?;
+                terminal_semantics::borrowed_storage_reference_ceiling(
+                    parameter,
+                    self.program.structural_types().values(),
+                )
+                .ok_or_else(malformed)?
             } else {
                 if !is_direct_borrowed_rebinding(
                     parameter,
@@ -405,25 +443,25 @@ impl TerminalExecution<'_> {
                 self.consume_affine_call_argument(&mut caller_affine_frontier, argument)?;
             }
         }
-        let (loan_completions, resume_operation) =
-            if matches!(result, SuspendedCallResult::ExternalCompletion { .. }) {
-                // There is no normal completion of this invocation, hence no
-                // operation continuation or returned-loan retirement.
-                (Vec::new(), self.next_operation)
-            } else {
-                let caller = self.program.verified_machine(self.current_machine)?;
-                let operation = caller
-                    .block(&self.current)
-                    .and_then(|block| block.operations.get(self.next_operation))
-                    .ok_or_else(malformed)?
-                    .id;
-                let completions =
-                    self.loan_completions_for_operation(operation)
-                        .map_err(|error| {
-                            error.in_argument_preparation("retain call loan completions")
-                        })?;
-                (completions, self.next_operation + 1)
-            };
+        let (loan_completions, resume_operation) = if matches!(
+            result,
+            SuspendedCallResult::ExternalCompletion { .. } | SuspendedCallResult::NoNormal { .. }
+        ) {
+            // There is no normal completion of this invocation, hence no
+            // operation continuation or returned-loan retirement.
+            (Vec::new(), self.next_operation)
+        } else {
+            let caller = self.program.verified_machine(self.current_machine)?;
+            let operation = caller
+                .block(&self.current)
+                .and_then(|block| block.operations.get(self.next_operation))
+                .ok_or_else(malformed)?
+                .id;
+            let completions = self
+                .loan_completions_for_operation(operation)
+                .map_err(|error| error.in_argument_preparation("retain call loan completions"))?;
+            (completions, self.next_operation + 1)
+        };
         let caller = self.suspend_with(result, loan_completions)?;
         caller.next_operation = resume_operation;
         retire_transferred_call_sources(
@@ -504,6 +542,34 @@ impl TerminalExecution<'_> {
         )
     }
 
+    /// Enter an ordinary no-normal invocation through the same funded frame
+    /// and argument/claim transaction as returning calls. The callee's declared
+    /// result shape is independent of the absence of a receiving continuation.
+    pub(crate) fn begin_no_normal_call(
+        &mut self,
+        callee_id: MachineId,
+        edge: semantic_vocabulary::EdgeId,
+        scalar_arguments: &[TerminalScalarValue],
+        structural_arguments: &[StructuralArgument],
+        claim_transfers: &[ClaimTransfer],
+    ) -> Result<(), TerminalInterpretError> {
+        let program = std::sync::Arc::clone(&self.program);
+        let callee = program.verified_machine(callee_id)?;
+        let prepared = self.prepare_structural_call_arguments(callee_id, structural_arguments)?;
+        self.enter_call(
+            callee_id,
+            callee,
+            scalar_arguments,
+            structural_arguments,
+            prepared,
+            claim_transfers,
+            SuspendedCallResult::NoNormal {
+                callee: callee_id,
+                edge,
+            },
+        )
+    }
+
     /// Enter one scalar-result callee after the operation-specific argument
     /// checks have succeeded. Ordinary calls prepare their arguments against
     /// the callee signature directly; admitted provider
@@ -557,6 +623,50 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
         }
+        let mut preserved_projected_qualifications = Vec::new();
+        if claim_origin == crate::execution::ResultClaimOrigin::CalleeReturn
+            && result
+                .projected_qualifications
+                .iter()
+                .any(|row| !callee_result.projected_qualifications.contains(row))
+        {
+            let caller = program.verified_machine(self.current_machine)?;
+            let mut operations = caller
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter(|operation| {
+                    operation
+                        .result
+                        .structural()
+                        .is_some_and(|value| value.place == result.place)
+                });
+            let operation = operations.next().ok_or_else(malformed)?;
+            if operations.next().is_some() || operation.result.structural() != Some(&result) {
+                return Err(malformed());
+            }
+            let performed_arguments = structural_arguments;
+            let same_call = match &operation.kind {
+                terminal_psi::call_structural_pair_pattern!(callee, structural_arguments, ..) => {
+                    *callee == callee_id && structural_arguments.as_slice() == performed_arguments
+                }
+                _ => false,
+            };
+            if !same_call {
+                return Err(malformed());
+            }
+            let preserved = terminal_semantics::ReferenceResultMemberships::new(&program.catalogs)
+                .for_operation(caller, operation)
+                .map_err(TerminalInterpretError::UnsupportedSemanticVariant)?;
+            for row in &result.projected_qualifications {
+                if !callee_result.projected_qualifications.contains(row) {
+                    if !preserved.contains(row) {
+                        return Err(malformed());
+                    }
+                    preserved_projected_qualifications.push(row.clone());
+                }
+            }
+        }
         // Argument preparation owns projection, access, qualification and alias
         // checks. Returning a value does not impose a second argument-path or
         // result-shape language. Completion checks the produced carrier against
@@ -567,6 +677,7 @@ impl TerminalExecution<'_> {
             || !claim_origin.result_projected_qualifications_match(
                 &result,
                 &callee_result.projected_qualifications,
+                &preserved_projected_qualifications,
             )
             || self.structural_values.contains_key(&result.place)
             || self.scalar_array_values.contains_key(&result.place)
@@ -584,6 +695,7 @@ impl TerminalExecution<'_> {
                 result,
                 claim_origin,
                 expected_reference_backings: Vec::new(),
+                preserved_projected_qualifications,
                 profile_completion: None,
             },
         )

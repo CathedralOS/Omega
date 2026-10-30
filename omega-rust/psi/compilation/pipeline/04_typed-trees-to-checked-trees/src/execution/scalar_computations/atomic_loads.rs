@@ -29,13 +29,46 @@ impl Builder<'_, '_> {
         {
             return None;
         }
+        // A completed descriptor supplies the receiver's identity and type;
+        // the atomic leaf remains live storage reached through that descriptor.
+        // Use the same exact extraction boundary as ordinary saved projections.
+        // Missing checked publication is not the absence of a copied operand.
+        // A real Flow copy use must keep its saved root or refuse this plan.
+        let captured = self.captured_dispatch_value(carrier.place);
+        if self.uses_captured_dispatch_value(carrier.place) && captured.is_none() {
+            return None;
+        }
+        let evaluated_receiver = if let Some(copy) = captured {
+            let receiver = validation::DispatchExtraction::payload_binding_receiver(
+                self.program,
+                carrier.place,
+                copy.expression,
+            )?;
+            Some((
+                receiver,
+                validation::StructuralSource {
+                    root: facts::PlaceRoot::Expression(copy.expression),
+                    receiver_value: ExpressionHandle::invalid(),
+                    statement_ordinal: u32::try_from(self.statement_index).ok()?,
+                    type_reference: copy.type_reference,
+                },
+            ))
+        } else {
+            None
+        };
         let field = validation::structural_atomic_field(
             self.program,
             self.machine,
             self.state,
             carrier.place,
             &[],
+            evaluated_receiver,
             |receiver| {
+                // A selected completed receiver must be found on this spine.
+                // Failure cannot reopen the old, potentially mutated storage.
+                if evaluated_receiver.is_some() {
+                    return None;
+                }
                 validation::structural_source(
                     self.program,
                     self.machine,
@@ -48,7 +81,6 @@ impl Builder<'_, '_> {
         )?;
         if field.primitive_type != expected
             || !field.field.is_valid()
-            || field.receiver_value.is_valid()
             || field.path.iter().any(|segment| {
                 !matches!(
                     segment,

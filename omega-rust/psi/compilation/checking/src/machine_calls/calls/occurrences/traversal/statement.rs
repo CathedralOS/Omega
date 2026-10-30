@@ -86,12 +86,14 @@ fn find_call_site_in_transition_target<'program>(
             arguments,
             evidence_arguments,
             path,
+            static_machine_parameter,
             source_span,
             authored_call_selection,
             ..
         } => {
             if let Some(site) = traversal.visit(CallSite::TransitionNamed {
                 path,
+                static_machine_parameter: *static_machine_parameter,
                 arguments: *arguments,
                 evidence_arguments,
                 source_span: *source_span,

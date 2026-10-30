@@ -2,8 +2,8 @@
 use super::{calling::*, declarations::*, settlements::*};
 use crate::FixedViewCopyDecodeError;
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
-    Cursor, decode_accepted_fact, decode_id, decode_ids, decode_option_u64, encode_ids,
-    encode_option_u64, length,
+    Cursor, decode_accepted_fact, decode_id, decode_ids, decode_list, decode_option_u64,
+    encode_ids, encode_option_u64, length,
 };
 use legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarCall, encode_call_plan, encode_placement,
@@ -18,6 +18,10 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, row: &SelectedCallContract) {
         target_operations::CallSiteOwner::Operation(operation) => {
             bytes.push(0);
             crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
+        }
+        target_operations::CallSiteOwner::InvokeNoNormal(edge) => {
+            bytes.push(3);
+            crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
         }
         target_operations::CallSiteOwner::ExternalCompletion(edge) => {
             bytes.push(2);
@@ -117,6 +121,7 @@ pub(super) fn decode_call(
     let instruction = SelectedInstructionId(cursor.u32()?);
     let owner = match cursor.byte()? {
         0 => target_operations::CallSiteOwner::Operation(decode_id(cursor, OperationId::new)?),
+        3 => target_operations::CallSiteOwner::InvokeNoNormal(decode_id(cursor, EdgeId::new)?),
         2 => target_operations::CallSiteOwner::ExternalCompletion(decode_id(
             cursor,
             semantic_vocabulary::EdgeId::new,
@@ -258,10 +263,8 @@ pub(in super::super) fn encode_runtime_indices(
 pub(in super::super) fn decode_runtime_indices(
     cursor: &mut Cursor<'_>,
 ) -> Result<Vec<legalized_operations::LegalizedRuntimeIndexOperand>, FixedViewCopyDecodeError> {
-    let count = cursor.length()?;
-    let mut indices = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
-        indices.push(legalized_operations::LegalizedRuntimeIndexOperand {
+    let indices = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
+        Ok(legalized_operations::LegalizedRuntimeIndexOperand {
             operand: abstract_operations::AbstractResult {
                 value: decode_id(cursor, ValueId::new)?,
                 scalar_type:
@@ -273,7 +276,7 @@ pub(in super::super) fn decode_runtime_indices(
             extent: decode_option_u64(cursor)?,
             obligation: decode_id(cursor, ObligationId::new)?,
             accepted_fact: decode_accepted_fact(cursor)?,
-        });
-    }
+        })
+    })?;
     Ok(indices)
 }

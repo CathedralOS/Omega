@@ -9,11 +9,11 @@ data Main { protocol: Protocol; orbit: Orbit; step: i32 in Wrapping; steps: i32 
 machine Main::main(main: &mut Main) reaches Console {
     let valid: bool = block Protocol::read(&mut main.protocol);
     transition valid { true -> validate(main) false -> syntax(main) }
-    state syntax(main: &mut Main) {
+    machine syntax(main: &mut Main) {
         Console::write_line("ERROR syntax: seven finite decimal fields, maximum 512 bytes, EOF");
         Console::exit_process(64);
     }
-    state validate(main: &mut Main) {
+    machine validate(main: &mut Main) {
         transition main.protocol.fields[0] > 0.0 && main.protocol.fields[0] <= 1000000.0
             && main.protocol.fields[1] >= -1000000.0 && main.protocol.fields[1] <= 1000000.0
             && main.protocol.fields[2] >= -1000000.0 && main.protocol.fields[2] <= 1000000.0
@@ -25,16 +25,16 @@ machine Main::main(main: &mut Main) reaches Console {
             true -> count(main, main.protocol.fields[6]) false -> range(main)
         }
     }
-    state range(main: &mut Main) {
+    machine range(main: &mut Main) {
         Console::write_line("ERROR range: positive mu/dt, nonzero radius, bounded coordinates/velocity, integer steps 1..4096");
         Console::exit_process(65);
     }
-    state count(main: &mut Main, count: f64)
+    machine count(main: &mut Main, count: f64)
     requires count == count && count >= 1.0 && count <= 4096.0 {
         let steps: i32 = I32::from_f64(count);
         transition F64::from_i32(steps) == count { true -> configure(main, steps) false -> range(main) }
     }
-    state configure(main: &mut Main, steps: i32) {
+    machine configure(main: &mut Main, steps: i32) {
         main.steps = steps as i32 in Wrapping;
         main.step = 0; main.time = 0.0;
         main.orbit.parameter = main.protocol.fields[0];
@@ -45,31 +45,31 @@ machine Main::main(main: &mut Main) reaches Console {
             true -> coordinates(main, main.orbit.x, main.orbit.y) false -> range(main)
         }
     }
-    state coordinates(main: &mut Main, x: f64, y: f64) {
+    machine coordinates(main: &mut Main, x: f64, y: f64) {
         transition x == x && x >= -1000000.0 && x <= 1000000.0
             && y == y && y >= -1000000.0 && y <= 1000000.0 {
             true -> bounded(main, x, y) false -> range(main)
         }
     }
-    state bounded(main: &mut Main, x: f64, y: f64)
+    machine bounded(main: &mut Main, x: f64, y: f64)
     requires x == x && x >= -1000000.0 && x <= 1000000.0
         && y == y && y >= -1000000.0 && y <= 1000000.0 {
         main.orbit.x = coordinate(x); main.orbit.y = coordinate(y);
         transition { _ -> radius(main) }
     }
-    state radius(main: &mut Main) {
+    machine radius(main: &mut Main) {
         transition main.orbit.x * main.orbit.x + main.orbit.y * main.orbit.y > 0.000000000001 {
             true -> initial(main) false -> collision(main)
         }
     }
-    state initial(main: &mut Main) {
+    machine initial(main: &mut Main) {
         Orbit::diagnostics(&mut main.orbit);
         main.orbit.initial_energy = main.orbit.energy;
         main.orbit.initial_momentum = main.orbit.momentum;
         Console::write_line("checkpoint,step,time,x,y,vx,vy,energy,angular_momentum,energy_drift,angular_momentum_drift");
         transition { _ -> checkpoint(main) }
     }
-    state checkpoint(main: &mut Main) {
+    machine checkpoint(main: &mut Main) {
         Console::write("checkpoint,");
         Protocol::integer(&mut main.protocol, main.step);
         Console::write(",");
@@ -93,27 +93,27 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("");
         transition main.step < main.steps { true -> advance(main) false -> done(main) }
     }
-    state advance(main: &mut Main) {
+    machine advance(main: &mut Main) {
         Orbit::step(&mut main.orbit);
         transition main.orbit.collision { true -> collision(main) false -> advanced(main) }
     }
-    state advanced(main: &mut Main) {
+    machine advanced(main: &mut Main) {
         main.step = main.step + 1;
         main.time = main.time + main.orbit.timestep;
         transition main.orbit.periapsis { true -> event(main) false -> checkpoint(main) }
     }
-    state event(main: &mut Main) {
+    machine event(main: &mut Main) {
         Console::write("periapsis,");
         let time: f64 = main.time - main.orbit.timestep + main.orbit.event_fraction * main.orbit.timestep;
         Protocol::number(&mut main.protocol, time);
         Console::write_line("");
         transition { _ -> checkpoint(main) }
     }
-    state collision(main: &mut Main) {
+    machine collision(main: &mut Main) {
         Console::write_line("status,collision_threshold");
         Console::exit_process(2);
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::write_line("status,complete");
         Console::exit_process(0);
     }

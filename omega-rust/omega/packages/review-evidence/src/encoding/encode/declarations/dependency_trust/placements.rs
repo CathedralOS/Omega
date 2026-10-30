@@ -23,33 +23,18 @@ pub(crate) fn encode_value_placement(
             }
             PackageReviewBoundaryValueClass::HomogeneousFloatAggregate { members } => {
                 encoder.tag("homogeneous_float_aggregate", 2);
-                encoder.field("members", |encoder| {
-                    encoder.byte(members);
-                    Ok(())
-                })?;
+                encoder.byte_field("members", members)?;
             }
             PackageReviewBoundaryValueClass::SystemVAggregate { first, second } => {
                 encoder.tag("system_v_aggregate", 3);
-                encoder.field("first", |encoder| {
-                    encode_system_v_class(encoder, first);
-                    Ok(())
-                })?;
-                encoder.field("second", |encoder| {
-                    encode_system_v_class(encoder, second);
-                    Ok(())
-                })?;
+                encoder.field_by("first", first, encode_system_v_class)?;
+                encoder.field_by("second", second, encode_system_v_class)?;
             }
         };
         Ok(())
     })?;
-    encoder.field("byte_size", |encoder| {
-        encoder.u32(shape.byte_size());
-        Ok(())
-    })?;
-    encoder.field("alignment", |encoder| {
-        encoder.u16(shape.alignment());
-        Ok(())
-    })?;
+    encoder.u32_field("byte_size", shape.byte_size())?;
+    encoder.u16_field("alignment", shape.alignment())?;
     encoder.field("locations", |encoder| {
         encoder.sequence(placement.locations(), encode_value_location)
     })
@@ -67,18 +52,9 @@ fn encode_value_location(
                 byte_size,
             } => {
                 encoder.tag("register", 0);
-                encoder.field("register", |encoder| {
-                    encode_machine_register(encoder, register);
-                    Ok(())
-                })?;
-                encoder.field("value_byte_offset", |encoder| {
-                    encoder.u32(value_byte_offset);
-                    Ok(())
-                })?;
-                encoder.field("byte_size", |encoder| {
-                    encoder.u32(byte_size);
-                    Ok(())
-                })?;
+                encoder.field_by("register", register, encode_machine_register)?;
+                encoder.u32_field("value_byte_offset", value_byte_offset)?;
+                encoder.u32_field("byte_size", byte_size)?;
             }
             PackageReviewBoundaryValueLocation::Stack {
                 stack_byte_offset,
@@ -87,22 +63,10 @@ fn encode_value_location(
                 alignment,
             } => {
                 encoder.tag("stack", 1);
-                encoder.field("stack_byte_offset", |encoder| {
-                    encoder.u32(stack_byte_offset);
-                    Ok(())
-                })?;
-                encoder.field("value_byte_offset", |encoder| {
-                    encoder.u32(value_byte_offset);
-                    Ok(())
-                })?;
-                encoder.field("byte_size", |encoder| {
-                    encoder.u32(byte_size);
-                    Ok(())
-                })?;
-                encoder.field("alignment", |encoder| {
-                    encoder.u16(alignment);
-                    Ok(())
-                })?;
+                encoder.u32_field("stack_byte_offset", stack_byte_offset)?;
+                encoder.u32_field("value_byte_offset", value_byte_offset)?;
+                encoder.u32_field("byte_size", byte_size)?;
+                encoder.u16_field("alignment", alignment)?;
             }
             PackageReviewBoundaryValueLocation::Indirect {
                 pointer,
@@ -115,45 +79,27 @@ fn encode_value_location(
                     match pointer {
                         PackageReviewIndirectPointerLocation::Register(register) => {
                             encoder.tag("register", 0);
-                            encoder.field("register", |encoder| {
-                                encode_machine_register(encoder, register);
-                                Ok(())
-                            })?;
+                            encoder.field_by("register", register, encode_machine_register)?;
                         }
                         PackageReviewIndirectPointerLocation::Stack {
                             stack_byte_offset,
                             alignment,
                         } => {
                             encoder.tag("stack", 1);
-                            encoder.field("stack_byte_offset", |encoder| {
-                                encoder.u32(stack_byte_offset);
-                                Ok(())
-                            })?;
-                            encoder.field("alignment", |encoder| {
-                                encoder.u16(alignment);
-                                Ok(())
-                            })?;
+                            encoder.u32_field("stack_byte_offset", stack_byte_offset)?;
+                            encoder.u16_field("alignment", alignment)?;
                         }
                     };
                     Ok(())
                 })?;
                 encoder.field("copy_stack_byte_offset", |encoder| {
                     encoder.option(copy_stack_byte_offset.as_ref(), |encoder, offset| {
-                        encoder.field("offset", |encoder| {
-                            encoder.u32(*offset);
-                            Ok(())
-                        })?;
+                        encoder.u32_field("offset", *offset)?;
                         Ok(())
                     })
                 })?;
-                encoder.field("byte_size", |encoder| {
-                    encoder.u32(byte_size);
-                    Ok(())
-                })?;
-                encoder.field("alignment", |encoder| {
-                    encoder.u16(alignment);
-                    Ok(())
-                })?;
+                encoder.u32_field("byte_size", byte_size)?;
+                encoder.u16_field("alignment", alignment)?;
             }
         };
         Ok(())

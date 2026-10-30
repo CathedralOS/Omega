@@ -668,7 +668,11 @@ fn walk_state_write_prefix_body(
             },
             symbols,
             inference,
-        );
+        )
+        .map(|transfers| transfers.fallthrough());
+        // This inventory supplies the next lexical statement. Departing-arm
+        // writes still contribute to the physical frame below, while their
+        // descriptor generations stay with the selected outgoing edge.
         let relation_complete = stored_call_transfer
             .as_ref()
             .is_some_and(|transfer| transfer.is_complete());
@@ -687,17 +691,26 @@ fn walk_state_write_prefix_body(
                         | StateWriteQuery::StatementPrefixes { .. }
                 )
             );
-        let stored_call_effects = stored_call_transfer.map(|transfer| transfer.effects);
-        if !wire_codec_call && let Some(call) = statement.as_call() {
-            stored_origins::retire_private_call_argument_cases(
-                program,
-                state,
-                call,
-                &local_alias_origins,
-                &mut stored,
-                inference,
-            );
-        }
+        let stored_call_effects = stored_call_transfer;
+        // Complete normal transfer owns these case-generation replacements.
+        // Keep the opacity fence for every other case, opaque region and
+        // unavailable relation. This temporary view grants no case fact.
+        let frozen_stored = stored_call_effects
+            .as_ref()
+            .filter(|transfer| transfer.is_complete() && !transfer.case_effects.is_empty())
+            .map(|transfer| {
+                let mut frozen = stored.clone();
+                for record in &mut frozen {
+                    let root = record.local_symbol;
+                    record.cases.retain(|case| {
+                        !transfer
+                            .case_effects
+                            .iter()
+                            .any(|effect| effect.covers(root, case))
+                    });
+                }
+                frozen
+            });
         // A complete relation can preserve every reference slot while producing
         // no new loans. Its absence, not its effect count, marks unknown calls.
         // Cases and non-call exposures still need the frozen-binding fence.
@@ -707,7 +720,7 @@ fn walk_state_write_prefix_body(
                 machine,
                 state,
                 statement,
-                &stored,
+                frozen_stored.as_deref().unwrap_or(&stored),
                 &local_alias_origins,
                 symbols,
                 inference,
@@ -843,7 +856,7 @@ fn walk_state_write_prefix_body(
                         program,
                         inference,
                         &mut stored,
-                        stored_call_effects.as_deref(),
+                        stored_call_effects.as_ref(),
                     );
                     continue;
                 }
@@ -1004,7 +1017,7 @@ fn walk_state_write_prefix_body(
                         program,
                         inference,
                         &mut stored,
-                        stored_call_effects.as_deref(),
+                        stored_call_effects.as_ref(),
                     );
                     continue;
                 }
@@ -1226,6 +1239,12 @@ fn walk_state_write_prefix_body(
                     // Operand effects and frozen-binding exposure were checked
                     // above. Named successors neither alter later transition
                     // arms' incoming prefixes nor belong to the local transfer.
+                    install_statement_call_effects(
+                        program,
+                        inference,
+                        &mut stored,
+                        stored_call_effects.as_ref(),
+                    );
                     continue;
                 }
                 for target in transition.targets() {
@@ -1359,7 +1378,7 @@ fn walk_state_write_prefix_body(
             program,
             inference,
             &mut stored,
-            stored_call_effects.as_deref(),
+            stored_call_effects.as_ref(),
         );
         if let Some(replacement) = assignment_replacement {
             replacement.install(inference, &mut stored);
@@ -1381,10 +1400,10 @@ fn install_statement_call_effects(
     program: &dyn crate::CheckingInput,
     inference: &mut FrameInference,
     stored: &mut Vec<StoredLocalOrigins>,
-    effects: Option<&[super::stored_calls::SlotEffect]>,
+    effects: Option<&super::stored_calls::SlotRelationTransfer>,
 ) {
     if let Some(effects) = effects {
-        super::stored_calls::apply(program, stored, effects);
+        super::stored_calls::apply_transfer(program, stored, effects);
         for record in stored {
             inference.record_local(record);
         }

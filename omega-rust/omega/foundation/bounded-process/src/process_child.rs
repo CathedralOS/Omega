@@ -4,6 +4,8 @@
 //! dropping an unfinished child retains the platform cleanup fallback.
 
 mod completion;
+mod resource_usage;
+pub use resource_usage::ProcessResourceUsage;
 #[cfg(unix)]
 pub(crate) mod descriptors;
 pub(crate) mod limits;
@@ -28,12 +30,28 @@ pub struct BoundedProcessChild {
     container_closed: bool,
     status: Option<ExitStatus>,
     finished: bool,
+    observe_resources: bool,
+    resource_usage: Option<ProcessResourceUsage>,
 }
 
 impl BoundedProcessChild {
+    /// The actual primary process, for OS-authenticated private endpoint joins.
+    /// A numeric process identity alone grants no invocation or call authority.
+    pub fn id(&mut self) -> u32 {
+        #[cfg(windows)]
+        {
+            self.child.id()
+        }
+        #[cfg(not(windows))]
+        {
+            self.inner().id()
+        }
+    }
+
     /// Spawn a configured command inside the platform process
     /// container before any child code may execute.
     pub fn spawn(prepared: BoundedProcessPrepared) -> io::Result<Self> {
+        let observe_resources = prepared.should_observe_resources();
         #[cfg(unix)]
         let retained_descriptors = prepared.retained_descriptors().to_vec();
         let (command, limits) = prepared.into_command()?;
@@ -62,6 +80,8 @@ impl BoundedProcessChild {
             container_closed: false,
             status: None,
             finished: false,
+            observe_resources,
+            resource_usage: None,
         })
     }
 
@@ -144,9 +164,35 @@ impl BoundedProcessChild {
     }
 
     pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
+        if self.observe_resources {
+            if let Some(status) = self.status {
+                return Ok(Some(status));
+            }
+            #[cfg(unix)]
+            {
+                if let Some((status, usage)) = resource_usage::try_wait_with_usage(self.id())? {
+                    self.status = Some(status);
+                    self.resource_usage = Some(usage);
+                    return Ok(Some(status));
+                }
+                return Ok(None);
+            }
+        }
         let status = self.child.try_wait()?;
         if let Some(status) = status {
             self.status = Some(status);
+            if self.observe_resources {
+                #[cfg(windows)]
+                {
+                    self.resource_usage = Some(self.child.resource_usage());
+                }
+                #[cfg(not(any(unix, windows)))]
+                {
+                    self.resource_usage = Some(ProcessResourceUsage::unavailable(
+                        "resource observations unsupported on this platform",
+                    ));
+                }
+            }
         }
         Ok(status)
     }
@@ -168,6 +214,7 @@ impl BoundedProcessChild {
         self.finished = true;
         Ok(BoundedProcessCompletion::new(
             BoundedProcessExitStatus::from_status(status),
+            self.resource_usage.take(),
         ))
     }
 

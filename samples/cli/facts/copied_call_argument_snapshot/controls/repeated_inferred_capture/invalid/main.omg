@@ -36,5 +36,5 @@ machine main() crashes Trap {
     let result: u64 = receive_pair(snapshot(first, &mut first_counter), Counting::snapshot(Direct as dyn Counting, second, &mut second_counter), overwrite(&mut first));
     let difference: u64 = result - 7;
     transition first_counter.value && second_counter.value && difference == 0 && first.bytes.len == 9 { true -> done() false -> wrong() }
-    state done() {} state wrong() { crash Trap; }
+    machine done() {} machine wrong() { crash Trap; }
 }

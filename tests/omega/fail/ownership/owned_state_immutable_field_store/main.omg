@@ -1,7 +1,7 @@
 data Counter [copy] { value: u64; }
 machine unchanged(counter: Counter) -> Counter {
     transition { _ -> update(counter) }
-    state update(counter: Counter) -> Counter {
+    machine update(counter: Counter) -> Counter {
         counter.value = 7;
         counter
     }

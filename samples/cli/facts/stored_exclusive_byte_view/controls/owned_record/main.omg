@@ -10,6 +10,6 @@ machine main() crashes Trap {
     let bundle: Bundle = Bundle { windows: [&mut backing[..]] };
     let observed: bool = observe(bundle);
     transition observed { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

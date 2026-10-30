@@ -9,7 +9,7 @@ fn retired_receiver_parameters_reject_in_every_signature_owner() {
             format!("data Counter {{ value: u32; }} machine Counter::step({parameter}) {{}}"),
             format!("trait Operation {{ machine step({parameter}); }}"),
             format!("boundary trait Operation {{ machine step({parameter}) reaches; }}"),
-            format!("machine run() {{ state step({parameter}) {{}} }}"),
+            format!("machine run() {{ machine step({parameter}) {{}} }}"),
         ] {
             let tokens = Lexer::new(&source).tokenize().unwrap();
             let error = parse_syntax_trees(&tokens).expect_err("receiver must reject");
@@ -43,7 +43,7 @@ fn explicit_owned_shared_mutable_and_write_only_parameters_parse() {
         machine write(counter: &write Counter) { counter.value = 1; }
         machine Counter::clear(counter: &mut Counter) {
             transition { _ -> finish(counter) }
-            state finish(counter: &mut Counter) { counter.value = 0; }
+            machine finish(counter: &mut Counter) { counter.value = 0; }
         }
     "#;
     let tokens = Lexer::new(source).tokenize().unwrap();

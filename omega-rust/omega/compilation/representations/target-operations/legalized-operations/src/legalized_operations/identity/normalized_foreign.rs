@@ -2,7 +2,7 @@
 //! provider execution, boundary-entry plan, and exact argument/result homes
 //! encode as one indivisible row.
 use super::calling::{encode_call_plan, encode_native_place, encode_placement, encode_shape};
-use super::encoding::encode_len;
+use super::encoding::{encode_len, encode_option};
 use super::scalar::{encode_integer, encode_integer_type, encode_scalar_type};
 use super::structural::encode_provider_execution;
 use super::structural_types::{encode_string, encode_target_structural_argument};
@@ -91,13 +91,9 @@ pub fn encode_native_callback_argument(
     encode_shape(bytes, callback.application.shape);
     encode_placement(bytes, &callback.application.placement);
     encode_native_place(bytes, &callback.destination);
-    match callback.field_byte_offset {
-        Some(offset) => {
-            bytes.push(1);
-            crate::codec_bytes::push_encoded(bytes, (offset as u64).to_le_bytes());
-        }
-        None => bytes.push(0),
-    }
+    encode_option(bytes, callback.field_byte_offset, |bytes, offset| {
+        crate::codec_bytes::push_encoded(bytes, (offset as u64).to_le_bytes())
+    });
     encode_call_plan(bytes, &callback.registrar_boundary_entry_plan.call);
     encode_state_plan_identity(bytes, &callback.registrar_boundary_entry_plan.state);
     encode_len(bytes, callback.registrar_context.binders.len());

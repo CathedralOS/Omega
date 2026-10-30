@@ -16,8 +16,8 @@
 //! rooted at it makes the read unstable. The distinction is what keeps
 //! `let n = k` honest when `k` is reassigned before the call: `n` may claim
 //! the incoming value only while nothing can write it away.
-use super::super::StrictArithmeticExpressionBinding;
 use super::{BigInt, Engine, ExpressionHandle, Machine, Polynomial, State, lengths, meanings};
+use crate::StrictArithmeticExpressionBinding;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;

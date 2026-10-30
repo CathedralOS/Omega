@@ -5,7 +5,7 @@ machine maybe_ordered(value: f32) -> f32
 crashes Trap value == value
 {
     transition value == value { true -> bad() false -> (value) }
-    state bad() { crash Trap; }
+    machine bad() -> f32 { crash Trap; }
 }
 public machine read_nan() -> f32
 {
@@ -17,5 +17,5 @@ public machine read_nan() -> f32
 machine main() crashes Trap {
     let observed: f32 = read_nan();
     transition observed != observed { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

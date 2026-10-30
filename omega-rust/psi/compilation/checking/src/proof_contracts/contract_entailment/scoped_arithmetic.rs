@@ -28,6 +28,8 @@ use typed_trees::machine::Machine;
 /// value occurrence, or the synthetic `result` name for the returned value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScopedArithmeticBinder {
+    /// A declaration type binder, never an integer value symbol.
+    Type(symbols::SymbolHandle),
     Symbol(symbols::SymbolHandle),
     /// One exact value occurrence whose denotation the binding owner supplies.
     Occurrence(ExpressionHandle),
@@ -36,6 +38,8 @@ pub enum ScopedArithmeticBinder {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScopedArithmeticValue {
+    /// Actual supplying type metadata for a Type binder; not a polynomial.
+    TypeReference(typed_trees::types::TypeReferenceHandle),
     /// A private mathematical unknown. The identity is shared across every
     /// proposition of one implication; an unsigned atom carries `>= 0`.
     Atom { identity: String, unsigned: bool },
@@ -157,6 +161,30 @@ pub fn scoped_arithmetic_comparisons_unsatisfiable(
     engine.integer_comparisons_unsatisfiable(normalized)
 }
 
+/// One scalar observation of an exact completed aggregate result. Geometry
+/// comes from the selected public return declaration; the observation supplies
+/// no value bound until ordinary independent call guarantees establish it.
+#[derive(Clone)]
+pub struct ScopedCallResultObservation {
+    pub expression: ExpressionHandle,
+    pub path: Vec<facts::PlaceSegment>,
+    pub primitive_type: typed_trees::types::PrimitiveType,
+    pub value: ScopedArithmeticValue,
+    /// Frozen backing and loaded-slot footprints. An owned inline result has
+    /// none; a pointee observation expires when any supplier may change.
+    pub read_dependencies: Vec<String>,
+    pub(crate) backing: Option<crate::machine_calls::calls::CapturedStorageReadBacking>,
+}
+
+pub fn scoped_call_result_observations(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> Vec<ScopedCallResultObservation> {
+    calls::result_observations::result_observations(program, machine, state, expression)
+}
+
 /// One completed call's retained caller observations. Source ordinal belongs
 /// to the invocation itself, not the later proof point consuming its facts.
 /// A statement completion has no result value; its Result clauses stay unbound.
@@ -167,6 +195,7 @@ pub struct ScopedCallCompletion<'scope> {
     pub actuals: &'scope [ScopedArithmeticBinding],
     pub machine_values: &'scope [(symbols::SymbolHandle, ScopedArithmeticValue)],
     pub result: Option<ScopedArithmeticValue>,
+    pub result_observations: &'scope [ScopedCallResultObservation],
 }
 
 /// Published arithmetic guarantees for one already completed call. Actuals
@@ -303,6 +332,7 @@ pub(super) fn install_hypotheses(
     // Captured values are normalized before their occurrence's hypotheses.
     // Revisit their dependent operation bounds now that those facts are live.
     engine.refresh_opaque_intervals();
+    engine.refresh_admitted_integer_remainders();
     true
 }
 
@@ -429,4 +459,54 @@ pub fn scoped_arithmetic_value_bounds(
         return None;
     }
     Some(engine.polynomial_interval(&engine.substituted(&value)))
+}
+
+/// Fit one independently formed operand under its declaration's exact scoped
+/// symbols. The caller supplies only preceding, already formed requirements;
+/// neither the consuming comparison nor its result is a hypothesis. Runtime
+/// callers instead normalize their completed occurrence at operation entry.
+pub(super) fn scoped_arithmetic_value_fits_for_declaration(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    hypotheses: &[ScopedArithmeticHypothesis],
+    value: &ScopedArithmeticValue,
+    target: typed_trees::types::PrimitiveType,
+) -> super::operand_fits::CarrierFit {
+    use super::operand_fits::CarrierFit;
+    let mut calls = calls::ScopedCalls::for_declaration(program, owner);
+    let Some(value) = calls.value(value) else {
+        return CarrierFit::Unknown;
+    };
+    let Some(hypotheses) = calls.hypotheses(hypotheses) else {
+        return CarrierFit::Unknown;
+    };
+    let mut engine = Engine::strict_for_declaration(program, owner);
+    let Some(value) = engine.normalize_scoped_value(&value) else {
+        return CarrierFit::Unknown;
+    };
+    let (minimum, maximum, exclusive) = if target == typed_trees::types::PrimitiveType::Addr {
+        let Some(bound) = engine.address_model_bound() else {
+            return CarrierFit::Unknown;
+        };
+        (super::BigInt::zero(), bound, true)
+    } else {
+        let Some((minimum, maximum)) = target.integer_bounds() else {
+            return CarrierFit::Unknown;
+        };
+        (
+            super::BigInt::from_i128(minimum),
+            Polynomial::constant(super::BigInt::from_i128(maximum)),
+            false,
+        )
+    };
+    if !install_hypotheses(program, &mut engine, &hypotheses) {
+        return CarrierFit::Unknown;
+    }
+    engine.integer_value_fit(
+        &value,
+        &minimum,
+        &maximum,
+        exclusive,
+        target == typed_trees::types::PrimitiveType::Addr,
+    )
 }

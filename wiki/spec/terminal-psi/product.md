@@ -29,13 +29,19 @@ or obligations has a closed static identity. Author-declared hardware geometry
 remains semantic; target-selected layout, ABI classes, registers, storage regions,
 and instructions are later realization facts.
 
-The portable root names either one concrete machine or an independent
+The optional portable default root names either one concrete machine or an independent
 target-family contract. A family contract has no executable body: the receiving
 installation resolves its exact tagged member from the retained catalog before
 creating execution state or a native plan. The root, every member, and the
 canonical semantic identity remain unchanged across installations. Selection
 establishes catalog membership only; entry backing, provider authority and
 checked source-entry correspondence remain separate admission obligations.
+
+A declaration-only checking product has no default root or root-service reach.
+It can retain real scalar-evaluation machines and supplied callable declarations;
+it does not invent an executable entry. Execution requires an explicitly admitted
+callable or an existing default root. Native emission likewise requires its
+selected executable application.
 
 Selected boundary-operator applications belong to these portable semantics.
 Each demand names its Terminal operation, exact-owner requirement identity,
@@ -174,14 +180,22 @@ lemmas do not change operation or program identity.
 
 ## Build-owned companion
 
-The target-neutral module carries every target-scoped machine body under its
-family path with its target tag; selecting a body is a realization fact, not a
-Terminal branch. The realization target set travels beside the module in an
+The target-neutral module carries every supplied named implementation under its
+ordinary declaration identity and explicit requirement-satisfaction edges. It
+does not group source bodies into target-tagged same-path families or synthesize
+a portable family head. The realization target set travels beside the module in an
 exact owned build companion, and per target: profile, ProgramEntry,
 target-constrained provider plans, external-binding requirements,
 compiler-builtin proposals and pending Omega optimization selections, as rows
 keyed by target. Rows are not executable semantics inserted into Terminal,
 and possession does not grant realization authority.
+
+Omega selects the exact implementation through those Build provider rows, not
+through a target modifier on a source declaration. Every implementation remains
+checked independently of selection; selected ABI, import, layout, and ISA
+applicability is a realization obligation. The reference compiler's retained
+target-family rows are legacy migration work under
+`BUILD-OWNED-TARGET-SELECTION`, not accepted Terminal product semantics.
 
 The companion binds each target's pending selection to the complete
 build-selection identity. Terminal independently retains the Psi selection already executed.

@@ -103,6 +103,16 @@ pub(crate) fn write_canonical_place_label(
             label.push_str("invocation referent ");
             push_symbol_label(program, parameter, label);
         }
+        PlaceRoot::InvocationOutput(output) => {
+            let _ = write!(
+                label,
+                "invocation output {:?}:{}:{}:{:?}",
+                output.state_symbol,
+                output.statement_index,
+                output.call_ordinal,
+                output.parameter_symbol
+            );
+        }
         PlaceRoot::Expression(expression) => {
             program
                 .expression_table
@@ -408,7 +418,10 @@ fn fact_place_type_symbol(
             expression_type_symbol(program, expression)?,
             expression_type_reference(program, expression).unwrap_or_default(),
         ),
-        PlaceRoot::Unknown | PlaceRoot::TypeReference(_) | PlaceRoot::InvocationReferent { .. } => {
+        PlaceRoot::Unknown
+        | PlaceRoot::TypeReference(_)
+        | PlaceRoot::InvocationReferent { .. }
+        | PlaceRoot::InvocationOutput(_) => {
             return None;
         }
     };

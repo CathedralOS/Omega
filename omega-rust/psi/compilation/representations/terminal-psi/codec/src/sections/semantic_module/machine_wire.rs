@@ -5,6 +5,9 @@
 //! retained contract. Block bodies and their operation vocabulary remain in
 //! the parent codec.
 
+#[cfg(test)]
+mod tests;
+
 use terminal_psi::{
     EntryClaim, StructuralPlaceDeclaration, TerminalBlockNaturalRank, TerminalMachine,
     TerminalMachineResult, TerminalNaturalCycle, TerminalNaturalRankComparison,
@@ -51,6 +54,13 @@ pub(crate) fn encode_machine(
     encode_optional_id(writer, machine.attachment);
     encode_optional_id(writer, machine.nominal_cleanup_subject);
     encode_declarations(writer, "machine parameters", &machine.parameters)?;
+    writer.len("machine parameter order", machine.parameter_order.len())?;
+    for kind in &machine.parameter_order {
+        writer.u8(match kind {
+            terminal_psi::BoundaryParameterKind::Scalar => 0,
+            terminal_psi::BoundaryParameterKind::Structural => 1,
+        });
+    }
     encode_structural_parameters(writer, &machine.structural_parameters)?;
     encode_ranked_scc(writer, machine.ranked_scc.as_ref())?;
     match &machine.result {
@@ -96,29 +106,23 @@ pub(crate) fn encode_machine(
     encode_service_ceiling(writer, &machine.declared_service_reach)?;
     encode_service_ceiling(writer, &machine.published_service_ceiling)?;
     super::reach_application_wire::encode(writer, machine.closed_reach_application.as_ref())?;
-    writer.len("content entry claims", machine.content_entry_claims.len())?;
-    for binding in &machine.content_entry_claims {
-        encode_content_entry_claim(writer, binding)?;
-    }
-    writer.len(
+    writer.counted(
+        "content entry claims",
+        &machine.content_entry_claims,
+        encode_content_entry_claim,
+    )?;
+    writer.counted(
         "content identity reshuffles",
-        machine.content_identity_reshuffles.len(),
+        &machine.content_identity_reshuffles,
+        encode_content_identity_reshuffle,
     )?;
-    for reshuffle in &machine.content_identity_reshuffles {
-        encode_content_identity_reshuffle(writer, reshuffle)?;
-    }
-    writer.len(
+    writer.counted(
         "content partition compositions",
-        machine.content_partition_compositions.len(),
+        &machine.content_partition_compositions,
+        encode_content_partition_composition,
     )?;
-    for composition in &machine.content_partition_compositions {
-        encode_content_partition_composition(writer, composition)?;
-    }
     writer.id(machine.entry);
-    writer.len("blocks", machine.blocks.len())?;
-    for block in &machine.blocks {
-        super::block_wire::encode_block(writer, block)?;
-    }
+    writer.counted("blocks", &machine.blocks, super::block_wire::encode_block)?;
     encode_contract(writer, &machine.contract)
 }
 
@@ -156,6 +160,11 @@ pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
     let attachment = decode_optional_id(reader, "StructuralTypeId")?;
     let nominal_cleanup_subject = decode_optional_id(reader, "StructuralTypeId")?;
     let parameters = decode_declarations(reader)?;
+    let parameter_order = decode_counted(reader, |reader| match reader.u8()? {
+        0 => Ok(terminal_psi::BoundaryParameterKind::Scalar),
+        1 => Ok(terminal_psi::BoundaryParameterKind::Structural),
+        tag => Err(CodecError::InvalidTag("machine parameter kind", tag)),
+    })?;
     let structural_parameters = decode_structural_parameters(reader)?;
     let ranked_scc = decode_ranked_scc(reader)?;
     let result = match reader.u8()? {
@@ -215,6 +224,7 @@ pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
         attachment,
         nominal_cleanup_subject,
         parameters,
+        parameter_order,
         structural_parameters,
         ranked_scc,
         result,

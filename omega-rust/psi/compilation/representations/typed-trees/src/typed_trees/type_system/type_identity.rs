@@ -976,6 +976,36 @@ impl TypedTrees {
         binders: &[(SymbolHandle, String)],
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Option<NormalizedTypeIdentity> {
+        self.fixed_array_length_identity_with_substitution_semantics(
+            length,
+            binders,
+            substitutions,
+            SubstitutionSemantics::Transitive,
+        )
+    }
+
+    /// An authored extent under one simultaneous type/const telescope. Supplied
+    /// operands keep their own scope instead of seeing sibling replacements.
+    pub fn fixed_array_length_identity_with_simultaneous_substitutions(
+        &self,
+        length: &crate::types::FixedArrayLength,
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    ) -> Option<NormalizedTypeIdentity> {
+        self.fixed_array_length_identity_with_substitution_semantics(
+            length,
+            &[],
+            substitutions,
+            SubstitutionSemantics::Simultaneous,
+        )
+    }
+
+    fn fixed_array_length_identity_with_substitution_semantics(
+        &self,
+        length: &crate::types::FixedArrayLength,
+        binders: &[(SymbolHandle, String)],
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+        substitution_semantics: SubstitutionSemantics,
+    ) -> Option<NormalizedTypeIdentity> {
         if let crate::types::FixedArrayLength::Expression(reference) = length
             && (!self
                 .type_reference_table
@@ -994,6 +1024,7 @@ impl TypedTrees {
             &TypeIdentityContext {
                 binders,
                 substitutions,
+                substitution_semantics,
                 invalid_index_argument: Some(&invalid),
                 ..Default::default()
             },
@@ -1247,23 +1278,31 @@ impl TypedTrees {
         // keep physical slots distinct. That suffix is not part of the
         // authored overload: every body in the family has the same path,
         // including when the declaration belongs to a module.
-        let mut lexical_path = vec![machine.name.as_str().to_owned()];
-        let mut parent = self.symbols.get(machine.symbol).parent;
-        while parent.is_valid() && self.symbols.get(parent).kind == symbols::SymbolKind::Machine {
-            let owner = self.machine_by_symbol(parent)?;
-            lexical_path.push(owner.name.as_str().to_owned());
-            parent = self.symbols.get(parent).parent;
-        }
-        lexical_path.reverse();
-        let lexical_path = lexical_path.join("::");
-        let module_path = module.is_valid().then(|| {
-            format!(
-                "{}::{lexical_path}",
-                self.symbols.display_path(module, "::")
-            )
-        });
+        let parent = self.symbols.get(machine.symbol).parent;
+        let lexical_path =
+            if parent.is_valid() && self.symbols.get(parent).kind == symbols::SymbolKind::Machine {
+                let owner = self.machine_by_symbol(parent)?;
+                // Names alone merge helpers beneath different parent overloads.
+                // Carry the parent's complete stable identity, including its
+                // telescope and result dispatch, never a source/arena ordinal.
+                compound(
+                    "nested-machine",
+                    [
+                        atom("owner", &self.machine_callable_identity_text(owner)?),
+                        atom("name", machine.name.as_str()),
+                    ],
+                )
+            } else if module.is_valid() {
+                format!(
+                    "{}::{}",
+                    self.symbols.display_path(module, "::"),
+                    machine.name
+                )
+            } else {
+                machine.name.as_str().to_owned()
+            };
         Some(self.named_callable_identity_parts(
-            module_path.as_deref().unwrap_or(&lexical_path),
+            &lexical_path,
             machine.symbol,
             self.machine_type_parameters(machine),
             self.state_parameters(entry),

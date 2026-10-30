@@ -31,8 +31,8 @@ machine Main::main(main: &mut Main) reaches Character crashes Trap {
     let exclusive: i32 = exclusive_field(&mut holder);
     let token: Token = Token { value: 7 };
     transition shared == 40 && exclusive == 41 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

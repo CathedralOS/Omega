@@ -6,37 +6,24 @@
 //! builds the call operation, and binds its result: a
 //! discarded structural result is disposed on the call's continuation, a
 //! bound one joins the body's structural results, a scalar one binds in the
-//! dense namespace. The statement's pending result stores follow as the
-//! call's immediate continuation, then the call's cleanup. Select structural
+//! dense namespace. Normal operand cleanup follows result capture before an
+//! enclosing result store can displace its destination. Select structural
 //! replacement only after operand preparation updates the open-window ledger;
 //! selecting it earlier would dispose an actual that the call already consumed.
 use super::{
-    CheckFacts, CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralResultBindingPlan, ExpectedCallValueResult, LocalConstructionTrace,
-    Multiplicity, ScalarCalleeClosure, ShapeCollector, StatementNode, SymbolHandle,
-    bind_scalar_call_result, bind_structural_call_result, build_call_operation, consume_results,
-    structural_operands,
+    CheckedUnitEffectOperationPlan, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralResultBindingPlan, Construction,
+    ExpectedCallValueResult, Multiplicity, StatementNode, SymbolHandle, bind_scalar_call_result,
+    bind_structural_call_result, build_call_operation, consume_results, structural_operands,
 };
 use checked_trees::CheckedUnitPartialAffineDiscardPlan;
 
 /// The sequence state a statement's call reads and extends.
 pub(super) struct Planner<'a, 'program, 'shapes> {
-    pub(super) program: &'program dyn ::validation::CheckingInput,
-    pub(super) facts: &'program CheckFacts,
-    pub(super) scalar_callees: ScalarCalleeClosure,
-    pub(super) shapes: &'a mut ShapeCollector<'shapes>,
-    pub(super) machine: &'program typed_trees::machine::Machine,
-    pub(super) state: &'program typed_trees::state::State,
-    pub(super) structural_parameters: &'a mut [CheckedUnitStructuralParameterPlan],
+    pub(super) construction: Construction<'a, 'program, 'shapes>,
     pub(super) scalar_parameters: &'a [super::CheckedStructuralScalarParameterPlan],
     pub(super) parameter_storage: &'a [checked_trees::CheckedUnitParameterStoragePlan],
-    pub(super) entry_claims: &'a [CheckedUnitEntryClaimPlan],
-    pub(super) trivial_affine_locals:
-        &'a [(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     pub(super) calls: &'a [&'a checked_trees::FlowCallFact],
-    pub(super) trace: &'a LocalConstructionTrace,
     pub(super) operations: &'a mut Vec<CheckedUnitEffectOperationPlan>,
     pub(super) structural_count: &'a mut usize,
     pub(super) call_count: &'a mut usize,
@@ -68,19 +55,22 @@ pub(super) fn plan(
     statement_call: StatementCall,
 ) -> Option<()> {
     let Planner {
-        program,
-        facts,
-        scalar_callees,
-        shapes,
-        machine,
-        state,
-        structural_parameters,
+        construction:
+            Construction {
+                program,
+                facts,
+                scalar_callees,
+                shapes,
+                machine,
+                state,
+                structural_parameters,
+                entry_claims,
+                trivial_affine_locals,
+                trace,
+            },
         scalar_parameters,
         parameter_storage,
-        entry_claims,
-        trivial_affine_locals,
         calls,
-        trace,
         operations,
         structural_count,
         call_count,
@@ -112,8 +102,9 @@ pub(super) fn plan(
         return None;
     }
     if matches!(statement, StatementNode::Transition(_))
-        && super::super::call_occurrences::terminal_named_call(program, machine, state, index)
-            != Some(call.target_symbol)
+        && !super::super::call_occurrences::is_terminal_call_occurrence(
+            program, machine, state, call,
+        )
     {
         return None;
     }
@@ -126,7 +117,11 @@ pub(super) fn plan(
     if let Some(expression) = authored_expression {
         let authored = program.expression_table.call_node(expression)?;
         if call.authored_expression != expression
-            || call.target_symbol != validation::call_target_symbol(program, authored)
+            || call.target_symbol
+                != validation::call_target_entry_symbol(
+                    program,
+                    validation::call_target_symbol(program, authored),
+                )
         {
             return None;
         }
@@ -150,6 +145,14 @@ pub(super) fn plan(
         trace,
         windows,
     )?;
+    if operations
+        .last()
+        .is_some_and(|operation| !operation.has_normal_continuation())
+    {
+        // A nonreturning operand prevents this enclosing invocation from
+        // executing. Its exact argument prefix remains in the sequence.
+        return Some(());
+    }
     if let Some(contract) = crate::checks::atomic_fences::contract(program, call) {
         call_phase("statement sequence: call: atomic fence ordering");
         if result.is_some() || structural_result.is_some() || !call_result_stores.is_empty() {
@@ -175,6 +178,7 @@ pub(super) fn plan(
         // provider boundary or fabricated executable callee is introduced.
         let arguments = crate::execution::terminal_unit::calls::structural_call_arguments(
             program,
+            shapes,
             facts,
             call,
             machine,
@@ -231,6 +235,7 @@ pub(super) fn plan(
     call_phase("statement sequence: call: call operation");
     let mut operation = build_call_operation(
         program,
+        shapes,
         facts,
         Some(scalar_callees),
         machine,
@@ -251,6 +256,16 @@ pub(super) fn plan(
         trace,
     )?;
     let coordinate = operation.invocation_coordinate()?;
+    if operation
+        .call()
+        .is_some_and(|call| *call.result() == checked_trees::CheckedUnitCallResult::NoNormal)
+    {
+        // Argument custody crosses before entering the callee, but no receiving
+        // local, replacement store or normal continuation is established.
+        consume_results(operations, &operation)?;
+        operations.push(operation);
+        return Some(());
+    }
     call_phase("statement sequence: call: result binding");
     if let Some(result) = &structural_result
         && !result.local.is_named()
@@ -306,13 +321,14 @@ pub(super) fn plan(
                 )],
             });
         }
-        super::super::super::cleanup::anonymous::append_continuation(
+        super::super::super::cleanup::anonymous::insert_continuation(
             program,
             facts,
             shapes,
             machine,
             state,
             coordinate,
+            operations.len(),
             structural_results,
             operations,
             trace,
@@ -360,9 +376,10 @@ pub(super) fn plan(
         Some(result) => bind_scalar_call_result(facts, operation, result, true)?,
         None => operation,
     });
-    // The store consuming this call's scalar result is its immediate
-    // continuation: the result is live, and no cleanup separates the call
-    // from the field it was called to fill.
+    // The result is captured before operand cleanup. Select that cleanup
+    // against the complete planned result consumption below, then insert it
+    // at this normal-return boundary before enclosing destination effects.
+    let completion_position = operations.len();
     for store in call_result_stores {
         // The store consumes the call's minted result binding: record the
         // consumption so an affine producer sheds its return-edge disposal.
@@ -377,13 +394,14 @@ pub(super) fn plan(
     }
     *structural_count = structural_count.checked_add(structural_store_bindings)?;
     call_phase("statement sequence: call: normal completion");
-    super::super::super::cleanup::anonymous::append_continuation(
+    super::super::super::cleanup::anonymous::insert_continuation(
         program,
         facts,
         shapes,
         machine,
         state,
         coordinate,
+        completion_position,
         structural_results,
         operations,
         trace,

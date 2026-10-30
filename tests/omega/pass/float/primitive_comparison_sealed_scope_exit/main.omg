@@ -5,6 +5,6 @@ machine main() crashes Trap {
     marker();
     let observed: f64 = 0.25;
     transition observed == 0.25 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

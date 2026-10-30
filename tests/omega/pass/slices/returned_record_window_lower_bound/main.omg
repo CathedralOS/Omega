@@ -8,10 +8,10 @@ ensures result.values.len >= 1
         true -> one(items)
         _ -> three(items)
     }
-    state one(items: &'row mut [i32 in Wrapping; 4]) -> Held<'row> {
+    machine one(items: &'row mut [i32 in Wrapping; 4]) -> Held<'row> {
         Held { values: &mut items[0..1] }
     }
-    state three(items: &'row mut [i32 in Wrapping; 4]) -> Held<'row> {
+    machine three(items: &'row mut [i32 in Wrapping; 4]) -> Held<'row> {
         Held { values: &mut items[1..4] }
     }
 }
@@ -31,6 +31,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

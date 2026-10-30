@@ -95,6 +95,8 @@ use writes::check_domain_field_writes;
 pub(super) struct ContractDecisions {
     pub(super) scalar_returns: Vec<checked_trees::CheckedScalarReturnQualification>,
     pub(super) constant_obligations: Vec<checked_trees::ConstantPredicateObligation>,
+    pub(super) recipe_obligations: Vec<checked_trees::ConstantRecipeObligation>,
+    pub(super) integer_range_obligations: Vec<checked_trees::IntegerRangeObligation>,
     pub(super) call_requires: Vec<checked_trees::DecidedCallRequires>,
     pub(super) value_qualifications: arena::Arena<checked_trees::CheckedValueQualification>,
 }
@@ -113,6 +115,8 @@ pub(super) fn check_flow_call_contracts(
     let mut decided = Vec::new();
     let mut scalar_returns = Vec::new();
     let mut constant_obligations = Vec::new();
+    let mut recipe_obligations = Vec::new();
+    let mut integer_range_obligations = Vec::new();
     let mut value_qualifications = arena::Arena::default();
     let constructor_memberships = writes::ConstructorMemberships::new(facts);
     let content_plans = validation::content_conservation_plans(program);
@@ -143,57 +147,161 @@ pub(super) fn check_flow_call_contracts(
     static STRUCT_TRACE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     let struct_trace =
         *STRUCT_TRACE.get_or_init(|| std::env::var_os("OMEGA_STRUCT_TRACE").is_some());
+    let has_activation_claim = program
+        .data_definitions()
+        .iter()
+        .any(|data| validation::activation_claim_byte_carrier(program, data.symbol).is_some());
 
-    for (_, state_flow) in facts.flow.control.states.iter() {
-        let caller_is_proof = struct_trace && is_proof_machine(state_flow.machine_symbol);
-        for call_flow in facts.flow.control.calls.span_or_empty(state_flow.calls) {
-            if struct_trace {
-                eprintln!(
-                    "CALLREQ caller={} proof={} target={} proof={}",
-                    crate::labels::machine_name(program, state_flow.machine_symbol),
-                    caller_is_proof,
-                    crate::labels::call_target_label(program, call_flow.target_symbol),
-                    is_proof_machine(call_flow.target_symbol),
-                );
-            }
-            let _s = phase_profile::guard("05.d.7.3b.1.calls");
-            exits::check_state_transfer_result_domains(
-                program,
-                state_flow,
-                call_flow,
-                &mut diagnostics,
-            );
-            let before = diagnostics.len();
-            check_call_requires(
-                program,
-                facts,
-                state_flow,
-                call_flow,
-                &nominal_requirements,
-                incoming_guards.for_machine(state_flow.machine_symbol),
-                expression_intervals,
-                call_frames,
-                &mut constant_obligations,
-                &mut value_qualifications,
-                &mut diagnostics,
-            );
-            // Every fact is proved here or retained as a constant obligation
-            // that target closure must discharge before Terminal production.
-            if diagnostics.len() == before
-                && let Ok(statement_index) = u32::try_from(call_flow.statement_index)
-            {
-                decided.push(checked_trees::DecidedCallRequires {
-                    state: state_flow.state_symbol,
-                    statement_index,
-                    target: call_flow.target_symbol,
-                });
-            }
+    let mut structural_values_by_state = symbols::SymbolKeyMap::<
+        symbols::SymbolHandle,
+        Vec<&checked_trees::CheckedStructuralValue>,
+    >::default();
+    for (_, value) in facts.values.structural_values.nodes.iter() {
+        if matches!(
+            value.kind,
+            checked_trees::CheckedStructuralValueKind::ScalarArray { .. }
+                | checked_trees::CheckedStructuralValueKind::FixedArray { .. }
+                | checked_trees::CheckedStructuralValueKind::Record { .. }
+                | checked_trees::CheckedStructuralValueKind::Case(_)
+        ) {
+            structural_values_by_state
+                .entry(value.state)
+                .or_default()
+                .push(value);
         }
+    }
+
+    let state_flows: Vec<&checked_trees::FlowStateFact> = facts
+        .flow
+        .control
+        .states
+        .iter()
+        .map(|(_, state_flow)| state_flow)
+        .collect();
+
+    let per_state_call_and_write_results: Vec<(
+        Vec<checked_trees::DecidedCallRequires>,
+        Vec<checked_trees::ConstantPredicateObligation>,
+        Vec<checked_trees::ConstantRecipeObligation>,
+        arena::Arena<checked_trees::CheckedValueQualification>,
+        Vec<Diagnostic>,
+    )> = validation::checking_thread_pool().install(|| {
+        use rayon::prelude::*;
+        state_flows
+            .par_iter()
+            .map(|&state_flow| {
+                let mut state_decided = Vec::new();
+                let mut state_constant_obligations = Vec::new();
+                let mut state_recipe_obligations = Vec::new();
+                let mut state_value_qualifications = arena::Arena::default();
+                let mut state_diagnostics = Vec::new();
+                let caller_is_proof = struct_trace && is_proof_machine(state_flow.machine_symbol);
+                for call_flow in facts.flow.control.calls.span_or_empty(state_flow.calls) {
+                    if struct_trace {
+                        eprintln!(
+                            "CALLREQ caller={} proof={} target={} proof={}",
+                            crate::labels::machine_name(program, state_flow.machine_symbol),
+                            caller_is_proof,
+                            crate::labels::call_target_label(program, call_flow.target_symbol),
+                            is_proof_machine(call_flow.target_symbol),
+                        );
+                    }
+                    let _s = phase_profile::guard("05.d.7.3b.1.calls");
+                    exits::check_state_transfer_result_domains(
+                        program,
+                        state_flow,
+                        call_flow,
+                        &mut state_diagnostics,
+                    );
+                    let before = state_diagnostics.len();
+                    check_call_requires(
+                        program,
+                        facts,
+                        state_flow,
+                        call_flow,
+                        &nominal_requirements,
+                        incoming_guards.for_machine(state_flow.machine_symbol),
+                        expression_intervals,
+                        call_frames,
+                        &mut state_constant_obligations,
+                        &mut state_recipe_obligations,
+                        &mut state_value_qualifications,
+                        &mut state_diagnostics,
+                    );
+                    // Every fact is proved here or retained as a constant obligation
+                    // that target closure must discharge before Terminal production.
+                    if state_diagnostics.len() == before
+                        && let Ok(statement_index) = u32::try_from(call_flow.statement_index)
+                    {
+                        state_decided.push(checked_trees::DecidedCallRequires {
+                            state: state_flow.state_symbol,
+                            statement_index,
+                            target: call_flow.target_symbol,
+                        });
+                    }
+                }
+                // Formation decides each value's qualification before return admission
+                // consumes it. The target of a cast is an obligation; only this walk's
+                // completed operand judgment can supply a qualification on its result.
+                let state_structural_values = structural_values_by_state
+                    .get(&state_flow.state_symbol)
+                    .map_or(&[][..], Vec::as_slice);
+                phase_profile::scope("05.d.7.3b.3.writes", || {
+                    check_domain_field_writes(
+                        program,
+                        facts,
+                        &constructor_memberships,
+                        state_flow,
+                        state_structural_values,
+                        call_frames,
+                        &mut state_value_qualifications,
+                        &mut state_diagnostics,
+                    );
+                });
+                (
+                    state_decided,
+                    state_constant_obligations,
+                    state_recipe_obligations,
+                    state_value_qualifications,
+                    state_diagnostics,
+                )
+            })
+            .collect()
+    });
+
+    for (
+        state_flow,
+        (
+            state_decided,
+            state_constant_obligations,
+            state_recipe_obligations,
+            state_value_qualifications,
+            state_diagnostics,
+        ),
+    ) in state_flows
+        .into_iter()
+        .zip(per_state_call_and_write_results)
+    {
+        decided.extend(state_decided);
+        constant_obligations.extend(state_constant_obligations);
+        recipe_obligations.extend(state_recipe_obligations);
+        for (_, qualification) in state_value_qualifications.iter() {
+            value_qualifications.append(qualification.clone());
+        }
+        diagnostics.extend(state_diagnostics);
         for exit_flow in facts.flow.control.exits.span_or_empty(state_flow.exits) {
             let _s = phase_profile::guard("05.d.7.3b.2.exits");
-            phase_profile::scope("05.d.7.3b.2.exits.a.activation_return", || {
-                return_values::check_activation_return(program, facts, exit_flow, &mut diagnostics)
-            });
+            if has_activation_claim {
+                phase_profile::scope("05.d.7.3b.2.exits.a.activation_return", || {
+                    return_values::check_activation_return(
+                        program,
+                        facts,
+                        state_flow,
+                        exit_flow,
+                        &mut diagnostics,
+                    )
+                });
+            }
             phase_profile::scope("05.d.7.3b.2.exits.b.boundary_refutations", || {
                 boundary_refutations.check(program, facts, exit_flow, call_frames, &mut diagnostics)
             });
@@ -207,6 +315,7 @@ pub(super) fn check_flow_call_contracts(
                 )
             });
             phase_profile::scope("05.d.7.3b.2.exits.d.exit_ensures", || {
+                let available_content = entailment.content_sources();
                 check_exit_ensures(
                     program,
                     facts,
@@ -214,8 +323,11 @@ pub(super) fn check_flow_call_contracts(
                     exit_flow,
                     entailment.for_machine(facts, state_flow.machine_symbol),
                     &content_plans,
+                    &available_content,
                     call_frames,
                     &mut cyclic_headers,
+                    &mut recipe_obligations,
+                    &mut integer_range_obligations,
                     &mut diagnostics,
                 )
             });
@@ -230,6 +342,7 @@ pub(super) fn check_flow_call_contracts(
                     state_flow,
                     exit_flow,
                     call_frames,
+                    &value_qualifications,
                     &mut diagnostics,
                 )
             });
@@ -250,25 +363,10 @@ pub(super) fn check_flow_call_contracts(
             );
             let mut reported = Vec::new();
             for diagnostic in diagnostics.split_off(exit_diagnostics) {
-                if !reported.contains(&diagnostic) {
-                    reported.push(diagnostic);
-                }
+                crate::collections::push_unique(&mut reported, diagnostic);
             }
             diagnostics.extend(reported);
         }
-        // #66 write-enforcement: every assignment into a domain-refined field must
-        // establish the value in that domain (the soundness floor for trusting the
-        // field's declared domain on read).
-        let _s = phase_profile::guard("05.d.7.3b.3.writes");
-        check_domain_field_writes(
-            program,
-            facts,
-            &constructor_memberships,
-            state_flow,
-            call_frames,
-            &mut value_qualifications,
-            &mut diagnostics,
-        );
     }
 
     if diagnostics.is_empty() {
@@ -278,6 +376,8 @@ pub(super) fn check_flow_call_contracts(
         Ok(ContractDecisions {
             scalar_returns,
             constant_obligations,
+            recipe_obligations,
+            integer_range_obligations,
             call_requires: decided,
             value_qualifications,
         })

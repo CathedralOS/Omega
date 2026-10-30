@@ -13,6 +13,6 @@ machine Main::main(this: &mut Main) {
     let bytes: [u8; 4] = [1, 2, 3, 4];
     let r: R = byte_at(&bytes, 2);
     transition { _ -> done() }
-    state done() {}
+    machine done() {}
 }
 data Main { }

@@ -3,7 +3,7 @@
 
 use super::{ArgumentInputs, StateValues, fields};
 use arena::HandleSpan;
-use checked_trees::{BorrowCallFact, FlowConstraintRef, FlowOperandFact};
+use checked_trees::{BorrowCallFact, FlowOperandFact, FlowSemanticContextRef};
 use facts::{FactPlan, ScalarValue};
 
 #[allow(clippy::too_many_arguments)]
@@ -15,16 +15,18 @@ pub(in crate::flow) fn record<'plans>(
     state: &typed_trees::state::State,
     call: &BorrowCallFact,
     captured: &[FlowOperandFact],
-    invocation: HandleSpan<FlowConstraintRef>,
+    invocation: HandleSpan<FlowSemanticContextRef>,
 ) {
     let Some((owner_index, state_index)) = build.state_location(program, call.target_symbol) else {
         return;
     };
     let owner = &program.machines()[owner_index];
     let destination = &program.machine_states(owner)[state_index];
-    let Some(origin) = owner.lexical_region_origin else {
+    if owner.lexical_region_origin.is_none()
+        && !super::lexically_nested_machine(program, owner.symbol)
+    {
         return;
-    };
+    }
     if super::entry_state(program, owner).is_none_or(|entry| entry.symbol != destination.symbol) {
         return;
     }
@@ -40,17 +42,40 @@ pub(in crate::flow) fn record<'plans>(
     let authenticated = !owner.is_public
         && !owner.target_family_interface
         && owner.supplies_checked_body()
-        && origin.machine == machine.symbol
-        && origin.state == state.symbol
-        && matches!(site, Some(validation::CallSite::Statement(source))
-            if source.target_symbol == destination.symbol && source.arguments == origin.arguments)
+        && site.is_some_and(|site| {
+            site.target_symbol(program) == destination.symbol
+                && match owner.lexical_region_origin {
+                    // Only the generated call's argument roster exactly captures
+                    // the extracted region's bindings.
+                    Some(origin) => {
+                        origin.machine == machine.symbol
+                            && origin.state == state.symbol
+                            && validation::call_site_argument_expressions(program, &site)
+                                .iter()
+                                .copied()
+                                .eq(program
+                                    .statement_table
+                                    .expression_handles(origin.arguments)
+                                    .iter()
+                                    .copied())
+                    }
+                    // An authored nested machine authenticates each invocation
+                    // by lexical containment: the call's own recorded arguments
+                    // are the capture roster under its operand evidence epoch.
+                    None => {
+                        super::lexical_scope_covers_call(
+                            program,
+                            machine.symbol,
+                            owner.symbol,
+                        ) && validation::call_site_argument_expressions(program, &site)
+                            .iter()
+                            .copied()
+                            .eq(captured.iter().map(|value| value.expression))
+                    }
+                }
+        })
         && !call.has_receiver
         && captured.len() == parameters.len()
-        && captured.iter().map(|value| value.expression).eq(program
-            .statement_table
-            .expression_handles(origin.arguments)
-            .iter()
-            .copied())
         && captured.iter().all(|value| {
             value.state_symbol == state.symbol && value.statement_index == call.statement_index
         });
@@ -62,40 +87,63 @@ pub(in crate::flow) fn record<'plans>(
                 .then(|| captured.get(ordinal))
                 .flatten()
                 .and_then(|capture| {
-                    let contexts = crate::flow::operand_contexts(
-                        program,
-                        &build.contexts,
-                        &build.control,
-                        semantic,
-                        capture,
-                        parameter.type_reference,
-                        invocation,
-                    );
-                    super::argument_places(
-                        program,
-                        build,
-                        machine,
-                        state,
-                        capture,
-                        parameter.type_reference,
-                    )?
-                    .iter()
-                    .find_map(|place| {
+                    let completed =
+                        super::completed_argument_facts(program, build, capture, invocation)?;
+                    // Every retained alternative must agree at this read cut.
+                    // A missing candidate is unknown, not a narrower predecessor.
+                    let mut values = completed.places.iter().map(|place| {
                         crate::values::scalar_value_at_place(
                             program,
                             semantic,
-                            contexts
+                            completed
+                                .contexts
                                 .iter()
                                 .map(|context| semantic.contexts.get(*context)),
-                            place,
+                            &place.projected,
                         )
-                    })
-                    .or_else(|| super::literal(program, capture.expression))
+                        .or_else(|| super::literal(program, capture.expression))
+                    });
+                    let first = values.next()??;
+                    values
+                        .all(|value| value.as_ref() == Some(&first))
+                        .then_some(first)
                 })
                 .unwrap_or(ScalarValue::Unknown);
             (parameter.symbol, observed)
         })
         .collect();
+    // Authenticated captures replay their own operand evidence epochs, so a
+    // live predicate below an argument's denoted place re-roots at the
+    // destination parameter exactly the way its scalar read does.
+    let qualifications = authenticated
+        .then(|| {
+            parameters
+                .iter()
+                .zip(0..)
+                .flat_map(|(parameter, ordinal)| {
+                    captured
+                        .get(ordinal)
+                        .and_then(|capture| {
+                            super::completed_argument_facts(
+                                program, build, capture, invocation,
+                            )
+                            .map(|completed| (capture, completed))
+                        })
+                        .map(|(capture, completed)| {
+                            super::qualifications::capture_completed_argument(
+                                program,
+                                semantic,
+                                build,
+                                capture,
+                                &completed,
+                                parameter.symbol,
+                            )
+                        })
+                        .unwrap_or_default()
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     let source =
         fields::BoundsSource::invocation(state.symbol, call.statement_index, call.call_ordinal);
     // Bad or unavailable custody is an unknown incoming edge, never a missing
@@ -111,7 +159,7 @@ pub(in crate::flow) fn record<'plans>(
             values,
             bounds: Vec::new(),
             fields: Vec::new(),
-            qualifications: Vec::new(),
+            qualifications,
             predicates: Vec::new(),
             entry_paths: crate::facts::boolean_predicates::EntryPaths::unknown(),
             argument_edges: ArgumentInputs::Edges(Vec::new()),

@@ -1,4 +1,4 @@
-domain [u8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8]::Ascii requires ascii_only(self);
 
 machine inspect(bytes: &[u8] in Ascii) {}
 

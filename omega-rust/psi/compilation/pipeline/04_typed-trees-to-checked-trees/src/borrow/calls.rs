@@ -1,10 +1,14 @@
+use crate::borrow::accesses::ArgumentAccessSchedule;
 use validation::{statement_call_can_dispatch_to_machine, statement_call_receiver_path};
 
 use checked_trees::statement::{StatementNode, TransitionGuardNode};
 use checked_trees::{BorrowArgumentAccessFact, BorrowCallFact};
 mod collection;
 mod expression;
+mod reference_custody;
 mod transitions;
+pub(in crate::borrow) use reference_custody::append_reference_custody;
+pub(crate) use reference_custody::replaces_reference_loan;
 
 use collection::BorrowCallCollection;
 use transitions::collect_transition_target_borrow_calls;
@@ -59,15 +63,17 @@ pub(crate) fn collect_statement_borrow_calls(
             {
                 let receiver_path =
                     statement_call_receiver_path(program, state, statement_index, call);
-                let accesses = collection.collect_call_argument_accesses(
+                let accesses = collection.collect_argument_accesses(
                     program.statement_table.expression_handles(call.arguments),
                     if resolved_target.is_valid() {
                         resolved_target
                     } else {
                         call.target_symbol
                     },
+                    ArgumentAccessSchedule::Invocation,
                 );
                 collection.append_borrow_call(
+                    Default::default(),
                     call.receiver_symbol,
                     if resolved_target.is_valid() {
                         resolved_target

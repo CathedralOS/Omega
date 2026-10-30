@@ -16,11 +16,11 @@ machine Main::main(main: &mut Main) {
         true -> put(main)
         _ -> done(main)
     }
-    state put(main: &mut Main) {
+    machine put(main: &mut Main) {
         let a: i32 in Wrapping = main.a;
         let b: i32 in Wrapping = main.b;
         store(main, a, b);
         main.hits = 1;
     }
-    state done(main: &mut Main) { main.hits = -1; }
+    machine done(main: &mut Main) { main.hits = -1; }
 }

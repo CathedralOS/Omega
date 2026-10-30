@@ -9,7 +9,7 @@ requires counter == 0
 
 machine apply(chosen: &mut i64, other: &mut i64, visits: &mut u64) -> i64 {
     transition { _ -> write(chosen, other, visits) }
-    state write(chosen: &mut i64, other: &mut i64, visits: &mut u64) -> i64 {
+    machine write(chosen: &mut i64, other: &mut i64, visits: &mut u64) -> i64 {
         let selected: &mut i64 = match choose(visits) {
             true -> chosen
             false -> other
@@ -29,6 +29,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

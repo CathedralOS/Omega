@@ -15,6 +15,7 @@ pub(in crate::lowering) struct BorrowedSource {
     pub(super) root: ReferenceRoot,
     pub(super) projection: StructuralStorageProjection,
     pub(super) access: StructuralAccess,
+    pub(super) placed: Option<target_operations::TargetPlacedInterpretation>,
 }
 
 pub(in crate::lowering) fn borrowed_source_catalog(
@@ -106,6 +107,7 @@ pub(in super::super) fn capture(
                 root,
                 projection: StructuralStorageProjection::Endpoint(parameter.structural_type),
                 access: parameter.access,
+                placed: placed_source(function, live, types, &binding.argument),
             }]),
         );
     }

@@ -1,1 +1,2 @@
-data constant `ArrayHolder` violates its default-domain predicate
+data `ArrayHolder` literal violates the default domain
+`where` fact evaluates FALSE

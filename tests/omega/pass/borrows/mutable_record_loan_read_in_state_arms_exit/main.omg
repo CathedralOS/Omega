@@ -33,7 +33,7 @@ machine Store::pick(store: &mut Store, index: i32) -> i32 in Wrapping {
         _ -> next(store, index)
     }
 
-    state next(store: &mut Store, index: i32) {
+    machine next(store: &mut Store, index: i32) -> i32 in Wrapping {
         let observed: i32 in Wrapping = Store::count(store);
         transition index == 1 {
             true -> (store.values[1] + observed)

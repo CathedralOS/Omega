@@ -33,14 +33,16 @@ mod compile_outcomes;
 pub mod compile_request;
 mod evaluated_build;
 mod independent_component;
+mod native_product;
 mod package_build;
 mod prepared_build;
 mod prepared_source;
 pub mod publication;
+mod retained_native_program;
 
 pub use checked_compilation::{
-    CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, ProductReportPlan,
-    ProductReportRequest, RetainedCompilationChecks,
+    CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, CompileReportSettlement,
+    ProductReportPlan, ProductReportRequest, RetainedCompilationChecks,
 };
 pub use compilation_products::{CompileOutputKind, CompileReport};
 pub use compile_outcomes::{
@@ -53,10 +55,10 @@ pub use compile_request::{
     RequestedCompileProduct, SettledCheckReuse,
 };
 pub use evaluated_build::{
-    BuildAdmission, BuildConfig, ComputedBuildConfig, IndependentComponentDiscovery,
-    IndependentComponentSelection, ServiceAuditRegistration,
+    BuildAdmission, BuildConfig, ComputedBuildConfig, EvaluatedBuild,
+    IndependentComponentDiscovery, IndependentComponentSelection, ServiceAuditRegistration,
 };
-pub use independent_component::IndependentComponentProduct;
+pub use independent_component::{IndependentComponentProduct, SelectedIndependentComponent};
 pub use native_artifact::{
     ExecutableContainerDigest, ExecutableInstallationEvidenceDigest, ExecutablePublicationReceipt,
     NativePublicationCertificateDigest, NativePublicationEvidenceDigest,
@@ -64,15 +66,19 @@ pub use native_artifact::{
 };
 pub use native_artifact::{NativePackagePublicationReceipt, PackagePublicationComponent};
 pub use native_artifact::{TerminalRuntimeHostProvision, TerminalRuntimeProvisions};
+pub use native_product::PendingNativeProduct;
 pub use optimization_core::OptimizationRollbackReceipt;
 pub use package_build::PreparedPackageBuild;
 pub use package_compilation::RetainedBuildOutputs;
 pub use prepared_build::{
     BuiltTypedProgram, CheckedProductSource, PreparedBuild, PreparedProductSource,
+    SettledBuildSource, SettledPackageBuild,
 };
 pub use prepared_source::{
-    PreparedCheckedSource, PreparedSourceFrontier, TypedCompilationFrontier,
+    DeferredProductCompilation, PreparedCheckedSource, PreparedSourceFrontier, SourcePreparation,
+    TypedCompilationFrontier,
 };
+pub use retained_native_program::{RetainedNativeProgram, RetainedNativeProgramIdentity};
 pub use terminal_psi_to_abstract_operations::{
     RetainedTerminalArtifact, TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
     TerminalCompilerBuiltinProposal, TerminalIeeeFloatComparisonOccurrenceProposal,

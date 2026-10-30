@@ -1,5 +1,6 @@
 //! Executable selected forms and their explicit operand/effect interfaces.
 use super::SaturatingCarrier;
+use super::{MachineAlternativeFamily, MachineAlternativeKey};
 use super::{SelectedInstructionId, SelectedInstructionProvenance, SelectedOperand};
 use optimization_core::AcceptedObligationFactIdentity;
 use register_model::{RegisterConstraintKey, RegisterUnitId};
@@ -117,6 +118,10 @@ impl SelectedImageAddressReference {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedInstructionKind {
+    /// Ordinary module invocation with the declared ABI but no normal publication.
+    InvokeNoNormal {
+        target: SelectedCallTarget,
+    },
     /// One catalogued register access over exact scalar inputs and, for a
     /// read, its observed result. The catalog fixes the ISA and operand roles.
     RegisterAccess {
@@ -536,14 +541,18 @@ impl SelectedInstructionKind {
         match self {
             Self::CallScalar { target }
             | Self::CallAggregate { target }
-            | Self::CallUnit { target } => Some(target),
+            | Self::CallUnit { target }
+            | Self::InvokeNoNormal { target } => Some(target),
             _ => None,
         }
     }
 
     pub const fn machine_callee(self) -> Option<MachineId> {
         match self {
-            Self::CallScalar {
+            Self::InvokeNoNormal {
+                target: SelectedCallTarget::Machine(callee),
+            }
+            | Self::CallScalar {
                 target: SelectedCallTarget::Machine(callee),
             }
             | Self::CallAggregate {
@@ -553,6 +562,24 @@ impl SelectedInstructionKind {
                 target: SelectedCallTarget::Machine(callee),
             } => Some(callee),
             _ => None,
+        }
+    }
+
+    /// The machine-alternative family an ordinary call kind declares at variant
+    /// zero: a property of the kind, not of the target that encodes its bytes,
+    /// so it is declared once here. Non-call kinds name the scalar family.
+    pub const fn call_alternative_key(self) -> MachineAlternativeKey {
+        MachineAlternativeKey {
+            family: match self {
+                Self::InvokeNoNormal { .. } => MachineAlternativeFamily::InvokeNoNormal,
+                Self::CallUnit { .. } => MachineAlternativeFamily::CallUnit,
+                Self::CallAggregate { .. } => MachineAlternativeFamily::CallAggregate,
+                Self::NormalizedForeignCall { .. } => {
+                    MachineAlternativeFamily::NormalizedForeignCall
+                }
+                _ => MachineAlternativeFamily::CallScalar,
+            },
+            variant: 0,
         }
     }
 }
@@ -606,6 +633,7 @@ macro_rules! dedicated_selected_forms {
             | $crate::SelectedInstructionKind::RestoreFloatingControl { .. }
             | $crate::SelectedInstructionKind::HostedWriteByteI32 { .. }
             | $crate::SelectedInstructionKind::FrameAddress { .. }
+            | $crate::SelectedInstructionKind::InvokeNoNormal { .. }
             | $crate::SelectedInstructionKind::CallUnit { .. }
             | $crate::SelectedInstructionKind::CallAggregate { .. }
             | $crate::SelectedInstructionKind::NormalizedForeignCall { .. }
@@ -639,9 +667,10 @@ macro_rules! load_width_triple_pattern {
 }
 
 #[macro_export]
-macro_rules! selected_call_triple_pattern {
+macro_rules! selected_call_pattern {
     ($($fields:tt)*) => {
-        $crate::SelectedInstructionKind::CallAggregate { $($fields)* }
+        $crate::SelectedInstructionKind::InvokeNoNormal { $($fields)* }
+            | $crate::SelectedInstructionKind::CallAggregate { $($fields)* }
             | $crate::SelectedInstructionKind::CallScalar { $($fields)* }
             | $crate::SelectedInstructionKind::CallUnit { $($fields)* }
     };

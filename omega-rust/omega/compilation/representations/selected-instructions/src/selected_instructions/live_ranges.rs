@@ -19,18 +19,7 @@ use crate::{LivenessIdentity, LivenessPosition};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LiveRangePoint(pub u32);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct LiveRangeIdentity(pub(crate) [u8; 32]);
-
-impl LiveRangeIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+crate::identity::sha256_identity!(LiveRangeIdentity);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LiveRangePlan {

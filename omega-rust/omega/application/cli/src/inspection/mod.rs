@@ -13,7 +13,7 @@ pub struct InspectTerminalRequest {
 }
 
 pub struct TerminalInspection {
-    pub artifact: CanonicalTerminalArtifact,
+    pub artifact: std::sync::Arc<CanonicalTerminalArtifact>,
 }
 
 #[derive(Debug)]
@@ -73,7 +73,7 @@ pub fn inspect_terminal(
         .into_inspection()
         .map_err(|error| InspectTerminalError::Diagnostics(error.into_diagnostics()))?;
     Ok(TerminalInspection {
-        artifact: artifact.into_artifact(),
+        artifact: std::sync::Arc::clone(artifact.artifact()),
     })
 }
 
@@ -82,5 +82,7 @@ pub fn inspect_terminal(
 pub fn inspect_terminal_artifact(bytes: &[u8]) -> Result<TerminalInspection, InspectTerminalError> {
     let artifact =
         CanonicalTerminalArtifact::from_bytes(bytes).map_err(InspectTerminalError::Artifact)?;
-    Ok(TerminalInspection { artifact })
+    Ok(TerminalInspection {
+        artifact: std::sync::Arc::new(artifact),
+    })
 }

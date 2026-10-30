@@ -1,0 +1,6 @@
+// Reject: receiving Cell::Issued does not establish the missing mint provenance.
+public data Cell { value: u64; }
+public domain Cell::Issued established by mint_cell;
+machine mint_cell(value: u64) -> Cell ensures result in Cell::Issued { Cell { value: value } }
+machine observe_cell(cell: &Cell in Cell::Issued) -> u64 { cell.value }
+machine entry_start() { let bare: Cell = Cell { value: 37 }; let forbidden: u64 = observe_cell(&bare); }

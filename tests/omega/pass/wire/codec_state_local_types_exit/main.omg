@@ -8,7 +8,7 @@ data Counter<'a> { slot: &'a mut u64; }
 machine main() crashes Trap {
     let sample: bool = false;
     transition { _ -> encode() }
-    state encode() {
+    machine encode() {
     let mut written: u64 = 0;
     let mut index: u64 = 1;
     let items: [u8; 4] = [4, 7, 8, 9];
@@ -21,6 +21,6 @@ machine main() crashes Trap {
         _ -> bad()
     }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

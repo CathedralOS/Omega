@@ -25,7 +25,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     transition { _ -> done(main) }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::write_line("result: the Fahrenheit value truncated, 68 for 20 C (the exit code)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

@@ -1,15 +1,15 @@
 use omega::language::core::float_operations;
 
-domain i32::Three(value) requires value == 3;
-domain i32::Positive(value) requires value > 0;
+domain i32::Three requires self == 3;
+domain i32::Positive requires self > 0;
 
 machine classified() -> i32 in Three { 3.0f64 as i32 in Three }
 machine observe(value: i32 in Three) -> i32 { value as i32 }
 
 machine guarded(value: i32) -> i32 {
     transition value > 0 { true -> positive(value) false -> empty() }
-    state positive(value: i32) { (value as i32 in Positive) as i32 }
-    state empty() { 0 }
+    machine positive(value: i32) -> i32 { (value as i32 in Positive) as i32 }
+    machine empty() -> i32 { 0 }
 }
 
 machine main() crashes Trap {
@@ -28,6 +28,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -25,8 +25,8 @@ machine check(first: Prepared<16>, second: Prepared<32>) crashes Trap {
     transition calls[0] == 2 && a.bytes[0] == 11 && a.bytes[15] == 23 && b.bytes[0] == 17 && b.bytes[31] == 29 {
         true -> done() false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine make16() -> Prepared<16> { Prepared { bytes: [11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23] } }

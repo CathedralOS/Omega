@@ -17,8 +17,8 @@ machine other(counter: &Counter in Counter::Other) -> bool { counter.code == 0 }
 machine clear(marker: &Marker in Marker::Clear) -> bool { marker.code == 0 }
 machine verify(correct: bool) crashes Trap {
     transition correct { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine main() crashes Trap {
     let atom: Counter in Counter::Ready;

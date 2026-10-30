@@ -14,7 +14,7 @@ machine main() {
     let issued: Receipt = Receipt { code: 1 };
     transition { _ -> holding(issued) }
 
-    state holding(held: Receipt) {
+    machine holding(held: Receipt) {
         let observed: i32 = consume(Receipt { code: 2 });
     }
 }

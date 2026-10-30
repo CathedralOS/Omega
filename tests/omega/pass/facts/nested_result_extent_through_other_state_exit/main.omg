@@ -8,7 +8,7 @@ ensures result <= left && result <= right &&
 machine trial(buffer: &mut [u8], other: &[u8], count: u64) -> u64 {
     let capacity: u64 = minimum(minimum(count, buffer.len), 2147483647);
     transition { _ -> consume(buffer, capacity) }
-    state consume(buffer: &mut [u8], end: u64) -> u64
+    machine consume(buffer: &mut [u8], end: u64) -> u64
     requires end <= buffer.len;
     {
     let prefix: &mut [u8] = &mut buffer[0..end];
@@ -21,6 +21,6 @@ machine main() crashes Trap {
     let first: u64 = trial(&mut bytes[..], &other[..], 13);
     let second: u64 = trial(&mut bytes[..], &other[..], 0);
     transition first == 8 && second == 0 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

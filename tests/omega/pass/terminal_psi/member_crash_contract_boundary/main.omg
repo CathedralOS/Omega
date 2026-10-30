@@ -17,11 +17,11 @@ crashes Trap
         _ -> scalar_succeed()
     }
 
-    state scalar_fail() -> bool {
+    machine scalar_fail() -> bool {
         crash Trap;
     }
 
-    state scalar_succeed() -> bool { false }
+    machine scalar_succeed() -> bool { false }
 }
 
 machine member_guarded(flags: CrashFlags) -> bool
@@ -35,9 +35,9 @@ crashes Trap
         _ -> member_succeed()
     }
 
-    state member_fail() -> bool {
+    machine member_fail() -> bool {
         crash Trap;
     }
 
-    state member_succeed() -> bool { false }
+    machine member_succeed() -> bool { false }
 }

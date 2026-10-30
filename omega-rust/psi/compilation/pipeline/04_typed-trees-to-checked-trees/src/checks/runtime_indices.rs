@@ -29,6 +29,22 @@ struct Application<'program> {
     position: Option<usize>,
 }
 
+impl Application<'_> {
+    /// A bare applied reference: an exact type at its formation statement,
+    /// carrying no substitutions, arguments, call site or parameter position
+    /// until a caller installs them.
+    fn bare(reference: TypeReferenceHandle, formation: usize) -> Self {
+        Self {
+            reference,
+            formation,
+            substitutions: Vec::new(),
+            arguments: Vec::new(),
+            call: None,
+            position: None,
+        }
+    }
+}
+
 struct Scope<'a> {
     program: &'a dyn validation::CheckingInput,
     machine: &'a Machine,
@@ -39,26 +55,85 @@ struct Scope<'a> {
 }
 
 impl Scope<'_> {
+    fn expression_is_const(&self, expr: ExpressionHandle) -> bool {
+        let is_const_symbol = |symbol: SymbolHandle| {
+            !symbol.is_valid()
+                || self.program.const_declaration_by_symbol(symbol).is_some()
+                || self
+                    .program
+                    .machine_type_parameters(self.machine)
+                    .iter()
+                    .any(|p| {
+                        p.symbol == symbol && matches!(p.kind, TypeParameterKind::Const { .. })
+                    })
+        };
+        match self.program.expression_table.expression(expr) {
+            ExpressionNode::Integer(_)
+            | ExpressionNode::Boolean(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::String(_)
+            | ExpressionNode::ZeroValue(_) => true,
+            ExpressionNode::Name(name) => is_const_symbol(name.symbol),
+            ExpressionNode::Unary(u) => self.expression_is_const(u.operand),
+            ExpressionNode::Binary(b) => {
+                self.expression_is_const(b.left) && self.expression_is_const(b.right)
+            }
+            ExpressionNode::Cast(c) => self.expression_is_const(c.value),
+            ExpressionNode::Call(call) => call.machine_arguments.iter().all(|arg| {
+                (!arg.symbol.is_valid() || is_const_symbol(arg.symbol))
+                    && (arg.const_literal.is_some()
+                        || !arg.type_reference.is_valid()
+                        || self
+                            .program
+                            .type_reference_table
+                            .anonymous_numeric_literal_value(arg.type_reference)
+                            .is_some())
+            }),
+            _ => false,
+        }
+    }
+
     fn static_index(
         &self,
         argument: TypeReferenceHandle,
     ) -> Option<typed_trees::type_identity::NormalizedTypeIdentity> {
-        let TypeReferenceNode::Named { symbol, .. } =
-            self.program.type_reference_table.type_reference(argument)
-        else {
-            return None;
+        let is_const_symbol = |symbol: SymbolHandle| {
+            !symbol.is_valid()
+                || self.program.const_declaration_by_symbol(symbol).is_some()
+                || self
+                    .program
+                    .machine_type_parameters(self.machine)
+                    .iter()
+                    .any(|p| {
+                        p.symbol == symbol && matches!(p.kind, TypeParameterKind::Const { .. })
+                    })
         };
-        // Never use symbolic identity as equality of mutable runtime subjects.
-        // This path preserves already-admitted non-integer static values too.
-        if symbol.is_valid() && self.program.const_declaration_by_symbol(*symbol).is_none() {
-            return None;
+        let table = &self.program.type_reference_table;
+        match table.type_reference(argument) {
+            TypeReferenceNode::Named { symbol, .. } => {
+                if !is_const_symbol(*symbol) {
+                    return None;
+                }
+                typed_trees::type_identity::applied_index_identity(
+                    self.program,
+                    typed_trees::type_identity::IndexIdentityArgument::TypeReference(argument),
+                    self.machine.symbol,
+                    &[],
+                )
+            }
+            TypeReferenceNode::ConstExpression(expression) => {
+                if !self.expression_is_const(*expression) {
+                    return None;
+                }
+                typed_trees::type_identity::applied_index_identity(
+                    self.program,
+                    typed_trees::type_identity::IndexIdentityArgument::TypeReference(argument),
+                    self.machine.symbol,
+                    &[],
+                )
+            }
+            _ => None,
         }
-        typed_trees::type_identity::applied_index_identity(
-            self.program,
-            typed_trees::type_identity::IndexIdentityArgument::TypeReference(argument),
-            self.machine.symbol,
-            &[],
-        )
     }
     fn values(&self, at: usize) -> Option<CurrentScalarValues<'_>> {
         CurrentScalarValues::at(
@@ -142,14 +217,76 @@ impl Scope<'_> {
         if let TypeReferenceNode::ConstExpression(expression) =
             *self.program.type_reference_table.type_reference(argument)
         {
-            return self
-                .values(application.formation)?
-                .application_value_with_captured(
+            if let Some(values) = self.values(application.formation)
+                && let Some(term) = values.application_value_with_captured(
                     expression,
                     &application.arguments,
                     &application.substitutions,
                 )
-                .map(ScopedArithmeticValue::Term);
+            {
+                return Some(ScopedArithmeticValue::Term(term));
+            }
+            if let ExpressionNode::Call(call) = self.program.expression_table.expression(expression)
+                && let Some(callee) = self
+                    .program
+                    .machine_by_own_or_state_symbol(call.target_symbol)
+                && let Some(entry) = self.program.machine_states(callee).first()
+            {
+                let statements = self
+                    .program
+                    .statement_table
+                    .statements(entry.statement_nodes);
+                let return_expr = statements.last().and_then(|s| match s {
+                    StatementNode::Expression(e) => Some(*e),
+                    _ => None,
+                });
+                if let Some(return_expr) = return_expr {
+                    let callee_params = self.program.machine_type_parameters(callee);
+                    let mut callee_substitutions = Vec::new();
+                    for (param, actual_arg) in
+                        callee_params.iter().zip(call.machine_arguments.iter())
+                    {
+                        let value = if actual_arg.symbol.is_valid() {
+                            application
+                                .substitutions
+                                .iter()
+                                .find(|(s, _)| *s == actual_arg.symbol)
+                                .and_then(|(_, v)| v.clone())
+                        } else if let Some(lit) = &actual_arg.const_literal {
+                            lit.value_bignum().map(ScopedArithmeticValue::Integer)
+                        } else if actual_arg.type_reference.is_valid() {
+                            self.program
+                                .type_reference_table
+                                .anonymous_numeric_literal_value(actual_arg.type_reference)
+                                .map(|v| {
+                                    ScopedArithmeticValue::Integer(
+                                        numerics::bignum::BigInt::from_i128(v as i128),
+                                    )
+                                })
+                        } else {
+                            None
+                        };
+                        callee_substitutions.push((param.symbol, value));
+                    }
+                    if let Some(values) = self.values(application.formation)
+                        && let Some(term) = values.application_value_with_captured(
+                            return_expr,
+                            &[],
+                            &callee_substitutions,
+                        )
+                    {
+                        return Some(ScopedArithmeticValue::Term(term));
+                    }
+                    if let ExpressionNode::Name(path) =
+                        self.program.expression_table.expression(return_expr)
+                        && let Some((_, Some(val))) =
+                            callee_substitutions.iter().find(|(s, _)| *s == path.symbol)
+                    {
+                        return Some(val.clone());
+                    }
+                }
+            }
+            return None;
         }
         let TypeReferenceNode::Named { symbol, name } =
             self.program.type_reference_table.type_reference(argument)
@@ -247,14 +384,7 @@ impl Scope<'_> {
                     .state_local_declaration(self.state, path.head_symbol)
                     .map(|(position, _)| position)
                     .unwrap_or(0);
-                Some(Application {
-                    reference,
-                    formation,
-                    substitutions: Vec::new(),
-                    arguments: Vec::new(),
-                    call: None,
-                    position: None,
-                })
+                Some(Application::bare(reference, formation))
             }
             ExpressionNode::Call(call) => {
                 let parameters =
@@ -450,7 +580,9 @@ impl Scope<'_> {
                             if let (Some(left), Some(right)) =
                                 (self.static_index(*left), self.static_index(*right))
                             {
-                                return left == right;
+                                if left == right {
+                                    return true;
+                                }
                             }
                             // Parameter types retain their arrival subjects. A
                             // forwarded reference can prove the exact scalar
@@ -657,14 +789,7 @@ impl Scope<'_> {
                     .state_local_declaration(self.state, path.head_symbol)
                     .map(|(position, _)| position)
                     .unwrap_or(0);
-                let mut receiver = Application {
-                    reference,
-                    formation,
-                    substitutions: Vec::new(),
-                    arguments: Vec::new(),
-                    call: None,
-                    position: None,
-                };
+                let mut receiver = Application::bare(reference, formation);
                 for symbol in prefix.iter().skip(1) {
                     let reference = self
                         .program
@@ -1385,14 +1510,7 @@ impl Scope<'_> {
             ExpressionNode::Cast(cast) => {
                 self.check(
                     cast.value,
-                    Application {
-                        reference: cast.target_type,
-                        formation: self.statement,
-                        substitutions: Vec::new(),
-                        arguments: Vec::new(),
-                        call: None,
-                        position: None,
-                    },
+                    Application::bare(cast.target_type, self.statement),
                     diagnostics,
                 );
                 self.check(cast.value, required, diagnostics);
@@ -1566,14 +1684,7 @@ pub(super) fn check(
             match node {
                 StatementNode::LocalData(local) => scope.check_binding(
                     local.initial_value,
-                    Application {
-                        reference: local.type_reference,
-                        formation: statement,
-                        substitutions: Vec::new(),
-                        arguments: Vec::new(),
-                        call: None,
-                        position: None,
-                    },
+                    Application::bare(local.type_reference, statement),
                     local.relevance.is_erased(),
                     typed_trees::type_identity::applied_type_identity(
                         program,
@@ -1586,14 +1697,7 @@ pub(super) fn check(
                 StatementNode::Expression(expression) if state.return_type.is_valid() => scope
                     .check(
                         *expression,
-                        Application {
-                            reference: state.return_type,
-                            formation: 0,
-                            substitutions: Vec::new(),
-                            arguments: Vec::new(),
-                            call: None,
-                            position: None,
-                        },
+                        Application::bare(state.return_type, 0),
                         diagnostics,
                     ),
                 StatementNode::Assignment(assignment) => {
@@ -1613,14 +1717,7 @@ pub(super) fn check(
                             let scope = Scope { target, ..scope };
                             scope.check(
                                 *value,
-                                Application {
-                                    reference: state.return_type,
-                                    formation: 0,
-                                    substitutions: Vec::new(),
-                                    arguments: Vec::new(),
-                                    call: None,
-                                    position: None,
-                                },
+                                Application::bare(state.return_type, 0),
                                 diagnostics,
                             );
                         }

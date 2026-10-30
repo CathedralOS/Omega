@@ -1,0 +1,13 @@
+diff --git a/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill.rs b/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill.rs
+index d7b84ada8b2..6063e9dc0f3 100644
+--- a/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill.rs
++++ b/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill.rs
+@@ -2063,7 +2063,7 @@ pub(super) fn derive_runtime_spill<'source>(
+         &use_positions,
+         &shared_reload,
+         &span_closes,
+-        reuse_slots,
++        false, // Diagnostic ablation: every spill uses its private slot.
+     );
+     Ok(RuntimeSpillDerivation {
+         function,

@@ -13,6 +13,11 @@ pub fn attach_verified_module_context(
     unit: &mut PsiOptimizationUnit,
     module: &terminal_psi::TerminalModule,
 ) -> Result<(), semantic_vocabulary::MachineId> {
+    // Every verified unit retains a context, including an empty evidence
+    // catalog. None belongs only to an unauthorized bare reconstruction seed.
+    unit.runtime_evidence = Some(std::sync::Arc::new(
+        super::RuntimeEvidenceCatalog::from_verified_module(unit.psi, module),
+    ));
     unit.structural_domains = module.structural_domains.clone().into();
     unit.services = module.services.clone().into();
     unit.root_service_reach = module.root_service_reach.clone();

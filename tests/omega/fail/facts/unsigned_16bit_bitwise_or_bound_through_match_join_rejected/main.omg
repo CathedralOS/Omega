@@ -18,14 +18,14 @@ machine exercise(base: u16) -> u16 crashes Trap {
         true -> step(combined, true)
         _ -> bad()
     }
-    state step(c: u16, flag: bool) -> u16 {
+    machine step(c: u16, flag: bool) -> u16 {
         let joined: u16 = match flag {
             true -> c
             false -> c
         };
         verify_combined(joined)
     }
-    state bad() { crash Trap; }
+    machine bad() -> u16 { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -34,6 +34,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

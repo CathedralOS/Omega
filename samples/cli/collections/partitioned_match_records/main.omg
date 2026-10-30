@@ -10,14 +10,14 @@ machine emit<'storage>(partitions: &mut [Partition<'storage>], selected: u64, re
         true -> capacity(partitions, selected, record)
         false -> false
     }
-    state capacity(partitions: &mut [Partition<'storage>], selected: u64, record: Match) -> bool
+    machine capacity(partitions: &mut [Partition<'storage>], selected: u64, record: Match) -> bool
     requires selected < partitions.len {
         transition partitions[selected].count < partitions[selected].records.len {
             true -> store(partitions, selected, record)
             false -> false
         }
     }
-    state store(partitions: &mut [Partition<'storage>], selected: u64, record: Match) -> bool
+    machine store(partitions: &mut [Partition<'storage>], selected: u64, record: Match) -> bool
     requires selected < partitions.len
         && partitions[selected].count < partitions[selected].records.len {
         let position: u64 = partitions[selected].count;
@@ -52,6 +52,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

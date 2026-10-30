@@ -1,0 +1,201 @@
+{
+  "schema": "omega-direct-foreign-row-qualification-v1",
+  "actual_producer": "22a3c05942f34c25d81ff118cbb674ad8f47785a",
+  "baseline": "14d6fefba285962378d30e5992de83fde81b3c69",
+  "target": "macos_arm64",
+  "executables": [
+    {
+      "name": "candidate4-omega",
+      "sha256": "0c1a379633f93ac1b52d82832a1052e15557f8afdb44753d7f265fc654a28de1",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    {
+      "name": "candidate4-corpus_runner",
+      "sha256": "779ab3ece4ee0c1a53b172472b6f830f74ca33aa18866af5c9c95846085768ae",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  ],
+  "positives": 10,
+  "reject_twins": 9,
+  "canonical_artifacts": 10,
+  "source_comparison_records": 42,
+  "native_terminal_records": 24,
+  "observed_agreements": 22,
+  "lost_outcomes": 0,
+  "rust": {
+    "passed": 60,
+    "inherited_failed": 3,
+    "baseline_payloads_equal": true
+  },
+  "unverified_targets": [
+    "windows_x86_64",
+    "linux_x86_64",
+    "linux_arm64"
+  ],
+  "commands": [
+    "omega run --both --keep <direct-place>/main.omg",
+    "omega inspect-terminal --artifact <produced>/program.oterm",
+    "omega --check <direct-place>/invalid/main.omg"
+  ],
+  "evidence_directory": "build/direct-foreign-evidence",
+  "rows": [
+    {
+      "name": "root",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "f70c767fc4cfa4594bdf8993c9b3011b5738144051ee1aa808a9c9d5ae68507f"
+    },
+    {
+      "name": "local",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "5683b1cb78942626380051c144f50f4b2e04e30baa301acd24312efcebcda633"
+    },
+    {
+      "name": "field",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "56be5dffef53353048ec80f721cf1cecccb80cb01b56b3b41ae5b1fb7731c8e4"
+    },
+    {
+      "name": "parameter",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "82fcd7a1d549853c6a11a951e8818b59803ed94a0c7665e58282019349329e26"
+    },
+    {
+      "name": "call_result",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "427dc98d754e317c1e36fd420aa8ca15d74f44ce1cc5f169c6f8c7bfedd5df69"
+    },
+    {
+      "name": "match_join",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "ee0c8eb44593100ec544b32c06fa450d5b13a22b38f4ba7eed1d830c46c57436"
+    },
+    {
+      "name": "const_name",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "48e0923c6337f537a1768c6c06f7f107ecb03d9081f8e95482c2e94f981a9517"
+    },
+    {
+      "name": "other_state",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "0a891907c9dbe0da5092b868004ea3bee8241ca088ed300054e2bb1569d90b30"
+    },
+    {
+      "name": "other_machine",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "546705b178a9055ef8929ca0123258ff2c209fd668dda2a0483cec9867daf9c5"
+    },
+    {
+      "name": "target_body",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "89840342fe7e97da8b79f92d9fcd3c7b18e3a7215cfe98ad358bc39e750172a3"
+    },
+    {
+      "name": "local-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "d0d5f4e5152b01e42dc2acba4635d5fff9e16056de97957b0ba317564bd0c6cc"
+    },
+    {
+      "name": "field-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "d0d5f4e5152b01e42dc2acba4635d5fff9e16056de97957b0ba317564bd0c6cc"
+    },
+    {
+      "name": "parameter-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "d0d5f4e5152b01e42dc2acba4635d5fff9e16056de97957b0ba317564bd0c6cc"
+    },
+    {
+      "name": "call_result-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "d0d5f4e5152b01e42dc2acba4635d5fff9e16056de97957b0ba317564bd0c6cc"
+    },
+    {
+      "name": "match_join-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "d0d5f4e5152b01e42dc2acba4635d5fff9e16056de97957b0ba317564bd0c6cc"
+    },
+    {
+      "name": "const_name-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "d0d5f4e5152b01e42dc2acba4635d5fff9e16056de97957b0ba317564bd0c6cc"
+    },
+    {
+      "name": "other_state-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "d0d5f4e5152b01e42dc2acba4635d5fff9e16056de97957b0ba317564bd0c6cc"
+    },
+    {
+      "name": "other_machine-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "d0d5f4e5152b01e42dc2acba4635d5fff9e16056de97957b0ba317564bd0c6cc"
+    },
+    {
+      "name": "target_body-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "d0d5f4e5152b01e42dc2acba4635d5fff9e16056de97957b0ba317564bd0c6cc"
+    }
+  ]
+}

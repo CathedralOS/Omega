@@ -40,6 +40,7 @@ impl Builder<'_, '_> {
             result_type,
             source_expression: expression, receiver_expression: expression, source_type: result_type, receiver_value,
             subject: checked_trees::CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
                 source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
                 path: Vec::new(), type_identity: validation::stored_structural_type_identity(self.program, result_type, &[], &[]),
                 access: checked_trees::CheckedStructuralAccess::SharedBorrow,

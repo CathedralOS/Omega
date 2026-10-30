@@ -3,13 +3,13 @@
 // instance. They are not runtime invariants on the synthesized record.
 use omega_language_std::console;
 
-domain u64::Positive(value)
+domain u64::Positive
 requires
-    value > 0;
-domain u64::BufferSize(value)
+    self > 0;
+domain u64::BufferSize
 requires
-    value in Positive;
-    value <= 8;
+    self in Positive;
+    self <= 8;
 
 data FixedBuffer<const N: u64>
 where

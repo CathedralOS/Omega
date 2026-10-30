@@ -221,9 +221,8 @@ pub fn resolve_state_call_target(
         if machine_parameter_signature_symbol(program, machine, target_symbol).is_valid() {
             return target_symbol;
         }
-        // A receiverless call to a FREE top-level machine: symbol resolution
-        // points target_symbol at the free machine's entry state, which lives
-        // outside the caller machine.
+        // A receiverless invocation may retain its machine head or its exact
+        // entry state. Both enter the same independently owned callable.
         return state_symbol_in_any_machine(program, target_symbol);
     }
 
@@ -280,8 +279,9 @@ pub fn resolve_state_call_target(
         return SymbolHandle::invalid();
     }
 
-    if state_symbol_in_any_machine(program, target_symbol).is_valid() {
-        return target_symbol;
+    let target_state = state_symbol_in_any_machine(program, target_symbol);
+    if target_state.is_valid() {
+        return target_state;
     }
 
     // A call through a TRAIT-typed receiver (`self.console.show(item)` where
@@ -314,14 +314,12 @@ pub fn machine_parameter_signature_symbol(
     SymbolHandle::invalid()
 }
 
-/// `target_symbol` when it is a state of ANY machine in the program (a free
-/// machine's entry state, a method state resolved cross-machine), or invalid.
+/// The exact entered state of an already resolved machine head or state.
 fn state_symbol_in_any_machine(
     program: &dyn crate::CheckingInput,
     target_symbol: SymbolHandle,
 ) -> SymbolHandle {
-    program
-        .state_by_symbol(target_symbol)
+    super::call_target_state(program, target_symbol)
         .map(|state| state.symbol)
         .unwrap_or_else(SymbolHandle::invalid)
 }
@@ -457,6 +455,13 @@ fn resolve_state_symbol_in_machine(
 ) -> SymbolHandle {
     if !state_symbol.is_valid() {
         return SymbolHandle::invalid();
+    }
+
+    if state_symbol == machine.symbol {
+        return program
+            .machine_states(machine)
+            .first()
+            .map_or_else(SymbolHandle::invalid, |state| state.symbol);
     }
 
     program

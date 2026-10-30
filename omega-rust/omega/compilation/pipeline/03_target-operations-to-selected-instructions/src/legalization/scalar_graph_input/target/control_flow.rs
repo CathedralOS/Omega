@@ -8,6 +8,7 @@ use super::{
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::target::Checker;
 use target_operations::{TargetControlGraph, TargetControlSuccessor, TargetControlTerminator};
+mod no_normal;
 pub(in crate::legalization::scalar_graph_input) mod sources;
 mod structural_cases;
 
@@ -166,6 +167,23 @@ pub(super) fn validate(
             plan,
         )?;
         let matches = match (&block.terminator, source_terminator) {
+            (
+                TargetControlTerminator::InvokeNoNormal { .. },
+                AbstractOperation::InvokeNoNormal { .. },
+            ) => {
+                no_normal::validate(
+                    &block.terminator,
+                    source_terminator,
+                    &available,
+                    &custody,
+                    optimized,
+                    native,
+                    plan,
+                    unit,
+                )?;
+                true
+            }
+
             (
                 TargetControlTerminator::ReturnStructural {
                     psi_edge,

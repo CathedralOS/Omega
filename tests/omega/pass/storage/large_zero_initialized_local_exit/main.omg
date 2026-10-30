@@ -45,22 +45,22 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(main.failure); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(main.failure); }
 }
 
 machine Main::round(main: &mut Main) {
     let mut table: Table;
     transition { _ -> untouched_bytes(main, &mut table) }
 
-    state untouched_bytes(main: &mut Main, table: &mut Table) {
+    machine untouched_bytes(main: &mut Main, table: &mut Table) {
         transition table.head[main.high] == 0 && table.tail[main.low] == 0 && table.count == 0 {
             true -> untouched_mark(main, table)
             _ -> fail(main, 71)
         }
     }
 
-    state untouched_mark(main: &mut Main, table: &mut Table) {
+    machine untouched_mark(main: &mut Main, table: &mut Table) {
         let untouched: Mark = table.marks[main.high];
         transition untouched {
             Mark::Blank -> untouched_common(main, table, untouched.start, untouched.end)
@@ -68,14 +68,14 @@ machine Main::round(main: &mut Main) {
         }
     }
 
-    state untouched_common(main: &mut Main, table: &mut Table, start: u64, end: u32) {
+    machine untouched_common(main: &mut Main, table: &mut Table, start: u64, end: u32) {
         transition start == 0 && end == 0 {
             true -> write(main, table)
             _ -> fail(main, 73)
         }
     }
 
-    state write(main: &mut Main, table: &mut Table) {
+    machine write(main: &mut Main, table: &mut Table) {
         table.head[main.high] = 41;
         table.tail[main.low] = 29;
         let mut mark: Mark = Mark::Number { value: 11, negative: true };
@@ -86,7 +86,7 @@ machine Main::round(main: &mut Main) {
         transition { _ -> written(main, table) }
     }
 
-    state written(main: &mut Main, table: &mut Table) {
+    machine written(main: &mut Main, table: &mut Table) {
         transition table.head[main.high] == 41 && table.tail[main.low] == 29
             && table.head[main.low] == 0 && table.count == 1 {
             true -> written_mark(main, table)
@@ -94,7 +94,7 @@ machine Main::round(main: &mut Main) {
         }
     }
 
-    state written_mark(main: &mut Main, table: &mut Table) {
+    machine written_mark(main: &mut Main, table: &mut Table) {
         let written: Mark = table.marks[main.high];
         transition written {
             Mark::Number { start as _, end as _, value, negative } -> written_payload(main, value, negative, written.start, written.end)
@@ -102,15 +102,15 @@ machine Main::round(main: &mut Main) {
         }
     }
 
-    state written_payload(main: &mut Main, value: u32, negative: bool, start: u64, end: u32) {
+    machine written_payload(main: &mut Main, value: u32, negative: bool, start: u64, end: u32) {
         transition value == 11 && negative && start == 3 && end == 5 {
             true -> finished(main)
             _ -> fail(main, 76)
         }
     }
 
-    state finished(main: &mut Main) { main.rounds = main.rounds + 1; }
-    state fail(main: &mut Main, code: i32) { main.failure = code; }
+    machine finished(main: &mut Main) { main.rounds = main.rounds + 1; }
+    machine fail(main: &mut Main, code: i32) { main.failure = code; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

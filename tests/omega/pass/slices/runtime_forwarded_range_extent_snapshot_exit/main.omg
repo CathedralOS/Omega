@@ -23,8 +23,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> good()
         _ -> bad()
     }
-    state good() {}
-    state bad() { crash Trap; }
+    machine good() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

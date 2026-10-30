@@ -1,7 +1,5 @@
 //! The report-only layout compatibility fingerprint and checked arithmetic.
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use crate::dynamic_executable::load_placement::load_layout::{
     DYNAMIC_LOAD_POLICY_TAG, ElfLoadImageMemoryPlacement, ElfLoadProgramHeader,
     ElfPlacedDynamicSection, ElfResolvedSectionHeaderPlacement,
@@ -21,12 +19,9 @@ pub(crate) fn non_authoritative_layout_compatibility_fingerprint(
     section_header_table_file_offset: u64,
     resolutions: &[ElfResolvedSectionHeaderPlacement],
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf.dynamic-load-layout.v1");
-    hash.bytes(
-        &relative
-            .non_authoritative_layout_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = crate::dynamic_executable::checked::stage_fingerprint(
+        b"omega.elf.dynamic-load-layout.v1",
+        relative.non_authoritative_layout_compatibility_fingerprint(),
     );
     hash.byte(target_tag(target));
     hash.byte(DYNAMIC_LOAD_POLICY_TAG);

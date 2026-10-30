@@ -1,5 +1,5 @@
 // Expected exit: 0
-domain i32::NonZero(value) requires value != 0;
+domain i32::NonZero requires self != 0;
 data Divisor [copy] { case Unset; case By(amount: i32 in NonZero); }
 
 machine quotient(divisor: Divisor) -> i32 {
@@ -15,6 +15,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

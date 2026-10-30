@@ -11,20 +11,20 @@ machine Main::main(main: &mut Main) reaches Console {
     let mut input: Input;
     let valid: bool = block read_input(&mut main.reader, &mut input);
     transition valid { true -> rows(main, &input, 6) _ -> invalid(main) }
-    state rows(main: &mut Main, input: &Input, position: i32 in Wrapping) {
+    machine rows(main: &mut Main, input: &Input, position: i32 in Wrapping) {
         transition position >= 6 && position < 22 && position < input.count {
             true -> row(main, input, position)
             _ -> done(main)
         }
     }
-    state row(main: &mut Main, input: &Input, position: i32 in Wrapping) {
+    machine row(main: &mut Main, input: &Input, position: i32 in Wrapping) {
         let mut result: Equilibrium;
         solve(input, input.values[position], &mut result);
         report(input.values[position], &result);
         transition { _ -> rows(main, input, position + 1) }
     }
-    state done(main: &mut Main) { Console::write_line("status=ok"); Console::exit_process(0); }
-    state invalid(main: &mut Main) { Console::write_line("error=input: bounded ideal-equilibrium domain or decimal packet refused"); Console::exit_process(2); }
+    machine done(main: &mut Main) { Console::write_line("status=ok"); Console::exit_process(0); }
+    machine invalid(main: &mut Main) { Console::write_line("error=input: bounded ideal-equilibrium domain or decimal packet refused"); Console::exit_process(2); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

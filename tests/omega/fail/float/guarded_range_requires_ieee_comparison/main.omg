@@ -7,7 +7,7 @@ machine select(value: f64) -> f64 {
         true -> bounded(value)
         _ -> 0.0
     }
-    state bounded(value: f64) -> f64
+    machine bounded(value: f64) -> f64
         requires value >= 0.0 && value <= 1.0
     { value }
 }
@@ -18,7 +18,7 @@ machine coordinate(values: &[f64; 2]) -> f64 {
         true -> bounded(values[0])
         _ -> 0.0
     }
-    state bounded(selected: f64) -> f64
+    machine bounded(selected: f64) -> f64
         requires selected >= 0.0 && selected <= 1.0
     { selected }
 }

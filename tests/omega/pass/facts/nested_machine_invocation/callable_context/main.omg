@@ -1,0 +1,13 @@
+// Expected exit: 0
+machine identity(value: u64) -> u64 { value }
+machine apply<machine Transform>(value: u64) -> u64
+where machine Transform(item: u64) -> u64;
+{
+    inner(value)
+    machine inner(item: u64) -> u64 { Transform(item) }
+}
+machine main() crashes Trap {
+    transition apply<identity>(42) == 42 { true -> done() _ -> failed() }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
+}

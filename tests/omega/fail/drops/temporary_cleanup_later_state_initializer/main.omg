@@ -11,7 +11,7 @@ machine main(flag: bool) -> u64 {
         false -> formed()
     }
     // A non-final initializer still owes the hook its prerequisite.
-    state formed() -> u64 {
+    machine formed() -> u64 {
         let observed: u64 = read(&Token { value: 8 });
         observed
     }

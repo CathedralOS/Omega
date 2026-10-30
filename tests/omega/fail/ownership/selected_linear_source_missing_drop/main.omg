@@ -1,0 +1,5 @@
+data Token [linear] { value: u64; }
+machine choose(enabled: bool) -> Token {
+    let old: Token = Token { value: 1 };
+    match enabled { true -> old, _ -> Token { value: 2 }, }
+}

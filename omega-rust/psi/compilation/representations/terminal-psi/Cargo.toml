@@ -9,11 +9,17 @@ name = "terminal_psi"
 path = "src/lib.rs"
 
 [dependencies]
+compiler-storage = { path = "../../../foundation/compiler-storage" }
 arena = { path = "../../../foundation/arena" }
 optimization = { path = "../../../foundation/optimization-selections" }
+numerics = { path = "../../../foundation/numerics" }
 source = { path = "../../../foundation/source" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
 language-core = { path = "../../../foundation/language-core" }
 language-semantics = { path = "../../../foundation/language-semantics" }
 
 access-plans = { path = "../../../foundation/access-plans" }
+
+[dev-dependencies]
+# The source guards delegate their scan to the shared audit crate.
+source-audit = { path = "../../../foundation/source-audit" }

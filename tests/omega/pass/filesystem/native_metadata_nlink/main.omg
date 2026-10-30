@@ -33,7 +33,7 @@ machine Main::main_linux(main: &mut Main) reaches FilesystemContentRead + Filesy
         widen_u8_to_i32(main.buffer[16]) | (widen_u8_to_i32(main.buffer[17]) << 8);
     main.rc = PosixFilesystemHost::hard_link("/tmp/omega_nlink.txt", "/tmp/omega_nlink_2.txt");
     transition main.rc == 0 { true -> stat2(main) _ -> fail(main) }
-    state stat2(main: &mut Main) {
+    machine stat2(main: &mut Main) {
         main.rc = PosixFilesystemHost::read_metadata("/tmp/omega_nlink.txt", &mut main.buffer);
         main.nlink2 =
             widen_u8_to_i32(main.buffer[16]) | (widen_u8_to_i32(main.buffer[17]) << 8);
@@ -41,11 +41,11 @@ machine Main::main_linux(main: &mut Main) reaches FilesystemContentRead + Filesy
         main.discard = PosixFilesystemHost::remove("/tmp/omega_nlink.txt");
         transition main.nlink1 == 1 { true -> check2(main) _ -> fail(main) }
     }
-    state check2(main: &mut Main) {
+    machine check2(main: &mut Main) {
         transition main.nlink2 == 2 { true -> good(main) _ -> fail(main) }
     }
-    state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: nlink 1 -> 2 after hard_link\n"); }
-    state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: nlink\n"); }
+    machine good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: nlink 1 -> 2 after hard_link\n"); }
+    machine fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: nlink\n"); }
 }
 
 machine Main::main_macos(main: &mut Main) reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
@@ -60,7 +60,7 @@ machine Main::main_macos(main: &mut Main) reaches FilesystemContentRead + Filesy
         widen_u8_to_i32(main.buffer[6]) | (widen_u8_to_i32(main.buffer[7]) << 8);
     main.rc = PosixFilesystemHost::hard_link("/tmp/omega_nlink.txt", "/tmp/omega_nlink_2.txt");
     transition main.rc == 0 { true -> stat2(main) _ -> fail(main) }
-    state stat2(main: &mut Main) {
+    machine stat2(main: &mut Main) {
         main.rc = PosixFilesystemHost::read_metadata("/tmp/omega_nlink.txt", &mut main.buffer);
         main.nlink2 =
             widen_u8_to_i32(main.buffer[6]) | (widen_u8_to_i32(main.buffer[7]) << 8);
@@ -68,11 +68,11 @@ machine Main::main_macos(main: &mut Main) reaches FilesystemContentRead + Filesy
         main.discard = PosixFilesystemHost::remove("/tmp/omega_nlink.txt");
         transition main.nlink1 == 1 { true -> check2(main) _ -> fail(main) }
     }
-    state check2(main: &mut Main) {
+    machine check2(main: &mut Main) {
         transition main.nlink2 == 2 { true -> good(main) _ -> fail(main) }
     }
-    state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: nlink 1 -> 2 after hard_link\n"); }
-    state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: nlink\n"); }
+    machine good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: nlink 1 -> 2 after hard_link\n"); }
+    machine fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: nlink\n"); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

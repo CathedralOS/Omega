@@ -7,7 +7,7 @@
 use std::collections::BTreeMap;
 
 use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
-use optimization_unit::PsiOptimizationFunction;
+use optimization_unit::{PsiOptimizationFunction, operation_result_placement};
 use semantic_vocabulary::{BlockId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralDomainDeclaration, StructuralMultiplicity,
@@ -37,14 +37,8 @@ pub(crate) fn byte_field_store_capacity(
             )
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
             || !parameter.projected_qualifications.is_empty()
-            || function
-                .entry_claim_declarations
-                .iter()
-                .any(|claim| claim.input == *destination)
-            || function
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == *destination)
+            || function.entry_claim_declared(*destination)
+            || function.content_entry_claim_declared(*destination)
         {
             return None;
         }
@@ -384,14 +378,8 @@ pub(super) fn validate_source(
                 .is_some()
                     || arrival.is_some()))
         })
-        && function
-            .entry_claim_declarations
-            .iter()
-            .all(|claim| claim.input != source)
-        && function
-            .content_entry_claims
-            .iter()
-            .all(|claim| claim.input.root != source);
+        && !function.entry_claim_declared(source)
+        && !function.content_entry_claim_declared(source);
     let exact_length = length.is_none_or(|length| {
         function.block_nodes().any(|node| {
             matches!(&node.operation, AbstractOperation::ByteSequenceLength {
@@ -453,22 +441,9 @@ pub(super) fn validate_source(
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
                 && result.claims.is_empty()
-                && function.structural_places.iter().any(|place| {
-                    place.id == result.place
-                        && place.kind
-                            == StructuralPlaceKind::OperationResult {
-                                producer: *psi_operation,
-                                structural_type: result.structural_type,
-                            }
-                })
-                && function
-                    .entry_claim_declarations
-                    .iter()
-                    .all(|claim| claim.input != result.place)
-                && function
-                    .content_entry_claims
-                    .iter()
-                    .all(|claim| claim.input.root != result.place)
+                && operation_result_placement(function, result, *psi_operation)
+                && !function.entry_claim_declared(result.place)
+                && !function.content_entry_claim_declared(result.place)
         }
         _ => true,
     };

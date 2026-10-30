@@ -318,7 +318,7 @@ fn substitute_scalar_term_places(
                     let mut rebased = prefix
                         .iter()
                         .copied()
-                        .map(semantic_vocabulary::ScalarReadProjection::Static)
+                        .map(semantic_vocabulary::ScalarReadProjection::from)
                         .collect::<Vec<_>>();
                     rebased.append(path);
                     *path = rebased;
@@ -350,7 +350,8 @@ fn substitute_scalar_term_places(
             ScalarTerm::Value { .. }
             | ScalarTerm::Boolean(_)
             | ScalarTerm::Integer { .. }
-            | ScalarTerm::IeeeFloatLiteral(_) => {}
+            | ScalarTerm::IeeeFloatLiteral(_)
+            | ScalarTerm::Application { .. } => {}
         }
     }
     substitute(&mut term, substitutions);
@@ -770,6 +771,9 @@ pub(super) fn substitute_scalar_term_values(
                     semantic_vocabulary::ScalarReadProjection::Referent => {
                         semantic_vocabulary::ScalarReadProjection::Referent
                     }
+                    semantic_vocabulary::ScalarReadProjection::Extent => {
+                        semantic_vocabulary::ScalarReadProjection::Extent
+                    }
                     semantic_vocabulary::ScalarReadProjection::Static(segment) => {
                         semantic_vocabulary::ScalarReadProjection::Static(*segment)
                     }
@@ -783,7 +787,8 @@ pub(super) fn substitute_scalar_term_values(
         semantic_vocabulary::scalar_term_predicate_quint_pattern!(..)
         | ScalarTerm::Boolean(_)
         | ScalarTerm::Integer { .. }
-        | ScalarTerm::IeeeFloatLiteral(_) => term.clone(),
+        | ScalarTerm::IeeeFloatLiteral(_)
+        | ScalarTerm::Application { .. } => term.clone(),
         ScalarTerm::BooleanNot { operand } => ScalarTerm::BooleanNot {
             operand: Box::new(recurse(operand)),
         },

@@ -7,13 +7,11 @@ use std::time::Instant;
 use proof_admission::{
     Budget, DEFAULT_CONVERSION_STEPS, MathematicalCertificate, Term, TermArena, TermHandle,
 };
+use psi_compiler::{TerminalMachineSelection, TerminalProductionRequest, UnmeasuredProduction};
 use terminal_codec::{
     CanonicalTerminalArtifact, MathematicalProofActualError, decode_mathematical_certificate,
     encode_mathematical_certificate, mathematical_carrier_key, verify_indexed_theorem_roots,
     verify_module_mathematical_actuals,
-};
-use terminal_production::{
-    TerminalMachineSelection, TerminalProductionRequest, produce_terminal_artifact,
 };
 use terminal_psi::TerminalModule;
 
@@ -29,13 +27,9 @@ struct SourceTheorem {
 }
 
 pub(super) fn produce(
-    request: compiler::CheckedCompileRequest,
+    checked: &compiler::CheckedCompilation,
     machine: &str,
 ) -> Result<CanonicalTerminalArtifact, String> {
-    let checked = compiler::CompilationSession::default()
-        .check(request)
-        .result
-        .map_err(|errors| format!("indexed inspection source checking: {errors:?}"))?;
     let program = &checked.execution().program;
     let facts = &program.facts.proof;
     // This policy is captured from the checked source before any artifact
@@ -235,18 +229,15 @@ pub(super) fn produce(
     .map_err(|error| format!("retained source Nil child: {error:?}"))?;
     let nil_certificate = encode_mathematical_certificate(&signature.arena, &nil_judgment)
         .map_err(|error| format!("source Nil certificate: {error:?}"))?;
-    let mut timings = Default::default();
-    let artifact = produce_terminal_artifact(
-        TerminalProductionRequest::new(
-            program,
-            TerminalMachineSelection::Name(machine),
-            checked.sources().exact_toolchain_sources(),
-        ),
-        &[],
-        &mut timings,
+    let artifact = TerminalProductionRequest::new(
+        program,
+        TerminalMachineSelection::Name(machine),
+        checked.sources().exact_toolchain_sources(),
     )
+    .produce(Default::default(), &mut UnmeasuredProduction)
     .map_err(|error| format!("indexed inspection Terminal production: {error:?}"))?
-    .into_artifact();
+    .into_artifact()
+    .map_err(|error| error.to_string())?;
     let expected = artifact.semantic_module();
     for carrier in &expected.mathematical_carriers {
         if !source_carriers.iter().any(|(identity, key)| {
@@ -367,7 +358,7 @@ pub(super) fn produce(
         received.indexed_theorems.len(),
         DEFAULT_CONVERSION_STEPS - root_budget.remaining()
     );
-    let actual_count = mathematical_actuals(received).len();
+    let actual_count = mathematical_actual_count(received);
     if actual_count == 0 {
         return Err("source indexed artifact has no mathematical actual slots; receiver actual validation would be vacuous".into());
     }
@@ -569,64 +560,103 @@ fn must_refuse(
     }
 }
 
-fn mathematical_actuals(module: &TerminalModule) -> Vec<&semantic_vocabulary::ProofTerm> {
-    use terminal_psi::{OperationKind, Terminator};
-    let mut found = Vec::new();
-    for machine in &module.machines {
-        for block in &machine.blocks {
-            for operation in &block.operations {
-                let actuals = match &operation.kind {
-                    OperationKind::Call {
-                        erased_proof_arguments,
-                        ..
-                    }
-                    | OperationKind::CallUnit {
-                        erased_proof_arguments,
-                        ..
-                    }
-                    | OperationKind::CallStructuralScalar {
-                        erased_proof_arguments,
-                        ..
-                    }
-                    | OperationKind::CallStructuralWithScalarArguments {
-                        erased_proof_arguments,
-                        ..
-                    }
-                    | OperationKind::CallDynamic {
-                        erased_proof_arguments,
-                        ..
-                    } => erased_proof_arguments.as_slice(),
-                    _ => &[],
-                };
-                found.extend(actuals.iter().filter(|term| {
-                    matches!(term, semantic_vocabulary::ProofTerm::Mathematical { .. })
-                }));
+/// How many direct mathematical actuals the source-produced module transports.
+/// It answers through the same carrier vocabulary the receiving controls mutate.
+fn mathematical_actual_count(module: &TerminalModule) -> usize {
+    let mut probe = module.clone();
+    proof_carriers_mut(&mut probe)
+        .into_iter()
+        .flat_map(|(_, roster)| roster.iter())
+        .filter(|term| matches!(term, semantic_vocabulary::ProofTerm::Mathematical { .. }))
+        .count()
+}
+
+/// Every proof-argument roster a terminal module transports, in walk order,
+/// borrowed mutably with the callee its carrier selected (`None` for an edge
+/// that selects no callee). One walk states the carrier vocabulary; the
+/// receiving controls below select from it instead of re-enumerating the
+/// operation and terminator shapes.
+pub(super) fn proof_carriers_mut(
+    module: &mut TerminalModule,
+) -> Vec<(
+    Option<semantic_vocabulary::MachineId>,
+    &mut Vec<semantic_vocabulary::ProofTerm>,
+)> {
+    let mut carriers = Vec::new();
+    for machine in &mut module.machines {
+        for block in &mut machine.blocks {
+            for operation in &mut block.operations {
+                if let Some((callee, roster)) = operation_carriers_mut(&mut operation.kind) {
+                    carriers.push((callee.copied(), roster));
+                }
             }
-            match &block.terminator {
-                Terminator::Jump {
+            match &mut block.terminator {
+                terminal_psi::Terminator::Jump {
                     erased_proof_arguments,
                     ..
-                } => found.extend(erased_proof_arguments.iter().filter(|term| {
-                    matches!(term, semantic_vocabulary::ProofTerm::Mathematical { .. })
-                })),
-                Terminator::Conditional {
+                } => carriers.push((None, erased_proof_arguments)),
+                terminal_psi::Terminator::InvokeNoNormal {
+                    callee,
+                    erased_proof_arguments,
+                    ..
+                } => carriers.push((Some(*callee), erased_proof_arguments)),
+                terminal_psi::Terminator::Conditional {
                     when_true,
                     when_false,
                     ..
-                } => found.extend(
-                    when_true
-                        .erased_proof_arguments
-                        .iter()
-                        .chain(&when_false.erased_proof_arguments)
-                        .filter(|term| {
-                            matches!(term, semantic_vocabulary::ProofTerm::Mathematical { .. })
-                        }),
-                ),
+                } => {
+                    carriers.push((None, &mut when_true.erased_proof_arguments));
+                    carriers.push((None, &mut when_false.erased_proof_arguments));
+                }
                 _ => {}
             }
         }
     }
-    found
+    carriers
+}
+
+fn operation_carriers_mut(
+    kind: &mut terminal_psi::OperationKind,
+) -> Option<(
+    Option<&semantic_vocabulary::MachineId>,
+    &mut Vec<semantic_vocabulary::ProofTerm>,
+)> {
+    use terminal_psi::OperationKind;
+    match kind {
+        OperationKind::Call {
+            callee,
+            erased_proof_arguments,
+            ..
+        }
+        | OperationKind::CallUnit {
+            callee,
+            erased_proof_arguments,
+            ..
+        }
+        | OperationKind::CallStructuralScalar {
+            callee,
+            erased_proof_arguments,
+            ..
+        }
+        | OperationKind::CallStructuralWithScalarArguments {
+            callee,
+            erased_proof_arguments,
+            ..
+        } => Some((Some(callee), erased_proof_arguments)),
+        OperationKind::CallDynamic {
+            erased_proof_arguments,
+            ..
+        } => Some((None, erased_proof_arguments)),
+        _ => None,
+    }
+}
+
+/// Whether `term` is a mathematical application that carries a scalar input,
+/// the shape the mixed-application receiving controls mutate.
+pub(super) fn is_mixed_application(term: &semantic_vocabulary::ProofTerm) -> bool {
+    matches!(term,
+        semantic_vocabulary::ProofTerm::MathematicalApplication { arguments, .. }
+            if arguments.iter().any(|argument| matches!(argument, semantic_vocabulary::MathematicalArgument::Scalar { .. })))
 }
 
 // Recognize the exact fixed law in the trusted checked signature solely to
@@ -724,42 +754,18 @@ fn first_mathematical_actual_mut(
     ),
     String,
 > {
-    use terminal_psi::OperationKind;
-    for machine in &mut module.machines {
-        for block in &mut machine.blocks {
-            for operation in &mut block.operations {
-                let (callee, arguments) = match &mut operation.kind {
-                    OperationKind::Call {
-                        callee,
-                        erased_proof_arguments,
-                        ..
-                    }
-                    | OperationKind::CallUnit {
-                        callee,
-                        erased_proof_arguments,
-                        ..
-                    }
-                    | OperationKind::CallStructuralScalar {
-                        callee,
-                        erased_proof_arguments,
-                        ..
-                    }
-                    | OperationKind::CallStructuralWithScalarArguments {
-                        callee,
-                        erased_proof_arguments,
-                        ..
-                    } => (*callee, erased_proof_arguments),
-                    _ => continue,
-                };
-                if let Some(term) = arguments.iter_mut().find(|term| {
-                    matches!(term, semantic_vocabulary::ProofTerm::Mathematical { .. })
-                }) {
-                    return Ok((callee, term));
-                }
-            }
-        }
-    }
-    Err("source artifact has no direct mathematical actual for transport controls".into())
+    proof_carriers_mut(module)
+        .into_iter()
+        .find_map(|(callee, roster)| {
+            let callee = callee?;
+            roster
+                .iter_mut()
+                .find(|term| matches!(term, semantic_vocabulary::ProofTerm::Mathematical { .. }))
+                .map(|term| (callee, term))
+        })
+        .ok_or_else(|| {
+            "source artifact has no direct mathematical actual for transport controls".to_owned()
+        })
 }
 pub(super) fn must_refuse_actual(
     actual: &TerminalModule,

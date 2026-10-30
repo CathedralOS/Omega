@@ -10,14 +10,14 @@
 //!
 //! | route    | completion     | result     | transfers            | contract commitment | source site  |
 //! |----------|----------------|------------|----------------------|---------------------|--------------|
-//! | module   | `NormalReturn` | Unit       | `Claims`             | absent              | not retained |
-//! | module   | `NormalReturn` | scalar     | `Claims`             | present             | not retained |
+//! | module   | `NormalReturn` | Unit       | `Claims`             | absent              | retained     |
+//! | module   | `NormalReturn` | scalar     | `Claims`             | present             | retained     |
 //! | module   | `NormalReturn` | structural | `StructuralCustody`  | present             | retained     |
 //! | boundary | `NormalReturn` | Unit       | `CompletionReceipts` | absent              | retained     |
 //! | boundary | `NormalReturn` | scalar     | `CompletionReceipts` | absent              | retained     |
 //! | boundary | `NormalReturn` | structural | `StructuralCustody`  | absent              | retained     |
-//! | dynamic  | `NormalReturn` | Unit       | `Claims`             | absent              | not retained |
-//! | dynamic  | `NormalReturn` | scalar     | `Claims`             | absent              | not retained |
+//! | dynamic  | `NormalReturn` | Unit       | `Claims`             | absent              | retained     |
+//! | dynamic  | `NormalReturn` | scalar     | `Claims`             | absent              | retained     |
 //! | dynamic  | `NormalReturn` | structural | `StructuralCustody`  | absent              | retained     |
 //! | boundary | `External`     | Unit       | `Abandonment`        | absent              | retained     |
 //!
@@ -59,7 +59,7 @@ use crate::{MachineContractCommitment, NominalMachineUseSite};
 use typed_trees::type_identity::TypeIdentityId;
 
 /// The exact machine state a call enters and the service reach of the edge.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitCallTarget {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -68,7 +68,7 @@ pub struct CheckedUnitCallTarget {
 }
 
 /// How a call reaches its target.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitCallRoute {
     /// A sealed compiler operation performed in this caller's activation.
     /// Its source invocation shares operand evaluation and result custody with
@@ -113,8 +113,12 @@ pub enum CheckedUnitCallRoute {
 }
 
 /// What a call binds for the operations after it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitCallResult {
+    /// The exact checked module invocation has no normal continuation. Its
+    /// declared callee signature remains intact; no value or normal custody
+    /// receipt enters this caller. This supplies no abandonment authority.
+    NoNormal,
     /// Nothing.
     Unit,
     /// A primitive in the dense scalar namespace. A boundary result binds the
@@ -133,7 +137,7 @@ pub enum CheckedUnitCallResult {
 
 /// The existing claims a call carries through completion. Transfers never
 /// establish fresh authority.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitCallTransfers {
     /// An ordinary Unit or scalar call's claim transfers.
     Claims(Vec<CheckedUnitClaimTransferPlan>),
@@ -156,7 +160,6 @@ pub struct CheckedUnitCallParts {
     pub coordinate: CheckedUnitCallCoordinate,
     /// Exact authored call site retained for target-owned occurrence joins.
     /// Transition-target calls have no statement or expression arena site.
-    /// Ordinary Unit and scalar calls retain no site and must pass `None`.
     pub source_site: Option<NominalMachineUseSite>,
     pub target: CheckedUnitCallTarget,
     pub route: CheckedUnitCallRoute,
@@ -168,7 +171,7 @@ pub struct CheckedUnitCallParts {
 }
 
 /// One call operation in an admitted route, result and custody shape.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitCallPlan {
     pub coordinate: CheckedUnitCallCoordinate,
     source_site: Option<NominalMachineUseSite>,
@@ -213,6 +216,14 @@ impl CheckedUnitCallPlan {
                 )
             ),
             BoundaryCompletion::NormalReturn => match (&route, &result, &transfers) {
+                (
+                    CheckedUnitCallRoute::Module {
+                        contract_commitment,
+                        ..
+                    },
+                    Result::NoNormal,
+                    Transfers::Claims(_),
+                ) => contract_commitment.is_some(),
                 (
                     CheckedUnitCallRoute::ActivationStorage {
                         operation:
@@ -265,7 +276,7 @@ impl CheckedUnitCallPlan {
                     },
                     Result::Unit,
                     Transfers::Claims(_),
-                ) => contract_commitment.is_none() && source_site.is_none(),
+                ) => contract_commitment.is_none(),
                 (
                     CheckedUnitCallRoute::Module {
                         contract_commitment,
@@ -273,7 +284,7 @@ impl CheckedUnitCallPlan {
                     },
                     Result::Scalar(_),
                     Transfers::Claims(_),
-                ) => contract_commitment.is_some() && source_site.is_none(),
+                ) => contract_commitment.is_some(),
                 (
                     CheckedUnitCallRoute::Module {
                         contract_commitment,
@@ -296,7 +307,7 @@ impl CheckedUnitCallPlan {
                     CheckedUnitCallRoute::Dynamic { .. },
                     Result::Unit | Result::Scalar(_),
                     Transfers::Claims(_),
-                ) => source_site.is_none(),
+                ) => true,
                 (
                     CheckedUnitCallRoute::Dynamic { .. },
                     Result::Structural { .. },
@@ -357,6 +368,13 @@ impl CheckedUnitCallPlan {
         self.completion
     }
 
+    /// Continuation, unlike abandonment, follows the invocation outcome. A
+    /// checked nonreturning cycle cannot grant disposal or loan completion.
+    pub fn has_normal_continuation(&self) -> bool {
+        self.completion == BoundaryCompletion::NormalReturn
+            && self.result != CheckedUnitCallResult::NoNormal
+    }
+
     pub fn result(&self) -> &CheckedUnitCallResult {
         &self.result
     }
@@ -365,20 +383,10 @@ impl CheckedUnitCallPlan {
         &self.transfers
     }
 
-    /// Whether this route and result retain the authored call site: every
-    /// boundary call and every ordinary structural call.
-    fn retains_source_site(&self) -> bool {
-        self.is_boundary()
-            || matches!(self.route, CheckedUnitCallRoute::ActivationStorage { .. })
-            || matches!(self.result, CheckedUnitCallResult::Structural { .. })
-    }
-
-    /// The exact authored call site the row retains for target-owned
-    /// occurrence joins. `None` when the call retains no site (an ordinary
-    /// Unit or scalar call); `Some(None)` for a transition-target call, which
-    /// has no statement or expression arena site.
-    pub fn source_site(&self) -> Option<Option<NominalMachineUseSite>> {
-        self.retains_source_site().then_some(self.source_site)
+    /// The exact authored occurrence, independent of route or result carrier.
+    /// Transition-target calls have no statement or expression arena site.
+    pub fn source_site(&self) -> Option<NominalMachineUseSite> {
+        self.source_site
     }
 
     /// The target's contract commitment, retained by ordinary scalar and

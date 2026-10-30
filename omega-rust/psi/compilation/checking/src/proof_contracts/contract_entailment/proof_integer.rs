@@ -102,7 +102,7 @@ pub fn proof_integer_expression(
 
 /// Land the complete anonymous peer to unbounded Int. Fractional intermediate
 /// values remain exact; a fractional final value cannot become an integer.
-pub(super) fn anonymous_integer_value(
+pub(crate) fn anonymous_integer_value(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<BigInt> {

@@ -8,7 +8,7 @@ machine reconstruct(acquisition: &mut Acquisition) {
         true -> header(acquisition)
         false -> fail(acquisition, 1)
     }
-    state header(acquisition: &mut Acquisition) {
+    machine header(acquisition: &mut Acquisition) {
         acquisition.count = acquisition.tokens[0];
         acquisition.modulus = acquisition.tokens[1];
         acquisition.lower = acquisition.tokens[2];
@@ -22,19 +22,19 @@ machine reconstruct(acquisition: &mut Acquisition) {
             false -> fail(acquisition, 2)
         }
     }
-    state length(acquisition: &mut Acquisition) {
+    machine length(acquisition: &mut Acquisition) {
         transition acquisition.used == 5 + 3 * acquisition.count {
             true -> rows(acquisition, 0)
             false -> fail(acquisition, 1)
         }
     }
-    state rows(acquisition: &mut Acquisition, index: i64 in Wrapping) {
+    machine rows(acquisition: &mut Acquisition, index: i64 in Wrapping) {
         transition index < acquisition.count && index >= 0 && index < 16 {
             true -> load(acquisition, index)
             false -> anchor(acquisition)
         }
     }
-    state load(acquisition: &mut Acquisition, index: i64 in Wrapping) {
+    machine load(acquisition: &mut Acquisition, index: i64 in Wrapping) {
         let position: i64 in Wrapping = 5 + 3 * index;
         acquisition.sequence[index] = acquisition.tokens[position];
         acquisition.raw[index] = acquisition.tokens[position + 1];
@@ -45,13 +45,13 @@ machine reconstruct(acquisition: &mut Acquisition) {
             false -> fail(acquisition, 3)
         }
     }
-    state anchor(acquisition: &mut Acquisition) {
+    machine anchor(acquisition: &mut Acquisition) {
         transition acquisition.modulus >= 2 {
             true -> anchored_residue(acquisition)
             false -> fail(acquisition, 2)
         }
     }
-    state anchored_residue(acquisition: &mut Acquisition)
+    machine anchored_residue(acquisition: &mut Acquisition)
     requires acquisition.modulus >= 2
     {
         transition acquisition.anchor % acquisition.modulus == acquisition.raw[0] {
@@ -59,20 +59,20 @@ machine reconstruct(acquisition: &mut Acquisition) {
             false -> fail(acquisition, 4)
         }
     }
-    state initialize(acquisition: &mut Acquisition) {
+    machine initialize(acquisition: &mut Acquisition) {
         acquisition.elapsed[0] = 0;
         acquisition.timestamps[0] = acquisition.anchor;
         acquisition.wraps = 0;
         acquisition.dropped = 0;
         transition { _ -> edge(acquisition, 1) }
     }
-    state edge(acquisition: &mut Acquisition, index: i64 in Wrapping) {
+    machine edge(acquisition: &mut Acquisition, index: i64 in Wrapping) {
         transition index >= 1 && index < 16 && index < acquisition.count {
             true -> order(acquisition, index)
             false -> done()
         }
     }
-    state order(acquisition: &mut Acquisition, index: i64 in Wrapping)
+    machine order(acquisition: &mut Acquisition, index: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
         transition acquisition.sequence[index] > acquisition.sequence[index - 1] {
@@ -80,7 +80,7 @@ machine reconstruct(acquisition: &mut Acquisition) {
             false -> fail(acquisition, 5)
         }
     }
-    state host_order(acquisition: &mut Acquisition, index: i64 in Wrapping)
+    machine host_order(acquisition: &mut Acquisition, index: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
         transition acquisition.host[index] > acquisition.host[index - 1] {
@@ -88,7 +88,7 @@ machine reconstruct(acquisition: &mut Acquisition) {
             false -> fail(acquisition, 6)
         }
     }
-    state residue(acquisition: &mut Acquisition, index: i64 in Wrapping)
+    machine residue(acquisition: &mut Acquisition, index: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
         transition acquisition.modulus >= 2 {
@@ -96,7 +96,7 @@ machine reconstruct(acquisition: &mut Acquisition) {
             false -> fail(acquisition, 2)
         }
     }
-    state difference(acquisition: &mut Acquisition, index: i64 in Wrapping)
+    machine difference(acquisition: &mut Acquisition, index: i64 in Wrapping)
     requires index >= 1 && index < 16
     requires acquisition.modulus >= 2
     {
@@ -106,7 +106,7 @@ machine reconstruct(acquisition: &mut Acquisition) {
             false -> candidate(acquisition, index, delta)
         }
     }
-    state raise(acquisition: &mut Acquisition, index: i64 in Wrapping, delta: i64 in Wrapping)
+    machine raise(acquisition: &mut Acquisition, index: i64 in Wrapping, delta: i64 in Wrapping)
     requires index >= 1 && index < 16
     requires acquisition.modulus >= 2
     {
@@ -114,7 +114,7 @@ machine reconstruct(acquisition: &mut Acquisition) {
         let proposed: i64 in Wrapping = delta + turns * acquisition.modulus;
         transition { _ -> candidate(acquisition, index, proposed) }
     }
-    state candidate(acquisition: &mut Acquisition, index: i64 in Wrapping, delta: i64 in Wrapping)
+    machine candidate(acquisition: &mut Acquisition, index: i64 in Wrapping, delta: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
         transition delta <= acquisition.upper {
@@ -122,7 +122,7 @@ machine reconstruct(acquisition: &mut Acquisition) {
             false -> fail(acquisition, 7)
         }
     }
-    state unique(acquisition: &mut Acquisition, index: i64 in Wrapping, delta: i64 in Wrapping)
+    machine unique(acquisition: &mut Acquisition, index: i64 in Wrapping, delta: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
         transition delta + acquisition.modulus > acquisition.upper {
@@ -130,7 +130,7 @@ machine reconstruct(acquisition: &mut Acquisition) {
             false -> fail(acquisition, 8)
         }
     }
-    state span(acquisition: &mut Acquisition, index: i64 in Wrapping, delta: i64 in Wrapping)
+    machine span(acquisition: &mut Acquisition, index: i64 in Wrapping, delta: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
         let elapsed: i64 in Wrapping = acquisition.elapsed[index - 1] + delta;
@@ -139,7 +139,7 @@ machine reconstruct(acquisition: &mut Acquisition) {
             false -> fail(acquisition, 9)
         }
     }
-    state overflow(acquisition: &mut Acquisition, index: i64 in Wrapping, delta: i64 in Wrapping, elapsed: i64 in Wrapping)
+    machine overflow(acquisition: &mut Acquisition, index: i64 in Wrapping, delta: i64 in Wrapping, elapsed: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
         transition acquisition.anchor <= 9223372036854775807 - elapsed {
@@ -147,7 +147,7 @@ machine reconstruct(acquisition: &mut Acquisition) {
             false -> fail(acquisition, 10)
         }
     }
-    state accept(acquisition: &mut Acquisition, index: i64 in Wrapping, delta: i64 in Wrapping, elapsed: i64 in Wrapping)
+    machine accept(acquisition: &mut Acquisition, index: i64 in Wrapping, delta: i64 in Wrapping, elapsed: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
         transition acquisition.modulus >= 2 {
@@ -155,7 +155,7 @@ machine reconstruct(acquisition: &mut Acquisition) {
             false -> fail(acquisition, 2)
         }
     }
-    state store(acquisition: &mut Acquisition, index: i64 in Wrapping, delta: i64 in Wrapping, elapsed: i64 in Wrapping)
+    machine store(acquisition: &mut Acquisition, index: i64 in Wrapping, delta: i64 in Wrapping, elapsed: i64 in Wrapping)
     requires index >= 1 && index < 16
     requires acquisition.modulus >= 2
     {
@@ -167,6 +167,6 @@ machine reconstruct(acquisition: &mut Acquisition) {
         acquisition.dropped = acquisition.dropped + acquisition.sequence[index] - acquisition.sequence[index - 1] - 1;
         transition { _ -> edge(acquisition, index + 1) }
     }
-    state fail(acquisition: &mut Acquisition, code: i64 in Wrapping) { acquisition.error = code; }
-    state done() { }
+    machine fail(acquisition: &mut Acquisition, code: i64 in Wrapping) { acquisition.error = code; }
+    machine done() { }
 }

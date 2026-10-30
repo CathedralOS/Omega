@@ -16,6 +16,52 @@ pub(crate) fn parameter_scoped_type_reference(
     expression_type(program, parameters, expression, 0)
 }
 
+/// Retain the lexical applications of an abstract callable's exact source.
+/// Parameter membership is by handle; a same-spelled foreign declaration is
+/// unavailable. Builtin projection meaning is checked before using place paths.
+pub fn parameter_source_type_application(
+    program: &dyn crate::CheckingInput,
+    callable: symbols::SymbolHandle,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+) -> Option<(TypeReferenceHandle, Vec<TypeReferenceHandle>)> {
+    if !callable.is_valid() {
+        return None;
+    }
+    let place = super::canonical_place_from_expression(program, expression)?;
+    if place.segments.is_empty() {
+        // A complete value has no enclosing projection. This declaration-owned
+        // query also admits its static Const/Value binders and reserved result;
+        // it does not search another executable state or use display names.
+        let reference = crate::parameter_expression_result_type_reference(
+            program, callable, parameters, expression,
+        )?;
+        return Some((reference, Vec::new()));
+    }
+    if !place.segments.is_empty() {
+        // This existing query authenticates nominal members and builtin []
+        // against the supplied parameters; authored operators are not paths.
+        parameter_scoped_type_reference(program, parameters, expression)?;
+    }
+    let reference = match place.root {
+        facts::PlaceRoot::Symbol(symbol) => {
+            let mut candidates = parameters
+                .iter()
+                .filter(|parameter| parameter.symbol == symbol);
+            let parameter = candidates.next()?;
+            if candidates.next().is_some() {
+                return None;
+            }
+            parameter.type_reference
+        }
+        facts::PlaceRoot::Expression(source) => crate::parameter_expression_result_type_reference(
+            program, callable, parameters, source,
+        )?,
+        _ => return None,
+    };
+    super::source_type_application_from_segments(program, reference, &place.segments)
+}
+
 fn expression_type(
     program: &dyn crate::CheckingInput,
     parameters: &[StateParameter],

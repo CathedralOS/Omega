@@ -36,8 +36,8 @@ machine advance(log: &mut i32) {
         true -> second(log)
         false -> wrong(log)
     }
-    state second(log: &mut i32) { log = 2; }
-    state wrong(log: &mut i32) { log = 9; }
+    machine second(log: &mut i32) { log = 2; }
+    machine wrong(log: &mut i32) { log = 9; }
 }
 
 data Receipt [linear] { code: i32 in Wrapping; }
@@ -69,7 +69,7 @@ machine settle(receipt: Receipt) -> i32 in Wrapping {
     code
 }
 
-domain [u8; 5]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 5]::Utf8 requires valid_utf8(self);
 data Label { text: [u8; 5] in Utf8; }
 machine label(text: [u8; 5] in Utf8) -> Label { Label { text: text } }
 machine labelled(label: Label) -> bool { label.text == "Owned" }
@@ -99,7 +99,7 @@ machine main() crashes Trap {
         false -> bad()
     }
 
-    state later(ticket: Ticket) {
+    machine later(ticket: Ticket) {
         let carried: i32 in Wrapping = take(ticket) + take(make(24));
         transition carried == 47 {
             true -> done()
@@ -107,6 +107,6 @@ machine main() crashes Trap {
         }
     }
 
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -269,10 +269,7 @@ fn consume_projected_source(
             StructuralMultiplicity::Affine | StructuralMultiplicity::Linear
         )
         || frontier.owned_places.get(&argument.place) != Some(&StructuralMultiplicity::Affine)
-        || function
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == argument.place)
+        || function.content_entry_claim_declared(argument.place)
         || !crate::unit_validation::operation_contracts::structural_source_contract(
             function,
             argument.place,

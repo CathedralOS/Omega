@@ -34,20 +34,20 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> large(main)
         _ -> bad(main)
     }
-    state large(main: &mut Main) {
+    machine large(main: &mut Main) {
         main.large = Complex { real: 3.0e200, imaginary: 4.0e200 };
         let direct: f64 = ComplexF64::norm_squared(&main.large);
         let direct_finite: bool = F64::is_finite(direct);
         let outcome: ComplexMagnitude<f64> = ComplexF64::try_magnitude(&main.large);
         transition direct_finite { false -> magnitude(main, outcome) _ -> bad(main) }
     }
-    state magnitude(main: &mut Main, outcome: ComplexMagnitude<f64>) {
+    machine magnitude(main: &mut Main, outcome: ComplexMagnitude<f64>) {
         transition outcome {
             ComplexMagnitude::Value { value } -> check_magnitude(main, value)
             _ -> bad(main)
         }
     }
-    state check_magnitude(main: &mut Main, value: f64) {
+    machine check_magnitude(main: &mut Main, value: f64) {
         let comparison: AccuracyComparison = compare_reference_additive_f64(value, 5.0e200,
             ReferenceAdditiveTolerance64 { atol: 0.0, rtol: 2.0e-15 });
         transition comparison {
@@ -56,13 +56,13 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     // Retain the originally frozen interval as well as the canonical policy.
-    state frozen_interval(main: &mut Main, value: f64) {
+    machine frozen_interval(main: &mut Main, value: f64) {
         transition value >= 4.99999999999999e200 && value <= 5.00000000000001e200 {
             true -> good(main) _ -> bad(main)
         }
     }
-    state good(main: &mut Main) { Console::exit_process(0); }
-    state bad(main: &mut Main) { Console::exit_process(1); }
+    machine good(main: &mut Main) { Console::exit_process(0); }
+    machine bad(main: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

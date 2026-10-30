@@ -4,12 +4,21 @@
 //! an open typed program. Retained tables are preparation evidence, not a
 //! second program representation or permission to skip checking.
 
+mod constant_entries;
 mod data_applications;
+mod product_operands;
+pub use product_operands::{
+    PreparedProductRequirement, prepare_product_operand_application,
+    prepare_product_requirement_operand, prepare_retained_product_application,
+};
 mod default_domain_zero;
 mod deferred_constants;
 mod opaque_property_receipts;
 mod runtime_index_fields;
+mod runtime_value_applications;
 mod selections;
+
+pub use selections::bind_pre_specialization_authored_selections;
 
 pub(crate) use data_applications::elaborate_projected_receivers;
 
@@ -89,7 +98,7 @@ impl<'request> PreparationRequest<'request> {
 /// a language judgment keeps this beside it: preparation is a pure function
 /// of the typed program and these inputs, so an equal pair reproduces the
 /// exact preparation and the judgment may be taken without preparing again.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, compiler_storage::Record)]
 pub struct PreparationAdmission {
     admits_pending_inputs: bool,
     asm_authority: Option<validation::AsmAuthorityAdmission>,
@@ -215,6 +224,7 @@ pub fn prepare_typed_trees(
     // Token syntax must expose its ordinary call before specialization sees
     // the program. Otherwise a concrete caller keeps a generic requirement
     // merely because it wrote `items[index]` rather than the named call.
+    runtime_value_applications::materialize(&mut program)?;
     crate::operators::bind_selected_operator_calls(
         &mut program,
         &typed_trees::references::DeclarationSelection::all(),
@@ -251,13 +261,15 @@ pub fn prepare_typed_trees(
         // Public requirement application can settle a result without creating
         // another executable body. Refresh its inferred consumers before token
         // binding reads them and include that change in the same fixed point.
-        let unavailable = crate::constructed_results::retain_constructed_result_types(&mut program);
+        let unavailable =
+            crate::constructed_results::retain_constructed_result_types(&mut program)?;
         let result_owners =
             crate::monomorphization::refresh_inferred_result_locals(&mut program, &unavailable)?;
         materialized += result_owners.len();
         for owner in result_owners {
             changed_roots.include(owner);
         }
+        materialized += constant_entries::materialize(&mut program)?;
         // Bind only complete producer outputs: newly cloned bodies and callers
         // whose calls or inferred results changed. The ordinary fixed point
         // settles targets and dependent temporaries before binding reads them;
@@ -288,7 +300,7 @@ pub fn prepare_typed_trees(
     // substituted member edges do not become new application demands.
     phase_profile::scope("05.c.3.d.constructed_result_types", || {
         crate::constructed_results::retain_constructed_result_types(&mut program)
-    });
+    })?;
     phase_profile::scope("05.c.3.e.data_applications", || {
         data_applications::elaborate(&mut program)
     })?;
@@ -318,6 +330,16 @@ pub fn prepare_typed_trees(
     phase_profile::scope("05.c.3.k.assignment_destinations", || {
         crate::assignment_destinations::prepare(&mut program)
     });
+    // Predicate copies retain exact tested subjects through specialization.
+    // A carrier that was open before binding must be judged after its caller
+    // telescope and inferred destinations have closed, before frozen checking.
+    phase_profile::scope("05.c.3.l.domain_test_carriers", || {
+        let contracts = arena::Arena::default();
+        let owners =
+            validation::expression_owners::OwnerEnvironmentIndex::new(&program, &contracts);
+        validation::validate_executable_domain_test_carriers(&program, &contracts, &owners)
+            .map_err(|diagnostic| vec![diagnostic])
+    })?;
     phase_profile::scope("05.c.3.m.assembly_admit", || {
         crate::assembly_control::admit(&program)
     })?;
@@ -326,6 +348,7 @@ pub fn prepare_typed_trees(
     // immutable checking. Form their signature after those producers finish;
     // checking before preparation would capture an incomplete source value.
     // This remains one kernel-checked signature, carried into the proof facts.
+    crate::monomorphization::require_complete_dispatch_subjects(&program)?;
     let mathematics = phase_profile::scope("05.c.3.n.mathematical_declarations", || {
         proof::mathematical_declarations::check_mathematical_declarations(&program)
     })?;
@@ -402,8 +425,10 @@ pub fn specialize_static_machine_calls(
     // This private preparation can execute before ordinary source checking.
     // Admit its completed static edges once at that execution boundary, never
     // inside the executable derivation loop.
-    validation::static_arguments::validate_authored_static_arguments(program)?;
-    validation::static_bindings::validate_static_machine_bindings(program)?;
+    // This preliminary query retains authored applications on the typed tree.
+    // Final program validation collects their conditional formation rows.
+    validation::static_arguments::validate_authored_static_arguments(program, &mut Vec::new())?;
+    validation::static_bindings::validate_static_machine_bindings(program, &mut Vec::new())?;
     validation::conformance_applications::validate_conformance_applications(program)?;
     validation::validate_static_machine_selections(program)?;
     validation::validate_generic_machine_contract_entailment(program)
@@ -417,10 +442,14 @@ pub fn prepare_constant_execution(
     mut program: TypedTrees,
 ) -> Result<TypedTrees, Vec<diagnostics::Diagnostic>> {
     validation::resolve_dynamic_call_targets(&mut program)?;
+    selections::retain_static_argument_contexts(&mut program);
+    selections::bind_pre_specialization_authored_selections(&mut program)
+        .map_err(|diagnostic| vec![diagnostic])?;
     specialize_static_machine_calls(&mut program)?;
     settle_value_destinations(&mut program)?;
-    crate::constructed_results::retain_constructed_result_types(&mut program);
+    crate::constructed_results::retain_constructed_result_types(&mut program)?;
     crate::assignment_destinations::prepare(&mut program);
+    crate::monomorphization::require_complete_dispatch_subjects(&program)?;
     Ok(program)
 }
 

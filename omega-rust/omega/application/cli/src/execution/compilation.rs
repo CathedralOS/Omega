@@ -84,18 +84,24 @@ pub(super) fn interpret_product(
     target: &str,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
     let artifact = report
-        .retained_native_artifact()
-        .map(|artifact| artifact.psi_artifact())
-        .or_else(|| {
-            report
-                .retained_dynamic_elf_artifact()
-                .map(|artifact| artifact.psi_artifact())
-        })
+        .retained_native_program()
+        .map(|program| program.psi_artifact())
         .ok_or(TerminalRuntimeError::InvalidProvision(
             "native report lost its produced Terminal artifact before comparison",
         ))?;
     terminal_runtime::execute(TerminalRuntimeRequest {
+        entry: None,
+        filesystem: terminal_runtime::TerminalFilesystemDelegation::HostNamespace,
+        native_provider: Some(std::process::Command::new(
+            std::env::current_exe().map_err(|error| TerminalRuntimeError::MissingProvision {
+                capability: "native-provider-sponsor",
+                reason: error.to_string(),
+            })?,
+        )),
         x86_flags: terminal_runtime::capture_host_x86_flags(target)?,
+        memory_ordering: terminal_runtime::TerminalMemoryOrderingEnvironment::private_sequential(
+            target,
+        ),
         provider_proposal: None,
         artifact,
         target: Some(target),
@@ -105,6 +111,6 @@ pub(super) fn interpret_product(
         // this CLI or invalidate another instance's storage/capabilities.
         domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: input.map(|file| Box::new(file) as Box<dyn std::io::Read + Send>),
-        clock: Some(terminal_runtime::TerminalClockSnapshot::capture_host_epoch()?),
+        clock: Some(terminal_runtime::TerminalClockEnvironment::Host),
     })
 }

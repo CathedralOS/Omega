@@ -1,0 +1,1 @@
+data `Bounded<10>` literal violates the default domain

@@ -1,0 +1,3 @@
+// Expected exit: 0
+// Build must prepare its explicitly named provider before reaching this product.
+machine main() {}

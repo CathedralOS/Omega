@@ -59,7 +59,20 @@ impl PackageReviewSource {
     }
 
     pub fn publish_component(&self) -> Result<IndependentComponentDescription, Vec<Diagnostic>> {
-        crate::compiler::package::publish_checked_component(self.retained.checked.clone())
+        super::run_on_compile_thread(|| {
+            let request = crate::product_execution::ProductRequest::Component {
+                checked: self.retained.checked.clone(),
+                retain_native_inputs: false,
+            };
+            let ((), output) = crate::compiler::produce_products(vec![((), Ok(request))])
+                .into_iter()
+                .next()
+                .ok_or_else(|| vec![Diagnostic::error("component publication lost its outcome")])?;
+            output
+                .and_then(crate::CompilationOutput::into_component)
+                .map(|product| product.description().clone())
+                .map_err(crate::CompilationProductError::into_diagnostics)
+        })
     }
 }
 
@@ -73,7 +86,7 @@ impl CompilationSession {
     ) -> Result<PackageReviewProduct, PackageReviewFailure> {
         super::run_on_compile_thread(|| {
             let package = build.package_inputs().root();
-            let target = build.generated_source_bundle().target();
+            let target = build.build_handoff().target();
             let checked = self
                 .check_package_build(build)
                 .map_err(PackageReviewFailure::Compilation)?;
@@ -85,9 +98,6 @@ impl CompilationSession {
             )
             .map_err(PackageReviewFailure::Projection)?;
             let facts = PackageReviewSourceFacts {
-                tolerated_unsettled_service_fields: checked
-                    .execution()
-                    .tolerated_unsettled_service_fields(),
                 consumed_units: checked
                     .sources()
                     .package_subject()

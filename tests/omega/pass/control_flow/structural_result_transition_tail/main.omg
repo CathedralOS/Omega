@@ -25,13 +25,13 @@ machine Counter::pick(counter: &mut Counter) -> Msg {
         _ -> pong(counter)
     }
 
-    state ping(counter: &mut Counter) -> Msg {
+    machine ping(counter: &mut Counter) -> Msg {
         transition {
             _ -> (Msg::Ping { x: counter.n })
         }
     }
 
-    state pong(counter: &mut Counter) -> Msg {
+    machine pong(counter: &mut Counter) -> Msg {
         transition counter.n > 5 {
             true -> (Msg::Pong { y: 1 })
             _ -> (Msg::Pong { y: 0 })
@@ -50,11 +50,11 @@ machine Main::main(main: &mut Main) reaches Console {
         Msg::Pong { y } -> ponged(main, y)
     }
 
-    state pinged(main: &mut Main, x: i32) {
+    machine pinged(main: &mut Main, x: i32) {
         Console::exit_process(x);
     }
 
-    state ponged(main: &mut Main, y: i32) {
+    machine ponged(main: &mut Main, y: i32) {
         Console::exit_process(y);
     }
 }

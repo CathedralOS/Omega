@@ -24,6 +24,7 @@ pub fn canonical_descriptor_location(
                 DescriptorPathSegment::FixedIndex(*index)
             }
             CanonicalStructuralPathSegment::Case(case) => DescriptorPathSegment::Case(*case),
+            CanonicalStructuralPathSegment::Referent => DescriptorPathSegment::Referent,
         })
         .collect::<Vec<_>>();
     resolved_path(types, root_type, &path)?;
@@ -171,7 +172,7 @@ fn indexed_carrier_length(
 ) -> Option<u64> {
     let shape = &declaration(types, structural_type)?.shape;
     match shape {
-        StructuralTypeShape::FixedArray { length, .. } => Some(*length),
+        StructuralTypeShape::FixedArray { length, .. } => length.literal(),
         StructuralTypeShape::ByteSequence(
             ByteSequenceCarrier::BoundedView { capacity, .. }
             | ByteSequenceCarrier::BoundedOwned { capacity },
@@ -241,7 +242,15 @@ fn resolved_path(
                 }
                 tip = match field.field_type {
                     StructuralFieldType::Structural(id) => Some(id),
-                    _ => None,
+                    // An inline scalar still has its complete leaf contract.
+                    // Recover only its unique exact declaration: geometry-only
+                    // byte views and atomic cells keep separate protocols. A
+                    // missing declaration does not invalidate the address path.
+                    _ => field
+                        .field_type
+                        .canonical_leaf_type()
+                        .and_then(|leaf| leaf.leaf_declaration(types.iter()))
+                        .map(|declaration| declaration.id),
                 };
                 StructuralPathSegment::Field(field.identity.clone())
             }
@@ -273,9 +282,10 @@ fn fields(
 /// the operation independently proves readable/writable extent and custody.
 fn fixed_element(shape: &StructuralTypeShape, index: u64) -> Option<Option<StructuralTypeId>> {
     match shape {
-        StructuralTypeShape::FixedArray { element, length } if index < *length => {
-            Some(Some(*element))
-        }
+        StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } if index < *length => Some(Some(*element)),
         StructuralTypeShape::ByteSequence(
             ByteSequenceCarrier::BoundedView { capacity, .. }
             | ByteSequenceCarrier::BoundedOwned { capacity },

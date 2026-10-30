@@ -18,25 +18,80 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
 
+#[derive(Clone)]
 pub(super) struct SiteFallthrough {
     pub location: CrashSiteLocation,
     pub guards: Vec<(ExpressionHandle, bool)>,
+    pub entry_value_consequences: Vec<CrashPredicateIdentity>,
+}
+
+/// One machine's source-path inventory for checked-site coverage. Possibility
+/// summaries consume evaluation's entry-path receipts instead of source walks.
+pub(super) struct SourceCrashPaths<'a> {
+    program: &'a dyn validation::CheckingInput,
+    machine: &'a Machine,
+    parameter_names: &'a [String],
+    conservation: &'a [validation::ContentConservationSourcePlan],
+    sites: Vec<SiteFallthrough>,
+}
+
+impl<'a> SourceCrashPaths<'a> {
+    pub(super) fn new(
+        program: &'a dyn validation::CheckingInput,
+        machine: &'a Machine,
+        parameter_names: &'a [String],
+        conservation: &'a [validation::ContentConservationSourcePlan],
+    ) -> Self {
+        Self {
+            program,
+            machine,
+            parameter_names,
+            conservation,
+            sites: collect(program, machine, parameter_names, conservation),
+        }
+    }
+    pub(super) fn at_site(&self, location: CrashSiteLocation) -> Option<&SiteFallthrough> {
+        self.sites.iter().find(|site| site.location == location)
+    }
+    pub(super) fn at_call(
+        &self,
+        location: checked_trees::CrashCallSiteLocation,
+    ) -> SiteFallthrough {
+        let site = CrashSiteLocation::new(location.state(), location.statement_ordinal());
+        let mut path = self.at_site(site).cloned().unwrap_or(SiteFallthrough {
+            location: site,
+            guards: Vec::new(),
+            entry_value_consequences: Vec::new(),
+        });
+        if let Some(selected) = selected_call_path(
+            self.program,
+            self.machine,
+            location,
+            self.parameter_names,
+            self.conservation,
+        ) {
+            path.guards.extend(selected.guards);
+            path.entry_value_consequences
+                .extend(selected.entry_value_consequences);
+        }
+        path
+    }
 }
 
 /// A call in a selected target (including its argument evaluation) observes
 /// that edge's guard. Calls evaluating the guard itself do not. Resolve the
 /// occurrence with the shared call traversal, then retain only entry-stable
 /// consequences captured where the guard was evaluated.
-pub(super) fn selected_call_guards(
+pub(super) fn selected_call_path(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     location: checked_trees::CrashCallSiteLocation,
     parameter_names: &[String],
     content_conservation: &[validation::ContentConservationSourcePlan],
-) -> Vec<(ExpressionHandle, bool)> {
+) -> Option<SiteFallthrough> {
     let mut guards = Vec::new();
     let Some(state) = program.state_in_machine(machine, location.state()) else {
-        return guards;
+        return None;
     };
     let ordinal = location.statement_ordinal() as usize;
     let Some(transition) = program
@@ -44,10 +99,10 @@ pub(super) fn selected_call_guards(
         .statement_at(state, ordinal)
         .and_then(|statement| statement.as_transition())
     else {
-        return guards;
+        return None;
     };
     let TransitionGuardNode::When(guard) = transition.guard else {
-        return guards;
+        return None;
     };
     let Some(target) = validation::transition_call_target(
         program,
@@ -57,7 +112,7 @@ pub(super) fn selected_call_guards(
         location.call_ordinal() as usize,
     )
     .filter(|target| target.is_valid()) else {
-        return guards;
+        return None;
     };
     collect_stable_consequences(
         program,
@@ -70,7 +125,18 @@ pub(super) fn selected_call_guards(
         content_conservation,
         &mut guards,
     );
-    guards
+    Some(SiteFallthrough {
+        location: CrashSiteLocation::new(state.symbol, location.statement_ordinal()),
+        guards,
+        entry_value_consequences: super::entry_guards::entry_value_consequences_at(
+            program,
+            machine.symbol,
+            state.symbol,
+            ordinal,
+            guard,
+            target != transition.target,
+        ),
+    })
 }
 
 pub(super) fn collect(
@@ -95,6 +161,7 @@ pub(super) fn collect(
             // own statement, so the same entry-term conjuncts cover a checked
             // call exactly the way they cover a crash exit.
             let mut retained = Vec::new();
+            let mut entry_value_consequences = Vec::new();
             for &(guard, negated, evaluated_at) in &guards {
                 collect_stable_consequences(
                     program,
@@ -107,19 +174,28 @@ pub(super) fn collect(
                     content_conservation,
                     &mut retained,
                 );
+                entry_value_consequences.extend(super::entry_guards::entry_value_consequences_at(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    evaluated_at,
+                    guard,
+                    negated,
+                ));
             }
             let is_crash_exit = matches!(
                 statement,
                 StatementNode::Transition(transition)
                     if matches!(transition.exit, TransitionExit::Crash(_))
             );
-            if is_crash_exit || !retained.is_empty() {
+            if is_crash_exit || !retained.is_empty() || !entry_value_consequences.is_empty() {
                 sites.push(SiteFallthrough {
                     location: CrashSiteLocation::new(
                         state.symbol,
                         u32::try_from(ordinal).expect("statement ordinal fits u32"),
                     ),
                     guards: retained,
+                    entry_value_consequences,
                 });
             }
             let Some(transition) = statement.as_transition() else {

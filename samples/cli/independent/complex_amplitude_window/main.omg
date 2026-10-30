@@ -50,7 +50,7 @@ machine main() crashes Trap {
         true -> observe(&mut held, right_real, right_imaginary, far_real, far_imaginary)
         false -> bad()
     }
-    state observe(held: &mut Held, right_real: f64, right_imaginary: f64, far_real: f64, far_imaginary: f64)
+    machine observe(held: &mut Held, right_real: f64, right_imaginary: f64, far_real: f64, far_imaginary: f64)
     requires held.cells.len == 2 {
         let local: Complex = held.cells[0];
         let through_field: f64 = held.cells[0].real;
@@ -69,6 +69,6 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

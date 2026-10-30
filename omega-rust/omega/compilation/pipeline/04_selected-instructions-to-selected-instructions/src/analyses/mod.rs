@@ -49,11 +49,9 @@ pub use allocation_legality::{
     AllocationLegalityError, ValidatedAllocationLegality, analyze_allocation_legality,
     analyze_allocation_legality_reusing,
 };
+pub(crate) use allocator_availability::AllocatorAvailabilityError;
 pub use allocator_availability::ValidatedAllocatorAvailability;
 pub(crate) use allocator_availability::materialize_allocator_availability;
-pub(crate) use allocator_availability::{
-    AllocatorAvailabilityError, AllocatorAvailabilityValidationReceipt,
-};
 pub(crate) use fixed_precolored_intervals::{
     FixedPrecoloredIntervalError, FixedPrecoloredIntervalValidationReceipt,
     ValidatedFixedPrecoloredIntervals, analyze_fixed_precolored_intervals,
@@ -66,13 +64,11 @@ pub(crate) use fixed_precolored_split_requirements::{
     FixedPrecoloredSplitRequirementError, FixedPrecoloredSplitRequirementValidationReceipt,
     ValidatedFixedPrecoloredSplitRequirements, analyze_fixed_precolored_split_requirements,
 };
-pub(crate) use recovery_classification::RecoveryClassificationValidationReceipt;
 pub use recovery_classification::{
     RecoveryClassificationError, ValidatedRecoveryClassifications, classify_pressure_recovery,
 };
 pub use selected_input::{OwnedSelectedProgram, SelectedProgramRef, ValidatedSelectedAnalysis};
 
-pub(crate) use spill_choice::SpillChoiceValidationReceipt;
 pub use spill_choice::{SpillChoiceError, ValidatedSpillChoices, choose_spill_victims};
 
 /// Each function's digest for the receipt identity: a carried function's
@@ -165,8 +161,10 @@ impl UnsealedRecoveryFacts {
         for (index, function) in next_plan.functions.iter().enumerate() {
             if changed[index] {
                 liveness_functions[index] = std::sync::Arc::new(
-                    liveness::compute::compute_function_for_ranges(index, function)
-                        .map_err(RecoveryReanalysisError::Liveness)?,
+                    phase_profile::scope("06.1.d.05.i.1_liveness", || {
+                        liveness::compute::compute_function_for_ranges(index, function)
+                    })
+                    .map_err(RecoveryReanalysisError::Liveness)?,
                 );
                 liveness_materialized[index] = false;
             }
@@ -175,11 +173,13 @@ impl UnsealedRecoveryFacts {
         for (index, function) in next_plan.functions.iter().enumerate() {
             if changed[index] {
                 range_functions[index] = std::sync::Arc::new(
-                    live_ranges::compute::compute_function(
-                        index,
-                        function,
-                        &liveness_functions[index],
-                    )
+                    phase_profile::scope("06.1.d.05.i.2_live_ranges", || {
+                        live_ranges::compute::compute_function(
+                            index,
+                            function,
+                            &liveness_functions[index],
+                        )
+                    })
                     .map_err(RecoveryReanalysisError::Ranges)?,
                 );
             }
@@ -187,13 +187,21 @@ impl UnsealedRecoveryFacts {
         let mut legality_functions = self.legality_functions.clone();
         for index in 0..count {
             if changed[index] {
-                let computed = allocation_legality::compute::compute_function(
-                    index,
-                    &range_functions[index],
-                    availability,
-                    physical,
-                    reservations,
-                )
+                let prior_pair = self
+                    .range_functions
+                    .get(index)
+                    .zip(self.legality_functions.get(index))
+                    .map(|(r, l)| (r.as_ref(), l.as_ref()));
+                let computed = phase_profile::scope("06.1.d.05.i.3_legality", || {
+                    allocation_legality::compute::compute_function_reusing(
+                        index,
+                        &range_functions[index],
+                        availability,
+                        physical,
+                        reservations,
+                        prior_pair,
+                    )
+                })
                 .map_err(RecoveryReanalysisError::Legality)?;
                 allocation_legality::validate::FunctionCounts::new(&computed, index)
                     .map_err(RecoveryReanalysisError::Legality)?;
@@ -245,10 +253,21 @@ impl UnsealedRecoveryFacts {
                     .functions
                     .shares_function_storage(&next_plan.functions, index)
                     || anchor_plan.functions.get(index) == Some(function))
-                    && anchor_liveness.plan().functions.get(index) == liveness_functions.get(index)
-                    && anchor_ranges.plan().functions.get(index) == self.range_functions.get(index)
-                    && anchor_legality.plan().functions.get(index)
-                        == self.legality_functions.get(index)
+                    && anchor_liveness.plan().functions.get(index).is_some_and(|a| {
+                        liveness_functions
+                            .get(index)
+                            .is_some_and(|b| std::sync::Arc::ptr_eq(a, b) || a == b)
+                    })
+                    && anchor_ranges.plan().functions.get(index).is_some_and(|a| {
+                        self.range_functions
+                            .get(index)
+                            .is_some_and(|b| std::sync::Arc::ptr_eq(a, b) || a == b)
+                    })
+                    && anchor_legality.plan().functions.get(index).is_some_and(|a| {
+                        self.legality_functions
+                            .get(index)
+                            .is_some_and(|b| std::sync::Arc::ptr_eq(a, b) || a == b)
+                    })
             })
             .collect();
         let liveness_plan = selected_instructions::LivenessPlan {

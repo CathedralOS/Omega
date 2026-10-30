@@ -1,0 +1,4 @@
+public data Cell [copy] { value: u64; }
+public machine project<'storage>(value: &'storage Cell) -> &'storage u64 { &value.value }
+public machine count(value: u64) -> u64 { value }
+public machine equal(value: u64) -> bool { value == 19u64 }

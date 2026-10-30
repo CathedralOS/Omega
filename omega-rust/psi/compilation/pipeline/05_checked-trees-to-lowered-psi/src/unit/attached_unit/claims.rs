@@ -9,7 +9,7 @@ use super::super::{
     EntryClaim, PermissionClaimIdentity, StructuralParameterDeclaration, claim_id,
 };
 use super::{
-    CheckedTrees, LoweringError, Multiplicity, PlaceId, StructuralPlaceKind, TerminalMachineResult,
+    CheckedTrees, LoweringError, PlaceId, StructuralPlaceKind, TerminalMachineResult,
     allocate_dense, lookup_claim_id, unsupported,
 };
 use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
@@ -18,6 +18,7 @@ pub(super) struct LoweredUnitClaims {
     pub(super) entry_claims: Vec<EntryClaim>,
     pub(super) source_claims: Vec<(PermissionClaimIdentity, ClaimId)>,
     pub(super) unreceived_results: Vec<crate::emission::claim_bindings::UnreceivedResultClaim>,
+    pub(super) completed_values: Vec<crate::emission::claim_bindings::CompletedValueClaim>,
 }
 
 impl LoweredUnitClaims {
@@ -25,6 +26,7 @@ impl LoweredUnitClaims {
         crate::emission::claim_bindings::PublishedClaims {
             bindings: &self.source_claims,
             unreceived_results: &self.unreceived_results,
+            completed_values: &self.completed_values,
         }
     }
 }
@@ -41,7 +43,9 @@ pub(super) fn lower_return_claims(
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     result: &checked_trees::CheckedUnitStructuralReturnPlan,
+    source: &terminal_psi::StructuralArgument,
     operations: &crate::emission::operation_emission::buffer::OperationBuffer,
+    current_claims: &crate::emission::current_claims::CurrentClaimNames,
     bindings: &[(PermissionClaimIdentity, ClaimId)],
     structural_type: semantic_vocabulary::StructuralTypeId,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
@@ -85,6 +89,36 @@ pub(super) fn lower_return_claims(
             return Ok(produced.claims.clone());
         }
     };
+    let materialized =
+        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal,
+        } = result.source
+        {
+            let mut matching = operations
+                .structural_values
+                .iter()
+                .filter(|(ordinal, _)| *ordinal == binding_ordinal);
+            let binding =
+                matching
+                    .next()
+                    .map(|(_, binding)| binding)
+                    .ok_or(LoweringError::Unsupported(
+                        "return lost its materialized source custody",
+                    ))?;
+            if matching.next().is_some() {
+                return unsupported("return has ambiguous materialized custody");
+            }
+            if binding.structural_type() != structural_type
+                || binding.multiplicity()
+                    != crate::terminal_identities::structural_multiplicity(result.multiplicity)
+            {
+                return unsupported("return materialized custody has another carrier");
+            }
+            Some(binding)
+        } else {
+            None
+        };
+    let completed_claims = current_claims.source(source)?;
     if validation::canonical_place_from_expression_in_state(
         &checked.typed,
         state,
@@ -99,28 +133,15 @@ pub(super) fn lower_return_claims(
         // binding, rather than interpreting an absent second Transfer event
         // as claim-free. Existing places still use current exit transfers
         // below: their birth roster can be stale after field replacement.
-        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-            binding_ordinal,
-        } = result.source
-        else {
-            return unsupported("computed return has no materialized result binding");
-        };
-        let mut matching = operations
-            .structural_values
-            .iter()
-            .filter(|(ordinal, _)| *ordinal == binding_ordinal);
-        let (_, binding) = matching.next().ok_or(LoweringError::Unsupported(
-            "computed return lost its materialized custody",
+        let binding = materialized.ok_or(LoweringError::Unsupported(
+            "computed return has no materialized result binding",
         ))?;
-        if matching.next().is_some()
-            || !binding.path().is_empty()
-            || binding.structural_type() != structural_type
-            || binding.multiplicity()
-                != crate::terminal_identities::structural_multiplicity(result.multiplicity)
-        {
-            return unsupported("computed return binding is ambiguous or has another carrier");
+        if !binding.path().is_empty() {
+            return unsupported("computed return binding is projected");
         }
-        let mut claims = binding.claims().to_vec();
+        let mut claims = completed_claims.ok_or(LoweringError::Unsupported(
+            "computed return lost its current source custody",
+        ))?;
         claims.sort_by_key(|binding| binding.claim);
         return Ok(claims);
     }
@@ -133,6 +154,7 @@ pub(super) fn lower_return_claims(
         expression,
         evaluation,
         bindings,
+        completed_claims.as_deref(),
         structural_type,
         structural_types,
     )
@@ -151,10 +173,11 @@ pub(super) fn lower_owned_transfer_claims(
     expression: typed_trees::expression::ExpressionHandle,
     evaluation: checked_trees::FlowPermissionEvaluation,
     bindings: &[(PermissionClaimIdentity, ClaimId)],
+    completed_claims: Option<&[terminal_psi::StructuralResultClaimBinding]>,
     structural_type: semantic_vocabulary::StructuralTypeId,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, LoweringError> {
-    lower_owned_operand_claims(
+    crate::emission::claim_bindings::lower_owned_operand_claims(
         identities,
         checked,
         machine,
@@ -166,270 +189,10 @@ pub(super) fn lower_owned_transfer_claims(
             statement_index: statement_index as usize,
         }),
         bindings,
+        completed_claims,
         structural_type,
         structural_types,
     )
-}
-
-/// Resolve one consumed occurrence, not every move from its source place in
-/// the same statement. A constructor's exact operand can inherit either a
-/// statement consumer or a call consumer; its checked events must name one
-/// unique coordinate. A selected operand's receipt authenticates these same
-/// actual move events; it is not a second claim frontier to append or a
-/// substitute for evaluating an arm. Exact expression coordinates retain the
-/// arm's custody without importing moves from another alternative.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn lower_owned_operand_claims(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    statement_index: u32,
-    expression: typed_trees::expression::ExpressionHandle,
-    expected_evaluation: Option<checked_trees::FlowPermissionEvaluation>,
-    expected_source: Option<language_semantics::PermissionEventSource>,
-    bindings: &[(PermissionClaimIdentity, ClaimId)],
-    structural_type: semantic_vocabulary::StructuralTypeId,
-    structural_types: &[terminal_psi::StructuralTypeDeclaration],
-) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, LoweringError> {
-    if !expression.is_valid() {
-        return unsupported("owned operand has no exact consuming expression");
-    }
-    let statement = usize::try_from(statement_index)
-        .map_err(|_| LoweringError::Unsupported("structural return coordinate exceeds usize"))?;
-    let expression =
-        validation::ownership_source_expression(&checked.typed, state, statement, expression);
-    let place = validation::ownership_place_from_expression_in_state(
-        &checked.typed,
-        state,
-        statement,
-        expression,
-    );
-    let (root, prefix) = if let Some(place) = &place {
-        (place.root, place.segments.as_slice())
-    } else {
-        (facts::PlaceRoot::Expression(expression), [].as_slice())
-    };
-    let evaluated_transfers = checked
-        .facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .filter_map(|(_, event)| {
-            (event.machine_symbol == machine
-                && event.state_symbol == state
-                && event.root == root
-                && event.expression == expression
-                && event.kind == language_semantics::PermissionEventKind::Transfer
-                && event.access == language_semantics::PermissionAccess::Owned
-                && event.multiplicity == Multiplicity::Linear
-                && event.obligation_live)
-                .then_some(event)
-        })
-        .collect::<Vec<_>>();
-    let selection = checked
-        .facts
-        .flow
-        .ownership
-        .owned_selection_at(state, statement_index);
-    let has_selected_transfer = if let Some((_, receipt)) = selection {
-        checked
-            .facts
-            .flow
-            .ownership
-            .selection_transfers
-            .span(receipt.transfers)
-            .ok_or(LoweringError::Unsupported(
-                "owned operand selection transfers are stale",
-            ))?
-            .iter()
-            .any(|transfer| transfer.expression == expression)
-    } else {
-        false
-    };
-    // Borrowed carriers transport their loans, not an owned claim frontier.
-    if evaluated_transfers.is_empty() && !has_selected_transfer {
-        return Ok(Vec::new());
-    }
-    let root_type = if let Some(place) = &place {
-        validation::canonical_place_type_reference(
-            &checked.typed,
-            state,
-            statement,
-            &validation::CanonicalPlace {
-                root: place.root,
-                segments: Vec::new(),
-            },
-        )
-        .ok_or(LoweringError::Unsupported(
-            "returned owner has no exact carrier",
-        ))?
-    } else {
-        checked.facts.resolved_types.result(expression)
-    };
-    let (prefix, _) = validation::structural_owned_path(&checked.typed, root_type, prefix)
-        .map_err(LoweringError::Unsupported)?;
-    let mut claims = Vec::new();
-    let mut consumer = expected_source;
-    let mut evaluation = expected_evaluation;
-    for event in &evaluated_transfers {
-        if event.evaluation == checked_trees::FlowPermissionEvaluation::Unknown
-            || evaluation.is_some_and(|lane| lane != event.evaluation)
-        {
-            return unsupported("owned operand has ambiguous consuming evaluation");
-        }
-        evaluation = Some(event.evaluation);
-        match event.source {
-            language_semantics::PermissionEventSource::Statement { statement_index }
-            | language_semantics::PermissionEventSource::Call {
-                statement_index, ..
-            } if statement_index == statement => {}
-            _ => return unsupported("owned operand transfer has another consumer statement"),
-        }
-        if consumer.is_some_and(|source| source != event.source) {
-            return unsupported("owned operand has multiple consuming coordinates");
-        }
-        consumer = Some(event.source);
-        let path = validation::structural_claim_path(
-            &checked.typed,
-            root_type,
-            checked
-                .facts
-                .flow
-                .ownership
-                .segments
-                .span_or_empty(event.segments),
-        )
-        .map_err(LoweringError::Unsupported)?;
-        let Some(relative) = path.strip_prefix(prefix.as_slice()) else {
-            continue;
-        };
-        claims.push(terminal_psi::StructuralResultClaimBinding {
-            claim: lookup_claim_id(bindings, event.claim_identity)?,
-            path: lower_static_argument_path(
-                identities,
-                relative,
-                structural_type,
-                structural_types,
-            )?,
-        });
-    }
-    if let Some((_, receipt)) = selection {
-        let transfers = checked
-            .facts
-            .flow
-            .ownership
-            .selection_transfers
-            .span(receipt.transfers)
-            .ok_or(LoweringError::Unsupported(
-                "owned operand selection transfers are stale",
-            ))?;
-        let mut matching = transfers
-            .iter()
-            .filter(|transfer| transfer.expression == expression);
-        if let Some(transfer) = matching.next() {
-            if matching.next().is_some() {
-                return unsupported("owned operand has ambiguous selected custody");
-            }
-            if !transfer.source.is_valid() {
-                return unsupported("selected owned operand has no named source custody");
-            }
-            let source = checked
-                .facts
-                .flow
-                .ownership
-                .selection_sources
-                .get(transfer.source);
-            let source_path = validation::structural_owned_path(
-                &checked.typed,
-                root_type,
-                checked
-                    .facts
-                    .flow
-                    .ownership
-                    .segments
-                    .span_or_empty(transfer.path),
-            )
-            .map_err(LoweringError::Unsupported)?
-            .0;
-            if receipt.machine != machine
-                || root != facts::PlaceRoot::Symbol(source.symbol)
-                || prefix != source_path
-            {
-                return unsupported("selected custody names another operand source");
-            }
-            let selected = checked
-                .facts
-                .flow
-                .ownership
-                .selection_transfer_claims
-                .span(transfer.claims)
-                .ok_or(LoweringError::Unsupported(
-                    "owned operand selection claims are stale",
-                ))?;
-            let mut selected_claims = Vec::new();
-            for claim in selected {
-                if !evaluated_transfers.iter().any(|event| {
-                    event.claim_identity == claim.claim_identity
-                        && event.provenance == claim.provenance
-                        && checked
-                            .facts
-                            .flow
-                            .ownership
-                            .segments
-                            .span_or_empty(event.segments)
-                            == checked
-                                .facts
-                                .flow
-                                .ownership
-                                .segments
-                                .span_or_empty(claim.path)
-                }) {
-                    return unsupported("selected claim has no matching evaluated transfer");
-                }
-                let path = validation::structural_claim_path(
-                    &checked.typed,
-                    root_type,
-                    checked
-                        .facts
-                        .flow
-                        .ownership
-                        .segments
-                        .span_or_empty(claim.path),
-                )
-                .map_err(LoweringError::Unsupported)?;
-                let relative =
-                    path.strip_prefix(prefix.as_slice())
-                        .ok_or(LoweringError::Unsupported(
-                            "selected claim is outside its operand",
-                        ))?;
-                selected_claims.push(terminal_psi::StructuralResultClaimBinding {
-                    claim: lookup_claim_id(bindings, claim.claim_identity)?,
-                    path: lower_static_argument_path(
-                        identities,
-                        relative,
-                        structural_type,
-                        structural_types,
-                    )?,
-                });
-            }
-            claims.sort();
-            selected_claims.sort();
-            if claims != selected_claims {
-                return unsupported("selected custody differs from its evaluated claim frontier");
-            }
-        }
-    }
-    claims.sort();
-    if claims.iter().enumerate().any(|(index, claim)| {
-        claims[..index]
-            .iter()
-            .any(|prior| prior.claim == claim.claim || prior.path == claim.path)
-    }) {
-        return unsupported("owned operand repeats a claim identity or path");
-    }
-    Ok(claims)
 }
 
 pub(super) fn lower_unit_entry_claims(
@@ -489,6 +252,7 @@ pub(super) fn lower_unit_entry_claims(
         entry_claims,
         source_claims,
         unreceived_results: Vec::new(),
+        completed_values: Vec::new(),
     })
 }
 

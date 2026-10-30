@@ -18,7 +18,7 @@ machine Main::main(main: &mut Main) reaches MachineControl + PortIo {
     let byte: u8 = read_port(port);
     asm where clobbers rax, rdx, r10, r11, r15 { out port, byte; }
     transition { _ -> next(main, port) }
-    state next(main: &mut Main, port: u16) {
+    machine next(main: &mut Main, port: u16) {
         write_register(main.index, value_identity(main.value));
         asm where clobbers rax, rcx, rdx, r10, r11, r15 {
             in main.byte, port_identity(port);

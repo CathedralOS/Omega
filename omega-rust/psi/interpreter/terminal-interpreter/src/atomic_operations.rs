@@ -90,12 +90,15 @@ impl TerminalExecution<'_> {
                 .ok_or(TerminalInterpretError::VerifiedValueMissing(value))
         };
         let prior = if event.observes_resident() {
-            let prior = self.structural_scalar_fields.get(&cell).copied().ok_or(
-                TerminalInterpretError::StructuralScalarFieldMissing {
+            let prior = self
+                .structural_scalar_fields
+                .get(&cell)
+                .map(crate::scalar_storage::ScalarCell::read)
+                .transpose()?
+                .ok_or(TerminalInterpretError::StructuralScalarFieldMissing {
                     source: place,
                     field,
-                },
-            )?;
+                })?;
             if prior.scalar_type() != scalar_type {
                 return Err(malformed());
             }
@@ -152,7 +155,12 @@ impl TerminalExecution<'_> {
                 let index = usize::from(replacement.is_some());
                 let result_case = cases[index].id;
                 let fields = if index == 0 {
-                    vec![(cases[0].fields[0].id, prior)]
+                    vec![(
+                        vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                            cases[0].fields[0].id,
+                        )],
+                        prior,
+                    )]
                 } else {
                     Vec::new()
                 };

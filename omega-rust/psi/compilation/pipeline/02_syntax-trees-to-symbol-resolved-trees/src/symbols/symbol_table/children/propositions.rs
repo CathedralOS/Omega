@@ -1,7 +1,7 @@
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender};
 
-use super::super::names::symbol_seed;
+use super::super::names::{parameter_seeds, symbol_seed};
 
 pub(in crate::symbols) fn insert_proposition_symbol_children(
     builder: &mut impl SymbolTableAppender,
@@ -27,13 +27,9 @@ pub(in crate::symbols) fn insert_proposition_symbol_children(
                 };
                 symbol_seed(kind, &binder.name, has_sources)
             })
-            .chain(
-                program
-                    .state_parameters(proposition.parameters)
-                    .iter()
-                    .map(|parameter| {
-                        symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)
-                    }),
-            ),
+            .chain(parameter_seeds(
+                program.state_parameters(proposition.parameters),
+                has_sources,
+            )),
     );
 }

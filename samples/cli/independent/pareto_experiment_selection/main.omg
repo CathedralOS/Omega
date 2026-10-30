@@ -15,20 +15,20 @@ machine Application::main(application: &mut Application) reaches Console {
         true -> configure(application, count.value, budget.value, deadline.value, risk_limit.value)
         false -> invalid(application)
     }
-    state configure(application: &mut Application, count: u64, budget: u64, deadline: u64, risk_limit: u64) {
+    machine configure(application: &mut Application, count: u64, budget: u64, deadline: u64, risk_limit: u64) {
         application.count = count;
         application.budget = budget;
         application.deadline = deadline;
         application.risk_limit = risk_limit;
         transition { _ -> load(application, 0) }
     }
-    state load(application: &mut Application, index: u64) {
+    machine load(application: &mut Application, index: u64) {
         transition index < application.count && index < 12 {
             true -> read_row(application, index)
             false -> trailing(application)
         }
     }
-    state read_row(application: &mut Application, index: u64)
+    machine read_row(application: &mut Application, index: u64)
     requires index < 12 {
         let identifier: Parsed = block read_number();
         let provenance: Parsed = block read_number();
@@ -43,21 +43,21 @@ machine Application::main(application: &mut Application) reaches Console {
             false -> invalid(application)
         }
     }
-    state store(application: &mut Application, index: u64, identifier: u64, provenance: u64, cost: u64, days: u64, gain: u64, risk: u64)
+    machine store(application: &mut Application, index: u64, identifier: u64, provenance: u64, cost: u64, days: u64, gain: u64, risk: u64)
     requires index < 12 {
         application.rows[index] = Experiment { identifier: identifier, provenance: provenance, position: index + 1,
             cost: cost, days: days, gain: gain, risk: risk };
         transition { _ -> load(application, index + 1) }
     }
-    state trailing(application: &mut Application) {
+    machine trailing(application: &mut Application) {
         let clean: bool = block only_whitespace();
         transition clean { true -> accepted(application) false -> invalid(application) }
     }
-    state accepted(application: &mut Application) {
+    machine accepted(application: &mut Application) {
         report(application);
         Console::exit_process(0);
     }
-    state invalid(application: &mut Application) {
+    machine invalid(application: &mut Application) {
         Console::write_line("ERROR|invalid-input");
         Console::exit_process(2);
     }

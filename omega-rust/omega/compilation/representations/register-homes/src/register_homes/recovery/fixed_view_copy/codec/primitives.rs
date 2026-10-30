@@ -53,17 +53,7 @@ fn encode_le_list<T, const N: usize>(
     }
 }
 
-pub(super) fn decode_list<T>(
-    cursor: &mut Cursor<'_>,
-    mut decode: impl FnMut(&mut Cursor<'_>) -> Result<T, FixedViewCopyDecodeError>,
-) -> Result<Vec<T>, FixedViewCopyDecodeError> {
-    let count = cursor.length()?;
-    let mut values = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
-        values.push(decode(cursor)?);
-    }
-    Ok(values)
-}
+pub(super) use crate::codec_bytes::decode_list;
 
 pub(super) fn decode_ids<T>(
     cursor: &mut Cursor<'_>,

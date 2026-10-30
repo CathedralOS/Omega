@@ -35,11 +35,11 @@ machine FailedOpen::main(failed_open: &mut FailedOpen) -> i32 {
         UnitResult::Error { kind } -> failed(kind)
         _ -> unexpected()
     }
-    state failed(kind: ErrorKind) -> i32 {
+    machine failed(kind: ErrorKind) -> i32 {
         transition kind { ErrorKind::NotFound -> expected() _ -> unexpected() }
     }
-    state expected() -> i32 { 70 }
-    state unexpected() -> i32 { 71 }
+    machine expected() -> i32 { 70 }
+    machine unexpected() -> i32 { 71 }
 }
 
 data Main {
@@ -51,44 +51,44 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     main.unit_result = block Filesystem::write_all(&mut main.fs, "omega_wcanon_probe.txt", "canon");
     transition main.unit_result { UnitResult::Ok -> resolve(main) _ -> bad(main, 71) }
-    state resolve(main: &mut Main) {
+    machine resolve(main: &mut Main) {
         main.unit_result = block Filesystem::canonicalize(&mut main.fs, "omega_wcanon_probe.txt", &mut main.canon);
         transition main.unit_result { UnitResult::Ok -> spelled(main) _ -> bad(main, 72) }
     }
-    state spelled(main: &mut Main) {
+    machine spelled(main: &mut Main) {
         // Native: '\\' (92, the \\?\ prefix). Hermetic: 'o' (111, the key
         // verbatim). Anything else = the resolve never wrote the buffer.
         transition canonical_prefix_is_valid(main.canon[0]) { true -> make_dir(main) _ -> bad(main, 73) }
     }
-    state make_dir(main: &mut Main) {
+    machine make_dir(main: &mut Main) {
         main.unit_result = block Filesystem::create_dir(&mut main.fs, "omega_wcanon_dir");
         transition main.unit_result { UnitResult::Ok -> resolve_dir(main) _ -> bad(main, 76) }
     }
-    state resolve_dir(main: &mut Main) {
+    machine resolve_dir(main: &mut Main) {
         main.unit_result = block Filesystem::canonicalize(&mut main.fs, "omega_wcanon_dir", &mut main.canon);
         transition main.unit_result { UnitResult::Ok -> spelled_dir(main) _ -> bad(main, 77) }
     }
-    state spelled_dir(main: &mut Main) {
+    machine spelled_dir(main: &mut Main) {
         transition canonical_prefix_is_valid(main.canon[0]) { true -> missing(main) _ -> bad(main, 78) }
     }
-    state missing(main: &mut Main) {
+    machine missing(main: &mut Main) {
         let outcome: UnitResult = block Filesystem::canonicalize(&mut main.fs, "omega_wcanon_missing.txt", &mut main.canon);
         transition outcome { UnitResult::Error { kind } -> kindcheck(main, kind) _ -> bad(main, 74) }
     }
-    state kindcheck(main: &mut Main, kind: ErrorKind) {
+    machine kindcheck(main: &mut Main, kind: ErrorKind) {
         // The open leg's captured GetLastError supplies this classification.
         transition kind { ErrorKind::NotFound -> cleanup(main) _ -> bad(main, 75) }
     }
-    state cleanup(main: &mut Main) {
+    machine cleanup(main: &mut Main) {
         main.unit_result = block Filesystem::remove(&mut main.fs, "omega_wcanon_probe.txt");
         transition { _ -> cleanup_dir(main) }
     }
-    state cleanup_dir(main: &mut Main) {
+    machine cleanup_dir(main: &mut Main) {
         main.unit_result = block Filesystem::remove_dir(&mut main.fs, "omega_wcanon_dir");
         transition { _ -> good(main) }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // A hosted native canonical path is absolute in its selected OS spelling.

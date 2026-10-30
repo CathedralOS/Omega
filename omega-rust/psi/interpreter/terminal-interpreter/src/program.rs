@@ -20,6 +20,7 @@
 //! filesystem, and creates no global runtime or thread — compilation remains
 //! the separate upstream authority that produced the bytes.
 
+use crate::effects::{AdmittedBoundarySupply, TerminalRuntimeSupplies};
 use crate::errors::{TerminalArtifactInterpretError, TerminalInterpretError};
 use evaluation_accounting::EvaluationInvocationAccount;
 mod declarations;
@@ -29,7 +30,6 @@ use crate::instance::TerminalInstance;
 use crate::structural_inputs::TerminalStructuralInputs;
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralTypeId};
-use std::borrow::Cow;
 use std::collections::BTreeMap;
 use terminal_psi::{
     BoundaryMachineDeclaration, StructuralTypeDeclaration, TerminalModule, TerminalPsiIdentity,
@@ -39,15 +39,54 @@ use terminal_psi::{
 /// its decoded module; in-process execution borrows the compiler's retained
 /// module. Neither route reconstructs executable machines or declaration maps.
 pub(crate) struct AdmittedTerminalProgram<'artifact> {
-    /// Canonical Terminal-Psi identity of the module, computed once
-    /// at admission; provider installations bind to this exact identity.
-    pub(crate) identity: TerminalPsiIdentity,
-    pub(crate) catalogs: std::sync::Arc<Cow<'artifact, TerminalModule>>,
+    /// Semantic content plus the exact live owner of invocation-only code.
+    /// Provider installations retain this whole identity, not just its digest.
+    pub(crate) identity: terminal_codec::TerminalExecutionIdentity,
+    pub(crate) catalogs: std::sync::Arc<ProgramStorage<'artifact>>,
     /// Selected geometry belongs to an execution view, never canonical storage.
     pub(crate) target_layouts: Option<std::sync::Arc<terminal_installation::AdmittedTargetLayouts>>,
+    pub(crate) scalar_geometry: Option<std::sync::Arc<[StructuralTypeDeclaration]>>,
+}
+
+/// The same canonical tables at each ownership boundary. A retained producer
+/// owner makes a suspended instance movable without cloning or decoding code.
+pub(crate) enum ProgramStorage<'artifact> {
+    Borrowed(&'artifact TerminalModule),
+    Owned(TerminalModule),
+    Retained(terminal_codec::RetainedTerminalCode),
+}
+
+impl std::ops::Deref for ProgramStorage<'_> {
+    type Target = TerminalModule;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Borrowed(module) => module,
+            Self::Owned(module) => module,
+            Self::Retained(code) => code.view().module(),
+        }
+    }
+}
+
+impl AsRef<TerminalModule> for ProgramStorage<'_> {
+    fn as_ref(&self) -> &TerminalModule {
+        self
+    }
 }
 
 impl AdmittedTerminalProgram<'_> {
+    /// Fixtures construct incomplete owned modules before testing admission.
+    /// Production execution never exposes mutable canonical storage.
+    #[cfg(test)]
+    pub(crate) fn fixture_module_mut(&mut self) -> &mut TerminalModule {
+        let storage = std::sync::Arc::get_mut(&mut self.catalogs)
+            .expect("fixture construction requires unshared storage");
+        let ProgramStorage::Owned(module) = storage else {
+            panic!("fixture construction requires its own module");
+        };
+        module
+    }
+
     /// Resolve this invocation's executable root without changing canonical
     /// storage. Catalog selection identifies a retained body; it grants no
     /// input backing, provider authority, or result issuance.
@@ -55,7 +94,7 @@ impl AdmittedTerminalProgram<'_> {
         &self,
         installation: Option<&crate::effects::TerminalRuntimeSupplies>,
     ) -> Result<MachineId, TerminalInterpretError> {
-        if installation.is_some_and(|installation| installation.terminal_psi != self.identity) {
+        if installation.is_some_and(|installation| installation.code_identity != self.identity) {
             return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
         }
         if let Some(target) = self.catalogs.folded_constants.target.as_deref() {
@@ -77,11 +116,12 @@ impl AdmittedTerminalProgram<'_> {
         }
         let root = installation
             .and_then(|supplies| supplies.entry)
-            .unwrap_or(self.catalogs.entry);
+            .or(self.catalogs.entry)
+            .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
         let selected = installation.and_then(|installation| installation.target_machines.as_ref());
         let machine = match selected {
             Some(selected) => selected
-                .entry(self.identity, &self.catalogs, root)
+                .entry(self.identity.semantic(), &self.catalogs, root)
                 .map_err(TerminalInterpretError::TargetMachineSelection)?,
             None => match root {
                 terminal_psi::TargetMachineCallable::Machine(machine) => {
@@ -113,9 +153,9 @@ impl AdmittedTerminalProgram<'_> {
         let layouts = installation.and_then(|supplies| supplies.target_layouts.as_ref());
         if let Some(layouts) = layouts {
             let machines = installation.and_then(|supplies| supplies.target_machines.as_ref());
-            if layouts.terminal_psi() != self.identity
+            if layouts.terminal_psi() != self.identity.semantic()
                 || machines.is_none_or(|machines| {
-                    machines.terminal_psi() != self.identity
+                    machines.terminal_psi() != self.identity.semantic()
                         || machines.target() != layouts.target()
                 })
             {
@@ -158,9 +198,11 @@ impl AdmittedTerminalProgram<'_> {
     pub(crate) fn structural_types(&self) -> ProgramDeclarations<'_, StructuralTypeDeclaration> {
         ProgramDeclarations::with_replacements(
             &self.catalogs.structural_types,
-            self.target_layouts
-                .as_ref()
-                .map_or(&[], |layouts| layouts.resolved_records()),
+            self.scalar_geometry.as_deref().unwrap_or_else(|| {
+                self.target_layouts
+                    .as_ref()
+                    .map_or(&[], |layouts| layouts.resolved_records())
+            }),
         )
     }
 
@@ -321,7 +363,7 @@ impl<'artifact> TerminalProgram<'artifact> {
     ) -> Result<crate::capabilities::TerminalExecutionRequirements, TerminalInterpretError> {
         self.program.validate_layout_selection(installation)?;
         crate::capabilities::check_with_private_entry_ram(
-            &self.execution_program(installation),
+            &self.execution_program(installation, None),
             installation,
             recipes,
         )
@@ -338,20 +380,35 @@ impl<'artifact> TerminalProgram<'artifact> {
         let identity = terminal_codec::terminal_psi_identity(&module)
             .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
         Ok(Self::from_admitted(AdmittedTerminalProgram {
-            identity,
-            catalogs: std::sync::Arc::new(Cow::Owned(module)),
+            identity: terminal_codec::TerminalExecutionIdentity::portable(identity),
+            catalogs: std::sync::Arc::new(ProgramStorage::Owned(module)),
             target_layouts: None,
+            scalar_geometry: None,
         }))
     }
 
     /// Execute retained compiler output without serialization, decoding or
     /// copying its immutable tables. The artifact must outlive every program
     /// handle, instance and suspended execution derived from this borrow.
-    pub fn borrow(artifact: terminal_codec::TerminalArtifactView<'artifact>) -> Self {
+    pub fn borrow(artifact: impl Into<terminal_codec::TerminalExecutionView<'artifact>>) -> Self {
+        let artifact = artifact.into();
         Self::from_admitted(AdmittedTerminalProgram {
-            identity: artifact.identity(),
-            catalogs: std::sync::Arc::new(Cow::Borrowed(artifact.module())),
+            identity: artifact.custody_identity(),
+            catalogs: std::sync::Arc::new(ProgramStorage::Borrowed(artifact.module())),
             target_layouts: None,
+            scalar_geometry: None,
+        })
+    }
+
+    /// Retain the producer's immutable execution owner without decoding or
+    /// copying its code. Invocation-private identity remains private and exact;
+    /// host imports still require ordinary instance admission.
+    pub fn retain(code: terminal_codec::RetainedTerminalCode) -> Self {
+        Self::from_admitted(AdmittedTerminalProgram {
+            identity: code.view().custody_identity(),
+            catalogs: std::sync::Arc::new(ProgramStorage::Retained(code)),
+            target_layouts: None,
+            scalar_geometry: None,
         })
     }
 
@@ -362,15 +419,21 @@ impl<'artifact> TerminalProgram<'artifact> {
             .map_err(TerminalArtifactInterpretError::ArtifactDecode)?;
         let (module, identity) = artifact.into_semantics();
         Ok(Self::from_admitted(AdmittedTerminalProgram {
-            identity,
-            catalogs: std::sync::Arc::new(Cow::Owned(module)),
+            identity: terminal_codec::TerminalExecutionIdentity::portable(identity),
+            catalogs: std::sync::Arc::new(ProgramStorage::Owned(module)),
             target_layouts: None,
+            scalar_geometry: None,
         }))
     }
 
     /// The exact Terminal-Psi identity this program was admitted under.
     pub fn terminal_psi(&self) -> TerminalPsiIdentity {
-        self.program.identity
+        self.program.identity.semantic()
+    }
+
+    /// Exact code custody, including the live owner of invocation-only code.
+    pub fn execution_identity(&self) -> &terminal_codec::TerminalExecutionIdentity {
+        &self.program.identity
     }
 
     /// Admit receiving-host supply choices against this immutable program.
@@ -383,17 +446,15 @@ impl<'artifact> TerminalProgram<'artifact> {
         &self,
         request: crate::effects::TerminalRuntimeSupplyRequest<'_>,
     ) -> Result<crate::effects::TerminalRuntimeSupplies, TerminalInterpretError> {
-        use crate::effects::{AdmittedBoundarySupply, TerminalRuntimeSupplies};
-
-        if request
-            .installation
-            .is_some_and(|installation| installation.terminal_psi() != self.program.identity)
-        {
+        if request.installation.is_some_and(|installation| {
+            terminal_codec::TerminalExecutionIdentity::portable(installation.terminal_psi())
+                != self.program.identity
+        }) {
             return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
         }
         if request
             .target_machines
-            .is_some_and(|selected| selected.terminal_psi() != self.program.identity)
+            .is_some_and(|selected| selected.terminal_psi() != self.program.identity.semantic())
         {
             return Err(TerminalInterpretError::TargetMachineSelectionIdentityMismatch);
         }
@@ -401,8 +462,10 @@ impl<'artifact> TerminalProgram<'artifact> {
             .installation
             .map(TerminalRuntimeSupplies::from)
             .unwrap_or_else(|| TerminalRuntimeSupplies {
+                provider_selections: None,
                 x86_flags: None,
-                terminal_psi: self.program.identity,
+                memory_ordering: None,
+                code_identity: self.program.identity.clone(),
                 entry: None,
                 supplies: BTreeMap::new(),
                 assumed_bindings: Vec::new(),
@@ -420,6 +483,16 @@ impl<'artifact> TerminalProgram<'artifact> {
                 "x86 flags environment requires an admitted x86 target",
             ));
         }
+        if request.memory_ordering.is_some_and(|model| {
+            request
+                .target_machines
+                .is_none_or(|selected| !model.accepts_target(selected.target()))
+        }) {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "memory-ordering environment requires its admitted matching target",
+            ));
+        }
+        installation.memory_ordering = request.memory_ordering;
         installation.x86_flags = request.x86_flags;
         installation.target_machines = request.target_machines.cloned();
         installation.entry = request.entry;
@@ -428,57 +501,87 @@ impl<'artifact> TerminalProgram<'artifact> {
             .validate_layout_selection(Some(&installation))?;
         self.program.resolve_entry(Some(&installation))?;
         for &boundary in request.host_imports {
-            let rejected = |reason| TerminalInterpretError::RuntimeSupplySelectionRejected {
+            self.select_external_supply(
+                &mut installation,
                 boundary,
-                reason,
-            };
-            let declaration = self
-                .program
-                .boundary_machines()
-                .get(&boundary)
-                .ok_or_else(|| rejected("host import names no declared boundary"))?;
-            if declaration.role != terminal_psi::BoundaryDeclarationRole::Callable {
-                return Err(rejected(
-                    "host import names contract evidence rather than a callable",
-                ));
-            }
-            if compiler_owns_boundary_execution(declaration) {
-                return Err(rejected(
-                    "compiler primitive cannot be replaced by a host import",
-                ));
-            }
-            if self.program.is_target_family_head(boundary) {
-                let member = crate::calls::target_families::selected_member(
-                    &self.program,
-                    installation.target_machines.as_ref(),
-                    boundary,
-                )?;
-                if !matches!(member, terminal_psi::TargetMachineCallable::Boundary(_)) {
-                    return Err(rejected(
-                        "a checked target-family member cannot be replaced by a host import",
-                    ));
-                }
-            }
-            if declaration.completion != terminal_psi::BoundaryCompletion::NormalReturn {
-                return Err(rejected(
-                    "external completion requires separate domain admission",
-                ));
-            }
-            if installation.supplies.contains_key(&boundary)
-                || installation
-                    .assumed_bindings
-                    .iter()
-                    .any(|binding| binding.required == boundary)
-            {
-                return Err(rejected(
-                    "host import duplicates or competes with a selected supply",
-                ));
-            }
-            installation
-                .supplies
-                .insert(boundary, AdmittedBoundarySupply::HostImport);
+                AdmittedBoundarySupply::HostImport,
+            )?;
         }
         Ok(installation)
+    }
+
+    /// Reserve a static component slot before execution. No implementation is
+    /// chosen here: a call before exact admitted installation fails, and host
+    /// adapters cannot fulfill the reservation. A running instance permits
+    /// installation only while paused at a checked readiness crossing.
+    pub fn defer_component(
+        &self,
+        mut installation: TerminalRuntimeSupplies,
+        boundary: BoundaryMachineId,
+    ) -> Result<TerminalRuntimeSupplies, TerminalInterpretError> {
+        if installation.code_identity != self.program.identity {
+            return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
+        }
+        self.select_external_supply(
+            &mut installation,
+            boundary,
+            AdmittedBoundarySupply::DeferredComponent,
+        )?;
+        Ok(installation)
+    }
+
+    fn select_external_supply(
+        &self,
+        installation: &mut TerminalRuntimeSupplies,
+        boundary: BoundaryMachineId,
+        supply: AdmittedBoundarySupply,
+    ) -> Result<(), TerminalInterpretError> {
+        let rejected =
+            |reason| TerminalInterpretError::RuntimeSupplySelectionRejected { boundary, reason };
+        let declaration = self
+            .program
+            .boundary_machines()
+            .get(&boundary)
+            .ok_or_else(|| rejected("external supply names no declared boundary"))?;
+        if declaration.role != terminal_psi::BoundaryDeclarationRole::Callable {
+            return Err(rejected(
+                "external supply names contract evidence rather than a callable",
+            ));
+        }
+        if compiler_owns_boundary_execution(declaration) {
+            return Err(rejected(
+                "compiler primitive cannot be replaced by an external supply",
+            ));
+        }
+        if self.program.is_target_family_head(boundary) {
+            let member = crate::calls::target_families::selected_member(
+                &self.program,
+                installation.target_machines.as_ref(),
+                boundary,
+            )?;
+            if !matches!(member, terminal_psi::TargetMachineCallable::Boundary(_)) {
+                return Err(rejected(
+                    "a checked target-family member cannot be replaced by an external supply",
+                ));
+            }
+        }
+        if declaration.completion != terminal_psi::BoundaryCompletion::NormalReturn {
+            return Err(rejected(
+                "external completion requires separate domain admission",
+            ));
+        }
+        if installation.supplies.contains_key(&boundary)
+            || installation
+                .assumed_bindings
+                .iter()
+                .any(|binding| binding.required == boundary)
+        {
+            return Err(rejected(
+                "external supply duplicates or competes with a selected supply",
+            ));
+        }
+        installation.supplies.insert(boundary, supply);
+        Ok(())
     }
 
     /// Default host-import descriptions without a receiving-host supply choice:
@@ -571,6 +674,9 @@ impl<'artifact> TerminalProgram<'artifact> {
             structural_inputs,
             installation,
             account: None,
+            entry_results: None,
+            scalar_application: None,
+            scalar_admission: None,
         })
         .map(|(execution, _)| execution)
     }
@@ -578,15 +684,17 @@ impl<'artifact> TerminalProgram<'artifact> {
     fn execution_program(
         &self,
         installation: Option<&crate::effects::TerminalRuntimeSupplies>,
+        scalars: Option<&terminal_installation::AdmittedScalarApplications>,
     ) -> std::sync::Arc<AdmittedTerminalProgram<'artifact>> {
         let Some(layouts) = installation.and_then(|supplies| supplies.target_layouts.as_ref())
         else {
             return std::sync::Arc::clone(&self.program);
         };
         std::sync::Arc::new(AdmittedTerminalProgram {
-            identity: self.program.identity,
+            identity: self.program.identity.clone(),
             catalogs: std::sync::Arc::clone(&self.program.catalogs),
             target_layouts: Some(std::sync::Arc::clone(layouts)),
+            scalar_geometry: scalars.map(|scalars| std::sync::Arc::clone(scalars.geometry())),
         })
     }
 
@@ -605,7 +713,42 @@ impl<'artifact> TerminalProgram<'artifact> {
             structural_inputs,
             installation,
             account,
+            entry_results,
+            scalar_application,
+            scalar_admission,
         } = request;
+        let scalar_values = match (scalar_application, scalar_admission) {
+            (Some(_), Some(_)) => {
+                return Err(TerminalArtifactInterpretError::Execution(
+                    TerminalInterpretError::ScalarApplicationEvaluation(
+                        "execution cannot mix provisional and completed scalar inputs".into(),
+                    ),
+                ));
+            }
+            (Some(request), None) => Some(
+                self.scalar_application_inputs(request, installation)
+                    .map_err(TerminalArtifactInterpretError::Execution)?,
+            ),
+            (None, Some(admission)) => Some(
+                self.admitted_scalar_inputs(admission, installation)
+                    .map_err(TerminalArtifactInterpretError::Execution)?,
+            ),
+            (None, None) => None,
+        };
+        if scalar_values.is_none()
+            && !self
+                .program
+                .catalogs
+                .scalar_applications
+                .conditions
+                .is_empty()
+        {
+            return Err(TerminalArtifactInterpretError::Execution(
+                TerminalInterpretError::ScalarApplicationEvaluation(
+                    "ordinary execution requires admission of retained scalar conditions".into(),
+                ),
+            ));
+        }
         if let Some(account) = account
             && !matches!(
                 account.measurement(),
@@ -616,12 +759,46 @@ impl<'artifact> TerminalProgram<'artifact> {
                 evaluation_accounting::EvaluationAccountingError::UnsupportedMeasurementIdentity,
             )));
         }
-        let requirements = self
-            .execution_requirements_with_private_entry_ram(
-                installation,
-                structural_inputs.private_entry_ram,
-            )
+        self.program
+            .validate_layout_selection(installation)
             .map_err(TerminalArtifactInterpretError::Execution)?;
+        let program = self.execution_program(installation, scalar_admission);
+        let requirements = crate::capabilities::check_with_private_entry_ram(
+            &program,
+            installation,
+            structural_inputs.private_entry_ram,
+        )
+        .map_err(TerminalArtifactInterpretError::Execution)?;
+        for application in &requirements.scalar_applications {
+            if scalar_values
+                .as_ref()
+                .and_then(|values| values.value(*application))
+                .is_none()
+            {
+                return Err(TerminalArtifactInterpretError::Execution(
+                    TerminalInterpretError::ScalarApplicationEvaluation(format!(
+                        "execution requires unevaluated scalar application {}",
+                        application.get(),
+                    )),
+                ));
+            }
+        }
+        if scalar_application.is_none() {
+            for application in &requirements.scalar_entry_conditions {
+                if scalar_values
+                    .as_ref()
+                    .and_then(|values| values.value(*application))
+                    .is_none()
+                {
+                    return Err(TerminalArtifactInterpretError::Execution(
+                        TerminalInterpretError::ScalarApplicationEvaluation(format!(
+                            "execution invokes unchecked scalar entry {}",
+                            application.get(),
+                        )),
+                    ));
+                }
+            }
+        }
         if let Some(boundary) = requirements.missing_providers.first() {
             return Err(TerminalArtifactInterpretError::Execution(
                 TerminalInterpretError::ProviderInstallationMissing(*boundary),
@@ -641,7 +818,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             &converted_boolean_fields
         };
         let mut execution = crate::execution::TerminalExecution::start_with_program(
-            self.execution_program(installation),
+            program,
             scalar_arguments,
             structural_inputs.arguments,
             scalar_fields,
@@ -670,6 +847,12 @@ impl<'artifact> TerminalProgram<'artifact> {
             }
             other => other,
         })?;
+        if let Some(request) = entry_results {
+            execution
+                .request_entry_results(request)
+                .map_err(TerminalArtifactInterpretError::Execution)?;
+        }
+        execution.scalar_applications = scalar_values;
         execution
             .bind_structural_cases(structural_inputs.cases)
             .map_err(TerminalArtifactInterpretError::Execution)?;
@@ -697,6 +880,88 @@ pub struct TerminalInstantiation<'input> {
     pub structural_inputs: TerminalStructuralInputs<'input>,
     pub installation: Option<&'input crate::effects::TerminalRuntimeSupplies>,
     pub account: Option<&'input EvaluationInvocationAccount>,
+    pub entry_results: Option<crate::TerminalEntryResultRequest<'input>>,
+    /// Provisional compile-time evaluation, restricted to the catalog's exact
+    /// complete entry. This never admits ordinary execution with proof debt.
+    pub scalar_application: Option<TerminalScalarApplicationRequest<'input>>,
+    /// Complete authored-scope checking with values bound to this deployment.
+    /// This is distinct from the exact-entry provisional evaluation request.
+    pub scalar_admission: Option<&'input terminal_installation::AdmittedScalarApplications>,
+}
+
+#[derive(Clone, Copy)]
+pub struct TerminalScalarApplicationRequest<'input> {
+    pub application: semantic_vocabulary::ScalarApplicationId,
+    pub observations: &'input terminal_installation::ScalarApplicationObservations<'input>,
+}
+
+impl TerminalProgram<'_> {
+    pub(crate) fn admitted_scalar_inputs(
+        &self,
+        admission: &terminal_installation::AdmittedScalarApplications,
+        installation: Option<&TerminalRuntimeSupplies>,
+    ) -> Result<terminal_installation::ScalarApplicationValues, TerminalInterpretError> {
+        let reject = || {
+            TerminalInterpretError::ScalarApplicationEvaluation(
+            "completed scalar inputs differ from the exact artifact, target or provider selections".into(),
+        )
+        };
+        let installation = installation.ok_or_else(reject)?;
+        let primary = admission.primary();
+        let expected = TerminalRuntimeSupplies::from(primary.providers());
+        if self.program.identity
+            != terminal_codec::TerminalExecutionIdentity::portable(admission.terminal())
+            || installation.target_machines.as_ref() != Some(primary.targets())
+            || installation.provider_selections.as_ref() != Some(primary.providers())
+            || installation.target_layouts.as_deref() != Some(primary.layouts())
+            || installation.assumed_bindings != expected.assumed_bindings
+            || expected
+                .supplies
+                .iter()
+                .any(|(boundary, supply)| installation.supplies.get(boundary) != Some(supply))
+        {
+            return Err(reject());
+        }
+        // Ordinary execution may additionally install admitted host imports.
+        // It may not redirect the checked suppliers used by constant evaluation.
+        Ok(admission.values().clone())
+    }
+
+    fn scalar_application_inputs(
+        &self,
+        request: TerminalScalarApplicationRequest<'_>,
+        installation: Option<&TerminalRuntimeSupplies>,
+    ) -> Result<terminal_installation::ScalarApplicationValues, TerminalInterpretError> {
+        let reject = || {
+            TerminalInterpretError::UnsupportedSemanticVariant(
+                "scalar evaluation inputs differ from the exact artifact, entry, target or provider selections",
+            )
+        };
+        let observations = request.observations;
+        let installation = installation.ok_or_else(reject)?;
+        let expected_providers = TerminalRuntimeSupplies::from(observations.providers());
+        if self.program.identity
+            != terminal_codec::TerminalExecutionIdentity::portable(
+                observations.artifact().identity(),
+            )
+            || installation.target_machines.as_ref() != Some(observations.targets())
+            || installation.provider_selections.as_ref() != Some(observations.providers())
+            || installation.supplies != expected_providers.supplies
+            || installation.assumed_bindings != expected_providers.assumed_bindings
+            || installation.target_layouts.as_deref() != Some(observations.layouts())
+            || observations
+                .entry(request.application)
+                .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?
+                != self.program.resolve_entry(Some(installation))?
+            || observations
+                .value(request.application)
+                .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?
+                .is_some()
+        {
+            return Err(reject());
+        }
+        Ok(observations.values())
+    }
 }
 
 /// Execution ownership comes from the authenticated callable, not from an
@@ -721,7 +986,8 @@ mod private_entry_target_tests {
         let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
             .expect("independent canonical admission");
         let program = TerminalProgram::borrow(artifact.view());
-        let terminal_psi::TargetMachineCallable::Machine(entry) = artifact.semantic_module().entry
+        let Some(terminal_psi::TargetMachineCallable::Machine(entry)) =
+            artifact.semantic_module().entry
         else {
             panic!("ordinary direct entry required")
         };
@@ -761,7 +1027,8 @@ mod private_entry_target_tests {
             let installation = program
                 .admit_runtime_supplies(crate::effects::TerminalRuntimeSupplyRequest {
                     x86_flags: None,
-                    entry: Some(artifact.semantic_module().entry),
+                    memory_ordering: None,
+                    entry: artifact.semantic_module().entry,
                     installation: None,
                     host_imports: &[],
                     target_machines: Some(&other_machines),

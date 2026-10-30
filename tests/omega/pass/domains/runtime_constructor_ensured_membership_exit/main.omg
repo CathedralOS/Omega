@@ -26,8 +26,8 @@ machine valid(ticket: Ticket in Issued) crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine amount(ticket: Ticket in Issued) -> i32 {
     ticket.amount
@@ -44,15 +44,15 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> later()
         false -> bad()
     }
-    state later() {
+    machine later() {
         let again: Ticket = Ticket::issue();
         transition again.amount == 41 && amount(again) == 41 {
             true -> done()
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

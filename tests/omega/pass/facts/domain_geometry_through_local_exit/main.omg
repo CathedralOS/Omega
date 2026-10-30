@@ -4,8 +4,8 @@
 data Region { base: addr; length: u64; }
 let no_wrap(base: addr, length: u64): core::Strict<0> =
     embed(base) + embed(length) <= addr::Bound;
-domain Region::Bounded(region)
-requires no_wrap(region.base, region.length);
+domain Region::Bounded
+requires no_wrap(self.base, self.length);
 machine region(base: addr, length: u64, endpoint: addr) -> Region in Bounded
 requires embed(base) + embed(length) <= embed(endpoint)
 ensures result.base == base && result.length == length
@@ -20,6 +20,6 @@ machine main() crashes Trap {
     let whole: Region in Bounded = region(10, 80, 100);
     let address: addr = cut(whole, 20);
     transition address == 30 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

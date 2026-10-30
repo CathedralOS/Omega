@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use super::super::{RegisterUnitId, RegisterViewId, ValidatedPhysicalRegisterModel};
 use super::{
@@ -68,18 +68,6 @@ pub fn validate_preservation_storage_catalog(
         return Err(PreservationStorageCatalogValidationError::NonCanonicalGroupIds);
     }
 
-    let units = model
-        .model()
-        .units
-        .iter()
-        .map(|unit| (unit.id, unit))
-        .collect::<BTreeMap<_, _>>();
-    let views = model
-        .model()
-        .views
-        .iter()
-        .map(|view| (view.id, view))
-        .collect::<BTreeMap<_, _>>();
     let mut names = BTreeSet::new();
     let mut covered = BTreeSet::new();
     let mut ordered_coverage = Vec::new();
@@ -110,7 +98,7 @@ pub fn validate_preservation_storage_catalog(
             );
         }
         for unit in &group.preserved_units {
-            if !units.contains_key(unit) {
+            if model.model().unit(*unit).is_none() {
                 return Err(
                     PreservationStorageCatalogValidationError::UnknownPreservedUnit {
                         group: group.id,
@@ -131,7 +119,7 @@ pub fn validate_preservation_storage_catalog(
         }
         ordered_coverage.extend(group.preserved_units.iter().copied());
 
-        let Some(view) = views.get(&group.storage_view) else {
+        let Some(view) = model.model().view(group.storage_view) else {
             return Err(
                 PreservationStorageCatalogValidationError::UnknownStorageView {
                     group: group.id,

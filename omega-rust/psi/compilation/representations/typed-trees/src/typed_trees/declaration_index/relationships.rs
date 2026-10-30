@@ -47,11 +47,29 @@ pub(super) fn symbol_rows<Position>(
     &rows[start..end]
 }
 
+/// Every input used by the shared state/value containment index. Keep arena
+/// revisions and complete visible root spans separate: neither a shorter root
+/// roster nor a changed generation can cancel another input's mutation.
+pub(super) type StateDeclarationRevision = (
+    u64,
+    u64,
+    u64,
+    u64,
+    u64,
+    u64,
+    arena::HandleSpan<crate::machine::Machine>,
+    arena::HandleSpan<crate::proposition::PropositionDefinition>,
+);
+
 #[derive(Clone, Default)]
 pub(super) struct StateDeclarationIndex {
     locals: Vec<(SymbolHandle, (u32, u32, u32))>,
     /// The first binder narrows candidates; the complete parameter span decides.
     states: Vec<(SymbolHandle, (u32, u32))>,
+    /// Flat parameter-arena order includes bodyless and proposition formals.
+    parameter_types: Vec<(SymbolHandle, crate::types::TypeReferenceHandle)>,
+    /// Exact old fallback traversal order, retained beside each declared type.
+    value_types: Vec<(SymbolHandle, (usize, crate::types::TypeReferenceHandle))>,
 }
 
 #[derive(Clone, Default)]
@@ -66,20 +84,39 @@ impl crate::TypedTrees {
         &self,
         run: impl FnOnce(&StateDeclarationIndex) -> R,
     ) -> R {
-        let revision = self
-            .tables
-            .machines
-            .revision()
-            .wrapping_add(self.tables.machine_states.revision())
-            .wrapping_add(self.tables.state_parameters.revision())
-            .wrapping_add(self.statement_table.revision())
-            .wrapping_add(roster_marker(self.roots.machines));
+        let revision = (
+            self.tables.machines.revision(),
+            self.tables.machine_states.revision(),
+            self.tables.state_parameters.revision(),
+            self.tables.machine_owned_data.revision(),
+            self.statement_table.revision(),
+            self.tables.propositions.revision(),
+            self.roots.machines,
+            self.roots.propositions,
+        );
         self.declaration_indexes.state_declarations.with(
             revision,
             || {
                 let mut index = StateDeclarationIndex::default();
+                for (_, parameter) in self.tables.state_parameters.iter() {
+                    index
+                        .parameter_types
+                        .push((parameter.symbol, parameter.type_reference));
+                }
                 for (machine_position, machine) in self.machines().iter().enumerate() {
+                    for owned in self.machine_owned_data(machine) {
+                        let order = index.value_types.len();
+                        index
+                            .value_types
+                            .push((owned.symbol, (order, owned.type_reference)));
+                    }
                     for (state_position, state) in self.machine_states(machine).iter().enumerate() {
+                        for parameter in self.state_parameters(state) {
+                            let order = index.value_types.len();
+                            index
+                                .value_types
+                                .push((parameter.symbol, (order, parameter.type_reference)));
+                        }
                         let position = (machine_position as u32, state_position as u32);
                         let first = self
                             .state_parameters(state)
@@ -93,6 +130,10 @@ impl crate::TypedTrees {
                             .enumerate()
                         {
                             if let StatementNode::LocalData(local) = statement {
+                                let order = index.value_types.len();
+                                index
+                                    .value_types
+                                    .push((local.symbol, (order, local.type_reference)));
                                 index.locals.push((
                                     local.symbol,
                                     (position.0, position.1, statement_position as u32),
@@ -101,12 +142,51 @@ impl crate::TypedTrees {
                         }
                     }
                 }
+                for proposition in self.propositions() {
+                    for parameter in self.proposition_parameters(proposition) {
+                        let order = index.value_types.len();
+                        index
+                            .value_types
+                            .push((parameter.symbol, (order, parameter.type_reference)));
+                    }
+                }
                 sort_symbol_rows(&mut index.locals);
                 sort_symbol_rows(&mut index.states);
+                sort_symbol_rows(&mut index.parameter_types);
+                sort_symbol_rows(&mut index.value_types);
                 index
             },
             run,
         )
+    }
+
+    /// Named executable value typing's declaration fallback, after its builtin,
+    /// mathematical/static binder and verified parent-hint queries. A direct
+    /// resolved name first observes the complete flat parameter arena, including
+    /// bodyless signatures. The remaining candidates preserve machine-owned data,
+    /// then each state's parameters/locals, then proposition parameter order.
+    /// This reads declared types only; it establishes no value or storage fact.
+    pub fn first_named_value_declared_type(
+        &self,
+        symbol: SymbolHandle,
+        head_symbol: SymbolHandle,
+    ) -> Option<crate::types::TypeReferenceHandle> {
+        self.with_state_declarations(|index| {
+            if symbol.is_valid() && symbol == head_symbol {
+                if let Some((_, type_reference)) = first_symbol_row(&index.parameter_types, symbol)
+                {
+                    return Some(*type_reference);
+                }
+            }
+            [symbol, head_symbol]
+                .into_iter()
+                .filter(|symbol| symbol.is_valid())
+                .filter_map(|symbol| {
+                    first_symbol_row(&index.value_types, symbol).map(|(_, value)| *value)
+                })
+                .min_by_key(|(order, _)| *order)
+                .map(|(_, type_reference)| type_reference)
+        })
     }
 
     /// Every local declaration carrying the symbol, in authored traversal order.

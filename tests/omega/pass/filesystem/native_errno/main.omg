@@ -18,11 +18,11 @@ machine Main::main(main: &mut Main) reaches FilesystemContentRead + FilesystemCo
     main.rdonly = 0;
     main.fd = PosixFilesystemHost::open("/tmp/omega_definitely_absent_xyzzy.txt", main.rdonly);
     transition main.fd < 0 { true -> classify(main) _ -> fail(main) }
-    state classify(main: &mut Main) {
+    machine classify(main: &mut Main) {
         transition main.fd == -2 { true -> good(main) _ -> fail(main) }
     }
-    state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: a missing open returns -ENOENT (-2)\n"); }
-    state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: errno\n"); }
+    machine good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: a missing open returns -ENOENT (-2)\n"); }
+    machine fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: errno\n"); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

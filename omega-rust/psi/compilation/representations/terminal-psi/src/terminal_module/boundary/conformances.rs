@@ -36,6 +36,9 @@ pub enum ClosedConformanceSchemaKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ClosedConformanceSchema {
+    /// Declaration ownership survives independently of the overload's path and
+    /// types; another package may declare an equally shaped requirement.
+    pub requirement_declaration: crate::NominalDeclarationIdentity,
     pub declaring_trait_identity: TerminalIdentityIndex,
     pub public_requirement_identity: TerminalIdentityIndex,
     pub requirement_identity: TerminalIdentityIndex,
@@ -96,6 +99,9 @@ pub struct ClosedConformanceParameterBinding {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ClosedConformanceRow {
+    /// Same source declaration coordinate as the original schema, retained
+    /// through each closed family row for authorized scalar issuance.
+    pub requirement_declaration: crate::NominalDeclarationIdentity,
     pub declaring_trait_identity: TerminalIdentityIndex,
     /// Canonical normalized overload identity of the public requirement.
     pub public_requirement_identity: TerminalIdentityIndex,
@@ -136,10 +142,14 @@ pub enum ClosedConformanceCallableResult {
     Structural(semantic_vocabulary::StructuralTypeId),
 }
 
-pub fn closed_conformance_application_report_fingerprint(
+/// The one byte encoding of a closed conformance application. The report
+/// fingerprint and the authority commitment publish the same bytes through
+/// different sinks, so this traversal exists once: a second hand-mirrored
+/// walk is how the two views of one application drift apart.
+fn closed_conformance_application_bytes(
     identities: &TerminalIdentityTable,
     application: &ClosedConformanceApplication,
-) -> u64 {
+) -> Vec<u8> {
     fn push(bytes: &mut Vec<u8>, value: &str) {
         bytes.extend((value.len() as u64).to_le_bytes());
         bytes.extend(value.as_bytes());
@@ -194,6 +204,12 @@ pub fn closed_conformance_application_report_fingerprint(
         push(
             &mut bytes,
             identities
+                .text(row.requirement_declaration.identity())
+                .unwrap_or_default(),
+        );
+        push(
+            &mut bytes,
+            identities
                 .text(row.declaring_trait_identity)
                 .unwrap_or_default(),
         );
@@ -224,8 +240,19 @@ pub fn closed_conformance_application_report_fingerprint(
             push(&mut bytes, identities.text(*identity).unwrap_or_default());
         }
     }
+    bytes
+}
+
+/// Observable 64-bit fingerprint of one closed conformance application.
+pub fn closed_conformance_application_report_fingerprint(
+    identities: &TerminalIdentityTable,
+    application: &ClosedConformanceApplication,
+) -> u64 {
     let mut hash = semantic_vocabulary::Fnv1a::new();
-    hash.bytes(&bytes);
+    hash.bytes(&closed_conformance_application_bytes(
+        identities,
+        application,
+    ));
     hash.finish()
 }
 
@@ -296,6 +323,7 @@ fn schema_application_bytes(
     bytes.extend((application.schemas.len() as u64).to_le_bytes());
     for schema in &application.schemas {
         for identity in [
+            schema.requirement_declaration.identity(),
             schema.declaring_trait_identity,
             schema.public_requirement_identity,
             schema.requirement_identity,
@@ -376,92 +404,17 @@ pub fn closed_conformance_application_commitment(
     identities: &TerminalIdentityTable,
     application: &ClosedConformanceApplication,
 ) -> ClosedConformanceApplicationCommitment {
-    fn push(digest: &mut crate::digest_encoder::DomainDigestEncoder, value: &str) {
-        digest.u64(value.len() as u64);
-        digest.raw(value.as_bytes());
-    }
-
+    // `DomainDigestEncoder::u64`/`byte`/`raw` feed exactly the bytes the
+    // report encoding frames, so the domain-prefixed digest of that one stream
+    // is the authority commitment. Streaming the walk twice is what this
+    // replaces; the framing stays in `closed_conformance_application_bytes`.
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
         b"omega.psi.terminal.closed-conformance-application.v7\0",
     );
-    push(
-        &mut digest,
-        identities
-            .text(application.declaration_identity)
-            .unwrap_or_default(),
-    );
-    push(
-        &mut digest,
-        identities
-            .text(application.trait_identity)
-            .unwrap_or_default(),
-    );
-    digest.u64(application.trait_lifetime_arguments.len() as u64);
-    for argument in &application.trait_lifetime_arguments {
-        push(&mut digest, argument);
-    }
-    digest.u64(application.telescope.len() as u64);
-    for binding in &application.telescope {
-        push(&mut digest, &binding.parameter);
-        digest.byte(match binding.kind {
-            ClosedConformanceParameterKind::Lifetime => 1,
-            ClosedConformanceParameterKind::Type => 2,
-            ClosedConformanceParameterKind::Const => 3,
-            ClosedConformanceParameterKind::Machine => 4,
-        });
-        push(&mut digest, &binding.argument);
-    }
-    digest.u64(application.trait_arguments.len() as u64);
-    for argument in &application.trait_arguments {
-        push(&mut digest, argument);
-    }
-    digest.u64(application.realization_callables.len() as u64);
-    for callable in &application.realization_callables {
-        push(
-            &mut digest,
-            identities
-                .text(callable.source_callable_identity)
-                .unwrap_or_default(),
-        );
-        digest.raw(&callable_bytes(callable.callable));
-        digest.raw(&callable_result_bytes(callable.result));
-    }
-    digest.raw(&schema_application_bytes(identities, application));
-    digest.u64(application.rows.len() as u64);
-    for row in &application.rows {
-        push(
-            &mut digest,
-            identities
-                .text(row.declaring_trait_identity)
-                .unwrap_or_default(),
-        );
-        push(
-            &mut digest,
-            identities
-                .text(row.public_requirement_identity)
-                .unwrap_or_default(),
-        );
-        digest.u64(row.family_tuple.len() as u64);
-        for identity in &row.family_tuple {
-            push(&mut digest, identities.text(*identity).unwrap_or_default());
-        }
-        push(
-            &mut digest,
-            identities
-                .text(row.requirement_identity)
-                .unwrap_or_default(),
-        );
-        push(
-            &mut digest,
-            identities
-                .text(row.realization_identity)
-                .unwrap_or_default(),
-        );
-        digest.byte(u8::from(row.realization_callable_identity.is_some()));
-        if let Some(identity) = &row.realization_callable_identity {
-            push(&mut digest, identities.text(*identity).unwrap_or_default());
-        }
-    }
+    digest.raw(&closed_conformance_application_bytes(
+        identities,
+        application,
+    ));
     ClosedConformanceApplicationCommitment::from_digest(digest.finish())
 }
 
@@ -488,6 +441,9 @@ mod tests {
             schemas: Vec::new(),
             static_applications: Vec::new(),
             rows: vec![ClosedConformanceRow {
+                requirement_declaration: crate::NominalDeclarationIdentity::new(
+                    identities.intern("package::Scanner::scan"),
+                ),
                 declaring_trait_identity: identities.intern("package::Scanner"),
                 public_requirement_identity: identities.intern("package::Scanner::scan()"),
                 family_tuple,

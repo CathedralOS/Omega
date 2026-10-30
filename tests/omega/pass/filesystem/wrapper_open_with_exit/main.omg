@@ -33,71 +33,71 @@ machine Main::main(main: &mut Main) reaches Console {
     let opts_wc: OpenOptions = OpenOptions { write: true, create: true };
     main.open_result = block Filesystem::open_with(&mut main.fs, "omega_ow_probe.txt", opts_wc);
     transition main.open_result { OpenResult::Ok { file } -> writeit(main, file) _ -> bad(main, 71) }
-    state writeit(main: &mut Main, file: File) {
+    machine writeit(main: &mut Main, file: File) {
         main.file_handle = file.handle;
         main.io_result = block Filesystem::write(&mut main.fs, File { handle: main.file_handle }, "abc");
         main.close_result = block Filesystem::close(&mut main.fs, File { handle: main.file_handle });
         transition main.io_result { IoResult::Ok { count } -> wrote(main, count) _ -> bad(main, 72) }
     }
-    state wrote(main: &mut Main, count: u64) {
+    machine wrote(main: &mut Main, count: u64) {
         transition count == 3 { true -> leg2(main) _ -> bad(main, 72) }
     }
     // Leg 2: read-only open reads the bytes back.
-    state leg2(main: &mut Main) {
+    machine leg2(main: &mut Main) {
         let opts_r: OpenOptions = OpenOptions { read: true };
         main.open_result = block Filesystem::open_with(&mut main.fs, "omega_ow_probe.txt", opts_r);
         transition main.open_result { OpenResult::Ok { file } -> readit(main, file) _ -> bad(main, 73) }
     }
-    state readit(main: &mut Main, file: File) {
+    machine readit(main: &mut Main, file: File) {
         main.file_handle = file.handle;
         main.io_result = block Filesystem::read(&mut main.fs, File { handle: main.file_handle }, &mut main.back, 16);
         main.close_result = block Filesystem::close(&mut main.fs, File { handle: main.file_handle });
         transition main.back[0] == 97 { true -> read_tail(main) _ -> bad(main, 74) }
     }
-    state read_tail(main: &mut Main) {
+    machine read_tail(main: &mut Main) {
         transition main.back[2] == 99 { true -> leg3(main) _ -> bad(main, 74) }
     }
     // Leg 3: write+truncate empties, then write 4 -> len 4.
-    state leg3(main: &mut Main) {
+    machine leg3(main: &mut Main) {
         let opts_wt: OpenOptions = OpenOptions { write: true, truncate: true };
         main.open_result = block Filesystem::open_with(&mut main.fs, "omega_ow_probe.txt", opts_wt);
         transition main.open_result { OpenResult::Ok { file } -> trunced(main, file) _ -> bad(main, 75) }
     }
-    state trunced(main: &mut Main, file: File) {
+    machine trunced(main: &mut Main, file: File) {
         main.file_handle = file.handle;
         main.io_result = block Filesystem::write(&mut main.fs, File { handle: main.file_handle }, "wxyz");
         main.close_result = block Filesystem::close(&mut main.fs, File { handle: main.file_handle });
         main.meta_result = block Filesystem::metadata_path(&mut main.fs, "omega_ow_probe.txt");
         transition main.meta_result { MetadataResult::Ok { meta } -> ck3(main, meta) _ -> bad(main, 75) }
     }
-    state ck3(main: &mut Main, meta: Metadata) {
+    machine ck3(main: &mut Main, meta: Metadata) {
         transition meta.len == 4 { true -> leg4(main) _ -> bad(main, 75) }
     }
     // Leg 4: append -> len grows to 7, tail is the appended bytes.
-    state leg4(main: &mut Main) {
+    machine leg4(main: &mut Main) {
         let opts_a: OpenOptions = OpenOptions { write: true, append: true };
         main.open_result = block Filesystem::open_with(&mut main.fs, "omega_ow_probe.txt", opts_a);
         transition main.open_result { OpenResult::Ok { file } -> appended(main, file) _ -> bad(main, 76) }
     }
-    state appended(main: &mut Main, file: File) {
+    machine appended(main: &mut Main, file: File) {
         main.file_handle = file.handle;
         main.io_result = block Filesystem::write(&mut main.fs, File { handle: main.file_handle }, "tail");
         main.close_result = block Filesystem::close(&mut main.fs, File { handle: main.file_handle });
         main.io_result = block Filesystem::read_all(&mut main.fs, "omega_ow_probe.txt", &mut main.back, 16);
         transition main.io_result { IoResult::Ok { count } -> ck4(main, count) _ -> bad(main, 76) }
     }
-    state ck4(main: &mut Main, count: u64) {
+    machine ck4(main: &mut Main, count: u64) {
         transition count == 8 { true -> ck4b(main) _ -> bad(main, 76) }
     }
-    state ck4b(main: &mut Main) {
+    machine ck4b(main: &mut Main) {
         // "wxyz" + "tail": back[4] = 't' (116), back[7] = 'l' (108).
         transition main.back[4] == 116 { true -> ck4c(main) _ -> bad(main, 76) }
     }
-    state ck4c(main: &mut Main) {
+    machine ck4c(main: &mut Main) {
         transition main.back[7] == 108 { true -> leg5(main) _ -> bad(main, 76) }
     }
     // Leg 5: create_new on the EXISTING path must be AlreadyExists.
-    state leg5(main: &mut Main) {
+    machine leg5(main: &mut Main) {
         let opts_cn: OpenOptions = OpenOptions { write: true, create_new: true };
         let created: OpenResult = block Filesystem::open_with(&mut main.fs, "omega_ow_probe.txt", opts_cn);
         transition created {
@@ -105,14 +105,14 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> bad(main, 77)
         }
     }
-    state ck5(main: &mut Main, kind: ErrorKind) {
+    machine ck5(main: &mut Main, kind: ErrorKind) {
         transition kind {
             ErrorKind::AlreadyExists -> leg6(main)
             _ -> bad(main, 77)
         }
     }
     // Leg 6: plain read of an ABSENT path (no create bits) must be NotFound.
-    state leg6(main: &mut Main) {
+    machine leg6(main: &mut Main) {
         let opts_r2: OpenOptions = OpenOptions { read: true };
         let missing: OpenResult = block Filesystem::open_with(&mut main.fs, "omega_ow_absent.txt", opts_r2);
         transition missing {
@@ -120,18 +120,18 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> bad(main, 78)
         }
     }
-    state ck6(main: &mut Main, kind: ErrorKind) {
+    machine ck6(main: &mut Main, kind: ErrorKind) {
         transition kind {
             ErrorKind::NotFound -> cleanup(main)
             _ -> bad(main, 78)
         }
     }
-    state cleanup(main: &mut Main) {
+    machine cleanup(main: &mut Main) {
         main.unit_result = block Filesystem::remove(&mut main.fs, "omega_ow_probe.txt");
         transition main.unit_result { UnitResult::Ok -> good(main) _ -> bad(main, 79) }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

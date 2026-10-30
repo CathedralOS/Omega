@@ -2,7 +2,7 @@ machine write(items: &mut [i32])
 requires items.len > 1
 {
     transition { _ -> forwarded(&mut items[1..2]) }
-    state forwarded(items: &mut [i32])
+    machine forwarded(items: &mut [i32])
     requires items.len > 0
     {
         items[0] = 23;
@@ -16,6 +16,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

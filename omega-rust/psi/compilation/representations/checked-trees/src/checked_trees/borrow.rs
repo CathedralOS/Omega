@@ -15,20 +15,25 @@ use crate::checked_trees::keyed_rows::KeyedRows;
 /// Source labels are deliberately absent. Runtime or otherwise unresolved
 /// selectors may remain as expression handles, but cannot establish a positive
 /// spatial result until a checked tactic understands them.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CapturedPlace {
-    /// A parameter supplies this opaque referent occurrence. Zero denotes
-    /// ordinary storage; an incoming descriptor's referent is not its slot.
+    /// An admitted entry or completed invocation supplies this opaque
+    /// referent occurrence. Zero denotes ordinary storage; a descriptor's
+    /// referent is not the slot that holds its pointer.
     pub incoming_reference: Handle<IncomingReferenceIdentity>,
+    /// Selected descriptor within an incoming leaf family. This is the
+    /// captured carrier-owner path, not a suffix below its loaded pointer.
+    /// Empty retains the incoming identity's ordinary non-family namespace.
+    pub incoming_owner_path: Vec<facts::PlaceSegment>,
     pub root: facts::PlaceRoot,
     pub segments: Vec<facts::PlaceSegment>,
 }
 
-/// One reference permission supplied by a state invocation's declared carrier.
-/// The caller must supply its actual backing; this identity distinguishes the
-/// callee-relative referent from the storage holding its descriptor. Moving a
-/// descriptor retains this identity, rather than creating a borrow of its slot.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+/// One reference permission supplied at entry or by a normal invocation.
+/// Entry inputs retain caller-supplied backing; admitted outputs retain the
+/// exact completion that supplied theirs. Moving a descriptor preserves that
+/// occurrence, rather than creating a borrow of the slot holding its pointer.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct IncomingReferenceIdentity {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -40,14 +45,20 @@ pub struct IncomingReferenceIdentity {
 /// The checked boundary that supplies a reference permission. An invocation
 /// result keeps its exact performed call; it is never its temporary descriptor
 /// slot and never proves spatial separation from another incoming permission.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum IncomingReferenceOrigin {
-    Parameter {
-        symbol: SymbolHandle,
-    },
+    /// The invocation's root loan parameter. Writes through it affect the
+    /// referent, not the descriptor supplied by the still-incomplete caller.
+    ParameterReferent { symbol: SymbolHandle },
+    /// A descriptor stored in an input carrier. Replacement retires this
+    /// occurrence independently of any root loan permitting the write.
+    Parameter { symbol: SymbolHandle },
     Invocation {
         expression: ExpressionHandle,
         target: SymbolHandle,
+    },
+    Output {
+        identity: facts::InvocationOutputIdentity,
     },
 }
 
@@ -60,10 +71,30 @@ impl Default for IncomingReferenceOrigin {
 }
 
 impl IncomingReferenceIdentity {
+    /// The formal or performed-value namespace supplied by this exact origin.
+    /// Unequal namespaces never establish physical separation.
+    pub fn place_root(&self) -> facts::PlaceRoot {
+        match self.origin {
+            IncomingReferenceOrigin::Parameter { symbol }
+            | IncomingReferenceOrigin::ParameterReferent { symbol } => {
+                facts::PlaceRoot::Symbol(symbol)
+            }
+            IncomingReferenceOrigin::Invocation { expression, .. } => {
+                facts::PlaceRoot::Expression(expression)
+            }
+            IncomingReferenceOrigin::Output { identity } => {
+                facts::PlaceRoot::InvocationOutput(identity)
+            }
+        }
+    }
+
     pub fn parameter_symbol(&self) -> SymbolHandle {
         match self.origin {
-            IncomingReferenceOrigin::Parameter { symbol } => symbol,
-            IncomingReferenceOrigin::Invocation { .. } => SymbolHandle::invalid(),
+            IncomingReferenceOrigin::Parameter { symbol }
+            | IncomingReferenceOrigin::ParameterReferent { symbol } => symbol,
+            IncomingReferenceOrigin::Invocation { .. } | IncomingReferenceOrigin::Output { .. } => {
+                SymbolHandle::invalid()
+            }
         }
     }
 }
@@ -92,7 +123,7 @@ pub struct CapturedPlaceCompatibility {
     pub non_interfering: bool,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum BorrowRootKind {
     #[default]
     OwnedData,
@@ -100,16 +131,20 @@ pub enum BorrowRootKind {
     MutableParameter,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowWritableRootFact {
     pub symbol: SymbolHandle,
     pub kind: BorrowRootKind,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StateBorrowFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
+    /// Permissions supplied by this exact state invocation, before any local
+    /// descriptor establishment. Their referent namespaces survive only while
+    /// the current flow cut retains the corresponding incoming constraint.
+    pub incoming_references: HandleSpan<IncomingReferenceIdentity>,
     pub writable_roots: HandleSpan<BorrowWritableRootFact>,
     pub mutable_parameter_count: usize,
     pub calls: HandleSpan<BorrowCallFact>,
@@ -120,7 +155,7 @@ pub struct StateBorrowFact {
 /// One reference leaf formed by a normal return. Its origin is captured while
 /// the statement's current carrier contents and incoming descriptors are known.
 /// These are result leaves, not local activations or lifecycle resource events.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowReturnedLoanFact {
     pub lineage: BorrowLoanLineage,
     pub statement_index: usize,
@@ -128,14 +163,19 @@ pub struct BorrowReturnedLoanFact {
     /// Mutually exclusive arms never authenticate each other's formations.
     pub transition_target: typed_trees::statement::TransitionTargetHandle,
     pub formation_expression: ExpressionHandle,
+    /// Descriptor leaf relative to the formation result, before installation
+    /// in an enclosing returned record/case. None withholds the association;
+    /// an empty path identifies this expression's root descriptor.
+    pub formation_owner_path: Option<HandleSpan<BorrowLoanOwnerSegment>>,
     pub incoming_reference: Handle<IncomingReferenceIdentity>,
+    pub incoming_owner_path: HandleSpan<facts::PlaceSegment>,
     pub root: facts::PlaceRoot,
     pub segments: HandleSpan<facts::PlaceSegment>,
     pub owner_path: HandleSpan<BorrowLoanOwnerSegment>,
     pub kind: BorrowAccessKind,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum BorrowAccessKind {
     #[default]
     Read,
@@ -185,7 +225,7 @@ impl BorrowAccessKind {
 }
 
 /// Exact non-authorizing lifecycle class for one retained direct reborrow.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedReborrowAccessEffect {
     /// A shared child of shared authority releases independently; the parent
     /// was never suspended and requires no restoration event.
@@ -199,7 +239,7 @@ pub enum CheckedReborrowAccessEffect {
     ExclusiveSuspension,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowArgumentAccessFact {
     /// The evaluated operand that produced this access in its owning call's
     /// ordered roster. Equal places do not identify equal evaluations.
@@ -226,10 +266,21 @@ pub struct BorrowArgumentAccessFact {
     pub released_at: ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowCallFact {
     pub statement_index: usize,
     pub call_ordinal: usize,
+    /// Exact expression invocation. Zero is an explicitly collected statement
+    /// call or transition, distinguished by the owning statement schedule.
+    pub authored_expression: ExpressionHandle,
+    /// Descriptor generations present immediately before this invocation.
+    /// None is unavailable; the roster contains handles, not inferred places.
+    /// Normal-call custody records it before applying this invocation's stores.
+    pub input_reference_loans: Option<HandleSpan<arena::Handle<BorrowLoanFact>>>,
+    /// Complete exact slot relations produced by this normal invocation,
+    /// before enclosing control-flow joins. Rows live in reference_slot_effects.
+    pub reference_slot_effects: HandleSpan<BorrowCallReferenceSlotEffect>,
+    pub completed_reference_loans: HandleSpan<BorrowLoanFact>,
     pub receiver_symbol: SymbolHandle,
     /// Exact executable callee state, or the resolved signature declaration
     /// when no body is available. The source occurrence separately retains
@@ -239,10 +290,31 @@ pub struct BorrowCallFact {
     pub accesses: HandleSpan<BorrowArgumentAccessFact>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct BorrowCallReferenceSlotEffect {
+    pub root: facts::PlaceRoot,
+    pub segments: HandleSpan<facts::PlaceSegment>,
+    /// Normalized descriptor ownership, produced beside the exact footprint.
+    /// An opaque output permission must name this same initialized slot.
+    pub owner_path: HandleSpan<BorrowLoanOwnerSegment>,
+    /// A possible physical destination cannot end unselected old occurrences.
+    pub may_select: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowLoanFact {
     pub incoming_reference: Handle<IncomingReferenceIdentity>,
+    pub incoming_owner_path: HandleSpan<facts::PlaceSegment>,
+    /// Address admitted with a representation footprint, in this loan's same
+    /// root and incoming-reference namespace. Zero means no distinct geometry;
+    /// indexed representation addresses are nonempty. It grants no lineage.
+    pub representation_address: HandleSpan<facts::PlaceSegment>,
     pub statement_index: usize,
+    /// Normal invocation that transported this current descriptor generation.
+    /// Such a row is an exact custody association, not another local resource
+    /// establishment. Zero is the published statement-completion loan roster,
+    /// including joined exits. Equal storage cannot identify this boundary.
+    pub established_by_call: Handle<BorrowCallFact>,
     /// The evaluated source occurrence that makes this loan available within
     /// its statement. Zero denotes a statement-call completion. Source replay
     /// reconstructs this identity; equal storage does not imply equal timing.
@@ -288,7 +360,7 @@ pub struct BorrowLoanFact {
 /// The occurrence identifies sibling results of one invocation, which may
 /// use their distinct referents while external access keeps the whole input
 /// suspended. It never exempts overlapping referents from compatibility.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowRetainedOperand {
     pub formation_expression: ExpressionHandle,
     pub depth: usize,
@@ -299,7 +371,7 @@ pub struct BorrowRetainedOperand {
 /// This classification does not grant authority or change borrow admission.
 /// In particular, `UnretainedDerived` is a fence rather than an inferred
 /// parent relation.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum BorrowLoanLineage {
     #[default]
     DirectRoot,
@@ -307,8 +379,12 @@ pub enum BorrowLoanLineage {
         parent_loan: Handle<BorrowLoanFact>,
     },
     UnretainedDerived,
-    /// An opaque output retains this input's lifetime, but does not establish
-    /// that its pointer addresses any part of the input's storage.
+    /// A normal invocation supplies this descriptor's opaque permission.
+    /// It is not a local borrow activation or a reborrow parent. The exact
+    /// output identity, completed-call roster and destination slot must agree.
+    SuppliedOutput,
+    /// An opaque output retains an input or earlier output's lifetime. This
+    /// supplies keepalive, never a spatial pointer or reborrow permission.
     LifetimeDependency,
 }
 
@@ -327,7 +403,7 @@ impl BorrowLoanLineage {
 /// This checked-only identity does not create authority. It names the
 /// state-owned root whose already-validated authority is temporarily
 /// constrained by the loan.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedDirectBorrowParentLifetime {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -337,7 +413,7 @@ pub struct CheckedDirectBorrowParentLifetime {
 /// A borrowed leaf of one completed call operand. Its owning evaluation and
 /// checked access stay distinct from another operand at equal storage.
 /// Construction records existing authority, not permission to park.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedCallBorrowLoanResource {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -351,9 +427,14 @@ pub struct CheckedCallBorrowLoanResource {
     pub source: CheckedCallBorrowLoanSource,
     pub access: BorrowAccessKind,
     pub parent_lifetime: CheckedDirectBorrowParentLifetime,
+    /// Exact referent namespace and selected storage at this leaf completion.
+    /// The lifetime root alone is not its descriptor or sibling storage.
+    pub backing_incoming_reference: Handle<IncomingReferenceIdentity>,
+    pub backing_incoming_owner_path: HandleSpan<facts::PlaceSegment>,
+    pub backing_path: HandleSpan<facts::PlaceSegment>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedCallBorrowLoanSource {
     /// Transport preserves the exact stored occurrence observed at completion.
     StoredLoan { loan: Handle<BorrowLoanFact> },
@@ -380,7 +461,7 @@ impl Default for CheckedCallBorrowLoanSource {
 /// The row records where checked flow ends the loan and must restore the
 /// parent root's availability. It is not evidence that restoration occurred
 /// and grants no compatibility authority.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedDirectBorrowRestorationObligation {
     pub parent: CheckedDirectBorrowParentLifetime,
     pub weakening_source: crate::FlowInvalidationSource,
@@ -392,7 +473,7 @@ pub struct CheckedDirectBorrowRestorationObligation {
 ///
 /// `lineage` must be `DirectRoot`. Compatibility certificates remain a
 /// separate proof ledger and cannot manufacture one of these rows.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedDirectBorrowLoanResource {
     pub loan: Handle<BorrowLoanFact>,
     pub machine_symbol: SymbolHandle,
@@ -413,7 +494,7 @@ pub struct CheckedDirectBorrowLoanResource {
 /// The handle points into one of the two checked-only resource arenas. It
 /// records the immediate resource occurrence and is not authority to use or
 /// reactivate that resource.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedParentBorrowResource {
     DirectRoot {
         resource: Handle<CheckedDirectBorrowLoanResource>,
@@ -436,7 +517,7 @@ impl Default for CheckedParentBorrowResource {
 /// This row binds the child's weakening to its immediate parent occurrence.
 /// It does not prove that the parent remained active, that the two lifetimes
 /// are temporally contained, or that the parent was reactivated.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedReborrowRestorationObligation {
     pub child_loan: Handle<BorrowLoanFact>,
     pub parent_loan: Handle<BorrowLoanFact>,
@@ -452,7 +533,7 @@ pub struct CheckedReborrowRestorationObligation {
 /// the child activation. This checked-only join says nothing about the parent
 /// after formation: it is not interval containment, reactivation, completed
 /// restoration, or Terminal authority.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedReborrowParentSuspensionBoundary {
     pub child_loan: Handle<BorrowLoanFact>,
     pub parent_loan: Handle<BorrowLoanFact>,
@@ -467,7 +548,7 @@ pub struct CheckedReborrowParentSuspensionBoundary {
 /// This classification describes only source/flow liveness. In particular,
 /// `LivePastChild` is not proof of authority reactivation, and a retired parent
 /// does not imply that authority was returned, cascaded, or discarded.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum ParentLexicalStatusAtChildEnd {
     RetiredBeforeChild,
     #[default]
@@ -481,7 +562,7 @@ pub enum ParentLexicalStatusAtChildEnd {
 /// from their semantic statement phases rather than arena insertion order.
 /// This checked-only row grants no suspension-containment, restoration,
 /// reactivation, cascade, or Terminal authority.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedReborrowParentEndStatus {
     pub child_loan: Handle<BorrowLoanFact>,
     pub parent_loan: Handle<BorrowLoanFact>,
@@ -499,7 +580,7 @@ pub struct CheckedReborrowParentEndStatus {
 /// retire that carrier. In particular, a stored view can be rebound to its own
 /// child without forming a loan from an already retired parent. State exit is
 /// the final boundary. These phases do not grant authority by themselves.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, compiler_storage::Record)]
 pub enum CheckedBorrowResourceLifecyclePhase {
     #[default]
     LastUseExpired,
@@ -513,7 +594,7 @@ pub enum CheckedBorrowResourceLifecyclePhase {
 /// A retained resource target names an exact loan occurrence. A direct-root
 /// lifetime target names the state-local root beyond the last retired loan
 /// carrier. Neither variant proves that authority was returned to the target.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedBorrowResourceDispositionTarget {
     ParentResource(CheckedParentBorrowResource),
     DirectRootLifetime(CheckedDirectBorrowParentLifetime),
@@ -530,7 +611,7 @@ impl Default for CheckedBorrowResourceDispositionTarget {
 /// These names classify the resource-ledger route required at the boundary;
 /// they are not evidence of completed return, post-return use legality,
 /// cleanup, or Terminal authority.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedReborrowResourceDisposition {
     /// One exclusive branch ended while a sibling still retained its own
     /// projection. This does not restore whole-parent authority.
@@ -556,7 +637,7 @@ pub enum CheckedReborrowResourceDisposition {
 }
 
 /// One retired carrier traversed by a cascading disposition.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRetiredParentResourceDispositionStep {
     pub resource: CheckedParentBorrowResource,
     pub weakening: Handle<crate::FlowBorrowWeakeningFact>,
@@ -573,7 +654,7 @@ pub struct CheckedRetiredParentResourceDispositionStep {
 /// call that consumes the directly restored mutable parent — `restored_call`,
 /// `restored_borrow_call` and `restored_call_access` name that call and its
 /// whole-root argument access. All three stay absent handles otherwise.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedReborrowResourceDispositionEvent {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -603,7 +684,7 @@ pub struct CheckedReborrowResourceDispositionEvent {
 /// restoration obligation only: aggregate transfers, temporal containment,
 /// parent activity/reactivation, and Terminal authority remain outside this
 /// representation.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedReborrowLoanResource {
     pub loan: Handle<BorrowLoanFact>,
     pub machine_symbol: SymbolHandle,
@@ -624,7 +705,7 @@ pub struct CheckedReborrowLoanResource {
     pub restoration: CheckedReborrowRestorationObligation,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum BorrowLoanOwnerSegment {
     Field(SymbolHandle),
     Case(SymbolHandle),
@@ -633,7 +714,7 @@ pub enum BorrowLoanOwnerSegment {
     DynamicIndex,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowFacts {
     pub incoming_references: Arena<IncomingReferenceIdentity>,
     pub writable_roots: Arena<BorrowWritableRootFact>,
@@ -641,6 +722,7 @@ pub struct BorrowFacts {
     pub owner_segments: Arena<BorrowLoanOwnerSegment>,
     pub argument_accesses: Arena<BorrowArgumentAccessFact>,
     pub calls: Arena<BorrowCallFact>,
+    pub reference_slot_effects: Arena<BorrowCallReferenceSlotEffect>,
     pub loans: Arena<BorrowLoanFact>,
     pub loan_suppliers: Arena<Handle<BorrowLoanFact>>,
     pub returned_loans: Arena<BorrowReturnedLoanFact>,
@@ -661,6 +743,7 @@ pub struct BorrowFacts {
     pub call_loan_resources: Arena<CheckedCallBorrowLoanResource>,
     pub call_loan_parents: Arena<Handle<BorrowLoanFact>>,
     pub call_loan_paths: Arena<crate::CheckedUnitStructuralPathSegment>,
+    pub call_loan_backing_paths: Arena<facts::PlaceSegment>,
     /// Checked-only resource-lifecycle dispositions for available direct
     /// reborrows at their weakening boundary. Suspended carriers remain
     /// pending and therefore have no premature disposition row. An event whose
@@ -670,6 +753,28 @@ pub struct BorrowFacts {
 }
 
 impl BorrowFacts {
+    /// Exact checked invocation within one owning state. Coordinates repeat
+    /// across states; duplicate rows are unavailable rather than first-match.
+    pub fn call_at(
+        &self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        statement_index: usize,
+        call_ordinal: usize,
+    ) -> Option<Handle<BorrowCallFact>> {
+        self.with_state_borrows(machine, state, |rows| {
+            let [owner] = rows else {
+                return None;
+            };
+            let mut calls = self.states.get(*owner).calls.handles().filter(|handle| {
+                let call = self.calls.get(*handle);
+                call.statement_index == statement_index && call.call_ordinal == call_ordinal
+            });
+            let call = calls.next()?;
+            calls.next().is_none().then_some(call)
+        })
+    }
+
     pub fn with_roots(
         incoming_references: Arena<IncomingReferenceIdentity>,
         writable_roots: Arena<BorrowWritableRootFact>,
@@ -677,6 +782,7 @@ impl BorrowFacts {
         owner_segments: Arena<BorrowLoanOwnerSegment>,
         argument_accesses: Arena<BorrowArgumentAccessFact>,
         calls: Arena<BorrowCallFact>,
+        reference_slot_effects: Arena<BorrowCallReferenceSlotEffect>,
         loans: Arena<BorrowLoanFact>,
         loan_suppliers: Arena<Handle<BorrowLoanFact>>,
         returned_loans: Arena<BorrowReturnedLoanFact>,
@@ -689,6 +795,7 @@ impl BorrowFacts {
             owner_segments,
             argument_accesses,
             calls,
+            reference_slot_effects,
             loans,
             loan_suppliers,
             returned_loans,
@@ -699,6 +806,7 @@ impl BorrowFacts {
             call_loan_resources: Arena::new(),
             call_loan_parents: Arena::new(),
             call_loan_paths: Arena::new(),
+            call_loan_backing_paths: Arena::new(),
             reborrow_disposition_events: Arena::new(),
         }
     }
@@ -717,6 +825,10 @@ impl BorrowFacts {
 
     pub fn state_owns_loan(&self, state: &StateBorrowFact, loan: Handle<BorrowLoanFact>) -> bool {
         self.loans_contain(state.loans, loan)
+            && self
+                .access_segments
+                .span(self.loans.get(loan).incoming_owner_path)
+                .is_some()
     }
 
     pub fn state_loans(
@@ -728,6 +840,127 @@ impl BorrowFacts {
                 .is_valid(handle)
                 .then(|| (handle, self.loans.get(handle)))
         })
+    }
+
+    /// Exact state membership and the statement-resource role share one
+    /// constant-time predicate. Invocation associations remain provenance.
+    pub fn state_owns_statement_resource(
+        &self,
+        state: &StateBorrowFact,
+        loan: Handle<BorrowLoanFact>,
+    ) -> bool {
+        self.state_owns_loan(state, loan) && !self.loans.get(loan).established_by_call.is_valid()
+    }
+
+    /// A flow cut can retain only an entry permission published for this
+    /// invocation. Membership checks the full handle without scanning the
+    /// state's descriptor roster at every access.
+    pub fn state_owns_incoming_reference(
+        &self,
+        state: &StateBorrowFact,
+        identity: Handle<IncomingReferenceIdentity>,
+    ) -> bool {
+        self.incoming_references.is_valid(identity)
+            && handle_span_contains(state.incoming_references, identity)
+            && {
+                let incoming = self.incoming_references.get(identity);
+                incoming.machine_symbol == state.machine_symbol
+                    && incoming.state_symbol == state.state_symbol
+                    && self.owner_segments.span(incoming.owner_path).is_some()
+            }
+    }
+
+    /// Authenticate a supplied output against its exact normal-call producer.
+    /// This is source correspondence only. Availability still requires that
+    /// performed call's exit cut or a retained descendant of that occurrence.
+    pub fn supplied_output_call(
+        &self,
+        handle: Handle<BorrowLoanFact>,
+    ) -> Option<Handle<BorrowCallFact>> {
+        if !self.loans.is_valid(handle)
+            || self.loans.get(handle).lineage != BorrowLoanLineage::SuppliedOutput
+        {
+            return None;
+        }
+        self.output_origin_call(handle)
+    }
+
+    /// Rejoin the exact completed output occurrence for provenance, including
+    /// an output retained only as a lifetime dependency. This supplies neither
+    /// current availability nor the SuppliedOutput permission role above.
+    pub fn output_origin_call(
+        &self,
+        handle: Handle<BorrowLoanFact>,
+    ) -> Option<Handle<BorrowCallFact>> {
+        if !self.loans.is_valid(handle) {
+            return None;
+        }
+        let loan = self.loans.get(handle);
+        if !matches!(
+            loan.lineage,
+            BorrowLoanLineage::SuppliedOutput | BorrowLoanLineage::LifetimeDependency
+        ) || !self.incoming_references.is_valid(loan.incoming_reference)
+            || !loan.segments.is_empty()
+        {
+            return None;
+        }
+        let incoming = self.incoming_references.get(loan.incoming_reference);
+        let IncomingReferenceOrigin::Output { identity } = incoming.origin else {
+            return None;
+        };
+        if !identity.is_valid()
+            || incoming.state_symbol != identity.state_symbol
+            || loan.root != facts::PlaceRoot::InvocationOutput(identity)
+            || loan.statement_index != identity.statement_index
+            || !incoming.carrier_type.is_valid()
+            || self.owner_segments.span(incoming.owner_path).is_none()
+        {
+            return None;
+        }
+        let call = self.call_at(
+            incoming.machine_symbol,
+            incoming.state_symbol,
+            identity.statement_index,
+            identity.call_ordinal,
+        )?;
+        if loan.established_by_call.is_valid() && loan.established_by_call != call {
+            return None;
+        }
+        let source = self.calls.get(call);
+        if !source.target_symbol.is_valid()
+            || !loan.storage_owner.is_valid()
+            || !loan.owner_symbol.is_valid()
+        {
+            return None;
+        }
+        let owner = self.owner_segments.span(loan.owner_path)?;
+        if !self
+            .reference_slot_effects
+            .span(source.reference_slot_effects)?
+            .iter()
+            .any(|effect| {
+                effect.root == loan.storage_owner
+                    && self.owner_segments.span(effect.owner_path) == Some(owner)
+            })
+        {
+            return None;
+        }
+        self.loans
+            .span(source.completed_reference_loans)?
+            .iter()
+            .any(|completed| {
+                completed.lineage == loan.lineage
+                    && completed.established_by_call == call
+                    && completed.incoming_reference == loan.incoming_reference
+                    && self.access_segments.span(completed.incoming_owner_path)
+                        == self.access_segments.span(loan.incoming_owner_path)
+                    && completed.root == loan.root
+                    && completed.segments.is_empty()
+                    && completed.storage_owner == loan.storage_owner
+                    && completed.statement_index == loan.statement_index
+                    && self.owner_segments.span(completed.owner_path) == Some(owner)
+            })
+            .then_some(call)
     }
 
     /// Membership retains the loan arena's generation, not just its index.
@@ -755,6 +988,22 @@ impl BorrowFacts {
         )
     }
 
+    /// The complete statement-completion resource roster. Per-invocation
+    /// associations remain in `loan_group` for current custody and historical
+    /// supplier edges, but are not independently materialized local resources.
+    /// Joined receivers and separate returned-loan obligations retain their
+    /// actual debts; an absent receiver does not prove completed disposal.
+    pub fn statement_resource_loans<'facts>(
+        &'facts self,
+        state: &'facts StateBorrowFact,
+    ) -> Option<impl Iterator<Item = (Handle<BorrowLoanFact>, &'facts BorrowLoanFact)> + 'facts>
+    {
+        Some(
+            self.loan_group(state.loans)?
+                .filter(move |(loan, _)| self.state_owns_statement_resource(state, *loan)),
+        )
+    }
+
     /// Borrow production appends each statement's local loans together. Retain
     /// that complete group without a second roster. An interleaved group is a
     /// malformed producer relationship, not permission to select a subset.
@@ -776,7 +1025,7 @@ impl BorrowFacts {
         statement_index: usize,
     ) -> Option<HandleSpan<BorrowLoanFact>> {
         let mut group = HandleSpan::empty();
-        for (handle, loan) in self.loan_group(state.loans)? {
+        for (handle, loan) in self.statement_resource_loans(state)? {
             if loan.storage_owner != owner || loan.statement_index != statement_index {
                 continue;
             }

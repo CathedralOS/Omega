@@ -6,7 +6,7 @@ machine choose(flag: bool) -> bool {
 
 machine stable(flag: bool) -> bool {
     transition flag { true -> true false -> finish() }
-    state finish() -> bool { false }
+    machine finish() -> bool { false }
 }
 
 machine relay(flag: bool) -> bool { stable(flag) }
@@ -25,6 +25,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

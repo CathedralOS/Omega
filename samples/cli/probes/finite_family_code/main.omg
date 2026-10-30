@@ -43,5 +43,5 @@ machine finite_family_code() {
         _ -> done(71)
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

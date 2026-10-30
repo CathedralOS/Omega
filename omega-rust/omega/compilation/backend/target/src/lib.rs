@@ -42,12 +42,12 @@ pub use foreign_locator::{
 pub use target_profile::{
     Architecture, HostedIntrinsicBundle, NativeTarget, ObjectFormat, ProgramEntryCallingConvention,
     ProgramEntryPhysicalContractPackage, ProgramEntrySchema, ProgramEntrySlotDeclaration,
-    ProgramEntryVisibleParameters, TargetProfile, TargetWireIdentityError,
+    ProgramEntrySlots, ProgramEntryVisibleParameters, TargetProfile, TargetWireIdentityError,
 };
 pub use target_semantics::{
     SymbolicTargetObservationApplication, TargetEntryStackGuarantee, TargetSemantics, UefiX86_64,
 };
 pub use x86_features::{
     AdmittedX86ScalarFmaProvider, X86_SCALAR_FMA_REQUIRED_FEATURES, X86DeploymentFeatures,
-    X86FeatureRequirement, X86ScalarFmaSlot,
+    X86FeatureRequirement, X86ScalarFmaDifferentialReceipt, X86ScalarFmaSlot, X86TargetFeature,
 };

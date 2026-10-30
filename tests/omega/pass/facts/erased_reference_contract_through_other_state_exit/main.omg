@@ -9,7 +9,7 @@ requires witness == 7 {
         true -> ready(runtime, witness)
         false -> ready(runtime, witness)
     }
-    state ready(runtime: i32, witness [erased]: &i32) -> i32
+    machine ready(runtime: i32, witness [erased]: &i32) -> i32
     requires witness == 7 { keep(runtime, witness) }
 }
 machine verify(result: i32, flag: bool) crashes Trap {
@@ -17,8 +17,8 @@ machine verify(result: i32, flag: bool) crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine run(flag: bool) crashes Trap {
     let value: i32 = 7;

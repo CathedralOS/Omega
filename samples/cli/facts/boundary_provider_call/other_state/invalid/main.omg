@@ -12,13 +12,13 @@ Actual satisfies Provider {
 
 machine main() reaches Provider crashes Trap {
     transition { _ -> evaluate(Provider::get()) }
-    state evaluate(val: u64) requires val >= 99u64 && val <= 99u64 {
+    machine evaluate(val: u64) requires val >= 99u64 && val <= 99u64 {
         let diff: u64 = val - 100u64;
         transition diff == 0u64 {
             true -> done()
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -39,7 +39,7 @@ reaches ProgramImage {
 }
 machine kernel_entry(image: Extent in Granted, storage: Extent in Granted) {
     transition { _ -> retain(image, storage) }
-    state retain(image: Extent in Granted, storage: Extent in Granted) {
+    machine retain(image: Extent in Granted, storage: Extent in Granted) {
         transition { _ -> retain(image, storage) }
     }
 }

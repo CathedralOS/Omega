@@ -5,7 +5,7 @@ data Envelope { carrier: Carrier; sibling: i64; }
 machine consume(carrier: Carrier) -> i64 { carrier.part.value }
 machine inspect(envelope: Envelope) -> i64 {
     transition { _ -> next(envelope) }
-    state next(envelope: Envelope) -> i64 {
+    machine next(envelope: Envelope) -> i64 {
         let detached: Part = envelope.carrier.part;
         consume(envelope.carrier)
     }

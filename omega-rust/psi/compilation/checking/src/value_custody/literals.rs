@@ -146,14 +146,15 @@ pub(crate) fn validate_suffix_magnitudes(
 
 mod float_landing;
 pub use float_landing::land_float_literal_destinations;
-pub(crate) use float_landing::{validate_anonymous_bitwise, validate_anonymous_numeric_formation};
+pub(crate) use float_landing::validate_anonymous_bitwise;
+pub use float_landing::validate_anonymous_numeric_formation;
 mod constant_arrays;
 mod record_projection;
 pub use constant_arrays::builtin_constant_array_projection_type;
 pub use constant_arrays::declared_constant_array_type;
 pub(crate) use constant_arrays::validate_constant_projection_destination;
 pub use constant_arrays::{
-    ScalarArrayElements, closed_array_store_type, closed_constant_array_elements,
+    ScalarArrayElement, ScalarArrayElements, closed_array_store_type, closed_constant_array_elements,
     closed_literal_array_elements, is_closed_primitive_array_type, peel_arithmetic_policy,
     scalar_array_elements, scalar_array_preserves_memberships,
 };
@@ -219,6 +220,10 @@ pub(crate) fn validate_suffix_landing(
         }
     };
 
+    if program.static_type_context_is_unreachable(value) {
+        return;
+    }
+    let declared = program.statically_refined_type_reference(value, declared);
     let Some(unwrapped) = crate::value_custody::places::unwrapped_type_reference(program, declared)
     else {
         return;
@@ -342,3 +347,6 @@ pub(crate) fn validate_suffix_landings(
         }
     }
 }
+
+mod owned_bytes;
+pub use owned_bytes::land_owned_fixed_byte_literal;

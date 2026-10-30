@@ -6,14 +6,14 @@ use omega::language::core::numeric_conversion;
 // non-decimal byte, and accepts space, tab, CR, LF as separators.
 public machine parse(bytes: &[u8], problem: &mut Problem) -> bool {
     transition { _ -> scan(bytes, problem, 0, 0, 0, false, false, false) }
-    state scan(bytes: &[u8], problem: &mut Problem, cursor: u64, field: u64,
+    machine scan(bytes: &[u8], problem: &mut Problem, cursor: u64, field: u64,
         magnitude: i32 in Wrapping, negative: bool, started: bool, digit_seen: bool) -> bool {
         transition cursor < bytes.len {
             true -> byte(bytes, problem, cursor, field, magnitude, negative, started, digit_seen)
             false -> finish(problem, field, magnitude, negative, started, digit_seen)
         }
     }
-    state byte(bytes: &[u8], problem: &mut Problem, cursor: u64, field: u64,
+    machine byte(bytes: &[u8], problem: &mut Problem, cursor: u64, field: u64,
         magnitude: i32 in Wrapping, negative: bool, started: bool, digit_seen: bool) -> bool
     requires cursor < bytes.len
     {
@@ -25,7 +25,7 @@ public machine parse(bytes: &[u8], problem: &mut Problem) -> bool {
             _ -> (false)
         }
     }
-    state digit(bytes: &[u8], problem: &mut Problem, cursor: u64, field: u64,
+    machine digit(bytes: &[u8], problem: &mut Problem, cursor: u64, field: u64,
         magnitude: i32 in Wrapping, negative: bool, value: u8) -> bool
     requires cursor < bytes.len
     {
@@ -35,7 +35,7 @@ public machine parse(bytes: &[u8], problem: &mut Problem) -> bool {
             false -> (false)
         }
     }
-    state separator(bytes: &[u8], problem: &mut Problem, cursor: u64, field: u64,
+    machine separator(bytes: &[u8], problem: &mut Problem, cursor: u64, field: u64,
         magnitude: i32 in Wrapping, negative: bool, started: bool, digit_seen: bool) -> bool
     requires cursor < bytes.len
     {
@@ -45,7 +45,7 @@ public machine parse(bytes: &[u8], problem: &mut Problem) -> bool {
             _ -> (false)
         }
     }
-    state store(bytes: &[u8], problem: &mut Problem, cursor: u64, field: u64,
+    machine store(bytes: &[u8], problem: &mut Problem, cursor: u64, field: u64,
         magnitude: i32 in Wrapping, negative: bool) -> bool
     requires cursor < bytes.len && field < 17
     {
@@ -54,14 +54,14 @@ public machine parse(bytes: &[u8], problem: &mut Problem) -> bool {
             false -> write(bytes, problem, cursor, field, magnitude)
         }
     }
-    state write(bytes: &[u8], problem: &mut Problem, cursor: u64, field: u64,
+    machine write(bytes: &[u8], problem: &mut Problem, cursor: u64, field: u64,
         value: i32 in Wrapping) -> bool
     requires cursor < bytes.len && field < 17
     {
         problem.values[field] = value;
         transition { _ -> scan(bytes, problem, cursor + 1, field + 1, 0, false, false, false) }
     }
-    state finish(problem: &mut Problem, field: u64, magnitude: i32 in Wrapping,
+    machine finish(problem: &mut Problem, field: u64, magnitude: i32 in Wrapping,
         negative: bool, started: bool, digit_seen: bool) -> bool {
         transition {
             !started -> (field == 17)
@@ -69,13 +69,13 @@ public machine parse(bytes: &[u8], problem: &mut Problem) -> bool {
             _ -> (false)
         }
     }
-    state last(problem: &mut Problem, magnitude: i32 in Wrapping, negative: bool) -> bool {
+    machine last(problem: &mut Problem, magnitude: i32 in Wrapping, negative: bool) -> bool {
         transition negative {
             true -> final_value(problem, -magnitude)
             false -> final_value(problem, magnitude)
         }
     }
-    state final_value(problem: &mut Problem, value: i32 in Wrapping) -> bool {
+    machine final_value(problem: &mut Problem, value: i32 in Wrapping) -> bool {
         problem.values[16] = value;
         true
     }
@@ -87,13 +87,13 @@ public machine valid(problem: &Problem) -> bool {
         true -> ranges(problem, 0)
         false -> (false)
     }
-    state ranges(problem: &Problem, index: u64) -> bool {
+    machine ranges(problem: &Problem, index: u64) -> bool {
         transition index < 3 {
             true -> range(problem, index)
             false -> (true)
         }
     }
-    state range(problem: &Problem, index: u64) -> bool
+    machine range(problem: &Problem, index: u64) -> bool
     requires index < 3
     {
         let offset: u64 = 5 + index * 4;

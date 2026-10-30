@@ -9,6 +9,11 @@
 //! sequence, source preparation or execution engine here.
 
 mod build_bindings;
+mod build_filesystem;
+mod build_protocol;
+mod build_provider;
+mod build_queries;
+mod build_requests;
 mod composition_admission;
 mod custody;
 mod observation;
@@ -16,14 +21,29 @@ mod terminal_production;
 
 pub use build_bindings::{
     TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
+    TerminalBuildNativeLocator, TerminalBuildProviderRequirement, TerminalBuildSelectionRequest,
+    TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
+};
+pub use build_filesystem::{
+    TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
+};
+pub use build_provider::{BuildProviderProductionRequest, ProducedBuildProvider};
+pub use build_queries::{TerminalBuildQueryCall, TerminalBuildQueryOperation};
+pub use build_requests::{
+    TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
+};
+pub use checked_trees_to_lowered_psi::lower_task_activation_demands;
+pub use checked_trees_to_lowered_psi::{
+    ExternalProviderDeclarations, PreparedExternalProviderDeclarations, PreparedTerminalRoots,
+    project_external_provider_declarations,
 };
 pub use checked_trees_to_lowered_psi::{TerminalMachineSelection, TerminalProgramRoots};
-pub use composition_admission::TerminalCompositionAdmission;
+pub use composition_admission::{TerminalAdmissionRoot, TerminalCompositionAdmission};
 pub use custody::{
-    ProducedTerminalArtifact, TerminalApplicationCustody, TerminalProductionCustody,
+    PortableTerminalProgram, ProducedTerminalProgram, TerminalApplicationCustody,
+    TerminalProductionCustody,
 };
 pub use observation::{PsiCompilationObserver, PsiCompilationStage, UnmeasuredProduction};
 pub use terminal_production::{
-    ProgramEntryTerminalReceiptError, RetainedCallableSignature, TerminalArtifactProductionError,
-    TerminalProductionRequest, retained_callable_signature,
+    ProgramEntryTerminalReceiptError, TerminalArtifactProductionError, TerminalProductionRequest,
 };

@@ -38,6 +38,11 @@ fn source_place(
     statement_index: usize,
     source: &validation::LocalWriteSource,
 ) -> Option<(CanonicalPlace, OriginPrecision)> {
+    if source.invocation_output.is_some() {
+        // Opaque output identity is not a declaration-relative write region.
+        // Unknown physical aliasing must not fall back to its display label.
+        return None;
+    }
     if let Some(first) = source.recasts.first() {
         for recast in &source.recasts {
             if matches!(
@@ -94,6 +99,9 @@ pub(in crate::flow::mutation) fn write_source_region(
     source: &validation::LocalWriteSource,
     relative: &[facts::PlaceSegment],
 ) -> Option<StorageRegion> {
+    if source.invocation_output.is_some() {
+        return output_write_region(program, source, relative);
+    }
     if !source.root.is_valid() {
         return None;
     }
@@ -199,6 +207,46 @@ pub(in crate::flow::mutation) fn write_source_region(
     crate::flow::project_captured_view_place(place, relative).map(StorageRegion::Declared)
 }
 
+/// The chronological origin producer already retained this performed output.
+/// Rejoin its typed reference slot, without treating lifetime inputs or the
+/// display path as an address. Its backing may alias other storage.
+fn output_write_region(
+    program: &dyn validation::CheckingInput,
+    source: &validation::LocalWriteSource,
+    relative: &[facts::PlaceSegment],
+) -> Option<StorageRegion> {
+    if source.is_image_storage || !source.recasts.is_empty() || source.representation.is_some() {
+        return None;
+    }
+    let identity = source.invocation_output?;
+    let parameter = validation::invocation_output_parameter(program, identity)?;
+    let shell = validation::reference_shell(program, parameter.type_reference)?;
+    if !shell.access.is_exclusive() {
+        return None;
+    }
+    // The parameter's outer reference addresses its receiving storage. The
+    // first reference below it is the actual output leaf, including a root
+    // reference-valued slot. Later selectors stay inside that opaque referent.
+    let length = (0..=source.segments.len()).find(|length| {
+        validation::project_type_reference_from_segments(
+            program,
+            shell.referee,
+            &source.segments[..*length],
+        )
+        .and_then(|reference| validation::reference_shell(program, reference))
+        .is_some()
+    })?;
+    let mut projected = source.segments.clone();
+    projected.extend_from_slice(relative);
+    validation::project_type_reference_from_segments(program, shell.referee, &projected)?;
+    Some(StorageRegion::UnresolvedContent {
+        carrier: CanonicalPlace {
+            root: facts::PlaceRoot::InvocationOutput(identity),
+            segments: source.segments[..length].to_vec(),
+        },
+    })
+}
+
 fn structural_origin(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
@@ -223,15 +271,9 @@ fn structural_origin(
             }
             _ => segment,
         };
-        if let facts::PlaceSegment::Index { expression } = segment
-            && !program.expression_table.expression_is_valid(expression)
-        {
-            // A window retains the collection dimension; an erased selector
-            // does not establish whether it was a window or one element.
-            // Stop before that coordinate rather than shifting later fields
-            // or indexes onto the wrong dimension of the backing storage.
-            return Some((place, OriginPrecision::Enclosing));
-        }
+        // Selector erasure preserves window-vs-element shape: OpaqueRange
+        // is a collection, while an invalid Index still selects one element.
+        // Its value is unavailable, but later fields remain disjoint.
         // Overlap treats a runtime selector as any element, independently of
         // its later value. Keep the known descendant fields: an unknown row
         // does not make a write to its second field touch its first field.

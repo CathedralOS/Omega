@@ -62,9 +62,7 @@ impl CompletedPureBuildInputs {
         if artifact_only
             || !scope.required_outputs().is_empty()
             || snapshot.is_some_and(|snapshot| {
-                !snapshot.inputs().is_empty()
-                    || !snapshot.required_outputs().is_empty()
-                    || snapshot.dependency_inputs().next().is_some()
+                !snapshot.inputs().is_empty() || !snapshot.required_outputs().is_empty()
             })
         {
             return None;
@@ -81,7 +79,7 @@ impl CompletedPureBuildInputs {
                 activation.build_execution_profile(),
             ),
             dependencies: packages
-                .dependency_generated_source_instances()
+                .dependency_build_handoff_instances()
                 .map(|(consumer_scope, bundle)| CompletedPureBuildDependency {
                     consumer_scope,
                     package: bundle.package(),

@@ -19,12 +19,14 @@ use std::sync::Arc;
 mod report;
 mod terminal;
 
-pub use report::{CheckedProductReport, ProductReportPlan, ProductReportRequest};
+pub use report::{
+    CheckedProductReport, CompileReportSettlement, ProductReportPlan, ProductReportRequest,
+};
 
 /// Invocation-local language judgments retained by the compiler session. Build
 /// and Product are independent checked programs; neither judgment carries
 /// provider selection, executor resources or consent.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, compiler_storage::Record)]
 pub struct RetainedCompilationChecks {
     pub build: Option<psi_compiler::RetainedCheck>,
     pub product: Option<psi_compiler::RetainedCheck>,
@@ -60,9 +62,9 @@ pub struct CheckedCompilationInputs {
     pub provider_defaults:
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
     pub providers: ProviderSettlement,
-    /// Completed independent dependency products from this invocation. These
-    /// retain source-free production inputs, not installed provider authority.
-    pub independent_components: Vec<Arc<crate::IndependentComponentProduct>>,
+    /// Completed independent producing joins, or the native-only reason their
+    /// roster is unavailable. Neither state grants installed provider authority.
+    pub independent_components: Result<Vec<crate::SelectedIndependentComponent>, String>,
     /// Identity-bearing checked-tree product selection evidence, present only
     /// when the effective build selection named `CheckedTreeProductPruning`.
     /// `None` means the checked-tree phase ran as the identity boundary. The
@@ -86,6 +88,7 @@ pub struct CheckedCompilationInputs {
 /// ```
 #[derive(Debug, Clone)]
 pub struct CheckedCompilation {
+    source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     execution: CheckedCompilationInputs,
     sources: Arc<CheckedSourceCustody>,
     timings: CompileTimings,
@@ -115,11 +118,28 @@ impl CheckedCompilation {
         timings: CompileTimings,
     ) -> Self {
         Self {
+            source_completion_accounting: Default::default(),
             execution,
             sources,
             timings,
             settled_checks: RetainedCompilationChecks::default(),
         }
+    }
+
+    /// Retain authored source completion's actual invocation charges separately
+    /// from optional source judgments and target/provider admission.
+    pub fn with_source_completion_accounting(
+        mut self,
+        accounting: build_time_evaluation::SourceCompletionAccounting,
+    ) -> Self {
+        self.source_completion_accounting = accounting;
+        self
+    }
+
+    pub fn source_completion_accounting(
+        &self,
+    ) -> &build_time_evaluation::SourceCompletionAccounting {
+        &self.source_completion_accounting
     }
 
     /// Keep the settled checks this compilation ran (or took) for a later
@@ -171,8 +191,11 @@ impl CheckedCompilation {
         &self.execution.providers
     }
 
-    pub fn independent_component_products(&self) -> &[Arc<crate::IndependentComponentProduct>] {
-        &self.execution.independent_components
+    /// Release checked source while transferring the source-free native joins.
+    pub fn into_independent_components(
+        self,
+    ) -> Result<Vec<crate::SelectedIndependentComponent>, String> {
+        self.execution.independent_components
     }
 
     /// The exact physical/generated source closure sealed against this
@@ -192,7 +215,12 @@ impl CheckedCompilation {
             &self.typed,
             self,
             &self.build().config.root_grant_selectors(),
-            &self.providers().provider_plans,
+            &self
+                .providers()
+                .provider_candidates
+                .iter()
+                .map(provider_planning::ProviderPlanCandidate::plan)
+                .collect::<Vec<_>>(),
             &self.execution().selected_provider_plan_facts,
             &self.execution().accepted_template_classifications,
             self.sources.package_subject().is_some(),
@@ -203,12 +231,38 @@ impl CheckedCompilation {
     /// Retain this package's own explicit generated-source handoffs as one
     /// compiler-issued bundle suitable for a later dependency compilation.
     /// The bundle is not admission and carries no filesystem authority.
-    pub fn package_generated_source_bundle(
+    pub fn package_build_handoff(
         &self,
-    ) -> Result<package_compilation::PackageGeneratedSourceBundle, &'static str> {
-        self.sources.package_generated_source_bundle(
-            self.execution.settled.selected_target_profile,
-            self.execution.build.generated_sources.clone(),
+    ) -> Result<package_compilation::PackageBuildHandoff, String> {
+        let handoff = self
+            .sources
+            .package_build_handoff(
+                self.execution.settled.selected_target_profile,
+                self.execution.build.generated_sources.clone(),
+            )
+            .map_err(str::to_owned)?
+            .with_checked_provider_selections(
+                &self.typed,
+                &self.build().config.provider_selections,
+                self.build().observation_summary.as_ref(),
+            )?;
+        let (declarations, intents) =
+            build_time_evaluation::native_bindings::capture_package_intents(
+                handoff.package(),
+                &self.build().native_formations,
+                &self.build().native_binding_requests,
+            )
+            .map_err(|diagnostics| {
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })?;
+        handoff.with_native_binding_outputs(
+            declarations,
+            intents,
+            self.build().config.native_binding_evaluation.clone(),
         )
     }
 

@@ -121,9 +121,13 @@ pub(super) fn validate_nominal_machine_selection(
             // Inference may fill only missing caller Type slots. It is followed
             // by exact region-aware equality; carrier equality grants no
             // nominal authority over a differently declared region.
-            let Some(definition) = program.trait_definition_by_symbol(*required_trait) else { return false; };
+            let Some(definition) = program.trait_definition_by_symbol(*required_trait) else {
+                return false;
+            };
             let trait_parameters = program.trait_type_parameters(definition);
-            if trait_parameters.len() != actual.len() { return false; }
+            if trait_parameters.len() != actual.len() {
+                return false;
+            }
             if provider_application.is_none()
                 && !actual
                     .iter()
@@ -131,7 +135,10 @@ pub(super) fn validate_nominal_machine_selection(
                     .zip(trait_parameters)
                     .all(|((actual, required), slot)| {
                         if !matches!(slot.kind, typed_trees::data::TypeParameterKind::Type)
-                            && !slot.kind.is_const_or_value() { return true; }
+                            && !slot.kind.is_const_or_value()
+                        {
+                            return true;
+                        }
                         required_type_matches_exact(
                             program,
                             *actual,
@@ -169,28 +176,15 @@ pub(super) fn validate_nominal_machine_selection(
             } else {
                 &[]
             };
-            let lifetimes = lifetimes
-                .iter()
-                .map(|binding| {
-                    (
-                        binding.parameter.as_str().to_owned(),
-                        binding.argument.as_str().to_owned(),
-                    )
-                })
-                .collect::<Vec<_>>();
+            let lifetimes =
+                crate::machine_calls::static_bindings::lifetime_identity_rows(lifetimes);
             let provider_lifetimes = provider_application
                 .map(|handle| {
-                    program
-                        .expression_table
-                        .static_machine_application_lifetimes(handle)
-                        .iter()
-                        .map(|binding| {
-                            (
-                                binding.parameter.as_str().to_owned(),
-                                binding.argument.as_str().to_owned(),
-                            )
-                        })
-                        .collect::<Vec<_>>()
+                    crate::machine_calls::static_bindings::lifetime_identity_rows(
+                        program
+                            .expression_table
+                            .static_machine_application_lifetimes(handle),
+                    )
                 })
                 .unwrap_or_default();
             let provider_scopes = provider_application
@@ -280,29 +274,15 @@ pub(super) fn validate_nominal_machine_selection(
             .expression_table
             .static_machine_application(application)
             .lexical_owner;
-        let provider_lifetimes = program
-            .expression_table
-            .static_machine_application_lifetimes(
-                provider_application.expect("applied provider tuple"),
-            )
-            .iter()
-            .map(|binding| {
-                (
-                    binding.parameter.as_str().to_owned(),
-                    binding.argument.as_str().to_owned(),
-                )
-            })
-            .collect::<Vec<_>>();
-        let caller_lifetimes = applied
-            .caller_lifetimes
-            .iter()
-            .map(|binding| {
-                (
-                    binding.parameter.as_str().to_owned(),
-                    binding.argument.as_str().to_owned(),
-                )
-            })
-            .collect::<Vec<_>>();
+        let provider_lifetimes = crate::machine_calls::static_bindings::lifetime_identity_rows(
+            program
+                .expression_table
+                .static_machine_application_lifetimes(
+                    provider_application.expect("applied provider tuple"),
+                ),
+        );
+        let caller_lifetimes =
+            crate::machine_calls::static_bindings::lifetime_identity_rows(applied.caller_lifetimes);
         let provider_scope = AppliedTypeIdentityScope {
             declaration: provider.binding_declaration,
             arguments: provider_operands

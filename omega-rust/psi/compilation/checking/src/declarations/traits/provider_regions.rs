@@ -9,7 +9,7 @@
 //! retain it with the checked application through the receiving installation.
 
 use crate::type_regions::{
-    TypeRegionRelationship, TypeRegionScope, type_reference_region_applications,
+    ReferenceStep, TypeRegionRelationship, TypeRegionScope, type_reference_region_applications,
 };
 use symbols::SymbolHandle;
 use typed_trees::trait_definition::{AppliedTraitScope, Conformance};
@@ -17,7 +17,7 @@ use typed_trees::type_identity::{
     AppliedTypeIdentityScope, LifetimeParameterIdentity, NormalizedTypeIdentity,
     TypeIdentityRequest, applied_lifetime_parameter_identity,
 };
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 /// Receiving coordinates in the selecting declaration's public binder order.
 /// This invocation-local result grants neither a loan nor selection authority.
@@ -41,8 +41,61 @@ pub fn provider_region_correspondence(
         return None;
     }
     let root = AppliedTraitScope::from_conformance(program.typed_program(), provider)?;
+    provider_region_correspondence_in_scope(
+        program,
+        provider,
+        receiver,
+        root,
+        vec![None; provider.lifetime_parameters.len()],
+    )
+}
+
+/// A captured implementation already supplies every own static and regional
+/// actual. They remain rigid while composing its inherited receiver view.
+pub fn closed_provider_region_correspondence(
+    program: &dyn crate::CheckingInput,
+    provider: &Conformance,
+    receiver: &AppliedTraitScope<'_>,
+    capture: &typed_trees::typed_trees::CapturedMachineApplication,
+) -> Option<ProviderRegionCorrespondence> {
+    if capture.conformance_application.declaration != provider.symbol
+        || capture.conformance_application.lifetime_arguments.len()
+            != provider.lifetime_parameters.len()
+    {
+        return None;
+    }
+    let source = program
+        .expression_table
+        .static_machine_application(capture.supplying_application);
+    let regions = capture
+        .conformance_application
+        .lifetime_arguments
+        .iter()
+        .map(|name| {
+            typed_trees::type_identity::lifetime_parameter_identity(
+                program.typed_program(),
+                source.lexical_owner,
+                name,
+            )
+            .map(Some)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let scope = capture
+        .conformance_application
+        .trait_scope
+        .scope(program.typed_program())?;
+    provider_region_correspondence_in_scope(program, provider, receiver, scope, regions)
+}
+
+fn provider_region_correspondence_in_scope(
+    program: &dyn crate::CheckingInput,
+    provider: &Conformance,
+    receiver: &AppliedTraitScope<'_>,
+    root: AppliedTraitScope<'_>,
+    initial_regions: Vec<Option<LifetimeParameterIdentity>>,
+) -> Option<ProviderRegionCorrespondence> {
     let supplied = root.declaring_scope(program.typed_program(), receiver.declaration.symbol)?;
-    let mut applications = vec![vec![None; provider.lifetime_parameters.len()]];
+    let mut applications = vec![initial_regions];
     let matched = supplied.with_identity_scopes(program.typed_program(), |supplied_scopes| {
         receiver.with_identity_scopes(program.typed_program(), |receiving_scopes| {
             let supplied_environment = ApplicationRegions::new(&supplied, supplied_scopes);
@@ -225,70 +278,46 @@ impl TypeRegionScope for ApplicationRegions<'_> {
         )
     }
 
-    fn resolve(
+    fn enter_operand(mut self, program: &dyn crate::CheckingInput, owner: SymbolHandle) -> Self {
+        let count = self
+            .identities
+            .iter()
+            .rposition(|identity| {
+                program.lifetime_declaration_owner(identity.declaration)
+                    == program.lifetime_declaration_owner(owner)
+            })
+            .map_or(0, |ordinal| ordinal + 1);
+        self = self.prefix(count);
+        self.owner = owner;
+        self
+    }
+
+    fn named_alias(
         mut self,
-        program: &dyn crate::CheckingInput,
-        mut reference: TypeReferenceHandle,
-    ) -> Option<(TypeReferenceHandle, Self)> {
-        let mut visited = Vec::new();
-        loop {
-            if !reference.is_valid() {
-                return Some((reference, self));
-            }
-            if visited.contains(&reference)
-                || !program
-                    .type_reference_table
-                    .contains_type_reference(reference)
-            {
-                return None;
-            }
-            visited.push(reference);
-            let owner = program
-                .type_reference_table
-                .operand_lifetime_owner(reference);
-            if owner.is_valid() {
-                let count = self
-                    .identities
-                    .iter()
-                    .rposition(|scope| {
-                        program.lifetime_declaration_owner(scope.declaration)
-                            == program.lifetime_declaration_owner(owner)
-                    })
-                    .map_or(0, |ordinal| ordinal + 1);
-                self = self.prefix(count);
-                self.owner = owner;
-            }
-            let TypeReferenceNode::Named { symbol, .. } =
-                program.type_reference_table.type_reference(reference)
-            else {
-                return Some((reference, self));
-            };
-            if let Some((ordinal, (_, argument))) = self.application.substitutions[..self.visible]
-                .iter()
-                .enumerate()
-                .rev()
-                .find(|(_, (parameter, _))| parameter == symbol)
-            {
-                if *argument == reference {
-                    return Some((reference, self));
-                }
-                reference = *argument;
-                let count = self
-                    .application
-                    .substitution_scope_starts
-                    .partition_point(|start| *start <= ordinal)
-                    .checked_sub(1)?;
-                self = self.prefix(count);
-                continue;
-            }
-            if let Some(origin) = program
-                .data_definition_by_symbol(*symbol)
-                .and_then(|definition| definition.generic_instance)
-            {
-                reference = origin;
-                continue;
-            }
-            return Some((reference, self));
+        _program: &dyn crate::CheckingInput,
+        symbol: SymbolHandle,
+        reference: TypeReferenceHandle,
+    ) -> Option<ReferenceStep<Self>> {
+        let substitutions = &self.application.substitutions;
+        let visible = self.visible;
+        let (ordinal, argument) = substitutions[..visible]
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, (parameter, _))| *parameter == symbol)
+            .map(|(ordinal, (_, argument))| (ordinal, *argument))?;
+        if argument == reference {
+            return Some(ReferenceStep::Stop);
         }
+        let Some(count) = self
+            .application
+            .substitution_scope_starts
+            .partition_point(|start| *start <= ordinal)
+            .checked_sub(1)
+        else {
+            return Some(ReferenceStep::Refuse);
+        };
+        self = self.prefix(count);
+        Some(ReferenceStep::Chase(self, argument))
     }
 }

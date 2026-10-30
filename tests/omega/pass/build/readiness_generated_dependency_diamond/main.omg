@@ -1,0 +1,3 @@
+// Expected exit: 0
+// Reaching Product compilation requires both helper dependency branches to return 64.
+machine main() {}

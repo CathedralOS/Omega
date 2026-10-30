@@ -22,7 +22,7 @@ machine Loader::fill(loader: &mut Loader) {
         false -> absent(loader)
     }
 
-    state present(loader: &mut Loader, index: u64)
+    machine present(loader: &mut Loader, index: u64)
     requires index <= 16383
     {
         // `tags`/`firsts` are `[u8; N] in Trapping`, so an element reads as
@@ -36,7 +36,7 @@ machine Loader::fill(loader: &mut Loader) {
         loader.end = loader.ends[index];
     }
 
-    state absent(loader: &mut Loader) {
+    machine absent(loader: &mut Loader) {
         loader.tag = 0;
         loader.first = 0;
         loader.start = 0;
@@ -52,13 +52,13 @@ machine Loader::run(loader: &mut Loader) reaches Console {
         LineReadResult::Full { count } -> bad(loader)
         LineReadResult::Invalid -> bad(loader)
     }
-    state bounded_input(loader: &mut Loader, count: u64) {
+    machine bounded_input(loader: &mut Loader, count: u64) {
         transition count >= 4 && count <= loader.line.len {
             true -> loaded_input(loader)
             false -> bad(loader)
         }
     }
-    state loaded_input(loader: &mut Loader) {
+    machine loaded_input(loader: &mut Loader) {
         // The input bytes retain their bare policy. Select the destination's
         // future Trapping operations explicitly without changing their values.
         loader.tags[1] = loader.line[0] as u8 in Trapping;
@@ -75,7 +75,7 @@ machine Loader::run(loader: &mut Loader) reaches Console {
 
     }
 
-    state loaded(
+    machine loaded(
         loader: &mut Loader,
         tag: u8,
         first: u8,
@@ -88,8 +88,8 @@ machine Loader::run(loader: &mut Loader) reaches Console {
         }
     }
 
-    state good(loader: &mut Loader) { Console::exit_process(70); }
-    state bad(loader: &mut Loader) { Console::exit_process(72); }
+    machine good(loader: &mut Loader) { Console::exit_process(70); }
+    machine bad(loader: &mut Loader) { Console::exit_process(72); }
 }
 
 data Main {

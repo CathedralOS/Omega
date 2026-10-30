@@ -49,9 +49,15 @@ mod application_values;
 mod call_contracts;
 mod collections;
 mod conditions;
+mod entry_fields;
+pub(crate) use entry_fields::parameter_projection_paths;
+mod joins;
+mod normal_completion;
+use normal_completion::{CapturedResultFields, result_scalar_field_occurrence};
 mod scalar_fields;
+mod scalar_storage;
 use conditions::ConditionBinding;
-use scalar_fields::{ScalarField, scalar_field_occurrence};
+use scalar_fields::{ScalarField, ScalarProjection, scalar_field_occurrence};
 
 #[derive(Clone)]
 struct Binding {
@@ -60,6 +66,9 @@ struct Binding {
     value: Option<ScopedArithmeticValue>,
     alternatives: Vec<ScopedArithmeticValue>,
     immutable_coordinate: bool,
+    /// None is unresolved borrowed backing and expires on any write.
+    /// Owned snapshots use Some(empty); their own home name remains separate.
+    read_dependencies: Option<Vec<String>>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -98,13 +107,20 @@ pub(crate) struct CurrentScalarValues<'program> {
     initial: Vec<Binding>,
     current: Vec<Binding>,
     lengths: Vec<Length>,
+    initial_lengths: Vec<Length>,
     fields: Vec<ScalarField>,
+    result_fields: Option<CapturedResultFields>,
     conditions: Vec<ConditionBinding>,
     hypotheses: Vec<ScopedArithmeticHypothesis>,
-    scalar_observations: Vec<validation::CapturedScalarObservation>,
+    in_transition_target: bool,
+    scalar_observations: std::cell::OnceCell<Vec<validation::CapturedScalarObservation>>,
 }
 
 impl<'program> CurrentScalarValues<'program> {
+    pub(crate) fn program(&self) -> &'program dyn ::validation::CheckingInput {
+        self.program
+    }
+
     pub(crate) fn at(
         program: &'program dyn ::validation::CheckingInput,
         machine: &'program Machine,
@@ -113,15 +129,57 @@ impl<'program> CurrentScalarValues<'program> {
         target: TransitionTargetHandle,
         frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> Option<Self> {
+        Self::at_observing_projections(
+            program,
+            machine,
+            state,
+            statement_index,
+            target,
+            frames,
+            &[],
+        )
+    }
+
+    pub(crate) fn at_observing_projections(
+        program: &'program dyn ::validation::CheckingInput,
+        machine: &'program Machine,
+        state: &'program State,
+        statement_index: usize,
+        target: TransitionTargetHandle,
+        frames: Option<&validation::CallFrameResolver<'_>>,
+        requested: &[Vec<facts::PlaceSegment>],
+    ) -> Option<Self> {
         let mut initial = program
             .state_parameters(state)
             .iter()
             .filter_map(|parameter| {
-                let primitive = integer_carrier(program, parameter.type_reference)?;
+                // A scalar parameter names either an owned value or the
+                // current scalar in a stable borrowed place. Both use the
+                // same store and call-frame invalidation below. Write-only
+                // storage starts without an observation; its first completed
+                // store must supply one before any postcondition can read it.
+                let (primitive, readable) = if let Some(reference) =
+                    validation::reference_shell(program, parameter.type_reference)
+                {
+                    if !validation::state_reference_parameter_binding_is_stable(
+                        program,
+                        machine,
+                        state,
+                        parameter.symbol,
+                    ) {
+                        return None;
+                    }
+                    (
+                        integer_carrier(program, reference.referee)?,
+                        reference.access.is_readable(),
+                    )
+                } else {
+                    (integer_carrier(program, parameter.type_reference)?, true)
+                };
                 Some(Binding {
                     symbol: parameter.symbol,
                     name: parameter.name.to_string(),
-                    value: Some(ScopedArithmeticValue::Atom {
+                    value: readable.then(|| ScopedArithmeticValue::Atom {
                         identity: format!(
                             "state:{:?}:parameter:{:?}",
                             state.symbol, parameter.symbol
@@ -130,6 +188,7 @@ impl<'program> CurrentScalarValues<'program> {
                     }),
                     alternatives: Vec::new(),
                     immutable_coordinate: false,
+                    read_dependencies: Some(Vec::new()),
                 })
             })
             .collect::<Vec<_>>();
@@ -161,6 +220,7 @@ impl<'program> CurrentScalarValues<'program> {
                         }),
                         alternatives: Vec::new(),
                         immutable_coordinate: true,
+                        read_dependencies: Some(Vec::new()),
                     })
                 }),
         );
@@ -198,23 +258,27 @@ impl<'program> CurrentScalarValues<'program> {
             current: initial.clone(),
             initial,
             lengths,
+            initial_lengths: Vec::new(),
             fields: Vec::new(),
+            result_fields: None,
             conditions: Vec::new(),
             hypotheses: Vec::new(),
-            scalar_observations: validation::captured_scalar_observations(
-                program,
-                machine,
-                state,
-                statement_index,
-                target.is_valid(),
-            ),
+            in_transition_target: target.is_valid(),
+            scalar_observations: std::cell::OnceCell::new(),
         };
-        values.seed_parameter_fields();
         let owned_frames = frames
             .is_none()
             .then(|| validation::CallFrameResolver::new(program))
             .flatten();
         let frames = frames.or(owned_frames.as_ref());
+        let mut field_paths = parameter_projection_paths(program, machine, state);
+        for path in requested {
+            if !field_paths.contains(path) {
+                field_paths.push(path.clone());
+            }
+        }
+        values.seed_parameter_fields(&field_paths, frames);
+        values.initial_lengths = values.lengths.clone();
         let entry = program.machine_states(machine).first()?;
         let contracts = program.state_contracts(state).iter().chain(
             program
@@ -281,15 +345,42 @@ impl<'program> CurrentScalarValues<'program> {
                         local.initial_value,
                         ordinal,
                     );
-                    let scalar_fields = values.captured_scalar_fields(local.initial_value, 0);
-                    values.replace_scalar_fields(local.symbol, &[], scalar_fields);
-                    values.capture_record_fields(
-                        local.symbol,
-                        &[],
-                        local.name.as_str(),
+                    let scalar_fields = values.captured_scalar_fields_of_type(
                         local.initial_value,
+                        local.type_reference,
+                        0,
                     );
-                    if let Some(primitive) = integer_carrier(program, local.type_reference) {
+                    values.replace_scalar_fields(local.symbol, &[], scalar_fields);
+                    values.capture_record_fields(local.symbol, &[], local.initial_value);
+                    if integer_carrier(program, local.type_reference).is_none() {
+                        values.assume_aggregate_call_ensures(
+                            local.initial_value,
+                            &actuals,
+                            ordinal,
+                        );
+                    }
+                    let reference_scalar =
+                        validation::reference_shell(program, local.type_reference).and_then(
+                            |shell| {
+                                integer_carrier(program, shell.referee)
+                                    .map(|primitive| (primitive, shell.access.is_readable()))
+                            },
+                        );
+                    if let Some(primitive) = reference_scalar
+                        .map(|(primitive, _)| primitive)
+                        .or_else(|| integer_carrier(program, local.type_reference))
+                    {
+                        let (value, read_dependencies) =
+                            if let Some((_, readable)) = reference_scalar {
+                                let (value, dependencies) = values.reference_scalar_initializer(
+                                    statement,
+                                    local.initial_value,
+                                    frames,
+                                );
+                                (readable.then_some(value).flatten(), dependencies)
+                            } else {
+                                (value, Some(Vec::new()))
+                            };
                         // The executed initializer has one value even when its
                         // computation is unavailable to arithmetic reasoning.
                         // Keep that observation, not a replay of the initializer.
@@ -300,7 +391,8 @@ impl<'program> CurrentScalarValues<'program> {
                             local.initial_value,
                         );
                         let value = value.or_else(|| {
-                            Some(observed_scalar(state, local.symbol, ordinal, primitive))
+                            (!reference_scalar.is_some_and(|(_, readable)| !readable))
+                                .then(|| observed_scalar(state, local.symbol, ordinal, primitive))
                         });
                         if let Some(result_value) = &value {
                             values.assume_call_ensures(
@@ -316,19 +408,47 @@ impl<'program> CurrentScalarValues<'program> {
                             value,
                             alternatives,
                             immutable_coordinate: false,
+                            read_dependencies,
                         });
                     }
                 }
                 StatementNode::Assignment(assignment) => {
                     values.invalidate_operand_effects(program, machine, statement, frames);
+                    let target_remains_current = frames.is_some_and(|frames| {
+                        frames.assignment_destination_remains_current(machine, statement)
+                    });
                     let actuals = values.capture_call_actuals(assignment.value);
                     let value = values.capture(program, machine, state, assignment.value);
                     let conditions = values.capture_conditions(assignment.value, 0);
-                    let mut scalar_fields = values.captured_scalar_fields(assignment.value, 0);
-                    if let Some(field) =
-                        values.captured_scalar_store(assignment.target, value.clone(), ordinal)
+                    let mut scalar_fields = validation::expression_result_type_reference(
+                        program,
+                        machine,
+                        state,
+                        assignment.target,
+                    )
+                    .map(|reference| {
+                        values.captured_scalar_fields_of_type(assignment.value, reference, 0)
+                    })
+                    .unwrap_or_else(|| values.captured_scalar_fields(assignment.value, 0));
+                    let scalar_store =
+                        values.captured_scalar_store(assignment.target, value.clone(), ordinal);
+                    let store_aliases = scalar_store.as_ref().map_or_else(Vec::new, |field| {
+                        values.scalar_store_aliases(statement, ordinal, field.carrier, frames)
+                    });
+                    let stored_value = scalar_store.as_ref().map(|field| field.value.clone());
+                    if let Some(field) = scalar_store
+                        && values
+                            .scalar_storage_path(assignment.target)
+                            .is_some_and(|(_, path)| !path.is_empty())
                     {
                         scalar_fields.push(field);
+                    }
+                    let alternatives =
+                        values.capture_alternatives(program, machine, state, assignment.value);
+                    if stored_value.is_some() {
+                        values.invalidate_operand_writes(
+                            frames.map(|frames| frames.assignment_write_frame(machine, statement)),
+                        );
                     }
                     let mut fields = values.captured_field_lengths(assignment.value, 0);
                     if let Some(value) = values.collection_length(assignment.value, 0)
@@ -347,8 +467,9 @@ impl<'program> CurrentScalarValues<'program> {
                             value,
                         });
                     }
-                    if let ExpressionNode::Name(name) =
-                        program.expression_table.expression(assignment.target)
+                    if target_remains_current
+                        && let ExpressionNode::Name(name) =
+                            program.expression_table.expression(assignment.target)
                         && name.symbol.is_valid()
                         && name.symbol == name.head_symbol
                         && values
@@ -356,9 +477,7 @@ impl<'program> CurrentScalarValues<'program> {
                             .iter()
                             .any(|binding| binding.symbol == name.symbol)
                     {
-                        let alternatives =
-                            values.capture_alternatives(program, machine, state, assignment.value);
-                        let next_value = value.or_else(|| {
+                        let next_value = value.or_else(|| stored_value.clone()).or_else(|| {
                             let reference = validation::expression_result_type_reference(
                                 program,
                                 machine,
@@ -384,8 +503,9 @@ impl<'program> CurrentScalarValues<'program> {
                             binding.value = next_value;
                             binding.alternatives = alternatives;
                         }
-                    } else if let ExpressionNode::Name(name) =
-                        program.expression_table.expression(assignment.target)
+                    } else if target_remains_current
+                        && let ExpressionNode::Name(name) =
+                            program.expression_table.expression(assignment.target)
                         && name.symbol == name.head_symbol
                         && let Some(length) = values
                             .lengths
@@ -405,15 +525,29 @@ impl<'program> CurrentScalarValues<'program> {
                             frames.map(|frames| frames.assignment_write_frame(machine, statement)),
                         );
                     }
-                    if let Some((owner, path)) = field_storage_path(program, assignment.target) {
-                        values.replace_conditions(owner, &path, conditions);
+                    // The store uses the address captured before operand effects.
+                    // A rebound selector can no longer name that home; publishing
+                    // through its old spelling would manufacture a current rank.
+                    if target_remains_current
+                        && let Some((owner, path)) = values.scalar_storage_path(assignment.target)
+                    {
                         values.replace_scalar_fields(owner, &path, scalar_fields);
-                        values.replace_record_fields(
-                            owner,
-                            &path,
-                            &program.expression_table.display_name(assignment.target),
-                            fields,
-                        );
+                        if stored_value.is_none() {
+                            values.assume_aggregate_call_ensures(
+                                assignment.value,
+                                &actuals,
+                                ordinal,
+                            );
+                        }
+                    }
+                    if target_remains_current
+                        && let Some((owner, path)) = field_storage_path(program, assignment.target)
+                    {
+                        values.replace_conditions(owner, &path, conditions);
+                        values.replace_record_fields(owner, &path, fields);
+                    }
+                    if let Some(value) = stored_value {
+                        values.publish_scalar_store(&store_aliases, &value);
                     }
                 }
                 StatementNode::Call(call) => {
@@ -489,9 +623,17 @@ impl<'program> CurrentScalarValues<'program> {
                 continue;
             }
             if paths.as_ref().is_none_or(|paths| {
-                paths
-                    .iter()
-                    .any(|path| validation::frame_paths_overlap(path, &binding.name))
+                paths.iter().any(|path| {
+                    validation::frame_paths_overlap(path, &binding.name)
+                        || binding
+                            .read_dependencies
+                            .as_ref()
+                            .is_none_or(|dependencies| {
+                                dependencies.iter().any(|dependency| {
+                                    validation::frame_paths_overlap(path, dependency)
+                                })
+                            })
+                })
             }) {
                 binding.value = None;
                 binding.alternatives.clear();
@@ -506,9 +648,13 @@ impl<'program> CurrentScalarValues<'program> {
         });
         for field in &mut self.fields {
             if paths.as_ref().is_none_or(|paths| {
-                paths
-                    .iter()
-                    .any(|path| validation::frame_paths_overlap(path, &field.name))
+                paths.iter().any(|path| {
+                    validation::frame_paths_overlap(path, &field.name)
+                        || field
+                            .read_dependencies
+                            .iter()
+                            .any(|dependency| validation::frame_paths_overlap(path, dependency))
+                })
             }) {
                 field.value = None;
             }
@@ -607,9 +753,7 @@ impl<'program> CurrentScalarValues<'program> {
             for hypothesis in
                 self.capture_condition(program, machine, state, binary.right, holds, depth + 1)
             {
-                if !hypotheses.contains(&hypothesis) {
-                    hypotheses.push(hypothesis);
-                }
+                crate::collections::push_unique(&mut hypotheses, hypothesis);
             }
             return hypotheses;
         }
@@ -631,30 +775,11 @@ impl<'program> CurrentScalarValues<'program> {
                 depth + 1,
             );
         }
-        if admitted(
-            program,
-            machine,
-            state,
-            self.statement_index,
-            expression,
-            &self.current,
-            &self.lengths,
-            &self.fields,
-            0,
-        ) {
-            if let Some(proposition) = scoped(
-                machine,
-                state,
-                self.statement_index,
-                expression,
-                &self.current,
-                &self.lengths,
-                &self.fields,
-                &self.hypotheses,
-                program,
-            ) {
-                return vec![ScopedArithmeticHypothesis { proposition, holds }];
-            }
+        let occurrence = self.occurrence_at(program, machine, state, &self.lengths);
+        if admitted(occurrence, expression, &self.current, &self.fields, 0)
+            && let Some(proposition) = scoped(occurrence, expression, &self.current, &self.fields)
+        {
+            return vec![ScopedArithmeticHypothesis { proposition, holds }];
         }
         Vec::new()
     }
@@ -673,8 +798,9 @@ impl<'program> CurrentScalarValues<'program> {
     /// Exact and Trapping addition/subtraction/multiplication have their
     /// mathematical result on this continuation; a trap or an unproved exact
     /// overflow never reaches the use. Selection and the result carrier are
-    /// checked independently. Wrapping and Saturating remain source terms
-    /// with the engine's policy checks.
+    /// checked independently. A completed unsigned remainder records its normal
+    /// denotation on the operation itself, irrespective of policy. Other
+    /// Wrapping and Saturating operations retain the engine's policy checks.
     fn capture_at_depth(
         &self,
         program: &dyn ::validation::CheckingInput,
@@ -685,6 +811,18 @@ impl<'program> CurrentScalarValues<'program> {
     ) -> Option<ScopedArithmeticValue> {
         if depth >= 64 {
             return None;
+        }
+        // A completed scalar copy retains the supplying value, including
+        // compiler-introduced selector locals. Wrapping it in a new scoped
+        // Name term would give two reads of one snapshot different identities.
+        if let ExpressionNode::Name(name) = program.expression_table.expression(expression)
+            && name.symbol == name.head_symbol
+            && let Some(binding) = self
+                .current
+                .iter()
+                .find(|binding| binding.symbol == name.symbol)
+        {
+            return binding.value.clone();
         }
         if let ExpressionNode::Integer(literal) = program.expression_table.expression(expression)
             && let Some(value) = literal.value_i64()
@@ -719,14 +857,17 @@ impl<'program> CurrentScalarValues<'program> {
                 maximum: high.map(numerics::bignum::BigInt::from_i64),
             });
         }
-        if let ExpressionNode::Member(_) = program.expression_table.expression(expression) {
+        if matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+        ) {
             if let Some(value) = length_occurrence(program, expression, &self.lengths)
                 .and_then(|length| length.value.clone())
             {
                 return Some(value);
             }
             if let Some(value) =
-                scalar_field_occurrence(program, machine, state, expression, &self.fields)
+                scalar_field_occurrence(self.occurrence(), expression, &self.current, &self.fields)
             {
                 return Some(value);
             }
@@ -735,11 +876,38 @@ impl<'program> CurrentScalarValues<'program> {
             }
             if let Some(observation) = self
                 .scalar_observations
+                .get_or_init(|| {
+                    validation::captured_numeric_observations(
+                        program,
+                        machine,
+                        state,
+                        self.statement_index,
+                        self.in_transition_target,
+                        validation::NumericObservationDemand {
+                            scalar_values: true,
+                            integer_operations: false,
+                            scalar_associations: false,
+                        },
+                    )
+                    .scalar_values
+                })
                 .iter()
                 .find(|observation| observation.expression == expression)
             {
                 return Some(observation.value.clone());
             }
+        }
+        if let ExpressionNode::Cast(_) = program.expression_table.expression(expression) {
+            // An admitted value-preserving cast transports the already
+            // captured operand, including its operation evidence. It does not
+            // replay a local initializer or infer meaning from a cast shape.
+            let operand = preserving_integer_cast_operand(
+                self.occurrence(),
+                expression,
+                &self.current,
+                &self.fields,
+            )?;
+            return self.capture_at_depth(program, machine, state, operand, depth + 1);
         }
         if let Some(binary) = program.expression_table.binary_node(expression)
             && matches!(
@@ -778,62 +946,31 @@ impl<'program> CurrentScalarValues<'program> {
                 )?),
             });
         }
-        if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
-            let arms = program.expression_table.match_arms(dispatch.arms);
-            if !arms.is_empty() {
-                let mut captured = Vec::with_capacity(arms.len());
-                for arm in arms {
-                    if let Some(value) =
-                        self.capture_at_depth(program, machine, state, arm.value, depth + 1)
-                    {
-                        captured.push(value);
-                    } else {
-                        captured.clear();
-                        break;
-                    }
-                }
-                if !captured.is_empty()
-                    && captured.iter().skip(1).all(|value| {
-                        value == &captured[0]
-                            || self.proves_values_relation(
-                                program,
-                                machine,
-                                BinaryOperator::Equal,
-                                value,
-                                &captured[0],
-                            )
-                    })
-                {
-                    return Some(captured.swap_remove(0));
-                }
-            }
+        if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression)
+            && let Some(value) =
+                self.capture_join(program, machine, state, expression, dispatch, depth)
+        {
+            return Some(value);
         }
-        admitted(
-            program,
-            machine,
-            state,
-            self.statement_index,
-            expression,
-            &self.current,
-            &self.lengths,
-            &self.fields,
-            0,
-        )
-        .then(|| {
-            scoped(
-                machine,
-                state,
-                self.statement_index,
-                expression,
-                &self.current,
-                &self.lengths,
-                &self.fields,
-                &self.hypotheses,
-                program,
-            )
-        })
-        .flatten()
-        .map(ScopedArithmeticValue::Term)
+        // Resolve the captured term under this occurrence's exact callable;
+        // admission alone does not supply the completed scalar value.
+        let occurrence = self.occurrence();
+        admitted(occurrence, expression, &self.current, &self.fields, 0)
+            .then(|| scoped(occurrence, expression, &self.current, &self.fields))
+            .flatten()
+            .map(|term| {
+                use crate::checks::contracts::prover::call_guarantees::{
+                    arithmetic, callable::Callable,
+                };
+                arithmetic::completed_scalar_value(
+                    occurrence.program,
+                    &Callable::Machine {
+                        machine: occurrence.machine,
+                        state: occurrence.state,
+                    },
+                    term,
+                )
+            })
     }
 
     /// Exact value of a runtime index at this occurrence. Its declaration
@@ -845,6 +982,16 @@ impl<'program> CurrentScalarValues<'program> {
             .find(|binding| binding.symbol == symbol)?
             .value
             .clone()
+    }
+
+    /// Value of a completed operand at this frame, retaining admitted
+    /// operation evidence as well as captured stores and field values.
+    /// Formation and ordered operand effects remain caller obligations.
+    pub(crate) fn current_value(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<ScopedArithmeticValue> {
+        self.capture(self.program, self.machine, self.state, expression)
     }
 
     pub(crate) fn initial_symbol(&self, symbol: SymbolHandle) -> Option<ScopedArithmeticValue> {
@@ -860,61 +1007,19 @@ impl<'program> CurrentScalarValues<'program> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<ScopedArithmeticExpression> {
-        admitted(
-            self.program,
-            self.machine,
-            self.state,
-            self.statement_index,
-            expression,
-            &self.initial,
-            &self.lengths,
-            &[],
-            0,
-        )
-        .then(|| {
-            scoped(
-                self.machine,
-                self.state,
-                self.statement_index,
-                expression,
-                &self.initial,
-                &self.lengths,
-                &[],
-                &self.hypotheses,
-                self.program,
-            )
-        })
-        .flatten()
+        let occurrence = self.occurrence();
+        admitted(occurrence, expression, &self.initial, &[], 0)
+            .then(|| scoped(occurrence, expression, &self.initial, &[]))
+            .flatten()
     }
     pub(crate) fn current(
         &self,
         expression: ExpressionHandle,
     ) -> Option<ScopedArithmeticExpression> {
-        admitted(
-            self.program,
-            self.machine,
-            self.state,
-            self.statement_index,
-            expression,
-            &self.current,
-            &self.lengths,
-            &self.fields,
-            0,
-        )
-        .then(|| {
-            scoped(
-                self.machine,
-                self.state,
-                self.statement_index,
-                expression,
-                &self.current,
-                &self.lengths,
-                &self.fields,
-                &self.hypotheses,
-                self.program,
-            )
-        })
-        .flatten()
+        let occurrence = self.occurrence();
+        admitted(occurrence, expression, &self.current, &self.fields, 0)
+            .then(|| scoped(occurrence, expression, &self.current, &self.fields))
+            .flatten()
     }
     fn capture_alternatives(
         &self,
@@ -1037,6 +1142,10 @@ fn substitute_symbol_in_value(
         ScopedArithmeticValue::Term(term) => {
             substitute_symbol_in_expression(term, symbol, expected, replacement)
                 .map(ScopedArithmeticValue::Term)
+        }
+        ScopedArithmeticValue::AdmittedIntegerRemainder(term) => {
+            substitute_symbol_in_expression(term, symbol, expected, replacement)
+                .map(ScopedArithmeticValue::AdmittedIntegerRemainder)
         }
         ScopedArithmeticValue::BoundedInteger {
             value: inner,
@@ -1237,14 +1346,7 @@ fn length_occurrence<'lengths>(
             LengthSubject::Result(owner)
         } else {
             let name = program.expression_table.name_path_node(member.receiver)?;
-            if !name.symbol.is_valid()
-                || name.symbol != name.head_symbol
-                || program
-                    .expression_table
-                    .name_path_members(name.members)
-                    .len()
-                    != 1
-            {
+            if !program.expression_table.name_path_is_single_member(name) {
                 return None;
             }
             LengthSubject::Storage(name.symbol)
@@ -1412,20 +1514,68 @@ fn integer_cast_operand(
         .then_some(cast.value)
 }
 
+/// The occurrence a scoped walk reads: the program point plus the roster it
+/// admits against. A callee's entry and a matched alternative's state are
+/// occurrences too, so the pair moves while the rest stays the caller's.
+#[derive(Clone, Copy)]
+struct ScopedOccurrence<'roster, 'tree> {
+    program: &'tree dyn ::validation::CheckingInput,
+    machine: &'tree Machine,
+    state: &'tree State,
+    lengths: &'roster [Length],
+    hypotheses: &'roster [ScopedArithmeticHypothesis],
+    result_fields: Option<&'roster CapturedResultFields>,
+}
+
+impl<'program> CurrentScalarValues<'program> {
+    fn occurrence(&self) -> ScopedOccurrence<'_, 'program> {
+        ScopedOccurrence {
+            program: self.program,
+            machine: self.machine,
+            state: self.state,
+            lengths: &self.lengths,
+            hypotheses: &self.hypotheses,
+            result_fields: None,
+        }
+    }
+
+    /// This occurrence read through an explicitly supplied program point: a
+    /// callee's entry or a selected alternative's state, against the roster
+    /// that scope re-derived. The caller's hypotheses and statement still apply.
+    fn occurrence_at<'a>(
+        &'a self,
+        program: &'a dyn ::validation::CheckingInput,
+        machine: &'a Machine,
+        state: &'a State,
+        lengths: &'a [Length],
+    ) -> ScopedOccurrence<'a, 'a> {
+        ScopedOccurrence {
+            program,
+            machine,
+            state,
+            lengths,
+            hypotheses: &self.hypotheses,
+            result_fields: None,
+        }
+    }
+}
+
 /// Operand of an exact or trapping integer cast that denotes that operand.
 /// A total carrier inclusion always does. A partial conversion does only when
 /// the same hypotheses prove the operand fits in the target.
 fn preserving_integer_cast_operand(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    statement_index: usize,
+    occurrence: ScopedOccurrence<'_, '_>,
     expression: ExpressionHandle,
     bindings: &[Binding],
-    lengths: &[Length],
     fields: &[ScalarField],
-    hypotheses: &[ScopedArithmeticHypothesis],
 ) -> Option<ExpressionHandle> {
+    let ScopedOccurrence {
+        program,
+        machine,
+        state,
+        hypotheses,
+        ..
+    } = occurrence;
     let operand = integer_cast_operand(program, machine, state, expression)?;
     let (target_minimum, target_maximum) =
         integer_carrier_span(program, machine, state, expression)?;
@@ -1440,17 +1590,7 @@ fn preserving_integer_cast_operand(
     if source_minimum >= target_minimum && source_maximum <= target_maximum {
         return Some(operand);
     }
-    let operand_value = ScopedArithmeticValue::Term(scoped(
-        machine,
-        state,
-        statement_index,
-        operand,
-        bindings,
-        lengths,
-        fields,
-        hypotheses,
-        program,
-    )?);
+    let operand_value = ScopedArithmeticValue::Term(scoped(occurrence, operand, bindings, fields)?);
     let minimum = ScopedArithmeticValue::Integer(target_minimum);
     let maximum = ScopedArithmeticValue::Integer(target_maximum);
     let fits = validation::scoped_arithmetic_values_relation(
@@ -1487,17 +1627,22 @@ fn integer_carrier_span(
     Some((minimum, numerics::bignum::BigInt::from_u64(maximum)))
 }
 
+/// Whether the occurrence's scoped engine admits `expression`: its syntax is
+/// integer vocabulary, its leaves resolve against the occurrence's own roster.
 fn admitted(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    statement_index: usize,
+    occurrence: ScopedOccurrence<'_, '_>,
     expression: ExpressionHandle,
     bindings: &[Binding],
-    lengths: &[Length],
     fields: &[ScalarField],
     depth: usize,
 ) -> bool {
+    let ScopedOccurrence {
+        program,
+        machine,
+        state,
+        lengths,
+        ..
+    } = occurrence;
     if depth >= 64 || !program.expression_table.expression_is_valid(expression) {
         return false;
     }
@@ -1507,36 +1652,15 @@ fn admitted(
         // true from false when judging a conjunction or a whole predicate.
         ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
         ExpressionNode::Cast(_) => integer_cast_operand(program, machine, state, expression)
-            .is_some_and(|operand| {
-                admitted(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    operand,
-                    bindings,
-                    lengths,
-                    fields,
-                    depth + 1,
-                )
-            }),
+            .is_some_and(|operand| admitted(occurrence, operand, bindings, fields, depth + 1)),
         ExpressionNode::Call(_) => validation::integer_embedding_argument(program, expression)
             .is_some_and(|(_, argument)| {
-                admitted(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    argument,
-                    bindings,
-                    lengths,
-                    fields,
-                    depth + 1,
-                )
+                admitted(occurrence, argument, bindings, fields, depth + 1)
             }),
-        ExpressionNode::Member(_) => {
-            length_occurrence(program, expression, lengths).is_some()
-                || scalar_field_occurrence(program, machine, state, expression, fields).is_some()
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            result_scalar_field_occurrence(occurrence, expression).is_some()
+                || length_occurrence(program, expression, lengths).is_some()
+                || scalar_field_occurrence(occurrence, expression, bindings, fields).is_some()
                 || field_occurrence(program, machine, state, expression).is_some()
                 || literal_window_length(program, expression).is_some()
         }
@@ -1574,43 +1698,27 @@ fn admitted(
                 machine,
                 Some(state),
                 expression,
-            ) && admitted(
-                program,
-                machine,
-                state,
-                statement_index,
-                binary.left,
-                bindings,
-                lengths,
-                fields,
-                depth + 1,
-            ) && admitted(
-                program,
-                machine,
-                state,
-                statement_index,
-                binary.right,
-                bindings,
-                lengths,
-                fields,
-                depth + 1,
-            )
+            ) && admitted(occurrence, binary.left, bindings, fields, depth + 1)
+                && admitted(occurrence, binary.right, bindings, fields, depth + 1)
         }
         _ => false,
     }
 }
 
+/// The scoped projection of `expression` at this occurrence.
 fn scoped(
-    machine: &Machine,
-    state: &State,
-    statement_index: usize,
+    occurrence: ScopedOccurrence<'_, '_>,
     expression: ExpressionHandle,
     bindings: &[Binding],
-    lengths: &[Length],
     fields: &[ScalarField],
-    hypotheses: &[ScopedArithmeticHypothesis],
-    program: &dyn ::validation::CheckingInput,
 ) -> Option<ScopedArithmeticExpression> {
+    let ScopedOccurrence {
+        program,
+        machine,
+        state,
+        lengths,
+        ..
+    } = occurrence;
     let mut symbols = Vec::new();
     let mut projections = Vec::new();
     let mut pending = vec![(expression, 0)];
@@ -1624,34 +1732,13 @@ fn scoped(
             ExpressionNode::Name(_)
                 if program.expression_table.names_reserved_result(expression) => {}
             ExpressionNode::Name(name) if name.symbol == name.head_symbol => {
-                if !symbols.contains(&name.symbol) {
-                    symbols.push(name.symbol);
-                }
+                crate::collections::push_unique(&mut symbols, name.symbol);
             }
             ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => {}
             ExpressionNode::Cast(_) => {
-                let operand = preserving_integer_cast_operand(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    expression,
-                    bindings,
-                    lengths,
-                    fields,
-                    hypotheses,
-                )?;
-                let value = scoped(
-                    machine,
-                    state,
-                    statement_index,
-                    operand,
-                    bindings,
-                    lengths,
-                    fields,
-                    hypotheses,
-                    program,
-                )?;
+                let operand =
+                    preserving_integer_cast_operand(occurrence, expression, bindings, fields)?;
+                let value = scoped(occurrence, operand, bindings, fields)?;
                 projections.push(ScopedArithmeticBinding {
                     binder: ScopedArithmeticBinder::Occurrence(expression),
                     value: ScopedArithmeticValue::Term(value),
@@ -1661,12 +1748,13 @@ fn scoped(
                 let (_, argument) = validation::integer_embedding_argument(program, expression)?;
                 pending.push((argument, depth + 1));
             }
-            ExpressionNode::Member(_) => {
-                let value = length_occurrence(program, expression, lengths)
-                    .and_then(|length| length.value.clone())
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                let value = result_scalar_field_occurrence(occurrence, expression)
                     .or_else(|| {
-                        scalar_field_occurrence(program, machine, state, expression, fields)
+                        length_occurrence(program, expression, lengths)
+                            .and_then(|length| length.value.clone())
                     })
+                    .or_else(|| scalar_field_occurrence(occurrence, expression, bindings, fields))
                     .or_else(|| field_occurrence(program, machine, state, expression))
                     .or_else(|| literal_window_length(program, expression))?;
                 projections.push(ScopedArithmeticBinding {
@@ -1721,7 +1809,9 @@ fn charge(value: &ScopedArithmeticValue, budget: &mut usize, depth: usize) -> Op
             charge(left, budget, depth + 1)?;
             charge(right, budget, depth + 1)?;
         }
-        ScopedArithmeticValue::Atom { .. } | ScopedArithmeticValue::Integer(_) => {}
+        ScopedArithmeticValue::TypeReference(_)
+        | ScopedArithmeticValue::Atom { .. }
+        | ScopedArithmeticValue::Integer(_) => {}
     }
     Some(())
 }

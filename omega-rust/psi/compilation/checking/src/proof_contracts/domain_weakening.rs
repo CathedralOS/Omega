@@ -172,6 +172,17 @@ fn validate_domain_delivery(
     {
         return;
     }
+    if let Some(state) = state {
+        crate::value_custody::cleanup::validate_cleanup_delivery(
+            program,
+            machine,
+            state,
+            value,
+            target_type,
+            owner,
+            diagnostics,
+        );
+    }
     let source = expression_atoms(program, machine, state, value);
     if source.is_empty() {
         return;
@@ -330,7 +341,7 @@ fn atom_requires_carried_evidence(program: &dyn crate::CheckingInput, atom: &Dom
         return false;
     };
     program.domain_definition(*symbol).is_some_and(|domain| {
-        !domain.predicate_body.is_present() && domain.establishment_routes.is_empty()
+        !domain.predicate_presence.is_present() && domain.establishment_routes.is_empty()
     })
 }
 

@@ -9,7 +9,7 @@ use numerics::literals::FloatFormat;
 use std::cmp::Ordering;
 use typed_trees::expression::BinaryOperator;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct FloatPredicate {
     format: FloatFormat,
     comparison: BinaryOperator,

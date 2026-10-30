@@ -9,7 +9,7 @@ machine read(values: &[Cell]) -> u32 {
         true -> present(values)
         false -> 0
     }
-    state present(values: &[Cell]) -> u32 requires values.len == 1 { values[0].value }
+    machine present(values: &[Cell]) -> u32 requires values.len == 1 { values[0].value }
 }
 machine main() crashes Trap {
     let mut cells: [Cell; 1] = [Cell { value: 7 }];
@@ -28,6 +28,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

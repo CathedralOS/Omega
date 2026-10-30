@@ -9,5 +9,5 @@ machine main() crashes Trap {
     let wrong: [u8; 3] = [1, 2, 3];
     let observed: u64 = capacity(forward(items, wrong));
     transition observed == 2 { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

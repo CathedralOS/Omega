@@ -1,0 +1,1 @@
+mutates `storage.before` while local borrow `counter` is still active

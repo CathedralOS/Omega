@@ -14,8 +14,8 @@ machine Main::main(main: &mut Main) reaches Console {
     let read: i32 = read_value(17);
     let pure: i32 = pure_value(39);
     transition read == 17 && pure == 39 { true -> good() false -> bad() }
-    state good() { Console::exit_process(0); }
-    state bad() { Console::exit_process(1); }
+    machine good() { Console::exit_process(0); }
+    machine bad() { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

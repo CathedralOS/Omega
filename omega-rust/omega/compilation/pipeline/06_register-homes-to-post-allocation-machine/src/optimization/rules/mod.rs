@@ -68,7 +68,6 @@ pub(super) fn successor_table(
         .iter()
         .enumerate()
         .map(|(function_index, function)| {
-            let index_of = |id| function.blocks.iter().position(|block| block.id == id);
             function
                 .blocks
                 .iter()
@@ -77,7 +76,7 @@ pub(super) fn successor_table(
                     terminator_successors(&block.terminator)
                         .into_iter()
                         .map(|successor| {
-                            index_of(successor.block).ok_or(
+                            function.block_index(successor.block).ok_or(
                                 PostAllocationMachineOptimizationError::RosterMismatch {
                                     function: function_index,
                                     block: block_index,

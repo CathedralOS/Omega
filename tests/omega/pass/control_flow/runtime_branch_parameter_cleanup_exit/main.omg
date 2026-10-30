@@ -7,7 +7,7 @@ machine choose(take_last: bool, first: Item, middle: Item, last: Item) -> u64 {
         true -> finish(last)
         _ -> finish(first)
     }
-    state finish(selected: Item) -> u64 { selected.value }
+    machine finish(selected: Item) -> u64 { selected.value }
 }
 
 machine main() crashes Trap {
@@ -17,6 +17,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

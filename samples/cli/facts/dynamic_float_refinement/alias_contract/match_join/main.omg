@@ -26,6 +26,6 @@ machine main() crashes Trap {
     let second: f64 = probe(false);
     accept(second);
     transition first == 0.25 && second == 0.25 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

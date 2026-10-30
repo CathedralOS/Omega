@@ -30,26 +30,26 @@ machine Main::main(main: &mut Main) reaches Console {
         LineReadResult::EndOfInput { count } -> received(main, count)
         _ -> syntax(main)
     }
-    state received(main: &mut Main, count: u64) {
+    machine received(main: &mut Main, count: u64) {
         transition count <= 192 {
             true -> parse_line(main, count)
             false -> syntax(main)
         }
     }
-    state parse_line(main: &mut Main, count: u64) {
+    machine parse_line(main: &mut Main, count: u64) {
         main.input = parse(main.bytes[..count]);
         transition main.input.valid {
             true -> rails(main)
             false -> syntax(main)
         }
     }
-    state rails(main: &mut Main) {
+    machine rails(main: &mut Main) {
         transition main.input.values[3] < main.input.values[4] {
             true -> parameters(main)
             false -> bad_rails(main)
         }
     }
-    state parameters(main: &mut Main) {
+    machine parameters(main: &mut Main) {
         transition main.input.values[0] >= 1 && main.input.values[0] <= 100
             && main.input.values[1] >= -1000 && main.input.values[1] <= 1000
             && main.input.values[2] >= 1 && main.input.values[2] <= 1000
@@ -60,7 +60,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad_parameters(main)
         }
     }
-    state initialize(main: &mut Main) {
+    machine initialize(main: &mut Main) {
         main.circuit.gain = main.input.values[0] as f64;
         main.circuit.feedback = (main.input.values[1] as f64) / 1000.0;
         main.circuit.relaxation = (main.input.values[2] as f64) / 1000.0;
@@ -89,13 +89,13 @@ machine Main::main(main: &mut Main) reaches Console {
         Main::measure(main);
         transition { _ -> loop(main) }
     }
-    state loop(main: &mut Main) {
+    machine loop(main: &mut Main) {
         transition main.step < main.steps {
             true -> tick(main)
             false -> finish(main)
         }
     }
-    state tick(main: &mut Main) {
+    machine tick(main: &mut Main) {
         main.step = main.step + 1;
         main.drive = match main.step <= main.switch_step {
             true -> (main.first_drive)
@@ -107,7 +107,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Main::measure(main);
         transition { _ -> loop(main) }
     }
-    state finish(main: &mut Main) {
+    machine finish(main: &mut Main) {
         let settled: i32 in Wrapping = match main.equilibrium.unique && main.equilibrium.stable && main.last_bad < main.steps {
             true -> (main.last_bad + 1)
             false -> (-1)
@@ -121,15 +121,15 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("");
         Console::exit_process(0);
     }
-    state syntax(main: &mut Main) {
+    machine syntax(main: &mut Main) {
         Console::write_line("ERROR syntax: expected ten bounded signed integers");
         Console::exit_process(64);
     }
-    state bad_rails(main: &mut Main) {
+    machine bad_rails(main: &mut Main) {
         Console::write_line("ERROR rails: lower must be less than upper");
         Console::exit_process(64);
     }
-    state bad_parameters(main: &mut Main) {
+    machine bad_parameters(main: &mut Main) {
         Console::write_line("ERROR parameters: gain, feedback, relaxation, steps or initial output outside bounds");
         Console::exit_process(64);
     }
@@ -177,36 +177,36 @@ machine Main::measure(main: &mut Main) {
         true -> overload(main)
         false -> recovery(main)
     }
-    state overload(main: &mut Main) {
+    machine overload(main: &mut Main) {
         main.overload_count = main.overload_count + 1;
         transition { _ -> settling(main) }
     }
-    state recovery(main: &mut Main) {
+    machine recovery(main: &mut Main) {
         transition main.step > main.switch_step && main.first_recovered == -1 {
             true -> recovered(main)
             false -> settling(main)
         }
     }
-    state recovered(main: &mut Main) {
+    machine recovered(main: &mut Main) {
         main.first_recovered = main.step as i32;
         transition { _ -> settling(main) }
     }
-    state settling(main: &mut Main) {
+    machine settling(main: &mut Main) {
         transition main.step >= main.switch_step {
             true -> error(main)
             false -> before(main)
         }
     }
-    state before(main: &mut Main) { main.last_bad = main.step; }
-    state error(main: &mut Main) {
+    machine before(main: &mut Main) { main.last_bad = main.step; }
+    machine error(main: &mut Main) {
         let difference: f64 = main.observed.output - main.equilibrium.selected;
         transition difference < -0.001 || difference > 0.001 {
             true -> outside(main)
             false -> done()
         }
     }
-    state outside(main: &mut Main) { main.last_bad = main.step; }
-    state done() { }
+    machine outside(main: &mut Main) { main.last_bad = main.step; }
+    machine done() { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

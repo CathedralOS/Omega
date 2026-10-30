@@ -4,14 +4,14 @@ machine shift(count: i32) -> u64 {
     let saved: bool = outside;
     transition { _ -> decide(saved, count) }
 
-    state decide(outside: bool, count: i32) -> u64 {
+    machine decide(outside: bool, count: i32) -> u64 {
         transition outside {
             false -> calculate(count)
             true -> empty()
         }
     }
-    state calculate(count: i32) -> u64 { 8u64 >> count }
-    state empty() -> u64 { 0 }
+    machine calculate(count: i32) -> u64 { 8u64 >> count }
+    machine empty() -> u64 { 0 }
 }
 
 machine main() crashes Trap {
@@ -22,6 +22,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

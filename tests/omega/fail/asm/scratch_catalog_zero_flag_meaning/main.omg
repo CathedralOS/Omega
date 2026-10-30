@@ -17,6 +17,6 @@ finish:
  mov output, output
  }
  transition output { 0 -> done() _ -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }

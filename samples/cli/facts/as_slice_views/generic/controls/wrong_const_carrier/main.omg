@@ -1,0 +1,20 @@
+// A whole-array shared view of four noncopy Entries has length 4; reading its extent satisfies require_four(view.len).
+// Intended invalid: static application must retain exact const obligations.
+use omega::language::core::slice;
+data Entry { value: i32; }
+machine whole_view<Element, const Count: u64>(items: &[Element; Count]) -> &[Element]
+ensures result.len == Count
+{ &items[..] }
+machine require_four(length: u64) -> u64 requires length == 4 { length }
+machine success() {}
+machine failure() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let mut entries: [Entry; 4] = [Entry { value: 7 }, Entry { value: 8 }, Entry { value: 9 }, Entry { value: 10 }];
+    let original: addr = address_of(&entries[0].value);
+    let view: &[Entry] = whole_view<Entry, true>(&entries);
+    let measured: u64 = require_four(view.len);
+    transition measured == 4 && view[2].value == 9 && address_of(&view[0].value) == original {
+        true -> success()
+        false -> failure()
+    }
+}

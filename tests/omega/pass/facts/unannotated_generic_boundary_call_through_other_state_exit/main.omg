@@ -16,9 +16,9 @@ where machine Read satisfies ReadContract::read;
 machine main() crashes Trap {
     let value: u64 = call_mark<read_service>();
     transition { _ -> check(value) }
-    state check(value: u64) {
+    machine check(value: u64) {
         transition value == 7 { true -> done() _ -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

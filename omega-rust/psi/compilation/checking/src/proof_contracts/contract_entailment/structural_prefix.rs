@@ -5,9 +5,17 @@
 //! statement or a recurrent successor. State Requires describe this invocation;
 //! machine Requires apply here only when this is the machine's entry state.
 
+mod private_arrivals;
+
+pub(super) use private_arrivals::observe_private_arrivals;
+pub(crate) use private_arrivals::{
+    ClosedArrivals, ProgramPrivateArrivalIndex, private_invocation_index,
+};
+
 use super::citations::{CitationFacts, machine_requires_facts};
 use super::structural_case_arms::{
-    recognize_structural_case_arms, recognize_structural_state_prefix, structural_arm_judge,
+    recognize_structural_case_arms, recognize_structural_state_prefix,
+    recognize_structural_state_prefixes, structural_arm_judge,
 };
 use super::structural_judgment::{StructuralJudge, StructuralTerm};
 use symbols::SymbolHandle;
@@ -114,6 +122,36 @@ pub(super) type PrefixObservation<'a, 'program> = (
 pub(super) trait StructuralPrefixVisitor {
     fn site(&self) -> StructuralPrefixSite;
 
+    /// One authenticated body arrival after its actuals completed. Coverage
+    /// consumers distinguish these occurrences from lexical ancestry and from
+    /// an unexecuted callable selection.
+    fn entered_body(
+        &mut self,
+        _caller: SymbolHandle,
+        _statement: usize,
+        _expression: Option<typed_trees::expression::ExpressionHandle>,
+        _entry: SymbolHandle,
+    ) {
+    }
+
+    /// A ranked entry starts a fresh induction interval. Observers checking
+    /// that interval stop at the next ranked invocation, before its body.
+    fn stops_at_machine(&self, _machine: SymbolHandle) -> bool {
+        false
+    }
+
+    /// True once no further path observation can change the visitor's verdict.
+    fn is_complete(&self) -> bool {
+        false
+    }
+
+    /// A complete positive judgment may be published from an independently
+    /// checked caller frontier. Negative or partial trials never replace the
+    /// original lexical-root observation.
+    fn has_positive_proof(&self) -> bool {
+        false
+    }
+
     /// Every reached arm, before its premises are established - including an
     /// arm whose hypotheses contradict.
     fn entered(&mut self) {}
@@ -125,6 +163,17 @@ pub(super) trait StructuralPrefixVisitor {
     /// visitor that owns a different entry point overrides `visit` and leaves
     /// this unreachable.
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>);
+
+    /// A closed private invocation supplies an independently checked enclosing
+    /// root and actual entry frame. Consumers own any additional theorem use:
+    /// operand formation does not acquire recursive conclusions from this hook.
+    fn observe_private_arrival<'program>(
+        &mut self,
+        _root: &Machine,
+        observation: PrefixObservation<'_, 'program>,
+    ) {
+        self.observe(observation);
+    }
 
     /// Establish this observation's premises - the arm's hypotheses and
     /// equations, its contradiction test, and the selected call's published
@@ -142,11 +191,54 @@ pub(super) trait StructuralPrefixVisitor {
         guarantees: &CitationFacts,
     ) {
         self.entered();
+        if self.is_complete() {
+            return;
+        }
+        let _arm_guard = phase_profile::guard("05.num.visit.1_arm_judge");
         let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
         if judge.hypotheses_contradictory {
             return;
         }
         guarantees.intake(&mut judge);
+        drop(_arm_guard);
+        // Short-circuit guards can create numerically impossible alternatives
+        // even when their constructor hypotheses are consistent. Refute only
+        // from admitted prefix premises, before observing the requested value;
+        // failed goal formation must never become evidence of unreachability.
+        if phase_profile::scope("05.num.visit.2_contra", || {
+            judge.integer_premises_contradictory()
+        }) {
+            return;
+        }
+        let Some(state) = program.state_in_machine(machine, self.site().state) else {
+            self.unresolved(machine);
+            return;
+        };
+        self.observe((program, machine, state, judge, environment));
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn visit_non_contradictory<'program>(
+        &mut self,
+        program: &'program dyn crate::CheckingInput,
+        machine: &Machine,
+        judge: &StructuralJudge<'program>,
+        environment: &[(String, StructuralTerm)],
+        hypotheses: &[(String, StructuralTerm)],
+        equations: &[(StructuralTerm, StructuralTerm)],
+        guarantees: &CitationFacts,
+    ) {
+        self.entered();
+        if self.is_complete() {
+            return;
+        }
+        let _arm_guard = phase_profile::guard("05.num.visit.1_arm_judge");
+        let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
+        if judge.hypotheses_contradictory {
+            return;
+        }
+        guarantees.intake(&mut judge);
+        drop(_arm_guard);
         let Some(state) = program.state_in_machine(machine, self.site().state) else {
             self.unresolved(machine);
             return;
@@ -186,6 +278,38 @@ pub(super) fn observe_runtime_state_prefix(
         visitor,
     )?;
     diagnostics.is_empty().then_some(())
+}
+
+pub(super) fn observe_runtime_state_prefixes(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    visitors: &mut [&mut dyn StructuralPrefixVisitor],
+) -> Vec<bool> {
+    let Some(entry) = program.machine_states(machine).first() else {
+        return vec![false; visitors.len()];
+    };
+    let mut requires = if state.symbol == entry.symbol {
+        machine_requires_facts(program, machine)
+    } else {
+        Vec::new()
+    };
+    requires.extend(
+        crate::proof_contracts::proof_facts::contract_expression_facts(
+            program,
+            program.state_contracts(state).iter(),
+            typed_trees::signature::SignatureContractKind::Requires,
+        ),
+    );
+    let judge = StructuralJudge::from_runtime_state_requires(program, machine, state, &requires);
+    recognize_structural_state_prefixes(
+        program,
+        machine,
+        state,
+        &judge,
+        &crate::proof_only_classification(program),
+        visitors,
+    )
 }
 
 /// An acyclic invocation retains every incoming substitution and guard. Start

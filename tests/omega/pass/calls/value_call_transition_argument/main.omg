@@ -27,7 +27,7 @@ machine amount() -> i32
 ensures 0 <= result && result <= 1
 {
     transition { _ -> out() }
-    state out() -> i32 { 1 }
+    machine out() -> i32 { 1 }
 }
 
 machine Main::record(main: &mut Main, digit: u32) -> u32
@@ -42,63 +42,63 @@ machine Main::main(main: &mut Main) reaches Console {
     main.trace = 0;
     transition { _ -> handle(main, amount()) }
 
-    state handle(main: &mut Main, delivered: i32) {
+    machine handle(main: &mut Main, delivered: i32) {
         transition delivered == 1 {
             true -> bind_local(main)
             false -> bad(main, 71)
         }
     }
 
-    state bind_local(main: &mut Main) {
+    machine bind_local(main: &mut Main) {
         let bound: i32 = amount();
         transition { _ -> handle_local(main, bound) }
     }
 
-    state handle_local(main: &mut Main, delivered: i32) {
+    machine handle_local(main: &mut Main, delivered: i32) {
         transition delivered == 1 {
             true -> take_arithmetic(main)
             false -> bad(main, 72)
         }
     }
 
-    state take_arithmetic(main: &mut Main) {
+    machine take_arithmetic(main: &mut Main) {
         transition { _ -> handle_arithmetic(main, amount() + 1) }
     }
 
-    state handle_arithmetic(main: &mut Main, delivered: i32) {
+    machine handle_arithmetic(main: &mut Main, delivered: i32) {
         transition delivered == 2 {
             true -> take_ordered(main)
             false -> bad(main, 73)
         }
     }
 
-    state take_ordered(main: &mut Main) {
+    machine take_ordered(main: &mut Main) {
         transition true {
             true -> ordered(Main::record(main, 1), Main::record(main, 2), main)
             false -> bad(main, 74)
         }
     }
 
-    state ordered(first: u32, second: u32, main: &mut Main) {
+    machine ordered(first: u32, second: u32, main: &mut Main) {
         transition first == 1 && second == 2 && main.trace == 12 {
             true -> take_snapshot(main)
             false -> bad(main, 75)
         }
     }
 
-    state take_snapshot(main: &mut Main) {
+    machine take_snapshot(main: &mut Main) {
         transition { _ -> snapshot(main.trace, Main::record(main, 3), main) }
     }
 
-    state snapshot(before: u32 in Wrapping, digit: u32, main: &mut Main) {
+    machine snapshot(before: u32 in Wrapping, digit: u32, main: &mut Main) {
         transition before == 12 && digit == 3 && main.trace == 123 {
             true -> good(main)
             false -> bad(main, 76)
         }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

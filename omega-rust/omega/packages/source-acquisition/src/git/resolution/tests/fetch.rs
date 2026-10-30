@@ -1,8 +1,8 @@
 use super::{
     Command, GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CACHE_SNAPSHOTS, LocalSourceLimits,
     SourceResolveError, create_git_cache_entry, create_git_source, git_cache_identity,
-    local_git_request, make_tree_owner_writable, open_absolute_directory_nofollow,
-    resolve_verified_git_cache_entry, run_test_git, run_test_git_with_input, temp_root,
+    inspect_verified_git_cache_entry, local_git_request, make_tree_owner_writable,
+    open_absolute_directory_nofollow, run_test_git, run_test_git_with_input, temp_root,
     test_system_git_executor, verify_git_cache_root_custody,
 };
 use crate::git::resolution::materialization::materialize_whole_git_source;
@@ -56,13 +56,11 @@ fn git_fetch_omits_a_blob_above_the_source_byte_ceiling_and_rejects() {
         None,
     )
     .expect("create quarantined Git cache entry");
-    let error = match resolve_verified_git_cache_entry(
+    let error = match inspect_verified_git_cache_entry(
         &executor,
         &cache_directory,
         entry_name,
         &entry_root,
-        request.requested_locator(),
-        request.lineage(),
         request.locator_identity(),
         request.fetch_locator(),
         request.requested_revision(),
@@ -70,7 +68,9 @@ fn git_fetch_omits_a_blob_above_the_source_byte_ceiling_and_rejects() {
         limits,
         true,
         GitRevisionSelection::Ordinary(None),
-        materialize_whole_git_source,
+        |executor, repository, _commit, tree, limits| {
+            materialize_whole_git_source(executor, repository, tree, limits)
+        },
     ) {
         Ok(_) => panic!("a required blob above the source ceiling must not be acquired"),
         Err(GitWorkspaceProjectionError::Source(error)) => error,

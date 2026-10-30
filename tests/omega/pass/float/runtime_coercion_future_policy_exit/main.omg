@@ -2,11 +2,11 @@ use omega::language::core::float_operations;
 
 machine wrapped(source: f64) -> u8 {
     transition source == 255.0 { true -> convert(source) false -> unused() }
-    state convert(source: f64) {
+    machine convert(source: f64) -> u8 {
         let value: u8 in Wrapping = source as u8 in Wrapping;
         (value + 1) as u8
     }
-    state unused() { 0 }
+    machine unused() -> u8 { 0 }
 }
 machine clamped() -> u8 {
     let source: f64 = 255.0;
@@ -32,6 +32,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

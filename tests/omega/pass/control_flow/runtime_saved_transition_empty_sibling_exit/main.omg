@@ -23,6 +23,6 @@ machine main() reaches Extract crashes Trap {
     drop(returned.storage);
     drop(returned.value);
     transition correct { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

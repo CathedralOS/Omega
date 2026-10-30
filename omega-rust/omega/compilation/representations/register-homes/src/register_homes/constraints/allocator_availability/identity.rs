@@ -41,11 +41,7 @@ pub(crate) fn encode_terminal_allocator_availability_content(
 }
 
 fn length(bytes: &mut Vec<u8>, value: usize) {
-    bytes.extend_from_slice(
-        &u64::try_from(value)
-            .expect("allocator-availability identity length fits u64")
-            .to_le_bytes(),
-    );
+    crate::codec_bytes::length(bytes, value, "allocator-availability identity");
 }
 
 #[cfg(test)]

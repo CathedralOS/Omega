@@ -11,7 +11,7 @@ use crate::preparation::generic_data::uses::{
     closed_constructor_carrier, relabel_closed_data_uses_in_constants,
     relabel_closed_data_uses_in_exact_assignments,
     relabel_closed_data_uses_in_exact_calls_and_returns,
-    relabel_closed_sum_memberships_from_local_types, relabel_unique_closed_sum_paths,
+    relabel_closed_sum_memberships_from_local_types,
 };
 
 use super::substitution::substitute_copied_type_names;
@@ -33,7 +33,9 @@ use diagnostics::Diagnostic;
 use numerics::literals::IntegerLiteral;
 use numerics::literals::IntegerRadix;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionHandle;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::ConstDefinition;
@@ -90,6 +92,18 @@ pub(crate) fn desugar_generic_data_instances_in(
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     domain: GenericDataWorkDomain<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
+    // An empty completion owns no applications or declarations. Retained
+    // syntax is lookup context, not work to reselect under this consumer's
+    // narrower active namespace. New descendants require an initial demand.
+    if let GenericDataWorkDomain::Selected {
+        type_roots,
+        declarations,
+    } = domain
+        && type_roots.is_empty()
+        && declarations.is_empty()
+    {
+        return Ok(());
+    }
     let work = SynthesisWork::new(syntax, domain);
     // Attachments belong to the carrier selected in their declaring source,
     // not to every generic declaration with the same leaf spelling.
@@ -179,7 +193,7 @@ pub(crate) fn desugar_generic_data_instances_in(
                 .map(|parameter| {
                     (
                         parameter.name.as_str(syntax).to_string(),
-                        matches!(parameter.kind, TypeParameterKind::Const { .. }),
+                        parameter.kind.is_const_or_value(),
                     )
                 })
                 .collect();
@@ -219,7 +233,8 @@ pub(crate) fn desugar_generic_data_instances_in(
         let const_parameter_types = definition_parameters
             .iter()
             .map(|parameter| match parameter.kind {
-                TypeParameterKind::Const { type_reference } => Some(type_reference),
+                TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference } => Some(type_reference),
                 _ => None,
             })
             .collect();
@@ -233,6 +248,7 @@ pub(crate) fn desugar_generic_data_instances_in(
                 lifetime_parameters: definition.lifetime_parameters.clone(),
                 parameter_names,
                 const_parameter_types,
+                cleanup_selection: definition.cleanup_selection.clone(),
                 where_facts: definition.where_facts,
                 type_equations: super::equations::classify_type_equations(
                     syntax,
@@ -304,15 +320,8 @@ pub(crate) fn desugar_generic_data_instances_in(
     }
     normalize_domain_head_positions(syntax, selection, &domain_head_positions);
 
-    canonicalize_closed_domain_indices(
-        syntax,
-        &const_definitions,
-        &const_values,
-        selection,
-        warnings,
-        &work,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
+    canonicalize_closed_domain_indices(syntax, &const_values, selection, warnings, &work)
+        .map_err(|diagnostic| vec![diagnostic])?;
 
     if generic_data.is_empty() {
         return Ok(());
@@ -342,9 +351,13 @@ pub(crate) fn desugar_generic_data_instances_in(
         let Some(ClosedArgumentIdentity::Instance(template, argument_identity)) =
             super::closed_argument_identity(syntax, selection, origin, false)
         else {
-            return Err(vec![Diagnostic::error(
-                "existing generic instance lost its exact template and argument identity",
-            )]);
+            return Err(vec![
+                Diagnostic::error(format!(
+                    "existing generic instance `{}` lost its exact template and argument identity",
+                    definition.name.as_str(syntax),
+                ))
+                .with_source_span(definition.name.source_span()),
+            ]);
         };
         let TypeReferenceNode::Generic { arguments, .. } =
             syntax.type_references.type_reference(origin)
@@ -371,18 +384,13 @@ pub(crate) fn desugar_generic_data_instances_in(
         if !work.is_all() {
             let domain_positions = work.type_positions(syntax, TypePositionPurpose::Identity, true);
             normalize_domain_head_positions(syntax, selection, &domain_positions);
-            canonicalize_closed_domain_indices(
-                syntax,
-                &const_definitions,
-                &const_values,
-                selection,
-                warnings,
-                &work,
-            )
-            .map_err(|diagnostic| vec![diagnostic])?;
+            canonicalize_closed_domain_indices(syntax, &const_values, selection, warnings, &work)
+                .map_err(|diagnostic| vec![diagnostic])?;
         }
-        let storage_positions =
-            work.type_positions(syntax, TypePositionPurpose::Materialization, false);
+        let storage_positions: std::collections::HashSet<TypeReferenceHandle> = work
+            .type_positions(syntax, TypePositionPurpose::Materialization, false)
+            .into_iter()
+            .collect();
         let mut rewrites: Vec<PendingRewrite> = Vec::new();
         let mut instantiations: Vec<Instantiation> = Vec::new();
         for position in work.type_positions(syntax, TypePositionPurpose::Identity, false) {
@@ -526,7 +534,6 @@ pub(crate) fn desugar_generic_data_instances_in(
         &declarations,
     );
     relabel_closed_sum_memberships_from_local_types(syntax, &synthesized, selection, &declarations);
-    relabel_unique_closed_sum_paths(syntax, &synthesized, selection, &declarations);
 
     normalize_generic_template_const_expressions(syntax, &const_values, warnings, &declarations)
         .map_err(|diagnostic| vec![diagnostic])?;
@@ -648,12 +655,53 @@ fn synthesize_instance(
         }
     }
 
+    // CASE-CONSTRAINTS type-equality facts decide against the closed argument
+    // identities this instance was deduplicated on, whether they stand as a
+    // whole fact (`requires T == i32`) or nest inside a case-dependent
+    // disjunction (`(self in C && T == i32) || ...`). Only `type` binders
+    // enter the map: `const` binders rewrite to literal arguments, and the
+    // remaining binder kinds are still refused upstream.
+    let type_identities: HashMap<String, ClosedArgumentIdentity> = {
+        let Some(template) = snapshot.root_item(instance.template).as_data() else {
+            unreachable!("a discovered template is a data item");
+        };
+        snapshot
+            .tables
+            .items
+            .type_parameters(template.type_parameters)
+            .iter()
+            .zip(instance.argument_identity.iter())
+            .filter(|(parameter, _)| matches!(parameter.kind, TypeParameterKind::Type))
+            .map(|(parameter, identity)| {
+                (parameter.name.as_str(syntax).to_owned(), identity.clone())
+            })
+            .collect()
+    };
+
     // Data predicates define a default domain, which need not be inhabited.
     // Omit a proven truth, but retain false and mixed predicates with the same
     // substitution as members. Construction and observation own establishment;
     // discovering a contradiction must not make a type declaration illegal.
     let type_watermark = syntax.type_references.node_count();
     let fact_expression_watermark = syntax.expressions.frontier();
+    // Case-dependent predicates can decide a case out of existence on this
+    // instance (`(self in C && T == i32) || ...` with `T` closed to `bool`).
+    // Each copied fact is replayed against every variant once its type
+    // equalities fold; a refuted variant gets the literal `0` witness that
+    // marks an impossible case for coverage, construction, and zero gating --
+    // the same witness the case `where` copy already writes.
+    let template_variant_names: Vec<String> = snapshot
+        .tables
+        .items
+        .data_members(base_info.members)
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Variant(variant) => Some(variant.name.as_str(snapshot).to_owned()),
+            _ => None,
+        })
+        .collect();
+    let mut impossible_variants: HashSet<String> = HashSet::new();
+    let mut copied_fact_roots: Vec<ExpressionHandle> = Vec::new();
     let mut first_fact = Handle::invalid();
     let mut fact_count = 0u32;
     for (offset, fact) in snapshot
@@ -717,10 +765,61 @@ fn synthesize_instance(
             base_info.where_facts.start().generation(),
         );
         let handle = syntax.copy_proof_fact_from(snapshot, source);
+        let copied_root = match syntax.items.proof_fact(handle) {
+            ProofFact::Expression(root) => Some(*root),
+            _ => None,
+        };
+        // A carried expression fact decides its nested `type`-binder
+        // equalities against this instance's arguments, folding each decided
+        // node to the literal witness the case `where` copy already uses: a
+        // decided-true equation reads `1`, a decided-false one `0`, so a
+        // case-dependent disjunct collapses on the impossible branch and the
+        // surviving branch keeps its membership and value couplings. Binder
+        // spellings outside a decided equality stay symbolic -- the lowering
+        // gate already refused binder mentions in other positions.
+        if let Some(copied_root) = copied_root {
+            super::substitution::decide_instance_type_equalities(
+                syntax,
+                copied_root,
+                &type_identities,
+                selection,
+                &instance.synthetic_name,
+            )?;
+            copied_fact_roots.push(copied_root);
+            let type_name = base_info.origin_name.as_str(syntax);
+            for variant_name in &template_variant_names {
+                if matches!(
+                    super::substitution::variant_fact_verdict(
+                        syntax,
+                        copied_root,
+                        type_name,
+                        variant_name,
+                    ),
+                    super::substitution::VariantFactVerdict::Refuted
+                ) {
+                    impossible_variants.insert(variant_name.clone());
+                }
+            }
+        }
         if fact_count == 0 {
             first_fact = handle;
         }
         fact_count += 1;
+    }
+    // A case every replay refuted is impossible on this carrier: it has no
+    // structural representation downstream, so `self in Type::Case` atoms
+    // naming it fold to `false` before the copied facts reach checking or
+    // lowering, and the surrounding boolean skeleton propagates the result.
+    if !impossible_variants.is_empty() {
+        let type_name = base_info.origin_name.as_str(syntax).to_owned();
+        for copied_root in copied_fact_roots {
+            super::substitution::fold_impossible_case_memberships(
+                syntax,
+                copied_root,
+                &type_name,
+                &impossible_variants,
+            );
+        }
     }
     let where_facts = HandleSpan::from_parts(first_fact, fact_count);
 
@@ -743,27 +842,6 @@ fn synthesize_instance(
 
     let members: Vec<DataMember> = syntax.tables.items.data_members(base_info.members).to_vec();
     let properties = base_info.properties;
-    // CASE-CONSTRAINTS type-equality facts (`case ... where T == i32`)
-    // decide against the closed argument identities this instance was
-    // deduplicated on. Only `type` binders enter the map: `const`
-    // binders rewrite to literal arguments, and the remaining binder
-    // kinds are still refused upstream.
-    let type_identities: HashMap<String, ClosedArgumentIdentity> = {
-        let Some(template) = snapshot.root_item(instance.template).as_data() else {
-            unreachable!("a discovered template is a data item");
-        };
-        snapshot
-            .tables
-            .items
-            .type_parameters(template.type_parameters)
-            .iter()
-            .zip(instance.argument_identity.iter())
-            .filter(|(parameter, _)| matches!(parameter.kind, TypeParameterKind::Type))
-            .map(|(parameter, identity)| {
-                (parameter.name.as_str(syntax).to_owned(), identity.clone())
-            })
-            .collect()
-    };
     let mut first: Handle<DataMember> = Handle::invalid();
     let mut count = 0u32;
     for member in members {
@@ -773,6 +851,7 @@ fn synthesize_instance(
             member,
             &substitution,
             &type_identities,
+            &impossible_variants,
             selection,
             &instance.synthetic_name,
             const_values,
@@ -795,6 +874,16 @@ fn synthesize_instance(
     // loop above, so its `const` mentions land in the same rewritten
     // window as the data-level fact copies.
     replace_const_expression_names_from(syntax, fact_expression_watermark, &const_expressions);
+    let cleanup_selection = base_info.cleanup_selection.clone().map(|selection| {
+        super::substitution::substitute_cleanup_selection(
+            syntax,
+            snapshot,
+            selection,
+            &substitution,
+            &const_parameter_values,
+            warnings,
+        )
+    });
     let declaration = syntax.push_root_item(Item::Data(DataDefinition {
         // The closed instance is compiler-generated, but its mandatory
         // derivation origin is the exact authored generic declaration.
@@ -809,6 +898,7 @@ fn synthesize_instance(
         lifetime_parameters: base_info.lifetime_parameters.clone(),
         type_parameters: HandleSpan::default(),
         generic_instance: Some(generic_instance),
+        cleanup_selection,
         properties,
         where_facts,
         members: HandleSpan::from_parts(first, count),

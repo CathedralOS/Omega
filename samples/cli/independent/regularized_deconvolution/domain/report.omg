@@ -13,27 +13,27 @@ invokes Console;
         true -> negative(reader, widened)
         _ -> digits(reader, widened)
     }
-    state negative(reader: &mut Reader, value: i64) {
+    machine negative(reader: &mut Reader, value: i64) {
         Console::write_byte(45);
         let absolute: i64 in Wrapping = 0 - (value as i64 in Wrapping);
         transition { _ -> digits(reader, absolute as i64) }
     }
-    state digits(reader: &mut Reader, value: i64) {
+    machine digits(reader: &mut Reader, value: i64) {
         transition { _ -> seek(reader, value as i64 in Wrapping, 1) }
     }
-    state seek(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
+    machine seek(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 && divisor <= value / 10 {
             true -> seek(reader, value, divisor * 10)
             _ -> ready(reader, value, divisor)
         }
     }
-    state ready(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
+    machine ready(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 {
             true -> emit(reader, value, divisor)
             _ -> {}
         }
     }
-    state emit(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping)
+    machine emit(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping)
     requires divisor > 0
     {
         let byte: i64 in Wrapping = (value / divisor) % 10 + 48;
@@ -48,14 +48,14 @@ invokes Console;
 public machine field(reader: &mut Reader, name: &[u8], value: f64) reaches Console invokes Console; {
     Console::write(name);
     transition value < 0.0 { true -> negative(reader, value) _ -> normalize(reader, value, 0) }
-    state negative(reader: &mut Reader, value: f64) { Console::write_byte(45); transition { _ -> normalize(reader, 0.0 - value, 0) } }
-    state normalize(reader: &mut Reader, value: f64, exponent: i32 in Wrapping) {
+    machine negative(reader: &mut Reader, value: f64) { Console::write_byte(45); transition { _ -> normalize(reader, 0.0 - value, 0) } }
+    machine normalize(reader: &mut Reader, value: f64, exponent: i32 in Wrapping) {
         transition value >= 10.0 { true -> normalize(reader, value * 0.1, exponent + 1) _ -> small(reader, value, exponent) }
     }
-    state small(reader: &mut Reader, value: f64, exponent: i32 in Wrapping) {
+    machine small(reader: &mut Reader, value: f64, exponent: i32 in Wrapping) {
         transition value > 0.0 && value < 1.0 { true -> small(reader, value * 10.0, exponent - 1) _ -> emit(reader, value, exponent) }
     }
-    state emit(reader: &mut Reader, value: f64, exponent: i32 in Wrapping) {
+    machine emit(reader: &mut Reader, value: f64, exponent: i32 in Wrapping) {
         let narrowed: i64 in Saturating = I64::from_f64(value * 1000000000000.0);
         integer(reader, narrowed as i64);
         Console::write_byte(101);

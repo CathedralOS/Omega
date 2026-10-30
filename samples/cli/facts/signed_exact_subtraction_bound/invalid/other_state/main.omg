@@ -14,7 +14,7 @@ machine subtract_signed(minuend: i64, subtrahend: i64) -> i32
 {
     let diff: i64 = minuend - subtrahend;
     transition { _ -> step(diff) }
-    state step(d: i64) -> i32 {
+    machine step(d: i64) -> i32 {
         consume(d)
     }
 }
@@ -29,6 +29,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

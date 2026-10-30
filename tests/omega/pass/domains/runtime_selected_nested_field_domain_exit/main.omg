@@ -1,7 +1,7 @@
 // Every qualified array holds exactly eight bytes; explicit NUL bytes are content.
 // Expected exit: 0. A returned borrow retains each candidate's declared
 // nested field domain through an offset view, without flattening inner arrays.
-domain [u8; 8]::NonEmpty(bytes) requires non_empty(bytes);
+domain [u8; 8]::NonEmpty requires non_empty(self);
 data Label { text: [u8; 8] in NonEmpty; }
 data Row { labels: [Label; 2]; marker: u64; }
 data Bag { rows: [Row; 3]; }
@@ -38,8 +38,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         && bag.rows[1].marker == 41 && bag.rows[2].marker == 41 {
         true -> done() false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

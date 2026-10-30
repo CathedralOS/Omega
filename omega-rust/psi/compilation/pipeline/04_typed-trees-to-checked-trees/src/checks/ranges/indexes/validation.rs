@@ -359,14 +359,15 @@ fn check_recipe_extent_index(
             return false;
         }
         if let Some(end) = end {
-            obligations.push(checked_trees::ConstantRecipeObligation {
+            obligations.push(checked_trees::ConstantRecipeObligation::retain(
+                machine.symbol,
                 recipe,
-                requirement: checked_trees::ConstantRecipeRequirement::AtLeast(
+                checked_trees::ConstantRecipeRequirement::AtLeast(
                     numerics::bignum::BigInt::from_i64(end),
                 ),
                 source_span,
-                description: format!("subslice range `{index_label}` of `{collection_label}`"),
-            });
+                format!("subslice range `{index_label}` of `{collection_label}`"),
+            ));
         }
         return true;
     }
@@ -400,14 +401,15 @@ fn check_recipe_extent_index(
         || standing_low.is_some_and(|low| low >= 0);
     match upper_bound {
         Some(high) if lower_bound_proven => {
-            obligations.push(checked_trees::ConstantRecipeObligation {
+            obligations.push(checked_trees::ConstantRecipeObligation::retain(
+                machine.symbol,
                 recipe,
-                requirement: checked_trees::ConstantRecipeRequirement::ExceedsBound(
+                checked_trees::ConstantRecipeRequirement::ExceedsBound(
                     numerics::bignum::BigInt::from_i64(high),
                 ),
                 source_span,
-                description: format!("index `{index_label}` of `{collection_label}`"),
-            });
+                format!("index `{index_label}` of `{collection_label}`"),
+            ));
             true
         }
         Some(_) => {

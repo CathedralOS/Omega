@@ -23,7 +23,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     transition { _ -> done(main, recovered) }
 
-    state done(main: &mut Main, recovered: i32 in Wrapping) {
+    machine done(main: &mut Main, recovered: i32 in Wrapping) {
         Console::write_line("result: the recovered KiB count, 64 for this round trip (the exit code)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

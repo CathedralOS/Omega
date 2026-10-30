@@ -65,6 +65,28 @@ pub fn derive_normalized_foreign_call_custody(
     for function in &selected.functions {
         let fragment =
             caller_fragment(section, function.machine).ok_or(ObjectError::TextSizeOverflow)?;
+        if function.normalized_foreign_calls.is_empty() {
+            continue;
+        }
+        let home_offsets = durable_home_offsets(function);
+        let mut abstracted_functions = optimized
+            .optimized()
+            .plan()
+            .functions
+            .iter()
+            .filter(|candidate| candidate.machine == function.machine);
+        let abstracted = match (abstracted_functions.next(), abstracted_functions.next()) {
+            (Some(abstracted), None) => Some(abstracted),
+            _ => None,
+        };
+        let mut frames = layout
+            .functions
+            .iter()
+            .filter(|frame| frame.machine == function.machine);
+        let frame = match (frames.next(), frames.next()) {
+            (Some(frame), None) => Some(frame),
+            _ => None,
+        };
         for (ordinal, record) in function.normalized_foreign_calls.iter().enumerate() {
             let owner = CallSiteOwner::from(record.invocation_site);
             let invalid = |reason| ObjectError::InvalidForeignCallProjection {
@@ -151,7 +173,6 @@ pub fn derive_normalized_foreign_call_custody(
                 )
                 .map_err(|_| invalid("native instruction offset is not addressable"))?
             };
-            let home_offsets = durable_home_offsets(function);
             let scalar_arguments = foreign_scalar_argument_custody(
                 function,
                 block,
@@ -184,13 +205,7 @@ pub fn derive_normalized_foreign_call_custody(
                 function.machine,
                 owner,
             )?;
-            let mut abstracted = optimized
-                .optimized()
-                .plan()
-                .functions
-                .iter()
-                .filter(|candidate| candidate.machine == function.machine);
-            let (Some(abstracted), None) = (abstracted.next(), abstracted.next()) else {
+            let Some(abstracted) = abstracted else {
                 return Err(invalid(
                     "caller is missing or repeated in the abstract operation roster",
                 ));
@@ -205,9 +220,7 @@ pub fn derive_normalized_foreign_call_custody(
                             psi_operation,
                             ..
                         } if record.invocation_site
-                            == semantic_vocabulary::BoundaryInvocationSite::Operation(
-                                *psi_operation,
-                            ) =>
+                            == semantic_vocabulary::InvocationSite::Operation(*psi_operation) =>
                         {
                             Some(index)
                         }
@@ -215,7 +228,7 @@ pub fn derive_normalized_foreign_call_custody(
                             psi_edge,
                             ..
                         } if record.invocation_site
-                            == semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(
+                            == semantic_vocabulary::InvocationSite::ExternalCompletion(
                                 *psi_edge,
                             ) =>
                         {
@@ -238,11 +251,7 @@ pub fn derive_normalized_foreign_call_custody(
                     });
                 }
             };
-            let mut frames = layout
-                .functions
-                .iter()
-                .filter(|frame| frame.machine == function.machine);
-            let (Some(frame), None) = (frames.next(), frames.next()) else {
+            let Some(frame) = frame else {
                 return Err(invalid("caller frame is missing or repeated"));
             };
             if let target_operations::TargetBoundaryResult::Structural(home) = &record.call.result {
@@ -1465,15 +1474,16 @@ pub(crate) fn image_foreign_calls_match_object(
 /// one from a constructor's numeric identity or discard its charges.
 pub fn foreign_invocation_provenance_matches(
     provenance: &selected_instructions::SelectedInstructionProvenance,
-    site: semantic_vocabulary::BoundaryInvocationSite,
+    site: semantic_vocabulary::InvocationSite,
 ) -> bool {
     match site {
-        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+        semantic_vocabulary::InvocationSite::InvokeNoNormal(_) => false,
+        semantic_vocabulary::InvocationSite::Operation(operation) => {
             provenance.operations.last() == Some(&operation)
                 && provenance.edges.is_empty()
                 && provenance.fuel_settles_only_claimed_sites()
         }
-        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+        semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
             provenance.edges.as_slice() == [edge] && provenance.fuel_settles_only_claimed_sites()
         }
     }

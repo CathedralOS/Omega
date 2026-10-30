@@ -1,4 +1,4 @@
-//! Portable declaration identity shared by emitted bodies and their demands.
+//! Declaration identity shared by emitted bodies and their demands.
 //!
 //! Psi derives nominal bytes from exact package/toolchain ownership and the
 //! declaration path. These records identify checked inputs; they do not grant
@@ -6,9 +6,11 @@
 //! Table coordinates belong to one module, not a global declaration namespace.
 //! Structural equality is useful within that module; cross-artifact joins use
 //! `same_identity_as` with both owning tables and retain every commitment.
+//! Invocation-local declarations additionally require the same retained code
+//! owner; their coordinates cannot substitute for portable package ownership.
 
 use crate::terminal_module::{TerminalIdentityIndex, TerminalIdentityTable};
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct NominalDeclarationIdentity(TerminalIdentityIndex);
 
 impl NominalDeclarationIdentity {
@@ -28,6 +30,9 @@ impl NominalDeclarationIdentity {
         other: &Self,
         other_identities: &TerminalIdentityTable,
     ) -> bool {
+        if identities.is_invocation_local(self.0) || other_identities.is_invocation_local(other.0) {
+            return identities.same_invocation_declaration(self.0, other_identities, other.0);
+        }
         let Some(identity) = identities
             .text(self.0)
             .filter(|identity| !identity.is_empty())
@@ -56,6 +61,27 @@ pub struct CheckedMachineDeclaration {
 }
 
 impl CheckedMachineDeclaration {
+    /// The existing proof-facade callable identity, with its exact executable
+    /// specialization commitment when present. Producers and receivers share
+    /// this rendering; declaration names never select an application.
+    pub fn callable_evidence_identity(callable: &str, specialization: Option<&[u8; 32]>) -> String {
+        let Some(commitment) = specialization else {
+            return callable.to_owned();
+        };
+        let mut hexadecimal = String::with_capacity(64);
+        for byte in commitment {
+            use std::fmt::Write;
+            write!(&mut hexadecimal, "{byte:02x}")
+                .expect("writing an identity to String cannot fail");
+        }
+        format!(
+            "specialized-machine|callable={}:{}|application={}",
+            callable.len(),
+            callable,
+            hexadecimal
+        )
+    }
+
     /// Join checked declarations from distinct artifacts without comparing
     /// their table-local coordinates. Contract and specialization commitments
     /// remain exact; matching a name alone cannot substitute another body.
@@ -91,12 +117,21 @@ impl CheckedMachineDeclaration {
                 specialization.commitment == other_specialization.commitment
                     && match (&specialization.capture, &other_specialization.capture) {
                         (None, None) => true,
-                        (Some(left), Some(right)) => left.same_identity_as(identities, right, other_identities),
+                        (Some(left), Some(right)) => {
+                            left.same_identity_as(identities, right, other_identities)
+                        }
                         _ => false,
                     }
                     && identities
                         .text(specialization.template_callable)
                         .zip(other_identities.text(other_specialization.template_callable))
+                        .is_some_and(|(left, right)| !left.is_empty() && left == right)
+                    && identities
+                        .text(specialization.template_semantic_declaration)
+                        .zip(
+                            other_identities
+                                .text(other_specialization.template_semantic_declaration),
+                        )
                         .is_some_and(|(left, right)| !left.is_empty() && left == right)
                     && specialization.template.same_identity_as(
                         identities,
@@ -118,6 +153,9 @@ pub struct CheckedMachineSpecialization {
     /// from the template's nominal declaration path. Issuer routes name this
     /// declaration, not a same-spelled specialization or sibling overload.
     pub template_callable: TerminalIdentityIndex,
+    /// Issuer routes use this semantic declaration coordinate. `template`
+    /// retains the independent nominal encoding and cannot substitute for it.
+    pub template_semantic_declaration: TerminalIdentityIndex,
     pub commitment: [u8; 32],
 }
 

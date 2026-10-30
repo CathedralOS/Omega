@@ -9,7 +9,7 @@ machine bounded(value: f64) -> i32 {
         true -> convert(value)
         false -> zero()
     }
-    state zero() -> i32 { 0 }
+    machine zero() -> i32 { 0 }
 }
 
 machine main() crashes Trap {
@@ -22,6 +22,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -78,8 +78,12 @@ fn selected_transition_premise<'program>(
         call_frames,
     );
     let premises = std::iter::once(guard)
-        .chain(captured.into_iter().filter_map(|(premise, holds)| {
-            (holds
+        .chain(captured.into_iter().filter_map(|observation| {
+            let premise = observation.current_expression;
+            if !premise.is_valid() {
+                return None;
+            }
+            (observation.value
                 && super::super::guard_operands::premise_reads_survive_arm_operand_writes(
                     program,
                     facts,
@@ -120,13 +124,29 @@ pub(in crate::checks::contracts) fn selected_guard_predicate(
     {
         return None;
     }
-    crate::facts::boolean_predicates::bind_current_guard(
+    // This conditional goal names surviving current storage, not a new
+    // completed read or an assertion of the guard. Bind the shared checked
+    // algebra under the same declaration coordinates as the required formula.
+    let expression = crate::facts::boolean_predicates::lower_current_guard(
         program,
         &facts.operators,
         state_flow.state_symbol,
         call_flow.statement_index,
         guard,
+    )?;
+    crate::facts::boolean_predicates::bind_current_expression(
+        program,
+        state_flow.state_symbol,
+        expression,
         true,
+        |operand| {
+            crate::facts::boolean_predicates::declared_observation(
+                program,
+                state_flow.state_symbol,
+                call_flow.statement_index,
+                operand,
+            )
+        },
     )
 }
 

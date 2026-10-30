@@ -1,8 +1,9 @@
 //! Whole-source reuse of a pin issued earlier in the same acquisition operation.
 
-use super::resolve_git_source_in_lane_with_selected_roots;
+use super::acquisition::resolve_whole_git_source_from_retained_lanes;
+use super::selection::GitRevisionSelection;
 use crate::error::SourceResolveError;
-use crate::git::executable::selection::{PrimaryGitSelection, resolver_package_controlled_roots};
+use crate::git::executable::selection::PrimaryGitSelection;
 use crate::git::request::GitSourceRequest;
 use crate::limits::LocalSourceLimits;
 use crate::observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
@@ -20,13 +21,11 @@ pub fn resolve_git_source_from_pin_in_lane(
     lane: &RetainedStorageLane,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
-    let package_controlled_roots = resolver_package_controlled_roots(&[lane.path()])?;
-    resolve_git_source_in_lane_with_selected_roots(
+    resolve_whole_git_source_from_retained_lanes(
         primary_git,
-        &package_controlled_roots,
+        &[lane],
         request,
-        pin,
-        lane,
         limits,
+        GitRevisionSelection::Ordinary(pin),
     )
 }

@@ -7,7 +7,7 @@ public trait Reader<const Limit: i32> {
 Provider satisfies Reader<Zero> {
     machine read(value: i32) -> i32 crashes Trap value < Zero {
         transition value < Zero { true -> bad() _ -> (value) }
-        state bad() { crash Trap; }
+        machine bad() -> i32 { crash Trap; }
     }
 }
 public machine safe<Implementation satisfies Reader<Zero>>(value: i32) -> i32

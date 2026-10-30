@@ -1,5 +1,5 @@
 use super::load_sources;
-use source::{DependencyScope, SourceFileSystem, SourceId};
+use source::{DependencyScope, SourceFileSystem};
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -37,27 +37,23 @@ fn loading_preserves_order_and_distinct_scopes_and_reports_unreadable_paths() {
             (path.clone(), DependencyScope::Build),
             (path.clone(), DependencyScope::Product),
         ],
-        11,
         &SourceFileSystem::new(),
     )
     .unwrap();
-    let batch = loaded.sources.span_or_empty(loaded.batch);
+    let batch = loaded.as_slice();
     assert_eq!(batch.len(), 2);
     for (position, scope) in [DependencyScope::Build, DependencyScope::Product]
         .into_iter()
         .enumerate()
     {
-        assert_eq!(batch[position].source_id, SourceId(11 + position));
         assert_eq!(batch[position].path, path);
         assert_eq!(batch[position].scope, scope);
-        assert_eq!(batch[position].origin, None);
         assert_eq!(batch[position].source.as_ref(), source);
     }
 
     let unreadable = path.join("not-a-directory");
     let errors = load_sources(
         vec![(unreadable.clone(), DependencyScope::Product)],
-        11,
         &SourceFileSystem::new(),
     )
     .unwrap_err();

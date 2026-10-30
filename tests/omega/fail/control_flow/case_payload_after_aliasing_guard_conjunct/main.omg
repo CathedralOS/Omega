@@ -31,7 +31,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main)
         false -> finish(main)
     }
-    state finish(main: &mut Main) { Console::exit_process(70); }
+    machine finish(main: &mut Main) { Console::exit_process(70); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

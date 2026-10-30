@@ -30,6 +30,38 @@ Do not leave competing permanent implementations or call an unchanged consumer
 validated against a new library without affected checks. A proposal to extract
 a kernel is not authorization for a broad migration or new package acceptance.
 
+## Core integer and float APIs
+
+The ratified core surface groups integer carrier queries in
+`omega::language::core::integer` and floating properties/representations in
+`omega::language::core::float`:
+
+```omega
+integer::min<u32>()
+integer::max<u32>()
+float::min<f32>()
+float::max<f32>()
+float::epsilon<f32>()
+float::min_positive_normal<f32>()
+float::min_positive_subnormal<f32>()
+```
+
+These are accepted API contracts, not a claim that the modules are implemented.
+[Numeric values](../../wiki/spec/language/numeric_values.md#core-integer-and-float-apis)
+defines the complete query table, classification, exact bit wrappers, canonical
+NaN values and explicit quieting/canonicalization. Float extrema are finite
+endpoints; smallest-positive values have explicit names. Core implementation is
+ordinary checked code over exact type refinement and semantic carrier metadata,
+not a keyword, primitive-member namespace, implicit provider, or spelling-based
+proof rule. General aggregate value bit casts and arbitrary-width integer
+families are not introduced. Parameterized NaN constructors are convenience
+code whose need may change with future unsigned narrow payload types.
+
+`CORE-INTEGER-FLOAT-APIS` in [TASKS.md](../../TASKS.md) retains library/compiler
+acceptance, nine-place facts and reject controls, including old-spelling
+removal. Existing numeric examples using primitive-member limits are migration
+inputs, not an implemented alternate API.
+
 ## Core slice iteration
 
 `use omega::language::core::iteration;` exposes ordinary checked traversal:

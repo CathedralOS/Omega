@@ -19,7 +19,6 @@ use super::product_providers::PRODUCT_PROVIDER_DESCRIPTION_TYPE;
 use crate::interpreter::evaluator::{
     BTreeMap, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value,
 };
-use language_semantics::declaration_selection::DescribedProductSchema;
 
 /// The marker type name carried by issued `ProductTypeSchema` values. An
 /// authored `ProductTypeSchema {}` has the declared type name instead and is
@@ -149,70 +148,19 @@ impl<'program> Evaluator<'program> {
         path: &[u8],
         occurrence: source::SourceSpan,
     ) -> EvalResult<Value> {
-        let name = std::str::from_utf8(path)
-            .map_err(|_| Halt::Trap("product schema path must be canonical UTF-8".to_owned()))?;
-        if name.is_empty() {
-            return Err(Halt::Trap(
-                "product schema selection requires a non-empty path".to_owned(),
-            ));
-        }
-        // Strings are locators, not authority: `path` resolves under the
-        // query occurrence's own authorized scope. A qualified `alias::rest`
-        // spelling resolves `alias` through the occurrence package's
-        // retained product dependencies and selects a `public` declaration in
-        // that exact target package's product checked instance. A helper keeps
-        // its operational capability but cannot enumerate the caller's product
-        // namespace, and a build-scope alias authorizes nothing. A bare leaf
-        // keeps the same-package declaration scan; a first segment that is
-        // no product alias leaves only the occurrence's own package path
-        // reading of the full spelling.
-        let qualified = name.split_once("::");
-        let candidates = self.product_data_candidates(name, qualified, occurrence, |_| true);
-        let [definition] = candidates.as_slice() else {
-            if !candidates.is_empty() {
-                return Err(Halt::Trap(format!(
-                    "product schema `{name}` is ambiguous within its package"
-                )));
-            }
-            let probe = qualified.map_or(name, |(_, rest)| rest);
-            let message = if self
-                .product_declarations
-                .data_definitions()
-                .iter()
-                .any(|definition| {
-                    definition.name.as_str() == probe
-                        || self
-                            .product_declarations
-                            .symbols
-                            .display_path(definition.symbol, "::")
-                            .as_str()
-                            == probe
-                }) {
-                format!(
-                    "product schema `{name}` is not a product declaration visible from this build occurrence's package"
-                )
-            } else {
-                format!(
-                    "product schema `{name}` names no data declaration in this build occurrence's package"
-                )
-            };
-            return Err(Halt::Trap(message));
-        };
-        let canonical_path = self
-            .product_declarations
-            .symbols
-            .display_path(definition.symbol, "::");
+        let selected = validation::product_queries::describe_schema(
+            self.product_declarations,
+            occurrence,
+            path,
+        )
+        .map_err(Halt::Trap)?;
         let index = self.product_schema_descriptions.len();
         self.product_schema_descriptions
             .try_reserve(1)
             .map_err(|_| {
                 Halt::Resource("product-schema description allocation was refused".to_owned())
             })?;
-        self.product_schema_descriptions
-            .push(DescribedProductSchema {
-                schema_symbol: definition.symbol,
-                canonical_path,
-            });
+        self.product_schema_descriptions.push(selected);
         let index = i64::try_from(index).map_err(|_| {
             Halt::Resource("product-schema description index overflowed".to_owned())
         })?;

@@ -24,7 +24,7 @@ use crate::value_custody::locals::validate_local_data_names;
 use crate::{
     OpaqueDataPropertyReceipt, TopLevelSymbols, ValidatedBoundaryOperatorApplication,
     ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
-    ValidatedIntegerEmbeddingCall, ValidatedProofRecursiveComponent, build_definition_fact_plan,
+    ValidatedIntegerEmbeddingCall, ValidatedProofCallComponent, build_definition_fact_plan,
     collect_dynamic_implementation_selections, declarations::declaration_visibility,
     declarations::operators, declarations::transitions, infer_operational_may,
     infer_service_reaches, machine_calls::call_cycles, machine_calls::callable_overloads,
@@ -45,6 +45,7 @@ use rayon::prelude::*;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::StatementNode;
 
+mod completion_results;
 mod contract_queries;
 mod dependency_bodies;
 mod statements;
@@ -84,7 +85,7 @@ pub fn expression_interval(
 pub struct ProgramValidationFacts {
     pub quotient_formations: Vec<quotients::ValidatedQuotientFormation>,
     pub integer_range_obligations: Vec<checked_trees::IntegerRangeObligation>,
-    pub static_machine_selections: machine_parameters::ValidatedStaticMachineSelections,
+    pub static_machine_selections: machine_parameters::PreparedStaticMachineSelections,
     formed_static_machine_selections: machine_parameters::FormedStaticMachineSelections,
     pub stored_integer_writes: Vec<checked_trees::CheckedStoredIntegerWrite>,
     /// Successful immediate receiving judgments, not invariant-window closure.
@@ -94,6 +95,9 @@ pub struct ProgramValidationFacts {
     /// Integer operations whose formation conditions every clean arithmetic
     /// walk decided.
     pub decided_formations: Vec<typed_trees::expression::ExpressionHandle>,
+    /// Occurrences proved free of runtime Trap, independently of selected-policy
+    /// formation (Trapping signed division may form and still trap at MIN/-1).
+    pub trap_free_expressions: Vec<typed_trees::expression::ExpressionHandle>,
     /// Integer expression intervals, one per expression in handle order,
     /// hulled over every clean arithmetic walk of it.
     pub expression_intervals: Vec<ExpressionInterval>,
@@ -103,9 +107,9 @@ pub struct ProgramValidationFacts {
     pub specification_calls:
         Vec<crate::machine_calls::denotational_calls::SpecificationCallRequest>,
     pub integer_embedding_calls: Vec<ValidatedIntegerEmbeddingCall>,
-    /// Canonical proof-only call SCCs accepted by the structural-subterm
-    /// validator. Every exact internal call site retains its own witness.
-    pub proof_recursive_components: Vec<ValidatedProofRecursiveComponent>,
+    /// Complete proof-call SCCs with structural or source-judged computed
+    /// descent. Only structural witnesses are portable certificates.
+    pub proof_recursive_components: Vec<ValidatedProofCallComponent>,
     /// Independently judged exact self-call decreases for private progress;
     /// semantic predecessors do not authorize structural induction hypotheses.
     pub self_call_descents: Vec<crate::ValidatedSelfCallDescent>,
@@ -123,6 +127,8 @@ pub struct ProgramValidationFacts {
 pub struct ProvenContractExpressions {
     pub entry: Vec<ExpressionHandle>,
     pub normal_returns: Vec<ExpressionHandle>,
+    /// Exact complete-return candidates awaiting rooted content-law premises.
+    pub conditional_content: Vec<crate::ConditionalContentGuarantee>,
 }
 
 /// Whether opaque property claims must be backed now or remain pending during
@@ -191,6 +197,7 @@ fn validate<'program>(
     prior_dependency_bodies: &[DependencyBodyJudgment],
     record_dependency_bodies: bool,
 ) -> Result<ProgramValidation, Vec<Diagnostic>> {
+    let mut formation_obligations = Vec::new();
     let pre_machine_guard = phase_profile::guard("05.d.2.a.1.pre_machine_validators");
     let mut diagnostics = Vec::new();
     if let Err(mut errors) =
@@ -235,23 +242,45 @@ fn validate<'program>(
         literals::validate_suffix_magnitudes(program, &mut diagnostics);
         // Abstract calls consume the same scoped content formation that later
         // fact construction uses. Keep its diagnostic-producing owner first.
-        content_projections::validate_content_projection_conformances(program, &mut diagnostics);
+        content_projections::validate_content_projection_conformances(
+            program,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
         content_conservation::validate_content_conservation_contracts(program, &mut diagnostics);
-        validate_domain_definitions(program, &symbols, &fact_plan, &mut diagnostics);
-        validate_callable_state_signatures(program, &symbols, &mut diagnostics);
+        validate_domain_definitions(
+            program,
+            &symbols,
+            &fact_plan,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
+        validate_callable_state_signatures(
+            program,
+            &symbols,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
         write_only_borrows::validate_checked_write_only_slice(program, &mut diagnostics);
         arithmetic_domains::validate_abstract_total_specification_arithmetic(
             program,
             &mut diagnostics,
+            &mut formation_obligations,
         );
         cleanup::validate_cleanup_machine_declarations(program, &mut diagnostics);
-        validate_trait_requirements(program, &symbols, &mut diagnostics);
+        validate_trait_requirements(
+            program,
+            &symbols,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
         for trait_definition in program.traits() {
             validate_trait_conformance_bounds(
                 program,
                 trait_definition,
                 &symbols,
                 &mut diagnostics,
+                &mut formation_obligations,
             );
         }
         qualification_evidence::validate_qualification_authorization(program, &mut diagnostics);
@@ -270,6 +299,7 @@ fn validate<'program>(
                 &conformance_service_reaches,
                 &symbols,
                 &mut diagnostics,
+                &mut formation_obligations,
             );
             if let Err(mut dynamic_diagnostics) = collect_dynamic_implementation_selections(program)
             {
@@ -284,7 +314,12 @@ fn validate<'program>(
         fact_call_projections,
         specification_calls,
     ) = phase_profile::scope("05.d.2.a.1a4b.data_and_proof_faces", || {
-        validate_data_field_types(program, &symbols, &mut diagnostics);
+        validate_data_field_types(
+            program,
+            &symbols,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
         plan_laid::validate_plans(program, &mut diagnostics);
         placed_views::validate_plans(program, &mut diagnostics);
         relevance::validate_relevance(program, &mut diagnostics);
@@ -338,8 +373,7 @@ fn validate<'program>(
     let mut self_call_descents = Vec::new();
     let proof_recursive_components =
         phase_profile::scope("05.d.2.a.1a5.call_cycles_and_properties", || {
-            let components =
-                call_cycles::validate_machine_call_cycles(program, &symbols, &mut diagnostics);
+            let components = call_cycles::validate_machine_call_cycles(program, &mut diagnostics);
             let (opaque_property_receipts, allow_pending_opaque_copy) = match opaque_properties {
                 OpaquePropertyValidation::Required(receipts) => (receipts, false),
                 OpaquePropertyValidation::PendingBuildSelection => (&[][..], true),
@@ -366,6 +400,7 @@ fn validate<'program>(
             stored_integer_writes.extend(struct_literals::validate_struct_literal_fields(
                 program,
                 &mut diagnostics,
+                &mut formation_obligations,
             ));
         });
         // Record patterns in LET (owner spec 2026-07-18): the exhaustiveness
@@ -386,19 +421,28 @@ fn validate<'program>(
     phase_profile::scope("05.d.2.a.1a5d.recasts_wire_operators", || {
         recasts::validate_recasts(program, call_frames.as_ref(), &mut diagnostics);
         wire::validate_wire_schemas(program, &symbols, &mut diagnostics);
-        operators::validate_operator_declarations(program, &symbols, &mut diagnostics);
+        operators::validate_operator_declarations(
+            program,
+            &symbols,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
     });
     let mut static_machine_selections =
-        machine_parameters::ValidatedStaticMachineSelections::default();
+        machine_parameters::PreparedStaticMachineSelections::default();
     let mut formed_static_machine_selections = Default::default();
     let formation_diagnostic_start = diagnostics.len();
     phase_profile::scope("05.d.2.a.1a6.static_machine_selections", || {
-        if let Err(mut errors) =
-            crate::static_arguments::validate_authored_static_arguments(program)
-        {
+        if let Err(mut errors) = crate::static_arguments::validate_authored_static_arguments(
+            program,
+            &mut formation_obligations,
+        ) {
             diagnostics.append(&mut errors);
         }
-        if let Err(mut errors) = crate::static_bindings::validate_static_machine_bindings(program) {
+        if let Err(mut errors) = crate::static_bindings::validate_static_machine_bindings(
+            program,
+            &mut formation_obligations,
+        ) {
             diagnostics.append(&mut errors);
         }
         formed_static_machine_selections =
@@ -459,6 +503,7 @@ fn validate<'program>(
         let mut diagnostics = Vec::new();
         let mut proven_machine_contract = None;
         let mut arithmetic_decisions = arithmetic_domains::ArithmeticDecisions::default();
+        let mut formation_obligations = Vec::new();
         let mut stored_integer_writes = Vec::new();
         let mut boundary_operator_applications = Vec::new();
         let mut self_call_descents = Vec::new();
@@ -485,13 +530,26 @@ fn validate<'program>(
         let machine_diagnostic_mark = diagnostics.len();
         let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
 
-        validate_owned_data(program, machine, &symbols, &mut diagnostics);
-        validate_generic_conformance_bounds(program, machine, &symbols, &mut diagnostics);
+        validate_owned_data(
+            program,
+            machine,
+            &symbols,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
+        validate_generic_conformance_bounds(
+            program,
+            machine,
+            &symbols,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
         validate_machine_contracts(program, machine, &mut diagnostics);
         arithmetic_domains::validate_machine_total_specification_arithmetic(
             program,
             machine,
             &mut diagnostics,
+            &mut formation_obligations,
         );
         // Pristine templates remain in the frozen roster. Judge their declared
         // abstract envelope here, alongside concrete bodies; preparation cannot
@@ -550,6 +608,7 @@ fn validate<'program>(
                 machine,
                 &symbols,
                 &mut diagnostics,
+                &mut formation_obligations,
             );
         }
 
@@ -607,49 +666,15 @@ fn validate<'program>(
         let is_proof_machine = proof_only.is_proof_machine(program, machine);
         let _states_guard = phase_profile::guard("05.d.2.a.2b.state_statements");
         for (state_index, state) in program.machine_states(machine).iter().enumerate() {
-            crate::value_custody::reference_local_establishment::validate(
-                program,
-                machine,
-                state,
-                &mut diagnostics,
-            );
-            // A state that DECLARES a return type but has an EMPTY body can
-            // never produce the value -- callers would silently bind 0 (ZII),
-            // and native/interp diverge on what that zero reads as. GENERIC
-            // machines are exempt: the core/std container surface (`machine
-            // Vec::as_slice<T>(&self) -> &[T] { }`) is deliberately
-            // type-check-only, and value calls to generics are already fenced
-            // (fence_generic_value_callee).
-            if state.return_type.is_valid()
-                && program.machine_type_parameters(machine).is_empty()
-                // A SPECIALIZED generic keeps its declaration symbol while
-                // MP4 substitution consumes its type parameters in place --
-                // it inherits the generic exemption (the core container
-                // surface is type-check-only; value calls stay fenced). The
-                // exemption follows the specialization either way: the first
-                // instance may reuse the template symbol, later instances are
-                // fresh clones.
-                && !program.machine_specializations.iter().any(|specialization| {
-                    specialization.template == machine.symbol
-                        || specialization.instance == machine.symbol
-                })
-                // A signature-only callable declares a result contract, not
-                // an empty executable body. Requirement and external supply
-                // obey the same body-presence rule as boundary declarations.
-                && machine.supplies_checked_body()
-                && program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .is_empty()
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` state `{}` declares a return type but its body is \
-                     empty -- it can never produce the value (callers would silently \
-                     bind 0). Return a value or drop the `-> T`.",
-                    machine.name,
-                    state.name.as_str(),
-                )));
-            }
+            phase_profile::scope("05.d.2.a.2b.0a.ref_local_est", || {
+                crate::value_custody::reference_local_establishment::validate(
+                    program,
+                    machine,
+                    state,
+                    &mut diagnostics,
+                );
+            });
+            completion_results::validate(program, machine, state, &mut diagnostics);
             validate_local_data_names(
                 program.statement_table.statements(state.statement_nodes),
                 &machine_symbols,
@@ -665,28 +690,31 @@ fn validate<'program>(
             // machine's `requires` bounds on its parameters (`requires amount <=
             // 100`), so bounded param arithmetic stays exact. Statements are
             // validated in order so the environment is current at each use.
-            let mut value_environment = if state_index == 0 {
-                arithmetic_domains::requires_value_environment(program, machine, state)
-            } else {
-                // A non-entry state may assume the facts established by every
-                // incoming guarded transition. Multiple predecessors join at
-                // their common facts and widest admitted interval; call,
-                // continuation, and self-loop entries remain conservative
-                // fences.
-                incoming_environments
-                    .get_or_insert_with(|| {
-                        arithmetic_domains::incoming_guard_environments(
-                            program,
-                            machine,
-                            call_frames.as_ref(),
-                        )
-                    })
-                    .iter()
-                    .find_map(|(symbol, environment)| {
-                        (*symbol == state.symbol).then(|| environment.clone())
-                    })
-                    .unwrap_or_default()
-            };
+            let mut value_environment =
+                phase_profile::scope("05.d.2.a.2b.0b.value_env_init", || {
+                    if state_index == 0 {
+                        arithmetic_domains::requires_value_environment(program, machine, state)
+                    } else {
+                        // A non-entry state may assume the facts established by every
+                        // incoming guarded transition. Multiple predecessors join at
+                        // their common facts and widest admitted interval; call,
+                        // continuation, and self-loop entries remain conservative
+                        // fences.
+                        incoming_environments
+                            .get_or_insert_with(|| {
+                                arithmetic_domains::incoming_guard_environments(
+                                    program,
+                                    machine,
+                                    call_frames.as_ref(),
+                                )
+                            })
+                            .iter()
+                            .find_map(|(symbol, environment)| {
+                                (*symbol == state.symbol).then(|| environment.clone())
+                            })
+                            .unwrap_or_default()
+                    }
+                });
             // Value facts follow control edges, not source order. Still check
             // every authored statement: unreachable instructions are validated
             // separately with no predecessor facts and cannot affect the live
@@ -711,6 +739,8 @@ fn validate<'program>(
                 }
                 let statement_handle = state.statement_nodes.handle_at(statement_index as u32);
                 let statement = &statements[statement_index];
+                // Observations belong to this exact statement occurrence.
+                value_environment.clear_numeric_observations();
                 let statement_diagnostic_mark = diagnostics.len();
                 let writable_roots = WritableRoots {
                     program,
@@ -720,14 +750,43 @@ fn validate<'program>(
                         [..statement_index],
                     parameters: program.state_parameters(state),
                 };
-                let transition_values = transitions::TransitionValueEnvironments::collect(
-                    program,
-                    machine,
-                    state,
-                    statement,
-                    &value_environment,
-                    call_frames.as_ref(),
-                );
+                let transition_values =
+                    phase_profile::scope("05.d.2.a.2b.1.transition_values", || {
+                        transitions::TransitionValueEnvironments::collect(
+                            program,
+                            machine,
+                            state,
+                            statement,
+                            &value_environment,
+                            call_frames.as_ref(),
+                        )
+                    });
+                if let Some(local) = statement.as_local_data()
+                    && local.role == language_core::LocalBindingRole::Value
+                    && !local.type_is_inferred
+                    && !local.is_operand_capture
+                {
+                    statements::validate_local_type_reference(
+                        program,
+                        machine,
+                        Some(state),
+                        &state.name,
+                        local,
+                        &symbols,
+                        &value_environment,
+                        &mut diagnostics,
+                        &mut arithmetic_decisions.integer_range_obligations,
+                    );
+                }
+                phase_profile::scope("05.d.2.a.2b.2.prepare_numeric_observations", || {
+                    value_environment.prepare_numeric_observations(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        statement,
+                    );
+                });
                 // R5 value-call frame: conservatively apply the aggregate
                 // may-write set of every call nested in this statement before
                 // checking general value uses. Transition arguments retain
@@ -737,12 +796,14 @@ fn validate<'program>(
                 // call-free expression reports an empty frame; any unresolved
                 // call retires mutable-storage facts; copied immutable scalars
                 // retain their already established value snapshots.
-                let value_written = call_frames.as_ref().and_then(|frames| {
-                    frames.statement_value_may_write_paths_for_symbols(
-                        machine,
-                        &machine_symbols,
-                        statement,
-                    )
+                let value_written = phase_profile::scope("05.d.2.a.2b.3.value_call_frames", || {
+                    call_frames.as_ref().and_then(|frames| {
+                        frames.statement_value_may_write_paths_for_symbols(
+                            machine,
+                            &machine_symbols,
+                            statement,
+                        )
+                    })
                 });
                 // Conflicting top-level declarations can prevent creating a
                 // resolver at all. That does not give a call-free statement
@@ -767,18 +828,21 @@ fn validate<'program>(
                 // crossed every nested value-call frame above, so no argument can
                 // rely on a fact an earlier or opaque call may invalidate.
                 if !is_content_projection_machine {
-                    validate_value_position_calls(
-                        program,
-                        machine,
-                        state,
-                        statement,
-                        &symbols,
-                        &writable_roots,
-                        &value_environment,
-                        &transition_values,
-                        &mut boundary_operator_applications,
-                        &mut diagnostics,
-                    );
+                    phase_profile::scope("05.d.2.a.2b.4.value_position_calls", || {
+                        validate_value_position_calls(
+                            program,
+                            machine,
+                            state,
+                            statement,
+                            &symbols,
+                            &writable_roots,
+                            &value_environment,
+                            &transition_values,
+                            &mut boundary_operator_applications,
+                            &mut diagnostics,
+                            &mut formation_obligations,
+                        );
+                    });
                 }
                 // PROOF MACHINES (free machines over proof-only data) are
                 // exempt from the tail-only rule: they emit no runtime code,
@@ -805,48 +869,56 @@ fn validate<'program>(
                         &mut diagnostics,
                     );
                 }
-                let direct_written = match statement {
-                    StatementNode::Call(call) => call_frames
-                        .as_ref()
-                        .and_then(|frames| frames.may_write_paths(machine, call)),
-                    StatementNode::Assignment(_) => call_frames.as_ref().and_then(|frames| {
-                        frames
-                            .assignment_write_frame(machine, statement)
-                            .into_complete_paths()
-                    }),
-                    _ => None,
-                };
-                let local_write_origins = if matches!(statement, StatementNode::Assignment(_))
-                    && has_plan_laid_integer_fields
-                {
-                    call_frames.as_ref().and_then(|frames| {
-                        frames.local_write_origins_before_statement(machine, statement)
-                    })
-                } else {
-                    Some(Vec::new())
-                };
-                validate_state_statement_node(
-                    program,
-                    machine,
-                    &state.name,
-                    Some(state),
-                    &machine_symbols,
-                    &symbols,
-                    &writable_roots,
-                    statement_handle,
-                    statement_index,
-                    statement,
-                    &mut value_environment,
-                    &transition_values,
-                    direct_written,
-                    local_write_origins.as_deref(),
-                    call_frames.as_ref(),
-                    &mut arithmetic_decisions,
-                    &mut stored_integer_writes,
-                    &mut boundary_operator_applications,
-                    bound_lookup,
-                    &mut diagnostics,
-                );
+                let (direct_written, local_write_origins) =
+                    phase_profile::scope("05.d.2.a.2b.4b.direct_written", || {
+                        let direct_written = match statement {
+                            StatementNode::Call(call) => call_frames
+                                .as_ref()
+                                .and_then(|frames| frames.may_write_paths(machine, call)),
+                            StatementNode::Assignment(_) => {
+                                call_frames.as_ref().and_then(|frames| {
+                                    frames
+                                        .assignment_write_frame(machine, statement)
+                                        .into_complete_paths()
+                                })
+                            }
+                            _ => None,
+                        };
+                        let local_write_origins =
+                            if matches!(statement, StatementNode::Assignment(_))
+                                && has_plan_laid_integer_fields
+                            {
+                                call_frames.as_ref().and_then(|frames| {
+                                    frames.local_write_origins_before_statement(machine, statement)
+                                })
+                            } else {
+                                Some(Vec::new())
+                            };
+                        (direct_written, local_write_origins)
+                    });
+                phase_profile::scope("05.d.2.a.2b.5.validate_statement_node", || {
+                    validate_state_statement_node(
+                        program,
+                        machine,
+                        &state.name,
+                        Some(state),
+                        &symbols,
+                        &writable_roots,
+                        statement_handle,
+                        statement_index,
+                        statement,
+                        &mut value_environment,
+                        &transition_values,
+                        direct_written,
+                        local_write_origins.as_deref(),
+                        call_frames.as_ref(),
+                        &mut arithmetic_decisions,
+                        &mut stored_integer_writes,
+                        &mut boundary_operator_applications,
+                        bound_lookup,
+                        &mut diagnostics,
+                    );
+                });
                 // Statement-adjacent checks above this point mint only
                 // message text; the statement under validation owns the
                 // authored position every consumer attributes them to.
@@ -879,6 +951,7 @@ fn validate<'program>(
             proven_machine_contract,
             captured_entailment,
             arithmetic_decisions,
+            formation_obligations,
             stored_integer_writes,
             boundary_operator_applications,
             self_call_descents,
@@ -908,7 +981,8 @@ fn validate<'program>(
         {
             proven_machine_contracts.push((symbol, judged));
         }
-        arithmetic_decisions.append(machine.arithmetic_decisions);
+        arithmetic_decisions.extend(machine.arithmetic_decisions);
+        formation_obligations.extend(machine.formation_obligations);
         stored_integer_writes.extend(machine.stored_integer_writes);
         // A site validated twice keeps its first application and reports an
         // inconsistent second one, exactly as one shared roster did.
@@ -926,12 +1000,14 @@ fn validate<'program>(
     let _post_machine_guard = phase_profile::guard("05.d.2.a.3.post_machine_validators");
 
     let arithmetic_domains::ArithmeticDecisions {
-        integer_range_obligations,
+        mut integer_range_obligations,
         mut exact_integer_casts,
         mut integer_assignments,
         mut decided_formations,
+        mut trapping_decisions,
         expression_values: walked_intervals,
     } = arithmetic_decisions;
+    integer_range_obligations.extend(formation_obligations);
     let mut expression_intervals = Vec::<ExpressionInterval>::new();
     let mut walked_intervals = walked_intervals;
     walked_intervals
@@ -969,6 +1045,21 @@ fn validate<'program>(
     literals::validate_anonymous_bitwise(program, &mut anonymous_bitwise);
     finish_diagnostics(anonymous_bitwise)?;
     finish_diagnostics(literals::anonymous_integer_landing_warnings(program))?;
+    // A static occurrence may be observed by more than one clean walk. Only
+    // their conjunction discharges its runtime trap predicate.
+    trapping_decisions
+        .sort_by_key(|(expression, _)| checked_trees::operators::handle_position(*expression));
+    let mut trapping_verdicts = Vec::<(ExpressionHandle, bool)>::new();
+    for (expression, proven) in trapping_decisions {
+        match trapping_verdicts.last_mut() {
+            Some((previous, all_proven)) if *previous == expression => *all_proven &= proven,
+            _ => trapping_verdicts.push((expression, proven)),
+        }
+    }
+    let trap_free_expressions = trapping_verdicts
+        .into_iter()
+        .filter_map(|(expression, proven)| proven.then_some(expression))
+        .collect();
     decided_formations
         .sort_by_key(|expression| checked_trees::operators::handle_position(*expression));
     decided_formations.dedup();
@@ -1010,6 +1101,7 @@ fn validate<'program>(
             boundary_operator_applications,
             exact_integer_casts,
             decided_formations,
+            trap_free_expressions,
             expression_intervals,
             float_meaning_projection_invocations,
             float_meaning_equality_propositions,
@@ -1038,6 +1130,22 @@ pub(crate) fn finish_diagnostics(diagnostics: Vec<Diagnostic>) -> Result<(), Vec
     Ok(())
 }
 
+/// Refusal on any diagnostic: the batch tail for a validator whose every
+/// emitted diagnostic refuses the program. `finish_diagnostics` is the
+/// policy that lets a warning-only batch pass and echo; a path that can
+/// produce both keeps its refusal and warning batches separate (`check_flow`
+/// collects `anonymous_integer_landing_warnings` only after the formation
+/// batch has already finished).
+pub(crate) fn finish_strict_diagnostics(
+    diagnostics: Vec<Diagnostic>,
+) -> Result<(), Vec<Diagnostic>> {
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
 /// Complete effect-sensitive source admission against the dependency graph
 /// retained by the caller's prepared-effect scope. Formation and source flow
 /// have already run; no source is reparsed or revalidated wholesale here.
@@ -1046,6 +1154,7 @@ pub fn admit_prepared_program_effects(
     operational: &flow_effects::OperationalPlan,
     facts: &mut ProgramValidationFacts,
 ) -> Result<(), Vec<Diagnostic>> {
+    let mut formation_obligations = Vec::new();
     let mut diagnostics = Vec::new();
     crate::value_custody::atomic_fences::validate_atomic_fence_declarations(
         program,
@@ -1053,7 +1162,13 @@ pub fn admit_prepared_program_effects(
     );
     let symbols = TopLevelSymbols::build(program, &mut diagnostics);
     let service_reaches = infer_service_reaches(program, operational);
-    validate_conformances(program, &service_reaches, &symbols, &mut diagnostics);
+    validate_conformances(
+        program,
+        &service_reaches,
+        &symbols,
+        &mut diagnostics,
+        &mut formation_obligations,
+    );
     if let Err(mut errors) = collect_dynamic_implementation_selections(program) {
         diagnostics.append(&mut errors);
     }
@@ -1073,6 +1188,7 @@ pub fn admit_prepared_program_effects(
             machine,
             &symbols,
             &mut diagnostics,
+            &mut formation_obligations,
         );
     }
     facts.integer_embedding_calls =
@@ -1094,6 +1210,9 @@ pub fn admit_prepared_program_effects(
         diagnostics.append(&mut errors);
     }
     validate_cleanup_normal_completion(program, operational, &mut diagnostics);
+    facts
+        .integer_range_obligations
+        .extend(formation_obligations);
     finish_diagnostics(diagnostics)
 }
 
@@ -1174,6 +1293,7 @@ struct MachineValidation {
     proven_machine_contract: Option<(symbols::SymbolHandle, ProvenContractExpressions)>,
     captured_entailment: Option<dependency_bodies::CapturedEntailment>,
     arithmetic_decisions: arithmetic_domains::ArithmeticDecisions,
+    formation_obligations: Vec<checked_trees::IntegerRangeObligation>,
     stored_integer_writes: Vec<checked_trees::CheckedStoredIntegerWrite>,
     boundary_operator_applications: Vec<ValidatedBoundaryOperatorApplication>,
     self_call_descents: Vec<crate::ValidatedSelfCallDescent>,

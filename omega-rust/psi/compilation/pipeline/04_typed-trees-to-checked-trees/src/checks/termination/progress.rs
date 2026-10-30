@@ -121,14 +121,11 @@ pub(crate) fn profile_requirement_covered(
         return false;
     };
     let stored = checked.semantic.places.get(handle);
-    let place = validation::CanonicalPlace {
-        root: stored.root,
-        segments: checked
-            .semantic
-            .place_segments
-            .span_or_empty(stored.segments)
-            .to_vec(),
-    };
+    let place = crate::checks::places::place_or_root_in(
+        &checked.semantic.place_segments,
+        stored.root,
+        stored.segments,
+    );
     let Some(machine) = program.machine_by_symbol(state.machine_symbol) else {
         return false;
     };
@@ -170,7 +167,7 @@ pub(crate) fn analyze_checked_progress(
     flow: &FlowFacts,
     semantic: &facts::FactPlan,
     cleanup_dependencies: &arena::Arena<flow_effects::CleanupDependency>,
-    proof_components: &[validation::ValidatedProofRecursiveComponent],
+    proof_components: &[validation::ValidatedProofCallComponent],
     self_call_descents: &[validation::ValidatedSelfCallDescent],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     rank_arrivals: &checked_trees::CheckedRankArrivalPlan,

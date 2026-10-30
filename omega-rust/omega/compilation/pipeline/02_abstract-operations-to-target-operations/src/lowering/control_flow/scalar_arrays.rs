@@ -1,6 +1,7 @@
 //! Ordered primitive-array construction retains each leaf in one aggregate home.
 //! Its semantic type remains an array; byte layout adds neither a record nor a tag.
 use super::RowSite;
+use super::aggregate_results::established_home;
 use crate::LoweringError;
 use abstract_operations::AbstractOperation;
 use calling_conventions::ValueShape;
@@ -20,7 +21,10 @@ pub(in crate::lowering) fn shape(
     let mut array = false;
     for _ in 0..types.len() {
         match types.get(&current).ok_or_else(invalid)?.shape {
-            StructuralTypeShape::FixedArray { element, length } => {
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
                 array = true;
                 empty |= length == 0;
                 count = count.and_then(|count| count.checked_mul(length));
@@ -73,14 +77,7 @@ pub(super) fn establish(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
-    if live
-        .structural_homes
-        .insert(result.place, result_home.clone())
-        .is_some()
-    {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
+    let result_home = established_home(live, *psi_operation, result, types, function.machine)?;
     operations.push(TargetUnitOperation::EstablishScalarArray {
         psi_operation: *psi_operation,
         result_home,

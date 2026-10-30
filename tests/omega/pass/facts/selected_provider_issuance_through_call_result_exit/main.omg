@@ -1,0 +1,134 @@
+// Expected exit: 0
+// Only an admitted selected InitialSupply call establishes fresh Count1 ownership, preserved with exact backing through submit/complete and release.
+// The initial account enters only through the selected admitted InitialSupply
+// invocation after its provider has obtained a successful fresh allocation.
+use omega::language::core::content;
+use omega::language::core::external_binding;
+
+public data ByteUnit {}
+public data Buffer [linear] { pointer: addr; }
+public domain Buffer::Owned
+established by InitialSupply::acquire, Writer::complete;
+public machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
+satisfies Content<Buffer, CountedQuantity<ByteUnit>>::project {
+    CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+public data PendingWrite [linear] { pointer: addr; }
+public domain PendingWrite::Retained established by Writer::submit;
+public machine Retained::content(pending: &PendingWrite) -> CountedQuantity<ByteUnit>
+satisfies Content<PendingWrite, CountedQuantity<ByteUnit>>::project {
+    CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+public boundary trait InitialSupply {
+    machine acquire() -> Buffer reaches NativeBytes crashes Trap
+    ensures result in Buffer::Owned, result.pointer != 0;
+}
+public boundary trait Writer {
+    machine submit(buffer: Buffer in Buffer::Owned) -> PendingWrite reaches
+    ensures result in PendingWrite::Retained,
+        result.pointer == buffer.pointer,
+        Owned::content(old(&buffer)) == Retained::content(&result);
+    machine complete(pending: PendingWrite in PendingWrite::Retained) -> Buffer reaches
+    ensures result in Buffer::Owned,
+        result.pointer == pending.pointer,
+        Retained::content(old(&pending)) == Owned::content(&result);
+}
+// This is the actual native supply/custody leaf. The raw allocation result
+// has no Owned qualification; a null result never becomes a normal grant.
+public boundary trait NativeBytes {
+    machine allocate(count: u64, width: u64) -> addr reaches;
+    machine release(buffer: Buffer in Buffer::Owned) reaches;
+}
+public data HostedBytes {}
+public macos_arm64 machine macos_arm64_allocate_binding() -> ForeignBinding<17, 7, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libSystem.B.dylib", symbol: "_calloc", } }
+}
+macos_arm64 boundary machine HostedBytes::allocate(count: u64, width: u64) -> addr
+satisfies NativeBytes::allocate via macos_arm64_allocate_binding();
+public macos_arm64 machine macos_arm64_release_binding() -> ForeignBinding<17, 5, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libSystem.B.dylib", symbol: "_free", } }
+}
+macos_arm64 boundary machine HostedBytes::release(buffer: Buffer in Buffer::Owned)
+satisfies NativeBytes::release via macos_arm64_release_binding();
+public linux_x86_64 machine linux_x86_64_allocate_binding() -> ForeignBinding<9, 6, 11> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "calloc", version: "GLIBC_2.2.5", } }
+}
+linux_x86_64 boundary machine HostedBytes::allocate(count: u64, width: u64) -> addr
+satisfies NativeBytes::allocate via linux_x86_64_allocate_binding();
+public linux_x86_64 machine linux_x86_64_release_binding() -> ForeignBinding<9, 4, 11> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "free", version: "GLIBC_2.2.5", } }
+}
+linux_x86_64 boundary machine HostedBytes::release(buffer: Buffer in Buffer::Owned)
+satisfies NativeBytes::release via linux_x86_64_release_binding();
+public linux_arm64 machine linux_arm64_allocate_binding() -> ForeignBinding<9, 6, 10> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "calloc", version: "GLIBC_2.17", } }
+}
+linux_arm64 boundary machine HostedBytes::allocate(count: u64, width: u64) -> addr
+satisfies NativeBytes::allocate via linux_arm64_allocate_binding();
+public linux_arm64 machine linux_arm64_release_binding() -> ForeignBinding<9, 4, 10> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "free", version: "GLIBC_2.17", } }
+}
+linux_arm64 boundary machine HostedBytes::release(buffer: Buffer in Buffer::Owned)
+satisfies NativeBytes::release via linux_arm64_release_binding();
+public windows_x86_64 machine windows_x86_64_allocate_binding() -> ForeignBinding<10, 6, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "msvcrt.dll", export: "calloc", } }
+}
+windows_x86_64 boundary machine HostedBytes::allocate(count: u64, width: u64) -> addr
+satisfies NativeBytes::allocate via windows_x86_64_allocate_binding();
+public windows_x86_64 machine windows_x86_64_release_binding() -> ForeignBinding<10, 4, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "msvcrt.dll", export: "free", } }
+}
+windows_x86_64 boundary machine HostedBytes::release(buffer: Buffer in Buffer::Owned)
+satisfies NativeBytes::release via windows_x86_64_release_binding();
+InitialSupplyProvider satisfies InitialSupply {
+    machine acquire() -> Buffer reaches NativeBytes crashes Trap
+    ensures result.pointer != 0; {
+        let pointer: addr = NativeBytes::allocate(1, 1);
+        transition pointer != 0 { true -> supplied(pointer) _ -> failed() }
+        machine supplied(pointer: addr) -> Buffer reaches
+        requires pointer != 0; ensures result.pointer == pointer; {
+            Buffer { pointer: pointer }
+        }
+        machine failed() -> Buffer reaches crashes Trap { crash Trap; }
+    }
+}
+WriterProvider satisfies Writer {
+    machine submit(buffer: Buffer in Buffer::Owned) -> PendingWrite reaches
+    ensures result.pointer == buffer.pointer,
+        Owned::content(old(&buffer)) == Retained::content(&result); {
+        let { pointer } = buffer;
+        PendingWrite { pointer: pointer }
+    }
+    machine complete(pending: PendingWrite in PendingWrite::Retained) -> Buffer reaches
+    ensures result.pointer == pending.pointer,
+        Retained::content(old(&pending)) == Owned::content(&result); {
+        let { pointer } = pending;
+        Buffer { pointer: pointer }
+    }
+}
+machine round_trip(buffer: Buffer in Buffer::Owned) -> Buffer
+reaches Writer
+ensures result in Buffer::Owned, result.pointer == buffer.pointer {
+    let pending: PendingWrite in PendingWrite::Retained = Writer::submit(buffer);
+    Writer::complete(pending)
+}
+machine deliver() -> Buffer in Buffer::Owned reaches InitialSupply + NativeBytes crashes Trap {
+    InitialSupply::acquire()
+}
+data Main {}
+machine Main::main(context: &mut Main) reaches InitialSupply + Writer + NativeBytes crashes Trap {
+    let buffer: Buffer in Buffer::Owned = deliver();
+    let original_pointer: addr = buffer.pointer;
+    let restored: Buffer in Buffer::Owned = round_trip(buffer);
+    let same_backing: bool = restored.pointer == original_pointer;
+    NativeBytes::release(restored);
+    transition same_backing { true -> done() _ -> failed() }
+    machine done() reaches {}
+    machine failed() reaches crashes Trap { crash Trap; }
+}
+
+// The hosted entry owns its ordinary application storage.
+machine entry_start() reaches InitialSupply + Writer + NativeBytes crashes Trap {
+    let mut application: Main = Main {};
+    Main::main(&mut application);
+}

@@ -11,7 +11,7 @@ use terminal_psi::CrashCause;
 /// The normal result of terminal-Psi execution.
 ///
 /// Unit is a successful absence of a value, not a distinguished scalar.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum TerminalExecutionResult {
     Unit,
     Scalar(TerminalScalarValue),
@@ -21,20 +21,23 @@ pub enum TerminalExecutionResult {
 }
 
 /// A structural value returned with the exact live claims transferred into it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalStructuralResult {
     pub value: TerminalStructuralValue,
     pub claims: Vec<ClaimId>,
 }
 
 /// A returned selected case whose primitive payload carries no structural claims.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalScalarCaseResult {
     storage: std::sync::Arc<ScalarCaseStorage>,
 }
 
+#[derive(compiler_storage::Record)]
 struct ScalarCaseStorage {
     value: TerminalScalarAggregateValue,
+    // A stored receipt retains value/usage, never a prior invocation reservation.
+    #[record(skip)]
     _lease: Option<evaluation_accounting::EvaluationStorageLease>,
 }
 
@@ -64,7 +67,7 @@ impl TerminalScalarCaseResult {
         let mut payload = Vec::new();
         let requested_bytes = count
             .checked_mul(std::mem::size_of::<(
-                semantic_vocabulary::StructuralFieldId,
+                Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
                 TerminalScalarValue,
             )>())
             .ok_or_else(crate::errors::malformed)?;
@@ -76,7 +79,13 @@ impl TerminalScalarCaseResult {
         })?;
         let mut fields = fields.into_iter();
         for _ in 0..count {
-            payload.push(fields.next().ok_or_else(crate::errors::malformed)??);
+            let (field, scalar) = fields.next().ok_or_else(crate::errors::malformed)??;
+            payload.push((
+                vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                    field,
+                )],
+                scalar,
+            ));
         }
         if fields.next().is_some() {
             return Err(crate::errors::malformed());
@@ -86,7 +95,7 @@ impl TerminalScalarCaseResult {
             result_case: Some(case),
             fields: payload,
         };
-        value.validate_against(declaration)?;
+        value.validate_against(declaration, |_| None)?;
         Ok(Self {
             storage: std::sync::Arc::new(ScalarCaseStorage {
                 value,
@@ -123,8 +132,25 @@ pub(crate) fn meter_status(
 pub enum TerminalExecutionStatus {
     Complete(TerminalExecutionResult),
     SponsorExhausted(FuelExhaustion),
+    /// The checked call retains its operands and loans; no completion or
+    /// writeback has occurred. Readiness is independent of scheduling fuel.
+    AwaitingEffect(TerminalEffectWait),
+    /// Executor-local pause for a synchronous host result, not a guest task
+    /// suspension or permission to release the invocation's live storage.
+    HostComputationPending(TerminalEffectWait),
     Crashed(TerminalCrash),
     ExternalCompletion(TerminalExternalCompletion),
+}
+
+/// Exact code-local wait site. The caller retains the owning instance; a site
+/// is an observation, not authority to install a provider or complete a call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalEffectWait {
+    pub program: terminal_psi::TerminalPsiIdentity,
+    pub machine: MachineId,
+    pub block: BlockId,
+    pub operation: OperationId,
+    pub boundary: BoundaryMachineId,
 }
 
 /// Domain-ending abandonment, not a normal value or discharge receipt.

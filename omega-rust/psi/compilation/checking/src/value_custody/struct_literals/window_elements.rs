@@ -90,6 +90,7 @@ pub(crate) fn validate_array_window_elements<'p>(
         Option<crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'p>>,
     ),
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     if program
         .expression_table
@@ -142,6 +143,7 @@ pub(crate) fn validate_array_window_elements<'p>(
                 element_type,
                 length,
                 diagnostics,
+                formation_obligations,
             );
             continue;
         }

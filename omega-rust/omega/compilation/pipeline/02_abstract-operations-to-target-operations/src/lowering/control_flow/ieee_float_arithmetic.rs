@@ -11,6 +11,7 @@
 
 use super::RowSite;
 use crate::LoweringError;
+use crate::lowering::unit::known_integers::insert_scalar_home;
 use abstract_operations::{AbstractBoundaryResult, AbstractOperation};
 use semantic_vocabulary::BoundaryMachineId;
 use std::collections::BTreeMap;
@@ -152,19 +153,7 @@ pub(super) fn lower(
     // An integer result joins the known integers, as every other integer
     // result home does, so integer comparisons and stores observe it; an
     // IEEE result stays an ordinary scalar home.
-    if matches!(scalar, semantic_vocabulary::ScalarType::Integer(_)) {
-        crate::lowering::unit::known_integers::insert_known_unit_integer(
-            &mut live.integers,
-            result.value,
-            crate::lowering::unit::known_integers::KnownUnitInteger::Home(result_home),
-        )?;
-    } else if live
-        .scalar_homes
-        .insert(result.value, result_home)
-        .is_some()
-    {
-        return Err(LoweringError::DuplicateValue(result.value));
-    }
+    insert_scalar_home(&mut live.integers, &mut live.scalar_homes, result_home)?;
     provenance.operations.push(*psi_operation);
     operations.push(TargetUnitOperation::NearestIeeeFloatArithmetic {
         psi_operation: *psi_operation,

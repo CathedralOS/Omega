@@ -33,7 +33,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> after_first(main)
     }
 
-    state after_first(main: &mut Main) {
+    machine after_first(main: &mut Main) {
         // Case change WITHOUT naming `consumed`: construction zeroes it.
         main.event = RoomEvent::Enemy { strength: 15 };
         transition main.event.consumed {
@@ -42,7 +42,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state write_common(main: &mut Main) {
+    machine write_common(main: &mut Main) {
         // Common-field WRITE without case knowledge; the case part survives.
         main.event.bonus = 70;
         transition main.event {
@@ -52,7 +52,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state finish(main: &mut Main, strength: i32) {
+    machine finish(main: &mut Main, strength: i32) {
         // The payload binding must read back the constructed strength; the
         // exit code is the common field written without case knowledge.
         transition strength {
@@ -61,11 +61,11 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state read_back(main: &mut Main) {
+    machine read_back(main: &mut Main) {
         Console::exit_process(main.event.bonus);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

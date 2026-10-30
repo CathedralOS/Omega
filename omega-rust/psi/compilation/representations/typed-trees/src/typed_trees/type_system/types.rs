@@ -8,6 +8,7 @@ use crate::name::Identifier;
 use crate::typed_trees::remapped;
 
 mod copies;
+pub use copies::TypeExpressionCopy;
 mod display;
 mod substitution;
 
@@ -17,7 +18,7 @@ pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
 /// extent. This is initializer/selection custody, not runtime constant storage.
 /// It is independent of public exposure: generated type copies need the same
 /// dependency without inventing another authored visibility occurrence.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypeConstantOrigin {
     pub declaration: SymbolHandle,
     pub reference: source::SourceSpan,
@@ -27,7 +28,7 @@ pub struct TypeConstantOrigin {
 /// its instance and original binder, not whichever caller created it first.
 /// Per-call result elaboration preserves the supplied operand's origin.
 /// This is derivation data; it grants no declaration-selection authority.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum TypeOperandOrigin {
     #[default]
     Lexical,
@@ -37,7 +38,7 @@ pub enum TypeOperandOrigin {
     },
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypeReferenceTable {
     type_references: Arena<TypeReferenceNode>,
     type_reference_handles: Arena<TypeReferenceHandle>,
@@ -290,34 +291,13 @@ impl TypeReferenceTable {
         self.type_reference_handles.insert_many(type_references)
     }
 
-    pub fn reserve_type_reference_handles(
-        &mut self,
-        count: u32,
-    ) -> HandleSpan<TypeReferenceHandle> {
-        self.type_reference_handles.insert_many(
-            std::iter::repeat_with(TypeReferenceHandle::invalid)
-                .take(usize::try_from(count).expect("type reference handle span count overflow")),
-        )
-    }
-
-    pub fn set_type_reference_handle_at_offset(
-        &mut self,
-        type_references: HandleSpan<TypeReferenceHandle>,
-        offset: u32,
-        type_reference: TypeReferenceHandle,
-    ) {
-        *self
-            .type_reference_handles
-            .get_mut(type_references.handle_at(offset)) = type_reference;
-    }
-
-    pub fn push_type_reference_handle(
-        &mut self,
-        span: &mut HandleSpan<TypeReferenceHandle>,
-        type_reference: TypeReferenceHandle,
-    ) {
-        self.type_reference_handles
-            .append_to_span(span, type_reference);
+    // One entry per span column: the arena and its row type, the reserve
+    // (with its overflow message), the patch and the append.
+    crate::typed_trees::span_columns! {
+        type_reference_handles(TypeReferenceHandle)
+            reserve reserve_type_reference_handles("type reference handle span count overflow")
+            set set_type_reference_handle_at_offset
+            push push_type_reference_handle;
     }
 
     pub fn insert_constraints(
@@ -472,6 +452,16 @@ impl TypeReferenceTable {
         self.type_references.iter()
     }
 
+    /// Live type nodes with `handle.arena_index() as usize >= start_arena_index`.
+    pub fn references_from(
+        &self,
+        start_arena_index: usize,
+    ) -> impl Iterator<Item = (TypeReferenceHandle, &TypeReferenceNode)> + '_ {
+        self.type_references
+            .iter_from(start_arena_index.saturating_sub(1))
+            .filter(move |(handle, _)| handle.arena_index() as usize >= start_arena_index)
+    }
+
     /// Every NAMED type reference in the table, as `(handle, symbol)` pairs.
     /// The machine-monomorphization pass scans these for generic type-parameter
     /// references to substitute before checking/layout (a type parameter's
@@ -482,6 +472,17 @@ impl TypeReferenceTable {
     ) -> impl Iterator<Item = (TypeReferenceHandle, SymbolHandle, &str)> + '_ {
         self.type_references
             .iter()
+            .filter_map(|(handle, node)| match node {
+                TypeReferenceNode::Named { symbol, name } => Some((handle, *symbol, name.as_str())),
+                _ => None,
+            })
+    }
+
+    pub fn named_references_from(
+        &self,
+        start_arena_index: usize,
+    ) -> impl Iterator<Item = (TypeReferenceHandle, SymbolHandle, &str)> + '_ {
+        self.references_from(start_arena_index)
             .filter_map(|(handle, node)| match node {
                 TypeReferenceNode::Named { symbol, name } => Some((handle, *symbol, name.as_str())),
                 _ => None,
@@ -634,6 +635,16 @@ impl TypeReferenceTable {
         &self,
     ) -> impl Iterator<Item = (TypeReferenceHandle, &TypeReferenceNode)> + '_ {
         self.type_references.iter()
+    }
+
+    /// Rows appended since a saved `type_reference_count`. Type preparation
+    /// only appends references, so each producer can finalize its own suffix
+    /// before a parent consumes it without revisiting earlier type graphs.
+    pub fn type_reference_rows_from(
+        &self,
+        start: usize,
+    ) -> impl Iterator<Item = (TypeReferenceHandle, &TypeReferenceNode)> + '_ {
+        self.type_references.iter_from(start)
     }
 
     pub fn retain_collection_result_types(
@@ -863,12 +874,7 @@ impl TypeReferenceTable {
             TypeReferenceNode::Reference { referee, .. } => self.named_type(*referee),
             TypeReferenceNode::Constrained { base_type, .. } => self.named_type(*base_type),
             TypeReferenceNode::Named { name, .. } => Some(name),
-            TypeReferenceNode::FixedArray { .. }
-            | TypeReferenceNode::Slice { .. }
-            | TypeReferenceNode::Generic { .. }
-            | TypeReferenceNode::ConstExpression(_)
-            | TypeReferenceNode::DynamicTrait { .. }
-            | TypeReferenceNode::Unit => None,
+            _ => None,
         }
     }
 
@@ -916,7 +922,7 @@ impl Default for TypeReferenceTable {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum TypeReferenceNode {
     Reference {
         referee: TypeReferenceHandle,
@@ -984,7 +990,7 @@ macro_rules! constrained_type_reference_pair {
     };
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum FixedArrayLength {
     Literal(usize),
     /// Exact symbolic constant-position use, pending owned evaluation.
@@ -1105,7 +1111,7 @@ impl TypeReferenceNode {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum TypeConstraintNode {
     Named(Identifier),
     Range {
@@ -1126,7 +1132,7 @@ pub enum TypeConstraintNode {
 /// meaning must travel through this enum rather than an invalid symbol paired
 /// with a significant string. A symbol-backed package declaration always
 /// remains `Declared`, regardless of its diagnostic spelling.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum DomainConstraintSubject {
     #[default]
     Declared,
@@ -1141,7 +1147,7 @@ pub enum DomainConstraintSubject {
 ///
 /// The canonical one-argument surface selects `Derived`. Explicit grammar
 /// arguments remain unclassified until the language implements them.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum OmegaLayoutGrammar {
     Derived,
 }
@@ -1158,7 +1164,7 @@ impl OmegaLayoutGrammar {
 /// diagnostics-only; `subject` retains compiler-owned meaning, while a valid
 /// symbol marks a declared, carrier-compatible domain resolved after all typed
 /// roots exist.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct DomainConstraint {
     pub name: Identifier,
     /// Closed canonical const atoms, or a direct const-binder leaf while a
@@ -1169,7 +1175,7 @@ pub struct DomainConstraint {
     pub symbol: SymbolHandle,
     pub semantic_id: language_semantics::SemanticDomainId,
     pub classification: Option<language_semantics::DomainClassification>,
-    pub predicate_body: language_semantics::DomainPredicateBody,
+    pub predicate_presence: language_semantics::DomainPredicatePresence,
     pub semantic_roles: language_semantics::DomainSemanticRoles,
     pub establishment_routes: Vec<language_semantics::DomainEstablishmentRoute>,
     /// Temporary source custody retained only until carrier-aware domain
@@ -1178,7 +1184,7 @@ pub struct DomainConstraint {
     pub authored_selection: Option<AuthoredDomainConstraintSelection>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct AuthoredDomainConstraintSelection {
     pub source_span: source::SourceSpan,
     pub exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
@@ -1225,7 +1231,7 @@ impl Default for TypeConstraintNode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum PrimitiveType {
     Bool,
     F32,
@@ -1729,5 +1735,35 @@ mod tests {
             },
         });
         assert!(table.instantiate(array, &[(binder, element)]).is_err());
+    }
+}
+
+// This lookup is derived from the restored type rows, not a durable identity.
+impl compiler_storage::Record for NamedRowIndex {
+    fn write(
+        &self,
+        _: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        Ok(())
+    }
+    fn read<Context>(
+        _: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        Ok(Self::default())
+    }
+}
+
+// This lookup is derived from the restored type rows, not a durable identity.
+impl compiler_storage::Record for ArithmeticRowIndex {
+    fn write(
+        &self,
+        _: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        Ok(())
+    }
+    fn read<Context>(
+        _: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        Ok(Self::default())
     }
 }

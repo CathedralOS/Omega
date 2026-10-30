@@ -38,6 +38,16 @@ pub(super) fn check_storage_move<'program>(
         segments: resolved.place.segments,
     };
     for loan_handle in active_loans {
+        if super::selected_retirement::before_evaluation(
+            program,
+            facts,
+            state,
+            statement.statement_index,
+            event.evaluation,
+            loan_handle,
+        ) {
+            continue;
+        }
         let loan = facts.borrow.loans.get(loan_handle);
         // Only the retained exclusive access chain supplies authority for
         // moving through a borrow. Its children and unrelated overlapping
@@ -110,6 +120,7 @@ pub(super) fn owned_storage_source(
         Some(ResolvedAlias {
             place: checked_trees::CapturedPlace {
                 incoming_reference: Default::default(),
+                incoming_owner_path: Default::default(),
                 root: facts::PlaceRoot::Symbol(root),
                 segments: Vec::new(),
             },

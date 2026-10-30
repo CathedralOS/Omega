@@ -5,10 +5,10 @@
 // Expected diagnostic: builtin `==` cannot combine `f64` and `f32`
 machine main() crashes Trap {
     transition { _ -> compare(212.0, 2.0) }
-    state compare(left: f64, right: f32) {
+    machine compare(left: f64, right: f32) {
         let equal: bool = left == right;
         transition equal { true -> bad() _ -> done() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

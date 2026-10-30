@@ -28,8 +28,8 @@ invokes Console;
         true -> good()
         false -> bad()
     }
-    state good() { Console::exit_process(0); }
-    state bad() { Console::exit_process(1); }
+    machine good() { Console::exit_process(0); }
+    machine bad() { Console::exit_process(1); }
 }
 
 linux_x86_64 machine RawMeasureDefaults::provider_defaults(defaults: &mut RawMeasureDefaults) {

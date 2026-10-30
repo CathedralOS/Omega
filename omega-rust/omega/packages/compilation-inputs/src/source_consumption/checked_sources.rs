@@ -4,7 +4,7 @@ use super::{
     PackageCompilationSubject, PackageSourceConsumptionCommitment,
     derive_package_compilation_subject, toolchain_source_identities,
 };
-use crate::{PackageCompilationInputs, PackageGeneratedSourceBundle};
+use crate::{PackageBuildHandoff, PackageCompilationInputs};
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 
@@ -34,19 +34,19 @@ impl BuildSourceCustody {
     /// continuation. This establishes source and staged-output custody only;
     /// it does not claim the dependency's product has passed final checking.
     /// Consumers still check these bytes in their own product or Build scope.
-    pub fn package_generated_source_bundle(
+    pub fn package_build_handoff(
         &self,
         program: &typed_trees::TypedTrees,
         inputs: &PackageCompilationInputs,
         target: target::TargetProfile,
         own_generated_sources: Vec<build_output::PackageGeneratedSource>,
-    ) -> Result<PackageGeneratedSourceBundle, Vec<Diagnostic>> {
+    ) -> Result<PackageBuildHandoff, Vec<Diagnostic>> {
         let subject = derive_package_compilation_subject(
             program.symbols.source_files(),
             inputs,
             &self.generated_source_custody,
         )?;
-        Ok(PackageGeneratedSourceBundle::from_source_consumption(
+        Ok(PackageBuildHandoff::from_source_consumption(
             subject.root(),
             inputs.compilation_purpose(),
             target,
@@ -66,6 +66,7 @@ impl BuildSourceCustody {
         base_sources: &std::sync::Arc<source::SourceMap>,
         package_inputs: Option<&'inputs PackageCompilationInputs>,
         generated_sources: &[build_output::PackageGeneratedSource],
+        catalogue: &mut source::SourceCatalogue,
     ) -> Result<
         Option<(
             crate::source_imports::GeneratedSourceExtension,
@@ -89,6 +90,7 @@ impl BuildSourceCustody {
             package_root,
             Some(package_inputs.root()),
             generated_sources,
+            catalogue,
         )?;
         let source_file_count = self
             .source_file_count
@@ -185,18 +187,18 @@ impl CheckedSourceCustody {
     /// subject but must not be re-exported as this package's generated output.
     /// The caller supplies the evaluated Build's own source roster and selected
     /// product target, which remain distinct from its build execution profile.
-    pub fn package_generated_source_bundle(
+    pub fn package_build_handoff(
         &self,
         selected_target: Option<target::TargetProfile>,
         own_generated_sources: Vec<build_output::PackageGeneratedSource>,
-    ) -> Result<PackageGeneratedSourceBundle, &'static str> {
+    ) -> Result<PackageBuildHandoff, &'static str> {
         let subject = self
             .package_subject
             .as_ref()
             .ok_or("generated-source bundles require package-aware compilation")?;
         let target =
             selected_target.ok_or("generated-source bundles require one selected target")?;
-        Ok(PackageGeneratedSourceBundle::from_checked(
+        Ok(PackageBuildHandoff::from_checked(
             subject.root(),
             self.package_purpose
                 .ok_or("generated-source bundles require a checked package purpose")?,

@@ -495,6 +495,7 @@ fn insert_every_node_kind(table: &mut ExpressionTable) -> super::ExpressionHandl
     );
     let arguments = table.insert_expression_handles([array, cast]);
     let call = table.insert(ExpressionNode::Call(TableCallExpression {
+        authored_call_binding: None,
         receiver,
         target_symbol: SymbolHandle::from_arena_index(7),
         target: DiagnosticName::generated("measure"),
@@ -650,7 +651,7 @@ expression #31 = ArrayLiteral(#7+2) at 0:0..0 exposure None partition None occur
 expression #32 = Boolean(true) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #33 = Unary(TableUnaryExpression { operator: LogicalNot, operand: #32 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #34 = Cast(TableCastExpression { value: #33, target_type: #5, target_label: #11+1, domain: Exact, semantic_domain: #12+1, semantic_domain_arguments: #0@0+0, semantic_domain_symbol: #6, form: Value }) at 7:40..45 exposure None partition Some(CompilerDerivedSelectionPartition(9)) occurrences #0@0+0
-expression #35 = Call(TableCallExpression { receiver: #28, target_symbol: #7, target: "measure", requirement_application: #0@0, machine_arguments: [], arguments: #5+2, evidence_arguments: ["witness"], operational_acknowledgement: CallOperationalAcknowledgement { origin: Source, acknowledges_suspend: false, acknowledges_block: false } }) at 7:30..35 exposure Some(PublicInterface) partition None occurrences #6+2
+expression #35 = Call(TableCallExpression { authored_call_binding: None, receiver: #28, target_symbol: #7, target: "measure", requirement_application: #0@0, machine_arguments: [], arguments: #5+2, evidence_arguments: ["witness"], operational_acknowledgement: CallOperationalAcknowledgement { origin: Source, acknowledges_suspend: false, acknowledges_block: false } }) at 7:30..35 exposure Some(PublicInterface) partition None occurrences #6+2
 expression #36 = Integer(IntegerLiteral { text: "0", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #37 = Range(TableRangeExpression { start: #36, end: #0@0, end_inclusive: false }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #38 = String([72, 97, 108, 108]) at 0:0..0 exposure None partition None occurrences #0@0+0
@@ -669,7 +670,7 @@ expression #50 = Atomic(TableAtomicExpression { value: #48, result: #49, orderin
 expression #51 = UndeterminedNaN(F32) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #52 = Membership(TableMembershipExpression { value: #51, domain: #16+1, domain_symbol: #14, case_type_symbol: #0@0, case_symbol: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #53 = ZeroValue(#13) at 0:0..0 exposure None partition None occurrences #0@0+0
-expression #54 = Match(TableMatchExpression { subject: #35, arms: #4+3 }) at 7:20..25 exposure None partition Some(CompilerDerivedSelectionPartition(4)) occurrences #8+1
+expression #54 = Match(TableMatchExpression { subject: #35, capture: #0@0, arms: #4+3 }) at 7:20..25 exposure None partition Some(CompilerDerivedSelectionPartition(4)) occurrences #8+1
 occurrence #5 = AuthoredDeclarationSelectionOccurrenceId(0)
 occurrence #6 = AuthoredDeclarationSelectionOccurrenceId(1)
 occurrence #7 = AuthoredDeclarationSelectionOccurrenceId(0)

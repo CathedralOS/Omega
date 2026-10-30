@@ -4,6 +4,7 @@
 mod tests;
 
 use super::{Error, host};
+use crate::order::strictly_increasing;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use machine_code::{
     FunctionFragment, FunctionFragmentBranchEvidence, FunctionFragmentControlProvenance as Control,
@@ -38,6 +39,64 @@ fn implementation_successor(
     }
 }
 
+fn build_ordinal_index(
+    source: &AbstractFunction,
+) -> std::collections::BTreeMap<SemanticCodeSite, Option<usize>> {
+    let mut index = std::collections::BTreeMap::new();
+    let mut record = |site: SemanticCodeSite, ordinal: usize| {
+        index
+            .entry(site)
+            .and_modify(|existing| *existing = None)
+            .or_insert(Some(ordinal));
+    };
+    for (ordinal, operation) in source.operations.iter().enumerate() {
+        if let Some(psi_operation) = operation.psi_operation() {
+            record(SemanticCodeSite::Operation(psi_operation), ordinal);
+        } else {
+            match operation {
+                abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
+                | AbstractOperation::InvokeNoNormal { psi_edge, .. }
+                | AbstractOperation::ExternalCompletion { psi_edge, .. }
+                | AbstractOperation::Crash { psi_edge, .. }
+                | AbstractOperation::ReturnStructural { psi_edge, .. }
+                | AbstractOperation::Jump { psi_edge, .. } => {
+                    record(SemanticCodeSite::Edge(*psi_edge), ordinal);
+                }
+                AbstractOperation::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => {
+                    record(SemanticCodeSite::Edge(when_true.psi_edge), ordinal);
+                    if when_false.psi_edge != when_true.psi_edge {
+                        record(SemanticCodeSite::Edge(when_false.psi_edge), ordinal);
+                    }
+                }
+                AbstractOperation::StructuralCase { cases, .. } => {
+                    let mut seen = Vec::new();
+                    for case in cases {
+                        if !seen.contains(&case.psi_edge) {
+                            seen.push(case.psi_edge);
+                            record(SemanticCodeSite::Edge(case.psi_edge), ordinal);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    index
+}
+
+fn lookup_ordinal(
+    index: &std::collections::BTreeMap<SemanticCodeSite, Option<usize>>,
+    site: SemanticCodeSite,
+) -> Result<usize, Error> {
+    index.get(&site).copied().flatten().ok_or(Error::Mismatch(
+        "fragment semantic site has no unique authored ordinal",
+    ))
+}
+
 pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Result<usize, Error> {
     let mut matches = source
         .operations
@@ -50,6 +109,7 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
             } else {
                 match operation {
                     abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
+                    | AbstractOperation::InvokeNoNormal { psi_edge, .. }
                     | AbstractOperation::ExternalCompletion { psi_edge, .. }
                     | AbstractOperation::Crash { psi_edge, .. }
                     | AbstractOperation::ReturnStructural { psi_edge, .. }
@@ -84,6 +144,7 @@ pub(super) fn produce(
     fragment: &FunctionFragment,
     source: &AbstractFunction,
 ) -> Result<Vec<SemanticCodeAttribution>, Error> {
+    let ordinals = build_ordinal_index(source);
     let mut rows = Vec::new();
     for instruction in fragment.instructions() {
         let offset = host(instruction.offset)?;
@@ -91,7 +152,7 @@ pub(super) fn produce(
         let mut push = |site, code_offset, byte_count| -> Result<(), Error> {
             rows.push(SemanticCodeAttribution {
                 site,
-                operation_ordinal: ordinal(source, site)?,
+                operation_ordinal: lookup_ordinal(&ordinals, site)?,
                 code_offset,
                 byte_count,
             });
@@ -180,7 +241,7 @@ pub(super) fn produce(
             Control::NormalizedForeignCall {
                 invocation_site, ..
             } => {
-                if let semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) =
+                if let semantic_vocabulary::InvocationSite::ExternalCompletion(edge) =
                     invocation_site
                 {
                     push(SemanticCodeSite::Edge(*edge), offset, length)?;
@@ -228,13 +289,14 @@ pub(super) fn validate(
     source: &AbstractFunction,
     rows: &[SemanticCodeAttribution],
 ) -> Result<(), Error> {
+    let ordinals = build_ordinal_index(source);
     // Replay each maximal contiguous site interval directly from physical
     // membership and extent. Edge-owned argument transport can be separated
     // by allocation copies, just like operation-owned transport. Neither site
     // kind implies one contiguous byte interval; overlaps and omissions still
     // reject. No producer merge algorithm is invoked.
     for (index, row) in rows.iter().enumerate() {
-        if ordinal(source, row.site)? != row.operation_ordinal
+        if lookup_ordinal(&ordinals, row.site)? != row.operation_ordinal
             || rows[..index].iter().any(|previous| {
                 previous.site == row.site
                     && previous
@@ -249,10 +311,7 @@ pub(super) fn validate(
             ));
         }
     }
-    if rows.windows(2).any(|pair| {
-        (pair[0].operation_ordinal, pair[0].code_offset)
-            >= (pair[1].operation_ordinal, pair[1].code_offset)
-    }) {
+    if !strictly_increasing(rows, |row| (row.operation_ordinal, row.code_offset)) {
         return Err(Error::Mismatch(
             "object semantic attribution order is not canonical",
         ));
@@ -332,8 +391,13 @@ pub(super) fn validate(
             Control::NormalizedForeignCall {
                 invocation_site, ..
             } => match invocation_site {
-                semantic_vocabulary::BoundaryInvocationSite::Operation(_) => Vec::new(),
-                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+                semantic_vocabulary::InvocationSite::InvokeNoNormal(_) => {
+                    return Err(Error::Mismatch(
+                        "foreign invocation names a module invocation edge",
+                    ));
+                }
+                semantic_vocabulary::InvocationSite::Operation(_) => Vec::new(),
+                semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
                     vec![*edge]
                 }
             },
@@ -428,7 +492,7 @@ fn supports(
             } => {
                 ordinary
                     && *invocation_site
-                        == semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge)
+                        == semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
             }
         },
     }

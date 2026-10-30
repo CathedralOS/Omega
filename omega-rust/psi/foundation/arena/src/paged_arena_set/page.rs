@@ -97,3 +97,37 @@ impl<T: PartialEq> PartialEq for ArenaPage<T> {
     }
 }
 impl<T: Eq> Eq for ArenaPage<T> {}
+
+// The function pointer is an implementation detail. Restore its one owner
+// operation here; bytes retain only the owned/shared payload and graph identity.
+impl<T: Default + Clone + compiler_storage::Record + 'static> compiler_storage::Record
+    for ArenaPage<T>
+{
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        match self {
+            Self::Owned(arena) => {
+                false.write(output)?;
+                arena.write(output)
+            }
+            Self::Shared { arena, .. } => {
+                true.write(output)?;
+                arena.write(output)
+            }
+        }
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        if bool::read(input)? {
+            Ok(Self::Shared {
+                arena: Arc::read(input)?,
+                copy: Arena::clone,
+            })
+        } else {
+            Arena::read(input).map(Self::Owned)
+        }
+    }
+}

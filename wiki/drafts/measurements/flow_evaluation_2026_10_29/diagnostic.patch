@@ -1,0 +1,112 @@
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/exits.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/exits.rs
+index 51d954598e8..ee499479062 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/exits.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/exits.rs
+@@ -90,6 +90,7 @@ pub(super) fn append_state_exit_facts(
+     active_contexts: arena::HandleSpan<FlowSemanticContextRef>,
+     active_constraints: arena::HandleSpan<FlowConstraintRef>,
+ ) -> arena::HandleSpan<FlowExitFact> {
++        let _detail_guard = phase_profile::guard("05.flow_detail.append_state_exit_facts");
+     let mut state_exits = arena::HandleSpan::empty();
+ 
+     let exit_handles = proof.contract_exits_at(machine_symbol, state_symbol, transition_target);
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/exits/guards.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/exits/guards.rs
+index e7e641cf40e..63de0341b83 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/exits/guards.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/exits/guards.rs
+@@ -61,6 +61,7 @@ pub(super) fn append_guard_context(
+     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
+     active_constraints: &mut HandleSpan<FlowConstraintRef>,
+ ) {
++        let _detail_guard = phase_profile::guard("05.flow_detail.append_guard_context");
+     let TransitionGuardNode::When(expression) = guard else {
+         return;
+     };
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/expression.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/expression.rs
+index 4dfa2c78db1..0d5c1c0c405 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/expression.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/expression.rs
+@@ -380,6 +380,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
+         contexts: &mut HandleSpan<FlowSemanticContextRef>,
+         constraints: &mut HandleSpan<FlowConstraintRef>,
+     ) -> Self {
++        let _detail_guard = phase_profile::guard("05.flow_detail.new");
+         let mut malformed = false;
+         let invocations = calls
+             .iter()
+@@ -672,6 +673,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
+         contexts: &mut HandleSpan<FlowSemanticContextRef>,
+         constraints: &mut HandleSpan<FlowConstraintRef>,
+     ) -> (Option<bool>, CompletedValue) {
++        let _detail_guard = phase_profile::guard("05.flow_detail.expression_result");
+         let mut completed = CompletedValue::default();
+         let value = self.evaluate_expression(
+             expression,
+@@ -711,6 +713,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
+         contexts: &mut HandleSpan<FlowSemanticContextRef>,
+         constraints: &mut HandleSpan<FlowConstraintRef>,
+     ) -> EvaluatedOperand {
++        let _detail_guard = phase_profile::guard("05.flow_detail.evaluated_operand_as");
+         let previous_purpose = self.read_purpose;
+         let source_is_view = self.operand_is_view(expression);
+         self.read_purpose =
+@@ -914,6 +917,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
+         expression: ExpressionHandle,
+         capture: checked_trees::FlowOperandFact,
+     ) {
++        let _detail_guard = phase_profile::guard("05.flow_detail.retain_observation_result");
+         let control = &mut self.context.control;
+         let observations = control
+             .statements
+@@ -998,6 +1002,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
+         contexts: HandleSpan<FlowSemanticContextRef>,
+         constraints: HandleSpan<FlowConstraintRef>,
+     ) -> checked_trees::FlowOperandFact {
++        let _detail_guard = phase_profile::guard("05.flow_detail.capture_place_operand");
+         let reference = if completed.formed_type.is_valid() {
+             completed.formed_type
+         } else {
+@@ -1149,6 +1154,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
+         constraints: HandleSpan<FlowConstraintRef>,
+         referents: HandleSpan<checked_trees::FlowOperandReferent>,
+     ) -> checked_trees::FlowOperandFact {
++        let _detail_guard = phase_profile::guard("05.flow_detail.capture_operand");
+         let changed = self.changed_operand_sources(&[(expression, first_write)]);
+         let mut captured_contexts = contexts;
+         let mut captured_constraints = constraints;
+@@ -1281,6 +1287,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
+     /// `None` for referents it cannot place exactly; those operands keep the
+     /// context-identity intersection transport.
+     fn operand_is_view(&mut self, expression: ExpressionHandle) -> bool {
++        let _detail_guard = phase_profile::guard("05.flow_detail.operand_is_view");
+         // A value-type query strips a borrow to its target, so `Borrow`
+         // operands identify their view shape structurally.
+         if matches!(
+@@ -2231,6 +2238,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
+         &mut self,
+         operands: &[(ExpressionHandle, usize)],
+     ) -> Vec<CanonicalPlace> {
++        let _detail_guard = phase_profile::guard("05.flow_detail.changed_operand_sources");
+         let mut changed = Vec::new();
+         for (expression, first_write) in operands {
+             if *first_write == self.operand_writes.len() {
+@@ -2313,6 +2321,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
+         contexts: &mut HandleSpan<FlowSemanticContextRef>,
+         constraints: &mut HandleSpan<FlowConstraintRef>,
+     ) {
++        let _detail_guard = phase_profile::guard("05.flow_detail.filter_captured_sources");
+         // Operand evaluation delivers an aligned context/constraint pair.
+         // Without changed sources, capture retains that exact selection;
+         // filtering it again cannot withdraw any semantic constraint.
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/expression/dispatch_copies.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/expression/dispatch_copies.rs
+index de0b470b623..04c0e5bc9c3 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/expression/dispatch_copies.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/expression/dispatch_copies.rs
+@@ -412,6 +412,7 @@ impl Execution<'_, '_, '_> {
+         expression: ExpressionHandle,
+         constraints: HandleSpan<FlowConstraintRef>,
+     ) -> Option<FlowOperandFact> {
++        let _detail_guard = phase_profile::guard("05.flow_detail.dispatch_copy_value");
+         if self.read_purpose != ReadPurpose::Value {
+             return None;
+         }

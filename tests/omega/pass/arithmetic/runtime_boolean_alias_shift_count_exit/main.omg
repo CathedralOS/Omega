@@ -4,8 +4,8 @@ machine shift(value: u64, count: u32) -> u64 {
         true -> calculate(value, count)
         false -> empty()
     }
-    state calculate(value: u64, count: u32) -> u64 { value >> count }
-    state empty() -> u64 { 0 }
+    machine calculate(value: u64, count: u32) -> u64 { value >> count }
+    machine empty() -> u64 { 0 }
 }
 
 machine main() crashes Trap {
@@ -15,6 +15,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

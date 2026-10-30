@@ -18,8 +18,8 @@ machine tag(kind: Kind, ignored: u32 in Wrapping) -> u32 in Wrapping {
         Kind::First -> first()
         _ -> second()
     }
-    state first() -> u32 in Wrapping { 1 }
-    state second() -> u32 in Wrapping { 2 }
+    machine first() -> u32 in Wrapping { 1 }
+    machine second() -> u32 in Wrapping { 2 }
 }
 machine local_copy(cells: &[[Kind; 2]; 2], cursor: &mut Cursor) -> u32 in Wrapping crashes Trap {
     let kind: Kind = cells[cursor.row][select(cursor)];
@@ -48,6 +48,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

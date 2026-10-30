@@ -1,11 +1,10 @@
+use crate::declarations::BuildDeclarationError;
 use crate::declarations::dependencies::read::DependencyProjectionError;
-use crate::declarations::roles::BuildDeclarationError;
 use crate::resolution::source::git::workspace::GitWorkspaceSelectionError;
 use package_source::IdentityError;
 use package_source::SourceRelativePath;
 use package_source::SourceResolveError;
 use std::fmt;
-use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ResolvePackageSourceError {
@@ -13,17 +12,6 @@ pub(crate) enum ResolvePackageSourceError {
     Declaration(BuildDeclarationError),
     DependencyProjection(DependencyProjectionError),
     Identity(IdentityError),
-    WorkspacePath {
-        path: PathBuf,
-        message: String,
-    },
-    WorkspaceMemberEscapesRoot {
-        workspace_root: PathBuf,
-        member_root: PathBuf,
-    },
-    WorkspaceMemberIsRoot {
-        workspace_root: PathBuf,
-    },
     GitWorkspaceSelection(GitWorkspaceSelectionError),
     RecordedGitPin {
         locator: String,
@@ -49,25 +37,6 @@ impl fmt::Display for ResolvePackageSourceError {
             Self::Identity(error) => {
                 write!(formatter, "cannot establish package identity: {error}")
             }
-            Self::WorkspacePath { path, message } => write!(
-                formatter,
-                "cannot establish canonical workspace path `{}`: {message}",
-                path.display()
-            ),
-            Self::WorkspaceMemberEscapesRoot {
-                workspace_root,
-                member_root,
-            } => write!(
-                formatter,
-                "workspace member `{}` resolves outside workspace root `{}`",
-                member_root.display(),
-                workspace_root.display()
-            ),
-            Self::WorkspaceMemberIsRoot { workspace_root } => write!(
-                formatter,
-                "workspace member resolves to the whole workspace root `{}`",
-                workspace_root.display()
-            ),
             Self::GitWorkspaceSelection(error) => {
                 write!(
                     formatter,

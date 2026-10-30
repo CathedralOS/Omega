@@ -25,5 +25,5 @@ machine main() {
         Owner { token: Token { value: 7, ready: false } }
     ];
     transition { _ -> done() }
-    state done() {}
+    machine done() {}
 }

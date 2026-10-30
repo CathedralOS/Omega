@@ -13,6 +13,11 @@ use target::TargetProfile;
 /// continue. A check uses a private workspace and publishes no product files.
 pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildError> {
     let profiles = target_profiles(&request.targets)?;
+    if matches!(request.product, ProjectProduct::Check) {
+        compiler::RequestedCompileProduct::Check
+            .validate_optimization_rollback(&request.optimization_rollback)
+            .map_err(|error| BuildError::Diagnostics(vec![error]))?;
+    }
     if matches!(request.product, ProjectProduct::Inspection { .. }) && profiles.len() != 1 {
         return Err(BuildError::Diagnostics(vec![Diagnostic::error(
             "Terminal inspection requires one exact target context",
@@ -27,7 +32,7 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
         ProjectProduct::Check | ProjectProduct::Inspection { .. } => {
             Some(TemporaryDirectory::create("check", false).map_err(BuildError::CheckWorkspace)?)
         }
-        ProjectProduct::Native { .. } => None,
+        ProjectProduct::Terminal | ProjectProduct::Native { .. } => None,
     };
     // Placement belongs to the authored source, never its resolver snapshot.
     let base_directory = match &check_workspace {
@@ -39,18 +44,20 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
         }
         .build_dir(),
     };
-    let (work, _occupancies) = build_directory::admit_outputs(
-        &profiles,
-        &base_directory,
-        &request.root_path,
-        matches!(request.targets, BuildTargets::Batch(_)),
-        check_workspace.is_some(),
-    );
+    let (work, _occupancies) = phase_profile::scope("build.admit_outputs", || {
+        build_directory::admit_outputs(
+            &profiles,
+            &base_directory,
+            &request.root_path,
+            matches!(request.targets, BuildTargets::Batch(_)),
+            check_workspace.is_some(),
+        )
+    });
     let prepared = timings
         .record_result(
             StageMeta::new("prepare", "project", "prepared sources"),
             || {
-                packages::prepare_local_project_for_targets(
+                packages::begin_local_project_preparation(
                     &request.root_path,
                     &profiles,
                     request.offline,
@@ -73,6 +80,45 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
     let reports = if active.is_empty() {
         Vec::new()
     } else {
+        let prepared = match prepared {
+            Some(preparation) => {
+                let host = TargetProfile::host_if_supported().ok_or_else(|| {
+                    BuildError::Diagnostics(vec![Diagnostic::error(
+                        "Build execution needs an admitted host profile",
+                    )])
+                })?;
+                let mut session = phase_profile::scope("build.create_session", || {
+                    crate::BuildSession::create_retained(&base_directory)
+                })
+                .map_err(|error| BuildError::BuildDirectory(error.to_string()))?;
+                let resolved = phase_profile::scope("build.resolve_sources", || {
+                    crate::resolve_project_sources(
+                        &mut session,
+                        crate::ProjectSourceRequest {
+                            preparation,
+                            execution: package_compilation::BuildExecutionInputs {
+                                profile: Some(host),
+                                snapshot: request.build_snapshot.clone(),
+                                ..Default::default()
+                            },
+                            collect_timings: request.timings,
+                        },
+                    )
+                });
+                let resolved = match resolved {
+                    Ok(resolved) => resolved,
+                    Err(error) => {
+                        let mut reason = format!("project source discovery failed: {error}");
+                        if let Err(error) = session.close() {
+                            reason.push_str(&format!("; session disposal: {error}"));
+                        }
+                        return Err(BuildError::Diagnostics(vec![Diagnostic::error(reason)]));
+                    }
+                };
+                Some((resolved, session))
+            }
+            None => None,
+        };
         timings.record_result(
             StageMeta::new("compile", "sources", "requested product"),
             || products::compile(&request, prepared, &base_directory, &active),

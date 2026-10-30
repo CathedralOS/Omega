@@ -13,6 +13,7 @@
 //! the root's authority, the orderings and every type.
 
 use super::OperationFrame;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::unit::{
     CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, OperationResult,
     ValueDeclaration, allocate_dense, terminal_scalar_type, unsupported,
@@ -26,13 +27,11 @@ impl OperationFrame<'_, '_> {
         ordering: language_core::atomic::FenceOrdering,
     ) -> Result<(), LoweringError> {
         let id = self.operations.allocate();
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
+        self.operations.push(Operation::unsuspended(
             id,
-            result: OperationResult::Unit,
-            kind: OperationKind::AtomicFence { ordering },
-        });
+            OperationResult::Unit,
+            OperationKind::AtomicFence { ordering },
+        ));
         Ok(())
     }
 
@@ -169,11 +168,6 @@ impl OperationFrame<'_, '_> {
             return unsupported("atomic event orderings are not source-legal");
         }
         let resident_obligation = if event.modifies_resident() && resident_bounds.is_some() {
-            if event.replacement().is_none() {
-                return unsupported(
-                    "bounded fetch requires universal atomic resident preservation",
-                );
-            }
             if !crate::emission::structural_scalar_store::atomic_source_range_decided(
                 self.checked,
                 access.primitive_type,
@@ -230,7 +224,7 @@ impl OperationFrame<'_, '_> {
                     "single-attempt event did not establish its outcome",
                 ))?;
             return self.register_structural_result(
-                super::operation_result_declaration(produced_place, producer, structural_type),
+                operation_result_place(produced_place, producer, structural_type),
                 result,
                 produced,
             );
@@ -255,19 +249,17 @@ impl OperationFrame<'_, '_> {
             _ => return unsupported("atomic event result disagrees with its event"),
         };
         let id = self.operations.allocate();
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
+        self.operations.push(Operation::unsuspended(
             id,
             result,
-            kind: OperationKind::AtomicAccess {
+            OperationKind::AtomicAccess {
                 place,
                 path,
                 field,
                 event,
                 resident_obligation,
             },
-        });
+        ));
         Ok(())
     }
 }

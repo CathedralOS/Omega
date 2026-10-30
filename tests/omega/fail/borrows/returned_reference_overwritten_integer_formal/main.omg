@@ -1,0 +1,12 @@
+// A literal actual does not survive overwriting the callee's owned formal.
+machine choose<'input>(values: &'input mut [u64; 2], mut position: u64) -> &'input u64 {
+    position = 1;
+    &values[position]
+}
+machine observe(value: &u64) -> u64 { value }
+machine entry() -> u64 {
+    let mut values: [u64; 2] = [7, 11];
+    let selected: &u64 = choose(&mut values, 0);
+    values[1] = 19;
+    observe(selected)
+}

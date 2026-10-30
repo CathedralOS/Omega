@@ -6,9 +6,9 @@
 // once the slice-descriptor place is recognized as text-comparable.
 // (Counter-variant: passing "look" takes the `_` arm and exits 71 -- proving the
 // compare reads genuine content, not an always-true descriptor-word match.)
-domain [u8]::Utf8(bytes)
+domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 use omega_language_std::console;
 
 data Main {
@@ -20,8 +20,8 @@ machine Main::classify(main: &Main, text: &[u8] in Utf8) reaches Console {
         _ -> other(main)
     }
 
-    state finished(main: &Main) { Console::exit_process(70); }
-    state other(main: &Main) { Console::exit_process(71); }
+    machine finished(main: &Main) { Console::exit_process(70); }
+    machine other(main: &Main) { Console::exit_process(71); }
 }
 
 machine Main::main(main: &mut Main) {

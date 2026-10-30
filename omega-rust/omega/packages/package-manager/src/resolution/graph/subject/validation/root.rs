@@ -18,18 +18,6 @@ pub(in super::super) fn canonical_root_request(
             requested_revision: request.acquisition().requested_revision().to_owned(),
             selection: request.selection().clone(),
         },
-        PackageRootSourceRequest::WorkspaceMember {
-            workspace_root_source,
-            member_path,
-            requested_workspace_root,
-        } => CanonicalRootSourceRequest::WorkspaceMember {
-            workspace_root_source: workspace_root_source.clone(),
-            member_path: member_path.clone(),
-            requested_workspace_root: requested_workspace_root
-                .as_os_str()
-                .as_encoded_bytes()
-                .to_vec(),
-        },
         PackageRootSourceRequest::ExternalLocal {
             requested_root,
             source_context,

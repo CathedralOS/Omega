@@ -10,6 +10,20 @@ pub fn expression_contains(
     root: typed_trees::expression::ExpressionHandle,
     target: typed_trees::expression::ExpressionHandle,
 ) -> bool {
+    // Exact identity and leaf membership need no traversal inventory. Keep
+    // the shared walk unchanged for callers collecting the complete DAG.
+    if !root.is_valid() || !target.is_valid() {
+        return false;
+    }
+    if root == target {
+        return true;
+    }
+    if matches!(
+        program.expression_table.expression(root),
+        typed_trees::literal_expression_pattern!()
+    ) {
+        return false;
+    }
     reaches(program, root, target, &mut HashSet::default())
 }
 
@@ -53,18 +67,8 @@ fn reaches(
     }
     match program.expression_table.expression(root) {
         ExpressionNode::Match(dispatch) => {
-            reaches(program, dispatch.subject, target, visited)
-                || program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .any(|arm| {
-                        program
-                            .expression_table
-                            .match_pattern_operands(arm.pattern)
-                            .any(|pattern| reaches(program, pattern, target, visited))
-                            || reaches(program, arm.value, target, visited)
-                    })
+            crate::expression_traversal::match_children(program, *dispatch)
+                .any(|child| reaches(program, child, target, visited))
         }
         ExpressionNode::Atomic(atomic) => reaches(program, atomic.value, target, visited),
         ExpressionNode::ArrayLiteral(values) => program
@@ -101,6 +105,8 @@ fn reaches(
             .iter()
             .any(|field| reaches(program, field.value, target, visited)),
         ExpressionNode::Unary(unary) => reaches(program, unary.operand, target, visited),
-        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => false,
+        ExpressionNode::TypeExpression(_)
+        | ExpressionNode::SavedSubject(_)
+        | typed_trees::literal_expression_pattern!() => false,
     }
 }

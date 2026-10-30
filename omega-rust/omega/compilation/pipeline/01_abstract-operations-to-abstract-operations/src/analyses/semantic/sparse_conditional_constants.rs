@@ -10,7 +10,7 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{BlockId, EdgeId, IntegerValue, MachineId, OperationId, ValueId};
 
-use super::{scalar_operation_successors, scalar_value_definition};
+use super::scalar_value_definition;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct ValueFactRegion {
@@ -286,7 +286,7 @@ fn sparse_conditional_constants(
                 let Some(node) = block.nodes.last() else {
                     continue;
                 };
-                let operation_successors = scalar_operation_successors(&node.operation);
+                let operation_successors = &node.successors;
                 let successors = match &node.operation {
                     O::Jump { .. } | O::StructuralCase { .. } => operation_successors
                         .iter()
@@ -372,7 +372,7 @@ fn sparse_conditional_constants(
             let Some(node) = block.nodes.last() else {
                 continue;
             };
-            for successor in scalar_operation_successors(&node.operation) {
+            for successor in &node.successors {
                 let feasible_support = feasible_edges.get(&successor.psi_edge);
                 let (knowledge, support) = if let Some(support) = feasible_support {
                     (ExecutableEdgeKnowledge::KnownExecutable, support.clone())
@@ -502,33 +502,30 @@ fn sccp_machine_snapshot(
         .iter()
         .flat_map(|block| {
             let reachable_source = reachable.contains(&block.id);
-            let operation = block.nodes.last().map(|node| &node.operation);
-            operation.into_iter().flat_map(move |operation| {
-                scalar_operation_successors(operation)
-                    .into_iter()
-                    .map(move |successor| {
-                        let state = if feasible_edges.contains_key(&successor.psi_edge) {
-                            SccpEdgeState::Executable
-                        } else if !reachable_source {
-                            SccpEdgeState::Inexecutable
-                        } else if let O::Conditional { condition, .. } = operation {
-                            match values.get(condition) {
-                                Some(LatticeValue::Constant(
-                                    ScalarConstantValue::Boolean(_),
-                                    _,
-                                )) => SccpEdgeState::Inexecutable,
-                                _ => SccpEdgeState::Unknown,
+            let terminator = block.nodes.last();
+            terminator.into_iter().flat_map(move |node| {
+                node.successors.iter().map(move |successor| {
+                    let state = if feasible_edges.contains_key(&successor.psi_edge) {
+                        SccpEdgeState::Executable
+                    } else if !reachable_source {
+                        SccpEdgeState::Inexecutable
+                    } else if let O::Conditional { condition, .. } = &node.operation {
+                        match values.get(condition) {
+                            Some(LatticeValue::Constant(ScalarConstantValue::Boolean(_), _)) => {
+                                SccpEdgeState::Inexecutable
                             }
-                        } else {
-                            SccpEdgeState::Inexecutable
-                        };
-                        SccpEdgeRow {
-                            source: block.id,
-                            edge: successor.psi_edge,
-                            target: successor.target,
-                            state,
+                            _ => SccpEdgeState::Unknown,
                         }
-                    })
+                    } else {
+                        SccpEdgeState::Inexecutable
+                    };
+                    SccpEdgeRow {
+                        source: block.id,
+                        edge: successor.psi_edge,
+                        target: successor.target,
+                        state,
+                    }
+                })
             })
         })
         .collect::<Vec<_>>();

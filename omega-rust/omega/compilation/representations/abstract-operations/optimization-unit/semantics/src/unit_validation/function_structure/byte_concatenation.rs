@@ -3,8 +3,8 @@
 use crate::OptimizationUnitValidationError;
 use crate::unit_validation::catalog_mismatch;
 use abstract_operations::AbstractOperation as O;
-use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::{BlockId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId};
+use optimization_unit::{PsiOptimizationFunction, operation_result_placement};
+use semantic_vocabulary::{BlockId, StructuralDomainId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::control_flow::ByteSequenceOperand;
 use terminal_psi::{
@@ -38,27 +38,14 @@ pub(super) fn validate(
                 || !types
                     .get(&result.structural_type)
                     .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
-                || !function.structural_places.iter().any(|place| {
-                    place.id == result.place
-                        && place.kind
-                            == (StructuralPlaceKind::OperationResult {
-                                producer: *psi_operation,
-                                structural_type: result.structural_type,
-                            })
-                })
+                || !operation_result_placement(function, result, *psi_operation)
             {
                 return Err(invalid());
             }
             for operand in [left, right] {
                 if operand.source() == result.place
-                    || function
-                        .entry_claim_declarations
-                        .iter()
-                        .any(|claim| claim.input == operand.source())
-                    || function
-                        .content_entry_claims
-                        .iter()
-                        .any(|claim| claim.input.root == operand.source())
+                    || function.entry_claim_declared(operand.source())
+                    || function.content_entry_claim_declared(operand.source())
                 {
                     return Err(invalid());
                 }

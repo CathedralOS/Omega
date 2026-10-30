@@ -16,10 +16,7 @@ pub(crate) fn encode_locator(
         PackageReviewForeignLocator::PeByOrdinal { library, ordinal } => {
             encoder.tag("pe_by_ordinal", 1);
             encoder.field("library", |encoder| encoder.bytes(library))?;
-            encoder.field("ordinal", |encoder| {
-                encoder.u16(*ordinal);
-                Ok(())
-            })?;
+            encoder.u16_field("ordinal", *ordinal)?;
         }
         PackageReviewForeignLocator::ElfVersioned {
             object,

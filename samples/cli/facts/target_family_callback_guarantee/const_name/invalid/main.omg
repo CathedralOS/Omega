@@ -1,0 +1,24 @@
+// Fact: a selected callback supplies every target-family member guarantee and its bounded result permits subtraction from 64u64.
+// Expected exit: 0
+// Expected exit: 0
+// A target family's callback selection supplies all members' requirements and guarantees.
+machine identity(value: u64) -> u64 requires value <= 64 ensures result <= 64 { value }
+linux_arm64 machine apply<machine Selected>(value: u64) -> u64
+where machine Selected(input: u64) -> u64 requires input <= 64 ensures result <= 64;
+requires value <= 64 ensures result <= 64 { Selected(value) }
+linux_x86_64 machine apply<machine Callback>(value: u64) -> u64
+where machine Callback(input: u64) -> u64 requires input <= 64 ensures result <= 64 && result >= input;
+requires value <= 64 ensures result <= 64 { Callback(value) }
+macos_arm64 machine apply<machine Action>(value: u64) -> u64
+where machine Action(input: u64) -> u64 requires input <= 64 ensures result <= 64;
+requires value <= 64 ensures result <= 64 { Action(value) }
+windows_x86_64 machine apply<machine Operation>(value: u64) -> u64
+where machine Operation(input: u64) -> u64 requires input <= 64 ensures result <= 64 && result >= input;
+requires value <= 64 ensures result <= 64 { Operation(value) }
+const RESULT: u64 = apply<identity>(42);
+machine main() crashes Trap {
+    let remaining: u64 = 64u64 - RESULT;
+    transition remaining == 22 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

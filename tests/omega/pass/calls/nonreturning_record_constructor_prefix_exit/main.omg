@@ -1,0 +1,20 @@
+// Expected exit: 0
+// Expected output contains: constructor-prefix
+// The first structural field's returning call executes before the second field stops.
+use omega::language::core::process_exit;
+use omega_language_std::process_exit;
+use omega_language_std::console;
+
+data Word [copy] { value: u64; }
+data Pair [copy] { first: Word; second: Word; }
+machine prefix() -> Word reaches Console {
+    Console::write_line("constructor-prefix");
+    Word { value: 17 }
+}
+machine stop_word() -> Word reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+machine main() reaches Console + ProcessExit {
+    let absent: Pair = Pair { first: prefix(), second: stop_word() };
+    ProcessExit::exit_process(43);
+}

@@ -12,13 +12,13 @@ machine main() crashes Trap {
     let r: &mut Counter = &mut c;
     r.used = 50u64;
     transition { _ -> evaluate(c) }
-    state evaluate(c: Counter) {
+    machine evaluate(c: Counter) {
         let diff: u64 = 80u64 - c.used;
         transition diff == 30u64 && c.limit == 80u64 {
             true -> done()
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -248,18 +248,146 @@ fn indexed_read_has_builtin_meaning(
     typed_trees::operator::builtin_index_read_is_spelled(program, owner, expression, &operands)
 }
 
+/// Borrowed formal entry is represented by the published root access, whereas
+/// stored references below it remain physical descriptors in the path.
+pub(crate) fn predicate_parameter_type(
+    program: &dyn ::validation::CheckingInput,
+    mut reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    // Formal entry is already the referent namespace, including &write.
+    // Erasing that presentation forms no descriptor load or readable grant;
+    // proof-only postconditions still need its exact initialized type.
+    // The cursor peels constraints only to discover descriptor crossings.
+    // The selected endpoint keeps its complete qualifications and policy.
+    let mut endpoint = reference;
+    let mut visited = Vec::new();
+    loop {
+        if !program
+            .type_reference_table
+            .contains_type_reference(reference)
+            || visited.contains(&reference)
+        {
+            return None;
+        }
+        visited.push(reference);
+        // A stored view keeps its access/extent descriptor. It is not a
+        // Reference shape to erase or cross through a physical Referent step.
+        // Descriptor reads, bounds and loan authority remain with the consumer.
+        if validation::stored_view_shell(program, reference, &[]).is_some() {
+            return Some(endpoint);
+        }
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => {
+                reference = *referee;
+                endpoint = reference;
+            }
+            _ => return Some(endpoint),
+        }
+    }
+}
+
+/// Retain each actual readable reference shell rather than asking a consumer
+/// to infer pointer loads from the next field or final sum shape.
+pub(crate) fn predicate_referent_path(
+    program: &dyn ::validation::CheckingInput,
+    mut reference: TypeReferenceHandle,
+    path: &mut Vec<CheckedStructuralPredicatePathSegment>,
+) -> Option<TypeReferenceHandle> {
+    // The cursor peels constraints only to discover descriptor crossings.
+    // The selected endpoint keeps its complete qualifications and policy.
+    let mut endpoint = reference;
+    let mut visited = Vec::new();
+    loop {
+        if visited.contains(&reference) {
+            return None;
+        }
+        visited.push(reference);
+        // A stored view keeps its access/extent descriptor. It is not a
+        // Reference shape to erase or cross through a physical Referent step.
+        // Descriptor reads, bounds and loan authority remain with the consumer.
+        if validation::stored_view_shell(program, reference, &[]).is_some() {
+            return Some(endpoint);
+        }
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference {
+                referee, access, ..
+            } if *access != language_core::ReferenceAccess::WriteOnly => {
+                path.push(CheckedStructuralPredicatePathSegment::Referent);
+                reference = *referee;
+                endpoint = reference;
+            }
+            TypeReferenceNode::Reference { .. } => return None,
+            _ => return Some(endpoint),
+        }
+    }
+}
+
 pub(crate) fn structural_parameter_field_path(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
     fields: &mut Vec<CheckedStructuralPredicatePathSegment>,
 ) -> Option<u32> {
+    parameter_projection(program, parameters, expression, fields).map(|(position, _)| position)
+}
+
+pub(crate) fn structural_parameter_case_path(
+    program: &dyn ::validation::CheckingInput,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+    path: &mut Vec<CheckedStructuralPredicatePathSegment>,
+) -> Option<u32> {
+    let (position, selected) = parameter_projection(program, parameters, expression, path)?;
+    predicate_referent_path(program, selected, path)?;
+    Some(position)
+}
+
+pub(crate) fn explicit_observation_path(
+    program: &dyn validation::CheckingInput,
+    reference: TypeReferenceHandle,
+    path: &[CheckedStructuralPredicatePathSegment],
+) -> Option<(
+    Vec<CheckedStructuralPredicatePathSegment>,
+    TypeReferenceHandle,
+)> {
+    let mut explicit = Vec::new();
+    let mut case_payload = false;
+    let (_, selected, _) =
+        resolve_structural_path(program, reference, false, path, &mut |receiver, step| {
+            if let Some(step) = step {
+                // Case enters this receiver's payload namespace. Its following
+                // field does not load that same receiver descriptor a second time.
+                if !case_payload && !matches!(step, CheckedStructuralPredicatePathSegment::Referent)
+                {
+                    predicate_referent_path(program, receiver, &mut explicit)?;
+                }
+                explicit.push(step.clone());
+                case_payload = matches!(step, CheckedStructuralPredicatePathSegment::Case(_));
+            }
+            Some(())
+        })?;
+    // Endpoint observation is separate from selecting each preceding member.
+    // Keep its actual reference crossings in the returned proposition path,
+    // not only in the computed endpoint type. Stored views remain descriptors
+    // under the shared representation classifier in predicate_referent_path.
+    let selected = predicate_referent_path(program, selected, &mut explicit)?;
+    Some((explicit, selected))
+}
+
+/// Carry the applied receiver type through the authored walk instead of
+/// reconstructing each prefix or selecting fields from a global name roster.
+fn parameter_projection(
+    program: &dyn ::validation::CheckingInput,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+    fields: &mut Vec<CheckedStructuralPredicatePathSegment>,
+) -> Option<(u32, TypeReferenceHandle)> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Indexed(indexed) => {
-            let position =
-                structural_parameter_field_path(program, parameters, indexed.collection, fields)?;
-            let (_, _, collection_type, _) =
-                resolve_structural_parameter_path(program, parameters, position, fields)?;
+            let (position, collection_type) =
+                parameter_projection(program, parameters, indexed.collection, fields)?;
             if !indexed_read_has_builtin_meaning(
                 program,
                 parameters,
@@ -275,23 +403,19 @@ pub(crate) fn structural_parameter_field_path(
                     .constant_integer_value(indexed.index)?,
             )
             .ok()?;
-            fixed_index_element_type(program, collection_type, element_index)?;
+            let collection_type = predicate_referent_path(program, collection_type, fields)?;
+            let element = fixed_index_element_type(program, collection_type, element_index)?;
             fields.push(CheckedStructuralPredicatePathSegment::FixedIndex(
                 element_index,
             ));
-            Some(position)
+            Some((position, element))
         }
         ExpressionNode::Name(name) => {
-            if program.symbols.get(name.symbol).kind == symbols::SymbolKind::Machine
-                || matches!(program.expression_table.name_path_members(name.members),
-                    [spelling] if spelling.is_self_receiver())
-            {
+            if program.symbols.get(name.symbol).kind == symbols::SymbolKind::Machine {
                 return None;
             }
             // A parameter owns its place root by symbol. Resolution retains
-            // that symbol on the name itself or on one of its path members,
-            // so a path whose every member symbol is invalid roots at no
-            // authored parameter and resolves nothing here.
+            // that symbol on the name itself or on one of its path members.
             let root = name.symbol.is_valid().then_some(name.symbol).or_else(|| {
                 program
                     .expression_table
@@ -300,62 +424,24 @@ pub(crate) fn structural_parameter_field_path(
                     .copied()
                     .find(|symbol| symbol.is_valid())
             })?;
-            parameters
-                .iter()
-                .position(|parameter| {
-                    crate::execution::terminal_unit::types::parameter_is_root(parameter, root)
-                })
-                .and_then(|position| u32::try_from(position).ok())
+            // A `self` spelling names a machine receiver, which is not a
+            // structural parameter. A domain subject also spells `self` but
+            // resolves to a Parameter-kind symbol rostered in the telescope,
+            // so roster membership — not the spelling — refuses receivers.
+            let position = parameters.iter().position(|parameter| {
+                crate::execution::terminal_unit::types::parameter_is_root(parameter, root)
+            })?;
+            Some((
+                u32::try_from(position).ok()?,
+                predicate_parameter_type(program, parameters[position].type_reference)?,
+            ))
         }
         ExpressionNode::Member(member) => {
-            let parameter =
-                structural_parameter_field_path(program, parameters, member.receiver, fields)?;
-            let field_identity = |field: &typed_trees::data::DataField| {
-                checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone())
-            };
-            parameters.get(usize::try_from(parameter).ok()?)?;
-            if let Some(case_name) = &member.case_variant {
-                let (case, field) = program
-                    .data_variant_positions_for_name(case_name.as_str())
-                    .into_iter()
-                    .find_map(|(data_index, member_index)| {
-                        let variant =
-                            declared_data_member(program, data_index, member_index).as_variant()?;
-                        program
-                            .data_payload_field_by_symbol(variant, member.member_symbol)
-                            .map(|field| {
-                                (
-                                    checked_trees::CheckedMemberIdentity::of_member(
-                                        variant.identity,
-                                        variant.name.clone(),
-                                    ),
-                                    field_identity(field),
-                                )
-                            })
-                    })?;
-                fields.push(CheckedStructuralPredicatePathSegment::Case(case));
-                fields.push(CheckedStructuralPredicatePathSegment::Field(field));
-            } else {
-                let identity = if member.member_symbol.is_valid() {
-                    program
-                        .data_field_positions_for_symbol(member.member_symbol)
-                        .iter()
-                        .copied()
-                        .filter(|position| position.2 == u32::MAX)
-                        .find_map(|position| {
-                            declared_data_field(program, position).map(&field_identity)
-                        })?
-                } else {
-                    // Contract member expressions can reach this carrier
-                    // before their field symbol is retained. Keep the
-                    // authored segment in that case: path_type_reference
-                    // resolves it against the exact receiver type below,
-                    // so this does not perform global name-based selection.
-                    checked_trees::CheckedMemberIdentity::of_member(None, member.member.clone())
-                };
-                fields.push(CheckedStructuralPredicatePathSegment::Field(identity));
-            }
-            Some(parameter)
+            let (parameter, receiver) =
+                parameter_projection(program, parameters, member.receiver, fields)?;
+            let (projection, selected) = member_projection(program, receiver, member)?;
+            fields.extend(projection);
+            Some((parameter, selected))
         }
         _ => None,
     }
@@ -393,9 +479,10 @@ pub(crate) fn resolve_structural_parameter_path(
 
 /// Admit total entry observations through the ordinary declaration walk.
 /// Geometry alone can peel references or select a view element; an entry
-/// predicate must retain readable root custody and cannot hide dereferences or
-/// a dynamic bounds obligation inside its static path. Case validity remains
-/// the ordinary contract checker's obligation.
+/// predicate retains readable custody at every reference crossing; lowering
+/// records those crossings explicitly. Static selectors still require fixed
+/// arrays, so no dynamic bounds obligation hides inside this declaration walk.
+/// Case validity remains the ordinary contract checker's obligation.
 pub(crate) fn readable_entry_parameter_path(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
@@ -407,7 +494,6 @@ pub(crate) fn readable_entry_parameter_path(
     if parameter.is_const || parameter.relevance.is_erased() || path.len() >= 64 {
         return None;
     }
-    let mut at_root = true;
     let (_, selected_type, _) = resolve_structural_path(
         program,
         parameter.type_reference,
@@ -426,8 +512,16 @@ pub(crate) fn readable_entry_parameter_path(
                     TypeReferenceNode::Constrained { base_type, .. } => receiver = *base_type,
                     TypeReferenceNode::Reference {
                         referee, access, ..
-                    } if at_root && *access != language_core::ReferenceAccess::WriteOnly => {
+                    } if *access != language_core::ReferenceAccess::WriteOnly => {
                         receiver = *referee
+                    }
+                    TypeReferenceNode::Reference { access, .. }
+                        if matches!(
+                            segment,
+                            Some(CheckedStructuralPredicatePathSegment::Referent)
+                        ) && *access != language_core::ReferenceAccess::WriteOnly =>
+                    {
+                        return Some(());
                     }
                     TypeReferenceNode::Reference { .. } => return None,
                     node => {
@@ -459,15 +553,6 @@ pub(crate) fn readable_entry_parameter_path(
                                 return None;
                             }
                         }
-                        if matches!(
-                            segment,
-                            Some(
-                                CheckedStructuralPredicatePathSegment::Field(_)
-                                    | CheckedStructuralPredicatePathSegment::FixedIndex(_)
-                            )
-                        ) {
-                            at_root = false;
-                        }
                         return Some(());
                     }
                 }
@@ -498,6 +583,27 @@ pub(crate) fn resolve_structural_path(
     for segment in path {
         observe_receiver(receiver, Some(segment))?;
         match segment {
+            CheckedStructuralPredicatePathSegment::Referent => {
+                if selected_case.is_some() {
+                    return None;
+                }
+                let mut selected = receiver;
+                while let TypeReferenceNode::Constrained { base_type, .. } =
+                    program.type_reference_table.type_reference(selected)
+                {
+                    selected = *base_type;
+                }
+                let TypeReferenceNode::Reference {
+                    referee, access, ..
+                } = program.type_reference_table.type_reference(selected)
+                else {
+                    return None;
+                };
+                if *access == language_core::ReferenceAccess::WriteOnly {
+                    return None;
+                }
+                receiver = *referee;
+            }
             CheckedStructuralPredicatePathSegment::FixedIndex(element_index) => {
                 if selected_case.is_some() {
                     return None;
@@ -885,7 +991,14 @@ pub(crate) fn structural_storage_place(
     // symbols cannot acquire a formal's authority from that fallback.
     let name = program.expression_table.name_path_node(authored)?;
     let names = program.expression_table.name_path_members(name.members);
+    // A `self` spelling names a machine receiver, which is not a storage
+    // parameter. A domain subject also spells `self` but resolves to a
+    // Parameter-kind symbol rostered in the telescope; only an unrostered
+    // `self` is a receiver and must refuse.
     let (storage_root, declared_type, is_mutable) = if matches!(names, [spelling] if spelling.is_self_receiver())
+        && !parameters
+            .iter()
+            .any(|parameter| parameter.symbol == name.head_symbol)
     {
         return None;
     } else {
@@ -933,14 +1046,20 @@ pub(crate) fn structural_storage_place(
         }
     };
     let path = structural_projection_path(program, &place.segments)?;
-    let (segments, type_reference, _) =
+    let (segments, _, _) =
         resolve_structural_path(program, declared_type, is_mutable, &path, &mut |_, _| {
             Some(())
         })?;
     if segments != place.segments {
         return None;
     }
-    Some((storage_root, path, type_reference))
+    let observed_root = if storage_root.parameter().is_some() {
+        predicate_parameter_type(program, declared_type)?
+    } else {
+        declared_type
+    };
+    let (explicit, selected) = explicit_observation_path(program, observed_root, &path)?;
+    Some((storage_root, explicit, selected))
 }
 
 /// Rebind a declaration-owned projection through the actual receiver's
@@ -1002,49 +1121,49 @@ pub(crate) fn structural_projection_path(
     Some(path)
 }
 
-/// Resolve an indexed element's member under its exact current declaration.
-/// Normalized payload observations may not retain a member symbol: the selected
-/// element type supplies the declaration, while any retained symbol must agree.
-/// This is the same nominal selection for every indexed field, not permission
-/// to capture the containing row or copy its ownership-bearing siblings.
-pub(crate) fn element_member_field<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    element: TypeReferenceHandle,
+/// Resolve a member and its payload namespace under the exact applied receiver.
+/// Normalized observations may omit a member symbol or an authored case qualifier;
+/// the receiver declaration supplies a unique selection, while any retained symbol
+/// must agree. All parameter and indexed paths share this operation. Resolving the
+/// declaration grants neither case membership nor ownership of its siblings.
+pub(crate) fn member_projection(
+    program: &dyn ::validation::CheckingInput,
+    receiver: TypeReferenceHandle,
     member: &typed_trees::expression::TableMemberExpression,
-) -> Option<&'program typed_trees::data::DataField> {
-    let mut current = element;
-    let owner = loop {
-        match program.type_reference_table.type_reference(current) {
-            TypeReferenceNode::Constrained { base_type, .. } => current = *base_type,
-            TypeReferenceNode::Reference {
-                referee,
-                access:
-                    language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable,
-                ..
-            } => current = *referee,
-            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
-                break structural_data(program, current)?;
-            }
-            _ => return None,
-        }
-    };
-    let field = if let Some(origin) = owner.generic_instance {
-        program.closed_data_member_field(origin, member.member_symbol, member.member.as_str())?
-    } else {
-        validation::exact_data_member_field(
-            program,
-            owner,
-            member.member_symbol,
-            member.member.as_str(),
-            None,
-        )?
-    };
+) -> Option<(
+    Vec<CheckedStructuralPredicatePathSegment>,
+    TypeReferenceHandle,
+)> {
+    let mut path = Vec::new();
+    let current = predicate_referent_path(program, receiver, &mut path)?;
+    let field = validation::applied_data_member_field(program, current, member)?;
     if field.relevance.is_erased()
         || program.symbols.get(field.symbol).kind != symbols::SymbolKind::Field
     {
         return None;
     }
-    Some(field)
+    let mut segments = Vec::new();
+    if let Some(variant) = facts::payload_variant_for_field(program, field.symbol) {
+        let (data, member_position) = program.data_variant_position_for_symbol(variant)?;
+        let declaration = declared_data_member(program, data, member_position).as_variant()?;
+        path.push(CheckedStructuralPredicatePathSegment::Case(
+            checked_trees::CheckedMemberIdentity::of_member(
+                declaration.identity,
+                declaration.name.clone(),
+            ),
+        ));
+        segments.push(facts::PlaceSegment::Case { variant });
+    }
+    path.push(CheckedStructuralPredicatePathSegment::Field(
+        checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
+    ));
+    segments.push(facts::PlaceSegment::Field {
+        symbol: field.symbol,
+    });
+    // Project from the actual applied receiver, retaining generic and lifetime
+    // substitutions rather than returning its declaration's template type.
+    let selected = validation::project_type_reference_from_segments(program, receiver, &segments)?;
+    Some((path, selected))
 }
 
 /// The `let` local `expression` names whole when that name is not a state
@@ -1059,13 +1178,7 @@ fn whole_local_binding<'a>(
     &'a typed_trees::statement::TableLocalData,
 )> {
     let path = program.expression_table.name_path_node(expression)?;
-    if !path.symbol.is_valid()
-        || path.head_symbol != path.symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
+    if !program.expression_table.name_path_is_single_member(path)
         || parameters
             .iter()
             .any(|parameter| parameter.symbol == path.symbol)

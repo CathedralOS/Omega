@@ -36,15 +36,15 @@ machine later<const Bound: u64>(index: u64) -> u64
 requires Bound >= 1 && Bound <= 4, index < Bound
 {
     transition { _ -> scale(index) }
-    state scale(index: u64) -> u64 requires index < Bound { index * 4 }
+    machine scale(index: u64) -> u64 requires index < Bound { index * 4 }
 }
 
 machine guarded<const Bound: u64>(index: u64) -> u64
 requires Bound >= 1 && Bound <= 4
 {
     transition index < Bound { true -> product(index) false -> zero() }
-    state product(index: u64) -> u64 { index * 4 }
-    state zero() -> u64 { 0 }
+    machine product(index: u64) -> u64 { index * 4 }
+    machine zero() -> u64 { 0 }
 }
 
 machine main() crashes Trap {
@@ -57,6 +57,6 @@ machine main() crashes Trap {
         && later<4>(1) == 4
         && guarded<4>(1) == 4
     { true -> done() _ -> bad() }
-    state done() { }
-    state bad() { crash Trap; }
+    machine done() { }
+    machine bad() { crash Trap; }
 }

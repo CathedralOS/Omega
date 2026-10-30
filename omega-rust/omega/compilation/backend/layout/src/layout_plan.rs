@@ -14,7 +14,7 @@ use typed_trees::name::Identifier;
 /// Size (and alignment) of the i32 case tag that prefixes every enum-shaped
 /// data value. Comparing an enum value against a case constant compares ONLY
 /// this prefix (tag-only equality); payload bytes never participate.
-pub(crate) const ENUM_TAG_BYTES: usize = 4;
+pub(crate) const ENUM_TAG_BYTES: usize = runtime_abi::CASE_TAG_BYTE_SIZE as usize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TypeLayout {
@@ -104,18 +104,6 @@ impl TypeLayoutDescriptor {
             | Self::BoundedByteBuffer { element_type, .. }
             | Self::Slice { element_type } => Some(element_type),
             _ => None,
-        }
-    }
-
-    /// The arithmetic domain (Wrapping/Saturating/Trapping) declared on this
-    /// type via `T in <Domain>`. Defaults to `Exact` for unconstrained types.
-    /// Looks through a leading `&`/`&mut` reference so a `&mut (u8 in Saturating)`
-    /// target still reports its domain at the binary-write site.
-    pub fn arithmetic_domain(&self) -> numerics::arithmetic::ArithmeticDomain {
-        match self {
-            Self::Constrained { domain, .. } => *domain,
-            Self::Reference { referee, .. } => referee.arithmetic_domain(),
-            _ => numerics::arithmetic::ArithmeticDomain::Exact,
         }
     }
 }

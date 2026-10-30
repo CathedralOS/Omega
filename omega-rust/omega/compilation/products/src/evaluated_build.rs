@@ -8,23 +8,37 @@ use provider_planning::program_entry::RootBinding;
 use representation_planning::OpaqueRepresentationSelection;
 use trust_model::AuthoredComponentAssumptionAcceptance;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ServiceAuditRegistration {
-    pub identity: String,
-    pub name: String,
+/// Settled settings and observations, without a live activation or host grants.
+/// Product contexts may share this result, never an execution admission token.
+#[derive(Clone)]
+pub struct EvaluatedBuild {
+    pub configuration: std::sync::Arc<ComputedBuildConfig>,
+    pub restricted_build_requests:
+        Vec<package_compilation::build_execution::RestrictedBuildRequest>,
+    pub base_source_consumption_commitment:
+        Option<package_compilation::PackageSourceConsumptionCommitment>,
+    pub retained_check: Option<psi_compiler::RetainedCheck>,
 }
+
+pub use build_time_evaluation::product_declarations::ServiceAuditRegistration;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BuildConfig {
     pub settings: EvaluatedBuildSettings,
     /// Exact subjects accepted by `Build::accept_boundary<Subject>(builder)`.
-    /// Grant declarations are harvested from classified calls in the root
-    /// build; evaluation checks custody of their explicit Build argument.
+    /// Completed operations retain custody of the original Build argument;
+    /// Product admission resolves their exact authored subjects after the join.
     pub grants: Vec<trust_model::AuthoredRootGrant>,
     /// Executed provider-type choices for boundary slots, rejoined to the
     /// authoritative build machine. Provider settlement validates them against
     /// derived candidates before selection grants anything.
     pub provider_selections: Vec<ProviderSelection>,
+    /// Dependency-owned executed choices retain default precedence. They do
+    /// not acquire the consuming application's override authority.
+    pub package_provider_selections: Vec<ProviderSelection>,
+    pub native_bindings: Vec<provider_planning::native_bindings::NativeBuildSupply>,
+    pub native_binding_evaluation:
+        Option<std::sync::Arc<provider_planning::native_bindings::NativeBuildEvaluation>>,
     /// Runtime-only root relationships; registration supplies no Build evidence.
     pub assumed_bindings: Vec<build_time_evaluation::assumed_bindings::AssumedBindingContract>,
     /// Exact named conformances activated as physical carriers for
@@ -57,6 +71,53 @@ pub struct BuildConfig {
 }
 
 impl BuildConfig {
+    /// Share source checking across independently measured Build activations.
+    /// Native choices and their executed code are source inputs; accounting
+    /// counters are each activation's observations, not new source programs.
+    pub(crate) fn same_source_choices(&self, other: &Self) -> bool {
+        let Self {
+            settings,
+            grants,
+            provider_selections,
+            package_provider_selections,
+            native_bindings,
+            native_binding_evaluation,
+            assumed_bindings,
+            opaque_representation_selections,
+            wire_compatibility_demands,
+            root_bindings,
+            behavior_exclusions,
+            service_audits,
+            accepted_component_assumptions,
+        } = self;
+        settings == &other.settings
+            && grants == &other.grants
+            && provider_selections == &other.provider_selections
+            && package_provider_selections == &other.package_provider_selections
+            && native_binding_evaluation
+                .as_ref()
+                .map(|evaluation| evaluation.terminal_code)
+                == other
+                    .native_binding_evaluation
+                    .as_ref()
+                    .map(|evaluation| evaluation.terminal_code)
+            && native_bindings.len() == other.native_bindings.len()
+            && native_bindings
+                .iter()
+                .zip(&other.native_bindings)
+                .all(|(left, right)| {
+                    left.selection == right.selection
+                        && left.evaluation.terminal_code == right.evaluation.terminal_code
+                })
+            && assumed_bindings == &other.assumed_bindings
+            && opaque_representation_selections == &other.opaque_representation_selections
+            && wire_compatibility_demands == &other.wire_compatibility_demands
+            && root_bindings == &other.root_bindings
+            && behavior_exclusions == &other.behavior_exclusions
+            && service_audits == &other.service_audits
+            && accepted_component_assumptions == &other.accepted_component_assumptions
+    }
+
     /// All authored entry declarations, independently of realization targets.
     pub fn program_roots(&self) -> Vec<symbols::SymbolHandle> {
         let mut roots: Vec<_> = self
@@ -108,6 +169,23 @@ impl BuildConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComputedBuildConfig {
     pub config: BuildConfig,
+    /// Executed, source-issued choices remain inert until Product declarations
+    /// exist under their final owners. Build execution does not select Product
+    /// symbols from its private checking context.
+    pub root_binding_requests: Vec<language_semantics::declaration_selection::ExecutedRootBinding>,
+    /// Immutable formation roster from checked Build source, independent of
+    /// optimizer reach or actual execution.
+    pub declared_product_selections:
+        Vec<std::sync::Arc<language_semantics::declaration_selection::ProductDeclarationRequest>>,
+    /// Only reached, activation-authenticated choices activate Product rows.
+    pub product_selection_requests:
+        Vec<language_semantics::declaration_selection::ExecutedProductSelection>,
+    pub native_formations: Vec<language_semantics::declaration_selection::NativeBindingFormation>,
+    pub native_binding_requests:
+        Vec<language_semantics::declaration_selection::ExecutedNativeBinding>,
+    pub behavior_exclusion_requests:
+        Vec<language_semantics::declaration_selection::ExecutedEnumExclusion>,
+    pub project_declaration: Option<build_declarations::BuildDeclaration>,
     pub optimization_report_request: optimization_core::OptimizationReportRequest,
     pub evaluation_usage: Option<package_compilation::BuildEvaluationUsage>,
     pub observation_summary: Option<package_compilation::BuildObservationSummary>,
@@ -204,6 +282,51 @@ pub struct IndependentComponentDiscovery {
 }
 
 impl ComputedBuildConfig {
+    /// Keep the entire configuration produced by source completion, including
+    /// resolved binding identities. Only observations of the independently
+    /// admitted execution belong to the consuming occurrence. Replacing this
+    /// product with its earlier evaluated configuration would lose completed
+    /// source requirements whenever several targets share one source judgment.
+    pub fn with_execution_observation(&self, execution: &Self) -> Result<Self, String> {
+        if self.native_formations != execution.native_formations
+            || self.native_binding_requests != execution.native_binding_requests
+            || self
+                .config
+                .native_binding_evaluation
+                .as_ref()
+                .map(|evaluation| evaluation.terminal_code)
+                != execution
+                    .config
+                    .native_binding_evaluation
+                    .as_ref()
+                    .map(|evaluation| evaluation.terminal_code)
+        {
+            return Err("source cohort execution changed native Build intent or its code".into());
+        }
+        let mut application = self.clone();
+        application.config.native_binding_evaluation =
+            execution.config.native_binding_evaluation.clone();
+        if let Some(previous) = &self.config.native_binding_evaluation {
+            let evidence = application
+                .config
+                .native_binding_evaluation
+                .clone()
+                .ok_or("source cohort native choices lost the current activation's evidence")?;
+            for supply in &mut application.config.native_bindings {
+                // Dependency outputs keep their own completed activations.
+                // Only the cohort member's own invocation receives its fresh
+                // accounting, never every supply in the final Product closure.
+                if std::sync::Arc::ptr_eq(&supply.evaluation, previous) {
+                    supply.evaluation = evidence.clone();
+                }
+            }
+        }
+        application.evaluation_usage = execution.evaluation_usage;
+        application.observation_summary = execution.observation_summary.clone();
+        application.optimization_report_request = execution.optimization_report_request.clone();
+        Ok(application)
+    }
+
     pub fn observation_identity(&self) -> Option<package_compilation::BuildObservationIdentity> {
         self.observation_summary
             .as_ref()

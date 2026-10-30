@@ -62,7 +62,7 @@ machine sha256_round_k(i: u64 in Wrapping) -> u32 in Wrapping {
         _ -> bad()
     }
 
-    state ok(i: u64 in Wrapping) -> u32 in Wrapping {
+    machine ok(i: u64 in Wrapping) -> u32 in Wrapping {
         // First 32 bits of the fractional parts of the cube roots of the
         // first 64 primes — the SHA-256 round constants.
         let table: [u32 in Wrapping; 64] = [
@@ -85,7 +85,7 @@ machine sha256_round_k(i: u64 in Wrapping) -> u32 in Wrapping {
         ];
         table[i]
     }
-    state bad() -> u32 in Wrapping {
+    machine bad() -> u32 in Wrapping {
         0
     }
 }
@@ -107,13 +107,13 @@ machine Sha256::stage_block(sha256: &mut Sha256) {
     sha256.i = 0;
     transition { _ -> copy(sha256) }
 
-    state copy(sha256: &mut Sha256) {
+    machine copy(sha256: &mut Sha256) {
         transition sha256.i < 64 {
             true -> prep(sha256)
             _ -> done()
         }
     }
-    state prep(sha256: &mut Sha256) {
+    machine prep(sha256: &mut Sha256) {
         sha256.p0 = sha256.base + sha256.i;
         sha256.q0 = sha256.i;
         transition sha256.p0 < 8192 && sha256.q0 < 64 {
@@ -121,14 +121,14 @@ machine Sha256::stage_block(sha256: &mut Sha256) {
             _ -> stuck(sha256)
         }
     }
-    state apply(sha256: &mut Sha256) {
+    machine apply(sha256: &mut Sha256) {
         sha256.block[sha256.q0] = sha256.msg[sha256.p0];
         sha256.i = sha256.i + 1;
         transition { _ -> copy(sha256) }
     }
-    state done() {
+    machine done() {
     }
-    state stuck(sha256: &mut Sha256) {
+    machine stuck(sha256: &mut Sha256) {
         sha256.bad = true;
     }
 }
@@ -138,13 +138,13 @@ machine Sha256::compress(sha256: &mut Sha256) {
     sha256.i = 0;
     transition { _ -> load_w(sha256) }
 
-    state load_w(sha256: &mut Sha256) {
+    machine load_w(sha256: &mut Sha256) {
         transition sha256.i < 16 {
             true -> prep_w(sha256)
             _ -> extend(sha256)
         }
     }
-    state prep_w(sha256: &mut Sha256) {
+    machine prep_w(sha256: &mut Sha256) {
         sha256.j0 = sha256.i * 4;
         sha256.j1 = sha256.j0 + 1;
         sha256.j2 = sha256.j1 + 1;
@@ -155,7 +155,7 @@ machine Sha256::compress(sha256: &mut Sha256) {
             _ -> stuck(sha256)
         }
     }
-    state apply_w(sha256: &mut Sha256) {
+    machine apply_w(sha256: &mut Sha256) {
         sha256.w[sha256.w0] = ((sha256.block[sha256.j0] as u32 in Wrapping) << 24)
             | ((sha256.block[sha256.j1] as u32 in Wrapping) << 16)
             | ((sha256.block[sha256.j2] as u32 in Wrapping) << 8)
@@ -163,17 +163,17 @@ machine Sha256::compress(sha256: &mut Sha256) {
         sha256.i = sha256.i + 1;
         transition { _ -> load_w(sha256) }
     }
-    state extend(sha256: &mut Sha256) {
+    machine extend(sha256: &mut Sha256) {
         sha256.i = 16;
         transition { _ -> extend_loop(sha256) }
     }
-    state extend_loop(sha256: &mut Sha256) {
+    machine extend_loop(sha256: &mut Sha256) {
         transition sha256.i >= 16 && sha256.i < 64 {
             true -> prep_e(sha256)
             _ -> rounds(sha256)
         }
     }
-    state prep_e(sha256: &mut Sha256) {
+    machine prep_e(sha256: &mut Sha256) {
         sha256.e0 = sha256.i - 16;
         sha256.e1 = sha256.i - 7;
         sha256.e2 = sha256.i - 15;
@@ -184,7 +184,7 @@ machine Sha256::compress(sha256: &mut Sha256) {
             _ -> stuck(sha256)
         }
     }
-    state apply_e(sha256: &mut Sha256) {
+    machine apply_e(sha256: &mut Sha256) {
         let x: u32 in Wrapping = sha256.w[sha256.e2];
         let y: u32 in Wrapping = sha256.w[sha256.e3];
         let s0: u32 in Wrapping = ((x >> 7) | (x << 25)) ^ ((x >> 18) | (x << 14)) ^ (x >> 3);
@@ -193,7 +193,7 @@ machine Sha256::compress(sha256: &mut Sha256) {
         sha256.i = sha256.i + 1;
         transition { _ -> extend_loop(sha256) }
     }
-    state rounds(sha256: &mut Sha256) {
+    machine rounds(sha256: &mut Sha256) {
         sha256.a = sha256.h[0];
         sha256.b = sha256.h[1];
         sha256.c = sha256.h[2];
@@ -205,20 +205,20 @@ machine Sha256::compress(sha256: &mut Sha256) {
         sha256.i = 0;
         transition { _ -> round_loop(sha256) }
     }
-    state round_loop(sha256: &mut Sha256) {
+    machine round_loop(sha256: &mut Sha256) {
         transition sha256.i < 64 {
             true -> prep_r(sha256)
             _ -> absorb(sha256)
         }
     }
-    state prep_r(sha256: &mut Sha256) {
+    machine prep_r(sha256: &mut Sha256) {
         sha256.w0 = sha256.i;
         transition sha256.w0 < 64 {
             true -> apply_r(sha256)
             _ -> stuck(sha256)
         }
     }
-    state apply_r(sha256: &mut Sha256) {
+    machine apply_r(sha256: &mut Sha256) {
         let s1: u32 in Wrapping = ((sha256.e >> 6) | (sha256.e << 26))
             ^ ((sha256.e >> 11) | (sha256.e << 21)) ^ ((sha256.e >> 25) | (sha256.e << 7));
         let ch: u32 in Wrapping = sha256.g ^ (sha256.e & (sha256.f ^ sha256.g));
@@ -238,7 +238,7 @@ machine Sha256::compress(sha256: &mut Sha256) {
         sha256.i = sha256.i + 1;
         transition { _ -> round_loop(sha256) }
     }
-    state absorb(sha256: &mut Sha256) {
+    machine absorb(sha256: &mut Sha256) {
         sha256.h[0] = sha256.h[0] + sha256.a;
         sha256.h[1] = sha256.h[1] + sha256.b;
         sha256.h[2] = sha256.h[2] + sha256.c;
@@ -248,7 +248,7 @@ machine Sha256::compress(sha256: &mut Sha256) {
         sha256.h[6] = sha256.h[6] + sha256.g;
         sha256.h[7] = sha256.h[7] + sha256.hh;
     }
-    state stuck(sha256: &mut Sha256) {
+    machine stuck(sha256: &mut Sha256) {
         sha256.bad = true;
     }
 }
@@ -260,29 +260,29 @@ machine Sha256::digest(sha256: &mut Sha256) {
     sha256.base = 0;
     transition { _ -> chunk_check(sha256) }
 
-    state chunk_check(sha256: &mut Sha256) {
+    machine chunk_check(sha256: &mut Sha256) {
         transition sha256.base + 64 <= sha256.msg_n {
             true -> run_chunk(sha256)
             _ -> tail_begin(sha256)
         }
     }
-    state run_chunk(sha256: &mut Sha256) {
+    machine run_chunk(sha256: &mut Sha256) {
         Sha256::stage_block(sha256);
         Sha256::compress(sha256);
         sha256.base = sha256.base + 64;
         transition { _ -> chunk_check(sha256) }
     }
-    state tail_begin(sha256: &mut Sha256) {
+    machine tail_begin(sha256: &mut Sha256) {
         sha256.i = 0;
         transition { _ -> tail_copy(sha256) }
     }
-    state tail_copy(sha256: &mut Sha256) {
+    machine tail_copy(sha256: &mut Sha256) {
         transition sha256.base + sha256.i < sha256.msg_n && sha256.i < 64 {
             true -> prep_t(sha256)
             _ -> tail_gate(sha256)
         }
     }
-    state prep_t(sha256: &mut Sha256) {
+    machine prep_t(sha256: &mut Sha256) {
         sha256.q2 = sha256.i;
         sha256.p0 = sha256.base + sha256.i;
         transition sha256.q2 < 128 && sha256.p0 < 8192 {
@@ -290,18 +290,18 @@ machine Sha256::digest(sha256: &mut Sha256) {
             _ -> stuck(sha256)
         }
     }
-    state apply_t(sha256: &mut Sha256) {
+    machine apply_t(sha256: &mut Sha256) {
         sha256.tail[sha256.q2] = sha256.msg[sha256.p0];
         sha256.i = sha256.i + 1;
         transition { _ -> tail_copy(sha256) }
     }
-    state tail_gate(sha256: &mut Sha256) {
+    machine tail_gate(sha256: &mut Sha256) {
         transition sha256.i <= 64 {
             true -> tail_mark(sha256)
             _ -> stuck(sha256)
         }
     }
-    state tail_mark(sha256: &mut Sha256) {
+    machine tail_mark(sha256: &mut Sha256) {
         sha256.tail_n = sha256.i;
         sha256.q2 = sha256.i;
         transition sha256.q2 < 128 {
@@ -309,55 +309,55 @@ machine Sha256::digest(sha256: &mut Sha256) {
             _ -> stuck(sha256)
         }
     }
-    state apply_mark(sha256: &mut Sha256) {
+    machine apply_mark(sha256: &mut Sha256) {
         sha256.tail[sha256.q2] = 128;
         sha256.i = sha256.i + 1;
         transition { _ -> tail_zero(sha256) }
     }
-    state tail_zero(sha256: &mut Sha256) {
+    machine tail_zero(sha256: &mut Sha256) {
         transition sha256.i < 128 {
             true -> prep_z(sha256)
             _ -> tail_len(sha256)
         }
     }
-    state prep_z(sha256: &mut Sha256) {
+    machine prep_z(sha256: &mut Sha256) {
         sha256.q2 = sha256.i;
         transition sha256.q2 < 128 {
             true -> apply_z(sha256)
             _ -> stuck(sha256)
         }
     }
-    state apply_z(sha256: &mut Sha256) {
+    machine apply_z(sha256: &mut Sha256) {
         sha256.tail[sha256.q2] = 0;
         sha256.i = sha256.i + 1;
         transition { _ -> tail_zero(sha256) }
     }
-    state tail_len(sha256: &mut Sha256) {
+    machine tail_len(sha256: &mut Sha256) {
         sha256.bit_len = sha256.msg_n * 8;
         transition sha256.tail_n < 56 {
             true -> len_at_56(sha256)
             _ -> len_at_120(sha256)
         }
     }
-    state len_at_56(sha256: &mut Sha256) {
+    machine len_at_56(sha256: &mut Sha256) {
         sha256.block_i = 56;
         transition { _ -> write_len(sha256) }
     }
-    state len_at_120(sha256: &mut Sha256) {
+    machine len_at_120(sha256: &mut Sha256) {
         sha256.block_i = 120;
         transition { _ -> write_len(sha256) }
     }
-    state write_len(sha256: &mut Sha256) {
+    machine write_len(sha256: &mut Sha256) {
         sha256.i = 0;
         transition { _ -> write_len_loop(sha256) }
     }
-    state write_len_loop(sha256: &mut Sha256) {
+    machine write_len_loop(sha256: &mut Sha256) {
         transition sha256.i < 8 {
             true -> prep_l(sha256)
             _ -> tail_blocks(sha256)
         }
     }
-    state prep_l(sha256: &mut Sha256) {
+    machine prep_l(sha256: &mut Sha256) {
         sha256.q0 = sha256.block_i + sha256.i;
         sha256.q2 = (7 - sha256.i) * 8;
         transition sha256.q0 < 128 && sha256.q2 <= 56 {
@@ -365,22 +365,22 @@ machine Sha256::digest(sha256: &mut Sha256) {
             _ -> stuck(sha256)
         }
     }
-    state apply_l(sha256: &mut Sha256) {
+    machine apply_l(sha256: &mut Sha256) {
         sha256.tail[sha256.q0] = narrow_u64_to_u8_wrapping((sha256.bit_len >> sha256.q2) as u64);
         sha256.i = sha256.i + 1;
         transition { _ -> write_len_loop(sha256) }
     }
-    state tail_blocks(sha256: &mut Sha256) {
+    machine tail_blocks(sha256: &mut Sha256) {
         sha256.i = 0;
         transition { _ -> stage_first(sha256) }
     }
-    state stage_first(sha256: &mut Sha256) {
+    machine stage_first(sha256: &mut Sha256) {
         transition sha256.i < 64 {
             true -> prep_f(sha256)
             _ -> run_first(sha256)
         }
     }
-    state prep_f(sha256: &mut Sha256) {
+    machine prep_f(sha256: &mut Sha256) {
         sha256.q0 = sha256.i;
         sha256.q2 = sha256.i;
         transition sha256.q0 < 64 && sha256.q2 < 128 {
@@ -388,29 +388,29 @@ machine Sha256::digest(sha256: &mut Sha256) {
             _ -> stuck(sha256)
         }
     }
-    state apply_f(sha256: &mut Sha256) {
+    machine apply_f(sha256: &mut Sha256) {
         sha256.block[sha256.q0] = sha256.tail[sha256.q2];
         sha256.i = sha256.i + 1;
         transition { _ -> stage_first(sha256) }
     }
-    state run_first(sha256: &mut Sha256) {
+    machine run_first(sha256: &mut Sha256) {
         Sha256::compress(sha256);
         transition sha256.tail_n < 56 {
             true -> done(sha256)
             _ -> stage_second(sha256)
         }
     }
-    state stage_second(sha256: &mut Sha256) {
+    machine stage_second(sha256: &mut Sha256) {
         sha256.i = 0;
         transition { _ -> stage_second_loop(sha256) }
     }
-    state stage_second_loop(sha256: &mut Sha256) {
+    machine stage_second_loop(sha256: &mut Sha256) {
         transition sha256.i < 64 {
             true -> prep_s(sha256)
             _ -> run_second(sha256)
         }
     }
-    state prep_s(sha256: &mut Sha256) {
+    machine prep_s(sha256: &mut Sha256) {
         sha256.q0 = sha256.i;
         sha256.q2 = 64 + sha256.i;
         transition sha256.q0 < 64 && sha256.q2 < 128 {
@@ -418,26 +418,26 @@ machine Sha256::digest(sha256: &mut Sha256) {
             _ -> stuck(sha256)
         }
     }
-    state apply_s(sha256: &mut Sha256) {
+    machine apply_s(sha256: &mut Sha256) {
         sha256.block[sha256.q0] = sha256.tail[sha256.q2];
         sha256.i = sha256.i + 1;
         transition { _ -> stage_second_loop(sha256) }
     }
-    state run_second(sha256: &mut Sha256) {
+    machine run_second(sha256: &mut Sha256) {
         Sha256::compress(sha256);
         transition { _ -> done(sha256) }
     }
-    state done(sha256: &mut Sha256) {
+    machine done(sha256: &mut Sha256) {
         sha256.i = 0;
         transition { _ -> write_loop(sha256) }
     }
-    state write_loop(sha256: &mut Sha256) {
+    machine write_loop(sha256: &mut Sha256) {
         transition sha256.i < 8 {
             true -> prep_o(sha256)
             _ -> finish()
         }
     }
-    state prep_o(sha256: &mut Sha256) {
+    machine prep_o(sha256: &mut Sha256) {
         sha256.o0 = sha256.i * 4;
         sha256.o1 = sha256.o0 + 1;
         sha256.o2 = sha256.o1 + 1;
@@ -448,7 +448,7 @@ machine Sha256::digest(sha256: &mut Sha256) {
             _ -> stuck(sha256)
         }
     }
-    state apply_o(sha256: &mut Sha256) {
+    machine apply_o(sha256: &mut Sha256) {
         let word: u32 in Wrapping = sha256.h[sha256.w0];
         sha256.out32[sha256.o0] = narrow_u32_to_u8_wrapping((word >> 24) as u32);
         sha256.out32[sha256.o1] = narrow_u32_to_u8_wrapping((word >> 16) as u32);
@@ -457,9 +457,9 @@ machine Sha256::digest(sha256: &mut Sha256) {
         sha256.i = sha256.i + 1;
         transition { _ -> write_loop(sha256) }
     }
-    state finish() {
+    machine finish() {
     }
-    state stuck(sha256: &mut Sha256) {
+    machine stuck(sha256: &mut Sha256) {
         sha256.bad = true;
     }
 }

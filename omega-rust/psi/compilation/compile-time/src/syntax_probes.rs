@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 mod evaluation;
 pub(crate) use evaluation::PreparedEvaluationInputs;
-pub(crate) use evaluation::{prepare_evaluation, prepare_owned_probe_evaluation};
+pub(crate) use evaluation::{
+    prepare_call_free_probe_typing, prepare_evaluation, prepare_owned_probe_evaluation,
+};
 
 /// A provisional index supplies a carrier, not membership in the indexed domain.
 /// Remove only affected constant qualifications in this private probe forest.
@@ -71,6 +73,7 @@ pub(crate) fn normalize_generic_data(
     source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
     retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
 ) -> Result<syntax_trees::SyntaxTrees, Vec<diagnostics::Diagnostic>> {
+    let _profile = phase_profile::guard("pre_resolution.generic_data");
     syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
         normalization_request(
             syntax_trees,
@@ -110,9 +113,31 @@ pub(crate) fn extend_normalization_owners(
     declarations: &mut Vec<syntax_trees::item::ItemHandle>,
     owners: &[source::SourceSpan],
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let mut pending = syntax.root_item_handles().to_vec();
+    let mut lexical_items = Vec::new();
+    while let Some(item) = pending.pop() {
+        lexical_items.push(item);
+        match syntax.root_item(item) {
+            syntax_trees::item::Item::Machine(machine) => {
+                pending.extend(machine.nested_machines.handles());
+            }
+            syntax_trees::item::Item::Conformance(conformance) => {
+                for member in syntax.items.conformance_members(conformance.members) {
+                    use syntax_trees::item::ConformanceMember;
+                    let machine = match member {
+                        ConformanceMember::Machine(machine)
+                        | ConformanceMember::Synthesized(machine)
+                        | ConformanceMember::TraitDefault { machine, .. } => machine,
+                        ConformanceMember::Reference { .. } => continue,
+                    };
+                    pending.extend(machine.nested_machines.handles());
+                }
+            }
+            _ => {}
+        }
+    }
     for owner in owners {
-        let matches = syntax
-            .root_item_handles()
+        let matches = lexical_items
             .iter()
             .copied()
             .filter(|item| {

@@ -36,7 +36,11 @@ pub use fragment_object_publication::{
     emit_fragment_object, publish_fragment_object,
 };
 pub use image_emission::BoundaryExecutionRecord;
-pub use native_artifact::{DynamicElfNativeArtifact, NativeArtifact, RequestedNativeArtifact};
+pub use image_emission::NativeForeignAdapterImage;
+pub use native_artifact::{
+    DynamicElfNativeArtifact, DynamicElfNativeArtifactIdentity, NativeArtifact,
+    NativeArtifactIdentity, RequestedNativeArtifact,
+};
 pub(crate) use native_artifact::{
     NativePhysicalEvidenceScope, NativeProviderExecution, NativeSelectedProviderPlan,
     NativeSelectedProviderPlanDigest,

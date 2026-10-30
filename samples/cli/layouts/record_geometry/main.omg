@@ -11,8 +11,8 @@ machine choose_bytes(large: bool) -> u64 {
         true -> selected()
         _ -> small()
     }
-    state selected() -> u64 { size_of<Row>() }
-    state small() -> u64 { 8u64 }
+    machine selected() -> u64 { size_of<Row>() }
+    machine small() -> u64 { 8u64 }
 }
 
 machine main() crashes Trap {
@@ -43,13 +43,13 @@ machine main() crashes Trap {
         true -> finish(bytes, alignment)
         _ -> bad()
     }
-    state finish(bytes: u64, alignment: u64) {
+    machine finish(bytes: u64, alignment: u64) {
         let padding_extent: u64 = bytes - alignment;
         transition padding_extent == 8 {
             true -> done()
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

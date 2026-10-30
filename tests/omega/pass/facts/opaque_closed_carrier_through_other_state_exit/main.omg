@@ -101,9 +101,9 @@ machine consume(first: InternetAddress, second: InternetAddress) -> bool reaches
 
 machine main() reaches AddressParts crashes Trap {
  transition { _ -> receive(AddressParts::make(10, 66051), AddressParts::make(44048, 513)) }
- state receive(first: InternetAddress, second: InternetAddress) {
+ machine receive(first: InternetAddress, second: InternetAddress) {
   transition consume(first, second) { true -> done() _ -> failed() }
  }
- state done() {}
- state failed() { crash Trap; }
+ machine done() {}
+ machine failed() { crash Trap; }
 }

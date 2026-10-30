@@ -3,20 +3,20 @@ use omega::language::core::float_operations;
 // Positive bounded inputs only. Binary range reduction and atanh series.
 machine logarithm(value: f64) -> f64 {
     transition { _ -> reduce(value, 0.0) }
-    state reduce(value: f64, offset: f64) -> f64 {
+    machine reduce(value: f64, offset: f64) -> f64 {
         transition value > 2.0 {
  true -> reduce(value / 2.0, offset + 0.6931471805599453)
  false -> small(value, offset) }
     }
-    state small(value: f64, offset: f64) -> f64 {
+    machine small(value: f64, offset: f64) -> f64 {
         transition value < 1.0 {
  true -> reduce(value * 2.0, offset - 0.6931471805599453)
  false -> series((value - 1.0) / (value + 1.0), offset) }
     }
-    state series(z: f64, offset: f64) -> f64 {
+    machine series(z: f64, offset: f64) -> f64 {
         transition { _ -> term(z, z * z, z, 1.0, 0.0, offset, 0) }
     }
-    state term(z: f64, square: f64, power: f64, divisor: f64, sum: f64, offset: f64, count: i32 in Wrapping) -> f64 {
+    machine term(z: f64, square: f64, power: f64, divisor: f64, sum: f64, offset: f64, count: i32 in Wrapping) -> f64 {
         let next: f64 = sum + power / divisor;
         transition count < 24 {
  true -> term(z, square, power * square, divisor + 2.0, next, offset, count + 1)
@@ -26,14 +26,14 @@ machine logarithm(value: f64) -> f64 {
 machine exponential(value: f64) -> f64 {
     let reduced: f64 = value / 128.0;
     transition { _ -> term(reduced, 1.0, 1.0, 1.0, 0) }
-    state term(value: f64, sum: f64, power: f64, divisor: f64, count: i32 in Wrapping) -> f64 {
+    machine term(value: f64, sum: f64, power: f64, divisor: f64, count: i32 in Wrapping) -> f64 {
         let next: f64 = power * value / divisor;
         let total: f64 = sum + next;
         transition count < 31 {
  true -> term(value, total, next, divisor + 1.0, count + 1)
  false -> square(total) }
     }
-    state square(value: f64) -> f64 {
+    machine square(value: f64) -> f64 {
         let a: f64 = value * value; let b: f64 = a * a; let c: f64 = b * b;
         let d: f64 = c * c; let e: f64 = d * d; let f: f64 = e * e; f * f
     }
@@ -48,7 +48,7 @@ machine probability(z: f64) -> f64 {
     let absolute: f64 = magnitude(z);
     transition absolute > 12.0 { true -> 0.0
         false -> tail(absolute) }
-    state tail(absolute: f64) -> f64 {
+    machine tail(absolute: f64) -> f64 {
         let x: f64 = absolute / 1.4142135623730951;
         let t: f64 = 1.0 / (1.0 + 0.3275911 * x);
         let polynomial: f64 = (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t;
@@ -59,10 +59,10 @@ machine probability(z: f64) -> f64 {
 machine log_one_plus(value: f64) -> f64 {
     transition value < 1.0 { true -> series(value / (2.0 + value))
         false -> logarithm(1.0 + value) }
-    state series(z: f64) -> f64 {
+    machine series(z: f64) -> f64 {
         transition { _ -> term(z * z, z, 1.0, 0.0, 0) }
     }
-    state term(square: f64, power: f64, divisor: f64, sum: f64, count: i32 in Wrapping) -> f64 {
+    machine term(square: f64, power: f64, divisor: f64, sum: f64, count: i32 in Wrapping) -> f64 {
         let next: f64 = sum + power / divisor;
         transition count < 24 { true -> term(square, power * square, divisor + 2.0, next, count + 1)
             false -> (2.0 * next) }
@@ -74,11 +74,11 @@ machine log_one_plus(value: f64) -> f64 {
 // This avoids a loop proportional to count size in each NB likelihood row.
 machine log_gamma(value: f64) -> f64 {
     transition { _ -> shift(value, 0.0) }
-    state shift(value: f64, correction: f64) -> f64 {
+    machine shift(value: f64, correction: f64) -> f64 {
         transition value < 12.0 { true -> shift(value + 1.0, correction - logarithm(value))
             false -> stirling(value, correction) }
     }
-    state stirling(value: f64, correction: f64) -> f64 {
+    machine stirling(value: f64, correction: f64) -> f64 {
         let inverse: f64 = 1.0 / value;
         let square: f64 = inverse * inverse;
         let series: f64 = inverse * (1.0 / 12.0 + square * (0.0 - 1.0 / 360.0 + square * (1.0 / 1260.0 + square * (0.0 - 1.0 / 1680.0 + square * (1.0 / 1188.0 - square * 691.0 / 360360.0)))));

@@ -32,7 +32,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
 
-    state after_add(main: &mut Main) {
+    machine after_add(main: &mut Main) {
         // counter is now 15 (a field, so it survived the transition).
         let prior: u32 in Wrapping = main.counter.compare_exchange(15, 99, ReceivePublish, Receive);
         transition prior == 15 {
@@ -41,14 +41,14 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state after_cas(main: &mut Main) {
+    machine after_cas(main: &mut Main) {
         transition main.counter == 99 {
             true -> publish_receive(main)
             _ -> bad(main)
         }
     }
 
-    state publish_receive(main: &mut Main) {
+    machine publish_receive(main: &mut Main) {
         main.counter.store(100, Publish);
         let observed: u32 = main.counter.load(Receive);
         transition observed == 100 {
@@ -57,7 +57,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state global_order(main: &mut Main) {
+    machine global_order(main: &mut Main) {
         main.counter.store(101, GlobalOrder);
         let observed: u32 = main.counter.load(GlobalOrder);
         transition observed == 101 {
@@ -66,13 +66,13 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::write_line("PASS: RMW and every load/store ordering round-tripped (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(70);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::write_line("FAIL: an atomic RMW or ordered load/store misbehaved (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

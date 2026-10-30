@@ -22,6 +22,30 @@ pub(in crate::legalization) fn argument_at(
     plan: &AbstractOperationPlan,
     custody: &super::reference_custody::Custody,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
+    argument_at_invocation(
+        semantic,
+        position,
+        call_operation.into(),
+        caller,
+        called,
+        call,
+        native,
+        plan,
+        custody,
+    )
+}
+
+pub(in crate::legalization) fn argument_at_invocation(
+    semantic: &StructuralArgument,
+    position: usize,
+    call_operation: semantic_vocabulary::InvocationSite,
+    caller: &PsiOptimizationFunction,
+    called: abstract_operations::AbstractCallSignature<'_>,
+    call: &CallPlan,
+    native: &TargetOperationPlan,
+    plan: &AbstractOperationPlan,
+    custody: &super::reference_custody::Custody,
+) -> Result<TargetStructuralArgument, LegalizationError> {
     let declaration = crate::legalization::scalar_graph_input::call_signature::parameter(
         called,
         position,
@@ -77,7 +101,7 @@ pub(in crate::legalization) fn argument_at(
         )
         .is_some()
     {
-        return super::aggregate_results::call_argument(
+        return super::aggregate_results::call_argument_invocation(
             semantic,
             position,
             call_operation,
@@ -272,7 +296,7 @@ pub(in crate::legalization) fn argument_at(
             )
         })
     {
-        return super::aggregate_results::call_argument(
+        return super::aggregate_results::call_argument_invocation(
             semantic,
             position,
             call_operation,
@@ -290,7 +314,7 @@ pub(in crate::legalization) fn argument_at(
 /// Rejoin one whole descriptor and the authority its current source minted.
 fn view_argument(
     semantic: &StructuralArgument,
-    call_operation: semantic_vocabulary::OperationId,
+    call_operation: semantic_vocabulary::InvocationSite,
     caller: &PsiOptimizationFunction,
     destination_parameter: &terminal_psi::StructuralParameterDeclaration,
     call: &CallPlan,
@@ -451,7 +475,7 @@ fn view_argument(
 /// Reconstruct a primitive borrow at its actual ordered call ABI position.
 pub(super) fn primitive_argument(
     semantic: &StructuralArgument,
-    call_operation: semantic_vocabulary::OperationId,
+    call_operation: semantic_vocabulary::InvocationSite,
     caller: &PsiOptimizationFunction,
     destination_parameter: &terminal_psi::StructuralParameterDeclaration,
     call: &CallPlan,

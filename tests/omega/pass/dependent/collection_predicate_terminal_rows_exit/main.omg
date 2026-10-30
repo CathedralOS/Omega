@@ -16,21 +16,21 @@ machine cells_valid(cells: &[i32; 4]) -> bool {
         _ -> (false)
     }
 
-    state at_1(cells: &[i32; 4]) -> bool {
+    machine at_1(cells: &[i32; 4]) -> bool {
         transition cells[1] == 0 || cells[1] == 1 {
             true -> at_2(cells)
             _ -> (false)
         }
     }
 
-    state at_2(cells: &[i32; 4]) -> bool {
+    machine at_2(cells: &[i32; 4]) -> bool {
         transition cells[2] == 0 || cells[2] == 1 {
             true -> at_3(cells)
             _ -> (false)
         }
     }
 
-    state at_3(cells: &[i32; 4]) -> bool {
+    machine at_3(cells: &[i32; 4]) -> bool {
         transition cells[3] == 0 || cells[3] == 1 {
             true -> (true)
             _ -> (false)
@@ -72,9 +72,9 @@ machine Main::advance(context: &mut Main) {
         _ -> die(context)
     }
 
-    state live(context: &mut Main) { context.g.next[0] = 1; }
+    machine live(context: &mut Main) { context.g.next[0] = 1; }
 
-    state die(context: &mut Main) { context.g.next[0] = 0; }
+    machine die(context: &mut Main) { context.g.next[0] = 0; }
 }
 
 machine Main::count(context: &mut Main) -> i32 {
@@ -97,9 +97,9 @@ machine Main::main(context: &mut Main) reaches Console {
         _ -> bad(context)
     }
 
-    state good(context: &mut Main) { Console::exit_process(70); }
+    machine good(context: &mut Main) { Console::exit_process(70); }
 
-    state bad(context: &mut Main) { Console::exit_process(71); }
+    machine bad(context: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

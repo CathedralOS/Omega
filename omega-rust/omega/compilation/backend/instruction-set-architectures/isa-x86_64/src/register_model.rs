@@ -5,6 +5,71 @@
 //! `constraint_catalog.rs` builds and validates the constraint catalog; the
 //! sibling files carry the call families and packed memory forms.
 
+/// One operand row whose home is exactly `view`.
+pub(super) fn fixed_operand(
+    operand: u16,
+    access: RegisterOperandAccess,
+    view: &RegisterView,
+) -> RegisterOperandConstraint {
+    RegisterOperandConstraint {
+        operand,
+        access,
+        class: view.class,
+        fixed_view: Some(view.id),
+        tied_to: None,
+        early_clobber: false,
+    }
+}
+
+/// One operand row that takes any register of `class`.
+pub(super) fn allocatable_operand(
+    operand: u16,
+    access: RegisterOperandAccess,
+    class: RegisterClassId,
+) -> RegisterOperandConstraint {
+    RegisterOperandConstraint {
+        operand,
+        access,
+        class,
+        fixed_view: None,
+        tied_to: None,
+        early_clobber: false,
+    }
+}
+
+/// The contiguous operand lane the byte-loop forms share: the first `inputs`
+/// operands are read, the rest are written and early-clobbered, because the
+/// loop writes its cursors and verdict before the preserved inputs are dead.
+pub(super) fn operand_lane(count: u16, inputs: u16) -> Vec<RegisterOperandConstraint> {
+    (0..count)
+        .map(|operand| {
+            let written = operand >= inputs;
+            let row = allocatable_operand(
+                operand,
+                if written {
+                    RegisterOperandAccess::Def
+                } else {
+                    RegisterOperandAccess::Use
+                },
+                physical_model::GPR64,
+            );
+            if written { early_clobber(row) } else { row }
+        })
+        .collect()
+}
+
+/// Mark a written row's home as consumed before the remaining inputs are read.
+pub(super) fn early_clobber(operand: RegisterOperandConstraint) -> RegisterOperandConstraint {
+    RegisterOperandConstraint {
+        early_clobber: true,
+        ..operand
+    }
+}
+
+use register_model::{
+    RegisterClassId, RegisterOperandAccess, RegisterOperandConstraint, RegisterView,
+};
+
 mod call_keys;
 mod constraint_catalog;
 mod float_scalar_calls;
@@ -60,10 +125,10 @@ pub use operation_keys::{
     X86_64_IEEE_FLOAT_DIRECTED_BINARY, X86_64_IEEE_FLOAT_DIRECTED_UNARY, X86_64_IEEE_FLOAT_TERNARY,
     X86_64_IEEE_FLOAT_UNARY, X86_64_INTERRUPT_CONTROL, X86_64_JUMP, X86_64_LOAD_ENCODED_SCALAR,
     X86_64_LOAD8, X86_64_LOAD8_INDEXED, X86_64_LOAD16, X86_64_LOAD32, X86_64_LOAD64,
-    X86_64_MATERIALIZE_BOOLEAN, X86_64_MATERIALIZE_I64, X86_64_MODEL_SPECIFIC_READ,
-    X86_64_MODEL_SPECIFIC_WRITE, X86_64_MULTIPLY_I64, X86_64_PLACED_READ, X86_64_PLACED_WRITE,
-    X86_64_PORT_REGISTER_READ, X86_64_PORT_REGISTER_WRITE, X86_64_PORT_WRITE,
-    X86_64_PROCESSOR_HALT, X86_64_REMAINDER_I64, X86_64_REMAINDER_U64,
+    X86_64_MATERIALIZE_BOOLEAN, X86_64_MATERIALIZE_I64, X86_64_MEMORY_FENCE,
+    X86_64_MODEL_SPECIFIC_READ, X86_64_MODEL_SPECIFIC_WRITE, X86_64_MULTIPLY_I64,
+    X86_64_PLACED_READ, X86_64_PLACED_WRITE, X86_64_PORT_REGISTER_READ, X86_64_PORT_REGISTER_WRITE,
+    X86_64_PORT_WRITE, X86_64_PROCESSOR_HALT, X86_64_REMAINDER_I64, X86_64_REMAINDER_U64,
     X86_64_RESTORE_FLOATING_CONTROL, X86_64_SATURATING_ADD_CLAMPED, X86_64_SATURATING_ADD_U64,
     X86_64_SATURATING_DIVIDE_SIGNED, X86_64_SATURATING_MULTIPLY_CLAMPED,
     X86_64_SATURATING_MULTIPLY_U64, X86_64_SATURATING_SUBTRACT_CLAMPED,
@@ -73,8 +138,7 @@ pub use operation_keys::{
     X86_64_TRAPPING_CONVERT, X86_64_TRAPPING_FIXED_PAIR, X86_64_TRAPPING_SHIFT, X86_64_ZERO_BYTES,
 };
 pub(crate) use operation_keys::{
-    X86_64_INLINE_ASSEMBLY_DEFAULT, X86_64_LINUX_SYSTEM_CALL, X86_64_ORDINARY_REGISTER_CONSTRAINTS,
-    x86_64_required_register_constraints,
+    X86_64_INLINE_ASSEMBLY_DEFAULT, X86_64_LINUX_SYSTEM_CALL, x86_64_required_register_constraints,
 };
 pub use packed_memory::{X86_64_LOAD_PACKED, X86_64_STORE_PACKED};
 pub(crate) use physical_model::{

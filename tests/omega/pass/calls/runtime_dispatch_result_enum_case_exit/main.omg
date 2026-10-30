@@ -21,7 +21,7 @@ terminates by (j, i) -> Nat::BoundedDistance;
         false -> leaf(acc)
     }
     // ENUM-case terminal with a payload from a param.
-    state leaf(acc: i32 in Wrapping) -> Verdict { Verdict::Yes { score: acc } }
+    machine leaf(acc: i32 in Wrapping) -> Verdict { Verdict::Yes { score: acc } }
 }
 machine Main::main(main: &mut Main) reaches Console {
     main.result = Main::count(main, 3, 0, 0);
@@ -29,11 +29,11 @@ machine Main::main(main: &mut Main) reaches Console {
         Verdict::Yes { score } -> ck(main, score)
         Verdict::Nope -> bad(main, 71)
     }
-    state ck(main: &mut Main, score: i32 in Wrapping) {
+    machine ck(main: &mut Main, score: i32 in Wrapping) {
         transition score == 15 { true -> good(main) _ -> bad(main, 72) }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

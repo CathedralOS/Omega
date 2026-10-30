@@ -89,6 +89,9 @@ pub(crate) fn callable_identity(
         Some(spelling) => framed_identity("token-bound", &[overload, spelling.symbol().to_owned()]),
         None => overload,
     };
+    // Identity uses the declaration's resolved symbols and lifetime ordinals,
+    // not instantiated policy parameters or private specialization captures.
+    // The declaration query retains the method-local prefix coordinates.
     let scope = callable_declaration_scope(compilation, machine)?;
     let binders = scope
         .type_parameters
@@ -101,7 +104,7 @@ pub(crate) fn callable_identity(
             compilation,
             reference,
             &binders,
-            scope.lifetime_parameters,
+            scope.lifetime_parameters.as_ref(),
         )
         .map(|identity| identity.canonical)
     };

@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 use numerics::bignum::BigInt;
 use semantic_vocabulary::{IntegerType, IntegerValue};
 
-use super::{BoundedDenotationError, Denotation, ScalarTerm, Term, TermHandle};
+use super::{BoundedDenotationError, Denotation, ScalarTerm, Term, TermHandle, unbounded_integer};
 
 /// One fixed-integer operation's identity: constructor and machine types,
 /// so `u16` and `u32` multiplications remain distinct opaque functions.
@@ -172,13 +172,11 @@ impl Denotation {
             None => None,
         };
         let position = self.integer_operation(operation)?;
-        let mut term = self.constant(position);
-        for operand in [left].into_iter().chain(right) {
-            term = self.arena.insert(Term::Apply {
-                function: term,
-                argument: operand,
-            });
-        }
+        let function = self.constant(position);
+        let term = match right {
+            Some(right) => self.arena.apply_arguments(function, &[left, right]),
+            None => self.arena.apply_arguments(function, &[left]),
+        };
         Ok(Some(term))
     }
 
@@ -211,15 +209,8 @@ impl Denotation {
         let left = self.fixed_scalar_term(left)?;
         let right = self.fixed_scalar_term(right)?;
         let position = self.integer_operation(operation)?;
-        let function = self.constant(position);
-        let function = self.arena.insert(Term::Apply {
-            function,
-            argument: left,
-        });
-        Ok(Some(self.arena.insert(Term::Apply {
-            function,
-            argument: right,
-        })))
+        let relation = self.constant(position);
+        Ok(Some(self.arena.apply_binary(relation, left, right)))
     }
 
     /// One binary operation applied to already-denoted operands —
@@ -254,14 +245,7 @@ impl Denotation {
     ) -> Result<TermHandle, BoundedDenotationError> {
         let position = operation(self)?;
         let operation = self.constant(position);
-        let function = self.arena.insert(Term::Apply {
-            function: operation,
-            argument: left,
-        });
-        Ok(self.arena.insert(Term::Apply {
-            function,
-            argument: right,
-        }))
+        Ok(self.arena.apply_binary(operation, left, right))
     }
 
     /// One checked `op l r = n` bridge between evaluated numerals and the
@@ -281,11 +265,8 @@ impl Denotation {
         terms: fn(&mut Self, TermHandle, TermHandle) -> Result<TermHandle, BoundedDenotationError>,
         cache: impl Fn(&mut Self) -> &mut BTreeMap<(IntegerValue, IntegerValue, IntegerValue), u32>,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        let as_integer = |value: IntegerValue| match value {
-            IntegerValue::Signed(value) => BigInt::from_i128(value),
-            IntegerValue::Unsigned(value) => BigInt::from_u128(value),
-        };
-        if compute(&as_integer(left), &as_integer(right)) != as_integer(result) {
+        if compute(&unbounded_integer(left), &unbounded_integer(right)) != unbounded_integer(result)
+        {
             return Ok(None);
         }
         let position = self.interned_keyed_assumption(cache, (left, right, result), |this| {

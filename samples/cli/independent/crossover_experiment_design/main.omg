@@ -18,13 +18,13 @@ machine Main::main(main: &mut Main) reaches Console {
         LineReadResult::LineComplete { count } -> length(&input, count)
         _ -> invalid()
     }
-    state length(input: &[u8; 16], count: u64) {
+    machine length(input: &[u8; 16], count: u64) {
         transition count == 8 {
             true -> syntax(input)
             false -> invalid()
         }
     }
-    state syntax(input: &[u8; 16]) {
+    machine syntax(input: &[u8; 16]) {
         transition input[1] == 44 && input[3] == 44 && input[5] == 44 && input[7] == 10
             && input[0] >= 48 && input[0] <= 57 && input[2] >= 48 && input[2] <= 57
             && input[4] >= 48 && input[4] <= 57 && input[6] >= 48 && input[6] <= 57 {
@@ -32,7 +32,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> invalid()
         }
     }
-    state parse(input: &[u8; 16]) {
+    machine parse(input: &[u8; 16]) {
         let mut request: Request;
         request.treatments = (widen_u8_to_i32(input[0]) as i32 in Wrapping) - 48;
         request.subjects = (widen_u8_to_i32(input[2]) as i32 in Wrapping) - 48;
@@ -46,7 +46,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> invalid()
         }
     }
-    state search(request: &Request) {
+    machine search(request: &Request) {
         let mut allocation: Allocation;
         let found: bool = solve(request, &mut allocation);
         transition found {
@@ -54,26 +54,26 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> infeasible()
         }
     }
-    state verify(request: &Request, allocation: &mut Allocation) {
+    machine verify(request: &Request, allocation: &mut Allocation) {
         let verified: bool = certify(request, allocation);
         transition verified {
             true -> report(request, allocation)
             false -> defect()
         }
     }
-    state report(request: &Request, allocation: &Allocation) {
+    machine report(request: &Request, allocation: &Allocation) {
         emit(request, allocation);
         Console::exit_process(0);
     }
-    state infeasible() {
+    machine infeasible() {
         Console::write_line("INFEASIBLE: all subject-sequence multisets exhausted");
         Console::exit_process(2);
     }
-    state invalid() {
+    machine invalid() {
         Console::write_line("INVALID: expected T,N,C,F followed by LF; T=2..3 N=1..6 C=0..6 F=0..6");
         Console::exit_process(64);
     }
-    state defect() {
+    machine defect() {
         Console::write_line("DEFECT: selected allocation failed recount");
         Console::exit_process(70);
     }

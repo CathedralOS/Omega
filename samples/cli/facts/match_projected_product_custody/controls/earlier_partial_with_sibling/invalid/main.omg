@@ -1,0 +1,50 @@
+// An owned match carries its selected Payload, exact captured source and field projection, and complete residual cleanup roster through transport, then consumes the result with (left >> 4) ^ right.
+// Place: local.
+// Expected exit: 0
+data Payload { left: u64; right: u64; }
+data Pair { first: Payload; second: Payload; }
+
+machine supply(first: u64, second: u64) -> Pair {
+    Pair {
+        first: Payload { left: first, right: second },
+        second: Payload { left: second, right: first }
+    }
+}
+
+machine fold(value: Payload) -> u64 {
+    (value.left >> 4) ^ value.right
+}
+
+data Counter { value: u64 in Wrapping; }
+data Watch dropped by release_watch { counter: &mut Counter; }
+machine release_watch(watch: &mut Watch) {
+    watch.counter.value = watch.counter.value + 1;
+}
+data Triple { earlier: Payload; first: Payload; second: Payload; }
+machine consume(source: Triple, sibling: Watch, selected: u64) -> u64 {
+    let earlier: Payload = source.earlier;
+    let earlier_observation: u64 = fold(earlier);
+    let result: Payload = match selected {
+        0 -> source.earlier,
+        _ -> supply(4u64 ^ 255u64, 6u64 ^ 255u64).second
+    };
+    fold(result)
+}
+machine supply_three() -> Triple {
+    Triple {
+        earlier: Payload { left: 19, right: 23 },
+        first: Payload { left: 4, right: 6 },
+        second: Payload { left: 6, right: 4 }
+    }
+}
+machine main() crashes Trap {
+    let mut counter: Counter = Counter { value: 0 };
+    let first_result: u64 = consume(supply_three(), Watch { counter: &mut counter }, 0);
+    let second_result: u64 = consume(supply_three(), Watch { counter: &mut counter }, 1);
+    transition first_result == 6 && second_result == 244 && counter.value == 2 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

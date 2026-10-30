@@ -14,5 +14,5 @@ machine main() crashes Trap {
     let items: IndexedPacket<[u8; 2], extent()> = IndexedPacket { items: [7, 11] };
     let observed: u64 = consume(items);
     transition observed == 2 { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

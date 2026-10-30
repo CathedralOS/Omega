@@ -36,26 +36,52 @@ pub(crate) fn substitute_fixed_array_const_parameters(
     replacements: &[(SymbolHandle, String, usize)],
     type_start: Option<usize>,
 ) {
-    let updates = program
-        .type_reference_table
-        .fixed_array_lengths()
-        .filter(|(handle, _)| type_start.is_none_or(|start| handle.arena_index() as usize >= start))
-        .filter_map(|(handle, length)| {
-            let typed_trees::types::FixedArrayLength::ConstParameter { symbol, name } = length
-            else {
-                return None;
-            };
-            replacements
-                .iter()
-                .find(|(parameter_symbol, parameter_name, _)| {
-                    parameter_symbol == symbol
-                        || (!parameter_symbol.is_valid()
-                            && !symbol.is_valid()
-                            && parameter_name == name.as_str())
-                })
-                .map(|(_, _, value)| (handle, *value))
-        })
-        .collect::<Vec<_>>();
+    if replacements.is_empty() {
+        return;
+    }
+    let updates = match type_start {
+        Some(start) => program
+            .type_reference_table
+            .references_from(start)
+            .filter_map(|(handle, node)| {
+                let TypeReferenceNode::FixedArray {
+                    length: typed_trees::types::FixedArrayLength::ConstParameter { symbol, name },
+                    ..
+                } = node
+                else {
+                    return None;
+                };
+                replacements
+                    .iter()
+                    .find(|(parameter_symbol, parameter_name, _)| {
+                        parameter_symbol == symbol
+                            || (!parameter_symbol.is_valid()
+                                && !symbol.is_valid()
+                                && parameter_name == name.as_str())
+                    })
+                    .map(|(_, _, value)| (handle, *value))
+            })
+            .collect::<Vec<_>>(),
+        None => program
+            .type_reference_table
+            .fixed_array_lengths()
+            .filter_map(|(handle, length)| {
+                let typed_trees::types::FixedArrayLength::ConstParameter { symbol, name } = length
+                else {
+                    return None;
+                };
+                replacements
+                    .iter()
+                    .find(|(parameter_symbol, parameter_name, _)| {
+                        parameter_symbol == symbol
+                            || (!parameter_symbol.is_valid()
+                                && !symbol.is_valid()
+                                && parameter_name == name.as_str())
+                    })
+                    .map(|(_, _, value)| (handle, *value))
+            })
+            .collect::<Vec<_>>(),
+    };
     for (handle, value) in updates {
         program
             .type_reference_table
@@ -71,6 +97,9 @@ pub(crate) fn substitute_const_index_expression_parameters(
     candidate: &Candidate,
     type_start: usize,
 ) -> Result<(), String> {
+    if candidate.template.const_parameters.is_empty() {
+        return Ok(());
+    }
     let mut replacements = Vec::new();
     for (index, ((parameter, _, carrier), binding)) in candidate
         .template
@@ -87,7 +116,7 @@ pub(crate) fn substitute_const_index_expression_parameters(
             program,
             binding.expect("complete const specialization"),
             &[],
-        );
+        )?;
         let carrier = if let Some((index, _)) = candidate
             .template
             .type_parameters
@@ -102,18 +131,19 @@ pub(crate) fn substitute_const_index_expression_parameters(
                 program,
                 candidate.type_bindings[index].expect("complete type specialization"),
                 &[],
-            )
+            )?
         } else {
-            crate::monomorphization::copy_type_reference(source, program, *carrier, &[])
+            crate::monomorphization::copy_type_reference(source, program, *carrier, &[])?
         };
         replacements.push((*parameter, binding, carrier));
     }
     let roots = program
         .type_reference_table
-        .const_expression_sites()
-        .into_iter()
-        .filter(|(handle, _)| handle.arena_index() as usize >= type_start)
-        .map(|(_, expression)| expression)
+        .references_from(type_start)
+        .filter_map(|(_, node)| match node {
+            TypeReferenceNode::ConstExpression(expression) => Some(*expression),
+            _ => None,
+        })
         .collect::<Vec<_>>();
     let mut expressions = Vec::new();
     for root in roots {
@@ -145,9 +175,22 @@ pub(crate) fn substitute_const_index_expression_parameters(
 /// `step<Degree - 1>` inside `power<2>` is `step<2 - 1>` after binder
 /// substitution. Leaving that tree as a type reference never selects `step<1>`.
 pub(crate) fn fold_closed_const_machine_arguments(program: &mut TypedTrees) -> Result<(), String> {
+    let state_spans = program
+        .machines()
+        .iter()
+        .map(|machine| machine.states)
+        .collect::<Vec<_>>();
+    fold_closed_const_machine_arguments_in(program, 0, &state_spans)
+}
+
+pub(crate) fn fold_closed_const_machine_arguments_in(
+    program: &mut TypedTrees,
+    expression_start: usize,
+    state_spans: &[arena::HandleSpan<typed_trees::state::State>],
+) -> Result<(), String> {
     let expression_handles = program
         .expression_table
-        .iter_expressions()
+        .iter_expressions_from(expression_start)
         .filter_map(|(handle, expression)| {
             matches!(expression, ExpressionNode::Call(_)).then_some(handle)
         })
@@ -171,53 +214,42 @@ pub(crate) fn fold_closed_const_machine_arguments(program: &mut TypedTrees) -> R
             .call_node(handle)
             .and_then(|call| call.native_code_layout.clone());
         if let Some(query) = &mut native_query
-            && fold_const_arguments(program, owner, std::slice::from_mut(&mut query.operand))?
+            && normalize_const_arguments(program, owner, std::slice::from_mut(&mut query.operand))?
             && let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
         {
             call.native_code_layout = native_query;
         }
-        let (mut arguments, applications) = {
-            let ExpressionNode::Call(call) = program.expression_table.expression(handle) else {
-                continue;
-            };
-            (
-                call.machine_arguments.clone(),
-                typed_trees::references::StaticArgumentCall::Expression(handle, call)
-                    .applications(),
-            )
-        };
-        if fold_const_arguments(program, owner, &mut arguments)? {
+        let has_machine_args = program
+            .expression_table
+            .call_node(handle)
+            .is_some_and(|call| !call.machine_arguments.is_empty());
+        if !has_machine_args {
+            continue;
+        }
+        let mut arguments = program
+            .expression_table
+            .call_node(handle)
+            .expect("call roster")
+            .machine_arguments
+            .clone();
+        if normalize_const_arguments(program, owner, &mut arguments)? {
             let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
                 continue;
             };
             call.machine_arguments = arguments;
         }
-        for application in applications {
-            let mut arguments = program
-                .expression_table
-                .static_machine_application_arguments(application)
-                .to_vec();
-            if fold_const_arguments(program, owner, &mut arguments)? {
-                program
-                    .expression_table
-                    .static_machine_application_arguments_mut(application)
-                    .clone_from_slice(&arguments);
-            }
-        }
     }
-    let state_spans = program
-        .machines()
-        .iter()
-        .map(|machine| machine.states)
-        .collect::<Vec<_>>();
     let mut statement_handles = Vec::new();
     for states in state_spans {
-        for state in program.machine_states.span_or_empty(states) {
+        for state in program.machine_states.span_or_empty(*states) {
             for (handle, statement) in program
                 .statement_table
                 .iter_statements(state.statement_nodes)
             {
-                if statement.as_call().is_some() {
+                if statement
+                    .as_call()
+                    .is_some_and(|call| !call.machine_arguments.is_empty())
+                {
                     statement_handles.push(handle);
                 }
             }
@@ -238,38 +270,27 @@ pub(crate) fn fold_closed_const_machine_arguments(program: &mut TypedTrees) -> R
         } else {
             SymbolHandle::invalid()
         };
-        let (mut arguments, applications) = {
-            let Some(call) = program.statement_table.statement(handle).as_call() else {
-                continue;
-            };
-            (
-                call.machine_arguments.clone(),
-                typed_trees::references::StaticArgumentCall::Statement(call).applications(),
-            )
-        };
-        if fold_const_arguments(program, owner, &mut arguments)? {
+        let mut arguments = program
+            .statement_table
+            .statement(handle)
+            .as_call()
+            .expect("call roster")
+            .machine_arguments
+            .clone();
+        if normalize_const_arguments(program, owner, &mut arguments)? {
             let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
                 continue;
             };
             call.machine_arguments = arguments;
         }
-        for application in applications {
-            let mut arguments = program
-                .expression_table
-                .static_machine_application_arguments(application)
-                .to_vec();
-            if fold_const_arguments(program, owner, &mut arguments)? {
-                program
-                    .expression_table
-                    .static_machine_application_arguments_mut(application)
-                    .clone_from_slice(&arguments);
-            }
-        }
     }
     Ok(())
 }
 
-fn fold_const_arguments(
+/// Normalize a derived operand list without replacing its authored application.
+/// Callers own the scratch list (or the live executable arguments); immutable
+/// checking still reads every original recipe and its formation obligations.
+pub(crate) fn normalize_const_arguments(
     program: &mut TypedTrees,
     owner: SymbolHandle,
     arguments: &mut [StaticMachineArgument],
@@ -283,7 +304,7 @@ fn fold_const_arguments(
                 .expect("nested static application")
                 .arguments
                 .clone();
-            if fold_const_arguments(program, owner, &mut nested)? {
+            if normalize_const_arguments(program, owner, &mut nested)? {
                 arguments[index]
                     .application
                     .as_mut()

@@ -11,11 +11,11 @@ reaches Console + DirectoryEnumeration + FilesystemMetadataQuery + FilesystemCon
     main.descriptor = -1;
     let created: i32 = PosixFilesystemHost::create_dir("native-transfer-records", 448);
     transition created == 0 { true -> link(main) _ -> bad(10) }
-    state link(main: &mut Main) {
+    machine link(main: &mut Main) {
         let linked: i32 = PosixFilesystemHost::symlink("abcdefghi", "native-transfer-records/link");
         transition linked == 0 { true -> read_link(main) _ -> finish(main, 11) }
     }
-    state read_link(main: &mut Main) {
+    machine read_link(main: &mut Main) {
         main.bytes[0] = 91;
         main.bytes[5] = 92;
         let count: i64 = PosixFilesystemHost::read_link("native-transfer-records/link", &mut main.bytes[1..5], 18446744073709551615);
@@ -24,7 +24,7 @@ reaches Console + DirectoryEnumeration + FilesystemMetadataQuery + FilesystemCon
             true -> short_link(main) _ -> finish(main, 12)
         }
     }
-    state short_link(main: &mut Main) {
+    machine short_link(main: &mut Main) {
         main.bytes[3] = 73;
         main.bytes[4] = 74;
         main.bytes[5] = 75;
@@ -37,7 +37,7 @@ reaches Console + DirectoryEnumeration + FilesystemMetadataQuery + FilesystemCon
             true -> zero_link(main) _ -> finish(main, 20)
         }
     }
-    state zero_link(main: &mut Main) {
+    machine zero_link(main: &mut Main) {
         let count: i64 = PosixFilesystemHost::read_link("native-transfer-records/missing", &mut main.bytes[1..7], 0);
         transition count < 0 && main.bytes[0] == 91 && main.bytes[1] == 97 && main.bytes[2] == 98
             && main.bytes[3] == 73 && main.bytes[4] == 74 && main.bytes[5] == 75
@@ -45,11 +45,11 @@ reaches Console + DirectoryEnumeration + FilesystemMetadataQuery + FilesystemCon
             true -> open_directory(main) _ -> finish(main, 21)
         }
     }
-    state open_directory(main: &mut Main) {
+    machine open_directory(main: &mut Main) {
         main.descriptor = PosixFilesystemHost::open("native-transfer-records", 0);
         transition main.descriptor >= 0 { true -> zero_directory(main) _ -> finish(main, 13) }
     }
-    state zero_directory(main: &mut Main) {
+    machine zero_directory(main: &mut Main) {
         main.bytes[17] = 61;
         main.bytes[1021] = 81;
         main.bytes[1022] = 82;
@@ -61,20 +61,20 @@ reaches Console + DirectoryEnumeration + FilesystemMetadataQuery + FilesystemCon
             true -> short_directory(main) _ -> finish(main, 22)
         }
     }
-    state short_directory(main: &mut Main) {
+    machine short_directory(main: &mut Main) {
         // The private suffix belongs to count 1024, not the larger view's end.
         let count: i64 = PosixFilesystemHost::read_dir(main.descriptor, &mut main.bytes[1..1026], 1024, &mut main.position);
         transition count > 0 && count <= 1024 && suffix_intact(main) {
             true -> restart_directory(main) _ -> finish(main, 23)
         }
     }
-    state restart_directory(main: &mut Main) {
+    machine restart_directory(main: &mut Main) {
         let closed: i32 = PosixFilesystemHost::close(main.descriptor);
         main.descriptor = PosixFilesystemHost::open("native-transfer-records", 0);
         main.position = 0;
         transition closed == 0 && main.descriptor >= 0 { true -> directory(main) _ -> finish(main, 24) }
     }
-    state directory(main: &mut Main) {
+    machine directory(main: &mut Main) {
         main.bytes[1021] = 81;
         main.bytes[1022] = 82;
         main.bytes[1023] = 83;
@@ -85,43 +85,43 @@ reaches Console + DirectoryEnumeration + FilesystemMetadataQuery + FilesystemCon
             true -> failed_directory(main) _ -> finish(main, 14)
         }
     }
-    state failed_directory(main: &mut Main) {
+    machine failed_directory(main: &mut Main) {
         let count: i64 = PosixFilesystemHost::read_dir(-1, &mut main.bytes[1..1025], 18446744073709551615, &mut main.position);
         transition count == -9 && suffix_intact(main) {
             true -> zero_invalid_directory(main) _ -> finish(main, 15)
         }
     }
-    state zero_invalid_directory(main: &mut Main) {
+    machine zero_invalid_directory(main: &mut Main) {
         let count: i64 = PosixFilesystemHost::read_dir(-1, &mut main.bytes[1..1025], 0, &mut main.position);
         transition count == -9 && suffix_intact(main) {
             true -> empty_directory(main) _ -> finish(main, 25)
         }
     }
-    state empty_directory(main: &mut Main) {
+    machine empty_directory(main: &mut Main) {
         let count: i64 = PosixFilesystemHost::read_dir(-1, &mut main.bytes[1..1], 18446744073709551615, &mut main.position);
         transition count == -9 && suffix_intact(main) {
             true -> empty_link(main) _ -> finish(main, 16)
         }
     }
-    state empty_link(main: &mut Main) {
+    machine empty_link(main: &mut Main) {
         let count: i64 = PosixFilesystemHost::read_link("native-transfer-records/missing", &mut main.bytes[1..1], 18446744073709551615);
         transition count < 0 && suffix_intact(main) {
             true -> finish(main, 0) _ -> finish(main, 17)
         }
     }
-    state finish(main: &mut Main, code: i32) {
+    machine finish(main: &mut Main, code: i32) {
         transition main.descriptor >= 0 { true -> close(main, code) _ -> remove(main, code) }
     }
-    state close(main: &mut Main, code: i32) {
+    machine close(main: &mut Main, code: i32) {
         let closed: i32 = PosixFilesystemHost::close(main.descriptor);
         transition closed == 0 { true -> remove(main, code) _ -> remove(main, 18) }
     }
-    state remove(main: &mut Main, code: i32) {
+    machine remove(main: &mut Main, code: i32) {
         let unlinked: i32 = PosixFilesystemHost::remove_name("native-transfer-records/link");
         let removed: i32 = PosixFilesystemHost::remove_dir_name("native-transfer-records");
         transition unlinked == 0 && removed == 0 { true -> bad(code) _ -> bad(19) }
     }
-    state bad(code: i32) { Console::exit_process(code); }
+    machine bad(code: i32) { Console::exit_process(code); }
 }
 
 machine suffix_intact(main: &Main) -> bool {

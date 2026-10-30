@@ -15,7 +15,7 @@ machine insert(slot: &mut Slot) -> bool {
         Slot::Held { token } -> false
         Slot::Empty -> store(slot)
     }
-    state store(slot: &mut Slot) -> bool
+    machine store(slot: &mut Slot) -> bool
     requires slot in Slot::Empty
     {
         slot = Slot::Held { token: issue(73) };
@@ -44,5 +44,5 @@ machine main() reaches ProcessExit {
         true -> finish(inventory, 0)
         _ -> finish(inventory, 1)
     }
-    state finish(inventory: Inventory, status: i32) { ProcessExit::exit_process(status); }
+    machine finish(inventory: Inventory, status: i32) { ProcessExit::exit_process(status); }
 }

@@ -5,7 +5,7 @@ use super::{
     state::{DirectTraversal, add},
 };
 
-pub(super) fn usage(
+pub(in crate::preservation) fn usage(
     traversal: &DirectTraversal<'_>,
 ) -> Result<OptimizationWorkUsage, AllocatedCalleeSavedRequirementError> {
     let modified_units = traversal
@@ -40,7 +40,7 @@ pub(super) fn usage(
 /// The program extent the derivation traverses: every function, block,
 /// instruction, operand and unit write, each read once. The pass budget's
 /// ceilings scale with it (`OptimizationWorkBudget::for_extent`).
-pub(super) fn extent(
+pub(in crate::preservation) fn extent(
     traversal: &DirectTraversal<'_>,
 ) -> Result<u64, AllocatedCalleeSavedRequirementError> {
     [

@@ -11,8 +11,8 @@ machine Writer::fill(cells: &mut Cells) crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine main() crashes Trap {
     let mut cells: Cells = Cells { values: [7, 9] };

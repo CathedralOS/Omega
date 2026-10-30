@@ -26,7 +26,7 @@ machine exercise(carrier: Carrier) -> u64
 requires carrier.value >= 100u64 && carrier.value <= 100u64
 {
     transition { _ -> step(carrier) }
-    state step(carrier: Carrier) -> u64
+    machine step(carrier: Carrier) -> u64
     requires carrier.value >= 100u64 && carrier.value <= 100u64
     {
         verify_carrier(carrier)
@@ -40,6 +40,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

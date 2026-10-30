@@ -11,11 +11,11 @@ linux_x86_64 machine Main::main(main: &mut Main) {
         true -> put(main)
         _ -> done(main)
     }
-    state put(main: &mut Main) {
+    machine put(main: &mut Main) {
         main.grid[main.b * 20 + main.a] = 7;
         main.hits = 1;
     }
-    state done(main: &mut Main) { main.hits = -1; }
+    machine done(main: &mut Main) { main.hits = -1; }
 }
 
 linux_arm64 machine Main::main(main: &mut Main) {
@@ -23,11 +23,11 @@ linux_arm64 machine Main::main(main: &mut Main) {
         true -> put(main)
         _ -> done(main)
     }
-    state put(main: &mut Main) {
+    machine put(main: &mut Main) {
         main.grid[main.b * 20 + main.a] = 7;
         main.hits = 1;
     }
-    state done(main: &mut Main) { main.hits = -1; }
+    machine done(main: &mut Main) { main.hits = -1; }
 }
 
 macos_arm64 machine Main::main(main: &mut Main) {
@@ -35,11 +35,11 @@ macos_arm64 machine Main::main(main: &mut Main) {
         true -> put(main)
         _ -> done(main)
     }
-    state put(main: &mut Main) {
+    machine put(main: &mut Main) {
         main.grid[main.b * 20 + main.a] = 7;
         main.hits = 1;
     }
-    state done(main: &mut Main) { main.hits = -1; }
+    machine done(main: &mut Main) { main.hits = -1; }
 }
 
 windows_x86_64 machine Main::main(main: &mut Main) {
@@ -47,9 +47,9 @@ windows_x86_64 machine Main::main(main: &mut Main) {
         true -> put(main)
         _ -> done(main)
     }
-    state put(main: &mut Main) {
+    machine put(main: &mut Main) {
         main.grid[main.b * 20 + main.a] = 7;
         main.hits = 1;
     }
-    state done(main: &mut Main) { main.hits = -1; }
+    machine done(main: &mut Main) { main.hits = -1; }
 }

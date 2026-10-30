@@ -17,7 +17,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // Outer loop: stop once the value is a single digit, else sum its digits.
-    state collapse(value: i32 in Wrapping) {
+    machine collapse(value: i32 in Wrapping) {
         transition value < 10 {
             true -> done(value)
             _ -> digits(value, 0)
@@ -25,14 +25,14 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // Inner loop: peel off decimal digits, adding each to the running sum.
-    state digits(value: i32 in Wrapping, sum: i32 in Wrapping) {
+    machine digits(value: i32 in Wrapping, sum: i32 in Wrapping) {
         transition value == 0 {
             true -> collapse(sum)
             _ -> add_digit(value, sum)
         }
     }
 
-    state add_digit(value: i32 in Wrapping, sum: i32 in Wrapping) {
+    machine add_digit(value: i32 in Wrapping, sum: i32 in Wrapping) {
         let next_sum: i32 in Wrapping = sum + value % 10;
         let remaining: i32 in Wrapping = value / 10;
         transition {
@@ -40,7 +40,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state done(result: i32 in Wrapping) {
+    machine done(result: i32 in Wrapping) {
         Console::write_line("result: the digital root, 6 for 12345 (the exit code)");
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];

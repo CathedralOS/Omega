@@ -6,7 +6,7 @@
 use super::{
     CheckedBooleanExpression, CheckedScalarExpression, ClosedScalarContractValue, IntegerValue,
     LoweringError, Proposition, ScalarTerm, StructuralParameterDeclaration,
-    StructuralTypeDeclaration, StructuralTypeId, ValueDeclaration, unsupported,
+    StructuralTypeDeclaration, ValueDeclaration, unsupported,
 };
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::scalar_types::terminal_scalar_type;
@@ -51,10 +51,16 @@ impl ContractStructuralResult<'_> {
 
 /// The structural namespace a closed scalar contract may observe: the
 /// machine's `(source position, declaration)` parameter roster plus the
-/// element-view carriers resolved from it. Scalar-only contexts pass
-/// `ContractViewNamespace::EMPTY`.
+/// element-view carriers resolved from it. Scalar-only contexts clear places
+/// while retaining the compilation's constant application namespace.
 #[derive(Clone, Copy)]
 pub(crate) struct ContractViewNamespace<'a> {
+    pub scalar_applications:
+        &'a crate::unit::attached_unit::scalar_applications::SourceScalarApplications,
+    /// Values supplied by this checked product's exact target closure. The
+    /// retained predicate owns recipe identity; this roster supplies atoms,
+    /// never source syntax or authority to discharge pending obligations.
+    pub constant_values: &'a [typed_trees::constant_recipes::ClosedConstantRecipe],
     pub parameters: &'a [(u32, StructuralParameterDeclaration)],
     /// Normal guarantees observe the declared result place, never a synthetic
     /// entry parameter or a returned body-local place.
@@ -64,19 +70,17 @@ pub(crate) struct ContractViewNamespace<'a> {
     /// Structural type declarations the parameters' member paths resolve
     /// against; member leaves in contract operands fail closed when absent.
     pub structural_types: &'a [StructuralTypeDeclaration],
-    pub element_views: &'a std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
 }
 
-static EMPTY_ELEMENT_VIEWS: std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>> =
-    std::collections::BTreeMap::new();
-
 impl ContractViewNamespace<'static> {
-    /// Scalar-only contexts pass `ContractViewNamespace::EMPTY`.
+    /// Empty formal and constant namespaces, for genuinely context-free terms.
     pub(crate) const EMPTY: ContractViewNamespace<'static> = ContractViewNamespace {
+        scalar_applications:
+            &crate::unit::attached_unit::scalar_applications::SourceScalarApplications::EMPTY,
+        constant_values: &[],
         parameters: &[],
         result: ContractStructuralResult::Absent,
         structural_types: &[],
-        element_views: &EMPTY_ELEMENT_VIEWS,
     };
 }
 
@@ -558,17 +562,12 @@ pub(crate) fn erased_actual_term(
     expression: &CheckedScalarExpression,
     namespace: &[ValueDeclaration],
     erased: &[ValueDeclaration],
-    parameters: &[(u32, StructuralParameterDeclaration)],
-    structural_types: &[StructuralTypeDeclaration],
+    views: &ContractViewNamespace<'_>,
 ) -> Result<ScalarTerm, LoweringError> {
     ScalarContractTerms {
         namespace,
         erased,
-        views: ContractViewNamespace {
-            parameters,
-            structural_types,
-            ..ContractViewNamespace::EMPTY
-        },
+        views: *views,
     }
     .scalar(identities, expression)
 }
@@ -623,6 +622,7 @@ impl PredicateTerms for ScalarContractTerms<'_> {
             CheckedBooleanExpression::StructuralParameterField {
                 parameter_position,
                 path,
+                ..
             } => self.structural_member_term(
                 identities,
                 *parameter_position,
@@ -716,13 +716,59 @@ impl ScalarContractTerms<'_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: &CheckedScalarExpression,
     ) -> Result<ScalarTerm, LoweringError> {
+        if let CheckedScalarExpression::ConstantApplication {
+            recipe,
+            owner,
+            primitive_type,
+        } = expression
+        {
+            let scalar_type = crate::emission::scalar_types::integer_scalar_type(*primitive_type)?;
+            if let Some(application) = self.views.scalar_applications.recipe_in(*recipe, *owner) {
+                if self.views.scalar_applications.scalar_type(application) != Some(scalar_type) {
+                    return Err(LoweringError::Unsupported(
+                        "contract constant application carrier disagrees with its declaration",
+                    ));
+                }
+                return Ok(ScalarTerm::Application {
+                    application,
+                    scalar_type,
+                });
+            }
+            let value = self
+                .views
+                .constant_values
+                .iter()
+                .find(|value| value.recipe == *recipe)
+                .ok_or(LoweringError::Unsupported(
+                    "contract constant application has no admitted target value",
+                ))?;
+            let value = typed_trees::closed_numeric::land_integer(&value.value, *primitive_type)
+                .ok_or(LoweringError::Unsupported(
+                    "contract constant application does not fit its declared carrier",
+                ))?;
+            let scalar_type = scalar_type.as_integer().ok_or(LoweringError::Unsupported(
+                "contract constant application has no integer carrier",
+            ))?;
+            return Ok(ScalarTerm::Integer { scalar_type, value });
+        }
         if let CheckedScalarExpression::Boolean(predicate) = expression {
             return self.boolean(identities, predicate);
         }
-        if matches!(
-            expression,
-            CheckedScalarExpression::StructuralParameterIndexedRead { .. }
-        ) {
+        if let CheckedScalarExpression::StructuralParameterIndexedRead { root, .. } = expression {
+            if let ContractStructuralResult::Declared {
+                position,
+                declaration,
+            } = self.views.result
+                && root.parameter() == Some(position)
+            {
+                return crate::proofs::crash_routes::lower_structural_result_indexed_term(
+                    identities,
+                    expression,
+                    declaration,
+                    self.views.structural_types,
+                    &mut |identities, selector| self.scalar(identities, selector),
+                );
+            }
             return crate::proofs::crash_routes::lower_structural_indexed_term(
                 identities,
                 expression,
@@ -755,6 +801,7 @@ impl ScalarContractTerms<'_> {
             parameter_position,
             path,
             primitive_type,
+            ..
         } = expression
         {
             // The roster keys each declaration by its authored source

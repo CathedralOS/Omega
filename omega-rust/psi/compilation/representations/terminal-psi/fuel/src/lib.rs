@@ -92,6 +92,7 @@ impl TerminalFuelSchedule {
             | OperationKind::PortWrite { .. }
             | OperationKind::RegisterAccess { .. }
             | OperationKind::IntegerConstant { .. }
+            | OperationKind::ReadScalarApplication { .. }
             | OperationKind::IeeeFloatConstant { .. }
             | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
             | OperationKind::IeeeFloatCompare { .. }
@@ -132,20 +133,21 @@ impl TerminalFuelSchedule {
             | terminal_psi::terminator_return_pair_pattern!(..)
             | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. }
+            | Terminator::InvokeNoNormal { .. }
             | Terminator::ExternalCompletion { .. } => 1,
         }
     }
 }
 
 /// Stable semantic site to which executed logical work is attributed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum FuelChargeSite {
     Operation(OperationId),
     Edge(EdgeId),
 }
 
 /// Aggregate execution count and logical units charged at one semantic site.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct FuelAttribution {
     executions: u64,
     units: u64,
@@ -162,7 +164,7 @@ impl FuelAttribution {
 }
 
 /// Deterministic usage for one concrete terminal-Psi execution.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalFuelUsage {
     schedule: FuelScheduleIdentity,
     total_units: u64,
@@ -255,6 +257,12 @@ impl TerminalFuelMeter {
         self.schedule
     }
 
+    /// Execution must use this same account for storage as well as fuel.
+    /// Borrowing it does not increase the sponsor's allowance.
+    pub fn invocation_account(&self) -> Option<&EvaluationInvocationAccount> {
+        self.invocation.as_ref()
+    }
+
     pub const fn remaining_allowance(&self) -> Option<u64> {
         self.remaining_allowance
     }
@@ -294,6 +302,7 @@ impl TerminalFuelMeter {
             | terminal_psi::terminator_return_pair_pattern!(edge, ..)
             | Terminator::ReturnStructural { edge, .. }
             | Terminator::Crash { edge, .. }
+            | Terminator::InvokeNoNormal { edge, .. }
             | Terminator::ExternalCompletion { edge, .. } => *edge,
             Terminator::Conditional { .. } | Terminator::StructuralCase { .. } => {
                 return Err(FuelMeterError::ConditionalEdgeNotSelected);
@@ -397,7 +406,10 @@ pub enum FuelMeterError {
 
 impl std::fmt::Display for FuelMeterError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
+        match self {
+            Self::InvocationCharge { site, reason } => write!(formatter, "{reason} at {site:?}"),
+            other => write!(formatter, "{other:?}"),
+        }
     }
 }
 

@@ -19,13 +19,13 @@ machine Main::main(main: &mut Main) reaches Console {
         ByteRead::Byte { value } -> scenario(main, value)
         ByteRead::Eof -> invalid(main)
     }
-    state scenario(main: &mut Main, value: i32) {
+    machine scenario(main: &mut Main, value: i32) {
         transition value >= 48 && value <= 51 {
             true -> length_input(main, value - 48)
             false -> invalid(main)
         }
     }
-    state length_input(main: &mut Main, scenario: i32) {
+    machine length_input(main: &mut Main, scenario: i32) {
         main.scenario = scenario;
         let input: ByteRead = block Console::read_byte();
         transition input {
@@ -33,42 +33,42 @@ machine Main::main(main: &mut Main) reaches Console {
             ByteRead::Eof -> invalid(main)
         }
     }
-    state length(main: &mut Main, value: i32) {
+    machine length(main: &mut Main, value: i32) {
         transition value {
             49 -> unit_length(main)
             50 -> double_length(main)
             _ -> invalid(main)
         }
     }
-    state unit_length(main: &mut Main) {
+    machine unit_length(main: &mut Main) {
         main.pendulum.length = 1.0;
         transition { _ -> newline(main) }
     }
-    state double_length(main: &mut Main) {
+    machine double_length(main: &mut Main) {
         main.pendulum.length = 2.0;
         transition { _ -> newline(main) }
     }
-    state newline(main: &mut Main) {
+    machine newline(main: &mut Main) {
         let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Byte { value } -> check_newline(main, value)
             ByteRead::Eof -> invalid(main)
         }
     }
-    state check_newline(main: &mut Main, value: i32) {
+    machine check_newline(main: &mut Main, value: i32) {
         transition value == 10 {
             true -> end_input(main)
             false -> invalid(main)
         }
     }
-    state end_input(main: &mut Main) {
+    machine end_input(main: &mut Main) {
         let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Eof -> initialize(main)
             ByteRead::Byte { value } -> invalid(main)
         }
     }
-    state initialize(main: &mut Main) {
+    machine initialize(main: &mut Main) {
         main.step = 0;
         main.pendulum.vx = 0.0;
         main.pendulum.vy = 0.0;
@@ -79,34 +79,34 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> displaced(main)
         }
     }
-    state equilibrium(main: &mut Main) {
+    machine equilibrium(main: &mut Main) {
         main.pendulum.x = 0.0;
         main.pendulum.y = 0.0 - main.pendulum.length;
         transition { _ -> project(main) }
     }
-    state small_angle(main: &mut Main) {
+    machine small_angle(main: &mut Main) {
         main.pendulum.x = 0.01 * main.pendulum.length;
         main.pendulum.y = 0.0 - F64::square_root(main.pendulum.length * main.pendulum.length - main.pendulum.x * main.pendulum.x);
         transition { _ -> project(main) }
     }
-    state released(main: &mut Main) {
+    machine released(main: &mut Main) {
         main.pendulum.x = 0.6 * main.pendulum.length;
         main.pendulum.y = 0.0 - 0.8 * main.pendulum.length;
         transition { _ -> project(main) }
     }
-    state displaced(main: &mut Main) {
+    machine displaced(main: &mut Main) {
         main.pendulum.x = 0.66 * main.pendulum.length;
         main.pendulum.y = 0.0 - 0.88 * main.pendulum.length;
         main.pendulum.vx = 0.3;
         main.pendulum.vy = 0.4;
         transition { _ -> project(main) }
     }
-    state project(main: &mut Main) {
+    machine project(main: &mut Main) {
         Pendulum::project(&mut main.pendulum);
         main.initial_energy = main.pendulum.energy;
         transition { _ -> row(main) }
     }
-    state row(main: &mut Main) {
+    machine row(main: &mut Main) {
         Console::write("ROW ");
         print_micro(F64::from_i32(main.step));
         Console::write(" ");
@@ -131,21 +131,21 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> finish(main)
         }
     }
-    state advance(main: &mut Main)
+    machine advance(main: &mut Main)
     requires main.step >= 0 && main.step < 32
     {
         main.step = main.step + 1;
         Pendulum::step(&mut main.pendulum);
         transition { _ -> row(main) }
     }
-    state finish(main: &mut Main) {
+    machine finish(main: &mut Main) {
         Console::write("ENERGY_CHANGE ");
         print_micro(main.pendulum.energy - main.initial_energy);
         Console::write_line("");
         Console::write_line("COMPLETE 32 steps");
         Console::exit_process(0);
     }
-    state invalid(main: &mut Main) {
+    machine invalid(main: &mut Main) {
         Console::write_line("INVALID: expected scenario 0..3, length 1..2, LF, EOF");
         Console::exit_process(64);
     }

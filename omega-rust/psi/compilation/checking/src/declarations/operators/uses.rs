@@ -8,9 +8,9 @@ use std::collections::HashSet;
 
 use arena::Arena;
 use checked_trees::{
-    CheckedArithmeticPolicyAdapter, CheckedNamedOperatorUseFact, CheckedOperatorCandidateFact,
-    CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
-    CheckedValueFacts, CheckedValueOrigin,
+    CheckedArithmeticPolicyAdapter, CheckedNamedOperatorUseFact, CheckedNamedRequirementUseFact,
+    CheckedOperatorCandidateFact, CheckedOperatorFacts, CheckedOperatorResolutionStatus,
+    CheckedOperatorUseFact, CheckedValueFacts, CheckedValueOrigin,
 };
 use language_core::operator_spelling::OperatorSpelling;
 use numerics::arithmetic::ArithmeticDomain;
@@ -115,18 +115,28 @@ pub fn collect_pre_specialization_operator_selections(
     }
 }
 
-/// The operator and named uses with their candidates, without the requirement
-/// uses and declaration contracts `build_operator_facts` adds.
+/// The retained facts of one occurrence-deduplicated operator walk. The
+/// operator, named, candidate and named-requirement rows all come from the same
+/// visit, so they share one sink and one occurrence roster instead of a second
+/// pass over the same value rows.
+#[derive(Default)]
+struct OperatorUseSink {
+    seen: HashSet<(ExpressionHandle, CheckedValueOrigin), symbols::BuildSymbolHasher>,
+    uses: Arena<CheckedOperatorUseFact>,
+    named_uses: Arena<CheckedNamedOperatorUseFact>,
+    named_requirement_uses: Arena<CheckedNamedRequirementUseFact>,
+    candidates: Arena<CheckedOperatorCandidateFact>,
+}
+
+/// The operator, named and named-requirement uses with their candidates,
+/// without the declaration contracts `build_operator_facts` adds.
 pub fn build_operator_uses(
     program: &dyn crate::CheckingInput,
     values: &CheckedValueFacts,
 ) -> CheckedOperatorFacts {
-    let mut uses = Arena::default();
-    let mut named_uses = Arena::default();
-    let mut candidates = Arena::default();
     // Membership only: the walk never iterates this set, so its handle and
     // origin keys take the integer hasher instead of SipHash.
-    let mut seen = HashSet::with_hasher(symbols::BuildSymbolHasher);
+    let mut sink = OperatorUseSink::default();
 
     for (_, value) in values.values.iter() {
         // The recursive walk already visits every child with its enclosing
@@ -136,44 +146,37 @@ pub fn build_operator_uses(
         if matches!(value.origin, CheckedValueOrigin::NestedExpression { .. }) {
             continue;
         }
-        collect_expression_operator_use(
-            program,
-            value.expression,
-            value.origin,
-            &mut seen,
-            &mut uses,
-            &mut named_uses,
-            &mut candidates,
-        );
+        collect_expression_operator_use(program, value.expression, value.origin, &mut sink);
     }
 
+    let OperatorUseSink {
+        uses,
+        named_uses,
+        named_requirement_uses,
+        candidates,
+        ..
+    } = sink;
     CheckedOperatorFacts::with_roots(uses, named_uses, candidates)
+        .with_named_requirement_uses(named_requirement_uses)
 }
 
 fn collect_expression_operator_use(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
-    seen: &mut HashSet<(ExpressionHandle, CheckedValueOrigin), symbols::BuildSymbolHasher>,
-    uses: &mut Arena<CheckedOperatorUseFact>,
-    named_uses: &mut Arena<CheckedNamedOperatorUseFact>,
-    candidates: &mut Arena<CheckedOperatorCandidateFact>,
+    sink: &mut OperatorUseSink,
 ) {
-    if !expression.is_valid() || !seen.insert((expression, origin)) {
+    if !expression.is_valid() || !sink.seen.insert((expression, origin)) {
         return;
     }
 
-    match program.expression_table.expression(expression) {
+    let node = program.expression_table.expression(expression);
+    match node {
+        // A case dispatch contributes one arm-local floating equality use ahead
+        // of each arm, so its arms are walked here; the record/candidate facts
+        // of the other nodes below never depend on an arm order.
         ExpressionNode::Match(dispatch) => {
-            collect_expression_operator_use(
-                program,
-                dispatch.subject,
-                origin,
-                seen,
-                uses,
-                named_uses,
-                candidates,
-            );
+            collect_expression_operator_use(program, dispatch.subject, origin, sink);
             let subject_type =
                 expression_type_reference_for_origin(program, dispatch.subject, origin);
             let floating_subject = subject_type
@@ -201,68 +204,31 @@ fn collect_expression_operator_use(
                                 subject_type,
                                 expression_type_reference_for_origin(program, pattern, origin),
                             ],
-                            candidates,
+                            &mut sink.candidates,
                         );
                         equality.occurrence =
                             checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm };
-                        uses.append(equality);
+                        sink.uses.append(equality);
                     }
                 }
                 for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
-                    collect_expression_operator_use(
-                        program, pattern, origin, seen, uses, named_uses, candidates,
-                    );
+                    collect_expression_operator_use(program, pattern, origin, sink);
                 }
-                collect_expression_operator_use(
-                    program, arm.value, origin, seen, uses, named_uses, candidates,
-                );
+                collect_expression_operator_use(program, arm.value, origin, sink);
             }
+            return;
         }
-        ExpressionNode::Atomic(atomic) => collect_expression_operator_use(
-            program,
-            atomic.value,
-            origin,
-            seen,
-            uses,
-            named_uses,
-            candidates,
-        ),
         ExpressionNode::Indexed(indexed) => {
             let spelling = indexed_operator_spelling(program, indexed.index);
             let operand_types = indexed_operand_types(program, indexed, origin);
-            uses.append(operator_use_fact(
+            sink.uses.append(operator_use_fact(
                 program,
                 expression,
                 origin,
                 spelling,
                 &operand_types,
-                candidates,
+                &mut sink.candidates,
             ));
-            collect_expression_operator_use(
-                program,
-                indexed.collection,
-                origin,
-                seen,
-                uses,
-                named_uses,
-                candidates,
-            );
-            collect_expression_operator_use(
-                program,
-                indexed.index,
-                origin,
-                seen,
-                uses,
-                named_uses,
-                candidates,
-            );
-        }
-        ExpressionNode::ArrayLiteral(values) => {
-            for value in program.expression_table.expression_handles(*values) {
-                collect_expression_operator_use(
-                    program, *value, origin, seen, uses, named_uses, candidates,
-                );
-            }
         }
         ExpressionNode::Binary(binary) => {
             // Resolve from the complete recoverable operand tuple. A
@@ -281,119 +247,35 @@ fn collect_expression_operator_use(
                     origin,
                     spelling,
                     &operand_types,
-                    candidates,
+                    &mut sink.candidates,
                 )
             {
-                uses.append(fact);
+                sink.uses.append(fact);
             }
-            collect_expression_operator_use(
-                program,
-                binary.left,
-                origin,
-                seen,
-                uses,
-                named_uses,
-                candidates,
-            );
-            collect_expression_operator_use(
-                program,
-                binary.right,
-                origin,
-                seen,
-                uses,
-                named_uses,
-                candidates,
-            );
-        }
-        ExpressionNode::Cast(cast) => {
-            collect_expression_operator_use(
-                program, cast.value, origin, seen, uses, named_uses, candidates,
-            );
         }
         ExpressionNode::Call(call) => {
             if let Some(named_use) = named_operator_use_fact(program, expression, origin, call) {
-                named_uses.append(named_use);
+                sink.named_uses.append(named_use);
             }
-            collect_expression_operator_use(
-                program,
-                call.receiver,
-                origin,
-                seen,
-                uses,
-                named_uses,
-                candidates,
-            );
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_expression_operator_use(
-                    program, *argument, origin, seen, uses, named_uses, candidates,
-                );
+            // The requirement-spelling twin of a named call: a direct call to a
+            // receiver-free boundary requirement retains the same occurrence
+            // with the requirement's own declaration and result-policy adapter.
+            if let Some(requirement_use) = super::requirement_uses::named_requirement_use_fact(
+                program, expression, origin, call,
+            ) {
+                sink.named_requirement_uses.append(requirement_use);
             }
         }
-        ExpressionNode::Member(member) => {
-            collect_expression_operator_use(
-                program,
-                member.receiver,
-                origin,
-                seen,
-                uses,
-                named_uses,
-                candidates,
-            );
-        }
-        ExpressionNode::Borrow(inner) => {
-            collect_expression_operator_use(
-                program,
-                inner.target,
-                origin,
-                seen,
-                uses,
-                named_uses,
-                candidates,
-            );
-        }
-        ExpressionNode::Unary(unary) => {
-            collect_expression_operator_use(
-                program,
-                unary.operand,
-                origin,
-                seen,
-                uses,
-                named_uses,
-                candidates,
-            );
-        }
-        ExpressionNode::Range(range) => {
-            collect_expression_operator_use(
-                program,
-                range.start,
-                origin,
-                seen,
-                uses,
-                named_uses,
-                candidates,
-            );
-            collect_expression_operator_use(
-                program, range.end, origin, seen, uses, named_uses, candidates,
-            );
-        }
-        ExpressionNode::StructLiteral(struct_literal) => {
-            for field in program
-                .expression_table
-                .struct_fields(struct_literal.fields)
-            {
-                collect_expression_operator_use(
-                    program,
-                    field.value,
-                    origin,
-                    seen,
-                    uses,
-                    named_uses,
-                    candidates,
-                );
-            }
-        }
-        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
+        _ => {}
     }
+
+    // Every remaining node contributes only its executable operand edges. The
+    // shared roster owns which edges those are — record fields, both range
+    // endpoints, case arm bodies, array elements, call arguments and a folded
+    // atomic carrier — so this walk no longer restates the node taxonomy.
+    crate::expression_traversal::executable_children(program, node, |child| {
+        collect_expression_operator_use(program, child, origin, sink);
+    });
 }
 
 /// Retain the selected identity of one unambiguously resolved named operator
@@ -484,6 +366,7 @@ fn named_operator_use_fact(
     Some(CheckedNamedOperatorUseFact {
         expression,
         origin,
+        is_generic_template: use_is_generic_template(program, origin),
         selected_operator_symbol: operator.symbol,
         policy_adapter,
     })
@@ -560,7 +443,17 @@ fn domain_or_unique_operator_status(
     }
 }
 
+fn use_is_generic_template(program: &dyn crate::CheckingInput, origin: CheckedValueOrigin) -> bool {
+    let CheckedValueOrigin::StateStatement { machine_symbol, .. } = origin else {
+        return false;
+    };
+    program
+        .machine(machine_symbol)
+        .is_some_and(|machine| !program.machine_type_parameters(machine).is_empty())
+}
+
 fn operator_use_record(
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
     spelling: OperatorSpelling,
@@ -572,6 +465,7 @@ fn operator_use_record(
     CheckedOperatorUseFact {
         expression,
         origin,
+        is_generic_template: use_is_generic_template(program, origin),
         occurrence: Default::default(),
         spelling,
         policy_adapter: CheckedArithmeticPolicyAdapter::None,
@@ -590,48 +484,87 @@ fn binary_operator_use_fact(
     operand_types: &[Option<TypeReferenceHandle>],
     candidate_facts: &mut Arena<CheckedOperatorCandidateFact>,
 ) -> Option<CheckedOperatorUseFact> {
-    let trait_candidates = origin_machine_symbol(origin).map_or_else(Vec::new, |machine_symbol| {
-        selected_trait_operator_meanings(program, machine_symbol, spelling, operand_types)
-    });
-    if !trait_candidates.is_empty() {
-        return Some(trait_operator_use_fact(
-            program,
-            expression,
-            origin,
-            spelling,
-            trait_candidates,
-            candidate_facts,
-        ));
-    }
-    let candidates = resolve_spelling_for_operands(
-        program,
-        spelling,
-        operand_types,
-        program.expression_table.source_span(expression),
-    );
-    if candidates.is_empty() {
+    let requires = super::scoped_applications::occurrence_requires(program, origin);
+    let scope = super::OperatorApplicationScope {
+        owner: origin_machine_symbol(origin).unwrap_or_else(SymbolHandle::invalid),
+        origin: Some(origin),
+        requires: &requires,
+        expression_type: &|operand| expression_type_reference_for_origin(program, operand, origin),
+    };
+    let resolution =
+        super::scoped_operator_application(program, &scope, expression, spelling, operand_types);
+    // Ordinary builtin binaries need no declaration use row. A rejected or
+    // ambiguous declared meaning retains its full considered roster.
+    if resolution.candidates.is_empty() {
         return None;
     }
-
-    let (candidate_count, candidate_span) =
-        checked_candidate_span(program, candidate_facts, &candidates);
-    let (status, selected_operator_symbol) = domain_or_unique_operator_status(&candidates)
-        .unwrap_or((
-            CheckedOperatorResolutionStatus::Ambiguous,
-            SymbolHandle::invalid(),
-        ));
-
+    let candidate_count = resolution.candidates.len();
+    let candidate_span = candidate_facts.insert_many(
+        resolution
+            .candidates
+            .iter()
+            .map(|candidate| scoped_candidate_fact(program, candidate)),
+    );
     Some(CheckedOperatorUseFact {
         expression,
         origin,
+        is_generic_template: use_is_generic_template(program, origin),
         occurrence: Default::default(),
         spelling,
         policy_adapter: arithmetic_policy_adapter(program, spelling, operand_types),
-        selected_operator_symbol,
+        selected_operator_symbol: resolution.selected_symbol,
         candidates: candidate_span,
         candidate_count,
-        status,
+        status: resolution.status,
     })
+}
+
+fn scoped_candidate_fact(
+    program: &dyn crate::CheckingInput,
+    application: &super::ScopedOperatorApplication<'_>,
+) -> CheckedOperatorCandidateFact {
+    use super::ScopedOperatorApplication;
+    let (candidate, definition, requirement) = match application {
+        ScopedOperatorApplication::Declared { declaration, .. } => {
+            return checked_operator_candidate(program, declaration);
+        }
+        ScopedOperatorApplication::SelectedTrait { meaning, .. } => (
+            CheckedOperatorCandidateFact::trait_backed(
+                meaning.requirement.symbol,
+                meaning.application.declaration,
+                meaning.row.realization_machine,
+                meaning.row.realization_state,
+                meaning.application.report_fingerprint,
+                meaning.application.commitment,
+            ),
+            meaning.trait_definition,
+            meaning.requirement,
+        ),
+        ScopedOperatorApplication::BoundTrait(meaning) => (
+            CheckedOperatorCandidateFact::root(meaning.requirement.symbol),
+            meaning.trait_definition,
+            meaning.requirement,
+        ),
+        ScopedOperatorApplication::Trait(meaning) => (
+            CheckedOperatorCandidateFact::root(meaning.requirement.symbol),
+            meaning.trait_definition,
+            meaning.requirement,
+        ),
+    };
+    candidate.with_signature(
+        program
+            .state_signature_parameters(requirement)
+            .first()
+            .map_or_else(TypeReferenceHandle::invalid, |parameter| {
+                parameter.type_reference
+            }),
+        requirement.return_type,
+        requirement.contracts,
+        program.trait_type_parameters(definition).len()
+            + program.state_signature_type_parameters(requirement).len(),
+        program.state_signature_parameters(requirement).len(),
+        definition.is_boundary,
+    )
 }
 
 fn indexed_operator_spelling(
@@ -775,6 +708,7 @@ fn operator_use_fact(
         };
 
     operator_use_record(
+        program,
         expression,
         origin,
         spelling,
@@ -845,6 +779,7 @@ fn trait_operator_use_fact(
     };
 
     operator_use_record(
+        program,
         expression,
         origin,
         spelling,

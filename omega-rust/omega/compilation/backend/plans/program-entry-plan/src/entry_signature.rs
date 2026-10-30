@@ -233,13 +233,6 @@ impl SelectedProgramEntrySignature {
         &self.identities
     }
 
-    /// Replaces the table after late minting — bound establishments intern
-    /// their rows into the signature's table so all ProgramEntry identities
-    /// share one ordering.
-    pub fn set_identities(&mut self, identities: terminal_psi::TerminalIdentityTable) {
-        self.identities = identities;
-    }
-
     pub fn visible_parameters(&self) -> &[ProgramEntryVisibleParameterSignature] {
         &self.visible_parameters
     }

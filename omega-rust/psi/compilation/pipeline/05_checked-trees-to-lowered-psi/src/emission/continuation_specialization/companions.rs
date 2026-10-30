@@ -40,7 +40,8 @@ pub(super) fn instantiate(
                     .operations
                     .iter()
                     .any(|(source, _)| *source == operation),
-                LoweredSourceCallSite::ExternalCompletion(edge) => {
+                LoweredSourceCallSite::InvokeNoNormal(edge)
+                | LoweredSourceCallSite::ExternalCompletion(edge) => {
                     namespace.edges.iter().any(|(source, _)| *source == edge)
                 }
             };

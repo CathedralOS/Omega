@@ -621,25 +621,12 @@ pub(super) fn admit<'source>(
             )?;
         }
     }
-    let copy = environment
-        .constraint(environment.selected_keys().copy_i64)
-        .ok_or(StoredLoadForwardingError::ConstraintMismatch)?;
-    if copy.operands.len() != 2
-        || copy.operands[0].operand != 0
-        || copy.operands[0].access != RegisterOperandAccess::Use
-        || copy.operands[0].class != value_register.class
-        || copy.operands[1].operand != 1
-        || copy.operands[1].access != RegisterOperandAccess::Def
-        || copy.operands[1].class != output_register.class
-        || !copy.implicit_uses.is_empty()
-        || !copy.implicit_defs.is_empty()
-        || !copy.clobbers.is_empty()
-        || copy.operands.iter().any(|operand| {
-            operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
-        })
-    {
-        return Err(StoredLoadForwardingError::ConstraintMismatch);
-    }
+    let copy = crate::rewrites::integer_copy_row(
+        environment,
+        value_register.class,
+        output_register.class,
+        || StoredLoadForwardingError::ConstraintMismatch,
+    )?;
     // The replacement keeps the load's exact read width: a same-width store
     // and load round-trip the register's low bits in the target's own byte
     // order, so `ZeroExtend` reconstructs the loaded value without any
@@ -838,27 +825,7 @@ fn forwarding_source(
             if !place_route {
                 return Err(reject());
             }
-            let row_constraint = environment
-                .constraint(instruction.constraint)
-                .ok_or(StoredLoadForwardingError::ConstraintMismatch)?;
-            if row_constraint.operands.len() != 2
-                || row_constraint.operands[0].operand != 0
-                || row_constraint.operands[0].access != RegisterOperandAccess::Use
-                || row_constraint.operands[1].operand != 1
-                || row_constraint.operands[1].access != RegisterOperandAccess::Use
-            {
-                return Err(StoredLoadForwardingError::ConstraintMismatch);
-            }
-            let mut uses = instruction
-                .operands
-                .iter()
-                .filter(|operand| operand.access == RegisterOperandAccess::Use);
-            let pointer = uses.next().ok_or_else(reject)?;
-            let value = uses.next().ok_or_else(reject)?;
-            if uses.next().is_some() || pointer.operand != 0 || value.operand != 1 {
-                return Err(reject());
-            }
-            Ok(value.virtual_register)
+            place_store_value(instruction, environment)
         }
         SelectedInstructionKind::Store64 {
             slot: FrameStorageSlotId::Local(slot),
@@ -901,6 +868,37 @@ fn forwarding_source(
     }
 }
 
+/// The place-store operand audit both write routes spell. The target row
+/// binds exactly the two-use `[use pointer, use value]` shape, and the
+/// instruction's own use operands mirror it, so the register at operand 1 is
+/// the forwarded value and nothing else rides on the store.
+fn place_store_value(
+    instruction: &SelectedInstruction,
+    environment: &ValidatedTargetRegisterEnvironment,
+) -> Result<VirtualRegisterId, StoredLoadForwardingError> {
+    let reject = || StoredLoadForwardingError::AliasingWrite;
+    let row_constraint = environment
+        .constraint(instruction.constraint)
+        .ok_or(StoredLoadForwardingError::ConstraintMismatch)?;
+    if !crate::rewrites::declares_pair(
+        row_constraint,
+        RegisterOperandAccess::Use,
+        RegisterOperandAccess::Use,
+    ) {
+        return Err(StoredLoadForwardingError::ConstraintMismatch);
+    }
+    let mut uses = instruction
+        .operands
+        .iter()
+        .filter(|operand| operand.access == RegisterOperandAccess::Use);
+    let pointer = uses.next().ok_or_else(reject)?;
+    let value = uses.next().ok_or_else(reject)?;
+    if uses.next().is_some() || pointer.operand != 0 || value.operand != 1 {
+        return Err(reject());
+    }
+    Ok(value.virtual_register)
+}
+
 /// The `WriteByteSequence` source route: the row claims the one byte at
 /// `byte_offset + index`, so the write sources the read only when it lands
 /// on the read's byte. The encoded shape is the one-byte store through a
@@ -920,8 +918,9 @@ fn forwarding_source(
 ///   `byte_offset + index` sums agree. Anything else may land on a
 ///   different byte entirely.
 ///
-/// The operand audit is the `Store` route's own: the target's two-use place
-/// store row, and the stored register at operand 1 is the forwarded value.
+/// The operand audit is `place_store_value`, the `Store` route's own: the
+/// target's two-use place store row, and the stored register at operand 1 is
+/// the forwarded value.
 fn sequence_source(
     instruction: &SelectedInstruction,
     forwarded: &Forwarded,
@@ -963,27 +962,7 @@ fn sequence_source(
     if !lands_on_read {
         return Err(reject());
     }
-    let row_constraint = environment
-        .constraint(instruction.constraint)
-        .ok_or(StoredLoadForwardingError::ConstraintMismatch)?;
-    if row_constraint.operands.len() != 2
-        || row_constraint.operands[0].operand != 0
-        || row_constraint.operands[0].access != RegisterOperandAccess::Use
-        || row_constraint.operands[1].operand != 1
-        || row_constraint.operands[1].access != RegisterOperandAccess::Use
-    {
-        return Err(StoredLoadForwardingError::ConstraintMismatch);
-    }
-    let mut uses = instruction
-        .operands
-        .iter()
-        .filter(|operand| operand.access == RegisterOperandAccess::Use);
-    let pointer = uses.next().ok_or_else(reject)?;
-    let value = uses.next().ok_or_else(reject)?;
-    if uses.next().is_some() || pointer.operand != 0 || value.operand != 1 {
-        return Err(reject());
-    }
-    Ok(value.virtual_register)
+    place_store_value(instruction, environment)
 }
 
 /// A crossed edge must perform no work the roster cannot see. `Unused`

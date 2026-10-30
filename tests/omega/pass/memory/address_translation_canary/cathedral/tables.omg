@@ -82,11 +82,11 @@ public machine TableEntry::terminal(frame_base: u64, writable: bool) -> TableEnt
         _ -> read_only(frame_base)
     }
 
-    state writable(frame_base: u64) -> TableEntry {
+    machine writable(frame_base: u64) -> TableEntry {
         TableEntry { raw: (frame_base & TableEntry::FRAME_MASK) | 3 }
     }
 
-    state read_only(frame_base: u64) -> TableEntry {
+    machine read_only(frame_base: u64) -> TableEntry {
         TableEntry { raw: (frame_base & TableEntry::FRAME_MASK) | 1 }
     }
 }

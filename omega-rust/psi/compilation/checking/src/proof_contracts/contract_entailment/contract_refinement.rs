@@ -18,14 +18,14 @@
 mod float_implication;
 
 use super::law_conformance::indexed_law_binder_arguments;
+use super::scoped_arithmetic_implication_for_declaration;
 use super::structural_terms::structural_term;
-use super::{
-    ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
-    ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
-    scoped_arithmetic_implication_for_declaration,
-};
 use crate::proof_contracts::contract_structure::{
     CorrespondenceFact, callable_binders, correspondence_fact, generic_binders,
+};
+use crate::{
+    ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
+    ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
 };
 use diagnostics::Diagnostic;
 use float_implication::FloatObservation;

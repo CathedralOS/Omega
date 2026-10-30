@@ -17,7 +17,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// Closed storage may translate a retained template selector; an open view
 /// already uses the template's exact field namespace. Payload selection stays
 /// qualified by its case and ordinary checking still owes case membership.
-pub(crate) fn applied_data_member_field<'program>(
+pub fn applied_data_member_field<'program>(
     program: &'program dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     member: &typed_trees::expression::TableMemberExpression,

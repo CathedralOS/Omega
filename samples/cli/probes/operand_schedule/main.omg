@@ -31,7 +31,7 @@ machine checked_transfer() {
     let mut flag: bool = false;
     flag = true;
     transition { _ -> done(false && clear(&mut flag), flag) }
-    state done(ignored: bool, current: bool) requires current {}
+    machine done(ignored: bool, current: bool) requires current {}
 }
 
 machine demand(flag: bool) -> bool requires flag { true }
@@ -49,7 +49,7 @@ machine Main::main(main: &mut Main) {
         true -> done(main)
         _ -> done(main)
     }
-    state done(main: &mut Main) {}
+    machine done(main: &mut Main) {}
 }
 
 // The entry owns ordinary local state; selection supplies no context.

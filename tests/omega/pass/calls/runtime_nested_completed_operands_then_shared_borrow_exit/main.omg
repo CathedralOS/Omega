@@ -11,5 +11,5 @@ machine main() crashes Trap {
  let mut counter:Counter=Counter{trace:0,calls:0};
  let observed:u32 in Wrapping=observe(join(mark(&mut counter,1),mark(&mut counter,2)),&counter);
  transition observed==132 && counter.trace==12 && counter.calls==2 {true->done() _->bad()}
- state done(){} state bad(){crash Trap;}
+ machine done(){} machine bad(){crash Trap;}
 }

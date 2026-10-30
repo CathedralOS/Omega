@@ -14,7 +14,7 @@ requires factor >= 10 && factor <= 15 && scale >= 4 && scale <= 6
     transition {
         _ -> step(factor * scale)
     }
-    state step(product: i64) -> i32
+    machine step(product: i64) -> i32
     requires product >= 40 && product <= 90
     {
         verify_product(product)
@@ -30,6 +30,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

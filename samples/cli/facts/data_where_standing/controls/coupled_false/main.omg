@@ -1,0 +1,10 @@
+data Counter [copy]
+where self.value <= self.ceiling && self.ceiling <= 60
+{ value: i32; ceiling: i32; }
+const NAMED: Counter = Counter { value: 61, ceiling: 60 };
+public machine main() crashes Trap {
+    transition NAMED.value == 61 { true -> done() false -> bad() }
+
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

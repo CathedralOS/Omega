@@ -1,4 +1,5 @@
-use crate::candidates::{canonicalize_provenance, provenance_realized_at};
+use crate::candidates::rewrite_accounting::realize_merged_target_provenance;
+use crate::candidates::{canonicalize_provenance, provenance_realized_at, realize_node_provenance};
 use optimization_unit::{
     AdjacentBlockMergeRewrite, NodeLocation, OwnershipFrontierSite, OwnershipFrontierWitness,
     OwnershipFrontierWitnessRow, PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite,
@@ -109,30 +110,7 @@ pub(crate) fn reconstruct_adjacent_merge_accounting(
             })
             .collect()
     };
-    for (node_index, node) in target.nodes.iter().enumerate() {
-        if node.provenance.is_empty() {
-            continue;
-        }
-        let input = PsiRealizationSite::Node(NodeLocation {
-            machine: function.machine,
-            block: target.id,
-            node: u32::try_from(node_index).ok()?,
-        });
-        let output = PsiRealizationSite::Node(NodeLocation {
-            machine: function.machine,
-            block: predecessor.id,
-            node: patch
-                .predecessor
-                .node
-                .checked_add(u32::try_from(node_index).ok()?)?,
-        });
-        realized.push(provenance_realized_at(
-            input,
-            output,
-            &node.provenance,
-            &node.fuel,
-        ));
-    }
+    realize_merged_target_provenance(function, patch.predecessor, target, &mut realized)?;
     for block in function.blocks.iter().skip(target_position + 1) {
         affected.insert(block.id);
         realize_node_provenance(
@@ -173,31 +151,4 @@ pub(crate) fn reconstruct_adjacent_merge_accounting(
     }
     canonicalize_provenance(&mut realized);
     Some((affected.into_iter().collect(), realized))
-}
-
-/// Record every provenance-carrying node in `nodes` as a provenance rewrite
-/// realized at its own site inside `block`.
-fn realize_node_provenance<'node>(
-    machine: semantic_vocabulary::MachineId,
-    block: BlockId,
-    nodes: impl Iterator<Item = (usize, &'node optimization_unit::OptimizationNode)>,
-    realized: &mut Vec<optimization_unit::ProvenanceRewrite>,
-) -> Option<()> {
-    for (node_index, node) in nodes {
-        if node.provenance.is_empty() {
-            continue;
-        }
-        let site = PsiRealizationSite::Node(NodeLocation {
-            machine,
-            block,
-            node: u32::try_from(node_index).ok()?,
-        });
-        realized.push(provenance_realized_at(
-            site,
-            site,
-            &node.provenance,
-            &node.fuel,
-        ));
-    }
-    Some(())
 }

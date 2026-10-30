@@ -9,7 +9,7 @@ terminates by (index, limit) -> Nat::BoundedDistance;
         true -> walk(index + 1, limit)
         _ -> done()
     }
-    state done() -> u64 {
+    machine done() -> u64 {
         let result: u64 = identity(reenter());
         result
     }

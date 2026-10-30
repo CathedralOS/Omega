@@ -12,20 +12,20 @@ use crate::types::TypeReferenceHandle;
 use arena::Handle;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct IndexExpressionAuthority {
     pub normalization: Option<OpenIndexNormalization>,
     pub operation: Option<OpenIndexOperationSelection>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct OpenIndexNormalization {
     pub index_type: TypeReferenceHandle,
     /// Artifact provenance only, never semantic type identity.
     pub normalizer_version: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct OpenIndexOperationSelection {
     pub expression: ExpressionHandle,
     pub spelling: language_core::operator_spelling::OperatorSpelling,

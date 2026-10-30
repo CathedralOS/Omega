@@ -37,13 +37,13 @@ machine Main::main(main: &mut Main) {
     main.bb = [2, 0, 4];
     transition { _ -> loop(main) }
 
-    state loop(main: &mut Main) {
+    machine loop(main: &mut Main) {
         transition main.i >= 0 && main.i < 3 {
             true -> compute(main)
             _ -> verify(main)
         }
     }
-    state compute(main: &mut Main) {
+    machine compute(main: &mut Main) {
         main.a = main.aa[main.i] as i32 in Wrapping;
         main.b = main.bb[main.i] as i32 in Wrapping;
         transition main.b != 0 {
@@ -51,38 +51,38 @@ machine Main::main(main: &mut Main) {
             _ -> err(main)
         }
     }
-    state ok(main: &mut Main) {
+    machine ok(main: &mut Main) {
         main.result = DivResult::Ok { value: main.a / main.b };
         transition { _ -> handle(main) }
     }
-    state err(main: &mut Main) {
+    machine err(main: &mut Main) {
         main.result = DivResult::Err { code: 1 };
         transition { _ -> handle(main) }
     }
-    state handle(main: &mut Main) {
+    machine handle(main: &mut Main) {
         transition main.result {
             DivResult::Ok { value } -> h_ok(main, value)
             DivResult::Err { code } -> h_err(main)
         }
     }
-    state h_ok(main: &mut Main, v: i32 in Wrapping) {
+    machine h_ok(main: &mut Main, v: i32 in Wrapping) {
         main.acc = main.acc + v;
         main.i = main.i + 1;
         transition { _ -> loop(main) }
     }
-    state h_err(main: &mut Main) {
+    machine h_err(main: &mut Main) {
         main.errs = main.errs + 1;
         main.i = main.i + 1;
         transition { _ -> loop(main) }
     }
-    state verify(main: &mut Main) {
+    machine verify(main: &mut Main) {
         transition main.acc == 10 && main.errs == 1 {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

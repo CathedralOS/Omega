@@ -4,6 +4,7 @@
 use crate::OptimizedBoundaryOccurrence;
 use crate::physical::derivation::evidence::{ranges_overlap, span};
 pub(crate) use crate::physical::native_byte_span;
+use crate::physical::sole_terminal_operation;
 use crate::{NativeProviderExecution, NativeSelectedProviderPlan};
 use installation_evidence::ProviderExecutionEvidence;
 use machine_code::PortEffectRecord;
@@ -178,16 +179,9 @@ pub(crate) fn metadata_port_effect_custody(
         return Err("metadata port D41 settlement does not rejoin one privileged port effect");
     };
     let effect = &object_effect.effect;
-    let matching_effect_operations = module
-        .machines
-        .iter()
-        .filter(|machine| machine.id == occurrence.machine())
-        .flat_map(|machine| machine.operations())
-        .filter(|operation| operation.id == effect.psi_operation)
-        .collect::<Vec<_>>();
-    let [effect_operation] = matching_effect_operations.as_slice() else {
-        return Err("metadata port D41 effect does not rejoin one Terminal operation");
-    };
+    let effect_operation =
+        sole_terminal_operation(module, occurrence.machine(), effect.psi_operation)
+            .ok_or("metadata port D41 effect does not rejoin one Terminal operation")?;
     if !matches!(
         effect_operation.kind,
         OperationKind::PortWrite { service, port, value }

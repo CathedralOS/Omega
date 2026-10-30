@@ -19,7 +19,7 @@ machine main() crashes Trap {
         true -> shift_step(val)
         _ -> bad()
     }
-    state shift_step(v: i64) {
+    machine shift_step(v: i64) {
         let carrier: Carrier = Carrier { val: v };
         let shifted: i64 = shift_left(carrier.val);
         transition shifted >= 100i64 && shifted <= 100i64 {
@@ -27,10 +27,10 @@ machine main() crashes Trap {
             _ -> bad()
         }
     }
-    state done(s: i64) {
+    machine done(s: i64) {
         let diff: i64 = s - 100i64;
     }
-    state bad() {
+    machine bad() {
         crash Trap;
     }
 }

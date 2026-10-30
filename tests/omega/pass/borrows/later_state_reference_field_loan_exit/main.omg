@@ -7,16 +7,16 @@ machine accepts<Kind>(value: &Kind) -> bool { true }
 machine scalar_parameter(value: u64) -> bool { accepts<u64>(&value) }
 machine use_table<'storage>(table: &Table<'storage>) crashes Trap {
     transition { _ -> prepare(table) }
-    state prepare(table: &Table<'storage>) {
+    machine prepare(table: &Table<'storage>) {
         let cell: &Cell = table.cell;
         let expected: u64 = 40 + 2;
         transition cell.value == expected { true -> observe(cell) _ -> wrong() }
     }
-    state observe(cell: &Cell) {
+    machine observe(cell: &Cell) {
         transition cell.value == 42 { true -> done() _ -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 machine Main::main(context: &mut Main) crashes Trap {
     context.cell.value = 42;
@@ -31,8 +31,8 @@ machine Main::main(context: &mut Main) crashes Trap {
     let parameter_argument: bool = scalar_parameter(scalar);
     let projected_argument: bool = accepts<Cell>(copied.cell);
     transition unrelated.value == 42 && local_argument && parameter_argument && projected_argument { true -> done() _ -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

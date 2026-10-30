@@ -1,10 +1,12 @@
 # Compile-time admission and elaboration
 
 This compiler service admits evaluation and installs its results into source
-and typed programs. It uses the independently owned
-[checked interpreter](../../interpreter/checked-interpreter/src/interpreter.rs)
-for execution. It does not implement a second evaluator or own the product's
-Build configuration, package acquisition or target realization.
+and typed programs. Checked fixed-array-length jobs execute through the shared
+Terminal producer and interpreter; remaining pure value and policy jobs still
+use the [checked interpreter](../../interpreter/checked-interpreter/src/interpreter.rs).
+Build activation executes only through Omega's
+[Terminal Build host](../../../omega/compilation/build-evaluation/src/build_evaluation.rs).
+This service owns neither Build configuration nor package acquisition or target realization.
 
 Start at [build_time_evaluation.rs](src/build_time_evaluation.rs). Its
 `evaluate_pre_resolution` operation takes one `BuildTimeEvaluationRequest`,
@@ -87,7 +89,7 @@ their complete contexts.
 checks exact index consumers, selective execution and lexical rejection.
 
 The public ownership-taking pre-resolution and pre-check conveyors keep these
-Psi phases separate. Omega interposes target machine selection and schedules
+Psi phases separate. Omega settles the target-keyed Build provider rows and schedules
 provider-dependent evaluation after the actual provider plans are selected.
 Target decisions must not become Psi language elaboration.
 
@@ -255,11 +257,21 @@ folded result cannot conceal changed arguments. Literal integer comparisons and
 Boolean guards compose through private call summaries when their exact checked
 owner establishes builtin operator meaning. Authored or unknown meanings,
 unsupported arithmetic, and unknown entry origins stay conservative.
-Open generic and selected-provider applications, aggregate-producing expressions,
-constrained/target-dependent declarations, selected floating operations and
-aggregate floating values remain unfinished. NaN results need an explicit
-representation context and reject on this helper path.
-This path does not establish native aggregate execution or NaN identity.
+Exact selected generic calls and their transitive constant dependencies retain
+their authored declaration selections through normalization and receiving replay.
+An unresolved authored occurrence is completed in place; recording a second
+resolved occurrence does not discharge the first. Saved constant initializers
+retain exact expression-to-call targets even when no named implementation is
+involved. A conflicting selection remains a checking error.
+
+Initializers whose reachable closure needs selected operators defer to the
+existing pre-check continuation. Omega supplies the selected execution plans;
+ordinary checking, admission and independent replay consume those same rows.
+A sealed numeric proof relation alone does not authorize executing an operator.
+Computed-NaN canonicalization through this continuation remains under repair;
+unfixed arithmetic NaNs must not acquire exact raw-bit authority. Aggregate
+floating values and general aggregate-producing declarations remain outside
+the demonstrated scalar path.
 
 Fixed-array length calls whose reachable closure needs an authored operator
 retain their pre-check continuation until Omega supplies selected execution.

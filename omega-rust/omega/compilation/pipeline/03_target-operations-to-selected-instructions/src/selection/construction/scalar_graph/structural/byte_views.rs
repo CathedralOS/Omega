@@ -6,6 +6,7 @@ use super::{
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
 use crate::selection::construction::scalar_graph::structural::{
@@ -106,12 +107,7 @@ pub(super) fn write(
         1,
         address,
         value_register,
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![index, value, length],
-            fuel: row.fuel.clone(),
-            ..Default::default()
-        },
+        operation_provenance(row, vec![index, value, length]),
     )
 }
 
@@ -259,12 +255,7 @@ fn byte_sequence_read(
             .load8_indexed
             .ok_or_else(|| invalid())?,
         &[pointer, physical_index, output],
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![index, length, definition.value],
-            fuel: row.fuel.clone(),
-            ..Default::default()
-        },
+        operation_provenance(row, vec![index, length, definition.value]),
     )?;
     Ok(output)
 }
@@ -320,7 +311,7 @@ fn backing_index(
 pub(super) fn backing_pointer(
     function: &LegalizedScalarFunction,
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     source: PlaceId,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     if let Some(view) = builder.transport.view(source) {
@@ -361,16 +352,7 @@ fn byte_sequence_length(
     if let Some(view) = builder.transport.view(source) {
         let input = view.byte_length;
         let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
-        builder.emit_copy_i64(
-            input,
-            output,
-            SelectedInstructionProvenance {
-                operations: vec![row.operation],
-                values: vec![result.value],
-                fuel: row.fuel.clone(),
-                ..Default::default()
-            },
-        )?;
+        builder.emit_copy_i64(input, output, operation_provenance(row, vec![result.value]))?;
         return Ok(output);
     }
     let input = builder
@@ -389,12 +371,7 @@ fn byte_sequence_length(
         8,
         SelectedMemoryAccessRole::ReadPlace,
     )?;
-    let provenance = SelectedInstructionProvenance {
-        operations: vec![row.operation],
-        values: vec![result.value],
-        fuel: row.fuel.clone(),
-        ..Default::default()
-    };
+    let provenance = operation_provenance(row, vec![result.value]);
     builder.emit_load64(length_byte_offset, input, output, provenance)?;
     Ok(output)
 }
@@ -434,12 +411,7 @@ pub(in crate::selection) fn byte_predicate(
             .scan_byte_sequence
             .ok_or_else(|| invalid())?,
         &[base, count, cursor, byte, output],
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![operand.length(), result.value],
-            fuel: row.fuel.clone(),
-            ..Default::default()
-        },
+        operation_provenance(row, vec![operand.length(), result.value]),
     )?;
     Ok(output)
 }
@@ -495,12 +467,7 @@ pub(in crate::selection) fn byte_equal(
             right_byte,
             output,
         ],
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![left.length(), right.length(), result.value],
-            fuel: row.fuel.clone(),
-            ..Default::default()
-        },
+        operation_provenance(row, vec![left.length(), right.length(), result.value]),
     )?;
     Ok(output)
 }
@@ -513,33 +480,8 @@ fn measured_span_reads(
     row: &LegalizedScalarInstruction,
     operand: &ByteSequenceOperand,
 ) -> Result<(), SelectedInstructionError> {
-    let offset = match operand {
-        ByteSequenceOperand::Field { .. } => {
-            crate::selection::byte_concatenation_input::field_offset(function, operand)
-                .ok_or(invalid())?
-        }
-        ByteSequenceOperand::Whole { source, .. } => {
-            let (geometry, shape) =
-                super::descriptor_operands::source_geometry(function, source).ok_or(invalid())?;
-            if shape.is_bounded_owned_byte_sequence() {
-                geometry.byte_offset.checked_add(8).ok_or(invalid())?
-            } else {
-                geometry.byte_offset
-            }
-        }
-    };
-    let roots = match operand {
-        ByteSequenceOperand::Whole { source, length } if source.path.is_empty() => {
-            crate::selection::byte_view_homes::view_backing_roots(
-                function,
-                &builder.transport.views,
-                source.place,
-                *length,
-            )?
-        }
-        ByteSequenceOperand::Whole { .. } | ByteSequenceOperand::Field { .. } => None,
-    };
-    for (root, length) in roots.unwrap_or_else(|| vec![(operand.source(), operand.length())]) {
+    let (offset, roots) = super::byte_concatenation::operand_span(function, builder, operand)?;
+    for (root, length) in roots {
         memory(
             builder,
             row,

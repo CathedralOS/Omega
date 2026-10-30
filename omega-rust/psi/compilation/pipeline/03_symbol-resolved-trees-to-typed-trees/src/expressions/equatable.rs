@@ -339,10 +339,16 @@ pub(crate) fn field_equality<'program>(
 /// site. An authored `equals` row is an ordinary checked body with no
 /// structural prerequisites. Unknown data/trait names are left to
 /// `validation`.
-pub(crate) fn validate_equatable_conformances(
+pub(crate) fn validate_equatable_conformances_in(
     program: &SymbolResolvedTrees,
+    cohort: &crate::lowerer::TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
-    for conformance in &program.conformances {
+    let skip = if cohort.data_definitions == program.data_definitions.len() {
+        cohort.conformances
+    } else {
+        0
+    };
+    for conformance in program.conformances.iter().skip(skip) {
         if !is_equatable_implementation(program, conformance)
             || !equals_row(conformance)
                 .is_some_and(|row| row.source == ConformanceRowSource::Synthesized)

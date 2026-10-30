@@ -68,14 +68,8 @@ pub(super) fn validate(
                                 position: parameter.position,
                             })
                 })
-                || function
-                    .entry_claim_declarations
-                    .iter()
-                    .any(|claim| claim.input == parameter.place)
-                || function
-                    .content_entry_claims
-                    .iter()
-                    .any(|claim| claim.input.root == parameter.place)
+                || function.entry_claim_declared(parameter.place)
+                || function.content_entry_claim_declared(parameter.place)
             {
                 return Err(invalid());
             }
@@ -124,6 +118,7 @@ pub(super) fn validate(
                 {
                     return Err(invalid());
                 }
+                let borrowed_address = address_join(parameter, types);
                 let exact_source = if qualified_owned_arrival(parameter, types, domains) {
                     // An owned arrival delivers the exact whole value or
                     // selected subtree, including its source-carried domain
@@ -238,7 +233,7 @@ pub(super) fn validate(
                             )
                         });
                     forwarded || copied || projected || owned_result
-                } else if address_join(parameter, types) {
+                } else if borrowed_address {
                     // The root lends its address; it neither changes owner nor
                     // widens past shared access, and the path names the join's
                     // exact referent type. A mutable join may lend the same
@@ -250,7 +245,7 @@ pub(super) fn validate(
                     ) && super::super::operation_contracts::structural_source_contract(
                         function, binding.argument.place,
                     ).is_some_and(|source| {
-                        let access = source.backing_access(types.values().copied());
+                        let Some(access) = source.backing_access(types.values().copied()) else { return false; };
                         (if matches!(
                             parameter.access,terminal_psi::exclusive_borrow_pair_pattern!()) {
                             super::super::operation_contracts::structural_access_can_supply(
@@ -267,8 +262,7 @@ pub(super) fn validate(
                                     })
                         } else {
                             access != StructuralAccess::WriteOnlyBorrow
-                        }) && source.multiplicity != StructuralMultiplicity::Linear
-                            && terminal_semantics::reference_source_projection_accessible(
+                        }) && terminal_semantics::reference_source_projection_accessible(
                                 types.values().copied(), source.structural_type, source.multiplicity,
                                 access, &binding.argument.path, parameter.access,
                             )
@@ -358,18 +352,14 @@ pub(super) fn validate(
                                 }
                         })
                 };
-                let claim_hit = function
-                    .entry_claim_declarations
-                    .iter()
-                    .any(|claim| claim.input == binding.argument.place)
-                    || function
-                        .content_entry_claims
-                        .iter()
-                        .any(|claim| claim.input.root == binding.argument.place);
+                let claim_hit = function.entry_claim_declared(binding.argument.place)
+                    || function.content_entry_claim_declared(binding.argument.place);
                 if binding.parameter != parameter.place
                     || binding.argument.access != parameter.access
                     || !exact_source
-                    || (claim_hit && parameter.access != StructuralAccess::Owned)
+                    // An address arrival lends existing storage without
+                    // transferring the lender's entry/content claims.
+                    || (claim_hit && parameter.access != StructuralAccess::Owned && !borrowed_address)
                 {
                     return Err(invalid());
                 }
@@ -641,6 +631,7 @@ fn source_contract(
                 // A returned/copied view presents its descriptor's loan,
                 // rather than lending owned payload storage. View establishments
                 // already report their exact source-derived access.
+                let backing = source.backing_access(types.values().copied())?;
                 let access = if source.access == StructuralAccess::Owned
                     && types
                         .get(&source.structural_type)
@@ -653,11 +644,7 @@ fn source_contract(
                                     )
                             )
                         }) {
-                    match source.multiplicity {
-                        StructuralMultiplicity::Unrestricted => StructuralAccess::SharedBorrow,
-                        StructuralMultiplicity::Affine => StructuralAccess::MutableBorrow,
-                        StructuralMultiplicity::Linear => return None,
-                    }
+                    backing
                 } else {
                     source.access
                 };

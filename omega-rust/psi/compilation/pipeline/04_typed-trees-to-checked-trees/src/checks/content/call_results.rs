@@ -61,6 +61,19 @@ impl InvocationEvents<'_> {
 }
 
 impl Invocation<'_> {
+    fn target_symbol(&self, program: &dyn ::validation::CheckingInput) -> SymbolHandle {
+        validation::call_target_symbol(program, self.call)
+    }
+
+    fn result_type(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+    ) -> Option<typed_trees::types::TypeReferenceHandle> {
+        let (machine, state) =
+            validation::machine_state_by_symbols(program, self.machine, self.state)?;
+        validation::expression_result_type_reference(program, machine, state, self.expression)
+    }
+
     pub(super) fn evaluation(
         &self,
         program: &dyn ::validation::CheckingInput,
@@ -106,6 +119,7 @@ pub(super) fn check_call_result_qualifications(
         let place = facts.semantic.places.get(place);
         let path = facts.semantic.place_segments.span_or_empty(place.segments);
         let mut primitive_error = None;
+        let mut failure_reason = None;
         let valid = (|| {
             let ProgramPoint::CallEnsures {
                 machine_symbol,
@@ -153,18 +167,27 @@ pub(super) fn check_call_result_qualifications(
             else {
                 return None;
             };
+            // Borrow discovery and flow resolve named calls through this same
+            // selected declaration. Their authored leaf may have no symbol;
+            // neither another overload nor a matching spelling supplies it.
+            let target_symbol = validation::call_target_symbol(program, call);
             let public_contract =
                 validation::requirement_contract_signature(program, machine_symbol, &site);
+            // Flow names the selected body's executable entry; typed calls can
+            // retain its machine head. Only that exact entry is equivalent.
             // Rewriting may replace an evidence child with an executable body
             // while flow retains its public requirement as the fact's source.
             // Only the validated invocation contract joins those identities.
-            let exact_source = fact.evidence.source_symbol == call.target_symbol
+            let exact_source = fact.evidence.source_symbol == target_symbol
+                || fact.evidence.source_symbol
+                    == validation::call_target_entry_symbol(program, target_symbol)
                 || public_contract
                     .is_some_and(|(_, signature)| fact.evidence.source_symbol == signature.symbol);
             if fact.evidence.origin != QualificationEvidenceOrigin::Propagated
                 || !exact_source
                 || fact.evidence.requirement_symbol.is_valid()
             {
+                failure_reason = Some("the published qualification does not identify this exact invocation");
                 return None;
             }
             let invocation = Invocation {
@@ -181,12 +204,14 @@ pub(super) fn check_call_result_qualifications(
                 .or_else(|| program.requirement_call_signature(machine_symbol, call));
             let declared = crate::flow::call_result_qualification_identities(
                 program,
-                call.target_symbol,
+                target_symbol,
                 selected,
+                invocation.result_type(program)?,
             );
             if !declared.iter().any(|(declared_path, symbol, identity)| {
                 declared_path == path && *symbol == domain_symbol && *identity == semantic_domain
             }) {
+                failure_reason = Some("the selected result contract does not declare this exact qualified path and domain instance");
                 return None;
             }
             let projection = facts
@@ -196,7 +221,7 @@ pub(super) fn check_call_result_qualifications(
             // Checked bodies owe routed field membership at every exit. The
             // multiplicity checker independently replays their returned claim
             // maps, including identity-forwarding wrappers without a theorem.
-            if validation::call_target_has_checked_body_contract(program, call.target_symbol) {
+            if validation::call_target_has_checked_body_contract(program, target_symbol) {
                 return Some(());
             }
             // Every ordinary selected conformance owes its full public result
@@ -214,7 +239,7 @@ pub(super) fn check_call_result_qualifications(
             // execution engines refuse generic provider/handler fallback.
             // In particular Granted still follows conservation below: these
             // private routes authorize content transition, not fresh storage.
-            match private_placement_result_contract(program, &invocation, domain, path) {
+            match private_placement_result_contract(program, &invocation, domain, semantic_domain, path) {
                 Ok(true) => {
                     if result_claim(program, facts, &invocation, path).is_none() {
                         primitive_error = Some(Diagnostic::error(
@@ -242,12 +267,15 @@ pub(super) fn check_call_result_qualifications(
             // Content carries an additional conservation obligation, kept in
             // the routes below: promising provenance cannot create capacity.
             // Authorized issuance likewise keeps its existing freshness join.
-            if projection.is_none()
-                && boundary_requirement_signature(program, call.target_symbol, domain).is_none()
+            // A declared sub-place of the result carrier is not that minting:
+            // the membership is the record's own construction invariant, which
+            // the admitted provider already owed — the caller receives it.
+            if (projection.is_none() || !path.is_empty())
+                && boundary_requirement_signature(program, target_symbol, domain).is_none()
                 && program.traits().iter().any(|owner| {
                     owner.is_boundary
                         && program
-                            .trait_machine_signature_by_symbol(owner, call.target_symbol)
+                            .trait_machine_signature_by_symbol(owner, target_symbol)
                             .is_some()
                 })
             {
@@ -256,7 +284,7 @@ pub(super) fn check_call_result_qualifications(
 
             let call_parameters = selected
                 .map(|signature| program.state_signature_parameters(signature))
-                .or_else(|| validation::call_target_parameters(program, call.target_symbol));
+                .or_else(|| validation::call_target_parameters(program, target_symbol));
 
             // Preserve the existing bare-result issuance route, including its
             // exact carrier/subject checks. Fresh supply must be fresh: a
@@ -316,7 +344,7 @@ pub(super) fn check_call_result_qualifications(
                         }
                         _ => return false,
                     };
-                    if state_symbol != call.target_symbol
+                    if state_symbol != target_symbol
                         || contract.kind != checked_trees::ContractProofFactKind::Ensures
                     {
                         return false;
@@ -342,7 +370,7 @@ pub(super) fn check_call_result_qualifications(
                         return false;
                     }
                     authorized_ensures_signature(program, owner_symbol, state_symbol, contract.fact)
-                }) || result_type_issuance_route(program, call.target_symbol, selected, domain))
+                }) || result_type_issuance_route(program, target_symbol, selected, domain))
             {
                 return Some(());
             }
@@ -360,7 +388,7 @@ pub(super) fn check_call_result_qualifications(
             if path
                 .iter()
                 .any(|segment| matches!(segment, PlaceSegment::Case { .. }))
-                && case_payload_issuance_route(program, call.target_symbol, selected, domain, path)
+                && case_payload_issuance_route(program, target_symbol, selected, domain, path)
                 && match (call_parameters, projection) {
                     (Some(parameters), Some(projection)) => !consumes_qualified_input(
                         program,
@@ -388,7 +416,7 @@ pub(super) fn check_call_result_qualifications(
                 .conservation_plans
                 .iter()
                 .any(|plan| {
-                    plan.callable == call.target_symbol
+                    plan.callable == target_symbol
                         && plan.algebra == projection.algebra
                         && [
                             (plan.equation.left(), plan.equation.right()),
@@ -473,8 +501,9 @@ pub(super) fn check_call_result_qualifications(
                 ),
                 _ => String::new(),
             };
+            let reason = failure_reason.unwrap_or("the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved");
             diagnostics.push(Diagnostic::error(format!(
-                "cannot establish call-result qualification `{}`{location}: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved",
+                "cannot establish call-result qualification `{}`{location}: {reason}",
                 domain.name,
             )));
         }
@@ -488,9 +517,10 @@ fn private_placement_result_contract(
     program: &dyn ::validation::CheckingInput,
     invocation: &Invocation<'_>,
     domain: &typed_trees::domain::DomainDefinition,
+    semantic_domain: language_semantics::SemanticDomainId,
     path: &[PlaceSegment],
 ) -> Result<bool, Diagnostic> {
-    let callable = invocation.call.target_symbol;
+    let callable = invocation.target_symbol(program);
     let Some(declaration) =
         typed_trees::typed_trees::PlacementExecutionDeclaration::authenticate(program, callable)?
     else {
@@ -502,50 +532,40 @@ fn private_placement_result_contract(
     }) {
         return Ok(false);
     }
-    let (policy, schema) = declaration.invocation_operands(
+    let bindings = declaration.source_invocation_bindings(
         program,
         invocation.machine,
         invocation.call.authored_machine_application,
     )?;
-    let nominal = |reference| match program.type_reference_table.type_reference(reference) {
-        typed_trees::types::TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
-        _ => None,
-    };
-    let mut plans = program
-        .placement_lifecycle_plans
-        .iter()
-        .filter_map(|(_, plan)| match plan {
-            typed_trees::typed_trees::PlacementLifecyclePlan::Evaluated {
-                callable: candidate,
-                operation,
-                policy,
-                schema,
-                ..
-            } if *candidate == declaration.machine() => Some((*operation, *policy, *schema)),
-            _ => None,
-        });
-    let expected = nominal(policy)
-        .zip(nominal(schema))
-        .map(|(policy, schema)| (declaration.operation(), policy, schema));
-    if expected.is_none() || plans.next() != expected || plans.next().is_some() {
-        return Err(Diagnostic::error(
-            "placement primitive result lost its unique evaluated operation contract",
-        ));
-    }
     let state = program
         .state_by_symbol(declaration.state())
         .ok_or_else(|| {
             Diagnostic::error("placement primitive result lost its authenticated entry")
         })?;
+    let result_type = invocation.result_type(program).ok_or_else(|| {
+        Diagnostic::error("placement source contract lost its applied result type")
+    })?;
+    let expected = program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
+        substitutions: &bindings,
+        ..typed_trees::type_identity::TypeIdentityRequest::ordinary(state.return_type)
+    });
+    if expected != program.normalized_type_identity(result_type) {
+        return Err(Diagnostic::error(
+            "placement source result disagrees with its exact invocation-owned type operands",
+        ));
+    }
+    // This proves the sealed conditional source contract only. Closed
+    // geometry, profile provenance and actual backing remain execution duties.
     let matches = path
         .iter()
         .any(|segment| matches!(segment, PlaceSegment::Case { .. }))
-        && qualified_leaf_carrier(program, state.return_type, path).is_some_and(|carrier| {
+        && qualified_leaf_carrier(program, result_type, path).is_some_and(|carrier| {
             crate::facts::qualification_evidence::unwrapped_type_references_match(
                 program,
                 carrier,
                 domain.target_type,
-            )
+            ) && validation::field_domains::domain_constraint_identities(program, carrier)
+                .contains(&(domain.symbol, semantic_domain))
         });
     if !matches {
         return Err(Diagnostic::error(
@@ -770,14 +790,15 @@ fn qualified_leaf_carrier(
                 variant_scope = Some(*variant);
             }
             PlaceSegment::Field { symbol } => {
-                // The path belongs to the selected closed application, not
+                // The path belongs to the selected prepared application, not
                 // its unspecialized template. Do not peel a reference: that
                 // would turn borrowed storage into an owned issuance subject.
-                let data = program.closed_data_definition(
-                    program
-                        .type_reference_table
-                        .unconstrained_type_reference(carrier),
-                )?;
+                let reference = program
+                    .type_reference_table
+                    .unconstrained_type_reference(carrier);
+                let data = program
+                    .data_application_definition(reference)
+                    .or_else(|| program.closed_data_definition(reference))?;
                 let field = match variant_scope.take() {
                     Some(variant_symbol) => program
                         .data_members(data)
@@ -924,17 +945,22 @@ pub(super) fn input_claim(
         .find(|call| {
             call.statement_index == invocation.statement
                 && call.call_ordinal == invocation.ordinal
-                && call.target_symbol == invocation.call.target_symbol
+                && call.target_symbol == invocation.target_symbol(program)
         })?;
     let (operands, receiver_offset) =
         crate::flow::captured_call_operands(program, &facts.flow, state_flow, call_flow)?;
-    let operand = operands.get(position + receiver_offset)?;
+    operands.get(position + receiver_offset)?;
     let values = crate::flow::captured_operand_values(
         program,
         &facts.flow,
         &facts.semantic,
         state_flow,
-        operand,
+        crate::flow::CapturedOperand::recorded(
+            &facts.flow.control,
+            call_flow
+                .operands
+                .handle_at(u32::try_from(position + receiver_offset).ok()?),
+        )?,
         parameter.type_reference,
         path,
     )?;
@@ -955,14 +981,14 @@ pub(super) fn input_claim(
         &facts.flow.contexts,
         &facts.flow.control,
         &facts.semantic,
-        value.observation,
+        value.observation.row(),
         value.observation_type,
         call_flow.entry_constraints,
     );
     let qualified = contexts.iter().any(|context| {
         facts.semantic.context_view(facts.semantic.contexts.get(*context)).facts().any(|fact| {
             matches!(fact.payload,
-                facts::domain_membership_symbol_and_instance_pattern!(domain_symbol, semantic_domain)
+                facts::domain_membership_pattern!(domain_symbol, semantic_domain)
                 if domain_symbol == projection.domain && semantic_domain == projection.semantic_domain)
                 && matches!(fact.place, FactPlace::Place(place)
                     if facts.semantic.places.get(place).root == actual.root
@@ -981,6 +1007,7 @@ pub(super) fn input_claim(
     )?;
     current.extend_segments(path);
     let transferred = unique_claim(
+        program,
         facts,
         invocation,
         evaluation,
@@ -1032,7 +1059,7 @@ pub(super) fn result_claim(
     let call_source = PermissionEventSource::Call {
         statement_index: invocation.statement,
         call_ordinal: invocation.ordinal,
-        target_symbol: invocation.call.target_symbol,
+        target_symbol: invocation.target_symbol(program),
     };
     let statement_source = PermissionEventSource::Statement {
         statement_index: invocation.statement,
@@ -1064,6 +1091,7 @@ pub(super) fn result_claim(
 }
 
 fn unique_claim(
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     invocation: &Invocation<'_>,
     evaluation: checked_trees::FlowPermissionEvaluation,
@@ -1074,7 +1102,7 @@ fn unique_claim(
     let source = PermissionEventSource::Call {
         statement_index: invocation.statement,
         call_ordinal: invocation.ordinal,
-        target_symbol: invocation.call.target_symbol,
+        target_symbol: invocation.target_symbol(program),
     };
     let mut identity = None;
     for event in invocation.events.iter() {

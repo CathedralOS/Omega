@@ -35,7 +35,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     transition { _ -> done(main) }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::write_line("PASS: scores 30+25+15 total 70 (the exit code)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

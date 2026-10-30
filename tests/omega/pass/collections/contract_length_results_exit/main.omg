@@ -28,7 +28,7 @@ machine ordinal(left: &[f64], right: &[f64]) -> f64 {
 machine written(values: &mut [f64]) -> f64 {
     let count: u64 = extent(values);
     transition count > 0 { true -> write(values, count) false -> 99.0 }
-    state write(values: &mut [f64], count: u64) {
+    machine write(values: &mut [f64], count: u64) -> f64 {
         values[0] = 8.5;
         transition count > 0 { true -> (values[0]) false -> 99.0 }
     }
@@ -47,7 +47,7 @@ machine main(context: &mut Context) crashes Trap {
         true -> {}
         false -> bad()
     }
-    state bad() { crash Trap; }
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

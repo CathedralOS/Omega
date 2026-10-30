@@ -1,0 +1,14 @@
+// CASE-CONSTRAINTS an impossible case stays unconstructible: `T == i32`
+// refutes `Integer` on `Value<bool>`, so its literal violates both the
+// data `requires` and the case constraint.
+data Value<T>
+    requires ((self in Value::Integer) && T == i32)
+       || ((self in Value::Boolean) && T == bool)
+{
+    case Integer(value: T);
+    case Boolean(value: T);
+}
+data Main { v: Value<bool>; }
+machine Main::main(main: &mut Main) {
+    main.v = Value::Integer { value: 5 };
+}

@@ -53,7 +53,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // Loop head: fold readings until every element has been visited.
-    state step(main: &mut Main) {
+    machine step(main: &mut Main) {
         transition main.i < 6 {
             true -> body(main)
             _ -> done(main)
@@ -62,7 +62,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // The extremes update unconditionally: `min`/`max` ARE the branch, applied
     // straight to floats (the minsd/maxsd path, not an abs/clamp desugar).
-    state body(main: &mut Main) {
+    machine body(main: &mut Main) {
         main.cur = main.nums[main.i];
         main.lo = min_f64(main.lo, main.cur);
         main.hi = max_f64(main.hi, main.cur);
@@ -73,21 +73,21 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // Re-guard before the increment: the `i < 6` fact on the DIRECT edge into
     // `bump` proves `i + 1` cannot overflow -- fully Exact, no domain.
-    state advance(main: &mut Main) {
+    machine advance(main: &mut Main) {
         transition main.i < 6 {
             true -> bump(main)
             _ -> step(main)
         }
     }
 
-    state bump(main: &mut Main) {
+    machine bump(main: &mut Main) {
         main.i = main.i + 1;
         transition {
             _ -> step(main)
         }
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         // range = hi - lo = 26 - 18 = 8.
         main.range = main.hi - main.lo;
         // A float clamp with float bounds: clamp(26, 0, 25) = 25 (clamps down).

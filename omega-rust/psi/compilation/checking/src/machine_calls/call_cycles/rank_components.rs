@@ -4,13 +4,12 @@
 //! component judgment, then retains its decision beside the same witnesses. Progress and executable
 //! rank projection read the retained rows without rebuilding the source proof.
 
-use super::{TopLevelSymbols, build_machine_call_graph, runtime_ranking};
+use super::{build_machine_call_graph, runtime_ranking};
 use crate::machine_calls::graph_components::strongly_connected_components;
 use checked_trees::{
     CheckedRankArrivalPlan, CheckedRankCoordinate, CheckedRuntimeNaturalState,
     CheckedRuntimeRankComponent, CheckedRuntimeRankEdge, CheckedRuntimeRankMember,
 };
-use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 /// Invocation-local call topology, prepared once before source admission. It
@@ -21,6 +20,22 @@ pub struct RuntimeRankComponents {
 }
 
 impl RuntimeRankComponents {
+    /// Tail eligibility is an execution obligation; it supplies no ranking or
+    /// eventual-return evidence. Proof-only recurrence remains separately owned.
+    pub fn require_tail_component(
+        &self,
+        program: &dyn crate::CheckingInput,
+        component: &[usize],
+    ) -> Result<(), &'static str> {
+        let proof_only = crate::proof_only_classification(program);
+        if component
+            .iter()
+            .any(|position| proof_only.is_proof_machine(program, &program.machines()[*position]))
+        {
+            return Err("runtime and proof-only machines cannot share a recursive component");
+        }
+        runtime_ranking::require_tail_component(program, component)
+    }
     pub fn requires_arrival_witness(&self, machine_position: usize) -> bool {
         self.components
             .iter()
@@ -72,13 +87,8 @@ impl RuntimeRankComponents {
 pub fn prepare_runtime_rank_components(
     program: &dyn crate::CheckingInput,
 ) -> Option<RuntimeRankComponents> {
-    let mut diagnostics = Vec::new();
-    let symbols = TopLevelSymbols::build(program, &mut diagnostics);
-    if diagnostics.iter().any(Diagnostic::is_error) {
-        return None;
-    }
     let proof_only = crate::proof_only_classification(program);
-    let graph = build_machine_call_graph(program, &symbols, &proof_only);
+    let graph = build_machine_call_graph(program, &proof_only);
     let components = strongly_connected_components(&graph.edges)
         .into_iter()
         .filter(|component| {
@@ -114,8 +124,8 @@ pub fn retain_runtime_rank_component(
         Err(reason) => (
             None,
             format!(
-                "machine call cycle: `{names}` -- {reason}; runtime calls must be tail, \
-                 and every complete cycle must decrease the shared `terminates by ...` ranking"
+                "machine call cycle: `{names}` -- {reason}; runtime calls must be tail; \
+                 a termination promise additionally requires strict descent on every complete cycle"
             ),
         ),
     };
@@ -134,15 +144,19 @@ pub fn retain_runtime_rank_component(
             .into_iter()
             .map(|state| {
                 let path = admitted.path_segments.insert_many(state.coordinate.path);
+                let entry_indexes = admitted.entry_indexes.insert_many(state.entry_indexes);
                 let coordinate = admitted.coordinates.insert(CheckedRankCoordinate {
                     parameter: state.coordinate.parameter,
                     path,
+                    entry_indexes,
                 });
                 CheckedRuntimeNaturalState {
                     state: state.state,
                     coordinate,
                     parameter_position: state.parameter_position,
                     primitive_type: state.primitive_type,
+                    observation: state.observation,
+                    function: state.function,
                 }
             })
             .collect::<Vec<_>>();
@@ -213,8 +227,14 @@ pub fn retained_runtime_natural_components(
                             parameter: coordinate.parameter,
                             path: admitted.path_segments.span(coordinate.path)?.to_vec(),
                         },
+                        entry_indexes: admitted
+                            .entry_indexes
+                            .span(coordinate.entry_indexes)?
+                            .to_vec(),
                         parameter_position: state.parameter_position,
                         primitive_type: state.primitive_type,
+                        observation: state.observation,
+                        function: state.function,
                     })
                 })
                 .collect::<Option<Vec<_>>>()?;

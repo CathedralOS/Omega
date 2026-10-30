@@ -8,7 +8,7 @@ requires val >= 25 && val <= 25 && shift == 2
     transition {
         _ -> step(val, shift)
     }
-    state step(v: u8, s: u32) -> u8
+    machine step(v: u8, s: u32) -> u8
     requires v >= 25 && v <= 25 && s == 2
     {
         let shifted: u8 = v << s;
@@ -25,6 +25,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -53,8 +53,9 @@ pub(super) fn append(
             point,
             origin: FactOrigin::StatementTransfer,
             evidence,
-            payload: FactPayload::AssignedCase {
+            payload: FactPayload::CaseValue {
                 variant: row.variant,
+                value: true,
             },
         });
     }

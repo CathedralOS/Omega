@@ -73,18 +73,18 @@ pub use caller_aliases::{
     ReferenceViewFormation,
 };
 pub use demand::CallFrameTables;
+pub(crate) use demand::CapturedStorageReadBacking;
 pub(crate) use demand::statement_value_expression_roots;
-pub(crate) use demand::{CallFrameCaches, InvocationReferenceSubject};
+pub(crate) use demand::{CallFrameCaches, InvocationEntrySubject};
 pub use demand::{CallFrameResolver, frame_paths_overlap, operand_call_plans};
 pub use isolation::aggregate_storage_types_match as storage_origin_types_match;
 pub use place_paths::ScalarStorageCoordinate;
 pub use place_paths::{frame_coordinate_path, frame_length_coordinate_path};
 pub use reference_subjects::assignment_stored_value_type;
-pub use stored_calls::StoredReferenceEffect;
 pub(crate) use stored_calls::provider_completion_covers_writable_slots;
+pub use stored_calls::{ReferenceSlotContract, StoredReferenceCallContext, StoredReferenceEffect};
 pub(crate) use transition_topology::{
-    named_state_may_reach, named_state_transition_subgraph_is_acyclic,
-    named_transition_target_state,
+    named_state_transition_subgraph_is_acyclic, named_transition_target_state,
 };
 
 use super::receiver_member_chain;
@@ -433,7 +433,7 @@ fn summarize_resolved_call(
     let actual_values = inference.argument_values(program, arguments);
     inference.active_states.push(callee_state.symbol);
     let relative_paths =
-        inference.with_invocation(program, callee_state, &actual_values, |inference| {
+        inference.with_invocation(program, callee_state, &actual_values, &[], |inference| {
             summarize_complete_state_written_paths(
                 program,
                 callee_machine,

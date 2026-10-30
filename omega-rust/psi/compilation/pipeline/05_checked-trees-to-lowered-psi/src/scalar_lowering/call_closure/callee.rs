@@ -67,9 +67,12 @@ impl<'checked> CheckedScalarCallee<'checked> {
         }) {
             return Ok(Self(UnitBody::Composed(plan)));
         }
-        if let Some(plan) = operation_body
-            .filter(|plan| plan.scalar_result.is_some() || plan.scalar_control.is_some())
-        {
+        if let Some(plan) = operation_body.filter(|plan| {
+            matches!(
+                plan.result,
+                checked_trees::CheckedControlResultPlan::Scalar { .. }
+            )
+        }) {
             if plan.structural_result.is_some() {
                 return unsupported("scalar callee has conflicting checked result ownership");
             }

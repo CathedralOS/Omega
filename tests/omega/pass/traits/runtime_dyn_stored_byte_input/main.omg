@@ -27,11 +27,11 @@ crashes Trap {
         true -> read(bytes)
         false -> bad()
     }
-    state read(bytes: &[u8]) -> u8
+    machine read(bytes: &[u8]) -> u8
     requires bytes.len == 2 {
         bytes[0]
     }
-    state bad() -> u8 { crash Trap; }
+    machine bad() -> u8 { crash Trap; }
 }
 
 data Main { packet: [u8; 4]; }
@@ -46,8 +46,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -45,7 +45,7 @@ pub enum IeeeRounding {
     TowardNegative,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BigInt {
     negative: bool,
     /// Little-endian limbs, no trailing zeros. Empty = zero.
@@ -63,6 +63,23 @@ impl BigInt {
 
     pub fn is_negative(&self) -> bool {
         self.negative
+    }
+
+    /// Canonical little-endian magnitude words. Zero has no words.
+    pub fn magnitude_words(&self) -> &[u64] {
+        &self.magnitude
+    }
+
+    /// Admit a canonical sign/magnitude encoding without normalizing distinct
+    /// encodings to the same value. Negative zero and high zero words refuse.
+    pub fn from_canonical_words(negative: bool, magnitude: Vec<u64>) -> Result<Self, &'static str> {
+        if magnitude.last() == Some(&0) || (negative && magnitude.is_empty()) {
+            return Err("integer magnitude is not canonical");
+        }
+        Ok(Self {
+            negative,
+            magnitude,
+        })
     }
 
     pub fn bit_length(&self) -> usize {

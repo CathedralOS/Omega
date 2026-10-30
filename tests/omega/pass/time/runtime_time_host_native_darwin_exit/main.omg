@@ -24,34 +24,34 @@ machine Main::main(context: &mut Main) reaches Console + TimeHost {
         true -> check_sleep(&mut context, second_ticks - first_ticks)
         false -> fail_monotonic(&mut context)
     }
-    state check_sleep(context: &mut Main, elapsed_ticks: u64) {
+    machine check_sleep(context: &mut Main, elapsed_ticks: u64) {
         transition elapsed_ticks >= 30000000 {
             true -> check_frequency(context)
             false -> fail_monotonic(context)
         }
     }
-    state check_frequency(context: &mut Main) {
+    machine check_frequency(context: &mut Main) {
         let frequency: u64 = TimeHost::monotonic_ticks_per_second();
         transition frequency == 1000000000 {
             true -> check_units(&mut context)
             false -> fail_frequency(&mut context)
         }
     }
-    state check_units(context: &mut Main) {
+    machine check_units(context: &mut Main) {
         let wall_units: u64 = TimeHost::wall_clock_units_per_second();
         transition wall_units == 1000000000 {
             true -> check_offset(&mut context)
             false -> fail_units(&mut context)
         }
     }
-    state check_offset(context: &mut Main) {
+    machine check_offset(context: &mut Main) {
         let wall_offset: u64 = TimeHost::wall_clock_epoch_offset_seconds();
         transition wall_offset == 0 {
             true -> check_wall_lower(&mut context)
             false -> fail_offset(&mut context)
         }
     }
-    state check_wall_lower(context: &mut Main) {
+    machine check_wall_lower(context: &mut Main) {
         let wall_raw: u64 = TimeHost::wall_clock_raw();
         let unix_seconds: u64 = wall_raw / 1000000000;
         transition unix_seconds > 1767225600 {
@@ -59,19 +59,19 @@ machine Main::main(context: &mut Main) reaches Console + TimeHost {
             false -> fail_wall_low(&mut context)
         }
     }
-    state check_wall_upper(context: &mut Main, unix_seconds: u64) {
+    machine check_wall_upper(context: &mut Main, unix_seconds: u64) {
         transition unix_seconds < 3350000000 {
             true -> good(&mut context)
             false -> fail_wall_high(&mut context)
         }
     }
-    state good(context: &mut Main) { Console::exit_process(70); }
-    state fail_monotonic(context: &mut Main) { Console::exit_process(1); }
-    state fail_frequency(context: &mut Main) { Console::exit_process(2); }
-    state fail_units(context: &mut Main) { Console::exit_process(3); }
-    state fail_offset(context: &mut Main) { Console::exit_process(4); }
-    state fail_wall_low(context: &mut Main) { Console::exit_process(5); }
-    state fail_wall_high(context: &mut Main) { Console::exit_process(6); }
+    machine good(context: &mut Main) { Console::exit_process(70); }
+    machine fail_monotonic(context: &mut Main) { Console::exit_process(1); }
+    machine fail_frequency(context: &mut Main) { Console::exit_process(2); }
+    machine fail_units(context: &mut Main) { Console::exit_process(3); }
+    machine fail_offset(context: &mut Main) { Console::exit_process(4); }
+    machine fail_wall_low(context: &mut Main) { Console::exit_process(5); }
+    machine fail_wall_high(context: &mut Main) { Console::exit_process(6); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -4,8 +4,7 @@ mod value_expressions;
 
 pub(super) use value_expressions::{
     assign_declaration_type_value_expression_symbols, assign_type_value_expression_symbols,
-    each_type_reference_handle, reassign_type_reference_symbols,
-    reassign_type_reference_symbols_and_values,
+    reassign_type_reference_symbols, reassign_type_reference_symbols_and_values,
 };
 
 pub(super) use assignment::{

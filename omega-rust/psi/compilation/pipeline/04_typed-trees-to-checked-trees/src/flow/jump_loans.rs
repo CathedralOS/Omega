@@ -15,7 +15,7 @@
 //! dropping just one such leaf can therefore still be conservatively rejected.
 
 use validation::CanonicalPlace;
-use validation::{CallSite, find_call_site, find_state_in_machine};
+use validation::find_state_in_machine;
 
 use crate::flow::canonical_place_segments_may_overlap;
 use crate::flow::mutation::{WritePlaceNamespace, instantiate_call_relative_places};
@@ -81,15 +81,39 @@ impl TargetRun {
         held: &'access [HeldAccesses<Access>],
         loan: Option<&'access CanonicalPlace>,
     ) -> impl Iterator<Item = &'access Access> {
+        self.new_accesses(program, whole, 0, held, &[], loan)
+    }
+
+    pub(super) fn new_accesses<'access, Access>(
+        &'access self,
+        program: &'access dyn ::validation::CheckingInput,
+        whole: &'access [Access],
+        seen_whole: usize,
+        held: &'access [HeldAccesses<Access>],
+        seen_held: &'access [usize],
+        loan: Option<&'access CanonicalPlace>,
+    ) -> impl Iterator<Item = &'access Access> {
         let whole_run = matches!(self, Self::Whole) || loan.is_none();
-        let whole = if whole_run { whole } else { &[] };
+        let whole = if whole_run {
+            &whole[seen_whole.min(whole.len())..]
+        } else {
+            &[]
+        };
         whole.iter().chain(
             held.iter()
-                .filter(move |entry| {
+                .enumerate()
+                .filter(move |(_, entry)| {
                     !whole_run
                         && loan.is_some_and(|loan| self.forwards(program, entry.parameter, loan))
                 })
-                .flat_map(|entry| &entry.accesses),
+                .flat_map(move |(idx, entry)| {
+                    let start = seen_held
+                        .get(idx)
+                        .copied()
+                        .unwrap_or(0)
+                        .min(entry.accesses.len());
+                    &entry.accesses[start..]
+                }),
         )
     }
 
@@ -150,32 +174,18 @@ pub(super) fn target_run(
     state_symbol: SymbolHandle,
     call: &BorrowCallFact,
 ) -> TargetRun {
-    let Some(target) = find_state_in_machine(program, machine_symbol, call.target_symbol) else {
+    let Some(transfer) = crate::flow::local_jump(program, machine_symbol, state_symbol, call)
+    else {
         return TargetRun::Whole;
     };
-    let Some(CallSite::TransitionNamed { path, .. }) = find_call_site(
+    let target = transfer.target;
+    let caller = find_state_in_machine(program, machine_symbol, state_symbol);
+    let data_parameter = crate::flow::family_data_binding_parameter(
         program,
         machine_symbol,
-        state_symbol,
-        call.statement_index,
-        call.call_ordinal,
-    ) else {
-        return TargetRun::Whole;
-    };
-    // The callee state's identity is a summary coordinate. A machine-named
-    // invocation still holds incoming loans through completion, even when its
-    // entry belongs to this same machine and native recursion uses a backedge.
-    // Only an authored local-state transfer closes the source state scope.
-    if program.machine_by_symbol(path.symbol).is_some() {
-        return TargetRun::Whole;
-    }
-    let caller = find_state_in_machine(program, machine_symbol, state_symbol);
-    let data_parameter = program
-        .machine_by_symbol(machine_symbol)
-        .and_then(|machine| {
-            program.data_binding_parameter(machine, program.state_parameters(target))
-        })
-        .map(|parameter| parameter.symbol);
+        program.state_parameters(target),
+    )
+    .map(|parameter| parameter.symbol);
     TargetRun::Jump(
         loan_parameters(program, target)
             .map(|parameter| {

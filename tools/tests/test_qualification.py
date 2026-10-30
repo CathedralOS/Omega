@@ -54,10 +54,22 @@ class QualificationTests(unittest.TestCase):
     def git(self, *arguments):
         return kit.git(self, self.repository, *arguments)
 
+    def executable_producer_fixture(self):
+        # Qualification tests consume the identity/profile, not this program.
+        # Use real host executable bytes so unrelated fixture artifacts cannot
+        # masquerade as an executable merely by carrying a Cargo receipt.
+        self.library.write_bytes(Path(sys.executable).read_bytes())
+        self.library.chmod(0o755)
+        receipt = Path(str(self.library) + ".compiler-profile.json")
+        data = json.loads(receipt.read_text())
+        data["binary_sha256"] = qualification.file_digest(self.library)
+        receipt.write_text(json.dumps(data))
+
     def test_producer_profile_is_required_before_command_or_capture_starts(self):
         marker = self.root / "command-ran"
         config = copy.deepcopy(self.config)
         check = config["checks"][0]
+        self.executable_producer_fixture()
         check["producer"] = dict(revision=self.base, inputs=["src"], executables=[str(self.library)])
         check["command"] = [sys.executable, "-c",
                             "from pathlib import Path; Path(" + repr(str(marker)) + ").write_text('ran')"]
@@ -170,14 +182,14 @@ class QualificationTests(unittest.TestCase):
                         return_value=subprocess.CompletedProcess([], status, output, b"")):
                     with self.assertRaises(qualification.RecoveryError):
                         qualification.source_inputs(self.repository, self.base, ["src"])
-    def test_summary_run_preserves_full_evidence_and_failed_exit(self):
+    def test_default_summary_run_preserves_full_evidence_and_failed_exit(self):
         def execute():
             output = io.StringIO()
             revision = qualification.load(self.state)["revision"]
             with mock.patch("sys.stdout", output):
                 status = qualification.main(["run", "--repository", str(self.repository),
                     "--state", str(self.state), "--revision", str(revision),
-                    "--check", "values", "--summary-output"])
+                    "--check", "values"])
             return status, json.loads(output.getvalue())
         status, summary = execute()
         self.assertEqual(status, 0)
@@ -212,6 +224,29 @@ class QualificationTests(unittest.TestCase):
                 "--state", str(self.state), "--revision", str(revision - 1),
                 "--check", "values", "--summary-output"]), 1)
         self.assertEqual(qualification.load(self.state)["revision"], revision)
+
+    def test_status_defaults_to_bounded_summary_and_full_output_preserves_history(self):
+        configuration = copy.deepcopy(self.config)
+        configuration["context"]["captured_resource_description"] = "resource metadata " * 65536
+        qualification.amend(self.state, 0, configuration, "large retained context")
+        original = self.state.read_bytes()
+        responses = []
+        for flags in ([], ["--summary-output"], ["--full-output"]):
+            output = io.StringIO()
+            with mock.patch("sys.stdout", output):
+                status = qualification.main(["status", "--repository", str(self.repository),
+                                             "--state", str(self.state), *flags])
+            self.assertEqual(status, 0)
+            self.assertEqual(self.state.read_bytes(), original)
+            responses.append(output.getvalue())
+        self.assertEqual(responses[0], responses[1])
+        self.assertLess(len(responses[0].encode("utf-8")), 8192)
+        summary = json.loads(responses[0])
+        self.assertEqual(summary["schema"], "omega-qualification-summary-v1")
+        self.assertEqual(summary["state"], str(self.state.resolve()))
+        self.assertEqual(summary["revision"], qualification.load(self.state)["revision"])
+        self.assertGreater(len(responses[2]), 1024 * 1024)
+        self.assertEqual(json.loads(responses[2]), qualification.load(self.state))
 
     def test_snapshot_preserves_normal_utf8_encoding_refusals(self):
         text = self.state.read_text(encoding="utf-8")
@@ -344,6 +379,25 @@ class QualificationTests(unittest.TestCase):
         self.assertEqual(len(record["runs"]), 1)
         self.assertGreaterEqual(record["runs"][0]["duration_seconds"], 0)
         qualification.validate(self.repository, self.state, incoming, incoming)
+
+    def test_remote_main_movement_keeps_fixed_source_review_and_receipt(self):
+        config = copy.deepcopy(self.config)
+        config["checks"][0].update(kind="review", final=True)
+        qualification.amend(self.state, 0, config, "required independent source review")
+        observed, accepted = self.run_check()
+        self.assertTrue(accepted)
+        receipt = observed["runs"][-1]["receipt"]
+        original = Path(receipt["path"]).read_bytes()
+        self.git("checkout", "-b", "unrelated-main")
+        incoming = self.commit("README.md", "other owner's source")
+        self.git("update-ref", "refs/remotes/origin/main", incoming)
+        self.git("checkout", "--detach", self.base)
+        record = self.assess()  # The recorded base, not the latest remote SHA.
+        self.assertEqual(record["assessments"][-1]["checks"][0]["action"], "reuse")
+        self.assertEqual(record["runs"][-1]["receipt"], receipt)
+        self.assertEqual(Path(receipt["path"]).read_bytes(), original)
+        self.assertEqual(len(record["runs"]), 1)
+        qualification.validate(self.repository, self.state, self.base, self.base)
 
     def test_affected_addition_and_deletion_invalidate_whole_dependency_tree(self):
         self.run_check()
@@ -544,6 +598,7 @@ class QualificationTests(unittest.TestCase):
 
     def test_reuse_attestation_does_not_relax_new_capture_producer_source_equality(self):
         config = copy.deepcopy(self.config)
+        self.executable_producer_fixture()
         config["checks"][0]["producer"] = dict(revision=self.base, inputs=["src"], executables=[str(self.library)])
         qualification.amend(self.state, 0, config, "pin producer inputs")
         self.run_check()
@@ -674,6 +729,7 @@ class QualificationTests(unittest.TestCase):
         path = self.root / "producer.json"
         config = copy.deepcopy(self.config)
         config["checks"][0]["kind"] = "native"
+        self.executable_producer_fixture()
         config["checks"][0]["producer"] = dict(revision=self.base, inputs=["src"], executables=[str(self.library)])
         qualification.amend(self.state, 0, config, "compiler provenance added")
         candidate = self.commit("src/program", "new compiler semantics")
@@ -684,6 +740,7 @@ class QualificationTests(unittest.TestCase):
     def test_rebuilt_producer_amendment_invalidates_and_retains_prior_evidence(self):
         self.run_check()
         config = copy.deepcopy(self.config)
+        self.executable_producer_fixture()
         config["checks"][0]["producer"] = dict(revision=self.base, inputs=["src"], executables=[str(self.library)])
         record = qualification.amend(self.state, 2, config, "reviewed exact rebuilt producer")
         self.assertEqual(len(record["runs"]), 1)
@@ -703,7 +760,7 @@ class QualificationTests(unittest.TestCase):
         with self.assertRaisesRegex(qualification.RecoveryError, "dependency absent"):
             self.run_check()
 
-    def test_semantic_mapping_requires_final_review_and_prior_canonical_authority(self):
+    def test_semantic_mapping_requires_prior_authority_without_adding_review(self):
         (self.repository / "wiki/spec").mkdir(parents=True)
         base = self.commit("wiki/spec/contract.md", "existing canonical contract")
         self.assess(base)
@@ -711,15 +768,30 @@ class QualificationTests(unittest.TestCase):
         config["semantic_contracts"] = [dict(implementation=["src/program"], contract="wiki/spec/contract.md",
             classification="missing_implementation", reason="implement the existing declared behavior",
             passages=["existing canonical contract"])]
-        with self.assertRaisesRegex(qualification.RecoveryError, "final-candidate review"):
-            qualification.amend(self.state, 1, config, "semantic repair")
-        review = copy.deepcopy(config["checks"][0])
-        review.update(id="review", kind="review", final=True)
-        config["checks"].append(review)
-        qualification.amend(self.state, 1, config, "independent reviewer checks canonical mapping")
+        record = qualification.amend(self.state, 1, config, "semantic repair")
+        self.assertEqual([check["id"] for check in record["config"]["checks"]], ["values"])
         candidate = self.commit("wiki/spec/contract.md", "invented semantics in the same candidate")
         with self.assertRaisesRegex(qualification.RecoveryError, "retroactive authority"):
             self.assess(base)
+
+    def test_explicit_semantic_review_remains_required(self):
+        (self.repository / "wiki/spec").mkdir(parents=True)
+        base = self.commit("wiki/spec/contract.md", "The existing rule.")
+        self.assess(base)
+        config = copy.deepcopy(self.config)
+        config["semantic_contracts"] = [dict(implementation=["src/program"],
+            contract="wiki/spec/contract.md", classification="missing_implementation",
+            reason="implement the existing rule", passages=["The existing rule."])]
+        review = copy.deepcopy(config["checks"][0])
+        review.update(id="requested-review", kind="review", final=True)
+        config["checks"].append(review)
+        qualification.amend(self.state, 1, config, "retain explicitly requested review")
+        self.run_check()
+        self.assess(base)
+        with self.assertRaisesRegex(qualification.RecoveryError, "affected/final checks"):
+            qualification.validate(self.repository, self.state, base, base)
+        self.assertTrue(self.run_check("requested-review")[1])
+        qualification.validate(self.repository, self.state, base, base)
 
     def canonical_amendment_fixture(self):
         (self.repository / "wiki/spec").mkdir(parents=True)
@@ -740,6 +812,196 @@ class QualificationTests(unittest.TestCase):
         revised = copy.deepcopy(original)
         revised["semantic_contracts"][0]["passages"] = ["The revised canonical rule."]
         return original_base, next_base, candidate, revised, historical
+
+    def rewritten_lineage(self):
+        self.assertTrue(self.run_check()[1])
+        self.assess()
+        old = qualification.load(self.state)
+        # A real rewrite replaces the private base, as squash publication does.
+        self.git("commit", "--amend", "-m", "tools: rewritten canonical base")
+        base = self.git("rev-parse", "HEAD")
+        candidate = self.commit("src/program", "candidate on rewritten history\n")
+        self.assertNotEqual(base, self.base)
+        self.successor = self.root / "successor.json"
+        return old, base, candidate
+
+    def restart(self, old, base, candidate, /, **changes):
+        arguments = dict(repository=self.repository, path=self.state,
+            expected=old["revision"], successor=self.successor, base=base,
+            candidate=candidate, config=copy.deepcopy(self.config),
+            reason="actual rebase after conflict resolution replaced private base")
+        arguments.update(changes)
+        return qualification.restart(**arguments)
+
+    def test_restart_preserves_rewritten_history_and_requires_fresh_checks(self):
+        old, base, candidate = self.rewritten_lineage()
+        before = self.state.read_bytes()
+        receipt = Path(old["runs"][0]["receipt"]["path"])
+        receipt_bytes = receipt.read_bytes()
+        with self.assertRaisesRegex(qualification.RecoveryError, "compatible ancestor"):
+            qualification.assess(self.repository, self.state, old["revision"], base)
+        with self.assertRaisesRegex(qualification.RecoveryError, "compatible ancestor"):
+            qualification.amend(self.state, old["revision"], self.config, "rebase", base=base)
+        record = self.restart(old, base, candidate)
+        self.assertEqual(self.state.read_bytes(), before)
+        self.assertEqual(receipt.read_bytes(), receipt_bytes)
+        self.assertEqual(self.git("rev-parse", old["source_ref"]), old["qualification_revision"])
+        self.assertEqual(record["predecessor"]["sha256"], qualification.file_digest(self.state))
+        self.assertEqual(record["predecessor"]["revision"], old["revision"])
+        self.assertEqual(record["runs"], [])
+        self.assertEqual(record["assessments"], [])
+        self.assertNotIn("source_reuse", record)
+        self.assertEqual(qualification.active_path(self.repository), str(self.successor))
+        assessed = qualification.assess(self.repository, self.successor, 0, base)
+        self.assertTrue(all(row["action"] == "rerun" and row["evidence"] is None
+                            for row in assessed["assessments"][-1]["checks"]))
+        with self.assertRaisesRegex(qualification.RecoveryError, "not active"):
+            qualification.amend(self.state, old["revision"], self.config, "archived mutation")
+        self.assertEqual(self.state.read_bytes(), before)
+        result, accepted = qualification.run_check(self.repository, self.successor, 1, "values")
+        self.assertTrue(accepted)
+        qualification.assess(self.repository, self.successor, result["revision"], base)
+        qualification.validate(self.repository, self.successor, candidate, base)
+
+    def test_restart_refuses_stale_running_foreign_and_wrong_identity(self):
+        old, base, candidate = self.rewritten_lineage()
+        active = self.repository / "build/qualification-active.json"
+        original_active, original_state = active.read_bytes(), self.state.read_bytes()
+        for changes, message in [
+                (dict(expected=old["revision"] - 1), "stale qualification"),
+                (dict(candidate=base), "clean HEAD"),
+                (dict(base=self.base), "compatible ancestor"),
+                (dict(successor=self.state), "distinct"),
+                (dict(reason="  "), "reason")]:
+            with self.subTest(changes=changes):
+                with self.assertRaisesRegex(qualification.RecoveryError, message):
+                    self.restart(old, base, candidate, **changes)
+                self.assertEqual(self.state.read_bytes(), original_state)
+                self.assertEqual(active.read_bytes(), original_active)
+                self.assertFalse(self.successor.exists())
+        foreign = self.root / "foreign.json"
+        foreign.write_bytes(original_state)
+        qualification.atomic_json(active, dict(state=str(foreign)))
+        with self.assertRaisesRegex(qualification.RecoveryError, "active"):
+            self.restart(old, base, candidate)
+        active.write_bytes(original_active)
+        for field, value, message in [("running", dict(id="live"), "command runs"),
+                ("repository", str(self.root), "worktree mismatch")]:
+            changed = copy.deepcopy(old)
+            changed[field] = value
+            qualification.atomic_json(self.state, changed)
+            with self.assertRaisesRegex(qualification.RecoveryError, message):
+                self.restart(old, base, candidate)
+            self.assertFalse(self.successor.exists())
+        self.state.write_bytes(original_state)
+        (self.repository / "src/program").write_text("dirty\n")
+        with self.assertRaisesRegex(qualification.RecoveryError, "clean checkpoint"):
+            self.restart(old, base, candidate)
+
+    def test_restart_retries_interrupted_activation_without_overwriting_evidence(self):
+        old, base, candidate = self.rewritten_lineage()
+        active = self.repository / "build/qualification-active.json"
+        atomic = qualification.atomic_json
+        before = self.state.read_bytes()
+        def fail_activation(path, *arguments, **keywords):
+            if Path(path) == active:
+                raise OSError("injected active replacement failure")
+            return atomic(path, *arguments, **keywords)
+        with mock.patch.object(qualification, "atomic_json", side_effect=fail_activation):
+            with self.assertRaisesRegex(OSError, "replacement failure"):
+                self.restart(old, base, candidate)
+        pending = self.successor.read_bytes()
+        self.assertEqual(qualification.active_path(self.repository), str(self.state))
+        with self.assertRaisesRegex(qualification.RecoveryError, "not active"):
+            qualification.run_check(self.repository, self.successor, 0, "values")
+        with self.assertRaisesRegex(qualification.RecoveryError, "successor"):
+            self.restart(old, base, candidate, reason="changed request")
+        self.restart(old, base, candidate)
+        self.assertEqual(self.state.read_bytes(), before)
+        self.assertEqual(self.successor.read_bytes(), pending)
+        self.assertEqual(qualification.active_path(self.repository), str(self.successor))
+
+    def test_restart_retains_final_checks_but_allows_reviewed_replacement_scope(self):
+        config = copy.deepcopy(self.config)
+        review = dict(config["checks"][0], id="review", kind="review", final=True)
+        config["checks"].append(review)
+        qualification.amend(self.state, 0, config, "required final independent review")
+        old, base, candidate = self.rewritten_lineage()
+        revised = copy.deepcopy(config)
+        revised["checks"][0]["id"] = "new-witness"
+        for changes in (dict(final=False), dict(kind="tests"), dict(id="renamed")):
+            invalid = copy.deepcopy(revised)
+            invalid["checks"][1].update(changes)
+            with self.subTest(changes=changes):
+                with self.assertRaisesRegex(qualification.RecoveryError, "final-candidate"):
+                    self.restart(old, base, candidate, config=invalid)
+        record = self.restart(old, base, candidate, config=revised)
+        self.assertEqual([row["id"] for row in record["config"]["checks"]], ["new-witness", "review"])
+        self.assertEqual(record["runs"], [])
+
+    def test_restart_canonical_contract_and_cli_binding(self):
+        old, _, _ = self.rewritten_lineage()
+        (self.repository / "wiki/spec").mkdir(parents=True)
+        base = self.commit("wiki/spec/contract.md", "The canonical rule.\n")
+        candidate = self.commit("src/program", "canonical implementation\n")
+        config = copy.deepcopy(self.config)
+        config["semantic_contracts"] = [dict(implementation=["src/program"],
+            contract="wiki/spec/contract.md", classification="missing_implementation",
+            reason="implement canonical behavior", passages=["The canonical rule."])]
+        invalid = copy.deepcopy(config)
+        invalid["semantic_contracts"][0]["passages"] = ["Invented rule."]
+        with self.assertRaisesRegex(qualification.RecoveryError, "missing/stale"):
+            self.restart(old, base, candidate, config=invalid)
+        with self.assertRaisesRegex(qualification.RecoveryError, "retroactive authority"):
+            self.restart(old, self.git("rev-parse", base + "^"), candidate, config=config)
+        configuration = self.root / "restart-config.json"
+        configuration.write_text(json.dumps(config))
+        output, errors = io.StringIO(), io.StringIO()
+        with mock.patch("sys.stdout", output), mock.patch("sys.stderr", errors):
+            status = qualification.main(["restart", "--repository", str(self.repository),
+                "--state", str(self.state), "--revision", str(old["revision"]),
+                "--successor", str(self.successor), "--candidate", candidate,
+                "--base", base, "--config", str(configuration), "--reason", "real history rewrite"])
+        self.assertEqual(status, 0, errors.getvalue())
+        summary = json.loads(output.getvalue())
+        self.assertEqual(summary["state"], str(self.successor))
+        self.assertEqual(summary["predecessor"]["canonical_base"], base)
+        record = qualification.load(self.successor)
+        self.assertEqual(record["canonical_context"][0]["revision"], base)
+
+    def test_restart_refuses_compatible_lineage(self):
+        old = qualification.load(self.state)
+        self.successor = self.root / "successor.json"
+        candidate = self.commit("src/program", "ordinary compatible candidate\n")
+        with self.assertRaisesRegex(qualification.RecoveryError, "rewritten lineage"):
+            self.restart(old, self.base, candidate)
+        self.assertFalse(self.successor.exists())
+
+    def test_restart_interruption_before_and_after_atomic_writes(self):
+        old, base, candidate = self.rewritten_lineage()
+        active = self.repository / "build/qualification-active.json"
+        atomic = qualification.atomic_json
+        def fail_successor(path, *arguments, **keywords):
+            if Path(path) == self.successor:
+                raise OSError("injected successor failure")
+            return atomic(path, *arguments, **keywords)
+        with mock.patch.object(qualification, "atomic_json", side_effect=fail_successor):
+            with self.assertRaisesRegex(OSError, "successor failure"):
+                self.restart(old, base, candidate)
+        self.assertFalse(self.successor.exists())
+        self.assertEqual(qualification.active_path(self.repository), str(self.state))
+        def fail_after_activation(path, *arguments, **keywords):
+            result = atomic(path, *arguments, **keywords)
+            if Path(path) == active:
+                raise OSError("injected response failure after activation")
+            return result
+        with mock.patch.object(qualification, "atomic_json", side_effect=fail_after_activation):
+            with self.assertRaisesRegex(OSError, "response failure"):
+                self.restart(old, base, candidate)
+        self.assertEqual(qualification.active_path(self.repository), str(self.successor))
+        self.assertEqual(qualification.load(self.successor)["runs"], [])
+        with self.assertRaisesRegex(qualification.RecoveryError, "not active"):
+            self.restart(old, base, candidate)
 
     def test_amend_transitions_to_explicit_canonical_base_and_preserves_history(self):
         original_base, base, candidate, config, historical = self.canonical_amendment_fixture()
@@ -894,7 +1156,7 @@ class QualificationTests(unittest.TestCase):
         text = launch.canonical_context_block(session)
         self.assertIn("The actual rule.", text)
         self.assertIn(base, text)
-        self.assertIn("independent final review", text)
+        self.assertIn("any explicitly required review", text)
 
     def test_handoff_and_continuation_refresh_only_focused_changed_context(self):
         (self.repository / "wiki/spec").mkdir(parents=True)
@@ -1179,6 +1441,7 @@ class CompletedQualificationTests(unittest.TestCase):
     setUp = QualificationTests.setUp
     git = QualificationTests.git
     commit = QualificationTests.commit
+    executable_producer_fixture = QualificationTests.executable_producer_fixture
 
     def completed_orphan(self, *, mutate_artifact=False, exit_code=0):
         # The subprocess really completes and writes once. ENOSPC occurs only
@@ -1195,6 +1458,7 @@ class CompletedQualificationTests(unittest.TestCase):
                      + ").write_text('measured baseline')\n")
         code += "raise SystemExit(" + str(exit_code) + ")\n"
         self.base = self.commit("check.py", code)
+        self.executable_producer_fixture()
         self.config["checks"][0]["producer"] = dict(
             revision=self.base, inputs=["src"], executables=[str(self.library)])
         record = qualification.load(self.state)
@@ -1512,6 +1776,7 @@ class CompletedQualificationTests(unittest.TestCase):
         original_stamps = copy.deepcopy(capture["artifact_stamps"])
         replacement = self.root / "replacement.rlib"
         replacement.write_bytes(self.library.read_bytes())
+        replacement.chmod(stat.S_IMODE(self.library.stat().st_mode))
         replacement.replace(self.library)
         self.assertNotEqual(original_stamps[str(self.library)],
                             qualification.artifact_stamps([str(self.library)])[str(self.library)])

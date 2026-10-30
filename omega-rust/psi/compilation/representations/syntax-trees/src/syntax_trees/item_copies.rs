@@ -323,6 +323,24 @@ impl SyntaxCopy<'_> {
                             call_selections: normalization.call_selections.clone(),
                         }
                     }),
+                    pending_qualification: constant.pending_qualification.as_ref().map(
+                        |obligation| {
+                            if obligation.declaration == constant.name.source_span()
+                                && obligation.destination == constant.type_reference
+                                && obligation.initializer == constant.value
+                            {
+                                crate::item::ConstDestinationObligation {
+                                    declaration: constant.name.source_span(),
+                                    destination: type_reference,
+                                    initializer: value,
+                                }
+                            } else {
+                                // Preserve stale debt as stale; a copy cannot mint
+                                // a new destination proof for changed inputs.
+                                obligation.clone()
+                            }
+                        },
+                    ),
                     qualification: constant.qualification.as_ref().and_then(|qualification| {
                         (qualification.destination == constant.type_reference
                             && qualification.initializer == constant.value)
@@ -336,7 +354,6 @@ impl SyntaxCopy<'_> {
             Item::Data(data) => Item::Data(self.copy_data_definition(other, data)),
             Item::Domain(domain) => Item::Domain(DomainDefinition {
                 name: domain.name.clone(),
-                subject: domain.subject.clone(),
                 type_parameters: self.copy_type_parameter_span(other, domain.type_parameters),
                 target_type: self.copy_type_reference_handle(other, domain.target_type),
                 index_arguments: self
@@ -352,9 +369,13 @@ impl SyntaxCopy<'_> {
                             .map(|constituent| self.copy_item_identifier_span(other, *constituent))
                             .collect(),
                     }),
+                cleanup_selection: domain
+                    .cleanup_selection
+                    .as_ref()
+                    .map(|selection| self.copy_static_machine_argument(other, selection)),
                 authored_routes: domain.authored_routes.clone(),
                 classification: domain.classification,
-                predicate_body: domain.predicate_body,
+                predicate_presence: domain.predicate_presence,
                 facts: self.copy_domain_fact_span(other, domain.facts),
                 operators: self.copy_operator_definition_span(other, domain.operators),
                 semantic_clause_token_count: domain.semantic_clause_token_count,
@@ -424,6 +445,10 @@ impl SyntaxCopy<'_> {
         DataDefinition {
             name: data.name.clone(),
             is_public: data.is_public,
+            cleanup_selection: data
+                .cleanup_selection
+                .as_ref()
+                .map(|selection| self.copy_static_machine_argument(other, selection)),
             supply_mode: data.supply_mode,
             lifetime_parameters: data.lifetime_parameters.clone(),
             type_parameters: self.copy_type_parameter_span(other, data.type_parameters),
@@ -514,12 +539,17 @@ impl SyntaxCopy<'_> {
     }
 
     fn copy_machine(&mut self, other: &SyntaxTrees, machine: &Machine) -> Machine {
+        let children = machine
+            .nested_machines
+            .handles()
+            .map(|handle| self.copy_item(other, other.items.item(handle)))
+            .collect::<Vec<_>>();
+        let mut nested_machines = HandleSpan::empty();
+        for child in children {
+            let handle = self.items.append_item(child);
+            nested_machines.push_contiguous(handle);
+        }
         Machine {
-            nested_machines: machine
-                .nested_machines
-                .iter()
-                .map(|nested| self.copy_machine(other, nested))
-                .collect(),
             target_family_interface: machine.target_family_interface,
             name: machine.name.clone(),
             generic_data_template: machine.generic_data_template.clone(),
@@ -583,6 +613,7 @@ impl SyntaxCopy<'_> {
             admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
             contracts: self.copy_capability_contract_span(other, machine.contracts),
             states: self.copy_state_handle_span(other, machine.states),
+            nested_machines,
         }
     }
 

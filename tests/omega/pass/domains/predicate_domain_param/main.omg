@@ -1,6 +1,6 @@
 // A predicate domain: `domain i32::Step(value) requires 0 <= value && value <= 50`
 // — the declaration's own binder names the candidate for its requires clause.
-domain i32::Step(value) requires 0 <= value && value <= 50;
+domain i32::Step requires 0 <= self && self <= 50;
 
 machine nudge(value: i32 in Step) -> i32 {
     // 0 <= value <= 50 bounds the operand: `value + 40` lands in 40..=90 —
@@ -22,7 +22,7 @@ machine dispatch(m: Msg) -> i32 {
         Msg::Move { dx, dy } -> combine(dx, dy)
     }
 
-    state combine(dx: i32 in Step, dy: i32 in Step) -> i32 {
+    machine combine(dx: i32 in Step, dy: i32 in Step) -> i32 {
         let left: i32 = nudge(dx);
         let right: i32 = clamp(dy) as i32;
         let sum: i32 = left + right;

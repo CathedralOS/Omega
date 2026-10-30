@@ -9,35 +9,41 @@
 //! waits for demanded components before their consumers. `package_commands.rs`
 //! schedules admitted target reviews before package-owned publication. The
 //! review dependency loop and audit target/session lifecycle also live here.
-//! Terminal Build/helper suspension remains separate migration work.
+//! `build_execution/source_resolution.rs` drives actual source requests while
+//! retaining returned invocations, sharing execution with compilation/review.
+//! `build_session.rs` retains the compiler alongside package-owned resources
+//! across those operations; package policy borrows execution, not a compiler.
+//! Ordinary CLI products consume executed discovery through package-owned
+//! Product admission. Install/update also execute their staged candidates once
+//! and retain Builds across review passes. Audit uses that same lifecycle.
+//! Readiness pauses acquire an explicitly requested dependency, produce its
+//! named checked Terminal implementation, and resume the original activation.
 
 mod build;
 mod build_directory;
 mod build_execution;
-mod check_project;
-mod native_project;
+mod build_session;
+mod native_completion;
+pub use native_completion::complete_product;
 mod package_commands;
 mod package_compilation;
 mod package_inspection;
 mod package_review;
 mod products;
 mod project_compilation;
+mod source_compilation;
+pub use source_compilation::{check_source, compile_sources, produce_source};
 pub mod publication;
 
 #[cfg(test)]
 mod build_boundary;
 
 pub use build::build;
-pub use check_project::{
-    CheckPreparedLocalProjectError, CheckedProjectTargetOutcome, PreparedLocalProjectCheckRequest,
-    ProjectInspectionError, check_prepared_local_project_for_targets,
-    inspect_prepared_local_project,
+pub use build_execution::source_resolution::{
+    ProjectSourceRequest, ProjectSourceResolutionError, ResolvedPackageBuild,
+    ResolvedProjectBuilds, resolve_project_sources,
 };
-pub use native_project::{
-    CompilePreparedLocalProjectNativeError, CompiledProjectTargetOutcome,
-    PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native,
-    compile_prepared_local_project_for_native_targets,
-};
+pub use build_session::BuildSession;
 pub use package_commands::execute_package_command;
 pub use package_compilation::{compile_packages, join_dependency_builds, prepare_package};
 pub use package_inspection::inspect_packages;
@@ -51,6 +57,9 @@ use std::path::PathBuf;
 #[derive(Clone, Debug)]
 pub enum ProjectProduct {
     Check,
+    /// Retain the canonical Terminal artifact without native realization or
+    /// publication. Consumers may interpret, inspect, or publish it explicitly.
+    Terminal,
     /// A named machine's Terminal description, with no native realization.
     Inspection {
         machine: String,
@@ -101,7 +110,7 @@ pub struct BuildOutcome {
     pub executable_path: Option<PathBuf>,
 }
 
-/// A check or native outcome ready for compilation-command presentation.
+/// A check, Terminal or native outcome ready for command presentation.
 pub struct BuildReport {
     pub report: CompileReport,
     pub timings: CompileTimings,
@@ -132,9 +141,7 @@ pub struct TargetBuildOutcome {
 pub enum BuildError {
     Diagnostics(Vec<Diagnostic>),
     Preparation(packages::PrepareLocalProjectError),
-    PackageCheck(CheckPreparedLocalProjectError),
-    PackageNative(CompilePreparedLocalProjectNativeError),
-    Inspection(ProjectInspectionError),
+    ProjectCompilation(packages::ProjectCompilationError),
     Publication(String),
     CheckWorkspace(std::io::Error),
     BuildDirectory(String),
@@ -147,10 +154,8 @@ impl std::fmt::Display for BuildError {
                 diagnostics::write_diagnostics(formatter, diagnostics)
             }
             Self::Preparation(error) => write!(formatter, "{error}"),
-            Self::PackageCheck(error) => write!(formatter, "{error}"),
-            Self::PackageNative(error) => write!(formatter, "{error}"),
-            Self::Inspection(error) => {
-                write!(formatter, "cannot check inspection project: {error}")
+            Self::ProjectCompilation(error) => {
+                write!(formatter, "cannot compile admitted project: {error}")
             }
             Self::Publication(error) => write!(formatter, "{error}"),
             Self::CheckWorkspace(error) => {
@@ -168,10 +173,7 @@ impl BuildError {
     /// their exceeded-provision classification, not just display text.
     pub fn into_diagnostics(self) -> Vec<Diagnostic> {
         match self {
-            Self::Diagnostics(diagnostics)
-            | Self::PackageNative(CompilePreparedLocalProjectNativeError::Native(diagnostics)) => {
-                diagnostics
-            }
+            Self::Diagnostics(diagnostics) => diagnostics,
             error => vec![Diagnostic::error(error.to_string())],
         }
     }
@@ -180,8 +182,7 @@ impl BuildError {
     /// provisions are Incomplete; preparation and publication refusals reject.
     pub fn outcome(&self) -> compiler::CompilerRequestOutcome {
         match self {
-            Self::Diagnostics(diagnostics)
-            | Self::PackageNative(CompilePreparedLocalProjectNativeError::Native(diagnostics)) => {
+            Self::Diagnostics(diagnostics) => {
                 compiler::CompilerRequestOutcome::of_refusal(diagnostics)
             }
             _ => compiler::CompilerRequestOutcome::Reject,

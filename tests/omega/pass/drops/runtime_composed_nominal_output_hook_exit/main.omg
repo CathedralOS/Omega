@@ -108,8 +108,8 @@ machine Token::drop(token: &mut Token) reaches Console {
         true -> first()
         false -> second()
     }
-    state first() { Console::write_byte(65); }
-    state second() { Console::write_byte(66); }
+    machine first() { Console::write_byte(65); }
+    machine second() { Console::write_byte(66); }
 }
 
 machine exercise(first: bool) reaches Console {

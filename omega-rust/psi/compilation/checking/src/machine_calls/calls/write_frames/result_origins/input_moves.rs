@@ -2,9 +2,9 @@
 //! reference leaves. A missing input case removes its entire payload together.
 
 use super::super::path_instantiation::aggregate_arguments::{
-    AggregateOrigins, AggregateResolver, ReferenceResolver, reference_leaves,
+    AggregateOrigins, ArgumentOrigins, reference_leaves,
 };
-use super::super::stored_origins::{self, StoredLocalOrigins, StoredWriteOrigin};
+use super::super::stored_origins;
 use super::super::{FrameInference, Machine, TopLevelSymbols};
 use facts::PlaceSegment;
 use typed_trees::expression::ExpressionHandle;
@@ -72,8 +72,7 @@ pub(super) fn instantiate_moves(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     include_shared: bool,
-    resolve_reference: &ReferenceResolver<'_>,
-    resolve_origins: &AggregateResolver<'_>,
+    inputs: &dyn ArgumentOrigins,
 ) -> Option<AggregateOrigins> {
     let mut returned = AggregateOrigins::default();
     for moved in &relative.moves {
@@ -103,28 +102,8 @@ pub(super) fn instantiate_moves(
             symbols,
             inference,
             include_shared,
-            resolve_reference,
-            resolve_origins,
+            inputs,
         )?;
-        let actual = StoredLocalOrigins {
-            local_symbol: parameter.symbol,
-            references: actual
-                .references
-                .into_iter()
-                .map(|leaf| StoredWriteOrigin {
-                    lifetime_dependencies: leaf.lifetime_dependencies,
-                    kind: leaf.kind,
-                    local_symbol: parameter.symbol,
-                    local_path: leaf.local_suffix,
-                    local_segments: leaf.local_segments,
-                    may_select: leaf.may_select,
-                    origin: leaf.origin,
-                })
-                .collect(),
-            cases: actual.cases,
-            moves: actual.moves,
-            symbolic: false,
-        };
         // The relation retains possible-element selection, not a callee-local
         // executable index identity in the caller's source namespace.
         let selectors = moved
@@ -138,11 +117,15 @@ pub(super) fn instantiate_moves(
                 _ => *segment,
             })
             .collect::<Vec<_>>();
-        let projected =
-            stored_origins::project_stored_origins(program, &actual, &selectors, false)?;
+        let projected = stored_origins::project_aggregate_origins(
+            program,
+            actual,
+            parameter.symbol,
+            &selectors,
+        )?;
         for mut leaf in projected.references {
             if let Some(origin) = &mut leaf.origin {
-                origin.source.builtin_coordinates &= moved.source.builtin_coordinates;
+                origin.place_mut().source.builtin_coordinates &= moved.source.builtin_coordinates;
             }
             let mut segments = moved.local_segments.clone();
             segments.extend(leaf.local_segments);

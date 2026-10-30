@@ -1,6 +1,6 @@
 use super::scalar_representation::{
     MutableScalarRepresentationFacts, mutable_scalar_representation_facts,
-    mutable_scalar_representation_facts_equivalent, narrow_by_field_literal_bounds,
+    mutable_scalar_representation_facts_equivalent, narrow_by_field_representation_bounds,
     scalar_representation_facts_imply,
 };
 use std::collections::HashSet;
@@ -658,7 +658,7 @@ fn mutable_record_representation_inner_body(
         None => data,
     };
     let Some(where_bounds) =
-        crate::proof_contracts::default_domains::data_where_field_literal_bounds(
+        crate::proof_contracts::default_domains::data_where_field_representation_bounds(
             program,
             semantic_data,
         )
@@ -712,12 +712,12 @@ fn mutable_record_representation_inner_body(
         };
         let field_bounds = where_bounds
             .iter()
-            .filter(|bound| bound.field == semantic_field)
+            .filter(|bound| bound.field() == semantic_field)
             .copied()
             .collect::<Vec<_>>();
         if !field_bounds.is_empty() {
             let narrowed = match representation.leaves.as_mut_slice() {
-                [leaf] if leaf.path.is_empty() => narrow_by_field_literal_bounds(
+                [leaf] if leaf.path.is_empty() => narrow_by_field_representation_bounds(
                     program,
                     semantic_data,
                     &mut leaf.facts,

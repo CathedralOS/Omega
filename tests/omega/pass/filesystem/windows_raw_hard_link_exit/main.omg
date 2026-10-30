@@ -13,28 +13,28 @@ reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMet
     let linked: i32 = block WindowsFilesystemHost::delete_file("omega_raw_link_alias.bin");
     main.original = block WindowsFilesystemHost::create_file("omega_raw_link_original.bin", 3221225472, 7, 2, 128);
     transition main.original != 0 { true -> link(main) false -> finish(main, 71) }
-    state link(main: &mut Main) {
+    machine link(main: &mut Main) {
         let status: i32 = block WindowsFilesystemHost::hard_link("omega_raw_link_original.bin", "omega_raw_link_alias.bin");
         transition status == 0 { true -> write(main) false -> finish(main, 72) }
     }
-    state write(main: &mut Main) {
+    machine write(main: &mut Main) {
         let count: i64 = block WindowsFilesystemHost::write_file(main.original, "linked");
         transition count == 6 { true -> release_original(main) false -> finish(main, 73) }
     }
-    state release_original(main: &mut Main) {
+    machine release_original(main: &mut Main) {
         let status: i32 = block WindowsFilesystemHost::close_handle(main.original);
         main.original = 0;
         transition status == 0 { true -> unlink(main) false -> finish(main, 74) }
     }
-    state unlink(main: &mut Main) {
+    machine unlink(main: &mut Main) {
         let status: i32 = block WindowsFilesystemHost::delete_file("omega_raw_link_original.bin");
         transition status == 0 { true -> open_alias(main) false -> finish(main, 75) }
     }
-    state open_alias(main: &mut Main) {
+    machine open_alias(main: &mut Main) {
         main.linked = block WindowsFilesystemHost::create_file("omega_raw_link_alias.bin", 2147483648, 7, 3, 128);
         transition main.linked != 0 { true -> read(main) false -> finish(main, 76) }
     }
-    state read(main: &mut Main) {
+    machine read(main: &mut Main) {
         let mut bytes: [u8; 6];
         let count: i64 = block WindowsFilesystemHost::read_file(main.linked, &mut bytes, 6);
         transition count == 6 && bytes[0] == 108 && bytes[1] == 105 && bytes[2] == 110
@@ -43,30 +43,30 @@ reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMet
             false -> finish(main, 77)
         }
     }
-    state existing(main: &mut Main) {
+    machine existing(main: &mut Main) {
         let status: i32 = block WindowsFilesystemHost::hard_link("omega_raw_link_alias.bin", "omega_raw_link_alias.bin");
         transition status < 0 { true -> missing(main) false -> finish(main, 78) }
     }
-    state missing(main: &mut Main) {
+    machine missing(main: &mut Main) {
         let status: i32 = block WindowsFilesystemHost::hard_link("omega_raw_link_original.bin", "omega_raw_link_original.bin");
         transition status < 0 { true -> finish(main, 70) false -> finish(main, 79) }
     }
-    state finish(main: &mut Main, code: i32) {
+    machine finish(main: &mut Main, code: i32) {
         let linked: i32 = block close_present(main.linked);
         let original: i32 = block close_present(main.original);
         let removed: i32 = block WindowsFilesystemHost::delete_file("omega_raw_link_alias.bin");
         let cleaned: i32 = block WindowsFilesystemHost::delete_file("omega_raw_link_original.bin");
         transition code != 70 { true -> done(code) false -> cleanup(linked, original, removed) }
     }
-    state cleanup(linked: i32, original: i32, removed: i32) {
+    machine cleanup(linked: i32, original: i32, removed: i32) {
         transition linked == 0 && original == 0 && removed == 0 { true -> done(70) false -> done(80) }
     }
-    state done(code: i32) { Console::exit_process(code); }
+    machine done(code: i32) { Console::exit_process(code); }
 }
 
 machine close_present(handle: u64) -> i32 {
     transition handle != 0 { true -> release(handle) false -> 0 }
-    state release(handle: u64) -> i32 { block WindowsFilesystemHost::close_handle(handle) }
+    machine release(handle: u64) -> i32 { block WindowsFilesystemHost::close_handle(handle) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

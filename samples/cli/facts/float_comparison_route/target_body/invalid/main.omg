@@ -7,6 +7,6 @@ windows_x86_64 machine equal_operands(left: f64, right: f64) -> bool { left == r
 machine main() crashes Trap {
     let equal: bool = equal_operands(212.0, 212.0);
     transition equal { true -> bad() _ -> done() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

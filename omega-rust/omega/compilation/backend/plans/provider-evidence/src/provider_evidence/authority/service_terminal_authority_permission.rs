@@ -13,7 +13,7 @@ use crate::{
 /// provider, or infer authority from readable names. A later compiler seam
 /// must rejoin the retained schema and requirement identities to checked
 /// declarations before the row can participate in terminal-authority review.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ServiceTerminalAuthorityPermission {
     service_schema: ServiceSchemaDigest,
     /// Index into the permission policy's identity table.

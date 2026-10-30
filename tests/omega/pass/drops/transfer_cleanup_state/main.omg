@@ -14,11 +14,11 @@ machine Main::main(main: &mut Main) {
     transition {
         _ -> hold(g)
     }
-    state hold(guard: Guard) {
+    machine hold(guard: Guard) {
         transition {
             _ -> done()
         }
     }
-    state done() {
+    machine done() {
     }
 }

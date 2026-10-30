@@ -17,6 +17,6 @@ machine main() crashes Trap {
     let choice: Choice = Choice { selected: Selected as dyn Family };
     let observed: u32 = selected_width(choice.selected);
     transition observed == 16 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

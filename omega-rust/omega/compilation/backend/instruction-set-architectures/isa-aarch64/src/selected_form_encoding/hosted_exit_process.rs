@@ -8,12 +8,10 @@ use register_model::RegisterConstraintKey;
 use register_model::RegisterViewId;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
-    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
-    MachineTrapBehavior, SelectedInstructionKind,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineEffectDeclaration,
+    MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
+    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
 };
 use target::NativeTarget;
 
@@ -54,25 +52,16 @@ pub(crate) fn declaration(
     target: NativeTarget,
     constraint: RegisterConstraintKey,
 ) -> Result<MachineEffectDeclaration, Aarch64SelectedFormEncodingError> {
-    Ok(MachineEffectDeclaration {
-        semantic: MachineSemanticKind::HostedExitProcessI32,
+    Ok(MachineEffectDeclaration::single(
+        MachineSemanticKind::HostedExitProcessI32,
         constraint,
-        memory: MachineMemoryEffect::NoneV1,
-        trap: MachineTrapBehavior::HostedExitReturnedV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::HostedExitProcessI32,
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(16),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(target)?,
-        }],
-    })
+        MachineMemoryEffect::NoneV1,
+        MachineTrapBehavior::HostedExitReturnedV1,
+        MachineBarrier::ExternalEffect,
+        MachineAlternativeFamily::HostedExitProcessI32,
+        MachineSizeKnowledge::ExactBytes(16),
+        effects(target)?,
+    ))
 }
 
 fn request(
@@ -210,6 +199,7 @@ mod tests {
         encode_aarch64_selected_hosted_exit_process_form,
         validate_aarch64_selected_hosted_exit_process_form,
     };
+    use crate::test_support::reject_every_bit_flip;
     use selected_instructions::{
         MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind,
     };
@@ -236,22 +226,17 @@ mod tests {
                 )
                 .unwrap();
                 assert_eq!(encoded.footprint().encoded, effects(target).unwrap());
-                for bit in 0..encoded.bytes().len() * 8 {
-                    let mut corrupted = encoded.bytes().to_vec();
-                    corrupted[bit / 8] ^= 1 << (bit % 8);
-                    assert!(
-                        validate_aarch64_selected_hosted_exit_process_form(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            &corrupted
-                        )
-                        .is_err(),
-                        "bit {bit}"
-                    );
-                }
+                reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |corrupted| {
+                    validate_aarch64_selected_hosted_exit_process_form(
+                        target,
+                        &physical,
+                        kind,
+                        alternative,
+                        &operands,
+                        &corrupted,
+                    )
+                    .is_err()
+                });
                 let different = [physical
                     .model()
                     .view_named(if name == "x0" { "x1" } else { "x0" })

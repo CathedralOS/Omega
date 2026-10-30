@@ -8,7 +8,7 @@ machine release(bag: &mut Bag) {
     let cells: &mut [i32] = &mut bag.cells[..];
     cells[2] = 7;
     transition { _ -> done() }
-    state done() {}
+    machine done() {}
 }
 
 data Main { bag: Bag; }
@@ -19,6 +19,6 @@ machine Main::main(main: &mut Main) {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() {}
+    machine done() {}
+    machine bad() {}
 }

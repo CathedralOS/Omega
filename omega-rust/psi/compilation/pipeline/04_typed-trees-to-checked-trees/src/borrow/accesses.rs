@@ -1,4 +1,4 @@
-//! The places a call's arguments access. `collect_call_argument_accesses`
+//! The places a call's arguments access. `collect_argument_accesses`
 //! appends one `BorrowArgumentAccessFact` per accessed place and returns the
 //! call's span of them: a `&`, `&mut` or `&write` argument records a read,
 //! mutable or write-only access to its borrowed place, and any other argument
@@ -9,9 +9,9 @@
 //! that finish during operand evaluation from loans held through invocation.
 //! `borrow::calls` calls it while building borrow facts, and `checks::borrows::calls::receiver`
 //! calls it into scratch arenas for the operand that follows an exclusive
-//! operation's receiver. A transition arm's target roster comes from
-//! `collect_transition_target_argument_accesses`, which also ends the reads of
-//! payloads its dispatch already copied (`validation::DispatchExtraction`).
+//! operation's receiver. A transition arm's target roster is the same
+//! collection under its own schedule, which also ends the reads of payloads
+//! its dispatch already copied (`validation::DispatchExtraction`).
 //! Each row retains the operand that produced it. The statement read judgment
 //! leaves a call's staged operands to that call's own judgment without a
 //! separate expression-recording mode or a parallel provenance walk.
@@ -25,43 +25,33 @@ use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{BorrowAccessKind, BorrowArgumentAccessFact};
 use symbols::SymbolHandle;
 mod collection;
+mod completed_dispatch;
 mod place;
 mod read;
 mod records;
 mod replay;
-pub(crate) use replay::rejoin_call_accesses;
+pub(crate) use completed_dispatch::retain_completed_dispatch_extractions;
+pub(crate) use replay::rejoin_expression_call_accesses;
 
 use collection::BorrowAccessCollection;
-pub(crate) use place::{BorrowAccessPlace, borrow_access_place};
+pub(crate) use place::{
+    BorrowAccessGeometry, BorrowAccessPlace, borrow_access_geometry, borrow_access_place,
+    is_borrowed_parameter_root, is_image_storage_root,
+};
 use read::collect_read_accesses;
 
-pub(crate) fn collect_call_argument_accesses(
-    program: &dyn ::validation::CheckingInput,
-    access_segments: &mut arena::Arena<facts::PlaceSegment>,
-    argument_accesses: &mut arena::Arena<BorrowArgumentAccessFact>,
-    arguments: &[ExpressionHandle],
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    machine_symbol: SymbolHandle,
-    target_symbol: SymbolHandle,
-) -> arena::HandleSpan<BorrowArgumentAccessFact> {
-    collect_argument_access_span(
-        program,
-        access_segments,
-        argument_accesses,
-        arguments,
-        state_symbol,
-        statement_index,
-        machine_symbol,
-        target_symbol,
-        false,
-    )
+/// The roster one access collection reads, and how the sequence that reaches
+/// it already evaluated the arguments. A call's own arguments are read while
+/// the invocation evaluates them. A transition arm's target roster follows a
+/// dispatch that copied its plain-copy payload bindings out of the saved
+/// subject before the target evaluates any argument, and names the extraction
+/// when selection completed that copy first; nested calls keep `Invocation`.
+pub(crate) enum ArgumentAccessSchedule {
+    Invocation,
+    TransitionTarget(Option<validation::DispatchExtraction>),
 }
 
-/// A transition arm's own target roster. Its plain-copy payload bindings were
-/// copied out of the dispatch's saved subject before the target evaluates any
-/// argument; nested calls' rosters keep `collect_call_argument_accesses`.
-pub(crate) fn collect_transition_target_argument_accesses(
+pub(crate) fn collect_argument_accesses(
     program: &dyn ::validation::CheckingInput,
     access_segments: &mut arena::Arena<facts::PlaceSegment>,
     argument_accesses: &mut arena::Arena<BorrowArgumentAccessFact>,
@@ -70,30 +60,7 @@ pub(crate) fn collect_transition_target_argument_accesses(
     statement_index: usize,
     machine_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
-) -> arena::HandleSpan<BorrowArgumentAccessFact> {
-    collect_argument_access_span(
-        program,
-        access_segments,
-        argument_accesses,
-        arguments,
-        state_symbol,
-        statement_index,
-        machine_symbol,
-        target_symbol,
-        true,
-    )
-}
-
-fn collect_argument_access_span(
-    program: &dyn ::validation::CheckingInput,
-    access_segments: &mut arena::Arena<facts::PlaceSegment>,
-    argument_accesses: &mut arena::Arena<BorrowArgumentAccessFact>,
-    arguments: &[ExpressionHandle],
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    machine_symbol: SymbolHandle,
-    target_symbol: SymbolHandle,
-    after_dispatch: bool,
+    schedule: ArgumentAccessSchedule,
 ) -> arena::HandleSpan<BorrowArgumentAccessFact> {
     let mut accesses = arena::HandleSpan::empty();
 
@@ -107,8 +74,11 @@ fn collect_argument_access_span(
             statement_index,
             machine_symbol,
         );
-        if after_dispatch {
+        if let ArgumentAccessSchedule::TransitionTarget(completed) = schedule {
             collection = collection.after_dispatch_extraction();
+            if let Some(extraction) = completed {
+                collection = collection.with_completed_dispatch_extraction(extraction);
+            }
         }
 
         collect_target_argument_accesses(
@@ -121,6 +91,63 @@ fn collect_argument_access_span(
     }
 
     accesses
+}
+
+/// The ordinary typed access schedule distinguishes value observations from
+/// source-place loans. This query reuses that schedule when a selected arm
+/// must complete its payload copies before the first target operand.
+pub(crate) fn dispatch_target_value_reads(
+    program: &dyn ::validation::CheckingInput,
+    arguments: &[ExpressionHandle],
+    state: SymbolHandle,
+    statement: usize,
+    machine: SymbolHandle,
+    target: SymbolHandle,
+    extraction: validation::DispatchExtraction,
+) -> Vec<ExpressionHandle> {
+    let mut segments = arena::Arena::new();
+    let mut rows = arena::Arena::new();
+    let accesses = collect_argument_accesses(
+        program,
+        &mut segments,
+        &mut rows,
+        arguments,
+        state,
+        statement,
+        machine,
+        target,
+        ArgumentAccessSchedule::TransitionTarget(Some(extraction)),
+    );
+    rows.span_or_empty(accesses)
+        .iter()
+        .filter(|access| {
+            if access.kind != BorrowAccessKind::Read
+                || matches!(
+                    program.expression_table.expression(access.expression),
+                    ExpressionNode::Borrow(_)
+                )
+            {
+                return false;
+            }
+            // Ordinary copied reads name their own expression as the completed
+            // read. A nested call instead names that invocation when it releases
+            // its argument loans; that endpoint is not a copied argument value.
+            let completed_value_read =
+                access.end_before_access.is_some() && access.released_at == access.expression;
+            // Forwarding a shared reference retains a loan through invocation, but
+            // its stored descriptor is a value. Copy permission is checked by the
+            // copy producer; this grants no read of its referee and no extra loan.
+            let descriptor_read = validation::expression_type_reference_in_state(
+                program,
+                state,
+                statement,
+                access.expression,
+            )
+            .is_some_and(|reference| validation::reference_shell(program, reference).is_some());
+            completed_value_read || descriptor_read
+        })
+        .map(|access| access.expression)
+        .collect()
 }
 
 /// Nested and outer invocations retain the same formal-directed loan access.
@@ -242,10 +269,12 @@ fn collect_formal_argument_accesses(
         collection.append_argument_access(place, kind, argument);
         return;
     }
-    collect_argument_accesses(collection, argument);
+    collect_single_expression_argument_access(collection, argument);
 }
 
-fn collect_argument_accesses(
+/// One argument expression's own access: an authored borrow records its place
+/// under the borrow kind, anything else records a read for each place it reads.
+fn collect_single_expression_argument_access(
     collection: &mut BorrowAccessCollection<'_>,
     expression: ExpressionHandle,
 ) {
@@ -264,17 +293,23 @@ fn collect_argument_accesses(
     }
 }
 
+/// A completed value read can copy descriptor bytes without reading their
+/// referee. This is independent of whether the value owns inline storage.
+pub(crate) fn is_copyable_value_type(
+    program: &dyn validation::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    validation::reference_result_custody::is_copyable_stored_value(program, reference)
+}
+
 /// A detached owned copy releases its source home, independently of its
 /// contained loan frontier. The staged-value checker retains those leaves.
+/// A reference descriptor value is copyable but does not own its referee.
 pub(crate) fn is_owned_copy_type(
     program: &dyn validation::CheckingInput,
     reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
-    validation::has_contents(
-        program,
-        reference,
-        &[],
-        validation::ContentsRequirement::StoredValue,
-    ) && validation::reference_shell(program, reference).is_none()
+    is_copyable_value_type(program, reference)
+        && validation::reference_shell(program, reference).is_none()
         && program.type_multiplicity(reference) == language_semantics::Multiplicity::Unrestricted
 }

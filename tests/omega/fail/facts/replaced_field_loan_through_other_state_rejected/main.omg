@@ -13,7 +13,7 @@ machine store(target: &mut Cell, value: i32) -> bool requires value == 41 {
 }
 machine consume<'storage>(message: Message<'storage>) -> bool {
     transition { _ -> finish(message) }
-    state finish(message: Message<'storage>) -> bool {
+    machine finish(message: Message<'storage>) -> bool {
         store(&mut message.body, 41)
     }
 }
@@ -28,6 +28,6 @@ machine exercise() -> bool {
 }
 machine main() crashes Trap {
     transition exercise() { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

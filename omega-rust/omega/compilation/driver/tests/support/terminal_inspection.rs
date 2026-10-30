@@ -5,32 +5,45 @@
 
 use std::path::Path;
 
-use compiler::CheckedCompileRequest;
 use diagnostics::Diagnostic;
 use terminal_codec::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError, DebugMapError};
 
-use crate::fixture_package_inputs::{
-    fixture_build_snapshot, reviewed_repository_fixture_package_inputs,
-};
+use crate::fixture_package_inputs;
 
+#[path = "boundary_provider_controls.rs"]
+mod boundary_provider_controls;
 #[path = "closed_reach_controls.rs"]
 mod closed_reach_controls;
+#[path = "dynamic_image_controls.rs"]
+mod dynamic_image_controls;
 #[path = "terminal_host_provisions.rs"]
 mod host_provisions;
 #[path = "indexed_family_controls.rs"]
 mod indexed_family_controls;
 #[path = "mathematical_actuals.rs"]
 mod mathematical_actuals;
+#[path = "provider_choice_controls.rs"]
+mod provider_choice_controls;
+#[path = "synchronous_provider_controls.rs"]
+mod synchronous_provider_controls;
+#[path = "task_activation_controls.rs"]
+mod task_activation_controls;
 
 pub(super) const ORACLE: &str = "expected_terminal_inspections.txt";
 
 #[derive(Clone, Copy)]
-enum InspectionControls {    MethodApplications,
+enum InspectionControls {
+    MethodApplications,
     BoundaryCallables,
     IndexedFamily,
     MathematicalActuals,
+    DynamicImage,
     ClosedReach,
     ClosedReachCaptures,
+    TaskActivations,
+    SynchronousProviders,
+    ProviderChoices,
+    BoundaryProviders,
 }
 
 #[derive(Clone, Copy)]
@@ -85,9 +98,11 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 false,
                 Some(InspectionControls::MethodApplications),
             ),
-            [machine, "closed-reach-capture-controls"] => {
-                (*machine, false, Some(InspectionControls::ClosedReachCaptures))
-            }
+            [machine, "closed-reach-capture-controls"] => (
+                *machine,
+                false,
+                Some(InspectionControls::ClosedReachCaptures),
+            ),
             [machine, "closed-reach-controls"] => {
                 (*machine, false, Some(InspectionControls::ClosedReach))
             }
@@ -99,46 +114,129 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 false,
                 Some(InspectionControls::MathematicalActuals),
             ),
+            [machine, "dynamic-image-controls"] => {
+                (*machine, false, Some(InspectionControls::DynamicImage))
+            }
+            [machine, "task-activation-controls"] => {
+                (*machine, false, Some(InspectionControls::TaskActivations))
+            }
+            [machine, "synchronous-provider-controls"] => (
+                *machine,
+                false,
+                Some(InspectionControls::SynchronousProviders),
+            ),
+            [machine, "provider-choice-controls"] => {
+                (*machine, false, Some(InspectionControls::ProviderChoices))
+            }
+            [machine, "boundary-provider-controls"] => {
+                (*machine, false, Some(InspectionControls::BoundaryProviders))
+            }
             [machine, "indexed-family-controls"] => {
                 (*machine, false, Some(InspectionControls::IndexedFamily))
             }
             _ => {
                 return Err(format!(
-                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `boundary-conformance-controls`, `indexed-family-controls` or `mathematical-actuals`"
+                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `boundary-conformance-controls`, `indexed-family-controls`, `mathematical-actuals`, `task-activation-controls`, `synchronous-provider-controls` or `dynamic-image-controls`"
                 ));
             }
         };
         inspected = true;
-        let prepared = reviewed_repository_fixture_package_inputs(root, None)
-            .map_err(|errors| format!("inspection {machine} package inputs: {errors:?}"))?;
-        let snapshot = fixture_build_snapshot(&prepared.root_path)
-            .map_err(|errors| format!("inspection {machine} build inputs: {errors:?}"))?;
-        let mut request = CheckedCompileRequest::new(&prepared.root_path, None);
-        request.package_inputs = prepared.package_inputs;
-        request.build_snapshot = snapshot;
-        if matches!(
+        let source_controls = matches!(
             conformance_controls,
-            Some(InspectionControls::MathematicalActuals)
-        ) {
-            let _artifact = mathematical_actuals::produce(request, machine)?;
-            continue;
-        }
-        if matches!(
-            conformance_controls,
-            Some(InspectionControls::IndexedFamily)
-        ) {
-            let _artifact = indexed_family_controls::produce(request, machine)?;
-            continue;
-        }
-        let produced = compiler::CompilationSession::default()
-            .produce(
-                request,
-                compiler::CompilationProduct::Inspection(machine.to_owned()),
+            Some(
+                InspectionControls::MathematicalActuals
+                    | InspectionControls::IndexedFamily
+                    | InspectionControls::TaskActivations
             )
-            .and_then(compiler::CompilationOutput::into_inspection)
-            .map_err(compiler::CompilationProductError::into_diagnostics)
-            .map_err(|errors| format!("inspection {machine} production: {errors:?}"))?;
-        let artifact = produced.artifact();
+        );
+        let provider_controls = matches!(
+            conformance_controls,
+            Some(
+                InspectionControls::SynchronousProviders
+                    | InspectionControls::ProviderChoices
+                    | InspectionControls::BoundaryProviders
+            )
+        );
+        let product = if provider_controls {
+            compiler::CompilationProduct::Terminal(Default::default())
+        } else if source_controls {
+            compiler::CompilationProduct::Check
+        } else {
+            compiler::CompilationProduct::Inspection(machine.to_owned())
+        };
+        let snapshot = fixture_package_inputs::fixture_build_snapshot(root)
+            .map_err(|errors| format!("inspection {machine} build inputs: {errors:?}"))?;
+        let discovered = fixture_package_inputs::discover_fixture(
+            root,
+            package_compilation::BuildExecutionInputs {
+                snapshot,
+                ..Default::default()
+            },
+        )
+        .map_err(|errors| format!("inspection {machine} discovery: {errors:?}"))?;
+        let selected_target = crate::check_leg_realization_target(&discovered.targets);
+        let profile = target::TargetProfile::from_omega_target_name(selected_target.as_deref())
+            .map_err(|error| error.message)?;
+        let provider_choices = if matches!(
+            conformance_controls,
+            Some(InspectionControls::ProviderChoices)
+        ) {
+            Some(provider_choice_controls::prepare(root, profile)?)
+        } else {
+            None
+        };
+        let mut prepared = fixture_package_inputs::review_fixture(discovered, &[profile], product)
+            .map_err(|errors| format!("inspection {machine} admission: {errors:?}"))?;
+        if source_controls {
+            let checked = fixture_package_inputs::check_fixture(
+                &mut prepared,
+                profile.target_name(),
+                Default::default(),
+            )
+            .map_err(|errors| format!("inspection {machine} checking: {errors:?}"))?;
+            match conformance_controls {
+                Some(InspectionControls::MathematicalActuals) => {
+                    let _artifact = mathematical_actuals::produce(&checked, machine)?;
+                }
+                Some(InspectionControls::IndexedFamily) => {
+                    let _artifact = indexed_family_controls::produce(&checked, machine)?;
+                }
+                Some(InspectionControls::TaskActivations) => {
+                    task_activation_controls::produce(checked, machine, profile)?;
+                }
+                _ => unreachable!("source controls selected above"),
+            }
+            continue;
+        }
+        let output =
+            fixture_package_inputs::produce_fixture(&mut prepared, Some(profile.target_name()))
+                .map_err(|errors| format!("inspection {machine} production: {errors:?}"))?;
+        if provider_controls {
+            let retained = output
+                .into_report()
+                .map_err(|error| format!("provider report: {error:?}"))?
+                .into_retained_terminal_artifact()
+                .ok_or("provider controls need a retained Terminal product")?;
+            drop(prepared);
+            if let Some(choices) = provider_choices {
+                provider_choice_controls::inspect(choices, &retained, profile.target_name())?;
+                observations.push("provider-choice-controls:match".into());
+            } else if matches!(
+                conformance_controls,
+                Some(InspectionControls::BoundaryProviders)
+            ) {
+                boundary_provider_controls::inspect(&retained)?;
+                observations.push("boundary-provider-controls:match".into());
+            } else {
+                synchronous_provider_controls::inspect(&retained, profile.target_name())?;
+                observations.push("synchronous-provider-controls:match".into());
+            }
+            continue;
+        }
+        let produced = output
+            .into_inspection()
+            .map_err(|error| format!("inspection {machine} output: {error:?}"))?;
+        let artifact = produced.artifact().as_ref();
         let mut transported = artifact.to_bytes();
         let decoded = CanonicalTerminalArtifact::from_bytes(&transported)
             .map_err(|error| format!("inspection {machine} transport: {error:?}"))?;
@@ -172,6 +270,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                         host_provisions::observe_portable(
                             &decoded,
                             produced.build_bindings(),
+                            produced.build_requests(),
                             words,
                         )
                         .map_err(|error| format!("inspection {machine} runtime: {error}"))?;
@@ -212,9 +311,17 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             match controls {
                 InspectionControls::MethodApplications => closed_conformance_controls(&decoded)?,
                 InspectionControls::ClosedReach => closed_reach_controls::inspect(&decoded)?,
-                InspectionControls::ClosedReachCaptures => closed_reach_controls::inspect_captures(&decoded)?,
+                InspectionControls::ClosedReachCaptures => {
+                    closed_reach_controls::inspect_captures(&decoded)?
+                }
                 InspectionControls::BoundaryCallables => boundary_conformance_controls(&decoded)?,
-                InspectionControls::IndexedFamily | InspectionControls::MathematicalActuals => {
+                InspectionControls::DynamicImage => dynamic_image_controls::inspect(&decoded)?,
+                InspectionControls::TaskActivations
+                | InspectionControls::SynchronousProviders
+                | InspectionControls::ProviderChoices
+                | InspectionControls::BoundaryProviders
+                | InspectionControls::IndexedFamily
+                | InspectionControls::MathematicalActuals => {
                     unreachable!("handled before ordinary inspection")
                 }
             }

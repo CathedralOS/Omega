@@ -1,9 +1,9 @@
 // A `transition` subject may be a domain-qualified parameter:
 // `check(n: u64 in Tiny)` receives the bounded value and dispatches on
 // it — the qualification rides along into the callee's arms.
-domain u64::Tiny(value)
+domain u64::Tiny
 requires
-    value <= 4;
+    self <= 4;
 
 data Main { answer: u64; }
 
@@ -12,8 +12,8 @@ machine Main::check(n: u64 in Tiny) -> u64 {
         3 -> hit()
         _ -> miss()
     }
-    state hit() -> u64 { 70 }
-    state miss() -> u64 { 71 }
+    machine hit() -> u64 { 70 }
+    machine miss() -> u64 { 71 }
 }
 
 machine Main::main(main: &mut Main) {

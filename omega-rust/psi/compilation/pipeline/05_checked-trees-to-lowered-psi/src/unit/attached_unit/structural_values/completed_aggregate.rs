@@ -5,17 +5,18 @@
 //! geometry — declaration-ordered fields, optionally under a selected case
 //! payload, or fixed-index elements — is the whole difference, so a receiving
 //! annotation never supplies a predicate.
-//! `retention::copied_memberships::construction_memberships` reconstructs
-//! these same rows from the committed operation.
+//! `retention::payload_memberships` completes these same rows from the
+//! committed operation during whole-graph propagation.
 
 use super::super::super::StructuralFieldType;
 use super::super::{
     CheckedScalarExpressionRole, LoweringError, OperationKind, OperationResult, PlaceId,
-    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
-    unsupported,
+    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralTypeId, unsupported,
 };
 use super::member_memberships;
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
+use crate::emission::operation_emission::place_declarations::operation_result_place;
+use crate::unit::attached_unit::structural_values::ValueOutcome;
 use terminal_psi::{
     RecordFieldInitializer, RecordFieldValue, StructuralArgument, StructuralFieldDeclaration,
     StructuralParameterDeclaration, StructuralPathQualification, StructuralPathSegment,
@@ -113,13 +114,7 @@ fn declare_establishment(
         result.projected_qualifications = projected_qualifications;
     }
     let operation = operations.push_leaf(result, kind);
-    Ok(StructuralPlaceDeclaration {
-        id: place,
-        kind: StructuralPlaceKind::OperationResult {
-            producer: operation,
-            structural_type,
-        },
-    })
+    Ok(operation_result_place(place, operation, structural_type))
 }
 
 /// Complete every field member's memberships under its declared field path,
@@ -198,9 +193,9 @@ impl super::emission::Emission<'_, '_, '_> {
     /// Complete one aggregate member's initializer from its checked operand.
     /// Scalar leaves replay their retained computation, zeroed scalars take
     /// the declared carrier's zero, and structural operands complete as child
-    /// establishments under the member's own path — beneath the selected
-    /// case's label for payload members — with owned member claims rebased
-    /// under that same path.
+    /// establishments with their own occurrence-bound custody. Only this
+    /// parent assembly rebases the returned claims under the member's field,
+    /// beneath the selected case label for payload members.
     pub(super) fn completed_member_value(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -212,9 +207,9 @@ impl super::emission::Emission<'_, '_, '_> {
         field_index: usize,
         source_count: usize,
         claims: &mut Vec<terminal_psi::StructuralResultClaimBinding>,
-    ) -> Result<RecordFieldValue, LoweringError> {
+    ) -> Result<ValueOutcome<RecordFieldValue>, LoweringError> {
         use checked_trees::CheckedStructuralRecordFieldValue;
-        Ok(match field.value {
+        Ok(ValueOutcome::Normal(match field.value {
             CheckedStructuralRecordFieldValue::Scalar(value) => {
                 let evaluated = self.scalar(identities, role, value, source_count)?;
                 self.scalar_field_value(
@@ -248,13 +243,15 @@ impl super::emission::Emission<'_, '_, '_> {
                         &target.field_type,
                         field.type_reference,
                     )?;
-                    let completed = self.child_constructor_operand(
+                    let ValueOutcome::Normal(completed) = self.child_constructor_operand(
                         identities,
                         child_type,
                         value,
                         field.type_reference,
-                        &prefix,
-                    )?;
+                    )?
+                    else {
+                        return Ok(ValueOutcome::NoNormal);
+                    };
                     if self.multiplicity == StructuralMultiplicity::Affine {
                         for claim in completed.claims {
                             let mut path = prefix.clone();
@@ -268,6 +265,6 @@ impl super::emission::Emission<'_, '_, '_> {
                     RecordFieldValue::Structural(completed.argument)
                 }
             }
-        })
+        }))
     }
 }

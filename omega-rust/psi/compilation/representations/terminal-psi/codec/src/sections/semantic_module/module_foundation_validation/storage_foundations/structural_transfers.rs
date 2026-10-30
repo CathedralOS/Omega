@@ -105,18 +105,12 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     {
         return malformed("owned value transfer loses source memberships");
     }
-    let added = result
-        .qualifications
-        .iter()
-        .filter(|domain| !contract.qualifications.contains(domain))
-        .chain(
-            result
-                .projected_qualifications
-                .iter()
-                .filter(|row| !contract.projected_qualifications.contains(row))
-                .map(|row| &row.domain),
-        );
-    validate_transfer_domain_additions(module, added)
+    validate_transfer_domain_additions(
+        module,
+        &contract.qualifications,
+        &contract.projected_qualifications,
+        result,
+    )
 }
 
 /// Both owned moves and unrestricted captures can introduce memberships that
@@ -125,11 +119,23 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
 /// need the current source contract; copying cannot manufacture their origin.
 /// Source checking owns aliases and inherited restrictions: an empty direct
 /// route roster is not an independent proof of predicate-only establishment.
-fn validate_transfer_domain_additions<'domain>(
+fn validate_transfer_domain_additions(
     module: &TerminalModule,
-    added: impl Iterator<Item = &'domain semantic_vocabulary::StructuralDomainId>,
+    source: &[semantic_vocabulary::StructuralDomainId],
+    projected: &[terminal_psi::StructuralPathQualification],
+    result: &terminal_psi::StructuralOperationResult,
 ) -> Result<(), CodecError> {
-    for domain in added {
+    let additions = result
+        .qualifications
+        .iter()
+        .map(|domain| (&[][..], domain))
+        .chain(
+            result
+                .projected_qualifications
+                .iter()
+                .map(|row| (row.path.as_slice(), &row.domain)),
+        );
+    for (path, domain) in additions {
         let declaration = module
             .structural_domains
             .iter()
@@ -137,8 +143,18 @@ fn validate_transfer_domain_additions<'domain>(
             .ok_or(CodecError::MalformedStructuralFoundation(
                 "value transfer domain is absent",
             ))?;
-        if !declaration.establishment_routes.is_empty() {
-            return malformed("value transfer cannot establish a routed domain");
+        let (supplied, _) =
+            terminal_psi::StructuralPathQualification::select(source, projected, path);
+        let missing = declaration
+            .missing_membership_requirements(&module.structural_domains, &supplied)
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "value transfer has unknown prerequisites",
+            ))?;
+        if missing
+            .iter()
+            .any(|row| !row.establishment_routes.is_empty())
+        {
+            return malformed("value transfer cannot establish unsupplied routed prerequisites");
         }
     }
     Ok(())
@@ -262,20 +278,81 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         };
         validate_transfer_domain_additions(
             module,
-            result
-                .qualifications
-                .iter()
-                .filter(|domain| !contract.qualifications.contains(domain))
-                .chain(
-                    result
-                        .projected_qualifications
-                        .iter()
-                        .filter(|row| !contract.projected_qualifications.contains(row))
-                        .map(|row| &row.domain),
-                ),
-        )?;
+            &contract.qualifications,
+            &contract.projected_qualifications,
+            result,
+        )
+        .inspect_err(|_| {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE structural-leaf-transfer machine={:?} operation={:?} source={:?} path={:?} requested={:?}/{:?}/{:?} current={:?}",
+                    machine.id,
+                    operation.id,
+                    source,
+                    path,
+                    result.structural_type,
+                    result.qualifications,
+                    result.projected_qualifications,
+                    contract,
+                );
+                trace_payload_producer_chain(machine, operation);
+            }
+        })?;
     }
     // Full module validation independently checks the source's readable
     // access, the resolved leaf type, custody and liveness.
     Ok(())
+}
+
+/// Inspect a rejected membership's complete machine context once, without
+/// admitting the artifact. Block roster order is not execution order: edge
+/// metadata retains the actual predecessor relation. Explicit bounds and cut
+/// markers keep opt-in failure output finite; a cut never supplies evidence.
+fn trace_payload_producer_chain(machine: &TerminalMachine, failing: &Operation) {
+    const MAX_BLOCKS: usize = 64;
+    const MAX_OPERATIONS: usize = 256;
+    const MAX_DETAIL_CHARACTERS: usize = 4096;
+    eprintln!(
+        "CHECKSITE payload-chain-inputs machine={:?} failing={:?} entry={:?} structural={:?} requires={:?}",
+        machine.id,
+        failing.id,
+        machine.entry,
+        machine.structural_parameters,
+        machine.contract.requires,
+    );
+    let mut remaining = MAX_OPERATIONS;
+    for block in machine.blocks.iter().take(MAX_BLOCKS) {
+        let edge = format!("{:?}", block.terminator);
+        let edge_cut = edge.chars().count() > MAX_DETAIL_CHARACTERS;
+        let edge: String = edge.chars().take(MAX_DETAIL_CHARACTERS).collect();
+        eprintln!(
+            "CHECKSITE payload-chain-block machine={:?} block={:?} structural={:?} terminator={} terminator_cut={}",
+            machine.id, block.id, block.structural_parameters, edge, edge_cut,
+        );
+        for (ordinal, operation) in block.operations.iter().enumerate().take(remaining) {
+            let detail = format!("{:?}", operation.kind);
+            let detail_cut = detail.chars().count() > MAX_DETAIL_CHARACTERS;
+            let detail: String = detail.chars().take(MAX_DETAIL_CHARACTERS).collect();
+            eprintln!(
+                "CHECKSITE payload-chain-operation machine={:?} block={:?} ordinal={} operation={:?} failing={} result={:?} kind={} kind_cut={}",
+                machine.id,
+                block.id,
+                ordinal,
+                operation.id,
+                operation.id == failing.id,
+                operation.result,
+                detail,
+                detail_cut,
+            );
+        }
+        remaining = remaining.saturating_sub(block.operations.len());
+    }
+    eprintln!(
+        "CHECKSITE payload-chain-end machine={:?} blocks={} operations={} blocks_cut={} operations_cut={}",
+        machine.id,
+        machine.blocks.len().min(MAX_BLOCKS),
+        MAX_OPERATIONS - remaining,
+        machine.blocks.len() > MAX_BLOCKS,
+        machine.operations().count() > MAX_OPERATIONS,
+    );
 }

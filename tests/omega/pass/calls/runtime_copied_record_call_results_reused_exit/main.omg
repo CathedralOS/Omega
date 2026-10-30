@@ -12,6 +12,6 @@ machine fits(value: Number) -> bool {
 machine main() crashes Trap {
     let accepted: bool = fits(Number { negative: false, magnitude: 17 });
     transition accepted { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -6,5 +6,5 @@ machine main() crashes Trap {
  let mut first: u64 = 1; let mut second: u64 = 2;
  Setting::set(Correct as dyn Setting, &mut first, &mut second, 7);
  transition first == 7 && second == 2 { true -> done() false -> bad() }
- state done() {} state bad() { crash Trap; }
+ machine done() {} machine bad() { crash Trap; }
 }

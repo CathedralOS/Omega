@@ -8,63 +8,63 @@ data Main { records: Beamforming; }
 // Reject truncation and trailing digits rather than silently selecting fixtures.
 machine Main::main(context: &mut Main) reaches Console {
     transition { _ -> read(context, 0) }
-    state read(context: &mut Main, position: u64) {
+    machine read(context: &mut Main, position: u64) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> finish_input(context, position)
             ByteRead::Byte { value } -> classify(context, position, value)
         }
     }
-    state classify(context: &mut Main, position: u64, value: i32) {
+    machine classify(context: &mut Main, position: u64, value: i32) {
         transition value == 10 || value == 13 || value == 32 || value == 9 {
             true -> read(context, position)
             false -> digit(context, position, value)
         }
     }
-    state digit(context: &mut Main, position: u64, value: i32) {
+    machine digit(context: &mut Main, position: u64, value: i32) {
         transition position < 36 && value >= 48 && value <= 56 {
             true -> save(context, position, value)
             false -> reject(context, 10)
         }
     }
-    state save(context: &mut Main, position: u64, value: i32)
+    machine save(context: &mut Main, position: u64, value: i32)
     requires position < 36 requires value >= 48 requires value <= 56 {
         context.records.raw[position] = (value - 48) as u64;
         transition { _ -> read(context, position + 1) }
     }
-    state finish_input(context: &mut Main, position: u64) {
+    machine finish_input(context: &mut Main, position: u64) {
         transition position == 36 {
             true -> analyze_input(context)
             false -> reject(context, 10)
         }
     }
-    state analyze_input(context: &mut Main) {
+    machine analyze_input(context: &mut Main) {
         let status: u64 = analyze(&mut context.records);
         transition status == 0 {
             true -> report(context)
             false -> reject(context, status)
         }
     }
-    state reject(context: &mut Main, status: u64) {
+    machine reject(context: &mut Main, status: u64) {
         Console::write("ERROR ");
         print_integer(context, status as i64 in Wrapping);
         Console::write_line("");
         Console::exit_process(64);
     }
-    state report(context: &mut Main) {
+    machine report(context: &mut Main) {
         Console::write("ACTIVE ");
         let active: i64 in Wrapping = context.records.active;
         print_integer(context, active);
         Console::write_line("");
         transition { _ -> direction(context, 0) }
     }
-    state direction(context: &mut Main, direction: u64) requires direction < 4 {
+    machine direction(context: &mut Main, direction: u64) requires direction < 4 {
         Console::write("DIRECTION ");
         print_integer(context, direction as i64 in Wrapping);
         Console::write(" WAVE");
         transition { _ -> wave(context, direction, 0) }
     }
-    state wave(context: &mut Main, direction: u64, position: u64)
+    machine wave(context: &mut Main, direction: u64, position: u64)
     requires direction < 4 requires position < 4 {
         Console::write(" ");
         let numerator: i64 in Wrapping = context.records.waveform[direction][position];
@@ -78,7 +78,7 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> energy(context, direction)
         }
     }
-    state energy(context: &mut Main, direction: u64) requires direction < 4 {
+    machine energy(context: &mut Main, direction: u64) requires direction < 4 {
         Console::write(" ENERGY ");
         let score: i64 in Wrapping = context.records.energy[direction];
         print_integer(context, score);
@@ -92,28 +92,28 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> ambiguities(context)
         }
     }
-    state ambiguities(context: &mut Main) {
+    machine ambiguities(context: &mut Main) {
         Console::write("WINNERS");
         transition { _ -> winner(context, 0) }
     }
-    state winner(context: &mut Main, direction: u64) requires direction < 4 {
+    machine winner(context: &mut Main, direction: u64) requires direction < 4 {
         transition context.records.energy[direction] == context.records.best {
             true -> emit_winner(context, direction)
             false -> next_winner(context, direction + 1)
         }
     }
-    state emit_winner(context: &mut Main, direction: u64) requires direction < 4 {
+    machine emit_winner(context: &mut Main, direction: u64) requires direction < 4 {
         Console::write(" ");
         print_integer(context, direction as i64 in Wrapping);
         transition { _ -> next_winner(context, direction + 1) }
     }
-    state next_winner(context: &mut Main, next: u64) {
+    machine next_winner(context: &mut Main, next: u64) {
         transition next < 4 {
             true -> winner(context, next)
             false -> done(context)
         }
     }
-    state done(context: &mut Main) {
+    machine done(context: &mut Main) {
         Console::write_line("");
         Console::exit_process(0);
     }
@@ -124,20 +124,20 @@ machine print_integer(context: &mut Main, value: i64 in Wrapping) reaches Consol
         true -> sign(context, value)
         false -> invalid(context)
     }
-    state sign(context: &mut Main, value: i64 in Wrapping)
+    machine sign(context: &mut Main, value: i64 in Wrapping)
     requires value >= 0 - 576 requires value <= 576 {
         transition value < 0 {
             true -> negative(context, value)
             false -> digits(context, value)
         }
     }
-    state invalid(context: &mut Main) { Console::exit_process(70); }
-    state negative(context: &mut Main, value: i64 in Wrapping)
+    machine invalid(context: &mut Main) { Console::exit_process(70); }
+    machine negative(context: &mut Main, value: i64 in Wrapping)
     requires value >= 0 - 576 requires value < 0 {
         Console::write("-");
         print_digits(context, 0 - value);
     }
-    state digits(context: &mut Main, value: i64 in Wrapping)
+    machine digits(context: &mut Main, value: i64 in Wrapping)
     requires value >= 0 requires value <= 576 {
         print_digits(context, value);
     }
@@ -150,25 +150,25 @@ reaches Console {
         true -> hundreds(context, value)
         false -> short(context, value)
     }
-    state hundreds(context: &mut Main, value: i64 in Wrapping)
+    machine hundreds(context: &mut Main, value: i64 in Wrapping)
     requires value >= 0 requires value <= 576 {
         Console::write_byte((value / 100 + 48) as i32);
         Console::write_byte((value / 10 % 10 + 48) as i32);
         Console::write_byte((value % 10 + 48) as i32);
     }
-    state short(context: &mut Main, value: i64 in Wrapping)
+    machine short(context: &mut Main, value: i64 in Wrapping)
     requires value >= 0 requires value <= 576 {
         transition value >= 10 {
             true -> tens(context, value)
             false -> digit(context, value)
         }
     }
-    state tens(context: &mut Main, value: i64 in Wrapping)
+    machine tens(context: &mut Main, value: i64 in Wrapping)
     requires value >= 0 requires value <= 576 {
         Console::write_byte((value / 10 + 48) as i32);
         Console::write_byte((value % 10 + 48) as i32);
     }
-    state digit(context: &mut Main, value: i64 in Wrapping)
+    machine digit(context: &mut Main, value: i64 in Wrapping)
     requires value >= 0 requires value <= 576 {
         Console::write_byte((value + 48) as i32);
     }

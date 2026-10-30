@@ -181,29 +181,100 @@ pub(crate) fn owned_call_operand_places(
     state: &checked_trees::FlowStateFact,
     borrow_call: &BorrowCallFact,
 ) -> Vec<CanonicalPlace> {
+    transfers_for_source(
+        facts,
+        state,
+        FlowOwnershipEventSource::Call {
+            statement_index: borrow_call.statement_index,
+            call_ordinal: borrow_call.call_ordinal,
+            target_symbol: borrow_call.target_symbol,
+        },
+    )
+    .map(|event| CanonicalPlace {
+        root: event.root,
+        segments: facts
+            .flow
+            .ownership
+            .segments
+            .span_or_empty(event.segments)
+            .to_vec(),
+    })
+    .filter(|place| !super::result_storage::is_private_result_place(program, place))
+    .collect()
+}
+
+/// The evaluated storage coordinate of one consuming operand. Mutable-reference
+/// extraction can move a referent while the expression still names its descriptor
+/// slot; reconstructing that slot from source would select a different owner.
+/// This association identifies storage only. Live claim authority still comes
+/// from the exact committed permission occurrence, not from a move candidate.
+pub(crate) fn owned_operand_transfer_place(
+    facts: &checked_trees::CheckFacts,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+    evaluation: checked_trees::FlowPermissionEvaluation,
+    source: language_semantics::PermissionEventSource,
+) -> Result<Option<CanonicalPlace>, &'static str> {
+    use language_semantics::PermissionEventSource;
+    if evaluation == checked_trees::FlowPermissionEvaluation::Unknown {
+        return Err("owned operand has no permission evaluation coordinate");
+    }
+    let source = match source {
+        PermissionEventSource::Statement { statement_index } => {
+            FlowOwnershipEventSource::Statement { statement_index }
+        }
+        PermissionEventSource::Call {
+            statement_index,
+            call_ordinal,
+            target_symbol,
+        } => FlowOwnershipEventSource::Call {
+            statement_index,
+            call_ordinal,
+            target_symbol,
+        },
+        _ => return Ok(None),
+    };
+    let state = facts
+        .flow
+        .control
+        .state(machine, state)
+        .ok_or("owned operand has no state transfer roster")?;
+    let mut selected = None;
+    for event in transfers_for_source(facts, state, source)
+        .filter(|event| event.expression == expression && event.evaluation == evaluation)
+    {
+        if !event.root.is_valid() {
+            return Err("owned operand transfer has no evaluated storage root");
+        }
+        let place = CanonicalPlace {
+            root: event.root,
+            segments: facts
+                .flow
+                .ownership
+                .segments
+                .span(event.segments)
+                .ok_or("owned operand transfer has stale storage selectors")?
+                .to_vec(),
+        };
+        if selected.as_ref().is_some_and(|previous| *previous != place) {
+            return Err("owned operand has ambiguous evaluated storage coordinates");
+        }
+        selected = Some(place);
+    }
+    Ok(selected)
+}
+
+fn transfers_for_source<'facts>(
+    facts: &'facts checked_trees::CheckFacts,
+    state: &checked_trees::FlowStateFact,
+    source: FlowOwnershipEventSource,
+) -> impl Iterator<Item = &'facts checked_trees::FlowStorageTransferFact> {
     facts
         .flow
         .ownership
         .storage_transfers
         .span_or_empty(state.storage_transfers)
         .iter()
-        .filter(|event| {
-            event.source
-                == FlowOwnershipEventSource::Call {
-                    statement_index: borrow_call.statement_index,
-                    call_ordinal: borrow_call.call_ordinal,
-                    target_symbol: borrow_call.target_symbol,
-                }
-        })
-        .map(|event| CanonicalPlace {
-            root: event.root,
-            segments: facts
-                .flow
-                .ownership
-                .segments
-                .span_or_empty(event.segments)
-                .to_vec(),
-        })
-        .filter(|place| !super::result_storage::is_private_result_place(program, place))
-        .collect()
+        .filter(move |event| event.source == source)
 }

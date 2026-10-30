@@ -19,7 +19,7 @@ machine Main::main(main: &mut Main) reaches Console {
         ByteRead::Byte { value } -> output(main, value as i32 in Saturating)
         _ -> bad(main)
     }
-    state output(main: &mut Main, value: i32 in Saturating) {
+    machine output(main: &mut Main, value: i32 in Saturating) {
         number(value);
         Console::write(" ");
         number(next(value));
@@ -28,7 +28,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("");
         Console::exit_process(0);
     }
-    state bad(main: &mut Main) { Console::exit_process(1); }
+    machine bad(main: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

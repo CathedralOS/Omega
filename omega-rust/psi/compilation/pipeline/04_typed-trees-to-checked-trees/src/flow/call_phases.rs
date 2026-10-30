@@ -18,7 +18,12 @@ mod copied_guarantees;
 mod instruction_effects;
 mod invalidation;
 pub(super) use instruction_effects::append as append_instruction_effect;
+mod reference_custody;
 mod referents;
+pub(super) use reference_custody::{
+    completed_output_retention, finish_statement_reference_custody,
+    install_returned_reference_custody,
+};
 
 pub(super) use copied_guarantees::ArgumentSources;
 pub(super) use invalidation::{CallStorageWrites, apply_call_invalidations, call_storage_writes};
@@ -43,17 +48,14 @@ pub(super) fn build_call_entry_contexts(
         retained_constraint_refs(&build.contexts.constraint_refs, active_constraints);
     // Coordinates repeat across states. The state owns the call identity;
     // a global first-match can attach another invocation's authority.
-    let owned_call = borrow.with_state_borrows(machine_symbol, state_symbol, |rows| {
-        rows.iter().find_map(|state_handle| {
-            let state = borrow.states.get(*state_handle);
-            borrow
-                .calls
-                .span_or_empty(state.calls)
-                .iter()
-                .position(|call| call == borrow_call)
-                .map(|offset| state.calls.handle_at(offset as u32))
-        })
-    });
+    let owned_call = borrow
+        .call_at(
+            machine_symbol,
+            state_symbol,
+            borrow_call.statement_index,
+            borrow_call.call_ordinal,
+        )
+        .filter(|handle| borrow.calls.get(*handle) == borrow_call);
     if let Some(borrow_call_handle) = owned_call {
         append_constraint_ref(
             &mut build.contexts.constraint_refs,

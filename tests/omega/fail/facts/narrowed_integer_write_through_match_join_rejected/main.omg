@@ -19,8 +19,8 @@ data Memory { bytes: [u8; 2]; }
 machine store(destination: &mut i64, value: i64) { destination = value; }
 machine choose(value: i64, flag: bool) -> i64 ensures result == value {
     transition flag { true -> first(value) false -> second(value) }
-    state first(value: i64) -> i64 { value }
-    state second(value: i64) -> i64 { value }
+    machine first(value: i64) -> i64 { value }
+    machine second(value: i64) -> i64 { value }
 }
 machine main(memory: &mut Memory) crashes Trap {
     memory.bytes[1] = 85;
@@ -32,8 +32,8 @@ machine main(memory: &mut Memory) crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

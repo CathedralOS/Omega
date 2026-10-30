@@ -29,36 +29,13 @@ use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use target_operations_to_selected_instructions::StagedOptimizedCustodyCore;
 use terminal_psi::TerminalPsiIdentity;
 
-pub(crate) fn stage_register_homes_with_assignment(
-    legality: StagedOptimizedAllocationLegality,
-    homes: crate::ValidatedRegisterHomes,
-) -> Result<StagedOptimizedRegisterHomes, OptimizedRegisterHomeCustodyError> {
-    let staged = construction::construct_with_assignment(legality, homes)?;
-    Ok(staged)
-}
+use super::PostHomeCustodyReceipt;
 
-/// Post-copy assignment probe the recovery route runs while it still owns the
-/// reanalysis, so residual `NoCompatibleHome` pressure can be answered by
-/// runtime spill instead of failing the fixed-view sequence.
-pub(crate) fn assign_optimized_register_homes_after_fixed_view_copies(
-    reanalysis: &StagedOptimizedSelectedReanalysis,
-) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
-    construction::assign_optimized_register_homes_after_fixed_view_copies(reanalysis)
-}
-
-pub(crate) fn stage_register_homes_after_fixed_view_copies_with_assignment(
-    reanalysis: StagedOptimizedSelectedReanalysis,
-    homes: crate::ValidatedRegisterHomes,
-) -> Result<
-    StagedOptimizedRegisterHomesAfterFixedViewCopies,
-    OptimizedPostCopyRegisterHomeCustodyError,
-> {
-    let staged =
-        construction::construct_optimized_register_homes_after_fixed_view_copies_with_assignment(
-            reanalysis, homes,
-        )?;
-    Ok(staged)
-}
+pub(crate) use construction::{
+    assign_optimized_register_homes_after_fixed_view_copies,
+    stage_register_homes_after_fixed_view_copies_with_assignment,
+    stage_register_homes_with_assignment,
+};
 
 /// Bounded opt-in physical-home staging. This lane admits only legality plans
 /// with at least one shared legal candidate per VReg and no unresolved
@@ -103,22 +80,15 @@ impl StagedOptimizedRegisterHomes {
     pub const fn legality(&self) -> &ValidatedAllocationLegality {
         self.legality.legality()
     }
-    /// The retained optimized-target proof input, kept as replay evidence;
-    /// downstream custody checks compare the owner handle by identity.
-    pub fn optimized_target_owner(
-        &self,
-    ) -> &std::sync::Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
-    {
-        self.legality
+    assignment_context_accessors!(
+        legality
             .live_range_stage()
             .liveness_stage()
             .selected_stage()
-            .optimized_target_owner()
-    }
-    assignment_context_accessors!();
-    pub const fn custody(&self) -> StagedOptimizedRegisterHomeCustodyReceipt {
-        self.custody
-    }
+    );
+    receipt_accessor_rows!(ref StagedOptimizedRegisterHomes {
+        custody: StagedOptimizedRegisterHomeCustodyReceipt,
+    });
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -138,33 +108,17 @@ pub struct StagedOptimizedRegisterHomeCustodyReceipt {
 impl StagedOptimizedRegisterHomeCustodyReceipt {
     target_operations_to_selected_instructions::staging_custody_core_accessors!();
 
-    pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
-    pub const fn selected(self) -> SelectedInstructionPlanIdentity {
-        self.selected
-    }
-    pub const fn liveness(self) -> LivenessIdentity {
-        self.liveness
-    }
-    pub const fn ranges(self) -> LiveRangeIdentity {
-        self.ranges
-    }
-    pub const fn legality(self) -> AllocationLegalityIdentity {
-        self.legality
-    }
-    pub const fn homes(self) -> RegisterHomeIdentity {
-        self.homes
-    }
-    pub const fn post_allocation_manifest(self) -> PostAllocationOptimizationManifestIdentity {
-        self.post_allocation_manifest
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn assignment_count(self) -> usize {
-        self.assignment_count
-    }
+    receipt_accessor_rows!(StagedOptimizedRegisterHomeCustodyReceipt {
+        allocator_availability: AllocatorAvailabilityIdentity,
+        selected: SelectedInstructionPlanIdentity,
+        liveness: LivenessIdentity,
+        ranges: LiveRangeIdentity,
+        legality: AllocationLegalityIdentity,
+        homes: RegisterHomeIdentity,
+        post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
+        function_count: usize,
+        assignment_count: usize,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -175,16 +129,10 @@ pub enum OptimizedRegisterHomeCustodyError {
     ReceiptMismatch,
 }
 
-impl std::fmt::Display for OptimizedRegisterHomeCustodyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized register-home staging failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for OptimizedRegisterHomeCustodyError {}
+stage_error_display!(
+    OptimizedRegisterHomeCustodyError,
+    "optimized register-home staging failed"
+);
 
 /// Physical homes after one exact fixed-view copy transformation and complete
 /// reanalysis. This remains custody-only and cannot enter machine emission.
@@ -226,52 +174,23 @@ impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
     pub const fn legality(&self) -> &ValidatedAllocationLegality {
         self.reanalysis.legality()
     }
-    /// The retained optimized-target proof input, kept as replay evidence;
-    /// downstream custody checks compare the owner handle by identity.
-    pub fn optimized_target_owner(
-        &self,
-    ) -> &std::sync::Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
-    {
-        self.reanalysis
+    assignment_context_accessors!(
+        reanalysis
             .transformation_stage()
             .source_legality_stage()
             .live_range_stage()
             .liveness_stage()
             .selected_stage()
-            .optimized_target_owner()
-    }
-    assignment_context_accessors!();
-    pub const fn custody(&self) -> StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
-        self.custody
-    }
+    );
+    receipt_accessor_rows!(ref StagedOptimizedRegisterHomesAfterFixedViewCopies {
+        custody: StagedOptimizedPostCopyRegisterHomeCustodyReceipt,
+    });
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
-    source: StagedOptimizedSelectedReanalysisCustodyReceipt,
-    homes: RegisterHomeIdentity,
-    post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-    function_count: usize,
-    assignment_count: usize,
-}
-
-impl StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
-    pub const fn source(self) -> StagedOptimizedSelectedReanalysisCustodyReceipt {
-        self.source
-    }
-    pub const fn homes(self) -> RegisterHomeIdentity {
-        self.homes
-    }
-    pub const fn post_allocation_manifest(self) -> PostAllocationOptimizationManifestIdentity {
-        self.post_allocation_manifest
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn assignment_count(self) -> usize {
-        self.assignment_count
-    }
-}
+/// The post-copy route's receipt: the reanalysis custody it retained, over the
+/// one post-home shape every staging route publishes.
+pub type StagedOptimizedPostCopyRegisterHomeCustodyReceipt =
+    PostHomeCustodyReceipt<StagedOptimizedSelectedReanalysisCustodyReceipt>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedPostCopyRegisterHomeCustodyError {
@@ -282,13 +201,7 @@ pub enum OptimizedPostCopyRegisterHomeCustodyError {
     ReceiptMismatch,
 }
 
-impl std::fmt::Display for OptimizedPostCopyRegisterHomeCustodyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized post-copy register-home staging failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for OptimizedPostCopyRegisterHomeCustodyError {}
+stage_error_display!(
+    OptimizedPostCopyRegisterHomeCustodyError,
+    "optimized post-copy register-home staging failed"
+);

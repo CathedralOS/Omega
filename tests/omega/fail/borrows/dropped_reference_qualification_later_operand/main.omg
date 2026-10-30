@@ -10,5 +10,5 @@ requires ticket in Issued
 ensures ticket in Issued
 {
     transition { _ -> finish(overwrite(ticket)) }
-    state finish(ignored: bool) -> bool { true }
+    machine finish(ignored: bool) -> bool { true }
 }

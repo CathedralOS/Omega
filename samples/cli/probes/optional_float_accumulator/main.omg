@@ -33,7 +33,7 @@ machine term(n: i32) -> Optional<f64> {
 machine optional_float_accumulator() {
     transition { _ -> fold(1, 0.0) }
 
-    state fold(n: i32, sum: f64) {
+    machine fold(n: i32, sum: f64) {
         let t: Optional<f64> = term(n);
         transition t {
             Optional::Some { value } -> step(n, sum, value)
@@ -42,19 +42,19 @@ machine optional_float_accumulator() {
     }
 
     // n < 8 dominates the increment, so `n + 1` stays provably in range.
-    state step(n: i32, sum: f64, value: f64) {
+    machine step(n: i32, sum: f64, value: f64) {
         transition n < 8 {
             true -> fold(n + 1, sum + value)
             _ -> done(72)
         }
     }
 
-    state judge(sum: f64) {
+    machine judge(sum: f64) {
         transition sum > 2.71 && sum < 2.72 {
             true -> done(70)
             _ -> done(71)
         }
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

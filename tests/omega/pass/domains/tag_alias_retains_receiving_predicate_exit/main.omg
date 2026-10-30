@@ -1,6 +1,6 @@
 // Expected exit: 0
 domain u32::Label;
-domain u32::Positive(value) requires value > 0;
+domain u32::Positive requires self > 0;
 domain u32::LabelledPositive = Label & Positive;
 data Cell { value: u32 in LabelledPositive; }
 machine write(cell: &mut Cell) { cell.value = 73; }
@@ -9,6 +9,6 @@ machine main() crashes Trap {
     write(&mut cell);
     let observed: u32 = cell.value as u32;
     transition observed == 73 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

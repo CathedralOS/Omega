@@ -1,0 +1,2 @@
+data Index<Limit:u32> [copy] requires value<Limit {value:u32;}
+machine invalid(input:u32) requires input >= 0 && input <= 100 {let mut total:u32=input; total=0xffff_ffff; let indexed:Index<(total+1u32)> = Index{value:0};}

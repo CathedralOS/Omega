@@ -40,11 +40,11 @@ machine Main::main(main: &mut Main) reaches Console {
     let a: i32 = Helper::pick(&main.helper);
     let b: i32 = Helper::delta(&main.helper);
     transition a == 63 { true -> check_delta(main, b) _ -> bad(main, 71) }
-    state check_delta(main: &mut Main, b2: i32) {
+    machine check_delta(main: &mut Main, b2: i32) {
         transition b2 == 7 { true -> good(main) _ -> bad(main, 72) }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code2: i32) { Console::exit_process(code2); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code2: i32) { Console::exit_process(code2); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

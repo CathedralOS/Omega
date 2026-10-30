@@ -1,7 +1,7 @@
 // Expected exit: 0
 // Omitted owned fields form N actual zero bytes, including nested defaults.
-domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
-domain [u8; 8]::NonEmpty(bytes) requires non_empty(bytes);
+domain [u8; 8]::Ascii requires ascii_only(self);
+domain [u8; 8]::NonEmpty requires non_empty(self);
 data Inner { bytes: [u8; 8] in Ascii; whole: [u8; 8] in NonEmpty; }
 data Outer { inner: Inner; marker: u8; }
 data Repeated { items: [Inner; 2]; marker: u8; }
@@ -26,6 +26,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

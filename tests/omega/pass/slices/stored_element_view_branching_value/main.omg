@@ -9,14 +9,14 @@ machine write<'storage>(outputs: &mut [Output<'storage>; 2], selected: u64, posi
         true -> choose(outputs, selected, position, flag)
         false -> false
     }
-    state choose(outputs: &mut [Output<'storage>; 2], selected: u64, position: u64, flag: bool) -> bool
+    machine choose(outputs: &mut [Output<'storage>; 2], selected: u64, position: u64, flag: bool) -> bool
     requires selected < 2 {
         transition position < outputs[selected].values.len {
             true -> store(outputs, selected, position, flag)
             false -> false
         }
     }
-    state store(outputs: &mut [Output<'storage>; 2], selected: u64, position: u64, flag: bool) -> bool
+    machine store(outputs: &mut [Output<'storage>; 2], selected: u64, position: u64, flag: bool) -> bool
     requires selected < 2 && position < outputs[selected].values.len {
         outputs[selected].values[position] = flag && enabled();
         true
@@ -33,6 +33,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

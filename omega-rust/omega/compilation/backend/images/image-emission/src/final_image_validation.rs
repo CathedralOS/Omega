@@ -11,49 +11,27 @@ use image::{
 };
 
 use super::ObjectArtifact;
+use super::hosted_unit_entry::{EntryShim, EntrySurface};
 
 mod implementation_tables;
 mod native_code_layouts;
 
+/// Replay one terminal image against the exact prepared object inputs. Every
+/// writer lane — direct, dynamic ELF, PE — settles here: preparation only
+/// clones the artifact's plan and appends its entry symbol, so the prepared
+/// object carries the same import set the writer was given. The hosted-entry
+/// shim (when one was prepared) is part of the replay boundary, so a receiver
+/// bridge cannot be dropped by the import path any more than by the direct
+/// writer.
 pub(super) fn validate_terminal_image(
     artifact: &ObjectArtifact,
     object: &object_file::ObjectPlan,
     relocations: &object_file::RelocationPlan,
     text_bytes: &[u8],
-    entry_shim: Option<super::hosted_unit_entry::EntryShim>,
+    entry_shim: Option<EntryShim>,
     output: &EmittedImageOutput,
 ) -> Result<CompilerTextValidationEvidence, Diagnostic> {
     let expected_imports = object
-        .layout
-        .symbols
-        .iter()
-        .filter(|(_, symbol)| symbol.kind == object_file::SymbolKind::Import)
-        .count();
-    validate_terminal_image_with_import_count(
-        artifact,
-        object,
-        relocations,
-        text_bytes,
-        entry_shim,
-        output,
-        expected_imports,
-    )
-}
-
-/// Replay the dynamic ELF terminal image against the exact prepared object
-/// inputs. The hosted-entry shim (when one was prepared) is part of the
-/// replay boundary, so a receiver bridge cannot be dropped by the import
-/// path any more than by the direct writer.
-pub(super) fn validate_terminal_dynamic_elf_image(
-    artifact: &ObjectArtifact,
-    object: &object_file::ObjectPlan,
-    relocations: &object_file::RelocationPlan,
-    text_bytes: &[u8],
-    entry_shim: Option<super::hosted_unit_entry::EntryShim>,
-    output: &EmittedImageOutput,
-) -> Result<CompilerTextValidationEvidence, Diagnostic> {
-    let expected_imports = artifact
-        .object()
         .layout
         .symbols
         .iter()
@@ -75,58 +53,37 @@ fn validate_terminal_image_with_import_count(
     object: &object_file::ObjectPlan,
     relocations: &object_file::RelocationPlan,
     text_bytes: &[u8],
-    entry_shim: Option<super::hosted_unit_entry::EntryShim>,
+    entry_shim: Option<EntryShim>,
     output: &EmittedImageOutput,
     expected_imports: usize,
 ) -> Result<CompilerTextValidationEvidence, Diagnostic> {
     if artifact.target().object_format == target::ObjectFormat::MachO {
         // Function observations do not describe what the loader maps. Rejoin
         // every supported segment and the on-disk payload before accepting
-        // instruction, relocation, or receiver-specific evidence.
-        match artifact.target().architecture {
-            target::Architecture::Aarch64 => {
-                image_macho::validate_macho_aarch64_loader_mapping(
-                    &output.bytes,
-                    output.final_image_layout,
-                    &output.final_text_bytes,
-                    &output.final_data_bytes,
-                    output.bss_bytes,
-                )?;
-                image_macho::validate_macho_aarch64_object_fixups(
-                    object,
-                    relocations,
-                    text_bytes.len(),
-                    artifact.data_bytes().len(),
-                    output,
-                )?;
-                image_macho::validate_macho_aarch64_import_binding_pairing(
-                    &output.final_text_bytes,
-                    &output.executable_regions,
-                    &output.data_regions,
-                )?;
-            }
-            target::Architecture::X86_64 => {
-                image_macho::validate_macho_x86_64_loader_mapping(
-                    &output.bytes,
-                    output.final_image_layout,
-                    &output.final_text_bytes,
-                    &output.final_data_bytes,
-                    output.bss_bytes,
-                )?;
-                image_macho::validate_macho_x86_64_object_fixups(
-                    object,
-                    relocations,
-                    text_bytes.len(),
-                    artifact.data_bytes().len(),
-                    output,
-                )?;
-                image_macho::validate_macho_x86_64_import_binding_pairing(
-                    &output.final_text_bytes,
-                    &output.executable_regions,
-                    &output.data_regions,
-                )?;
-            }
-        }
+        // instruction, relocation, or receiver-specific evidence. Each check
+        // reads the ABI off the artifact's own target, so there is no
+        // per-architecture arm to select one.
+        image_macho::validate_macho_loader_mapping(
+            &output.bytes,
+            output.final_image_layout,
+            &output.final_text_bytes,
+            &output.final_data_bytes,
+            output.bss_bytes,
+            artifact.target(),
+        )?;
+        image_macho::validate_macho_object_fixups(
+            object,
+            relocations,
+            text_bytes.len(),
+            artifact.data_bytes().len(),
+            output,
+        )?;
+        image_macho::validate_macho_import_binding_pairing(
+            &output.final_text_bytes,
+            &output.executable_regions,
+            &output.data_regions,
+            artifact.target(),
+        )?;
     }
     if output.final_image_imports != expected_imports {
         return Err(Diagnostic::error(
@@ -280,8 +237,9 @@ fn validate_terminal_image_with_import_count(
         }
     }
     if let Some(shim) = entry_shim {
-        match shim {
-            super::hosted_unit_entry::EntryShim::Physical { symbol, offset } => {
+        match shim.surface {
+            EntrySurface::Physical => {
+                let (symbol, offset) = shim.symbol_offset();
                 super::physical_entry::validate_image(
                     artifact,
                     object,
@@ -292,10 +250,10 @@ fn validate_terminal_image_with_import_count(
                     output,
                 )?;
             }
-            shim @ (super::hosted_unit_entry::EntryShim::DarwinReceiver { .. }
-            | super::hosted_unit_entry::EntryShim::LinuxReceiver { .. }
-            | super::hosted_unit_entry::EntryShim::LinuxArm64Receiver { .. }
-            | super::hosted_unit_entry::EntryShim::WindowsReceiver { .. }) => {
+            EntrySurface::DarwinReceiver
+            | EntrySurface::LinuxReceiver
+            | EntrySurface::LinuxArm64Receiver
+            | EntrySurface::WindowsReceiver => {
                 super::hosted_receiver::validate_image(
                     artifact,
                     object,
@@ -305,15 +263,18 @@ fn validate_terminal_image_with_import_count(
                     output,
                 )?;
             }
-            unit @ (super::hosted_unit_entry::EntryShim::DarwinUnit { .. }
-            | super::hosted_unit_entry::EntryShim::DarwinX86_64Unit { .. }
-            | super::hosted_unit_entry::EntryShim::WindowsUnit { .. }
-            | super::hosted_unit_entry::EntryShim::LinuxUnit { .. }
-            | super::hosted_unit_entry::EntryShim::LinuxArm64Unit { .. }) => {
-                super::hosted_unit_entry::validate_unit_shim(
-                    unit, artifact, object, text_bytes, output,
-                )?
-            }
+            EntrySurface::DarwinUnit
+            | EntrySurface::DarwinX86_64Unit
+            | EntrySurface::WindowsUnit
+            | EntrySurface::LinuxUnit
+            | EntrySurface::LinuxArm64Unit => super::hosted_unit_entry::validate_unit_shim(
+                shim,
+                artifact,
+                object,
+                text_bytes,
+                relocations,
+                output,
+            )?,
         }
     }
     let evidence =
@@ -470,7 +431,8 @@ fn validate_callback_relocation_targets(
                     ))?;
                 let operation = match call.owner {
                     target_operations::CallSiteOwner::Operation(operation) => operation,
-                    target_operations::CallSiteOwner::CleanupAction { .. }
+                    target_operations::CallSiteOwner::InvokeNoNormal(_)
+                    | target_operations::CallSiteOwner::CleanupAction { .. }
                     | target_operations::CallSiteOwner::ExternalCompletion(_) => {
                         return Err(Diagnostic::error(
                             "callback address relocation is not owned by a semantic registrar operation",

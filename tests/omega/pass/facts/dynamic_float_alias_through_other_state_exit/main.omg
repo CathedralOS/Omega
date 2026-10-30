@@ -13,7 +13,7 @@ machine accept(value: f64) requires public_interval(value, 0.0, 0.5) {}
 machine main() crashes Trap {
     let selected: dyn Fraction = Quarter as dyn Fraction;
     transition { _ -> invoke(selected) }
-    state invoke(selected: dyn Fraction) {
+    machine invoke(selected: dyn Fraction) {
     let observed: f64 = Fraction::get(selected);
     accept(observed);
     transition observed == 0.25 {
@@ -21,6 +21,6 @@ machine main() crashes Trap {
         _ -> bad()
     }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

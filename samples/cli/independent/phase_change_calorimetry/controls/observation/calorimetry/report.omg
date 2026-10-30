@@ -13,27 +13,27 @@ invokes Console;
         true -> negative(reader, widened)
         _ -> digits(reader, widened)
     }
-    state negative(reader: &mut Reader, value: i64) {
+    machine negative(reader: &mut Reader, value: i64) {
         Console::write_byte(45);
         let absolute: i64 in Wrapping = 0 - (value as i64 in Wrapping);
         transition { _ -> digits(reader, absolute as i64) }
     }
-    state digits(reader: &mut Reader, value: i64) {
+    machine digits(reader: &mut Reader, value: i64) {
         transition { _ -> seek(reader, value as i64 in Wrapping, 1) }
     }
-    state seek(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
+    machine seek(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 && divisor <= value / 10 {
             true -> seek(reader, value, divisor * 10)
             _ -> ready(reader, value, divisor)
         }
     }
-    state ready(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
+    machine ready(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 {
             true -> emit(reader, value, divisor)
             _ -> {}
         }
     }
-    state emit(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping)
+    machine emit(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping)
     requires divisor > 0
     {
         let byte: i64 in Wrapping = (value / divisor) % 10 + 48;

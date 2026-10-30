@@ -22,7 +22,7 @@ satisfies Value<Helper>::unrealized, Unused::read {
 }
 archive_target machine Helper::cycle(helper: &Helper) -> u32 {
     transition { _ -> step(helper) }
-    state step(helper: &Helper) -> u32 {
+    machine step(helper: &Helper) -> u32 {
         transition { _ -> step(helper) }
     }
 }

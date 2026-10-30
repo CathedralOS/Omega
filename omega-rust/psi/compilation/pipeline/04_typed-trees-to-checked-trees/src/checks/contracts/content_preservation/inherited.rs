@@ -21,6 +21,7 @@ pub(super) fn proves_exit(
     exit: &FlowExitFact,
     fact: &facts::Fact,
     sources: &[validation::ContentConservationSourcePlan],
+    available: &[ContentConservationPlan],
 ) -> bool {
     let facts::FactPayload::ContractBooleanExpression {
         fact: source_fact,
@@ -146,6 +147,7 @@ pub(super) fn proves_exit(
             completed.type_reference,
             &plan,
             &facts.qualifications.content.plans,
+            available,
         )
 }
 

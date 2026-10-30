@@ -1,0 +1,13 @@
+// A nested machine preserves its enclosing type when returning an explicitly supplied value.
+// Expected exit: 0
+machine identity<T>(value: T) -> T {
+    keep(value)
+    machine keep(item: T) -> T { item }
+}
+const Value: u64 = 42;
+machine main() crashes Trap {
+    let result: u64 = identity<u64>(Value);
+    transition result == 42 { true -> done() _ -> failed() }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
+}

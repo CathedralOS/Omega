@@ -1,7 +1,15 @@
 // Native coverage uses an authored, target-specific program entry.
 machine build(builder: &mut Build) {
     Build::application(builder, "service_borrowed_slice_call");
-    Build::select_provider<Ping, PingProvider>(builder);
+    Build::select_provider<Ping, PingProvider>(builder, linux_arm64);
+    Build::select_provider<Ping, PingProvider>(builder, linux_x86_64);
+    Build::select_provider<Ping, PingProvider>(builder, macos_arm64);
+    Build::select_provider<Ping, PingProvider>(builder, macos_x86_64);
+    Build::select_provider<Ping, PingProvider>(builder, windows_x86_64);
+    Build::select_provider<Ping, PingProvider>(builder, uefi_x86_64);
+    Build::select_provider<Ping, PingProvider>(builder, cross_platform_cli);
+    Build::select_provider<Ping, PingProvider>(builder, local_unchecked);
+    Build::select_provider<Ping, PingProvider>(builder, alpha_bootstrap);
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);

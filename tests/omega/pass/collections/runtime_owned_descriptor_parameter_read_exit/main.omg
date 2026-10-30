@@ -6,7 +6,7 @@ machine observe(window: Window, position: u64) -> i32 {
         true -> selected(window, position)
         false -> 0
     }
-    state selected(window: Window, position: u64) -> i32
+    machine selected(window: Window, position: u64) -> i32
     requires position < window.values.len
     {
         window.values[position]
@@ -21,6 +21,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

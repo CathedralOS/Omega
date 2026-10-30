@@ -311,6 +311,23 @@ pub(crate) fn decode_words(
         .collect()
 }
 
+/// Bits every integer conversion fixes; the rest carry the two register fields
+/// the conversion moves between.
+const CONVERSION_MASK: u32 = 0xffff_fc00;
+
+/// The six integer conversions differ only in their fixed bits and the form
+/// their source and destination registers construct. One row per form; rustfmt
+/// would otherwise fan every closure out to five lines.
+#[rustfmt::skip]
+const CONVERSIONS: [(u32, fn(u8, u8) -> DecodedWord); 6] = [
+    (0xd340_1c00, |source, destination| DecodedWord::ZeroExtendU8 { source, destination }),
+    (0xd340_3c00, |source, destination| DecodedWord::ZeroExtendU16 { source, destination }),
+    (0x9340_1c00, |source, destination| DecodedWord::SignExtendI8 { source, destination }),
+    (0x9340_3c00, |source, destination| DecodedWord::SignExtendI16 { source, destination }),
+    (0x9340_7c00, |source, destination| DecodedWord::SignExtendI32 { source, destination }),
+    (0xd340_7c00, |source, destination| DecodedWord::ZeroExtendU32 { source, destination }),
+];
+
 fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingError> {
     if let Some((operation, operand)) = super::register_access::decode(word) {
         return Ok(DecodedWord::RegisterAccess { operation, operand });
@@ -539,41 +556,10 @@ fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingErro
         }
     }
 
-    if word & 0xffff_fc00 == 0xd340_1c00 {
-        return Ok(DecodedWord::ZeroExtendU8 {
-            source: ((word >> 5) & 31) as u8,
-            destination: (word & 31) as u8,
-        });
-    }
-    if word & 0xffff_fc00 == 0xd340_3c00 {
-        return Ok(DecodedWord::ZeroExtendU16 {
-            source: ((word >> 5) & 31) as u8,
-            destination: (word & 31) as u8,
-        });
-    }
-    if word & 0xffff_fc00 == 0x9340_1c00 {
-        return Ok(DecodedWord::SignExtendI8 {
-            source: ((word >> 5) & 31) as u8,
-            destination: (word & 31) as u8,
-        });
-    }
-    if word & 0xffff_fc00 == 0x9340_3c00 {
-        return Ok(DecodedWord::SignExtendI16 {
-            source: ((word >> 5) & 31) as u8,
-            destination: (word & 31) as u8,
-        });
-    }
-    if word & 0xffff_fc00 == 0x9340_7c00 {
-        return Ok(DecodedWord::SignExtendI32 {
-            source: ((word >> 5) & 31) as u8,
-            destination: (word & 31) as u8,
-        });
-    }
-    if word & 0xffff_fc00 == 0xd340_7c00 {
-        return Ok(DecodedWord::ZeroExtendU32 {
-            source: ((word >> 5) & 31) as u8,
-            destination: (word & 31) as u8,
-        });
+    for &(value, build) in &CONVERSIONS {
+        if word & CONVERSION_MASK == value {
+            return Ok(build(((word >> 5) & 31) as u8, (word & 31) as u8));
+        }
     }
     let register = (word & 0x1f) as u8;
     let shift = ((word >> 21) & 0x3) as u8;
@@ -1071,6 +1057,9 @@ pub(crate) fn footprint(
         SelectedInstructionKind::FloatResultPolicy { form } => {
             return super::float_result_policy::footprint(form, operands);
         }
+        SelectedInstructionKind::RegisterAccess {
+            operation: selected_instructions::RegisterOperation::MemoryFence(_),
+        } => (Vec::new(), Vec::new(), false),
         SelectedInstructionKind::RegisterAccess { operation } => {
             if operation.produces_value() {
                 (vec![], vec![0], false)
@@ -1162,7 +1151,14 @@ pub(crate) fn footprint(
         .collect();
     let physical = aarch64_physical_register_model_ref();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
-    let encoded = if let SelectedInstructionKind::RegisterAccess { operation } = kind {
+    let encoded = if matches!(
+        kind,
+        SelectedInstructionKind::RegisterAccess {
+            operation: selected_instructions::RegisterOperation::MemoryFence(_)
+        }
+    ) {
+        MachineEncodedEffects::catalog_fence_v1()
+    } else if let SelectedInstructionKind::RegisterAccess { operation } = kind {
         super::register_access::effects(operation.produces_value())
     } else if kind == SelectedInstructionKind::AtomicFence {
         MachineEncodedEffects::atomic_fence_v1()

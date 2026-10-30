@@ -14,11 +14,11 @@ machine stamp(bytes: &mut [u8]) {
         _ -> skip()
     }
 
-    state write(bytes: &mut [u8]) {
+    machine write(bytes: &mut [u8]) {
         bytes[1] = 5;
     }
 
-    state skip() { }
+    machine skip() { }
 }
 
 machine peek(bytes: &[u8], position: u64) -> u64 {
@@ -27,7 +27,7 @@ machine peek(bytes: &[u8], position: u64) -> u64 {
         _ -> (0)
     }
 
-    state read(bytes: &[u8], position: u64) -> u64 {
+    machine read(bytes: &[u8], position: u64) -> u64 {
         let value: u8 = bytes[position];
         transition { _ -> (value as u64) }
     }
@@ -46,18 +46,18 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> refused(71)
     }
 
-    state check(seen: u64, count: u64, first: u64, second: u64) {
+    machine check(seen: u64, count: u64, first: u64, second: u64) {
         transition seen == 5 && count == 3 && first == 97 && second == 98 {
             true -> done()
             _ -> refused(72)
         }
     }
 
-    state done() {
+    machine done() {
         Console::exit_process(70);
     }
 
-    state refused(code: i32) {
+    machine refused(code: i32) {
         Console::exit_process(code);
     }
 }

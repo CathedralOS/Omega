@@ -7,6 +7,7 @@ use crate::selected_form_encoding::decoding::{DecodedWord, decode_words};
 use crate::selected_form_encoding::{
     encode_aarch64_selected_form, validate_aarch64_selected_form_encoding,
 };
+use crate::test_support::rejects_every_bit_flip;
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
@@ -1096,21 +1097,7 @@ fn corrupted_trapping_encodings_are_rejected() {
             .unwrap()
             .bytes()
             .to_vec();
-        for bit in 0..bytes.len() * 8 {
-            let mut corrupted = bytes.clone();
-            corrupted[bit / 8] ^= 1 << (bit % 8);
-            assert!(
-                validate_aarch64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    key(form),
-                    &operands,
-                    &corrupted
-                )
-                .is_err(),
-                "{form:?} bit {bit}"
-            );
-        }
+        rejects_every_bit_flip(&physical, kind, key(form), &operands, &bytes);
         assert!(
             validate_aarch64_selected_form_encoding(
                 &physical,

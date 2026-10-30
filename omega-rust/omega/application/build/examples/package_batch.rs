@@ -2,19 +2,17 @@
 //!
 //! Run alone: counters are process-wide. The measurement starts before source
 //! preparation and ends after every requested outcome joins, including refusal.
-//! Cross-target artifacts are produced but foreign images are not executed.
+//! Cross-target artifacts are produced but foreign native images are not executed.
+//! Terminal mode interprets each target context and requires an empty Unit result.
 //!
-//! Usage: package_batch [--check] [--targets name,name] [root [sources
+//! Usage: package_batch [--check | --terminal] [--targets name,name]
+//! [--rollback path] [root [sources
 //! [terminals [builds [settled_checks]]]]]. Defaults describe the two-target
 //! shared_program_distinct_roots_exit fixture: 1 source, 1 Terminal, 1 Build,
 //! and 2 checks (Build + Product). Check-only defaults to zero Terminal work.
 
 use artifacts::compile_timings::counters;
-use omega_build::{
-    PreparedLocalProjectCheckRequest, PreparedLocalProjectNativeRequest,
-    check_prepared_local_project_for_targets, compile_prepared_local_project_for_native_targets,
-};
-use package_manager::operations::prepare_local_project_for_targets;
+use omega_build::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct, build};
 
 #[derive(Debug, PartialEq, Eq)]
 struct WorkCounts {
@@ -48,8 +46,26 @@ impl WorkCounts {
 struct Request {
     root: std::path::PathBuf,
     targets: Vec<target::TargetProfile>,
-    check_only: bool,
+    product: Product,
+    rollback: compiler::OptimizationRollback,
     expected: WorkCounts,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Product {
+    Check,
+    Terminal,
+    Native,
+}
+
+impl Product {
+    fn outcome(self) -> &'static str {
+        match self {
+            Self::Check => "checked",
+            Self::Terminal => "terminal",
+            Self::Native => "native",
+        }
+    }
 }
 
 fn main() -> Result<(), String> {
@@ -71,8 +87,16 @@ fn main() -> Result<(), String> {
 fn request() -> Result<Request, Box<dyn std::error::Error>> {
     let mut arguments = std::env::args().skip(1);
     let first = arguments.next();
-    let check_only = first.as_deref() == Some("--check");
-    let mut root_argument = if check_only { arguments.next() } else { first };
+    let product = match first.as_deref() {
+        Some("--check") => Product::Check,
+        Some("--terminal") => Product::Terminal,
+        _ => Product::Native,
+    };
+    let mut root_argument = if product != Product::Native {
+        arguments.next()
+    } else {
+        first
+    };
     let target_names = if root_argument.as_deref() == Some("--targets") {
         let names = arguments
             .next()
@@ -82,18 +106,25 @@ fn request() -> Result<Request, Box<dyn std::error::Error>> {
     } else {
         "windows_x86_64,linux_x86_64".to_owned()
     };
+    let rollback = if root_argument.as_deref() == Some("--rollback") {
+        let path = arguments.next().ok_or("--rollback requires a file")?;
+        let names = std::fs::read_to_string(path)?;
+        root_argument = arguments.next();
+        compiler::OptimizationRollback::from_exact_names(
+            names.lines().map(str::trim).filter(|name| !name.is_empty()),
+        )?
+    } else {
+        Default::default()
+    };
     let root = root_argument
         .unwrap_or_else(|| {
             "tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg".to_owned()
         })
         .into();
-    let targets = target_names
-        .split(',')
-        .map(|name| {
-            target::TargetProfile::from_omega_target_name(Some(name))
-                .map_err(|diagnostic| format!("{diagnostic:?}"))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let targets = target::ExplicitTargetSet::from_caller_names(target_names.split(','))
+        .map_err(|diagnostics| format!("{diagnostics:?}"))?
+        .profiles()
+        .to_vec();
     let mut expected_count = |default| -> Result<u64, std::num::ParseIntError> {
         Ok(arguments
             .next()
@@ -103,7 +134,7 @@ fn request() -> Result<Request, Box<dyn std::error::Error>> {
     };
     let expected = WorkCounts {
         sources: expected_count(1)?,
-        terminals: expected_count(u64::from(!check_only))?,
+        terminals: expected_count(u64::from(product != Product::Check))?,
         builds: expected_count(1)?,
         settled_checks: expected_count(2)?,
     };
@@ -115,7 +146,8 @@ fn request() -> Result<Request, Box<dyn std::error::Error>> {
     Ok(Request {
         root,
         targets,
-        check_only,
+        product,
+        rollback,
         expected,
     })
 }
@@ -141,50 +173,31 @@ fn measure() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn produce(request: &Request) -> Result<(), Box<dyn std::error::Error>> {
-    let prepared = prepare_local_project_for_targets(&request.root, &request.targets, true)?
-        .ok_or("the measurement requires a package build.omg")?;
     let directory =
         std::env::temp_dir().join(format!("omega-package-batch-{}", std::process::id()));
-    if request.check_only {
-        let outcomes = check_prepared_local_project_for_targets(
-            PreparedLocalProjectCheckRequest::for_targets(
-                prepared,
-                directory,
-                request.targets.clone(),
-            ),
-        );
-        assert_eq!(
-            outcomes
-                .iter()
-                .map(|outcome| outcome.target)
-                .collect::<Vec<_>>(),
-            request.targets
-        );
-        for outcome in &outcomes {
-            println!(
-                "target={} outcome={}",
-                outcome.target.target_name(),
-                if outcome.result.is_ok() {
-                    "checked"
-                } else {
-                    "rejected"
-                }
-            );
-        }
-        let reports = outcomes
-            .into_iter()
-            .map(|outcome| outcome.result)
-            .collect::<Result<Vec<_>, _>>()?;
-        println!("checked_products={}", reports.len());
-        return Ok(());
-    }
-    let outcomes = compile_prepared_local_project_for_native_targets(
-        PreparedLocalProjectNativeRequest::for_targets(
-            prepared,
-            directory,
-            request.targets.clone(),
-        ),
-    );
+    let targets = target::ExplicitTargetSet::from_caller_names(
+        request.targets.iter().map(|profile| profile.target_name()),
+    )
+    .map_err(|diagnostics| format!("{diagnostics:?}"))?;
+    let outcomes = build(BuildRequest {
+        root_path: request.root.clone(),
+        build_directory: Some(directory),
+        targets: BuildTargets::Batch(targets),
+        product: match request.product {
+            Product::Check => ProjectProduct::Check,
+            Product::Terminal => ProjectProduct::Terminal,
+            Product::Native => ProjectProduct::Native {
+                destination: NativeDestination::Retained,
+                private_entry_ram: Vec::new(),
+            },
+        },
+        timings: false,
+        offline: true,
+        verify: false,
+        require_package_project: true,
+        optimization_rollback: request.rollback.clone(),
+        build_snapshot: None,
+    })?;
     assert_eq!(
         outcomes
             .iter()
@@ -197,7 +210,7 @@ fn produce(request: &Request) -> Result<(), Box<dyn std::error::Error>> {
             "target={} outcome={}",
             outcome.target.target_name(),
             if outcome.result.is_ok() {
-                "native"
+                request.product.outcome()
             } else {
                 "rejected"
             }
@@ -205,8 +218,95 @@ fn produce(request: &Request) -> Result<(), Box<dyn std::error::Error>> {
     }
     let reports = outcomes
         .into_iter()
-        .map(|outcome| outcome.result)
+        .map(|outcome| {
+            outcome
+                .result
+                .and_then(|outcome| outcome.into_report())
+                .map(|outcome| outcome.report)
+        })
         .collect::<Result<Vec<_>, _>>()?;
+    if request.product == Product::Check {
+        println!("checked_products={}", reports.len());
+        return Ok(());
+    }
+    if request.product == Product::Terminal {
+        println!("terminal_products={}", reports.len());
+        let mut retained = Vec::with_capacity(reports.len());
+        for (profile, report) in request.targets.iter().zip(reports) {
+            if !request.rollback.is_empty() {
+                let receipt = report
+                    .optimization_rollback_receipt()
+                    .ok_or("Terminal product lost the requested rollback receipt")?;
+                println!("target={} rollback={receipt}", profile.target_name());
+            }
+            assert!(
+                report.retained_native_artifact().is_none(),
+                "Terminal stop produced native code"
+            );
+            assert!(
+                report.checked_native_executable_path().is_none(),
+                "Terminal stop published native code"
+            );
+            retained.push(
+                report
+                    .into_retained_terminal_artifact()
+                    .ok_or("missing Terminal artifact")?,
+            );
+        }
+        let first = retained
+            .first()
+            .ok_or("missing Terminal product")?
+            .artifact();
+        for (profile, product) in request.targets.iter().zip(&retained) {
+            let artifact = product.artifact();
+            assert!(
+                std::ptr::eq(first, artifact),
+                "equal source targets must share Terminal storage"
+            );
+            let companion = product
+                .native_realization_proposal()
+                .ok_or("Terminal product lost its Build companion")?;
+            let mut matching = companion
+                .target_provider_proposals()
+                .iter()
+                .filter(|proposal| proposal.target == profile.target_name());
+            let proposal = matching
+                .next()
+                .ok_or("Terminal product lost its target selection")?;
+            assert!(
+                matching.next().is_none(),
+                "duplicate Terminal target selection"
+            );
+            let observed = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+                entry: Some(companion.program_entry().checked_entry()),
+                filesystem: Default::default(),
+                native_provider: None,
+                artifact,
+                target: Some(profile.target_name()),
+                provisions: None,
+                provider_proposal: Some(proposal),
+                x86_flags: None,
+                memory_ordering: None,
+                fuel_allowance: 100_000,
+                domain_exit: terminal_runtime::TerminalDomainExitDelegation::Unprovided,
+                standard_input: None,
+                clock: None,
+            })?;
+            assert!(
+                matches!(
+                    observed.status,
+                    terminal_runtime::TerminalExecutionStatus::Complete(
+                        terminal_runtime::TerminalExecutionResult::Unit
+                    )
+                ),
+                "Terminal execution did not return normally: {:?}",
+                observed.status
+            );
+            assert!(observed.stdout.is_empty() && observed.stderr.is_empty());
+            println!("target={} terminal_execution=unit", profile.target_name());
+        }
+        return Ok(());
+    }
     println!("native_products={}", reports.len());
     let first = reports
         .first()

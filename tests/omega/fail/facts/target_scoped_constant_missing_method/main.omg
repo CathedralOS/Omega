@@ -24,6 +24,6 @@ linux_arm64 machine expected() -> u64 { 4 }
 macos_arm64 machine expected() -> u64 { 8 }
 machine main() crashes Trap {
     transition size_of<Main>() == expected() { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -33,7 +33,7 @@ pub(super) use assigned_values::{
     byte_predicate_proven_at_place, prove_domain_at_place, prove_indexed_domain_at_place,
     scalar_value_at_place, segments_cover_subject,
 };
-mod captured_values;
+pub(super) mod captured_values;
 mod scalars;
 pub(super) use crate::values::evaluate_checked_scalar;
 pub(super) use captured_values::scalar_at_path as captured_scalar_at_path;
@@ -138,13 +138,28 @@ fn current_bound_boolean_is_proven(
     contexts: &[facts::FactContextHandle],
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    let Some(required) = crate::facts::boolean_predicates::bind_current_guard(
+    let Some(expression) = crate::facts::boolean_predicates::lower_current_guard(
         program,
         &facts.operators,
         state.symbol,
         statement_index,
         expression,
+    ) else {
+        return false;
+    };
+    let Some(required) = crate::facts::boolean_predicates::bind_current_expression(
+        program,
+        state.symbol,
+        expression,
         true,
+        |operand| {
+            crate::facts::boolean_predicates::declared_observation(
+                program,
+                state.symbol,
+                statement_index,
+                operand,
+            )
+        },
     ) else {
         return false;
     };
@@ -200,7 +215,7 @@ fn live_scalar_value(
         program,
         parameters: program.state_parameters(state),
         symbols: &symbols,
-        value_at_place: |place: &validation::CanonicalPlace| {
+        value_at_place: |place: &validation::CanonicalPlace, _observation| {
             scalar_value_at_place(
                 program,
                 semantic,
@@ -289,6 +304,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
             semantic_context_proves_instantiated_boolean_expression(
                 program,
                 facts,
+                call_flow,
                 call_frames,
                 context,
                 entry_contexts,
@@ -325,7 +341,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
     }
     match fact.payload {
         FactPayload::InstructionEffect { .. } | FactPayload::CallCompletion { .. } => false,
-        facts::domain_membership_symbol_and_instance_pattern!(domain_symbol, semantic_domain) => {
+        facts::domain_membership_pattern!(domain_symbol, semantic_domain) => {
             let Some(place) = fact.place.as_place() else {
                 return false;
             };
@@ -414,7 +430,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
         // These are evidence or deferred obligations, not propositions this
         // dispatcher can establish. An unfamiliar payload is never success.
         FactPayload::BooleanPredicate { .. }
-        | FactPayload::AssignedCase { .. }
+        | FactPayload::CaseValue { .. }
         | FactPayload::AssignedValue { .. }
         | FactPayload::AssignedIntegerBounds { .. }
         | FactPayload::FloatPredicate { .. }
@@ -500,7 +516,7 @@ pub(super) fn indexed_membership(
     program: &dyn ::validation::CheckingInput,
     payload: FactPayload,
 ) -> bool {
-    let (facts::domain_membership_symbol_pattern!(domain_symbol)) = payload else {
+    let (facts::domain_membership_pattern!(domain_symbol)) = payload else {
         return false;
     };
     program.domain_definitions().iter().any(|domain| {

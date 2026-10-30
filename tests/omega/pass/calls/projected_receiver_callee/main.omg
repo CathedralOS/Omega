@@ -15,7 +15,7 @@ terminates by remaining -> Nat::Descending;
         true -> Cursor::step(cursor, remaining - 1)
         false -> done(cursor)
     }
-    state done(cursor: &mut Cursor) -> u64 {
+    machine done(cursor: &mut Cursor) -> u64 {
         cursor.remaining = 0;
         0
     }

@@ -1,0 +1,7 @@
+data Cell { value: u64; }
+machine first(storage: &mut Cell) {
+    second(storage);
+    storage.value = 1;
+}
+machine second(storage: &mut Cell) { transition { _ -> first(storage) } }
+machine main() { let mut storage: Cell = Cell { value: 0 }; first(&mut storage); }

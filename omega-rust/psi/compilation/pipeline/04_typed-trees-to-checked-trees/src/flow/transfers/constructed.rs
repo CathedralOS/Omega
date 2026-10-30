@@ -12,6 +12,23 @@ use checked_trees::expression::ExpressionHandle;
 use checked_trees::{FlowConstraintKind, FlowOperandFact, FlowSemanticContextRef};
 use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint};
 
+/// A routed membership may re-anchor onto the constructed field only when the
+/// source fact carries real issuance evidence — an authorized route, a checked
+/// validation, an admitted boundary receipt, or an already-conserved or
+/// propagated claim. `None` and vacuous evidence name no provenance, so a
+/// store cannot forward them into a domain that `established by` reserves.
+fn routed_membership_transferable(evidence: facts::QualificationEvidence) -> bool {
+    use language_semantics::QualificationEvidenceOrigin::*;
+    matches!(
+        evidence.origin,
+        AuthorizedRouteEstablishment
+            | CheckedValidation
+            | AdmittedReceipt
+            | CheckedTransformation
+            | Propagated
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_constructed_field_values(
     program: &dyn ::validation::CheckingInput,
@@ -27,7 +44,7 @@ pub(super) fn append_constructed_field_values(
         return;
     }
     let capture = *contexts.control.operands.get(stored_value);
-    if capture.children.is_empty() {
+    if capture.constructed_children().is_empty() {
         // Whole stored values already use ordinary context transport. Only
         // separately evaluated children need distinct completion contexts.
         return;
@@ -143,16 +160,17 @@ pub(super) fn append_constructed_field_values(
                 | FactPayload::AssignedScalarValue { .. }
                 | FactPayload::AssignedValueCapture { .. }
                 | FactPayload::FloatPredicate { .. } => fact.payload,
-                facts::domain_membership_fields_pattern!(
-                    domain,
-                    domain_symbol,
-                    semantic_domain
-                ) if program.domain_definitions().iter().any(|definition| {
-                    definition.symbol == domain_symbol
-                        && definition.establishment_routes.is_empty()
-                        && definition.alias.is_none()
-                        && definition.predicate_body.is_present()
-                }) =>
+                facts::domain_membership_pattern!(domain, domain_symbol, semantic_domain)
+                    if program
+                        .domain_definition(domain_symbol)
+                        .is_some_and(|definition| {
+                            definition.alias.is_none()
+                                && if definition.establishment_routes.is_empty() {
+                                    definition.predicate_presence.is_present()
+                                } else {
+                                    routed_membership_transferable(fact.evidence)
+                                }
+                        }) =>
                 {
                     FactPayload::DomainMembership {
                         value: ExpressionHandle::invalid(),

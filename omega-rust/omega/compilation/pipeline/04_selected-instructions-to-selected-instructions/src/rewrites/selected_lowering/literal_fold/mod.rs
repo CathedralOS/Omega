@@ -20,7 +20,7 @@ use identity::encode_terminal_literal_fold_content;
 pub(crate) use identity::literal_fold_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 pub(crate) use pair_rule::{
-    PairOperandShape, PairResultDisposition, PairUnitDefRelation, SelectedInstructionPairRule,
+    PairResultDisposition, PairUnitDefRelation, SelectedInstructionPairRule,
 };
 use register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
@@ -835,8 +835,6 @@ pub enum LiteralFoldError {
 
 failed_display!(LiteralFoldError, "terminal literal fold failed");
 
-impl std::error::Error for LiteralFoldError {}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LiteralFoldDecodeError {
     Truncated,
@@ -854,11 +852,7 @@ pub enum LiteralFoldDecodeError {
     IdentityMismatch,
 }
 
-impl std::fmt::Display for LiteralFoldDecodeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid terminal literal fold: {self:?}")
-    }
-}
+failed_display!(LiteralFoldDecodeError, "invalid terminal literal fold");
 
 impl std::error::Error for LiteralFoldDecodeError {}
 

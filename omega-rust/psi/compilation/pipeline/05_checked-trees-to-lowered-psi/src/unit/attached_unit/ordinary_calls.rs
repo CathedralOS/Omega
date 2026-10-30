@@ -1,21 +1,22 @@
 //! Shared ordinary call operands, requirements and crash substitution.
 use super::super::{
     BTreeMap, MachineId, ObligationId, Proposition, StructuralArgument,
-    StructuralParameterDeclaration, StructuralTypeDeclaration, ValueId,
-    structural_crash_argument_type, substitute_structural_crash_route_roots,
+    StructuralParameterDeclaration, StructuralTypeDeclaration,
+    substitute_structural_crash_route_roots,
 };
 use super::parameters::call_index_selectors;
 use super::{
-    CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError, OperationResult,
-    PlaceId, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, ValueDeclaration,
-    allocate_dense, argument_evaluation, lookup_type_id, lower_checked_crash_route_buckets,
+    CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, OperationResult, PlaceId,
+    StructuralPlaceDeclaration, StructuralTypeId, ValueDeclaration, allocate_dense,
+    argument_evaluation, lookup_type_id, lower_checked_crash_route_buckets,
     lower_structural_arguments, lower_structural_crash_route_buckets, place_id, primitive_locals,
     unsupported,
 };
-use crate::direct_calls::{DirectCall, DirectCallResult};
+use crate::direct_calls::{DirectCall, DirectCallResult, ModuleInvocationArguments};
 use crate::emission::claim_bindings::emitted_claim_transfers;
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::terminal_identities::StructuralDomainBinding;
 use crate::unit::runtime_requirements::substitute_runtime_requirement_scalar_values;
 
@@ -31,40 +32,29 @@ pub(crate) struct Target<'a> {
     pub source_checked_requires: &'a [Proposition],
 }
 
-pub(crate) struct PreparedCall {
-    pub arguments: Vec<ValueId>,
-    /// Proof-only erased actuals in the callee's erased-formal order.
-    pub erased_arguments: Vec<semantic_vocabulary::ScalarTerm>,
-    /// Erased proof-only actuals in the callee's erased-proof roster order.
-    pub erased_proof_arguments: Vec<semantic_vocabulary::ProofTerm>,
-    pub structural_arguments: Vec<StructuralArgument>,
-    /// The emitted transfer roster: checked rows plus each completed-result
-    /// `self` consume's minted claim, in canonical order.
-    pub claim_transfers: Vec<ClaimTransfer>,
-    pub requirement_obligations: Vec<ObligationId>,
-    pub crash_continuations: Vec<terminal_psi::CrashRouteBucket>,
-}
-
-impl PreparedCall {
+impl ModuleInvocationArguments {
     /// Emit the prepared lanes as one direct call to `callee` through the
     /// single call emitter, for `result` to choose its Terminal operation.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn emit(
         self,
+        checked: &CheckedTrees,
         operations: &mut OperationBuffer,
         coordinate: SourceCallCoordinate,
-        source_site: Option<checked_trees::NominalMachineUseSite>,
-        source_target: symbols::SymbolHandle,
         record: crate::direct_calls::CallRecord<'_>,
         result: OperationResult,
         callee: MachineId,
         result_kind: DirectCallResult,
     ) -> Result<semantic_vocabulary::OperationId, LoweringError> {
+        // Unit, scalar and structural routes supply the same checked occurrence,
+        // not whichever machine/state symbol their local emission happens to use.
+        let target = crate::call_sites::checked_source_call(checked, coordinate)?;
+        let source_site = crate::call_sites::source_site(checked, coordinate, target)?;
         crate::direct_calls::emit_direct_call(
             operations,
             coordinate,
             source_site,
-            source_target,
+            target.target_symbol,
             record,
             result,
             DirectCall::new(
@@ -86,11 +76,15 @@ impl PreparedCall {
 pub(super) fn prepare(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    scalar_applications: &super::scalar_applications::SourceScalarApplications,
     state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
     target: Target<'_>,
     evaluated_scalar_arguments: Option<&[ValueDeclaration]>,
     evaluated_selectors: Option<&[ValueDeclaration]>,
+    completed_structural_arguments: Option<
+        &[Option<super::operation_frame::CompletedStructuralArgument>],
+    >,
     caller_scalar_values: &[ValueDeclaration],
     caller_erased_scalar_parameters: &[ValueDeclaration],
     caller_erased_proof_parameters: &[checked_trees::CheckedErasedProofParameterPlan],
@@ -106,7 +100,8 @@ pub(super) fn prepare(
     calls: &mut CallEmissionContext<'_>,
     next_value: &mut u64,
     operations: &mut OperationBuffer,
-) -> Result<PreparedCall, LoweringError> {
+    current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
+) -> Result<ModuleInvocationArguments, LoweringError> {
     // All ordinary result kinds share operand custody and callee contracts.
     // Result formation and publication remain with the operation frame.
     let Some((call, erased_scalar_arguments, erased_proof_arguments)) = operation
@@ -159,8 +154,13 @@ pub(super) fn prepare(
                 expression,
                 caller_scalar_values,
                 caller_erased_scalar_parameters,
-                caller_observation_parameters,
-                structural_types,
+                &crate::scalar_lowering::contracts::ContractViewNamespace {
+                    scalar_applications,
+                    constant_values: &checked.typed.constant_recipe_closure.values,
+                    parameters: caller_observation_parameters,
+                    structural_types,
+                    ..crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY
+                },
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -184,17 +184,11 @@ pub(super) fn prepare(
     let mut selector_values =
         call_index_selectors(structural_arguments, evaluated_selectors)?.into_iter();
 
-    let claim_transfers = emitted_claim_transfers(
-        identities,
-        claim_transfers,
-        calls.claims.bindings(),
-        target.parameters,
-        structural_types,
-    )?;
     let terminal_arguments = lower_structural_arguments(
         identities,
         checked,
         structural_arguments,
+        completed_structural_arguments,
         structural_types,
         parameters,
         local_places,
@@ -210,6 +204,19 @@ pub(super) fn prepare(
         Some((next_value, operations)),
     )?;
 
+    let claim_transfers = emitted_claim_transfers(
+        identities,
+        claim_transfers,
+        calls.claims.bindings(),
+        target.parameters,
+        structural_types,
+        &terminal_arguments,
+        current_claims,
+    )?;
+
+    let caller_types = scalar_bindings
+        .published_structural_types()?
+        .with_completed(operations)?;
     let crash_continuations = prepare_crash_continuations(
         identities,
         checked,
@@ -225,23 +232,10 @@ pub(super) fn prepare(
         &terminal_scalar_values,
         &terminal_arguments,
         structural_types,
-        |argument, index| {
-            if call_byte_places.contains(&argument.place) {
-                Ok(target.parameters[index].structural_type)
-            } else {
-                structural_crash_argument_type(
-                    argument,
-                    parameters,
-                    local_places,
-                    structural_result_places,
-                    primitive_local_places,
-                    &operations.operations,
-                )
-            }
-        },
+        &caller_types,
     )?;
     let requirement_obligations = prepare_requirement_obligations(&target, calls, operations)?;
-    Ok(PreparedCall {
+    Ok(ModuleInvocationArguments {
         arguments: terminal_scalar_arguments,
         erased_arguments,
         erased_proof_arguments,
@@ -258,7 +252,7 @@ pub(super) fn prepare(
 /// (`scalar_lowering/effects.rs`) both evaluate their scalar actuals first
 /// and then owe the callee the same requirement obligations, erased proof
 /// terms, structural arguments, crash continuations and claim transfers
-/// before `PreparedCall::emit`. A target with a lowered signature takes the
+/// before `ModuleInvocationArguments::emit`. A target with a lowered signature takes the
 /// signature's contract; a standalone scalar catalog has no signature and
 /// keeps its exact requirement count with checked crash routes over the
 /// evaluated actuals, which is what a callee without structural formals
@@ -268,6 +262,7 @@ pub(crate) fn prepare_computed_module_call(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     coordinate: SourceCallCoordinate,
+    caller_types: &crate::expression_preparation::bindings::PublishedStructuralTypes,
     target_machine: symbols::SymbolHandle,
     arguments: &[ValueDeclaration],
     erased_arguments: Vec<semantic_vocabulary::ScalarTerm>,
@@ -280,7 +275,8 @@ pub(crate) fn prepare_computed_module_call(
     calls: &mut CallEmissionContext<'_>,
     next_value: &mut u64,
     operations: &mut OperationBuffer,
-) -> Result<PreparedCall, LoweringError> {
+    current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
+) -> Result<ModuleInvocationArguments, LoweringError> {
     let signature = calls
         .signatures
         .iter()
@@ -314,6 +310,7 @@ pub(crate) fn prepare_computed_module_call(
         .iter()
         .map(|argument| argument.emit(source_values, calls, next_value, operations))
         .collect::<Result<Vec<_>, _>>()?;
+    let caller_types = caller_types.clone().with_completed(operations)?;
     let crash_continuations = match signature {
         Some(signature) => prepare_crash_continuations(
             identities,
@@ -326,35 +323,7 @@ pub(crate) fn prepare_computed_module_call(
             arguments,
             &emitted_structural_arguments,
             calls.structural_types,
-            |argument, index| {
-                if argument.place == emitted_structural_arguments[index].place {
-                    structural_arguments[index].root_type.or_else(|| {
-                        argument
-                            .path
-                            .is_empty()
-                            .then_some(signature.parameters[index].structural_type)
-                    })
-                } else {
-                    calls
-                        .signatures
-                        .iter()
-                        .flat_map(|signature| &signature.parameters)
-                        .find(|parameter| parameter.place == argument.place)
-                        .map(|parameter| parameter.structural_type)
-                        .or_else(|| {
-                            operations.operations.iter().find_map(|operation| {
-                                operation
-                                    .result
-                                    .structural()
-                                    .filter(|result| result.place == argument.place)
-                                    .map(|result| result.structural_type)
-                            })
-                        })
-                }
-                .ok_or(LoweringError::Unsupported(
-                    "computed call crash argument has no physical root carrier",
-                ))
-            },
+            &caller_types,
         )?,
         None if structural_arguments.is_empty() => {
             lower_checked_crash_route_buckets(identities, crash_routes, arguments)?
@@ -364,8 +333,10 @@ pub(crate) fn prepare_computed_module_call(
     let claim_transfers = crate::emission::claim_bindings::emit_prepared_claim_transfers(
         claim_transfers,
         calls.claims.bindings(),
+        &emitted_structural_arguments,
+        current_claims,
     )?;
-    Ok(PreparedCall {
+    Ok(ModuleInvocationArguments {
         arguments: arguments.iter().map(|argument| argument.id).collect(),
         erased_arguments,
         erased_proof_arguments,
@@ -417,7 +388,7 @@ pub(crate) fn prepare_crash_continuations(
     terminal_scalar_values: &[ValueDeclaration],
     terminal_arguments: &[StructuralArgument],
     structural_types: &[StructuralTypeDeclaration],
-    mut root_type: impl FnMut(&StructuralArgument, usize) -> Result<StructuralTypeId, LoweringError>,
+    caller_types: &crate::expression_preparation::bindings::PublishedStructuralTypes,
 ) -> Result<Vec<terminal_psi::CrashRouteBucket>, LoweringError> {
     if target.parameters.len() != terminal_arguments.len() {
         return unsupported("ordinary call has an unsupported structural operand arity");
@@ -497,11 +468,11 @@ pub(crate) fn prepare_crash_continuations(
                 captures,
                 operations,
                 structural_types,
-                &mut |argument| root_type(argument, index),
+                &mut |argument| caller_types.root_type(argument),
             )?;
             let prefix = crate::proofs::crash_routes::structural_crash_route_prefix_from_type(
                 &argument,
-                root_type(&argument, index)?,
+                caller_types.root_type(&argument)?,
                 structural_types,
             )?;
             Ok(Some((argument.place, prefix)))
@@ -516,7 +487,7 @@ pub(super) fn emit_structural(
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
-    prepared: PreparedCall,
+    prepared: ModuleInvocationArguments,
     callee: MachineId,
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
@@ -538,7 +509,6 @@ pub(super) fn emit_structural(
         return unsupported("structural call emission requires an owned result call");
     };
     let coordinate = &call.coordinate;
-    let target_state = &call.target.state;
     let place = match reserved_place {
         Some(place) => place,
         None => place_id(allocate_dense(next_place)?),
@@ -565,14 +535,13 @@ pub(super) fn emit_structural(
     // not different ownership rules: a mixed call retains the same checked
     // claim and content correspondence as the scalar-free encoding.
     let id = prepared.emit(
+        checked,
         operations,
         SourceCallCoordinate {
             state,
             statement_index: coordinate.statement_index as usize,
             call_ordinal: coordinate.call_ordinal as usize,
         },
-        call.source_site().flatten(),
-        *target_state,
         crate::direct_calls::CallRecord::Frontier(frontier_before_call),
         OperationResult::Structural(returned.clone()),
         callee,
@@ -591,11 +560,5 @@ pub(super) fn emit_structural(
     if register_binding {
         operations.bind_structural_value(result.binding_ordinal, returned.into());
     }
-    Ok(StructuralPlaceDeclaration {
-        id: place,
-        kind: StructuralPlaceKind::OperationResult {
-            producer: id,
-            structural_type,
-        },
-    })
+    Ok(operation_result_place(place, id, structural_type))
 }

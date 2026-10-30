@@ -10,7 +10,7 @@ machine stamp(values: &mut [u8]) -> u64 {
         true -> write(values)
         false -> 0
     }
-    state write(values: &mut [u8]) -> u64 {
+    machine write(values: &mut [u8]) -> u64 {
         values[0] = 7;
         values[1] = 9;
         values.len
@@ -29,6 +29,6 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> passed()
         false -> failed()
     }
-    state passed() {}
-    state failed() { crash Trap; }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }

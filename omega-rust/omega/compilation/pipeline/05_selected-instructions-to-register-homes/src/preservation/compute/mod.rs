@@ -1,8 +1,8 @@
 //! Optimizer module role: stage group. Direct positional requirement traversal.
 
 mod ordinary;
-mod state;
-mod work;
+pub(in crate::preservation) mod state;
+pub(in crate::preservation) mod work;
 
 use std::collections::BTreeSet;
 

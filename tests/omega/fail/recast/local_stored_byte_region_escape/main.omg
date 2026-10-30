@@ -5,5 +5,5 @@ machine escape() -> &u64 {
     let window: Window = Window { bytes: &bytes };
     let view: &u64 = &window.bytes[0] as &u64;
     transition { _ -> decode(view) }
-    state decode(value: &u64) -> &u64 { value }
+    machine decode(value: &u64) -> &u64 { value }
 }

@@ -12,8 +12,8 @@ machine store(value: &mut i32 in Wrapping, ready: bool) {
         true -> write(value)
         _ -> done()
     }
-    state write(value: &mut i32 in Wrapping) { value = 42; }
-    state done() {}
+    machine write(value: &mut i32 in Wrapping) { value = 42; }
+    machine done() {}
 }
 }
 machine visit(rows: &mut [Row; 3], cursor: &mut Cursor)
@@ -33,6 +33,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

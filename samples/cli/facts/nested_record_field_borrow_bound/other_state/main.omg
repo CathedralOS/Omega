@@ -18,7 +18,7 @@ machine evaluate() -> u64 {
     };
     let view: &Outer = &outer;
     transition { _ -> compute(view) }
-    state compute(v: &Outer) -> u64 {
+    machine compute(v: &Outer) -> u64 {
         let child_view: &Outer = v;
         let quota: u64 = child_view.inner.quota;
         let diff: u64 = 72u64 - quota;
@@ -32,6 +32,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

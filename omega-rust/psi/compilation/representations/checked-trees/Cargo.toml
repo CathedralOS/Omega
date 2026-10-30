@@ -9,6 +9,7 @@ name = "checked_trees"
 path = "src/lib.rs"
 
 [dependencies]
+compiler-storage = { path = "../../../foundation/compiler-storage" }
 arena = { path = "../../../foundation/arena" }
 diagnostics = { path = "../../../foundation/diagnostics" }
 access-plans = { path = "../../../foundation/access-plans" }
@@ -23,3 +24,7 @@ proof-admission = { path = "../../proof/admission" }
 source = { path = "../../../foundation/source" }
 symbols = { path = "../../../foundation/symbols" }
 typed-trees = { path = "../typed-trees" }
+
+[dev-dependencies]
+# The source guards delegate their scan to the shared audit crate.
+source-audit = { path = "../../../foundation/source-audit" }

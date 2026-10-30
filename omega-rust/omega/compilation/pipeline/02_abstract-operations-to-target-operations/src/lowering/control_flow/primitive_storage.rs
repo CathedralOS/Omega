@@ -1,7 +1,8 @@
 //! Activation-local primitive backing and fresh storage observations.
-use super::{KnownUnitInteger, LiveDefinitions, RowSite};
+use super::{LiveDefinitions, RowSite};
 use crate::LoweringError;
 use crate::lowering::function_signature::PreparedFunctionSignature;
+use crate::lowering::unit::known_integers::insert_scalar_home;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
 use semantic_vocabulary::{IntegerSign, IntegerType, OperationId, ScalarType, StructuralTypeId};
@@ -173,12 +174,7 @@ pub(super) fn field_indices(
         &mut BTreeMap::new(),
         &mut BTreeSet::new(),
     )?;
-    let runs = regions
-        .pointer_slots
-        .into_iter()
-        .flat_map(|slot| slot.indices)
-        .chain(leaf_indices)
-        .collect();
+    let runs = regions.selector_runs(leaf_indices);
     super::scalar_sources::runtime_indices(
         runs,
         function,
@@ -197,15 +193,7 @@ pub(super) fn retain_result(
         scalar_type: result.scalar_type,
         shape: shape(result)?,
     };
-    if matches!(result.scalar_type, ScalarType::Integer(_)) {
-        crate::lowering::unit::known_integers::insert_known_unit_integer(
-            &mut live.integers,
-            result.value,
-            KnownUnitInteger::Home(home),
-        )?;
-    } else if live.scalar_homes.insert(result.value, home).is_some() {
-        return Err(LoweringError::DuplicateValue(result.value));
-    }
+    insert_scalar_home(&mut live.integers, &mut live.scalar_homes, home.clone())?;
     Ok(home)
 }
 
@@ -463,7 +451,12 @@ pub(super) fn lower(
             value,
             ..
         } => {
-            if !result.is_unrestricted_plain()
+            // Whole scalar memberships were authenticated at canonical ingress
+            // and remain on this exact result through physical realization.
+            if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                || !result.projected_qualifications.is_empty()
+                || !result.claims.is_empty()
+                || !result.qualification_establishments.is_empty()
                 || !scalar_matches(result.structural_type, value.scalar_type)
                 || super::scalar_sources::source(value.value, function, live)?.scalar_type()
                     != value.scalar_type
@@ -544,15 +537,8 @@ pub(super) fn lower(
                         .map(|parameter| parameter.structural_type)
                 })
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            let (_, _, _, runs) = crate::lowering::structural_layout::runtime_borrowed_projection(
-                identity,
-                path,
-                StructuralAccess::SharedBorrow,
-                None,
-                types,
-                &mut std::collections::BTreeMap::new(),
-                &mut std::collections::BTreeSet::new(),
-            )?;
+            let runs =
+                crate::lowering::structural_layout::storage_address_indices(identity, path, types)?;
             let indices = super::scalar_sources::runtime_indices(
                 runs,
                 function,
@@ -610,12 +596,7 @@ pub(super) fn lower(
             if projection.scalar != result.scalar_type {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            let runs = projection
-                .pointer_slots
-                .into_iter()
-                .flat_map(|slot| slot.indices)
-                .chain(projection.leaf.indices)
-                .collect();
+            let runs = projection.selector_runs();
             let indices = super::scalar_sources::runtime_indices(
                 runs,
                 function,

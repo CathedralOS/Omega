@@ -35,8 +35,34 @@ pub(crate) fn proof_edge_strict_decrease_judged(
     edge_argument: ExpressionHandle,
     measure: &typed_trees::signature::StateParameter,
 ) -> bool {
+    proof_interval_strict_decrease_judged(
+        program,
+        machine,
+        state,
+        statement_index,
+        edge_argument,
+        measure,
+        &[],
+    )
+    .is_some()
+}
+
+/// Compare an exact call argument with the rank at the interval's entry.
+/// Intermediate ordinary calls carry actuals and guards through the shared
+/// prefix walker. Other ranked entries close the interval; their bodies and
+/// recursive conclusions cannot establish this decrease. Retain the exact
+/// selected order relation so a component cannot mix unrelated orders.
+pub(crate) fn proof_interval_strict_decrease_judged(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    edge_argument: ExpressionHandle,
+    measure: &typed_trees::signature::StateParameter,
+    ranked_entries: &[SymbolHandle],
+) -> Option<SymbolHandle> {
     let Some(entry) = program.machine_states(machine).first() else {
-        return false;
+        return None;
     };
     // Entry-relative premises describe all arrivals only on an acyclic state
     // graph. The shared prefix walker does not replay a recurrent arrival;
@@ -44,10 +70,10 @@ pub(crate) fn proof_edge_strict_decrease_judged(
     if !crate::machine_calls::calls::named_state_transition_subgraph_is_acyclic(
         program, machine, entry,
     ) {
-        return false;
+        return None;
     }
     let Some(relation) = selected_decrease_relation(program, machine, state, measure) else {
-        return false;
+        return None;
     };
     let requires = machine_requires_facts(program, machine);
     let judge = StructuralJudge::from_requires(program, machine, &requires, true);
@@ -65,6 +91,7 @@ pub(crate) fn proof_edge_strict_decrease_judged(
         argument: edge_argument,
         relation,
         measure: measure.name.as_str().to_owned(),
+        ranked_entries,
         seen: false,
         proven: true,
     };
@@ -77,21 +104,26 @@ pub(crate) fn proof_edge_strict_decrease_judged(
         &mut diagnostics,
         Some(&mut edge),
     );
-    recognized.is_some() && diagnostics.is_empty() && edge.seen && edge.proven
+    (recognized.is_some() && diagnostics.is_empty() && edge.seen && edge.proven).then_some(relation)
 }
 
-struct StrictDecrease {
+struct StrictDecrease<'a> {
     site: StructuralPrefixSite,
     argument: ExpressionHandle,
     relation: SymbolHandle,
     measure: String,
+    ranked_entries: &'a [SymbolHandle],
     seen: bool,
     proven: bool,
 }
 
-impl StructuralPrefixVisitor for StrictDecrease {
+impl StructuralPrefixVisitor for StrictDecrease<'_> {
     fn site(&self) -> StructuralPrefixSite {
         self.site
+    }
+
+    fn stops_at_machine(&self, machine: SymbolHandle) -> bool {
+        self.ranked_entries.contains(&machine)
     }
 
     fn entered(&mut self) {

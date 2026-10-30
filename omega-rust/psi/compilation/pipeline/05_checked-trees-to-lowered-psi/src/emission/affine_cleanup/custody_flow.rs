@@ -8,8 +8,8 @@
 
 use super::{LoweringError, projected_transfers, unsupported};
 use semantic_vocabulary::{OperationId, PlaceId};
-use std::collections::VecDeque;
-use terminal_psi::{Block, OperationKind, StructuralAccess, Terminator};
+use std::collections::{BTreeSet, HashMap, VecDeque};
+use terminal_psi::{Block, OperationKind, Terminator};
 
 pub(super) struct Frontiers {
     pub(super) entries: Vec<Vec<PlaceId>>,
@@ -23,7 +23,11 @@ struct EdgeEffects {
     disposed: Vec<usize>,
 }
 
-fn edge_effects(block: &Block, managed: &[PlaceId]) -> Result<Vec<EdgeEffects>, LoweringError> {
+fn edge_effects(
+    block: &Block,
+    managed_index: &HashMap<PlaceId, usize>,
+    copied_roots: &BTreeSet<PlaceId>,
+) -> Result<Vec<EdgeEffects>, LoweringError> {
     let edges: Vec<(
         &[terminal_psi::StructuralArgument],
         &[terminal_psi::TerminalAffineCleanupAction],
@@ -48,7 +52,12 @@ fn edge_effects(block: &Block, managed: &[PlaceId]) -> Result<Vec<EdgeEffects>, 
             .collect(),
         Terminator::StructuralCase { cases, .. } => cases
             .iter()
-            .map(|edge| (&[][..], edge.cleanup_actions.as_slice()))
+            .map(|edge| {
+                (
+                    edge.structural_arguments.as_slice(),
+                    edge.cleanup_actions.as_slice(),
+                )
+            })
             .collect(),
         _ => Vec::new(),
     };
@@ -57,11 +66,10 @@ fn edge_effects(block: &Block, managed: &[PlaceId]) -> Result<Vec<EdgeEffects>, 
         .map(|(arguments, discards)| {
             let mut consumed = Vec::new();
             for argument in arguments {
-                if argument.access != StructuralAccess::Owned {
+                if !projected_transfers::transfers_custody(argument, copied_roots) {
                     continue;
                 }
-                let Some(position) = managed.iter().position(|place| *place == argument.place)
-                else {
+                let Some(&position) = managed_index.get(&argument.place) else {
                     continue;
                 };
                 if !argument.path.is_empty() {
@@ -79,7 +87,7 @@ fn edge_effects(block: &Block, managed: &[PlaceId]) -> Result<Vec<EdgeEffects>, 
                     | terminal_psi::TerminalAffineCleanupAction::RetireHome(place) => {
                         // Region disposal does not end a home. A checked
                         // retirement does, after its ordered regional actions.
-                        managed.iter().position(|candidate| candidate == place)
+                        managed_index.get(place).copied()
                     }
                     _ => None,
                 })
@@ -101,14 +109,15 @@ enum Transfer {
 
 fn transfers(
     block: &Block,
-    affine: &[PlaceId],
-    managed: &[PlaceId],
-    births: &[(PlaceId, OperationId)],
+    entry_owners: &[PlaceId],
+    managed_index: &HashMap<PlaceId, usize>,
+    births_by_op: &HashMap<OperationId, Vec<PlaceId>>,
+    copied_roots: &BTreeSet<PlaceId>,
 ) -> Result<Vec<Transfer>, LoweringError> {
     let mut transfers = Vec::new();
-    let position = |place| managed.iter().position(|candidate| *candidate == place);
+    let position = |place: PlaceId| managed_index.get(&place).copied();
     for parameter in &block.structural_parameters {
-        if !affine.contains(&parameter.place)
+        if !entry_owners.contains(&parameter.place)
             && let Some(position) = position(parameter.place)
         {
             transfers.push(Transfer::Birth { position });
@@ -116,7 +125,7 @@ fn transfers(
     }
     for operation in &block.operations {
         for argument in projected_transfers::operands(&operation.kind) {
-            if argument.access != StructuralAccess::Owned {
+            if !projected_transfers::transfers_custody(argument, copied_roots) {
                 continue;
             }
             let Some(position) = position(argument.place) else {
@@ -130,7 +139,7 @@ fn transfers(
             }
             transfers.push(Transfer::Consume {
                 position,
-                missing: "scalar graph owned operand transfers an unavailable affine parameter",
+                missing: "scalar graph owned operand transfers an unavailable owned parameter",
             });
         }
         if let OperationKind::ReleaseReference { source, path } = &operation.kind
@@ -145,21 +154,27 @@ fn transfers(
         // The owning planner retains births for both returned carriers and
         // in-place local establishment. Do not rediscover only one producer
         // family from the operation's result shape here.
-        for (place, _) in births.iter().filter(|(_, birth)| *birth == operation.id) {
-            let Some(position) = position(*place) else {
-                return unsupported("scalar graph carrier birth is absent from its managed roster");
-            };
-            transfers.push(Transfer::Birth { position });
+        if let Some(places) = births_by_op.get(&operation.id) {
+            for place in places {
+                let Some(position) = position(*place) else {
+                    return unsupported(
+                        "scalar graph carrier birth is absent from its managed roster",
+                    );
+                };
+                transfers.push(Transfer::Birth { position });
+            }
         }
     }
     // Case dispatch observes the subject; only its selected edge's explicit
-    // disposal ends that owner. Structural return transfers the owner itself.
+    // disposal ends that owner. Structural return transfers the owner itself,
+    // including an unrestricted result: the returning source is unavailable
+    // to cleanup even though ordinary operands can copy its payload.
     if let Terminator::ReturnStructural { source, .. } = &block.terminator
         && let Some(position) = position(*source)
     {
         transfers.push(Transfer::Consume {
             position,
-            missing: "structural completion consumes an unavailable affine carrier",
+            missing: "structural completion consumes an unavailable owned carrier",
         });
     }
     Ok(transfers)
@@ -169,9 +184,10 @@ fn transfers(
 pub(super) fn solve(
     blocks: &[Block],
     entry: usize,
-    affine: &[PlaceId],
+    entry_owners: &[PlaceId],
     managed: &[PlaceId],
     births: &[(PlaceId, OperationId)],
+    copied_roots: &BTreeSet<PlaceId>,
     incoming: &[Vec<usize>],
     successors: &[Vec<usize>],
 ) -> Result<Frontiers, LoweringError> {
@@ -186,23 +202,43 @@ pub(super) fn solve(
     if reachable.iter().any(|reached| !reached) {
         return unsupported("owned scalar graph has unreachable custody");
     }
+    let managed_index: HashMap<PlaceId, usize> = managed
+        .iter()
+        .enumerate()
+        .map(|(index, &place)| (place, index))
+        .collect();
+    let mut births_by_op: HashMap<OperationId, Vec<PlaceId>> = HashMap::with_capacity(births.len());
+    for &(place, op) in births {
+        births_by_op.entry(op).or_default().push(place);
+    }
     let transfers = blocks
         .iter()
-        .map(|block| transfers(block, affine, managed, births))
+        .map(|block| {
+            transfers(
+                block,
+                entry_owners,
+                &managed_index,
+                &births_by_op,
+                copied_roots,
+            )
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let edges = blocks
         .iter()
-        .map(|block| edge_effects(block, managed))
+        .map(|block| edge_effects(block, &managed_index, copied_roots))
         .collect::<Result<Vec<_>, _>>()?;
     if edges
         .iter()
         .zip(successors)
         .any(|(edges, successors)| edges.len() != successors.len())
     {
-        return unsupported("affine edge custody disagrees with the control graph");
+        return unsupported("owned edge custody disagrees with the control graph");
     }
     let mut entries = vec![vec![true; managed.len()]; blocks.len()];
-    entries[entry] = managed.iter().map(|place| affine.contains(place)).collect();
+    entries[entry] = managed
+        .iter()
+        .map(|place| entry_owners.contains(place))
+        .collect();
     let mut exits = vec![vec![true; managed.len()]; blocks.len()];
     let mut ready = (0..blocks.len()).collect::<VecDeque<_>>();
     let mut queued = vec![true; blocks.len()];
@@ -272,7 +308,7 @@ pub(super) fn solve(
             let mut live = exit.clone();
             for position in &edge.consumed {
                 if !live[*position] {
-                    return unsupported("affine edge transfers an unavailable owner");
+                    return unsupported("owned edge transfers an unavailable owner");
                 }
                 live[*position] = false;
             }

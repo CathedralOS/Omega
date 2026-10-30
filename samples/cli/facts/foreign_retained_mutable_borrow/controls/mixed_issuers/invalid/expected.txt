@@ -1,0 +1,1 @@
+reads `mutable_buffer.value` while local borrow `mutable_routed` is still active

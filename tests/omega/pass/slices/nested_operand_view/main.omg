@@ -12,5 +12,5 @@ machine Bits::go(bits: &mut Bits) {
 data Main { bits: Bits; }
 machine Main::main(main: &mut Main) {
     transition { _ -> touch(main) }
-    state touch(main: &mut Main) { Bits::go(&mut main.bits); }
+    machine touch(main: &mut Main) { Bits::go(&mut main.bits); }
 }

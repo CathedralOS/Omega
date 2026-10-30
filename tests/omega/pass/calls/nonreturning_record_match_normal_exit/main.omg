@@ -1,0 +1,8 @@
+// Expected exit: 0
+// Expected output contains: dispatch-prefix
+// Both entry choices import the identical helper; only this ordinary boolean actual differs.
+use common;
+use omega::language::core::process_exit;
+use omega_language_std::process_exit;
+use omega_language_std::console;
+machine main() reaches Console + ProcessExit { enter(true); }

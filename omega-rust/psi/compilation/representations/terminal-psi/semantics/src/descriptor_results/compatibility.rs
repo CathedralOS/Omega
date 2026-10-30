@@ -60,7 +60,8 @@ impl DescriptorAnalysis<'_> {
                 });
             }
             calls.extend(machine.calls.iter().filter_map(|(&position, call)| {
-                call.callee().map(|callee| (machine.id, position, callee))
+                call.stored_effects_callee()
+                    .map(|callee| (machine.id, position, callee))
             }));
         }
         loop {
@@ -89,7 +90,7 @@ impl DescriptorAnalysis<'_> {
                         projection: projection.clone(),
                     };
                     let origins = self
-                        .substitute_call_source(machine, position, &requirement.loan)
+                        .substitute_stored_effect_source(machine, position, &requirement.loan)
                         .filter(|origins| !origins.is_empty())
                         .ok_or_else(failure)?;
                     for loan in origins {

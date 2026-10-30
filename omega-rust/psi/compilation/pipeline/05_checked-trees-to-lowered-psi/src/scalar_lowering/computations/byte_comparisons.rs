@@ -369,6 +369,7 @@ impl OperandSelectors {
 fn observation_path(path: &[Path]) -> Result<Vec<Predicate>, LoweringError> {
     path.iter()
         .map(|segment| match segment {
+            Path::Referent => Ok(Predicate::Referent),
             Path::Field(field) => Ok(Predicate::Field(field.clone())),
             Path::Case(case) => Ok(Predicate::Case(case.clone())),
             Path::FixedIndex(index) => Ok(Predicate::FixedIndex(*index)),

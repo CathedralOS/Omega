@@ -5,14 +5,14 @@ machine evaluate(problem: &Problem, work: &mut Evaluation,
                  mask: u64 in Wrapping, code: u64 in Wrapping) -> bool {
     work.loads[0] = 0; work.loads[1] = 0; work.loads[2] = 0; work.score = 0;
     transition { _ -> demand(problem, work, mask, code, 0) }
-    state demand(problem: &Problem, work: &mut Evaluation, mask: u64 in Wrapping,
+    machine demand(problem: &Problem, work: &mut Evaluation, mask: u64 in Wrapping,
                  remaining: u64 in Wrapping, position: u64 in Wrapping) -> bool {
         transition position < 4 {
             true -> digit(problem, work, mask, remaining, position)
             false -> true
         }
     }
-    state digit(problem: &Problem, work: &mut Evaluation, mask: u64 in Wrapping,
+    machine digit(problem: &Problem, work: &mut Evaluation, mask: u64 in Wrapping,
                 remaining: u64 in Wrapping, position: u64 in Wrapping) -> bool {
         let assigned: u64 in Wrapping = remaining % 4;
         transition assigned > 0 && assigned <= 3 {
@@ -20,7 +20,7 @@ machine evaluate(problem: &Problem, work: &mut Evaluation,
             false -> demand(problem, work, mask, remaining / 4, position + 1)
         }
     }
-    state bounds(problem: &Problem, work: &mut Evaluation, mask: u64 in Wrapping,
+    machine bounds(problem: &Problem, work: &mut Evaluation, mask: u64 in Wrapping,
                  remaining: u64 in Wrapping, position: u64 in Wrapping,
                  site: u64 in Wrapping) -> bool {
         transition position < 4 && site < 3 {
@@ -28,7 +28,7 @@ machine evaluate(problem: &Problem, work: &mut Evaluation,
             false -> false
         }
     }
-    state geometric(problem: &Problem, work: &mut Evaluation, mask: u64 in Wrapping,
+    machine geometric(problem: &Problem, work: &mut Evaluation, mask: u64 in Wrapping,
                     remaining: u64 in Wrapping, position: u64 in Wrapping,
                     site: u64 in Wrapping) -> bool {
         let divisor: u64 in Wrapping = problem.powers[site];
@@ -40,7 +40,7 @@ machine evaluate(problem: &Problem, work: &mut Evaluation,
             false -> false
         }
     }
-    state selected(problem: &Problem, work: &mut Evaluation, mask: u64 in Wrapping,
+    machine selected(problem: &Problem, work: &mut Evaluation, mask: u64 in Wrapping,
                    remaining: u64 in Wrapping, position: u64 in Wrapping,
                    site: u64 in Wrapping, divisor: u64 in Wrapping,
                    distance: i32 in Wrapping, radius: i32 in Wrapping) -> bool {
@@ -49,7 +49,7 @@ machine evaluate(problem: &Problem, work: &mut Evaluation,
             false -> false
         }
     }
-    state admissible(problem: &Problem, work: &mut Evaluation, mask: u64 in Wrapping,
+    machine admissible(problem: &Problem, work: &mut Evaluation, mask: u64 in Wrapping,
                      remaining: u64 in Wrapping, position: u64 in Wrapping,
                      site: u64 in Wrapping, divisor: u64 in Wrapping,
                      distance: i32 in Wrapping, radius: i32 in Wrapping) -> bool {
@@ -59,7 +59,7 @@ machine evaluate(problem: &Problem, work: &mut Evaluation,
             false -> false
         }
     }
-    state serve(problem: &Problem, work: &mut Evaluation, mask: u64 in Wrapping,
+    machine serve(problem: &Problem, work: &mut Evaluation, mask: u64 in Wrapping,
                 remaining: u64 in Wrapping, position: u64 in Wrapping,
                 site: u64 in Wrapping) -> bool {
         transition position < 4 && site < 3 {
@@ -67,7 +67,7 @@ machine evaluate(problem: &Problem, work: &mut Evaluation,
             false -> false
         }
     }
-    state store(problem: &Problem, work: &mut Evaluation, mask: u64 in Wrapping,
+    machine store(problem: &Problem, work: &mut Evaluation, mask: u64 in Wrapping,
                 remaining: u64 in Wrapping, position: u64 in Wrapping,
                 site: u64 in Wrapping) -> bool {
         work.loads[site] = work.loads[site] + 1;
@@ -78,21 +78,21 @@ machine evaluate(problem: &Problem, work: &mut Evaluation,
 
 machine deployment_cost(problem: &Problem, mask: u64 in Wrapping) -> u64 in Wrapping {
     transition { _ -> scan(problem, mask, 0, 0) }
-    state scan(problem: &Problem, remaining: u64 in Wrapping, site: u64 in Wrapping,
+    machine scan(problem: &Problem, remaining: u64 in Wrapping, site: u64 in Wrapping,
                cost: u64 in Wrapping) -> u64 in Wrapping {
         transition site < 3 {
             true -> item(problem, remaining, site, cost)
             false -> cost
         }
     }
-    state item(problem: &Problem, remaining: u64 in Wrapping, site: u64 in Wrapping,
+    machine item(problem: &Problem, remaining: u64 in Wrapping, site: u64 in Wrapping,
                cost: u64 in Wrapping) -> u64 in Wrapping {
         transition remaining % 2 == 1 {
             true -> add(problem, remaining, site, cost)
             false -> scan(problem, remaining / 2, site + 1, cost)
         }
     }
-    state add(problem: &Problem, remaining: u64 in Wrapping, site: u64 in Wrapping,
+    machine add(problem: &Problem, remaining: u64 in Wrapping, site: u64 in Wrapping,
               cost: u64 in Wrapping) -> u64 in Wrapping {
         transition site < 3 {
             true -> scan(problem, remaining / 2, site + 1, cost + problem.sites[site].cost)
@@ -104,13 +104,13 @@ machine deployment_cost(problem: &Problem, mask: u64 in Wrapping) -> u64 in Wrap
 machine Search::solve(search: &mut Search, problem: &Problem) {
     search.mask = 0; search.cost = 0; search.score = 0; search.code = 0; search.ties = 0;
     transition { _ -> subset(search, problem, 0) }
-    state subset(search: &mut Search, problem: &Problem, mask: u64 in Wrapping) {
+    machine subset(search: &mut Search, problem: &Problem, mask: u64 in Wrapping) {
         transition mask < 8 {
             true -> initialize(search, problem, mask)
             false -> done()
         }
     }
-    state initialize(search: &mut Search, problem: &Problem, mask: u64 in Wrapping) {
+    machine initialize(search: &mut Search, problem: &Problem, mask: u64 in Wrapping) {
         let cost: u64 in Wrapping = deployment_cost(problem, mask);
         search.rows[mask].cost = cost; search.rows[mask].score = 0;
         search.rows[mask].feasible = 0; search.rows[mask].code = 0;
@@ -119,14 +119,14 @@ machine Search::solve(search: &mut Search, problem: &Problem) {
             false -> subset(search, problem, mask + 1)
         }
     }
-    state assignment(search: &mut Search, problem: &Problem, mask: u64 in Wrapping,
+    machine assignment(search: &mut Search, problem: &Problem, mask: u64 in Wrapping,
                      code: u64 in Wrapping) {
         transition code < 256 && mask < 8 {
             true -> test(search, problem, mask, code)
             false -> compare(search, problem, mask)
         }
     }
-    state test(search: &mut Search, problem: &Problem, mask: u64 in Wrapping,
+    machine test(search: &mut Search, problem: &Problem, mask: u64 in Wrapping,
                code: u64 in Wrapping) {
         let mut work: Evaluation;
         let valid: bool = evaluate(problem, &mut work, mask, code);
@@ -135,14 +135,14 @@ machine Search::solve(search: &mut Search, problem: &Problem) {
             false -> assignment(search, problem, mask, code + 1)
         }
     }
-    state count(search: &mut Search, problem: &Problem, mask: u64 in Wrapping,
+    machine count(search: &mut Search, problem: &Problem, mask: u64 in Wrapping,
                 code: u64 in Wrapping, score: u64 in Wrapping) {
         transition mask < 8 {
             true -> tally(search, problem, mask, code, score)
             false -> done()
         }
     }
-    state tally(search: &mut Search, problem: &Problem, mask: u64 in Wrapping,
+    machine tally(search: &mut Search, problem: &Problem, mask: u64 in Wrapping,
                 code: u64 in Wrapping, score: u64 in Wrapping) {
         search.rows[mask].feasible = search.rows[mask].feasible + 1;
         transition score > search.rows[mask].score {
@@ -150,25 +150,25 @@ machine Search::solve(search: &mut Search, problem: &Problem) {
             false -> assignment(search, problem, mask, code + 1)
         }
     }
-    state improve(search: &mut Search, problem: &Problem, mask: u64 in Wrapping,
+    machine improve(search: &mut Search, problem: &Problem, mask: u64 in Wrapping,
                   code: u64 in Wrapping, score: u64 in Wrapping) {
         transition mask < 8 {
             true -> save(search, problem, mask, code, score)
             false -> done()
         }
     }
-    state save(search: &mut Search, problem: &Problem, mask: u64 in Wrapping,
+    machine save(search: &mut Search, problem: &Problem, mask: u64 in Wrapping,
                code: u64 in Wrapping, score: u64 in Wrapping) {
         search.rows[mask].score = score; search.rows[mask].code = code;
         transition { _ -> assignment(search, problem, mask, code + 1) }
     }
-    state compare(search: &mut Search, problem: &Problem, mask: u64 in Wrapping) {
+    machine compare(search: &mut Search, problem: &Problem, mask: u64 in Wrapping) {
         transition mask < 8 {
             true -> rank(search, problem, mask)
             false -> done()
         }
     }
-    state rank(search: &mut Search, problem: &Problem, mask: u64 in Wrapping) {
+    machine rank(search: &mut Search, problem: &Problem, mask: u64 in Wrapping) {
         let score: u64 in Wrapping = search.rows[mask].score;
         let cost: u64 in Wrapping = search.rows[mask].cost;
         transition score > search.score || (score == search.score && cost < search.cost) {
@@ -176,27 +176,27 @@ machine Search::solve(search: &mut Search, problem: &Problem) {
             false -> tied(search, problem, mask, score, cost)
         }
     }
-    state winner(search: &mut Search, problem: &Problem, mask: u64 in Wrapping) {
+    machine winner(search: &mut Search, problem: &Problem, mask: u64 in Wrapping) {
         transition mask < 8 {
             true -> publish(search, problem, mask)
             false -> done()
         }
     }
-    state publish(search: &mut Search, problem: &Problem, mask: u64 in Wrapping) {
+    machine publish(search: &mut Search, problem: &Problem, mask: u64 in Wrapping) {
         search.mask = mask; search.cost = search.rows[mask].cost;
         search.score = search.rows[mask].score; search.code = search.rows[mask].code; search.ties = 1;
         transition { _ -> subset(search, problem, mask + 1) }
     }
-    state tied(search: &mut Search, problem: &Problem, mask: u64 in Wrapping,
+    machine tied(search: &mut Search, problem: &Problem, mask: u64 in Wrapping,
                score: u64 in Wrapping, cost: u64 in Wrapping) {
         transition score == search.score && cost == search.cost {
             true -> tie(search, problem, mask)
             false -> subset(search, problem, mask + 1)
         }
     }
-    state tie(search: &mut Search, problem: &Problem, mask: u64 in Wrapping) {
+    machine tie(search: &mut Search, problem: &Problem, mask: u64 in Wrapping) {
         search.ties = search.ties + 1;
         transition { _ -> subset(search, problem, mask + 1) }
     }
-    state done() { }
+    machine done() { }
 }

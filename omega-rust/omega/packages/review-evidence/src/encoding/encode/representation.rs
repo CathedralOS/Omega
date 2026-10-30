@@ -3,7 +3,7 @@
 use super::{
     PackageReviewEncodingError, calling,
     declarations::encode_representation_target,
-    encoder::Encoder,
+    encoder::{Encoder, encode_canonical_component},
     public_api::conformance_shape as encode_conformance_shape,
     values::{
         conformance_policy,
@@ -68,44 +68,31 @@ macro_rules! encode_opaque_representation_fields {
 pub(super) use encode_opaque_representation_fields;
 
 impl PackagePolicyRepresentation {
-    /// Complete representation-policy meaning, without compiler/native
-    /// receipts or any assertion of project acceptance.
-    pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
-        Encoder::policy_bytes(
-            REPRESENTATION_POLICY_MAGIC,
-            PACKAGE_REPRESENTATION_POLICY_VERSION,
-            self,
-            policy,
-        )
-    }
+    encode_canonical_component!(
+        REPRESENTATION_POLICY_MAGIC,
+        PACKAGE_REPRESENTATION_POLICY_VERSION,
+        policy,
+    );
 }
 
 pub(super) fn policy(
     encoder: &mut Encoder,
     policy: &PackagePolicyRepresentation,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("package", |encoder| {
-        encoder.package_identity(policy.package);
-        Ok(())
-    })?;
-    encoder.field("target", |encoder| {
-        encode_representation_target(encoder, policy.target);
-        Ok(())
-    })?;
+    encoder.package_identity_field("package", policy.package)?;
+    encoder.field_by("target", policy.target, encode_representation_target)?;
     encoder.field("declarations", |encoder| {
         encoder.sequence(&policy.declarations, encode_nominal)
     })?;
     encoder.field("producer_availability", |encoder| {
         encoder.sequence(&policy.producer_availability, |encoder, availability| {
-            encoder.field("opaque", |encoder| {
-                encode_nominal(encoder, &availability.opaque)
-            })?;
-            encoder.field("conformance", |encoder| {
-                encode_conformance_shape(encoder, &availability.conformance)
-            })?;
-            encoder.field("carrier", |encoder| {
-                encode_nominal(encoder, &availability.carrier)
-            })
+            encoder.field_by("opaque", &availability.opaque, encode_nominal)?;
+            encoder.field_by(
+                "conformance",
+                &availability.conformance,
+                encode_conformance_shape,
+            )?;
+            encoder.field_by("carrier", &availability.carrier, encode_nominal)
         })
     })?;
     encoder.field("selected_availability", |encoder| {
@@ -114,9 +101,7 @@ pub(super) fn policy(
     encoder.field("demands", |encoder| {
         encoder.sequence(&policy.demands, |encoder, demand| {
             encoder.field("opaque", |encoder| encode_nominal(encoder, &demand.opaque))?;
-            encoder.field("calling", |encoder| {
-                calling::encode_application(encoder, &demand.calling)
-            })
+            encoder.field_by("calling", &demand.calling, calling::encode_application)
         })
     })
 }

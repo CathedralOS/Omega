@@ -1,6 +1,6 @@
 use crate::ClosedConformanceApplicationCommitment;
 use crate::terminal_module::TerminalIdentityIndex;
-use semantic_vocabulary::{EvidenceTermId, MachineId, OperationId, PropositionId, ScalarType};
+use semantic_vocabulary::{EvidenceTermId, MachineId, PropositionId, ScalarType};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProofOutputCall {
@@ -17,8 +17,10 @@ pub struct ProofOutputCall {
     /// Declared execution shape, independent of the operation link so a
     /// missing or spurious link is verifier-visible. `None` is erased proof
     /// construction; `Unit` and `Scalar` each require one ordinary call.
+    /// `NoNormal` names an invocation edge and forbids normal output evidence.
     pub runtime_result: Option<ProofOutputRuntimeResult>,
-    /// Exact canonical ordinary call which produced `runtime_result`.
+    /// Exact canonical invocation; operation and no-normal edge identities
+    /// are distinct even when their numeric coordinates coincide.
     pub runtime_call: Option<ProofOutputRuntimeCall>,
     /// Explicit erased inputs supplied to the callee's named `requires` lane.
     pub evidence_arguments: Vec<ProofOutputEvidenceArgument>,
@@ -62,11 +64,13 @@ pub struct ProofOutputEvidenceArgument {
 pub enum ProofOutputRuntimeResult {
     Unit,
     Scalar(ScalarType),
+    /// An executed module invocation has no normal result or output evidence.
+    NoNormal,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProofOutputRuntimeCall {
-    pub operation: OperationId,
+    pub site: semantic_vocabulary::InvocationSite,
     pub callee: MachineId,
 }
 

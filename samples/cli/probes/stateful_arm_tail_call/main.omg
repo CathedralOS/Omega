@@ -11,15 +11,15 @@ machine Main::check(main: &mut Main, limit: u64) {
         true -> Main::verify(main, k_value)
         false -> bad(main)
     }
-    state bad(main: &mut Main) { }
+    machine bad(main: &mut Main) { }
 }
 machine Main::verify(main: &mut Main, received: u64) {
     transition received == main.k {
         true -> done(main)
         false -> bad(main)
     }
-    state done(main: &mut Main) { }
-    state bad(main: &mut Main) { }
+    machine done(main: &mut Main) { }
+    machine bad(main: &mut Main) { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

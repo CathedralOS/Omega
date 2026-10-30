@@ -16,5 +16,5 @@ machine Owner::drop(owner: &mut Owner) {
 machine main() {
     let owner: Owner = Owner { token: Token { value: 7 } };
     transition { _ -> done() }
-    state done() {}
+    machine done() {}
 }

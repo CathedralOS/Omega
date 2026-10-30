@@ -1,0 +1,11 @@
+machine identity<T, const Expected: T>(value: T) -> T
+requires value == Expected
+{ value }
+
+machine witness(value: u64, Expected: u64)
+requires value == 12
+requires Expected == 12
+requires identity<u64, 4>(value) == identity<u64, 4>(value)
+{}
+
+machine main() {}

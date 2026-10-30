@@ -1,0 +1,32 @@
+// A saved reference observation remains equal to the supplied value across a disjoint element write.
+// Expected exit: 0
+machine observe<'storage>(source: &'storage mut u64, value: u64,
+    called: &mut bool, trace: &mut u64, event: u64) -> &'storage mut u64
+ensures source == value { source = value; called = !called; trace = event; source }
+machine same(observed: u64, expected: u64) -> u64
+requires observed == expected { observed }
+machine probe(value: u64, select: bool) -> u64 {
+    let mut items: [u64; 2] = [3, 1];
+    let mut called: bool = false;
+    let mut trace: u64 = 0;
+    let saved: u64 = match select {
+        true -> observe(&mut items[0], value, &mut called, &mut trace, 11)
+        false -> observe(&mut items[0], 3, &mut called, &mut trace, 13)
+    };
+    items[1] = 4;
+    let expected_trace: u64 = match select { true -> 11 false -> 13 };
+    transition { _ -> finish(saved, value, items[0], items[1], called, trace, expected_trace) }
+    machine finish(observed: u64, expected: u64, current: u64, neighbor: u64, called: bool, trace: u64, wanted: u64) -> u64
+    requires observed == expected {
+        let result: u64 = same(observed, expected);
+        transition current == expected && neighbor == 4 && called && trace == wanted {
+            true -> result false -> 777
+        }
+    }
+}
+machine main() crashes Trap {
+    let first: u64 = probe(7, true);
+    let second: u64 = probe(9, false);
+    transition first == 7 && second == 9 { true -> done() false -> bad() }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}

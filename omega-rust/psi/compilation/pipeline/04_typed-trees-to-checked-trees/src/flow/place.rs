@@ -17,7 +17,7 @@ pub(crate) use canonicalization::{
 };
 pub(crate) use case_access::{
     CaseEvidence, place_case_has_value, place_case_path_is_inactive, place_cases_are_selected,
-    stable_subject as stable_case_subject,
+    place_cases_are_selected_after, stable_subject as stable_case_subject,
 };
 pub(crate) use literal_projection::{
     LiteralExpressionProjection, LiteralValueSource, literal_argument_access_places,
@@ -25,7 +25,7 @@ pub(crate) use literal_projection::{
 };
 pub(crate) use validation::storage_path_relations::{
     canonical_place_joined_segments_may_overlap, canonical_place_segments_equal,
-    canonical_place_segments_may_overlap, canonical_places_agree,
+    canonical_place_segments_may_overlap, canonical_places_agree, case_tag_segments_may_overlap,
     place_segment_has_static_identity, place_segment_has_unresolved_identity,
     static_place_segment_pair_equal,
 };

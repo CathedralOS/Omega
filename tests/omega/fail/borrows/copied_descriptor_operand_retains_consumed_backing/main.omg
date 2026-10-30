@@ -21,6 +21,6 @@ machine main() crashes Trap {
     transition observed == 17 && view.target.value == 19 {
         true -> done() false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

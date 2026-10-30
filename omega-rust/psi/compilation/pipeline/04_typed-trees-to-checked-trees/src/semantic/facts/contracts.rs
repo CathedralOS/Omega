@@ -235,6 +235,7 @@ pub(super) fn append_contract_semantic_facts(
             }
             let Some(evidence) = crate::facts::qualification_evidence::call_contract_evidence(
                 program,
+                facts,
                 invocation.target_machine_symbol,
                 invocation.target_state_symbol,
                 contract,
@@ -756,6 +757,7 @@ fn append_call_semantic_contract_refs(
         }
         let evidence = crate::facts::qualification_evidence::call_contract_evidence(
             program,
+            facts,
             call.target_machine_symbol,
             call.target_state_symbol,
             contract,
@@ -841,7 +843,7 @@ fn admitted_resource_carry_origin(
         return None;
     };
     let domain = program.domain_definition(domain_symbol)?;
-    (domain.predicate_body == language_semantics::DomainPredicateBody::Bodyless
+    (domain.predicate_presence == language_semantics::DomainPredicatePresence::Absent
         && crate::checks::type_multiplicity(program, domain.target_type)
             == language_semantics::Multiplicity::Linear)
         .then_some(value)

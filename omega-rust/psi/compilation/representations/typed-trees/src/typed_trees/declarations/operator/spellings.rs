@@ -232,10 +232,22 @@ pub fn has_builtin_spelled_expression_meaning(
                         )
                 })
     };
+    // Wholly anonymous numeric operands already have exact meaning. They are
+    // not unresolved typed operands: visible primitive overloads cannot land
+    // them. A typed peer still uses the complete ordinary candidate tuple.
+    // Retained occurrence custody and trait meanings remain checked below.
+    let anonymous_operands = operand_types.iter().all(Option::is_none)
+        && program
+            .expression_table
+            .binary_node(expression)
+            .is_some_and(|binary| {
+                crate::closed_numeric::has_anonymous_numeric_results(program, binary.left)
+                    && crate::closed_numeric::has_anonymous_numeric_results(program, binary.right)
+            });
     // Existence only: both resolution walks stop at the first match instead
     // of materializing candidate sets whose per-candidate operand matching
     // allocates generic substitutions.
-    !spelling_for_operands_exists(
+    (anonymous_operands || !spelling_for_operands_exists(
         program,
         spelling,
         &operand_types
@@ -244,7 +256,7 @@ pub fn has_builtin_spelled_expression_meaning(
             .map(OperandType::from_reference)
             .collect::<Vec<_>>(),
         program.expression_table.source_span(expression),
-    ) && !abstract_trait_meaning
+    )) && !abstract_trait_meaning
         && !selected_trait_operator_meaning_exists(program, machine_symbol, spelling, operand_types)
         // Raw contracts can select an operator through a lexical implementation
         // bound before specialization publishes a selected implementation.
@@ -280,20 +292,52 @@ fn operator_matches_operands(
     operator_matches_operands_with_indexed_collection(program, operator, operand_types, false)
 }
 
+/// Bindings produced by the same complete-tuple unification as candidate matching.
+/// A partial operand tuple may retain partial bindings; it never proves that
+/// every declaration binder has an actual operand.
+#[derive(Debug, Clone, Default)]
+pub struct OperatorOperandBindings {
+    pub types: Vec<(SymbolHandle, TypeReferenceHandle)>,
+    pub constants: Vec<OperatorConstBinding>,
+}
+
+pub fn operator_operand_bindings(
+    program: &TypedTrees,
+    operator: &OperatorDefinition,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> Option<OperatorOperandBindings> {
+    let operands = operand_types
+        .iter()
+        .copied()
+        .map(OperandType::from_reference)
+        .collect::<Vec<_>>();
+    operand_bindings_with_indexed_collection(program, operator, &operands, false)
+}
+
 pub(crate) fn operator_matches_operands_with_indexed_collection(
     program: &TypedTrees,
     operator: &OperatorDefinition,
     operand_types: &[OperandType],
     indexed_collection: bool,
 ) -> bool {
+    operand_bindings_with_indexed_collection(program, operator, operand_types, indexed_collection)
+        .is_some()
+}
+
+fn operand_bindings_with_indexed_collection(
+    program: &TypedTrees,
+    operator: &OperatorDefinition,
+    operand_types: &[OperandType],
+    indexed_collection: bool,
+) -> Option<OperatorOperandBindings> {
     let parameters = program.operator_parameters(operator);
     if parameters.len() != operand_types.len() {
-        return false;
+        return None;
     }
     let type_parameters = program.operator_type_parameters(operator);
     let mut bindings = Vec::new();
     let mut const_bindings = Vec::new();
-    let operands_match = operand_types
+    let matches = operand_types
         .iter()
         .zip(normalized_operand_parameters(parameters))
         .enumerate()
@@ -340,7 +384,11 @@ pub(crate) fn operator_matches_operands_with_indexed_collection(
             )) && declared_domain_constraints_match(program, actual, expected.type_reference)
                 && declared_domain_constraints_match(program, matched_actual, matched_expected)
         });
-    operands_match && bindings_satisfy_known_multiplicities(program, type_parameters, &bindings)
+    (matches && bindings_satisfy_known_multiplicities(program, type_parameters, &bindings))
+        .then_some(OperatorOperandBindings {
+            types: bindings,
+            constants: const_bindings,
+        })
 }
 
 /// Applicability uses the complete operand telescope, including bindings from

@@ -4,6 +4,6 @@ use omega::language::core::float_operations;
 use model;
 public machine accepted(lab:&Measurements,choice:i32)->bool {
  transition choice {0 -> test(lab) _ -> rejected()}
- state test(lab:&Measurements)->bool {lab.events == 1 && lab.first == 0 && lab.second == 1 && abs_f64(lab.time-2.0) <= 0.000000001 && abs_f64(lab.impulse-1.5) <= 0.000000001}
- state rejected()->bool {false}
+ machine test(lab:&Measurements)->bool {lab.events == 1 && lab.first == 0 && lab.second == 1 && abs_f64(lab.time-2.0) <= 0.000000001 && abs_f64(lab.impulse-1.5) <= 0.000000001}
+ machine rejected()->bool {false}
 }

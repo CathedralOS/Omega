@@ -97,6 +97,9 @@ pub(super) fn lower(
                 crash_continuations,
             }
         }
+        // The plain and the mixed structural-result calls are one lowering
+        // step: they differ only in whether positional scalar arguments are
+        // named at all.
         OperationKind::CallStructural {
             callee,
             structural_arguments,
@@ -104,37 +107,24 @@ pub(super) fn lower(
             requirement_obligations,
             crash_continuations,
             selected_evidence,
-        } => {
-            let Some(result) = operation.result.structural().cloned() else {
-                return Err(LoweringError::UnsupportedStructuralResult(machine.id));
-            };
-            AbstractOperation::CallStructural {
-                psi_operation: operation.id,
-                result: AbstractStructuralCallResult::Structural {
-                    result,
-                    selected_evidence,
-                },
-                callee: callee.into(),
-                arguments: Vec::new(),
-                structural_arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-            }
         }
-        OperationKind::CallStructuralWithScalarArguments {
+        | OperationKind::CallStructuralWithScalarArguments {
             callee,
-            arguments,
-            erased_arguments: _,
-            erased_proof_arguments: _,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
             crash_continuations,
             selected_evidence,
+            ..
         } => {
             let Some(result) = operation.result.structural().cloned() else {
                 return Err(LoweringError::UnsupportedStructuralResult(machine.id));
+            };
+            let arguments = match &operation.kind {
+                OperationKind::CallStructuralWithScalarArguments { arguments, .. } => {
+                    arguments.clone()
+                }
+                _ => Vec::new(),
             };
             AbstractOperation::CallStructural {
                 psi_operation: operation.id,

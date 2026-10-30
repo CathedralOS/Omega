@@ -30,14 +30,14 @@ machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         _ -> reject()
     }
 
-    state physical(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine physical(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.has_result {
             true -> physical_index(signature, signature.result)
             _ -> reject()
         }
     }
 
-    state physical_index(signature: BoundarySignature, result: u64)
+    machine physical_index(signature: BoundarySignature, result: u64)
         -> BoundaryPlanResult
     {
         transition result < 256 && result < signature.shape_count {
@@ -46,14 +46,14 @@ machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         }
     }
 
-    state physical_shape(result: ValueShape) -> BoundaryPlanResult {
+    machine physical_shape(result: ValueShape) -> BoundaryPlanResult {
         transition HostedEntryShapes::integer_shape(&result, 4) {
             true -> build_physical()
             _ -> reject()
         }
     }
 
-    state build_physical() -> BoundaryPlanResult {
+    machine build_physical() -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan;
         output.call.parameter_count = 0;
         output.call.has_result = true;
@@ -64,7 +64,7 @@ machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         transition { _ -> finish(output) }
     }
 
-    state semantic(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine semantic(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.has_result {
             false -> semantic_indices(signature, signature.parameters[0],
                 signature.parameters[1])
@@ -72,7 +72,7 @@ machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         }
     }
 
-    state semantic_indices(signature: BoundarySignature, image: u64,
+    machine semantic_indices(signature: BoundarySignature, image: u64,
         storage: u64) -> BoundaryPlanResult
     {
         transition image < 256 && storage < 256
@@ -84,7 +84,7 @@ machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         }
     }
 
-    state semantic_shapes(image: ValueShape, storage: ValueShape,
+    machine semantic_shapes(image: ValueShape, storage: ValueShape,
         signature: BoundarySignature) -> BoundaryPlanResult
     {
         transition HostedEntryShapes::extent_shape(image, &signature)
@@ -95,7 +95,7 @@ machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         }
     }
 
-    state build_semantic() -> BoundaryPlanResult {
+    machine build_semantic() -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan;
         output.call.parameter_count = 2;
         // The generated bridge passes the image and initial-storage roots as
@@ -108,7 +108,7 @@ machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         transition { _ -> finish(output) }
     }
 
-    state finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
+    machine finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan = output;
         plan.call.convention = CallingConvention::MicrosoftX64;
         plan.call.stack_alignment = 16;
@@ -117,7 +117,7 @@ machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         transition { _ -> seal(plan) }
     }
 
-    state seal(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
+    machine seal(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan = plan;
         // Microsoft x64 caller-saved banks.
         output.call.ordinary_clobbers.register_count = 13;
@@ -155,7 +155,7 @@ machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         BoundaryPlanResult::Accepted { plan: output }
     }
 
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection {
                 reason: "WindowsX86_64Application requires exact physical or program-storage entry shapes",

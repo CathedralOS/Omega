@@ -18,16 +18,16 @@ crashes Trap
         _ -> absent()
     }
 
-    state classify(table: &Table, index: u64 in Trapping) {
+    machine classify(table: &Table, index: u64 in Trapping) -> u64 {
         transition table.modes[index] {
             Mode::Idle -> idle()
             Mode::Busy -> occupied()
         }
     }
 
-    state idle() { 1 }
-    state occupied() { 2 }
-    state absent() { 0 }
+    machine idle() -> u64 { 1 }
+    machine occupied() -> u64 { 2 }
+    machine absent() -> u64 { 0 }
 }
 
 machine main() crashes Trap {
@@ -41,6 +41,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

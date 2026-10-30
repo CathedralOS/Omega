@@ -6,20 +6,20 @@ machine main() crashes Trap {
     let mut envelope: Envelope;
     envelope.work.count = 2;
     transition envelope.work.count <= 8 { true -> guarded(&mut envelope) false -> bad() }
-    state guarded(envelope: &mut Envelope) requires envelope.work.count <= 8 {
+    machine guarded(envelope: &mut Envelope) requires envelope.work.count <= 8 {
         let reference: &mut Work = &mut envelope.work;
         fill(reference, 2);
         require_bound(&envelope.work);
         transition envelope.work.count == 2 && envelope.work.scratch[1] == 4.0 { true -> good() false -> bad() }
     }
-    state good() {  } state bad() { crash Trap; }
+    machine good() {  } machine bad() { crash Trap; }
 }
 machine fill(work: &mut Work, remaining: u64) {
     transition remaining > 0 { true -> write(work, remaining) false -> done() }
-    state write(work: &mut Work, remaining: u64) requires remaining > 0 {
+    machine write(work: &mut Work, remaining: u64) requires remaining > 0 {
         work.scratch[1] = 4.0;
         transition { _ -> fill(work, remaining - 1) }
     }
-    state done() { }
+    machine done() { }
 }
 machine require_bound(work: &Work) requires work.count <= 8 { }

@@ -19,10 +19,10 @@ machine borrow_words<'a, 'b>(first: &'a Words, second: &'b Words, choose_first: 
         true -> first_view(first)
         false -> second_view(second)
     }
-    state first_view(first: &'a Words) {
+    machine first_view(first: &'a Words) -> PlacementOutcome<&'a Placed<WordPlacement, Words>, NoReturnedStorage, PlacementInitializationFailure> {
         PlacementOutcome::Ready { view: Placed::view<WordPlacement, Words>(first) }
     }
-    state second_view(second: &'b Words) {
+    machine second_view(second: &'b Words) -> PlacementOutcome<&'a Placed<WordPlacement, Words>, NoReturnedStorage, PlacementInitializationFailure> {
         PlacementOutcome::Ready { view: Placed::view<WordPlacement, Words>(second) }
     }
 }

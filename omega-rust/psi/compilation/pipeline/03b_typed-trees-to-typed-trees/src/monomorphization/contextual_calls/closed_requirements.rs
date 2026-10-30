@@ -6,7 +6,7 @@ use super::{CallSite, Diagnostic, TypedTrees, invocations};
 /// have settled. Derive its checking view from that same occurrence's retained
 /// provider; this operation neither elects nor specializes another provider.
 pub(in super::super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    for invocation in invocations::collect(program) {
+    for invocation in invocations::collect(program)? {
         let (target, application) = match invocation.site {
             CallSite::Expression(handle) => {
                 let Some(call) = program.expression_table.call_node(handle) else {

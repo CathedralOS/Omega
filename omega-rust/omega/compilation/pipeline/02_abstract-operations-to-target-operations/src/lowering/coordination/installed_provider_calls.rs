@@ -9,19 +9,19 @@ use installation_evidence::{
     InstalledProviderCallEvidence, InstalledProviderCompletionClaimSource,
     ProviderInstallationEvidence,
 };
-use semantic_vocabulary::{BoundaryInvocationSite, BoundaryMachineId, MachineId};
+use semantic_vocabulary::{BoundaryMachineId, InvocationSite, MachineId};
 use std::collections::BTreeMap;
 
 /// Identity of one boundary call occurrence: the caller machine, the Terminal
 /// operation, and the boundary machine it enters.
-pub(super) type BoundaryCallKey = (MachineId, BoundaryInvocationSite, BoundaryMachineId);
+pub(super) type BoundaryCallKey = (MachineId, InvocationSite, BoundaryMachineId);
 
 /// Installed provider calls keyed by the boundary call occurrence they claim.
 pub(super) type InstalledCallsByCall = BTreeMap<BoundaryCallKey, InstalledProviderCallEvidence>;
 
 /// The plan's boundary call operations keyed by the same occurrence identity.
 pub(super) type BoundaryCallsByKey<'a> =
-    BTreeMap<(MachineId, BoundaryInvocationSite, BoundaryMachineId), &'a AbstractOperation>;
+    BTreeMap<(MachineId, InvocationSite, BoundaryMachineId), &'a AbstractOperation>;
 
 pub(super) fn index_installed_provider_calls(
     plan: &AbstractOperationPlan,
@@ -75,7 +75,7 @@ pub(super) fn index_boundary_calls(plan: &AbstractOperationPlan) -> BoundaryCall
                     } => Some((
                         (
                             function.machine,
-                            BoundaryInvocationSite::ExternalCompletion(*psi_edge),
+                            InvocationSite::ExternalCompletion(*psi_edge),
                             *boundary,
                         ),
                         operation,

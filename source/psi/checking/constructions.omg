@@ -51,7 +51,7 @@ crashes Trap
         _ -> typed(checker, handle, row)
     }
 
-    state data(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping) {
+    machine data(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping) {
         let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Construction, handle, 0, type_handle);
         transition place > 0 {
             true -> placed(checker, syntax, typing, handle, expression, place)
@@ -60,19 +60,19 @@ crashes Trap
     }
 
     // A construction evaluated again writes its fields afresh.
-    state placed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, place: u64 in Trapping) {
+    machine placed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, place: u64 in Trapping) {
         Checker::forget_place(checker, typing, place);
         transition { _ -> next_field(checker, syntax, typing, handle, expression, place, 0) }
     }
 
-    state next_field(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, place: u64 in Trapping, offset: u64 in Trapping) {
+    machine next_field(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, place: u64 in Trapping, offset: u64 in Trapping) {
         transition offset < expression.count {
             true -> written(checker, syntax, typing, handle, expression, place, offset)
             _ -> valued(checker, handle, place)
         }
     }
 
-    state written(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, place: u64 in Trapping, offset: u64 in Trapping) {
+    machine written(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, place: u64 in Trapping, offset: u64 in Trapping) {
         let written: ConstructField = SyntaxTrees::construct_field(syntax, expression.first + offset);
         let target: MemberTarget = Typing::construct_target(typing, expression.first + offset);
         let value: Value = Checker::value_at(checker, written.value);
@@ -82,7 +82,7 @@ crashes Trap
         }
     }
 
-    state common(
+    machine common(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         typing: &Typing,
@@ -103,7 +103,7 @@ crashes Trap
         }
     }
 
-    state pending(
+    machine pending(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         typing: &Typing,
@@ -122,7 +122,7 @@ crashes Trap
     // A slice or record field written from a place (a view, another
     // construction) takes the subject paths below that place, so the
     // record's `items.len` is the view's length.
-    state held(
+    machine held(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         typing: &Typing,
@@ -140,7 +140,7 @@ crashes Trap
         }
     }
 
-    state adopted(
+    machine adopted(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         typing: &Typing,
@@ -157,17 +157,17 @@ crashes Trap
         transition { _ -> next_field(checker, syntax, typing, handle, expression, place, offset + 1) }
     }
 
-    state valued(checker: &mut Checker, handle: u64 in Trapping, place: u64 in Trapping) {
+    machine valued(checker: &mut Checker, handle: u64 in Trapping, place: u64 in Trapping) {
         let value: Value = Checker::place_value(checker, place);
         Checker::set_value(checker, handle, value);
     }
 
-    state unplaced(checker: &mut Checker, handle: u64 in Trapping) {
+    machine unplaced(checker: &mut Checker, handle: u64 in Trapping) {
         let value: Value = Value::unknown();
         Checker::set_value(checker, handle, value);
     }
 
-    state typed(checker: &mut Checker, handle: u64 in Trapping, row: TypeRow) {
+    machine typed(checker: &mut Checker, handle: u64 in Trapping, row: TypeRow) {
         let value: Value = Value::typed(row);
         Checker::set_value(checker, handle, value);
     }
@@ -186,7 +186,7 @@ crashes Trap
         _ -> done()
     }
 
-    state located(checker: &mut Checker, parent: u64 in Trapping, field: u64 in Trapping, type_handle: u64 in Trapping, value: Value) {
+    machine located(checker: &mut Checker, parent: u64 in Trapping, field: u64 in Trapping, type_handle: u64 in Trapping, value: Value) {
         let existing: u64 in Trapping = Checker::find_place(checker, PlaceKind::Field, field, parent);
         transition existing > 0 {
             true -> bound(checker, existing, value)
@@ -194,26 +194,26 @@ crashes Trap
         }
     }
 
-    state bound(checker: &mut Checker, existing: u64 in Trapping, value: Value) {
+    machine bound(checker: &mut Checker, existing: u64 in Trapping, value: Value) {
         let entry: Place = Checker::place_at(checker, existing - 1);
         Checker::equate_subject(checker, entry.subject, value);
     }
 
-    state pending(checker: &mut Checker, parent: u64 in Trapping, field: u64 in Trapping, type_handle: u64 in Trapping, value: Value) {
+    machine pending(checker: &mut Checker, parent: u64 in Trapping, field: u64 in Trapping, type_handle: u64 in Trapping, value: Value) {
         transition checker.pending_count < 32 {
             true -> stored(checker, PendingField { parent: parent, field: field, type_handle: type_handle, value: value }, checker.pending_count)
             _ -> done()
         }
     }
 
-    state stored(checker: &mut Checker, entry: PendingField, index: u64)
+    machine stored(checker: &mut Checker, entry: PendingField, index: u64)
     requires index < 32
     {
         checker.pending[index] = entry;
         checker.pending_count = index + 1;
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A field place just entered below a place takes the value pending there.
@@ -225,14 +225,14 @@ crashes Trap
         _ -> done()
     }
 
-    state next(checker: &mut Checker, entry: Place, index: u64 in Trapping) {
+    machine next(checker: &mut Checker, entry: Place, index: u64 in Trapping) {
         transition index < checker.pending_count && index < 32 {
             true -> candidate(checker, entry, index)
             _ -> done()
         }
     }
 
-    state candidate(checker: &mut Checker, entry: Place, index: u64 in Trapping)
+    machine candidate(checker: &mut Checker, entry: Place, index: u64 in Trapping)
     requires index < 32
     {
         let pending: PendingField = checker.pending[index];
@@ -242,12 +242,12 @@ crashes Trap
         }
     }
 
-    state taken(checker: &mut Checker, entry: Place, index: u64 in Trapping, value: Value) {
+    machine taken(checker: &mut Checker, entry: Place, index: u64 in Trapping, value: Value) {
         Checker::equate_subject(checker, entry.subject, value);
         Checker::remove_pending(checker, index);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // subject - value <= 0 and value - subject <= 0: equal to a linear term, or
@@ -260,7 +260,7 @@ crashes Trap
         _ -> done()
     }
 
-    state equated(checker: &mut Checker, subject: u64 in Trapping, value: Value) {
+    machine equated(checker: &mut Checker, subject: u64 in Trapping, value: Value) {
         let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
         let unknown: Value = Value::unknown();
         let own: Value = Value { place: 0, known: true, subject: subject, offset: zero, ceiling: unknown.ceiling, floor: unknown.floor };
@@ -268,7 +268,7 @@ crashes Trap
         Checker::constrain_difference(checker, value, own, zero);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Remove pending entry `index`: the last takes its slot.
@@ -280,7 +280,7 @@ crashes Trap
         _ -> done()
     }
 
-    state moved(checker: &mut Checker, index: u64 in Trapping, last: u64)
+    machine moved(checker: &mut Checker, index: u64 in Trapping, last: u64)
     requires index < 32, last < 32
     {
         let entry: PendingField = checker.pending[last];
@@ -288,7 +288,7 @@ crashes Trap
         checker.pending_count = last;
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Before `place` is written: its pending fields are gone, and every pending
@@ -298,14 +298,14 @@ crashes Trap
 {
     transition { _ -> next(checker, typing, place, 0) }
 
-    state next(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, index: u64 in Trapping) {
+    machine next(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.pending_count && index < 32 {
             true -> candidate(checker, typing, place, index)
             _ -> done()
         }
     }
 
-    state candidate(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, index: u64 in Trapping)
+    machine candidate(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, index: u64 in Trapping)
     requires index < 32
     {
         let pending: PendingField = checker.pending[index];
@@ -317,12 +317,12 @@ crashes Trap
     }
 
     // The slot now holds the last entry, examined next.
-    state dropped(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, index: u64 in Trapping) {
+    machine dropped(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, index: u64 in Trapping) {
         Checker::remove_pending(checker, index);
         transition { _ -> next(checker, typing, place, index) }
     }
 
-    state sourced(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, index: u64 in Trapping, pending: PendingField) {
+    machine sourced(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, index: u64 in Trapping, pending: PendingField) {
         let owner: u64 in Trapping = Checker::subject_place(checker, pending.value.subject);
         let reads: bool = pending.value.known && owner > 0 && Checker::within(checker, owner, place);
         transition reads {
@@ -332,13 +332,13 @@ crashes Trap
     }
 
     // The slot then holds the last entry, examined next.
-    state entered(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, index: u64 in Trapping, pending: PendingField) {
+    machine entered(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, index: u64 in Trapping, pending: PendingField) {
         Checker::remove_pending(checker, index);
         Checker::enter_pending(checker, typing, pending);
         transition { _ -> next(checker, typing, place, index) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Enter a removed pending field as its place, holding its value; a full
@@ -352,12 +352,12 @@ crashes Trap
         _ -> done()
     }
 
-    state entered(checker: &mut Checker, field: u64 in Trapping, value: Value) {
+    machine entered(checker: &mut Checker, field: u64 in Trapping, value: Value) {
         let entry: Place = Checker::place_at(checker, field - 1);
         Checker::equate_subject(checker, entry.subject, value);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A copy takes pending fields along the same projected paths as represented
@@ -372,14 +372,14 @@ crashes Trap
     }
 
     // Entries the copy appends lie past `end`.
-    state next(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64) {
+    machine next(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64) {
         transition index < end && index < 32 {
             true -> candidate(checker, typing, target, source, index, end)
             _ -> done()
         }
     }
 
-    state candidate(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64)
+    machine candidate(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64)
     requires index < 32
     {
         let pending: PendingField = checker.pending[index];
@@ -390,7 +390,7 @@ crashes Trap
         }
     }
 
-    state copied(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64, pending: PendingField, path: ArrivalPath) {
+    machine copied(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64, pending: PendingField, path: ArrivalPath) {
         let parent: u64 in Trapping = Checker::enter_path(checker, typing, target, path);
         transition parent > 0 {
             true -> written(checker, typing, target, source, index, end, pending, parent)
@@ -398,12 +398,12 @@ crashes Trap
         }
     }
 
-    state written(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64, pending: PendingField, parent: u64 in Trapping) {
+    machine written(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64, pending: PendingField, parent: u64 in Trapping) {
         Checker::write_pending(checker, typing, parent, pending.field, pending.type_handle, pending.value);
         transition { _ -> next(checker, typing, target, source, index + 1, end) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Enter every field pending below `parent` as its place.
@@ -427,14 +427,14 @@ crashes Trap
 {
     transition { _ -> next(checker, typing, parent, written_only, callee, 0) }
 
-    state next(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, written_only: bool, callee: u64 in Trapping, index: u64 in Trapping) {
+    machine next(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, written_only: bool, callee: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.pending_count && index < 32 {
             true -> candidate(checker, typing, parent, written_only, callee, index)
             _ -> done()
         }
     }
 
-    state candidate(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, written_only: bool, callee: u64 in Trapping, index: u64 in Trapping)
+    machine candidate(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, written_only: bool, callee: u64 in Trapping, index: u64 in Trapping)
     requires index < 32
     {
         let pending: PendingField = checker.pending[index];
@@ -447,11 +447,11 @@ crashes Trap
     }
 
     // The slot then holds the last entry, examined next.
-    state entered(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, written_only: bool, callee: u64 in Trapping, index: u64 in Trapping, pending: PendingField) {
+    machine entered(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, written_only: bool, callee: u64 in Trapping, index: u64 in Trapping, pending: PendingField) {
         Checker::remove_pending(checker, index);
         Checker::enter_pending(checker, typing, pending);
         transition { _ -> next(checker, typing, parent, written_only, callee, index) }
     }
 
-    state done() {}
+    machine done() {}
 }

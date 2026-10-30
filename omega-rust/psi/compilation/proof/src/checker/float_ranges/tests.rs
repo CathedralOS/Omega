@@ -354,6 +354,8 @@ fn reaching_float_store_checks_sibling_argument_effects() {
         .program
         .expression_table
         .insert(ExpressionNode::Call(TableCallExpression {
+            authored_call_selection: None,
+            authored_call_binding: None,
             authored_machine_application: Default::default(),
             requirement_application: Default::default(),
             exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
@@ -364,7 +366,7 @@ fn reaching_float_store_checks_sibling_argument_effects() {
             static_requirement_dispatch: None,
             layout_query: None,
             native_code_layout: None,
-            root_binding: Default::default(),
+            build_selection: Default::default(),
             machine_arguments: Box::default(),
             quotient_operation: None,
             private_layout_operation: None,

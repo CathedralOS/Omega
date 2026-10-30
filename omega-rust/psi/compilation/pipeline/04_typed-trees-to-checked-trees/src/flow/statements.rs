@@ -55,7 +55,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
     for statement_index in execution_order.indices().iter().copied() {
         let statement = &program.statement_table.statements(state.statement_nodes)[statement_index];
         let statement_calls = &borrow_calls[call_ranges[statement_index].clone()];
-        let operand_capture_start = build.control.operands.len();
+        let operand_capture_start = build.control.operands.frontier();
         append_proof_output_ensures(
             proof,
             semantic,
@@ -89,6 +89,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             statement_index,
             storage_snapshot,
             value_observations: HandleSpan::empty(),
+            operator_invocations: HandleSpan::empty(),
             stored_value: Handle::invalid(),
             store_target: Handle::invalid(),
             stored_destination: Handle::invalid(),
@@ -135,127 +136,64 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         let mut fallthrough_contexts = *active_contexts;
         let mut fallthrough_constraints = *active_constraints;
         if let Some(transition) = statement.as_transition() {
-            let writes = super::exits::append_transition_flow_facts(
-                program,
-                borrow,
-                proof,
-                semantic,
-                domains,
-                build,
-                machine,
-                state,
-                statement_index,
-                statement_fact,
-                transition,
-                statement_calls,
-                &mut state_calls,
-                active_contexts,
-                active_constraints,
-            );
+            let writes = phase_profile::scope("05.d.3.b.flow.stmt.1_transition", || {
+                super::exits::append_transition_flow_facts(
+                    program,
+                    borrow,
+                    proof,
+                    semantic,
+                    domains,
+                    build,
+                    machine,
+                    state,
+                    statement_index,
+                    statement_fact,
+                    transition,
+                    statement_calls,
+                    &mut state_calls,
+                    active_contexts,
+                    active_constraints,
+                )
+            });
             let retained = build.control.statements.get_mut(statement_fact);
             retained.storage_snapshot = writes.storage_snapshot;
-            retained.completed_writes = writes.writes;
-            retained.completed_unknown_write = writes.unknown;
+            retained.completed_writes = writes.binding_writes;
+            retained.completed_unknown_write = writes.binding_unknown;
+            retained.completed_content_writes = writes.writes;
+            retained.completed_content_unknown_write = writes.unknown;
             fallthrough_contexts = *active_contexts;
             fallthrough_constraints = *active_constraints;
         }
         if !matches!(statement, StatementNode::Transition(_)) {
-            let evaluated = super::expression::append_statement_calls(
-                program,
-                borrow,
-                proof,
-                semantic,
-                domains,
-                build,
-                machine,
-                state,
-                statement_index,
-                statement_fact,
-                statement,
-                statement_calls,
-                &mut state_calls,
-                active_contexts,
-                active_constraints,
-            );
+            let evaluated = phase_profile::scope("05.d.3.b.flow.stmt.2_expression", || {
+                super::expression::append_statement_calls(
+                    program,
+                    borrow,
+                    proof,
+                    semantic,
+                    domains,
+                    build,
+                    machine,
+                    state,
+                    statement_index,
+                    statement_fact,
+                    statement,
+                    statement_calls,
+                    &mut state_calls,
+                    active_contexts,
+                    active_constraints,
+                )
+            });
             let retained = build.control.statements.get_mut(statement_fact);
             retained.storage_snapshot = evaluated.writes.storage_snapshot;
             retained.stored_value = evaluated.stored_value;
             retained.store_target = evaluated.store_target;
-            retained.completed_writes = evaluated.writes.writes;
-            retained.completed_unknown_write = evaluated.writes.unknown;
+            retained.completed_writes = evaluated.writes.binding_writes;
+            retained.completed_unknown_write = evaluated.writes.binding_unknown;
+            retained.completed_content_writes = evaluated.writes.writes;
+            retained.completed_content_unknown_write = evaluated.writes.unknown;
         }
-
-        // Assignment evaluates its RHS under the entry loans above, then
-        // overwrites the target. Retire loans carried by the old value before
-        // activating loans carried by the replacement below; otherwise the
-        // replacement spuriously conflicts with the value it is replacing.
-        let has_active_borrow_loans = build
-            .contexts
-            .constraint_refs
-            .span_or_empty(*active_constraints)
-            .iter()
-            .any(|constraint| matches!(constraint.kind, FlowConstraintKind::BorrowLoan { .. }));
-        if has_active_borrow_loans {
-            let reassigned_place = if let Some(assignment) = statement.as_assignment() {
-                build.canonical_place_at(program, state.symbol, statement_index, assignment.target)
-            } else {
-                None
-            };
-            *active_constraints = filter_reassigned_borrow_loans(
-                &mut build.borrow_lifetimes.weakenings,
-                &mut build.contexts.constraint_refs,
-                *active_constraints,
-                borrow,
-                program,
-                machine,
-                reassigned_place,
-                statement_index,
-                statement,
-                build.call_frames,
-            );
-        }
-
-        for loan_index in loan_ranges[statement_index].clone() {
-            let loan = &borrow_loans[loan_index];
-            let loan_handle = borrow_state.loans.handle_at(loan_index as u32);
-
-            let formation_value = {
-                let mut captures = build
-                    .control
-                    .operands
-                    .iter()
-                    .skip(operand_capture_start)
-                    .filter(|(_, operand)| {
-                        operand.expression == loan.formation_expression
-                            && operand.state_symbol == state.symbol
-                            && operand.statement_index == statement_index
-                    });
-                let first = captures
-                    .next()
-                    .map(|(handle, _)| handle)
-                    .unwrap_or_default();
-                if captures.next().is_none() {
-                    first
-                } else {
-                    Handle::invalid()
-                }
-            };
-            build
-                .borrow_lifetimes
-                .activations
-                .append(FlowBorrowActivationFact {
-                    source: FlowInvalidationSource::Statement { statement_index },
-                    loan: loan_handle,
-                    formation_value,
-                });
-
-            append_constraint_ref(
-                &mut build.contexts.constraint_refs,
-                active_constraints,
-                FlowConstraintKind::BorrowLoan { loan: loan_handle },
-            );
-        }
-
+        let _writes_guard = phase_profile::guard("05.d.3.b.flow.stmt.3_writes_and_loans");
         // Prepare the completed store once, before retiring its destination.
         // Invalidation and establishment must consume the same captured
         // address, including a view's base and a pinned selector. A coarse
@@ -343,6 +281,151 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 });
             }
         }
+
+        // Assignment evaluates its RHS under the entry loans above, then
+        // overwrites the target. Retire loans carried by the old value before
+        // activating loans carried by the replacement below; otherwise the
+        // replacement spuriously conflicts with the value it is replacing.
+        // Local resource retirement follows the statement's complete joined
+        // exit relation. Operand evaluation has its own current descriptor
+        // custody: a call may already have replaced an entry association on
+        // one or every path. That cannot hide the original resource from this
+        // statement-completion ledger or mint extra branch-local claims.
+        let entry_constraints = build
+            .control
+            .statements
+            .get(statement_fact)
+            .entry_constraints;
+        // Only the exact pre-RHS destination can retire an old carrier.
+        // Preserve the entry-resource ledger even when operand evaluation has
+        // already changed today's descriptor associations.
+        let reassigned_place = write.as_ref().and_then(|write| {
+            (statement.as_assignment().is_some()
+                && write.target_is_exact
+                && write.destination_is_current)
+                .then(|| {
+                    super::canonical_place_from_semantic_place(
+                        program,
+                        semantic,
+                        semantic.places.get(write.target_place),
+                    )
+                })
+                .flatten()
+        });
+        let retained_entry = filter_reassigned_borrow_loans(
+            &mut build.borrow_lifetimes.weakenings,
+            &mut build.contexts.constraint_refs,
+            entry_constraints,
+            borrow,
+            validation::completed_storage::InstalledLoanHomes {
+                control: &build.control,
+                semantic,
+                statements: previous_statements,
+                order: execution_order,
+                borrow,
+                state: state.symbol,
+            },
+            program,
+            machine,
+            reassigned_place,
+            state,
+            statement_index,
+            statement,
+            build.call_frames,
+        );
+        // An unchanged snapshot retires nothing. When the filter did remove
+        // entries, only descriptor resources can retire; comparing every
+        // semantic context with the entire retained list makes each statement
+        // quadratic even when it has no loans.
+        let retired = if retained_entry == entry_constraints {
+            Vec::new()
+        } else {
+            let retained = build.contexts.constraint_refs.span_or_empty(retained_entry);
+            build
+                .contexts
+                .constraint_refs
+                .span_or_empty(entry_constraints)
+                .iter()
+                .filter_map(|reference| match reference.kind {
+                    FlowConstraintKind::BorrowLoan { .. }
+                    | FlowConstraintKind::BorrowIncomingReference { .. }
+                        if !retained.contains(reference) =>
+                    {
+                        Some(reference.kind)
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        };
+        if !retired.is_empty() {
+            *active_constraints = super::reference_spans::filter_constraint_refs(
+                &mut build.contexts.constraint_refs,
+                *active_constraints,
+                |reference| !retired.contains(&reference.kind),
+            );
+        }
+        super::call_phases::finish_statement_reference_custody(borrow, build, active_constraints);
+        for loan_index in loan_ranges[statement_index].clone() {
+            let loan = &borrow_loans[loan_index];
+            if loan.established_by_call.is_valid() {
+                continue;
+            }
+            let loan_handle = borrow_state.loans.handle_at(loan_index as u32);
+
+            let formation_value = {
+                let captures_span = super::reference_spans::appended_span_since(
+                    &build.control.operands,
+                    operand_capture_start,
+                );
+                let mut captures = build
+                    .control
+                    .operands
+                    .span_or_empty(captures_span)
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, operand)| {
+                        operand.expression == loan.formation_expression
+                            && operand.state_symbol == state.symbol
+                            && operand.statement_index == statement_index
+                    });
+                let first = captures
+                    .next()
+                    .map(|(offset, _)| captures_span.handle_at(offset as u32))
+                    .unwrap_or_default();
+                if captures.next().is_none() {
+                    first
+                } else {
+                    Handle::invalid()
+                }
+            };
+            build
+                .borrow_lifetimes
+                .activations
+                .append(FlowBorrowActivationFact {
+                    source: FlowInvalidationSource::Statement { statement_index },
+                    loan: loan_handle,
+                    formation_value,
+                });
+
+            append_constraint_ref(
+                &mut build.contexts.constraint_refs,
+                active_constraints,
+                FlowConstraintKind::BorrowLoan { loan: loan_handle },
+            );
+        }
+
+        let final_storage_writes = if statement.as_assignment().is_some() {
+            super::storage_footprints::assignment(
+                program,
+                machine,
+                statement,
+                &build.control,
+                build.control.statements.get(statement_fact).store_target,
+                build.call_frames,
+            )
+        } else {
+            None
+        };
         let storage_writes = if let Some(write) = write.as_ref()
             && statement.as_assignment().is_some()
         {
@@ -359,9 +442,16 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 }
             })
         } else if statement.as_assignment().is_some() {
-            // A failed address capture supplies no exact destination and no
-            // preservation theorem. Clear live observations conservatively.
-            None
+            // Exact value establishment still needs StatementWrite. A complete
+            // captured may-write footprint can independently preserve unrelated
+            // facts; missing geometry remains an unknown write.
+            final_storage_writes.clone()
+        } else if statement.as_local_data().is_some() {
+            // The chronological initializer evaluator already published every
+            // nested effect, including atomic attempts. A new local's store
+            // cannot replace any earlier binding; do not replay its initializer
+            // footprint here or merge content aliases into physical stores.
+            Some(Vec::new())
         } else {
             build
                 .statement_storage_writes_at(
@@ -377,14 +467,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         // invalidation only needs a complete physical may-write enclosure;
         // losing the former must not withdraw every disjoint descriptor.
         let final_storage_writes = if statement.as_assignment().is_some() {
-            super::storage_footprints::assignment(
-                program,
-                machine,
-                statement,
-                &build.control,
-                build.control.statements.get(statement_fact).store_target,
-                build.call_frames,
-            )
+            final_storage_writes
         } else {
             storage_writes.clone()
         };
@@ -412,6 +495,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 build.control.operand_origin_writes.append_to_span(
                     &mut completed,
                     checked_trees::FlowOperandReferent {
+                        formation: arena::Handle::invalid(),
                         root: place.root,
                         segments,
                     },
@@ -483,11 +567,30 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         } else {
             storage_writes.clone()
         };
+        let final_content_writes = content_writes.clone();
         let mut completed_contents = build
             .control
             .statements
             .get(statement_fact)
-            .completed_writes;
+            .completed_content_writes;
+        // The assignment's own physical store joins content invalidation too;
+        // operand content effects already retain their alias-expanded prefix.
+        if let Some(places) = &storage_writes {
+            for place in places {
+                let segments = build
+                    .control
+                    .operand_referent_segments
+                    .insert_many(place.segments.iter().copied());
+                build.control.operand_origin_writes.append_to_span(
+                    &mut completed_contents,
+                    checked_trees::FlowOperandReferent {
+                        formation: arena::Handle::invalid(),
+                        root: place.root,
+                        segments,
+                    },
+                );
+            }
+        }
         if let Some(places) = &content_writes {
             for place in places.iter().filter(|place| {
                 storage_writes
@@ -501,6 +604,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 build.control.operand_origin_writes.append_to_span(
                     &mut completed_contents,
                     checked_trees::FlowOperandReferent {
+                        formation: arena::Handle::invalid(),
                         root: place.root,
                         segments,
                     },
@@ -509,9 +613,9 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         }
         let completed = build.control.statements.get_mut(statement_fact);
         completed.completed_content_writes = completed_contents;
-        completed.completed_content_unknown_write =
-            completed.completed_unknown_write || content_writes.is_none();
-        let final_content_writes = content_writes.clone();
+        completed.completed_content_unknown_write = completed.completed_content_unknown_write
+            || completed.completed_unknown_write
+            || content_writes.is_none();
         let storage_writes = content_writes;
         if storage_writes.is_none() {
             *active_contexts = HandleSpan::empty();
@@ -564,16 +668,31 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             }
         }
         if let Some(call) = statement.as_call() {
-            mutated_places.extend(operator_statement_call_mutated_places(
+            if let Some(writes) = operator_statement_call_mutated_places(
                 program,
                 build,
                 machine.symbol,
                 state.symbol,
                 statement_index,
                 call,
-            ));
+            ) {
+                mutated_places.extend(writes);
+            } else {
+                // Unknown mutable operands cannot preserve earlier facts or
+                // borrow a known sibling's footprint. Snapshot recording uses
+                // this same unavailable result at actual call completion.
+                *active_contexts = HandleSpan::empty();
+                *active_constraints = project_constraint_refs_to_active_contexts(
+                    &mut build.contexts.constraint_refs,
+                    *active_constraints,
+                    *active_contexts,
+                    &build.contexts.semantic_context_refs,
+                );
+            }
         }
+        drop(_writes_guard);
         if !mutated_places.is_empty() {
+            let _inv_guard = phase_profile::guard("05.d.3.b.flow.stmt.4_invalidation");
             super::entry_origins::extend_invocation_observations(
                 program,
                 build,
@@ -614,21 +733,23 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 active_constraints,
             );
         }
-        propagate_statement_transfers(
-            program,
-            borrow,
-            semantic,
-            build,
-            machine.symbol,
-            state.symbol,
-            statement_index,
-            statement,
-            statement_fact,
-            write,
-            assignment_source_contexts,
-            active_contexts,
-            active_constraints,
-        );
+        phase_profile::scope("05.d.3.b.flow.stmt.5_transfers", || {
+            propagate_statement_transfers(
+                program,
+                borrow,
+                semantic,
+                build,
+                machine.symbol,
+                state.symbol,
+                statement_index,
+                statement,
+                statement_fact,
+                write,
+                assignment_source_contexts,
+                active_contexts,
+                active_constraints,
+            );
+        });
         // Calls have already published their ordered writes and replacements.
         // Only the enclosing statement's own store follows RHS evaluation.
         let final_write = match statement {
@@ -835,7 +956,7 @@ fn statement_record_ranges(
         let range = ranges
             .get_mut(statement)
             .expect("borrow record names its source frame or exit");
-        if range.is_empty() {
+        if std::ops::Range::<usize>::is_empty(range) {
             *range = ordinal..ordinal + 1;
         } else {
             assert_eq!(

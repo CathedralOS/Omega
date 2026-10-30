@@ -19,7 +19,7 @@ machine Main::main(main: &mut Main) reaches Console {
     let mut tally: Tally;
     transition { _ -> fill(&mut tally, 0) }
 
-    state fill(tally: &mut Tally, round: u64) requires round <= 2 {
+    machine fill(tally: &mut Tally, round: u64) requires round <= 2 {
         tally.first = round + 5;
         tally.grid[round][1] = round + 1;
         let next: u64 = round + 1;
@@ -29,14 +29,14 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check(tally: &Tally) {
+    machine check(tally: &Tally) {
         transition tally.first == 7 {
             true -> confirm(tally)
             _ -> refused(71)
         }
     }
 
-    state confirm(tally: &Tally) {
+    machine confirm(tally: &Tally) {
         let last: u64 = tally.grid[2][1];
         let earliest: u64 = tally.grid[0][1];
         transition last == 3 && earliest == 1 {
@@ -45,7 +45,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state refused(code: i32) {
+    machine refused(code: i32) {
         Console::exit_process(code);
     }
 }

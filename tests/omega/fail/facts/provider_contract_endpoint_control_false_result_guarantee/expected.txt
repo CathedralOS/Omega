@@ -1,0 +1,1 @@
+ensures return comparison: exact arithmetic may overflow

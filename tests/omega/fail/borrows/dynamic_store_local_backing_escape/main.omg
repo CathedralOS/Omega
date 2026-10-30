@@ -6,5 +6,5 @@ requires position < 2 {
     let local: Cell = Cell { value: 73 };
     slots[position].target = &local;
     transition { _ -> finish(slots) }
-    state finish(slots: &'carrier mut [Held<'input>; 2]) {}
+    machine finish(slots: &'carrier mut [Held<'input>; 2]) {}
 }

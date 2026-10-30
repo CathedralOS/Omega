@@ -1,29 +1,27 @@
 //! Same-block and dominating scalar CSE validation and rewrite application.
 use crate::candidates::accept_region_rewrite;
+use crate::candidates::candidate_block;
+use crate::candidates::candidate_function;
+use crate::candidates::contract;
 use crate::candidates::global_value_numbering::{ScalarCseProofClass, ScalarCseScope};
+use crate::candidates::retire_node_custody;
 use crate::candidates::rewrite_accounting::common_subexpression::reconstruct_local_cse_accounting;
-use crate::candidates::rewrite_accounting::preserve_edge_custody;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
-use crate::unit_validation::derived_metadata::{
-    expected_definitions, expected_ownership, expected_uses,
-};
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
-use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationSafetyClass,
-};
 use optimization_unit::{
     LocalScalarCommonSubexpressionRewrite, NodeLocation, OptimizationFact, PsiOptimizationUnit,
     PsiRewriteCandidate, PsiRewritePatch, ScalarSubstitution, ValueDefinition, ValueDefinitionSite,
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use super::admission::{independent_cse_expression, independently_accepted_operation_fact};
 use super::dominance_reconstruction::independent_reachable_dominators;
 use super::expression_keys::{
     independent_compatible_policy_scalar_leader, independent_compatible_policy_scalar_redundant,
 };
-use crate::candidates::set_node_effect_link;
+use super::rule_catalog;
+use crate::candidates::sweep_output_nodes;
 
 pub(super) fn validate_scalar_common_subexpression_candidate(
     input: &PsiOptimizationUnit,
@@ -31,34 +29,17 @@ pub(super) fn validate_scalar_common_subexpression_candidate(
     scope: ScalarCseScope,
     proof_class: ScalarCseProofClass,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    let expected_safety = match proof_class {
-        ScalarCseProofClass::ObligationFree => OptimizationSafetyClass::ExactOperationSemantics,
-        ScalarCseProofClass::ProofCertified | ScalarCseProofClass::CompatiblePolicy => {
-            OptimizationSafetyClass::ProofCertified
-        }
+    let required = match scope {
+        ScalarCseScope::SameBlock => rule_catalog::SAME_BLOCK_ANALYSES,
+        ScalarCseScope::Dominating => rule_catalog::DOMINATING_ANALYSES,
     };
-    let expected_required = match scope {
-        ScalarCseScope::SameBlock => {
-            AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries])
-        }
-        ScalarCseScope::Dominating => AnalysisSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::Dominators,
-            AnalysisKind::UseDefinition,
-            AnalysisKind::EffectSummaries,
-        ]),
-    };
-    if candidate.required_analyses() != expected_required
-        || candidate.invalidated_analyses()
-            != AnalysisInvalidationSet::new([
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ])
-        || candidate.safety_class() != expected_safety
-        || candidate.predicted_cost_delta() != -1
-    {
-        return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
-    }
+    contract::admit_roster(
+        candidate,
+        required,
+        contract::USE_DEFINITION_AND_EFFECT_SUMMARIES,
+        rule_catalog::safety_class(proof_class),
+        Some(-1),
+    )?;
     let patch = match (scope, candidate.patch()) {
         (
             ScalarCseScope::SameBlock,
@@ -92,15 +73,9 @@ pub(super) fn validate_scalar_common_subexpression_candidate(
     if patch.leader.machine != patch.redundant.machine {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input
-        .function(patch.leader.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let leader_block = function
-        .block(patch.leader.block)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let redundant_block = function
-        .block(patch.redundant.block)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let function = candidate_function(input, patch.leader.machine)?;
+    let leader_block = candidate_block(function, patch.leader.block)?;
+    let redundant_block = candidate_block(function, patch.redundant.block)?;
     let leader = leader_block
         .nodes
         .get(
@@ -126,24 +101,7 @@ pub(super) fn validate_scalar_common_subexpression_candidate(
         }
         _ => {}
     }
-    let value_types = function
-        .parameters
-        .iter()
-        .map(|row| (row.value, row.scalar_type))
-        .chain(function.blocks.iter().flat_map(|block| {
-            block
-                .parameters
-                .iter()
-                .map(|row| (row.value, row.scalar_type))
-        }))
-        .chain(function.blocks.iter().flat_map(|block| {
-            block.nodes.iter().flat_map(|node| {
-                node.definitions
-                    .iter()
-                    .map(|row| (row.value, row.scalar_type))
-            })
-        }))
-        .collect::<BTreeMap<_, _>>();
+    let value_types = super::scalar_value_types(function);
     let admitted_expression = |operation: &O| {
         let row = match proof_class {
             ScalarCseProofClass::CompatiblePolicy => {
@@ -378,11 +336,6 @@ pub(super) fn validate_scalar_common_subexpression_candidate(
     }
     let (expected_blocks, accepted_provenance) = reconstruct_local_cse_accounting(function, patch)
         .ok_or(OptimizationUnitValidationError::CandidateProvenanceMismatch)?;
-    if candidate.affected_blocks() != expected_blocks
-        || candidate.provenance() != accepted_provenance
-    {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
     accept_region_rewrite(
         input,
         candidate,
@@ -422,26 +375,11 @@ pub(super) fn validate_scalar_common_subexpression_candidate(
                 .iter_mut()
                 .find(|row| row.id == patch.redundant.block)
                 .expect("candidate block exists");
-            let removed = output_block.nodes.remove(redundant_index);
-            let receiver = output_block
-                .nodes
-                .get_mut(redundant_index)
-                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-            receiver.provenance.extend_from_slice(&removed.provenance);
-            receiver.fuel.extend_from_slice(&removed.fuel);
-            let mut effect = 0u64;
-            for block in &mut output_function.blocks {
-                for (node_index, node) in block.nodes.iter_mut().enumerate() {
-                    rewrite_scalar_value_uses(&mut node.operation, redundant_result, leader_result);
-                    let node_index = u32::try_from(node_index)
-                        .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-                    node.definitions = expected_definitions(&node.operation, block.id, node_index);
-                    node.uses = expected_uses(&node.operation, block.id, node_index);
-                    node.successors = preserve_edge_custody(node);
-                    node.ownership = expected_ownership(&node.operation);
-                    effect = set_node_effect_link(node, effect)?;
-                }
-            }
+            retire_node_custody(output_block, redundant_index)?;
+            sweep_output_nodes(output_function, |node| {
+                rewrite_scalar_value_uses(&mut node.operation, redundant_result, leader_result);
+                Ok(())
+            })?;
             Ok(())
         },
     )

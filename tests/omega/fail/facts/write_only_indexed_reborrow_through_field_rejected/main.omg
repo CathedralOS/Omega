@@ -1,0 +1,33 @@
+// Fact: indexed write-only reborrows update the original selected cells to -43 and 9 while preserving padding 11 and 23.
+// Expected exit: 0
+// Place: field.
+
+data Cell [copy] { padding: i64; value: i64; }
+data Storage { cells: [Cell; 2]; position: u64; }
+machine replace(cell: &write Cell, value: i64) { let previous: i64 = cell.value; cell.value = value; }
+machine success() {}
+machine failure() crashes Trap { crash Trap; }
+machine verify(storage: &Storage) crashes Trap {
+    transition storage.cells[0].value == -43 && storage.cells[1].value == 9
+        && storage.cells[0].padding == 11 && storage.cells[1].padding == 23
+        && storage.position == 0 {
+        true -> success()
+        _ -> failure()
+    }
+}
+data Held { cells: &write [Cell; 2]; }
+machine main() crashes Trap {
+    let mut storage: Storage;
+    storage.cells[0].padding = 11;
+    storage.cells[0].value = 85;
+    storage.cells[1].padding = 23;
+    storage.cells[1].value = 29;
+    storage.position = 1;
+    let parent: &write [Cell; 2] = &write storage.cells;
+    let held: Held = Held { cells: &write parent };
+    replace(&write held.cells[storage.position], 7);
+    replace(&write held.cells[storage.position], 9);
+    storage.position = 0;
+    replace(&write held.cells[storage.position], -43);
+    verify(&storage);
+}

@@ -1,6 +1,6 @@
 // Copying a four-u16 array carries its checked zero tail, so exact addition to 65535 stays 65535.
 // Expected exit: 0
-domain [u16; 4]::ZeroTail(values) requires values[3] == 0;
+domain [u16; 4]::ZeroTail requires self[3] == 0;
 machine initialize(values: &mut [u16; 4]) {
     values[0] = 37;
     values[3] = 9;
@@ -18,6 +18,6 @@ machine choose(flag: bool) -> u16 {
 machine main() crashes Trap {
     let answer: u16 = choose(true);
     transition answer == 65535u16 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

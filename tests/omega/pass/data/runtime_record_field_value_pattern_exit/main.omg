@@ -26,14 +26,14 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> finish(main, 1)
     }
 
-    state matched(main: &mut Main, code: i32) {
+    machine matched(main: &mut Main, code: i32) {
         // The pattern's equality guard follows the transition argument into
         // this state and discharges the callee's ordinary precondition.
         require_ok(main.header);
         Console::exit_process(code);
     }
 
-    state finish(main: &mut Main, code: i32) {
+    machine finish(main: &mut Main, code: i32) {
         Console::exit_process(code);
     }
 }

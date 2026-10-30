@@ -183,21 +183,17 @@ fn signature_call_type_bindings_in(
 /// the same parameter, which invalidates the whole instantiation.
 pub(super) fn bind_formal_type(
     program: &dyn crate::CheckingInput,
-    mut formal: TypeReferenceHandle,
-    mut actual: TypeReferenceHandle,
+    formal: TypeReferenceHandle,
+    actual: TypeReferenceHandle,
     parameters: &[TypeParameter],
     bindings: &mut TypeBindings,
 ) -> bool {
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(formal)
-    {
-        formal = *base_type;
-    }
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(actual)
-    {
-        actual = *base_type;
-    }
+    let formal = program
+        .type_reference_table
+        .unconstrained_type_reference(formal);
+    let actual = program
+        .type_reference_table
+        .unconstrained_type_reference(actual);
     match program.type_reference_table.type_reference(formal) {
         TypeReferenceNode::Named { symbol, .. }
             if bindings.iter().any(|(bound, _)| bound == symbol) =>

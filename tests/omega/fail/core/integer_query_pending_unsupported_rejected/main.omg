@@ -1,0 +1,4 @@
+// Even an unused canonical constant must discharge the queried type domain.
+use omega::language::core::integer;
+const BAD: u64 = integer::width_bits<addr>();
+machine main() {}

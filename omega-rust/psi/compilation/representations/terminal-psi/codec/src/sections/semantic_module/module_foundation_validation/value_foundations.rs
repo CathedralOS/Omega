@@ -1,6 +1,7 @@
 //! Operations that establish a value: scalar arrays and cases, byte-sequence
 //! literals, trivial affine locals, records and primitive locals.
 
+use super::super::wire::strictly_increasing;
 use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
@@ -31,53 +32,7 @@ pub(super) fn validate_establish_scalar_array(
             elements,
             |element| {
                 terminal_semantics::scalar_constant_value(element, |value| {
-                    if let Some((ty, value)) = machine.operations().find_map(|producer| {
-                        let scalar = producer.result.scalar_ref()?;
-                        let OperationKind::IntegerConstant { value: literal } = producer.kind
-                        else {
-                            return None;
-                        };
-                        (scalar.id == value).then_some((scalar.scalar_type, literal))
-                    }) {
-                        return Some(terminal_semantics::ScalarConstantOrigin::Literal(ty, value));
-                    }
-                    let (owner, ordinal) = machine.blocks.iter().find_map(|block| {
-                        block
-                            .parameters
-                            .iter()
-                            .position(|parameter| parameter.id == value)
-                            .map(|ordinal| (block.id, ordinal))
-                    })?;
-                    if owner == machine.entry {
-                        return None;
-                    }
-                    let mut incoming = Vec::new();
-                    for block in &machine.blocks {
-                        use terminal_psi::Terminator;
-                        match &block.terminator {
-                            Terminator::Jump {
-                                target, arguments, ..
-                            } if *target == owner => incoming.push(*arguments.get(ordinal)?),
-                            Terminator::Conditional {
-                                when_true,
-                                when_false,
-                                ..
-                            } => {
-                                for edge in [when_true, when_false] {
-                                    if edge.target == owner {
-                                        incoming.push(*edge.arguments.get(ordinal)?);
-                                    }
-                                }
-                            }
-                            Terminator::StructuralCase { cases, .. }
-                                if cases.iter().any(|edge| edge.target == owner) =>
-                            {
-                                return None;
-                            }
-                            _ => {}
-                        }
-                    }
-                    Some(terminal_semantics::ScalarConstantOrigin::Incoming(incoming))
+                    terminal_semantics::machine_scalar_constant_origin(machine, value)
                 })
             },
         )
@@ -124,8 +79,10 @@ pub(super) fn validate_establish_scalar_case(
     let Some(result) = operation.result.structural() else {
         return malformed("scalar case establishment has no structural result");
     };
+    // Common operation-result admission validates whole membership identities
+    // and carriers. A predicate-only qualification does not change case storage
+    // or the selected field roster checked here.
     if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
     {
@@ -183,9 +140,9 @@ pub(super) fn validate_establish_structural_case(
     let Some(result) = operation.result.structural() else {
         return malformed("structural case establishment has no structural result");
     };
-    if !result.qualifications.is_empty() {
-        return malformed("structural case establishment has an invalid result surface");
-    }
+    // Whole memberships use common result admission, as for record
+    // construction. Keep case storage, selected children and claim geometry
+    // independent of that predicate-only metadata.
     validate_constructor_claims(module, result)?;
     if !matches!(
         machine.structural_place(result.place),
@@ -477,11 +434,7 @@ fn validate_constructor_claims(
     // An intermediate constructor can publish custody at its private arrival
     // rather than on this operation. Do not infer issuance from the root's
     // multiplicity or require another claim before that owning edge.
-    if result
-        .claims
-        .windows(2)
-        .any(|pair| pair[0].claim >= pair[1].claim)
-    {
+    if !strictly_increasing(result.claims.iter().map(|binding| binding.claim)) {
         return malformed("aggregate claim bindings disagree with canonical order");
     }
     for (position, claim) in result.claims.iter().enumerate() {
@@ -511,7 +464,34 @@ pub(super) fn validate_establish_primitive_local(
     let Some(result) = operation.result.structural() else {
         return malformed("primitive local has no structural result");
     };
-    if !result.is_unrestricted_plain()
+    let source = machine
+        .parameters
+        .iter()
+        .chain(machine.block_parameters())
+        .chain(
+            machine
+                .operations()
+                .filter_map(|operation| operation.result.scalar_ref()),
+        )
+        .find(|declaration| declaration.id == *value)
+        .ok_or(CodecError::MalformedStructuralFoundation(
+            "primitive initializer lost its exact SSA declaration",
+        ))?;
+    let qualifications = terminal_semantics::primitive_scalar_memberships(
+        module.structural_types.iter(),
+        module.structural_domains.iter(),
+        &module.scalar_qualifications,
+        result.structural_type,
+        source,
+    )
+    .ok_or(CodecError::MalformedStructuralFoundation(
+        "primitive initializer lost its exact scalar membership correspondence",
+    ))?;
+    if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !result.claims.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.qualification_establishments.is_empty()
+        || result.qualifications != qualifications
         || !machine.structural_places.iter().any(|place| {
             place.id == result.place
                 && matches!(place.kind,
@@ -611,7 +591,10 @@ pub(super) fn validate_establish_structural_array(
     else {
         return malformed("structural array result is not a fixed array");
     };
-    if u64::try_from(elements.len()).ok() != Some(*length) {
+    let Some(length) = length.literal() else {
+        return malformed("array construction requires a closed element count");
+    };
+    if u64::try_from(elements.len()).ok() != Some(length) {
         return malformed("array element count differs");
     }
     for argument in elements {

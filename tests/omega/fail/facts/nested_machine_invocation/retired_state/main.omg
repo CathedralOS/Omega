@@ -1,0 +1,4 @@
+// A legacy state cannot become an alternative implicit machine entry.
+machine main() {
+    state old_entry() {}
+}

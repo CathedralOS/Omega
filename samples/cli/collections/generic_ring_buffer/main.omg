@@ -46,36 +46,36 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad_size()
     }
 
-    state check_popped(ring: &Ring, first: i32 in Saturating, second: i32 in Saturating, last: i32 in Saturating) {
+    machine check_popped(ring: &Ring, first: i32 in Saturating, second: i32 in Saturating, last: i32 in Saturating) {
         transition first == 20 && second == 30 && last == 40 {
             true -> check_sum(ring)
             _ -> bad_pop()
         }
     }
-    state check_sum(ring: &Ring) {
+    machine check_sum(ring: &Ring) {
         let sum: i32 in Saturating = ring.slots[3] + ring.slots[4] + ring.slots[5];
         transition sum == 70 {
             true -> good()
             _ -> bad_sum()
         }
     }
-    state good() {
+    machine good() {
         Console::write_line("PASS: size=3, last pop 40, remaining sum 70 (exit 70)");
         transition { _ -> finish(70) }
     }
-    state bad_size() {
+    machine bad_size() {
         Console::write_line("FAIL: wrong ring size (exit 71)");
         transition { _ -> finish(71) }
     }
-    state bad_pop() {
+    machine bad_pop() {
         Console::write_line("FAIL: wrong last-popped value (exit 72)");
         transition { _ -> finish(72) }
     }
-    state bad_sum() {
+    machine bad_sum() {
         Console::write_line("FAIL: wrong sum of remaining slots (exit 73)");
         transition { _ -> finish(73) }
     }
-    state finish(code: i32) {
+    machine finish(code: i32) {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);

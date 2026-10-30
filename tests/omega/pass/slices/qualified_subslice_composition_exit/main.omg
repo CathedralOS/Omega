@@ -1,6 +1,6 @@
 // Primitive byte domains survive runtime subslices, another subslice through a
 // helper parameter and a named local. Empty views remain valid ASCII views.
-domain [u8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8]::Ascii requires ascii_only(self);
 use omega_language_std::console;
 
 data Main { end: u64; }
@@ -15,7 +15,7 @@ machine Main::relay(main: &Main, bytes: &[u8] in Ascii) reaches Console {
         true -> Main::cut(main, bytes[0..main.end])
         false -> bad(main)
     }
-    state bad(main: &Main) { Console::exit_process(71); }
+    machine bad(main: &Main) { Console::exit_process(71); }
 }
 
 machine Main::cut(main: &Main, prefix: &[u8] in Ascii) reaches Console {
@@ -28,8 +28,8 @@ machine Main::inspect(main: &Main, empty: &[u8] in Ascii, prefix: &[u8] in Ascii
         true -> good(main)
         false -> bad(main)
     }
-    state good(main: &Main) { Console::exit_process(70); }
-    state bad(main: &Main) { Console::exit_process(71); }
+    machine good(main: &Main) { Console::exit_process(70); }
+    machine bad(main: &Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

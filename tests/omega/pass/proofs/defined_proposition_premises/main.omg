@@ -58,7 +58,7 @@ machine state_premise(a: Point, b: Point)
 requires same_point(a, b)
 {
     transition { _ -> settle(a, b) }
-    state settle(first: Point, second: Point)
+    machine settle(first: Point, second: Point)
     requires same_point(first, second)
     {
         same_point_symmetric(second, first);

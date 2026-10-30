@@ -23,6 +23,7 @@ pub(super) fn argument(
     argument: &terminal_psi::StructuralArgument,
     declaration: &terminal_psi::StructuralParameterDeclaration,
     destination: &TargetStructuralParameter,
+    function: &abstract_operations::AbstractFunction,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     live: &LiveDefinitions,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -44,7 +45,7 @@ pub(super) fn argument(
             "argument access or destination layout differs from its owned formal",
         ));
     }
-    let (source, root_structural_type, source_byte_offset) =
+    let (source, root_structural_type, source_byte_offset, index_runs) =
         if let Some(home) = live.structural_homes.get(&argument.place) {
             // The product entry validates the optimized plan's call custody before
             // invoking this lowering core. Target storage carries bytes and live
@@ -57,7 +58,7 @@ pub(super) fn argument(
             // Partial owned transfer selects bytes from the completed root home;
             // the verified call and residual cleanup retain the root's custody.
             // A root qualification cannot silently become a payload qualification.
-            let offset = if argument.path.is_empty() {
+            let (offset, indices) = if argument.path.is_empty() {
                 if home.structural_type() != declaration.structural_type
                     || home.layout != expected_layout
                 {
@@ -68,10 +69,10 @@ pub(super) fn argument(
                 if home.multiplicity() != declaration.multiplicity {
                     return Err(invalid("source home multiplicity differs from its formal"));
                 }
-                0
+                (0, Vec::new())
             } else {
-                let (selected, shape, offset) =
-                    crate::lowering::structural_layout::resolve_structural_projection_path(
+                let (selected, shape, offset, indices) =
+                    crate::lowering::structural_layout::runtime_projection(
                         home.structural_type(),
                         &argument.path,
                         types,
@@ -83,14 +84,14 @@ pub(super) fn argument(
                         "source home projection type or layout differs from its formal",
                     ));
                 }
-                offset
+                (offset, indices)
             };
             // A state arrival owns its destination home, not an incoming
             // operation's home. Preserve that identity through calls just as
             // through reads and loans; independent source replay checks both
             // coordinates against the caller's block declaration.
             let source = home.argument_source();
-            (source, home.structural_type(), offset)
+            (source, home.structural_type(), offset, indices)
         } else if let Some((establishment, structural_type)) =
             live.trivial_affine_locals.get(&argument.place)
         {
@@ -110,6 +111,7 @@ pub(super) fn argument(
                 },
                 *structural_type,
                 0,
+                Vec::new(),
             )
         } else {
             let parameter = prepared
@@ -118,7 +120,7 @@ pub(super) fn argument(
             if parameter.access != StructuralAccess::Owned {
                 return Err(invalid("source parameter is not owned"));
             }
-            let offset = if argument.path.is_empty() {
+            let (offset, indices) = if argument.path.is_empty() {
                 if parameter.multiplicity != declaration.multiplicity
                     || parameter.structural_type != declaration.structural_type
                     || parameter.shape != expected_shape
@@ -127,10 +129,10 @@ pub(super) fn argument(
                         "source parameter custody, type or layout differs from its formal",
                     ));
                 }
-                0
+                (0, Vec::new())
             } else {
-                let (selected, shape, offset) =
-                    crate::lowering::structural_layout::resolve_structural_projection_path(
+                let (selected, shape, offset, indices) =
+                    crate::lowering::structural_layout::runtime_projection(
                         parameter.structural_type,
                         &argument.path,
                         types,
@@ -142,12 +144,13 @@ pub(super) fn argument(
                         "source parameter projection type or layout differs from its formal",
                     ));
                 }
-                offset
+                (offset, indices)
             };
             (
                 parameter.placement.clone().into(),
                 parameter.structural_type,
                 offset,
+                indices,
             )
         };
     Ok(TargetStructuralArgument {
@@ -160,7 +163,11 @@ pub(super) fn argument(
         source_byte_offset,
         fixed_array_length: None,
         element_stride: None,
-        indices: Vec::new(),
+        indices: super::scalar_sources::runtime_indices(
+            index_runs,
+            function,
+            &super::scalar_sources::ScalarSources::from(live),
+        )?,
         source,
         destination: destination.placement.clone(),
     })

@@ -63,8 +63,8 @@ machine main(main: &mut Main) crashes Trap {
         && regular.real == 0.5 && regular.imaginary == 0.0625
         && single.real == 0.5f32 && single.imaginary == 0.0625f32
         && shifted.real == 1.5 && shifted.imaginary == 1.0625 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

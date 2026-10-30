@@ -47,58 +47,50 @@ psi_rule_contract!(
     ),
 );
 
-impl PsiOptimizationRule for StateArgumentSpecializationRule {
-    psi_rule_contract!(@adapter);
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        required_analysis!(analyses, AnalysisKind::ScalarConstants => Some(AnalysisProduct::ScalarConstants(constants)));
-        required_analysis!(analyses, AnalysisKind::StronglyConnectedComponents => Some(AnalysisProduct::StronglyConnectedComponents(scc)));
-        // This specialization preserves cyclic machines byte-for-byte.
-        let frozen = scc.cyclic_machines(unit);
-        let mut candidates = Vec::new();
-        for function in &unit.functions {
-            if frozen.contains(&function.machine) {
+psi_rule_impl!(StateArgumentSpecializationRule, |unit, analyses| {
+    required_analysis!(analyses, AnalysisKind::ScalarConstants => Some(AnalysisProduct::ScalarConstants(constants)));
+    required_analysis!(analyses, AnalysisKind::StronglyConnectedComponents => Some(AnalysisProduct::StronglyConnectedComponents(scc)));
+    // This specialization preserves cyclic machines byte-for-byte.
+    let frozen = scc.cyclic_machines(unit);
+    let mut candidates = Vec::new();
+    for function in &unit.functions {
+        if frozen.contains(&function.machine) {
+            continue;
+        }
+        for block in &function.blocks {
+            let Some(patch) =
+                state_specialization::propose::plan(unit, function, block.id, constants)
+            else {
+                continue;
+            };
+            if patch.edges.is_empty() {
                 continue;
             }
-            for block in &function.blocks {
-                let Some(patch) =
-                    state_specialization::propose::plan(unit, function, block.id, constants)
-                else {
-                    continue;
-                };
-                if patch.edges.is_empty() {
-                    continue;
-                }
-                let Some(provenance) =
-                    state_specialization::accounting::provenance_rows(function, &patch)
-                else {
-                    continue;
-                };
-                let mut affected_blocks = vec![patch.dispatch];
-                affected_blocks.extend(patch.edges.iter().map(|row| row.predecessor.block));
-                affected_blocks.sort_unstable();
-                affected_blocks.dedup();
-                let predicted_cost_delta = -i64::try_from(patch.edges.len()).unwrap_or(i64::MAX);
-                candidates.push(
-                    PsiRewriteCandidate::new_state_argument_specialization(
-                        unit.identity,
-                        Self::contract(),
-                        affected_blocks,
-                        provenance,
-                        predicted_cost_delta,
-                        patch,
-                    )
-                    .map_err(RuleProposalError::InvalidCandidate)?,
-                );
-            }
+            let Some(provenance) =
+                state_specialization::accounting::provenance_rows(function, &patch)
+            else {
+                continue;
+            };
+            let mut affected_blocks = vec![patch.dispatch];
+            affected_blocks.extend(patch.edges.iter().map(|row| row.predecessor.block));
+            affected_blocks.sort_unstable();
+            affected_blocks.dedup();
+            let predicted_cost_delta = -i64::try_from(patch.edges.len()).unwrap_or(i64::MAX);
+            candidates.push(
+                PsiRewriteCandidate::new_state_argument_specialization(
+                    unit.identity,
+                    Self::contract(),
+                    affected_blocks,
+                    provenance,
+                    predicted_cost_delta,
+                    patch,
+                )
+                .map_err(RuleProposalError::InvalidCandidate)?,
+            );
         }
-        Ok(candidates)
     }
-}
+    Ok(candidates)
+});
 
 /// The exact local rule order for this pass.
 pub(super) fn built_in_registrations() -> Vec<BuiltInRuleRegistration> {

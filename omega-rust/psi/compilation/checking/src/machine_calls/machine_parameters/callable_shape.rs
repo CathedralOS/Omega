@@ -23,6 +23,7 @@ mod nominal_inputs;
 /// a nested machine contract all reduce to these parts.
 pub(super) struct CallableParts<'a> {
     pub(super) lexical_owner: SymbolHandle,
+    pub(super) contract_owner: SymbolHandle,
     pub(super) lifetime_parameters: &'a [typed_trees::name::Identifier],
     pub(super) type_parameters: &'a [TypeParameter],
     pub(super) parameters: &'a [StateParameter],
@@ -40,6 +41,7 @@ impl<'a> CallableParts<'a> {
     ) -> Self {
         Self {
             lexical_owner: crate::borrow_contracts::lexical_region_owner(program, signature.symbol),
+            contract_owner: signature.symbol,
             lifetime_parameters: &signature.lifetime_parameters,
             type_parameters: program.state_signature_type_parameters(signature),
             parameters: program.state_signature_parameters(signature),
@@ -186,6 +188,7 @@ fn validate_callable_shape(
         requirement,
         &CallableParts {
             lexical_owner: actual_machine.symbol,
+            contract_owner: actual_machine.symbol,
             lifetime_parameters: &actual_machine.lifetime_parameters,
             type_parameters: program.machine_type_parameters(actual_machine),
             parameters: program.state_parameters(actual_state),
@@ -383,6 +386,7 @@ fn validate_callable_formation(
         actual.contracts,
         required_parameters,
         actual_parameters,
+        actual.contract_owner,
         diagnostics,
     );
 }

@@ -13,8 +13,14 @@ mod execution;
 mod runtime_boundary;
 
 pub use execution::{
-    TerminalClockSnapshot, TerminalDomainExitDelegation, TerminalRuntimeError,
-    TerminalRuntimeObservation, TerminalRuntimeRequest, capture_host_x86_flags, execute,
-    execute_sliced,
+    TerminalClockEnvironment, TerminalClockSnapshot, TerminalDomainExitDelegation,
+    TerminalFilesystemDelegation, TerminalRuntimeError, TerminalRuntimeObservation,
+    TerminalRuntimeRequest, capture_host_x86_flags, execute, execute_sliced,
 };
 pub use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
+
+/// Dispatch the explicitly sponsored isolated native provider before normal host arguments.
+pub use native_provider_runtime::run_worker_if_requested as run_native_provider_worker_if_requested;
+
+// Receiving roots explicitly select this scoped interpreter memory model.
+pub use terminal_interpreter::TerminalMemoryOrderingEnvironment;

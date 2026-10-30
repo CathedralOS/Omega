@@ -16,6 +16,6 @@ machine main() crashes Trap {
     let first: bool = choose(true);
     let second: bool = choose(false);
     transition first && second { true -> done() _ -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

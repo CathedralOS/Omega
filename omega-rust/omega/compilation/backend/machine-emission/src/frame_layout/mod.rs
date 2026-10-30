@@ -18,6 +18,7 @@
 mod call_site;
 mod compute;
 mod error;
+mod geometry;
 mod replay;
 mod save_storage;
 pub(crate) mod stack_commit;
@@ -37,6 +38,8 @@ pub(crate) use save_storage::{
     stage_non_authoritative_callee_save_storage, validate_non_authoritative_callee_save_storage,
 };
 pub(crate) use validation::validate_target_frame_layout;
+
+pub(crate) use geometry::committed_extent;
 
 pub(crate) use unwind::{FrameContinuationCustody, frame_unwind_policy};
 

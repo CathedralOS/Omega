@@ -1,5 +1,5 @@
 // A membership on one fixed candidate cannot qualify an unknown selected copy.
-domain u64::Issued(value) requires value > 0 established by issue;
+domain u64::Issued requires self > 0 established by issue;
 machine issue() -> u64 in Issued { 3 }
 data Cell [copy] { value: u64; }
 machine select(cells: &[Cell; 4096], position: u64) -> u64 in Issued

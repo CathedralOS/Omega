@@ -12,9 +12,9 @@ machine main() reaches Required crashes Trap {
     let first: u32 = read(true);
     let observed: u32 = read(false);
     transition first == 11 { true -> verify(observed) false -> bad() }
-    state verify(observed: u32) {
+    machine verify(observed: u32) {
     transition observed == 11 { true -> done() false -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

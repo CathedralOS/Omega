@@ -15,6 +15,6 @@ machine Main::main(main: &mut Main) {
         _ -> bad(main)
     }
 
-    state use(main: &mut Main, amount: u64) { main.answer = amount; }
-    state bad(main: &mut Main) { main.answer = 71; }
+    machine use(main: &mut Main, amount: u64) { main.answer = amount; }
+    machine bad(main: &mut Main) { main.answer = 71; }
 }

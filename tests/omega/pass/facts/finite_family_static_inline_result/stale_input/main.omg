@@ -10,5 +10,5 @@ machine main() crashes Trap {
  let saved: u32 = limit;
  let item: Indexed<saved> = Family::row<16>(Selected as dyn Family, 0, limit);
  transition item.value == 0 && limit == 16 { true -> done() false -> bad() }
- state done() {} state bad() { crash Trap; }
+ machine done() {} machine bad() { crash Trap; }
 }

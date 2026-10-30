@@ -185,16 +185,10 @@ impl ContractExpressionEvaluator<'_, '_> {
     ) -> bool {
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Boolean(_) => true,
-            ExpressionNode::Name(path) => {
-                path.symbol.is_valid()
-                    && path.head_symbol == path.symbol
-                    && self
-                        .program
-                        .expression_table
-                        .name_path_members(path.members)
-                        .len()
-                        == 1
-            }
+            ExpressionNode::Name(path) => self
+                .program
+                .expression_table
+                .name_path_is_single_member(path),
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
                 self.builtin_boolean_meaning(unary.operand, owner)
             }

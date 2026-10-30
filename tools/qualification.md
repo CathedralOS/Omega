@@ -1,7 +1,8 @@
 # Pinned qualification
 
-Qualify one clean checkpoint coherently. Fetch and integrate main near
-publication, then assess the actual dependency changes before repeating work.
+Qualify one clean checkpoint on its fixed recorded base through publication.
+Only actual merge conflicts, concrete prerequisites or changed affected source
+justify local integration; assess those dependency changes before repeating work.
 `qualification.py` runs validators and records their identities; it does not
 decide scientific correctness, infer a complete dependency closure, approve
 packages, or replace independent review and the normal landing protocol.
@@ -186,8 +187,9 @@ required behavior. Include `passages`, a small list of exact relevant canonical
 excerpts (at most 2000 characters each, 6000 per mapping). A language change
 instead says `classification:"owner_decision"`
 and records the explicit owner's `authorization`; an agent's proposed design is
-not authority. Mappings require a `review` check with `final:true`. Independent
-review must distinguish an implementation gap from an invented feature and
+not authority. Mappings do not add a review gate. When the assignment explicitly
+requires independent review, retain its `review` check with `final:true`; that
+check must distinguish an implementation gap from an invented feature and
 verify preservation of authority, custody, type/loan, arithmetic and provenance.
 Contract files enter every check's dependency closure. They must exist unchanged
 from the integrated main base: editing a spec alongside its implementation does
@@ -198,7 +200,7 @@ Before semantic implementation, render the context with
 `qualification.py context --base FULL_MAIN_SHA --config CONFIG_JSON`.
 Use `context --state STATE_JSON` for the recorded qualification. Include its
 actual passages, source revision/blob hashes and behavior-to-contract mapping
-in the implementation **and independent-review** handoffs; a separate promise
+in the implementation and any required independent-review handoffs; a separate promise
 to retrieve a linked spec is insufficient. The tool rejects missing/stale or
 invented excerpts and records the focused context in normal evidence. Review
 still judges whether those passages actually authorize the behavior: their
@@ -249,7 +251,7 @@ If its parent's historical journal cannot be located, use the explicit
 to obtain a generated same-thread prompt. It repeats focused context and records
 the missing history without declaring uncommitted repairs accepted or clean.
 
-## Run once, then integrate
+## Run once on the fixed base
 
 All mutations require the latest returned state `revision`; a concurrent writer
 or running command causes refusal, never last-writer-wins replacement. Separate
@@ -260,13 +262,16 @@ python3 tools/qualification.py start --state build/qualification.json --base FUL
 python3 tools/qualification.py run-pending --state build/qualification.json --revision 0 --base FULL_BASE_SHA
 ```
 
-State updates retain complete history in compact JSON. Add `--summary-output`
-to state commands when repeated full-state output is costly. It emits a distinct
+State updates retain complete history in compact JSON. State commands emit a distinct
 `omega-qualification-summary-v1` presentation with the canonical state's absolute
 path and revision, latest immutable observation receipt and latest assessment.
 It preserves the command's actual exit status. The presentation cannot be loaded
 as qualification state; context, handoff and source-reuse packets remain complete.
-Default stdout remains the full state, and immutable receipt bytes stay unchanged.
+Read the canonical state file for complete history, or request `--full-output`
+when that full JSON response is needed. The explicit `--summary-output` flag
+remains supported. Neither presentation changes canonical state or immutable
+receipt bytes. Summaries avoid duplicating large source/artifact histories into
+every command's redirected log.
 
 Within one capture, reservation and completion privately retain decoded state.
 Each locked update first compares the current file's exact bytes by SHA-256;
@@ -275,9 +280,11 @@ detached projections, and a snapshot is consumed once, including on failure.
 This avoids repeated decoding of large histories while preserving the complete
 canonical state, immutable receipts and ordinary capture checks.
 
-Retain this revision while qualifying. Another main commit is not a reason to
-rebase in the middle of a capture. Once ready, fetch main, inspect incoming
-changes, rebase and assess the new candidate **outside the landing queue**:
+Retain this revision and its base through publication. Main/queue SHA movement
+alone never requires a pull, rebase, rebuild or requalification. Assess the
+submitted candidate against its recorded base. Only after justified local source
+integration for an actual conflict, prerequisite or changed affected source,
+assess with the corresponding integrated base:
 
 ```text
 python3 tools/qualification.py assess --state build/qualification.json --revision LAST_REVISION --base FETCHED_MAIN_SHA
@@ -351,6 +358,45 @@ base and candidate exactly; candidate-authored specification changes remain
 refused. This amendment retains all definitions, observations and assessments;
 it does not create an assessment, grant reuse or satisfy final review.
 Do not amend a command/expected result merely to turn a failure into acceptance.
+
+### Restart after rewritten ancestry
+
+A justified rebase or squash can remove the original private base from the
+candidate's ancestry. `assess` and `amend` deliberately refuse that incompatible
+history. Use `restart` to begin fresh acceptance while retaining the old state,
+observations, receipts, source refs and producers unchanged:
+
+```text
+python3 tools/qualification.py restart --state build/qualification.json --revision LAST_REVISION --successor build/qualification-restarted.json --candidate FULL_CLEAN_HEAD --base FULL_CANONICAL_BASE --config build/qualification-config.json --reason "actual conflict resolution rewrote the private base"
+python3 tools/qualification.py run-pending --state build/qualification-restarted.json --revision 0 --base FULL_CANONICAL_BASE
+```
+
+The predecessor must be the registered active state of this same worktree with
+the exact revision and no running capture. Its original base must no longer be
+an ancestor of the exact clean candidate; the new base must be an ancestor, and
+canonical contract checks still apply. Ordinary compatible history uses
+`assess`/`amend`, not restart. A reviewed replacement configuration may change
+non-final scope, but must retain final-candidate check IDs, kinds and final
+policies. Review its complete closure and oracles as for an amendment.
+
+The successor starts at revision zero with no runs, assessments or source-reuse
+attestations. Every configured check must run fresh, including final review.
+Its predecessor link records the old state's absolute path, streaming SHA-256,
+revision, original base/candidate and configuration digest, plus the reason and
+exact new candidate/base. The old history is loaded once for validation, never
+copied or rewritten. Keep that state and all its referenced evidence; the link
+is provenance, not acceptance or a backup.
+
+Under the existing locks, the tool writes the empty successor before atomically
+replacing the active registration. If activation fails, the predecessor stays
+active and the unactivated successor cannot run or mutate. Preserve both and
+repeat the identical restart request: only an unchanged, unstarted successor
+can be activated. A different request or modified successor refuses. If the
+response was lost after activation, inspect `build/qualification-active.json`
+and the successor's status; do not repeat the mutation. Once switched, old-state
+mutations refuse, while its historical status and evidence remain readable.
+No manual deletion of the active registration or alteration of ancestry is
+needed. This operation supplies no runtime or publication acceptance.
 
 ## Submit the qualified source
 

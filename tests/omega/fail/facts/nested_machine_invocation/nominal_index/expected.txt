@@ -1,0 +1,1 @@
+indexed-domain selected constant has canonical type `named(name(OtherUnit))`, expected `named(name(Unit))`

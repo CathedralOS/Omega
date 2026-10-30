@@ -9,7 +9,7 @@ machine select(flag: bool, value: u64 in Wrapping) -> u64 in Wrapping {
         true -> sum(initial, make(value + 1))
         false -> sum(initial, initial)
     }
-    state sum(first: Fraction, second: Fraction) -> u64 in Wrapping {
+    machine sum(first: Fraction, second: Fraction) -> u64 in Wrapping {
         first.value + second.value
     }
 }
@@ -18,8 +18,8 @@ machine Main::main(context: &mut Main) reaches Console {
     let first: u64 in Wrapping = select(true, 7);
     let second: u64 in Wrapping = select(false, 7);
     transition first == 15 && second == 14 { true -> done(context) false -> bad(context) }
-    state done(context: &mut Main) { Console::exit_process(0); }
-    state bad(context: &mut Main) { Console::exit_process(1); }
+    machine done(context: &mut Main) { Console::exit_process(0); }
+    machine bad(context: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

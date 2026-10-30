@@ -281,6 +281,13 @@ fn direct_structural_float_leaf_source(
     if path.is_empty() {
         return None;
     }
+    let root_type = crate::values::scalar::structural_fields::predicate_parameter_type(
+        program,
+        parameters[parameter_position as usize].type_reference,
+    )?;
+    let (path, _) = crate::values::scalar::structural_fields::explicit_observation_path(
+        program, root_type, &path,
+    )?;
     Some((
         owner_machine,
         checked_trees::CheckedStructuralParameterField {

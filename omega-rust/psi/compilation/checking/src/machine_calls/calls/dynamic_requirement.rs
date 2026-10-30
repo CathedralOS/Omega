@@ -64,6 +64,12 @@ pub(crate) fn dynamic_selector_call<'program>(
     let Some(selector_type) = selector_type(program, machine, state, selector) else {
         return Ok(None);
     };
+    // Ordinary trait-qualified calls also have typed first operands. Only a
+    // declared dynamic selector needs a supplying selector application; data
+    // custody and boundary calls retain their own argument-checking route.
+    if crate::declarations::traits::dynamic_selector_application(program, selector_type).is_none() {
+        return Ok(None);
+    }
     let (source_selector, enclosing_applications) = if matches!(
         program.expression_table.expression(selector),
         ExpressionNode::Cast(_)
@@ -163,6 +169,7 @@ pub(super) fn validate_dynamic_selector_arguments(
     call: &DynamicSelectorCall<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     validate_family_tuple(program, call, machine_arguments, diagnostics);
     let requirement = crate::declarations::traits::GenericBoundRequirement {
@@ -179,6 +186,7 @@ pub(super) fn validate_dynamic_selector_arguments(
         &requirement,
         writable_roots,
         diagnostics,
+        formation_obligations,
     );
 }
 

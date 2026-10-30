@@ -55,30 +55,29 @@ impl AllocatorAvailabilityPlan {
         let policy = match cursor.byte()? {
             0 => AllocatorAvailabilityPolicy::AllEnvironmentAllocatableViewsV1,
             1 => {
-                let count = cursor.length()?;
-                let mut views = Vec::with_capacity(count.min(cursor.remaining() / 2));
-                for _ in 0..count {
-                    views.push(RegisterViewId(cursor.u16()?));
-                }
+                let views = crate::codec_bytes::decode_list::<_, AllocatorAvailabilityDecodeError>(
+                    &mut cursor,
+                    |cursor| Ok(RegisterViewId(cursor.u16()?)),
+                )?;
                 AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 { views }
             }
             tag => return Err(AllocatorAvailabilityDecodeError::UnknownPolicy(tag)),
         };
-        let class_count = cursor.length()?;
-        let mut classes = Vec::with_capacity(class_count.min(cursor.remaining() / 2));
-        for _ in 0..class_count {
-            let class = RegisterClassId(cursor.u16()?);
-            let view_count = cursor.length()?;
-            let mut unconstrained_views =
-                Vec::with_capacity(view_count.min(cursor.remaining() / 2));
-            for _ in 0..view_count {
-                unconstrained_views.push(RegisterViewId(cursor.u16()?));
-            }
-            classes.push(RegisterClassAvailability {
-                class,
-                unconstrained_views,
-            });
-        }
+        let classes = crate::codec_bytes::decode_list::<_, AllocatorAvailabilityDecodeError>(
+            &mut cursor,
+            |cursor| {
+                let class = RegisterClassId(cursor.u16()?);
+                let unconstrained_views =
+                    crate::codec_bytes::decode_list::<_, AllocatorAvailabilityDecodeError>(
+                        &mut *cursor,
+                        |cursor| Ok(RegisterViewId(cursor.u16()?)),
+                    )?;
+                Ok(RegisterClassAvailability {
+                    class,
+                    unconstrained_views,
+                })
+            },
+        )?;
         if cursor.remaining() != 0 {
             return Err(AllocatorAvailabilityDecodeError::TrailingBytes);
         }
@@ -112,8 +111,4 @@ pub enum AllocatorAvailabilityDecodeError {
     IdentityMismatch,
 }
 
-crate::decode_error_display! { AllocatorAvailabilityDecodeError, "invalid terminal allocator availability" }
-
-optimization_core::truncated_from_adapter!(AllocatorAvailabilityDecodeError);
-
-optimization_core::take_error_from_adapter!(AllocatorAvailabilityDecodeError);
+crate::decode_error! { AllocatorAvailabilityDecodeError, "invalid terminal allocator availability" }

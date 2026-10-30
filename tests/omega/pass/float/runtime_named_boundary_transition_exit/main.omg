@@ -23,6 +23,6 @@ machine main() crashes Trap {
     transition first == 7.0 && negative == -7.0 && second == third && third == fourth {
         true -> done() false -> bad()
     }
-    state done() { }
-    state bad() { crash Trap; }
+    machine done() { }
+    machine bad() { crash Trap; }
 }

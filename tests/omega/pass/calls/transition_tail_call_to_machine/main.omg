@@ -39,10 +39,10 @@ requires 0 <= value && value <= 100
         true -> accepted(main)
         false -> fail(main, 71)
     }
-    state accepted(main: &mut Main) {
+    machine accepted(main: &mut Main) {
         transition { _ -> Main::without_arguments(main) }
     }
-    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 machine Main::mark(main: &mut Main) {
@@ -52,16 +52,16 @@ machine Main::mark(main: &mut Main) {
 machine Main::without_arguments(main: &mut Main) reaches Console {
     Main::mark(main);
     transition { _ -> marked(main) }
-    state marked(main: &mut Main) {
+    machine marked(main: &mut Main) {
         transition main.marks == 1 {
             true -> finishing(main)
             false -> fail(main, 72)
         }
     }
-    state finishing(main: &mut Main) {
+    machine finishing(main: &mut Main) {
         transition { _ -> Main::finish(main) }
     }
-    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 machine Main::finish(main: &mut Main) reaches Console {

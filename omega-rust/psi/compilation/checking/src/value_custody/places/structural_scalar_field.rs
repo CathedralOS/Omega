@@ -45,6 +45,9 @@ pub struct StructuralScalarField {
     /// Data declaration containing the final scalar field or selected payload,
     /// or the fixed array holding a final scalar element.
     pub carrier_type_reference: TypeReferenceHandle,
+    /// Complete declared type of the selected scalar storage leaf, retaining
+    /// its refinements and arithmetic policy independently of the root.
+    pub result_type_reference: TypeReferenceHandle,
     /// Declared case and carrier-field identities, literal fixed-array
     /// selections and stored-reference crossings in authored order, excluding
     /// the final scalar field. A final literal element is the path's last
@@ -81,7 +84,7 @@ pub fn structural_scalar_field_in_parameters(
         let mut segments = actual.segments.clone();
         segments.extend_from_slice(suffix);
         let actual = super::CanonicalPlace {
-            root: actual.root.clone(),
+            root: actual.root,
             segments,
         };
         if rebased.as_ref().is_some_and(|selected| selected != &actual) {
@@ -96,149 +99,12 @@ pub fn structural_scalar_field_in_parameters(
     structural_scalar_field_at_coordinate(program, parameters, parameter, &coordinate.segments)
 }
 
-/// Observe an already selected formal-relative coordinate. The caller owns
-/// the parameter snapshot and coordinate admission; this shared declaration
-/// walk only elaborates its ordinary field geometry and scalar policy. No
-/// source expression or same-typed field search supplies the coordinate.
-pub fn structural_scalar_field_at_coordinate(
-    program: &dyn crate::CheckingInput,
-    parameters: &[typed_trees::signature::StateParameter],
-    parameter: SymbolHandle,
-    coordinate: &[facts::PlaceSegment],
-) -> Option<StructuralScalarField> {
-    let mut matches = parameters.iter().filter(|input| {
-        input.symbol == parameter && !input.is_const && !input.relevance.is_erased()
-    });
-    let input = matches.next()?;
-    if matches.next().is_some() {
-        return None;
-    }
-    let source_type =
-        match program
-            .type_reference_table
-            .type_reference(crate::peel_declared_constraints(
-                program,
-                input.type_reference,
-            )) {
-            TypeReferenceNode::Reference {
-                referee, access, ..
-            } if access.is_readable() => *referee,
-            TypeReferenceNode::Reference { .. } => return None,
-            _ => input.type_reference,
-        };
-    let mut carrier = source_type;
-    let mut path = Vec::new();
-    let mut selected_case = SymbolHandle::invalid();
-    for (ordinal, segment) in coordinate.iter().enumerate() {
-        carrier = readable_projection_carrier(program, carrier, &mut path)?;
-        match segment {
-            facts::PlaceSegment::Case { variant } => {
-                if selected_case.is_valid() {
-                    return None;
-                }
-                let record = program.closed_data_definition(carrier)?;
-                let mut cases = program
-                    .data_members(record)
-                    .iter()
-                    .filter_map(|member| member.as_variant())
-                    .filter(|case| case.symbol == *variant);
-                let case = cases.next()?;
-                if cases.next().is_some() {
-                    return None;
-                }
-                selected_case = case.symbol;
-                path.push(checked_trees::CheckedUnitStructuralPathSegment::Case(
-                    checked_trees::CheckedMemberIdentity::of_member(
-                        case.identity,
-                        case.name.clone(),
-                    ),
-                ));
-            }
-            facts::PlaceSegment::Field { symbol } => {
-                let record = program.closed_data_definition(carrier)?;
-                let fields = if selected_case.is_valid() {
-                    let case = program
-                        .data_members(record)
-                        .iter()
-                        .filter_map(|member| member.as_variant())
-                        .find(|case| case.symbol == selected_case)?;
-                    program.data_payload_fields(case).iter().collect::<Vec<_>>()
-                } else {
-                    program
-                        .data_members(record)
-                        .iter()
-                        .filter_map(|member| match member {
-                            DataMember::Field(field) => Some(field),
-                            _ => None,
-                        })
-                        .collect::<Vec<_>>()
-                };
-                let mut fields = fields.into_iter().filter(|field| field.symbol == *symbol);
-                let field = fields.next()?;
-                if fields.next().is_some()
-                    || field.relevance.is_erased()
-                    || program.symbols.get(field.symbol).kind != symbols::SymbolKind::Field
-                    || program.symbols.get(field.symbol).parent
-                        != if selected_case.is_valid() {
-                            selected_case
-                        } else {
-                            record.symbol
-                        }
-                {
-                    return None;
-                }
-                if ordinal + 1 == coordinate.len() {
-                    let primitive_type = realized_scalar_carrier(program, field.type_reference)?;
-                    return Some(StructuralScalarField {
-                        root: facts::PlaceRoot::Symbol(parameter),
-                        receiver_value: ExpressionHandle::invalid(),
-                        statement_ordinal: 0,
-                        type_reference: source_type,
-                        carrier_type_reference: carrier,
-                        path,
-                        field: field.symbol,
-                        field_identity: checked_trees::CheckedMemberIdentity::of_member(
-                            field.identity,
-                            field.name.clone(),
-                        ),
-                        primitive_type,
-                        domain: program.arithmetic_domain_for_type_reference(
-                            program
-                                .type_reference_table
-                                .dereferenced_type_reference(field.type_reference),
-                        ),
-                    });
-                }
-                path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                    checked_trees::CheckedMemberIdentity::of_member(
-                        field.identity,
-                        field.name.clone(),
-                    ),
-                ));
-                carrier = field.type_reference;
-                selected_case = SymbolHandle::invalid();
-            }
-            facts::PlaceSegment::FixedIndex { index } if !selected_case.is_valid() => {
-                let TypeReferenceNode::FixedArray {
-                    element_type,
-                    length: typed_trees::types::FixedArrayLength::Literal(length),
-                } = program.type_reference_table.type_reference(carrier)
-                else {
-                    return None;
-                };
-                if index >= length {
-                    return None;
-                }
-                path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
-                    u64::try_from(*index).ok()?,
-                ));
-                carrier = *element_type;
-            }
-            _ => return None,
-        }
-    }
-    None
-}
+mod coordinates;
+pub use coordinates::{
+    ScalarCoordinateProjection, StructuralScalarCoordinate, structural_scalar_coordinate,
+    structural_scalar_coordinate_in_type, structural_scalar_field_at_coordinate,
+    structural_scalar_field_at_element_coordinate,
+};
 
 /// Resolve a field path below established storage or a fresh receiver value.
 /// Established storage is observed here, never equated with its initializer: member
@@ -265,7 +131,33 @@ pub fn structural_scalar_field(
         expression,
         bindings,
         ScalarObservationAccess::Ordinary,
+        None,
         source,
+    )
+}
+
+/// Observe below an already evaluated structural receiver. The caller owns
+/// the completed receiver/source correspondence and the read's access and
+/// case evidence. This only cuts the ordinary declaration walk at that exact
+/// subtree; it does not replay the receiver or copy its surrounding storage.
+/// A receiver absent from the projection spine cannot supply this geometry.
+pub fn structural_scalar_field_of_evaluated_receiver(
+    program: &dyn crate::CheckingInput,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    expression: ExpressionHandle,
+    receiver: ExpressionHandle,
+    source: StructuralSource,
+) -> Option<StructuralScalarField> {
+    structural_field_observation(
+        program,
+        machine,
+        state,
+        expression,
+        &[],
+        ScalarObservationAccess::Ordinary,
+        Some((receiver, source)),
+        |_| None,
     )
 }
 
@@ -278,6 +170,7 @@ pub fn structural_atomic_field(
     state: SymbolHandle,
     expression: ExpressionHandle,
     bindings: &[(SymbolHandle, ExpressionHandle)],
+    evaluated_receiver: Option<(ExpressionHandle, StructuralSource)>,
     source: impl FnMut(ExpressionHandle) -> Option<StructuralSource>,
 ) -> Option<StructuralScalarField> {
     structural_field_observation(
@@ -287,6 +180,7 @@ pub fn structural_atomic_field(
         expression,
         bindings,
         ScalarObservationAccess::Atomic,
+        evaluated_receiver,
         source,
     )
 }
@@ -304,15 +198,22 @@ fn structural_field_observation(
     expression: ExpressionHandle,
     bindings: &[(SymbolHandle, ExpressionHandle)],
     access: ScalarObservationAccess,
+    evaluated_receiver: Option<(ExpressionHandle, StructuralSource)>,
     mut source: impl FnMut(ExpressionHandle) -> Option<StructuralSource>,
 ) -> Option<StructuralScalarField> {
     let mut steps = Vec::new();
     let mut receiver = expression;
     let mut visits = 0;
-    loop {
+    let local = loop {
         visits += 1;
         if visits > program.expression_table.expression_count() {
             return None;
+        }
+        if !steps.is_empty()
+            && let Some((evaluated, source)) = evaluated_receiver
+            && receiver == evaluated
+        {
+            break source;
         }
         match program.expression_table.expression(receiver) {
             ExpressionNode::Name(name)
@@ -345,11 +246,10 @@ fn structural_field_observation(
                 });
                 receiver = indexed.collection;
             }
-            _ => break,
+            _ => break source(receiver)?,
         }
-    }
+    };
     let leaf = steps.first().copied()?;
-    let local = source(receiver)?;
     // A literal element selection is a coordinate only when `[]` keeps its
     // builtin meaning along the whole place spine. A fresh receiver's spine
     // starts at a value, which names no place type: each of its selections is
@@ -459,6 +359,7 @@ fn structural_field_observation(
                 statement_ordinal: local.statement_ordinal,
                 type_reference: local.type_reference,
                 carrier_type_reference: carrier,
+                result_type_reference: *element_type,
                 path,
                 field: SymbolHandle::invalid(),
                 field_identity: checked_trees::CheckedMemberIdentity::default(),
@@ -502,6 +403,7 @@ fn structural_field_observation(
         statement_ordinal: local.statement_ordinal,
         type_reference: local.type_reference,
         carrier_type_reference: carrier,
+        result_type_reference: field.type_reference,
         path,
         field: field.symbol,
         field_identity: checked_trees::CheckedMemberIdentity::of_member(
@@ -540,8 +442,9 @@ fn observable_scalar(primitive_type: PrimitiveType) -> Option<PrimitiveType> {
     .then_some(primitive_type)
 }
 
-/// Stored descriptors contribute explicit crossings to the checked path. Root
-/// borrowed storage is already peeled by `structural_source`; retaining only
+/// Stored pointer descriptors contribute explicit crossings to the checked
+/// path. Views retain their implicit descriptor presentation. Root borrowed
+/// storage is already peeled by `structural_source`; retaining only
 /// these declared crossings lets lowering follow the plan without rediscovering
 /// reference access from the authored expression.
 fn readable_projection_carrier(
@@ -564,7 +467,9 @@ fn readable_projection_carrier(
                     | language_semantics::ReferenceAccess::Mutable,
                 ..
             } => {
-                path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+                if crate::stores_reference_shape(program, carrier, &[]) {
+                    path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+                }
                 carrier = *referee;
             }
             TypeReferenceNode::Reference { .. } => return None,
@@ -952,9 +857,29 @@ pub fn structural_source(
     ) {
         return None;
     }
-    let (root, receiver_value, ordinal, source_type) = if let Some(source) =
-        program.saved_argument_source(receiver_expression)
-    {
+    let (root, receiver_value, ordinal, source_type) = if let ExpressionNode::SavedSubject(saved) =
+        program.expression_table.expression(receiver_expression)
+        && matches!(
+            program.expression_table.value_capture(saved.capture).owner,
+            typed_trees::expression::ValueCaptureOwner::Match
+        ) {
+        // The match's subject producer dominates this observation. Its capture
+        // is a lexical alias of that completed home, not a fresh copy to produce
+        // for each predicate or arm that reads a field.
+        let source = program.saved_value_source(saved)?;
+        let reference = crate::expression_result_type_reference(program, machine, state, source)?;
+        (
+            facts::PlaceRoot::Expression(
+                program
+                    .expression_table
+                    .value_capture(saved.capture)
+                    .value_anchor,
+            ),
+            source,
+            statement_ordinal as usize,
+            reference,
+        )
+    } else if let Some(source) = program.saved_argument_source(receiver_expression) {
         let reference = crate::expression_result_type_reference(program, machine, state, source)?;
         (
             facts::PlaceRoot::Expression(source),

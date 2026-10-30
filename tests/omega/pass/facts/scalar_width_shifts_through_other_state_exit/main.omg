@@ -5,7 +5,7 @@ machine shift_round_trip(val: u32 in Wrapping, shift: u32) -> u32 in Wrapping
     requires shift < 4
 {
     transition { _ -> perform_shift(val, shift) }
-    state perform_shift(v: u32 in Wrapping, s: u32)
+    machine perform_shift(v: u32 in Wrapping, s: u32) -> u32 in Wrapping
         requires s < 4
     {
         let shifted: u32 in Wrapping = v << s;
@@ -28,6 +28,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

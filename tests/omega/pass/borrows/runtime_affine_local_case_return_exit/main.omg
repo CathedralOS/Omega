@@ -15,13 +15,13 @@ machine choose(present: bool) -> bool {
     let token: Token = make();
     let response: Reply = reply(present);
     transition { _ -> inspect(response, token) }
-    state inspect(response: Reply, token: Token) -> bool {
+    machine inspect(response: Reply, token: Token) -> bool {
         transition response {
             Reply::Present { value } -> observe(token, value)
             _ -> (false)
         }
     }
-    state observe(token: Token, value: Token) -> bool { token.value == value.value }
+    machine observe(token: Token, value: Token) -> bool { token.value == value.value }
 }
 machine Main::main(context: &mut Main) reaches Console {
     let forwarded: bool = choose(true);
@@ -30,7 +30,7 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> finish(context, 42)
         false -> finish(context, 1)
     }
-    state finish(context: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(context: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

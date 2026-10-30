@@ -248,35 +248,35 @@ pub enum ObjectError {
     },
     BoundarySettlementOutsideFunction {
         machine: MachineId,
-        operation: semantic_vocabulary::BoundaryInvocationSite,
+        operation: semantic_vocabulary::InvocationSite,
     },
     BoundarySettlementOperationNotInProvenance {
         machine: MachineId,
-        operation: semantic_vocabulary::BoundaryInvocationSite,
+        operation: semantic_vocabulary::InvocationSite,
     },
     DuplicateBoundarySettlementOperation {
         machine: MachineId,
-        operation: semantic_vocabulary::BoundaryInvocationSite,
+        operation: semantic_vocabulary::InvocationSite,
     },
     InvalidBoundarySettlementArgumentPath {
         machine: MachineId,
-        operation: semantic_vocabulary::BoundaryInvocationSite,
+        operation: semantic_vocabulary::InvocationSite,
     },
     InvalidCompletionReceiptArgumentIndex {
         machine: MachineId,
-        operation: semantic_vocabulary::BoundaryInvocationSite,
+        operation: semantic_vocabulary::InvocationSite,
     },
     InvalidCompletionReceiptCustody {
         machine: MachineId,
-        operation: semantic_vocabulary::BoundaryInvocationSite,
+        operation: semantic_vocabulary::InvocationSite,
     },
     InvalidCompletionProviderCustody {
         machine: MachineId,
-        operation: semantic_vocabulary::BoundaryInvocationSite,
+        operation: semantic_vocabulary::InvocationSite,
     },
     BoundaryRealizationMismatch {
         machine: MachineId,
-        operation: semantic_vocabulary::BoundaryInvocationSite,
+        operation: semantic_vocabulary::InvocationSite,
     },
     EntryFunctionMissing(MachineId),
     TextSizeOverflow,

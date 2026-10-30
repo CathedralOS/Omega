@@ -45,6 +45,113 @@ enum CallContract {
     Ordinary,
 }
 
+/// Prepare one edge-owned invocation without allocating a semantic result.
+/// Argument transport uses the same independently reconstructed formal ABI
+/// and live source geometry as an ordinary returning call.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn lower_no_normal(
+    operation: &AbstractOperation,
+    function: &AbstractFunction,
+    target: NativeTarget,
+    functions: &BTreeMap<MachineId, &AbstractFunction>,
+    types: &StructuralTypeLookup<'_>,
+    prepared: &PreparedFunctionSignature,
+    parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
+    live: &LiveDefinitions,
+    operations: &[TargetUnitOperation],
+    provenance: &mut target_operations::TerminalPsiProvenance,
+) -> Result<target_operations::TargetControlTerminator, LoweringError> {
+    let AbstractOperation::InvokeNoNormal {
+        psi_edge,
+        callee,
+        arguments: scalar_values,
+        structural_arguments,
+        claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+    } = operation
+    else {
+        return Err(LoweringError::unsupported_control_flow(function.machine));
+    };
+    let declaration = functions
+        .get(callee)
+        .copied()
+        .ok_or(LoweringError::UnknownCallTarget(*callee))?;
+    if scalar_values.len() != declaration.parameters.len() {
+        return Err(LoweringError::CallArgumentCountMismatch {
+            callee: *callee,
+            expected: declaration.parameters.len(),
+            actual: scalar_values.len(),
+        });
+    }
+    if structural_arguments.len() != declaration.structural_parameters.len() {
+        return Err(LoweringError::StructuralCallArgumentCountMismatch {
+            callee: *callee,
+            expected: declaration.structural_parameters.len(),
+            actual: structural_arguments.len(),
+        });
+    }
+    let signature = super::call_signature::prepare(
+        function.machine,
+        AbstractCallSignature::Machine(declaration),
+        target,
+        types,
+    )?;
+    let scalar_arguments = scalar_values
+        .iter()
+        .zip(&signature.scalar_parameters)
+        .enumerate()
+        .map(|(position, (value, parameter))| {
+            scalar_argument(*callee, position, *value, parameter, function, live)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut shape_cache = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    let arguments = structural_arguments
+        .iter()
+        .zip(&declaration.structural_parameters)
+        .zip(&signature.parameters)
+        .map(|((argument, formal), destination)| {
+            structural_argument(
+                argument,
+                &StructuralCallFormal::from(formal),
+                destination,
+                *callee,
+                function,
+                types,
+                prepared,
+                parameters_by_place,
+                live,
+                operations,
+                &mut shape_cache,
+                &mut active,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let placed_bindings = super::references::placed_call_custody(
+        function,
+        declaration,
+        semantic_vocabulary::InvocationSite::InvokeNoNormal(*psi_edge),
+        structural_arguments,
+        types,
+        live,
+    )?;
+    let declared_result = declaration.result.clone();
+    provenance.edges.push(*psi_edge);
+    Ok(target_operations::TargetControlTerminator::InvokeNoNormal {
+        psi_edge: *psi_edge,
+        callee: *callee,
+        call_plan: signature.call_plan,
+        scalar_arguments,
+        arguments,
+        placed_bindings,
+        claim_transfers: claim_transfers.clone(),
+        requirement_obligations: requirement_obligations.clone(),
+        crash_continuations: crash_continuations.clone(),
+        declared_result,
+    })
+}
+
 /// One invocation's operands, whichever abstract operation spelled it.
 struct Invocation<'a> {
     psi_operation: OperationId,
@@ -177,7 +284,7 @@ pub(super) fn lower_call(
         super::references::placed_call_custody(
             function,
             callee,
-            call.psi_operation,
+            call.psi_operation.into(),
             call.structural_arguments,
             types,
             live,
@@ -216,7 +323,7 @@ pub(super) fn lower_call(
         .zip(&signature.scalar_parameters)
         .enumerate()
         .map(|(position, (value, parameter))| {
-            scalar_argument(&call, position, *value, parameter, function, live)
+            scalar_argument(call.callee, position, *value, parameter, function, live)
         })
         .collect::<Result<Vec<_>, _>>()?;
     let mut shape_cache = BTreeMap::new();
@@ -248,7 +355,6 @@ pub(super) fn lower_call(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    super::references::commit_argument_moves(live, &moved);
     let result = land_result(
         contract,
         &call,
@@ -259,6 +365,7 @@ pub(super) fn lower_call(
         types,
         live,
     )?;
+    super::references::commit_argument_moves(live, &moved);
     super::references::commit_stored_effects(live, stored);
     operations.push(TargetUnitOperation::Call {
         origin: target_operations::NativeCallOrigin::Authored,
@@ -293,7 +400,7 @@ pub(super) fn lower_call(
 /// Land the result through the tail of its kind. Unit defines nothing. A
 /// scalar result retains its home among the dominating scalar sources. A
 /// structural result establishes its declared reference leaves against the
-/// committed argument moves and its durable value or reference-payload home.
+/// pre-call argument metadata and its durable value or reference-payload home.
 #[allow(clippy::too_many_arguments)]
 fn land_result(
     contract: CallContract,
@@ -547,8 +654,10 @@ fn ordinary_contract(
 /// Its path-bound claims are custody, not storage. Outcome-specific evidence
 /// is proof-only: unit validation already joined it to the callee's guarded
 /// rows, and it has no runtime representation to lower.
-/// Qualifications do not restrict physical carrier families; the caller may
-/// add only domains this call's own establishment rows mint.
+/// Qualifications do not restrict physical carrier families. Whole domains
+/// come from the declaration and checked establishments. Current-unit validation
+/// independently replays additional projected caller facts through each returned
+/// reference's exact origin relation; those facts change neither ABI nor homes.
 fn structural_result_home(
     call: &Invocation<'_>,
     declaration: AbstractCallSignature<'_>,
@@ -565,7 +674,10 @@ fn structural_result_home(
     if callee_result.structural_type != result.structural_type
         || callee_result.multiplicity != result.multiplicity
         || !result_qualifications_match(callee_result.qualifications, result)
-        || callee_result.projected_qualifications != result.projected_qualifications
+        || !callee_result
+            .projected_qualifications
+            .iter()
+            .all(|row| result.projected_qualifications.contains(row))
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
@@ -612,7 +724,7 @@ fn bounded_owned_byte_result(
 /// One scalar argument resolves through the dominating scalar sources and must
 /// carry its callee parameter's declared type.
 fn scalar_argument(
-    call: &Invocation<'_>,
+    callee: MachineId,
     position: usize,
     value: ValueId,
     parameter: &super::call_signature::PreparedScalarCallFormal,
@@ -622,7 +734,7 @@ fn scalar_argument(
     let source = super::scalar_sources::source(value, function, live)?;
     if source.scalar_type() != parameter.scalar_type {
         return Err(LoweringError::CallArgumentTypeMismatch {
-            callee: call.callee,
+            callee,
             argument: value,
         });
     }
@@ -717,6 +829,7 @@ fn structural_argument(
             argument,
             declaration,
             destination,
+            function,
             prepared,
             live,
             types,

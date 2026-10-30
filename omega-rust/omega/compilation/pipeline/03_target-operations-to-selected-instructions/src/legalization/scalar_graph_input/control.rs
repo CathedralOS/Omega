@@ -12,7 +12,11 @@ pub(super) fn validate(
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(), LegalizationError> {
     match (&node.operation, &function.result) {
-        (AbstractOperation::ExternalCompletion { psi_edge, .. }, _)
+        // These outcomes have no local successor. Invocation-specific entry
+        // custody remains independently checked against the exact target graph;
+        // this common owner validates only the retained edge and its fuel.
+        (AbstractOperation::InvokeNoNormal { psi_edge, .. }, _)
+        | (AbstractOperation::ExternalCompletion { psi_edge, .. }, _)
         | (AbstractOperation::Crash { psi_edge, .. }, _) => terminal_edge(node, *psi_edge),
         (AbstractOperation::StructuralCase { .. }, _) => {
             super::structural_case::validate(node, function, structural_types)

@@ -150,6 +150,15 @@ reference still observe live contents. The additional rejection controls
 `computed_view_store_retains_local_array_backing` check that this preservation
 grants neither stale scalar facts nor permission to mutate borrowed backing.
 
+Completed-call backing resolution retains proven immutable image alternatives
+alongside input suppliers and declared lifetime dependencies. An image has shared
+access and no invented caller address; an unavailable alternative still refuses.
+Returned-origin capture reads copied descriptors from their frozen per-leaf
+referent inventory, then joins those coordinates to the returned loan group.
+Whole-carrier metadata does not replace that inventory or restore overwritten
+storage. This keeps the source-free replacement and recursive carrier forwarding
+on the same completed-value path.
+
 Host acceptance is nine native/Terminal exit-0 agreements and nine twins refusing
 `receive`'s 7 obligation, together with both ownership controls. Windows execution
 remains owner-deferred; Linux execution is unverified.
@@ -205,10 +214,27 @@ returned length metadata without citing the recursive guarantee being checked.
 Completed owned bindings retain inline descriptor cells across disjoint writes,
 while typed projections hide old pointee contents. Local copies follow retained
 completed values; contextual window operands supply their captured carrier for
-selected builtin indexing. These relations grant no new access authority.
+selected builtin indexing. An unchanged incoming descriptor retains its defining
+formal identity through those whole-value links. That identity is resolved only
+after the descriptor's consumer-cut storage query, preserving current reads
+through stored references and refusals for unavailable captures. These relations
+grant no new access authority.
 The changed-input, swapped-field and shortened-window controls under
 `tests/omega/fail/contracts/cyclic_descriptor_result_*` must refuse the helper's
 own length guarantee. Ranking and recursive premise checks remain independent.
+Terminal machine calls retain their invocation identity and completion
+obligations, including when a recursive call reuses activation storage.
+Invocation-local parameter origins stay separate from whole-activation
+invariants: the latter follow actual entry backedges and keep the original
+inputs distinct from replaced entry slots. The invariant solver builds its
+components from that same arrival roster. It discharges a recursive completion
+only after every reachable normal-result producer proves the same guarantee;
+unsupported exits withhold that proof. Ordinary call-result reasoning may also
+use a recursive guarantee when that exact call edge independently proves strict
+descent; its captured actuals and ordinary premise checks remain mandatory.
+A whole-component termination promise alone grants no such hypothesis. The scalar changed-actual control
+`fail/contracts/recursive_result_bound_changed_actual` also rejects, while
+ordinary, mutable and forwarding-state scalar controls retain their results.
 
 
 ## Public local dispatch results
@@ -323,7 +349,9 @@ opaque/provider/dependent result acceptance remain open.
 ### Static callable result contracts
 
 Each computed byte-view place now returns its existing composed value through
-`retain_callback<callback_keep>` before the later overwrite. The callback’s fresh
+`retain_callback<callback_keep>` before the later overwrite. The wrapper now
+completes with `transition { _ -> Callback(selected) }`, transporting the same
+carrier through terminal static-call completion. The callback’s fresh
 invocation contract declares both descriptor-length guarantees; the wrapper
 proves those guarantees through that public signature. It does not inspect the
 selected callback body. All earlier ranked/dynamic producers, separate input
@@ -331,9 +359,11 @@ regions, the length-7 consumer and the once-only replacement counter remain in
 the same expression. The source-9 twins still reject at that consumer and at the
 existing returned-window obligation.
 
-The fresh baseline rejects both wrapper guarantees in all nine places. Shared
-contract discovery now recognizes the static callable binder’s declared
-signature. Completed locals in the straight-line proof path publish through the
+Source contract discovery recognizes the static callable binder’s declared
+signature. The selected executable target supplies the checked write and result
+transport; retaining the public binder does not make a terminal call opaque.
+Record reception consumes the exact checked invocation, including its ordinal,
+without requiring an expression-local result holder. Completed locals in the straight-line proof path publish through the
 same storage-binding operation as the general statement path. This preserves the
 executed result’s identity after a conservative call frame retires earlier
 storage observations; it does not revive an old initializer or pointee contents.
@@ -346,7 +376,15 @@ extra equation.
 callback toggles a mutable counter, pinned as
 `pass/borrows/runtime_writing_static_callback_snapshot_exit`. The runtime oracle
 checks that the callback ran once and that overwriting the original descriptor
-left the result’s length at 7.
+left the result’s length at 7. `controls/terminal_static_callback` applies the
+same counter-writing callback through two terminal arms targeting the same
+callee, pinned as
+`pass/borrows/runtime_terminal_static_callback_snapshot_exit`. Each arm executes once with its own
+invocation ordinal; the public lifetime relationship remains independent of the
+executable target.
+The terminal variants of `static_callback_requires_public_field_guarantee` and
+`static_callback_result_does_not_restore_entry_contents` retain the public-only
+postcondition and mutation-invalidation boundaries.
 
 The reject controls are `fail/borrows/static_callback_requires_public_field_guarantee`
 (a stronger selected implementation cannot replace a missing public clause),
@@ -490,6 +528,143 @@ Terminal execution observe the same result and counters, exercising checked
 lowering, provider settlement, layout and calling plans, register/frame realization
 and final image emission. These are macOS ARM64 observations. Windows execution
 is owner-deferred; Linux execution is unverified.
+
+## Public provider field post-state captures
+
+A copied first argument equal to 7 stays 7 when the second argument overwrites its former home with 9.
+
+Parent: **STATE-LOCAL-VALUE-FRONTIER**, computed calls and state transfers.
+The `provider_field_poststate` production first invokes the public `Installing`
+requirement to put 7 into an explicit `Scalar.value` destination. Its completed
+post-state then supplies `snapshot`'s dependent `Counted<7>` result, before the
+last operand overwrites that same scalar field with 9. The provider's renamed
+`destination` and `incoming` parameters must retain the requirement's exact
+positional correspondence. The snapshot toggles a counter; both its once-only
+effect and the later write are observed by the exit-0 oracle.
+
+All nine `<place>/provider_field_poststate/main.omg` programs carry this fact,
+including the four hosted `ProgramEntry` bindings. Their `invalid/main.omg`
+twins change only the provider's replacement argument from 7 to 6; the receiving
+`Counted<7>` obligation and consumer remain unchanged. Byte-identical pins are
+`tests/omega/{pass,fail}/facts/provider_field_poststate_through_<place>_*`.
+
+The fresh optimized baseline at `717593f593c656f865c7a322fd2874b4bd168afc`
+rejects the provider's independently proved projected post-state equation.
+Declaration-scoped law terms now retain their typed fields and builtin measures;
+selected operation slots replace their result carrier together with their target.
+Every guarantee binds the provider's complete parameter roster by position,
+rather than permitting an unrelated permutation. Readonly and proof-only inputs
+can still have asymmetric entry premises; neither classification removes those
+assumptions or licenses a different actual subject. Dynamic selectors have no
+hidden data frontier, and their namespace qualification supplies no implicit
+receiver. Explicit data operands still owe their full write and loan checks.
+
+Linux x86-64 observations with the optimized candidate producer
+`1323377e5bf8cc474d1e40d218aa9d06f74834873fcafc32e325e9c16e4c3326`
+(SHA-256) establish nine native exit-0 and nine Terminal exit-0 runs; all nine
+twins reject at the captured runtime-index equality. The preserved run records
+live in the owning checkpoint's `build/slot5/field-row-8/`. The raw scalar reduction
+at `local/provider_scalar_poststate` also changes from baseline refusal to exit 0
+in both engines. Other hosted execution remains unverified. Earlier candidate 6 observations are
+historical only: its readonly/proof-only parameter permutation hole was found
+after that run. Candidate 8 rejects both new asymmetric-premise controls and
+preserves the nine-place outcomes. The focused 29-fixture source run has no lost
+success or wrong-reason rejection; the two new reject rows were subsequently recorded
+at the preserved published base with the same frozen runner. The 14-fixture both-engine run has no behavioral
+change or oracle failure; two timing differences remain against its stored
+baseline.
+
+Establishment comes from the provider's own checked ensures, not a caller guard.
+Identity is the completed scalar observation; later mutation changes its former
+home, not the owned `Counted` value. Composition carries that same indexed value
+through each receiving place into `seven` and exact subtraction. False-input
+twins preserve the index obligation. Both engines exercise ordinary checked
+lowering, structural construction, call/return layout and ABI placement,
+register/frame realization, instruction encoding and Linux image execution;
+these observations do not establish unexecuted target behavior.
+
+The parent remains open. The nine
+`<place>/provider_post_write_indexed_byte_view` probes retain the larger
+public-mutator descriptor composition. Their original copied-backing refusal
+and subsequent native descriptor replay failure are preserved in the owning
+evidence checkpoint. The completed selected resource relation below repairs
+that path without deriving pointer geometry from lifetime dependencies. The earlier returned-window endpoint
+control already executes with exit 0 in both engines on the preserved baseline;
+it is retained evidence, not a new repair.
+
+
+### Public descriptor extent after an earlier operand
+
+The same copied-first-argument fact also crosses all nine
+`<place>/provider_extent_poststate` programs. A public installer changes
+`View.bytes` from a one-byte window to a seven-byte window; its independently
+proved public ensures publishes `slot.bytes.len == replacement.len`. The next
+operand copies that length into an owned dependent `Counted<7>`, before the
+last operand overwrites the former descriptor home with a nine-byte static
+view. The counter toggles once and the ordinary consumer subtracts exactly 7.
+The invalid twins change only the installed window to `[..6]`.
+
+The invocation entry occurs after operand completion. Reference-subject
+preservation now uses the operation's write frame for entry-to-return effects;
+the proof observer still orders earlier operand writes and retires stale
+storage observations. Whole-expression frames remain with consumers that have
+not evaluated operands. Unknown operation frames still withhold preservation.
+This adds no pointer equality or backing authority from a length equation.
+
+The optimized producer
+`8b9806ec346fe629cb120ea55a387093d8259892a76e156204c8167b2f5477ad`
+(SHA-256) passes all nine preparations, native/Terminal exit-0 observations,
+and input-only rejecting twins for both this extent row and the scalar-field
+row. Raw evidence lives in `build/slot5/{extent-row-11,field-row-11}/` in the
+owning checkpoint. Source/build pins are byte-identical under
+`tests/omega/{pass,fail}/facts/provider_extent_poststate_through_<place>_*`.
+Four hosted bindings are authored; execution evidence here is Linux x86-64.
+
+The reduced extent control first rejected on candidate 8, then ran exit 0 in
+both engines on candidate 11; it was promoted without changing its local
+`main.omg` bytes. The larger reference-bearing `provider_post_write_indexed_byte_view`
+program remains frozen. Its completed backing relation is a separate repair
+from this scalar extent proof; see the observations below.
+
+
+Golden recording used a separate checkout of the same preserved published
+base `717593f593c656f865c7a322fd2874b4bd168afc`, restored to byte-identical
+candidate sources. The frozen optimized corpus runner recorded only twenty
+new source rows and nine new both-engine extent rows, with no wrong-reason
+reject or oracle failure. Their inspectable stamp is `717593f593c6+wt`;
+recording did not rebase the working branch, fetch main, rebuild a producer,
+or change other golden rows. Raw records and restoration hashes are retained
+in `build/slot5/record-{source,both}-corpus-11.*` and `recording-tree.json`.
+
+
+### Completed public selected descriptor storage
+
+The frozen `provider_post_write_indexed_byte_view` production copies the whole
+reference-bearing `View` after a public installer completes, then mutates its
+former home. The selected installer's ordinary stored-reference effects retain
+all changed slots and preserve its untouched incoming sibling. Immutable image
+origins remain images; mixed image/local arrivals retain every dependency and
+cannot advertise a partial local referent set. The public result contract and
+dynamic invocation remain public. Private scalar equations, returned-result
+claims, unrelated implementation rosters, and unknown selections supply no
+resource evidence.
+
+The Terminal and optimized-operation adapters reconstruct the selected table
+independently from their current typed operations. Complete same-selection SSA
+arrivals retain identity. Stored observations additionally require an actual
+raw writer at the exact destination and an unchanged storage version on every
+incoming path; arithmetic equality and call postconditions cannot manufacture
+a selector identity. Unknown, differing and cyclic selections withhold it.
+
+Producer `3b196efe2ecc3511b89e4ccf0dab9aa84136e4d5d5500d6e8e87869921dc4f0d`
+(SHA-256, candidate 17) prepares and runs all nine frozen positives with native
+and Terminal exit 0. All nine twins still reject their intentionally false
+runtime index. Raw observations are `build/slot5/descriptor-row-17/`.
+Source/build pins copy these exact programs into
+`tests/omega/{pass,fail}/facts/provider_descriptor_poststate_through_<place>_*`.
+These are Linux x86-64 observations; four authored target bindings do not
+constitute execution on the other hosts. Copied and projected selector controls
+remain under repair and review; this does not close the whole TASKS item.
 
 ## Ranked dependent descriptor returns
 

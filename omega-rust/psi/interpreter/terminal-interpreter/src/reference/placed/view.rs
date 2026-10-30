@@ -5,9 +5,9 @@
 
 use super::{PlacedReference, PlacedStorage};
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::TerminalExecution;
+use crate::execution::{TerminalExecution, operation_kind};
 use crate::record::storage::ConstructorStorage;
-use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
+use crate::values::StructuralRuntimePlace;
 use terminal_psi::{
     Operation, OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralPathSegment,
     TerminalPlacementLifecyclePlan,
@@ -19,14 +19,9 @@ impl TerminalExecution<'_> {
         operation: &Operation,
         plan: &TerminalPlacementLifecyclePlan,
     ) -> Result<(), TerminalInterpretError> {
-        let OperationKind::BoundaryCall {
-            structural_arguments,
-            completion_receipts,
-            ..
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => BoundaryCall {
+            structural_arguments, completion_receipts, ..
+        });
         let [source, profile_argument] = structural_arguments.as_slice() else {
             return Err(malformed());
         };
@@ -82,12 +77,7 @@ impl TerminalExecution<'_> {
             .provider_storage
             .prepare_view(binding, &supplied, &plan.placement)?;
         let mut identity_cursor = self.local_structural_identities.cursor();
-        let value = TerminalStructuralValue::minted(
-            self.local_structural_identities
-                .allocate_staged(&mut identity_cursor)?,
-            result.structural_type,
-            Vec::new(),
-        );
+        let value = self.mint_staged(&mut identity_cursor, result.structural_type)?;
         let root = StructuralRuntimePlace::from(&value);
         let mut storage = ConstructorStorage::new(self.account.as_ref());
         match assessment {

@@ -22,16 +22,17 @@ pub(super) fn derive(
     for block in &selected.blocks {
         let successors = terminator_successors(&block.terminator);
         for edge in successors {
-            let target = live
-                .blocks
-                .iter()
-                .find(|target| target.block == edge.block)
+            let target = index
+                .unique_block_index(edge.block)
+                .and_then(|idx| live.blocks.get(idx))
+                .filter(|target| target.block == edge.block)
+                .or_else(|| live.blocks.iter().find(|target| target.block == edge.block))
                 .ok_or(LiveRangeError::FunctionMismatch {
                     function: function_index,
                 })?;
             for parameter in index
                 .parameters_of(edge.block)
-                .filter(|register| target.virtual_live_in.contains(&register.id))
+                .filter(|register| target.virtual_live_in.binary_search(&register.id).is_ok())
             {
                 let argument = crate::analyses::liveness::edge_values::incoming_argument(
                     function_index,

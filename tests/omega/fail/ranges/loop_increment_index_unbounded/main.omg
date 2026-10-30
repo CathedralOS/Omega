@@ -25,14 +25,14 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> loop_(main)
     }
 
-    state loop_(main: &mut Main) {
+    machine loop_(main: &mut Main) {
         transition main.i != 7 {
             true -> body(main)
             _ -> done(main)
         }
     }
 
-    state body(main: &mut Main) {
+    machine body(main: &mut Main) {
         main.acc = main.acc + (main.nums[main.i] as i32 in Trapping);
         main.i = main.i + 1;
         transition {
@@ -40,18 +40,18 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         transition main.acc == 10 {
             true -> good(main)
             _ -> bad(main)
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

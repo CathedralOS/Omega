@@ -45,7 +45,7 @@ public machine baseline_ready() -> bool {
         true -> peak(&mut trace)
         _ -> false
     }
-    state peak(trace: &mut [f64; 4]) -> bool {
+    machine peak(trace: &mut [f64; 4]) -> bool {
         let selected: &mut [f64] = window(trace, 1);
         let trailing: Held = hold(selected);
         scale_peak(trailing.values);

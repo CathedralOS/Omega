@@ -1,0 +1,20 @@
+// Expected exit: 0
+machine observe<'source>(source: &'source mut u64, value: u64) -> &'source mut u64
+ensures source == value { source = value; source }
+machine probe(items: &mut [u64; 2], value: u64) -> u64
+ensures result == value {
+    let saved: u64 = observe(&mut items[0], value);
+    items[1] = 4;
+    saved
+}
+machine main() crashes Trap {
+    let mut first: [u64; 2] = [3, 1];
+    let mut second: [u64; 2] = [3, 1];
+    let one: u64 = probe(&mut first, 7);
+    let two: u64 = probe(&mut second, 9);
+    transition one == 7 && two == 9 && first[0] == 7 && second[0] == 9
+        && first[1] == 4 && second[1] == 4 {
+        true -> done() false -> bad()
+    }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}

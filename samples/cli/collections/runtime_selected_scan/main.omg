@@ -15,7 +15,7 @@ where machine Compare(value: &i32, threshold: i32) -> bool;
 {
     transition { _ -> next(values, threshold, 0) }
 
-    state next(values: &'input [i32], threshold: i32, position: u64)
+    machine next(values: &'input [i32], threshold: i32, position: u64)
         -> Optional<&'input i32>
     requires position <= values.len {
         transition position < values.len {
@@ -24,7 +24,7 @@ where machine Compare(value: &i32, threshold: i32) -> bool;
         }
     }
 
-    state inspect(values: &'input [i32], threshold: i32, position: u64)
+    machine inspect(values: &'input [i32], threshold: i32, position: u64)
         -> Optional<&'input i32>
     requires position < values.len {
         transition Compare(&values[position], threshold) {
@@ -74,6 +74,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

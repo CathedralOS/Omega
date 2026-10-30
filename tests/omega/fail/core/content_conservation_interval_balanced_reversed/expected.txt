@@ -1,0 +1,1 @@
+cannot prove ensures contract for exit from retain at statement 0: Owned.content(old(&whole)) == Owned.content(&result)

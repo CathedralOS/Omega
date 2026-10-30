@@ -1,16 +1,27 @@
 // Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
 // Expected exit: 0
-data Counter [copy]
-where value <= 60,
-{ value: i32; }
+data Counter [copy] where self.value <= 60 { value: i32; }
+
+machine replace(slot: &mut i32, replacement: i32)
+requires replacement <= 60
+ensures slot <= 60
+{ slot = replacement; }
+machine produce(replacement: i32) -> Counter
+requires replacement <= 60
+{
+    let mut counter: Counter = Counter { value: 0 };
+    replace(&mut counter.value, replacement);
+    counter
+}
+
 linux_x86_64 machine compute(counter: &Counter) -> i32 { 70 + counter.value }
 linux_arm64 machine compute(counter: &Counter) -> i32 { 70 + counter.value }
 macos_arm64 machine compute(counter: &Counter) -> i32 { 70 + counter.value }
 windows_x86_64 machine compute(counter: &Counter) -> i32 { 70 + counter.value }
 machine main() crashes Trap {
-    let counter: Counter = Counter { value: 60 };
-    let low: Counter = Counter { value: -2147483648 };
+    let counter: Counter = produce(60);
+    let low: Counter = produce(-2147483648);
     transition compute(&counter) == 130 && compute(&low) == -2147483578 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
 }

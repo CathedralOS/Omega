@@ -10,6 +10,12 @@ autotests = false
 
 
 [dependencies]
+cap-std = "4.0.3"
+package-source = { path = "../../packages/source-acquisition" }
+compiler-storage = { path = "../../../psi/foundation/compiler-storage" }
+task-plans = { path = "../backend/runtime/task-plans" }
+runtime-abi = { path = "../backend/runtime/runtime-abi" }
+language-semantics = { path = "../../../psi/foundation/language-semantics" }
 checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
 effects = { path = "../backend/plans/provider-evidence" }
 package-evidence = { path = "../../packages/review-evidence" }
@@ -18,7 +24,6 @@ native-production = { path = "../native-production" }
 compilation-products = { path = "../products" }
 component-description = { path = "../backend/artifacts/component-description" }
 lowered-psi = { path = "../../../psi/compilation/representations/lowered-psi" }
-terminal-production = { path = "terminal-production" }
 build-declarations = { path = "../../packages/build-declarations" }
 build-evaluation = { path = "../build-evaluation" }
 build-output = { path = "../../packages/build-output" }
@@ -26,6 +31,7 @@ package-compilation = { path = "../../packages/compilation-inputs" }
 provider-planning = { path = "../realization/provider-planning" }
 trust-model = { path = "../realization/trust-model" }
 boundary-applications = { path = "../backend/artifacts/boundary-applications" }
+calling-conventions = { path = "../backend/calling-conventions" }
 optimization = { path = "../../../psi/foundation/optimization-selections" }
 optimization-core = { path = "../../foundation/optimization-core" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
@@ -42,39 +48,34 @@ target = { path = "../backend/target" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-installation = { path = "../../../psi/compilation/checking/terminal-installation" }
 target-operations = { path = "../representations/target-operations" }
 proof-admission = { path = "../../../psi/compilation/proof/admission" }
 selected-dispatch = { path = "../realization/selected-dispatch" }
-image-emission = { path = "../backend/images/image-emission" }
 native-artifact = { path = "../backend/artifacts/native-artifact" }
-terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
+phase-profile = { path = "../../../psi/foundation/phase-profile" }
 
 [build-dependencies]
 optimization-core = { path = "../../foundation/optimization-core" }
 
 [dev-dependencies]
+image-emission = { path = "../backend/images/image-emission" }
+terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
+terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
+package-manager = { path = "../../packages/package-manager" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
 bounded-process = { path = "../../foundation/bounded-process" }
 
-language-semantics = { path = "../../../psi/foundation/language-semantics" }
 omega-build = { path = "../../application/build" }
 terminal-runtime = { path = "../../application/terminal-runtime" }
-terminal-installation = { path = "../../../psi/compilation/checking/terminal-installation" }
-runtime-abi = { path = "../backend/runtime/runtime-abi" }
 numerics = { path = "../../../psi/foundation/numerics" }
 terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
-terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
-calling-conventions = { path = "../backend/calling-conventions" }
 access-plans = { path = "../../../psi/foundation/access-plans" }
 extents = { path = "../../../psi/foundation/extents" }
 platform-custody = { path = "../../foundation/platform-custody" }
 checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
-syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
-task-plans = { path = "../backend/runtime/task-plans" }
-source-files-to-tokens = { path = "../../../psi/compilation/pipeline/00_source-files-to-tokens" }
 installation-evidence = { path = "../backend/runtime/installation-evidence" }
-tokens-to-syntax-trees = { path = "../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
 object-file = { path = "../backend/object/object-file" }
 mimalloc = { version = "0.1", default-features = false }
 package-compilation = { path = "../../packages/compilation-inputs", features = ["test-support"] }
@@ -111,6 +112,18 @@ path = "tests/placed_view_calls.rs"
 name = "terminal_entry_writeback"
 path = "tests/terminal_entry_writeback.rs"
 
+[[test]]
+name = "terminal_behavior_exclusions"
+path = "tests/terminal_behavior_exclusions.rs"
+
+[[test]]
+name = "terminal_effect_readiness"
+path = "tests/terminal_effect_readiness.rs"
+
+[[test]]
+name = "product_query_suspension"
+path = "tests/product_query_suspension.rs"
+
 # Loose roots intentionally have no fixture-supplied package owner. This
 # boundary test derives that owner, reloads its artifact and runs consumers
 # against the exact supplied identity; ordinary corpus setup masks this path.
@@ -121,3 +134,7 @@ path = "tests/anonymous_module_owner.rs"
 [[test]]
 name = "package_review"
 path = "tests/package_review.rs"
+
+[[test]]
+name = "executed_fixture_discovery"
+path = "tests/executed_fixture_discovery.rs"

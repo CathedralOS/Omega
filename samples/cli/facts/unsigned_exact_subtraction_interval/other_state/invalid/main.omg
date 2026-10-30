@@ -6,7 +6,7 @@ machine subtract_other_state(minuend: u64, subtrahend: u64) -> i32
 {
     let diff: u64 = minuend - subtrahend;
     transition { _ -> step(diff) }
-    state step(d: u64) -> i32 {
+    machine step(d: u64) -> i32 {
         let lower: u64 = d - 50;
         let upper: u64 = 80 - d;
         let sum: u64 = lower + upper;
@@ -24,6 +24,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

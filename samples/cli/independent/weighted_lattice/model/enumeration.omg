@@ -14,19 +14,19 @@ data Lattice {
 
 machine enumerate(lattice: &mut Lattice) {
     transition { _ -> capacity(lattice, 0, 1) }
-    state capacity(lattice: &mut Lattice, position: u64, count: u64 in Trapping) {
+    machine capacity(lattice: &mut Lattice, position: u64, count: u64 in Trapping) {
         transition position < lattice.sites {
             true -> capacity(lattice, position + 1, count * 2)
             false -> configuration(lattice, 0, count)
         }
     }
-    state configuration(lattice: &mut Lattice, code: u64 in Trapping, count: u64 in Trapping) {
+    machine configuration(lattice: &mut Lattice, code: u64 in Trapping, count: u64 in Trapping) {
         transition code < count {
             true -> vertex(lattice, code, count, 0, 1, 0, 0, 0, 1)
             false -> done()
         }
     }
-    state vertex(lattice: &mut Lattice, code: u64 in Trapping, count: u64 in Trapping,
+    machine vertex(lattice: &mut Lattice, code: u64 in Trapping, count: u64 in Trapping,
                  position: u64, divisor: u64 in Trapping, occupied: u64 in Trapping,
                  previous: u64 in Trapping, first: u64 in Trapping, weight: u64 in Trapping) {
         transition position < lattice.sites {
@@ -34,7 +34,7 @@ machine enumerate(lattice: &mut Lattice) {
             false -> close(lattice, code, count, occupied, previous, first, weight)
         }
     }
-    state observe(lattice: &mut Lattice, code: u64 in Trapping, count: u64 in Trapping,
+    machine observe(lattice: &mut Lattice, code: u64 in Trapping, count: u64 in Trapping,
                   position: u64, divisor: u64 in Trapping, occupied: u64 in Trapping,
                   previous: u64 in Trapping, first: u64 in Trapping, weight: u64 in Trapping) {
         let bit: u64 in Trapping = code / divisor % 2;
@@ -43,7 +43,7 @@ machine enumerate(lattice: &mut Lattice) {
             false -> weigh(lattice, code, count, position, divisor, occupied, previous, first, weight, bit)
         }
     }
-    state weigh(lattice: &mut Lattice, code: u64 in Trapping, count: u64 in Trapping,
+    machine weigh(lattice: &mut Lattice, code: u64 in Trapping, count: u64 in Trapping,
                 position: u64, divisor: u64 in Trapping, occupied: u64 in Trapping,
                 previous: u64 in Trapping, first: u64 in Trapping, weight: u64 in Trapping,
                 bit: u64 in Trapping) {
@@ -53,7 +53,7 @@ machine enumerate(lattice: &mut Lattice) {
             false -> vertex(lattice, code, count, position + 1, divisor * 2, occupied, 0, first, weight)
         }
     }
-    state active(lattice: &mut Lattice, code: u64 in Trapping, count: u64 in Trapping,
+    machine active(lattice: &mut Lattice, code: u64 in Trapping, count: u64 in Trapping,
                  position: u64, divisor: u64 in Trapping, occupied: u64 in Trapping,
                  previous: u64 in Trapping, first: u64 in Trapping, weight: u64 in Trapping) {
         let bonded_weight: u64 in Trapping = weight * lattice.bond;
@@ -62,7 +62,7 @@ machine enumerate(lattice: &mut Lattice) {
             false -> vertex(lattice, code, count, position + 1, divisor * 2, occupied + 1, 1, first, weight)
         }
     }
-    state close(lattice: &mut Lattice, code: u64 in Trapping, count: u64 in Trapping,
+    machine close(lattice: &mut Lattice, code: u64 in Trapping, count: u64 in Trapping,
                 occupied: u64 in Trapping, previous: u64 in Trapping, first: u64 in Trapping,
                 weight: u64 in Trapping) {
         let closed_weight: u64 in Trapping = weight * lattice.bond;
@@ -71,7 +71,7 @@ machine enumerate(lattice: &mut Lattice) {
             false -> accumulate(lattice, code, count, occupied, weight)
         }
     }
-    state accumulate(lattice: &mut Lattice, code: u64 in Trapping, count: u64 in Trapping,
+    machine accumulate(lattice: &mut Lattice, code: u64 in Trapping, count: u64 in Trapping,
                      occupied: u64 in Trapping, weight: u64 in Trapping) {
         lattice.configurations = lattice.configurations + 1;
         lattice.partition = lattice.partition + weight;
@@ -82,10 +82,10 @@ machine enumerate(lattice: &mut Lattice) {
             false -> done()
         }
     }
-    state histogram(lattice: &mut Lattice, code: u64 in Trapping, count: u64 in Trapping,
+    machine histogram(lattice: &mut Lattice, code: u64 in Trapping, count: u64 in Trapping,
                     occupied: u64, weight: u64 in Trapping) requires occupied < 9 {
         lattice.histogram[occupied] = lattice.histogram[occupied] + weight;
         transition { _ -> configuration(lattice, code + 1, count) }
     }
-    state done() { }
+    machine done() { }
 }

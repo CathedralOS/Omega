@@ -24,7 +24,7 @@
 
 use super::TrackedPlace;
 use super::symbolic_values::{SymbolicValue, applied_const_argument, applied_const_integer};
-use crate::proof_contracts::contract_entailment::{
+use crate::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
     scoped_arithmetic_implication,
@@ -55,6 +55,7 @@ pub(super) fn post_store_predicate_holds(
         statement_index,
         receiver,
         place.definition,
+        place.active_case,
         predicate,
     ) {
         return true;

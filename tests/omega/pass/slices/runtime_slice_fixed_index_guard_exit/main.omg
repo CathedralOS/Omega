@@ -17,18 +17,18 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> check_first(main, entry_view)
     }
 
-    state check_first(main: &Main, entries: &[Entry]) {
+    machine check_first(main: &Main, entries: &[Entry]) {
         transition entries[0].value == 7 {
             true -> good(main)
             false -> bad(main)
         }
     }
 
-    state good(main: &Main) {
+    machine good(main: &Main) {
         Console::exit_process(121);
     }
 
-    state bad(main: &Main) {
+    machine bad(main: &Main) {
         Console::exit_process(122);
     }
 }

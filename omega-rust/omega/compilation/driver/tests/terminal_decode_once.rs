@@ -16,7 +16,7 @@
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
-use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct, compile};
+use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct};
 use fixture_package_inputs::{repo_root, reviewed_repository_fixture_package_inputs};
 use std::fs;
 use std::path::PathBuf;
@@ -50,11 +50,12 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     if let Some(package_inputs) = prepared.package_inputs {
         request = request.with_package_inputs(package_inputs);
     }
-    let retained = compile(request)
-        .and_then(compiler::CompileOutcomes::into_single_report)
-        .unwrap_or_else(|diagnostics| panic!("{FIXTURE} must reach Terminal: {diagnostics:#?}"))
-        .into_retained_terminal_artifact()
-        .unwrap_or_else(|| panic!("{FIXTURE} retains its native proposal"));
+    let retained =
+        omega_build::compile_sources(&mut compiler::CompilationSession::default(), request)
+            .and_then(compiler::CompileOutcomes::into_single_report)
+            .unwrap_or_else(|diagnostics| panic!("{FIXTURE} must reach Terminal: {diagnostics:#?}"))
+            .into_retained_terminal_artifact()
+            .unwrap_or_else(|| panic!("{FIXTURE} retains its native proposal"));
     let proposal = retained
         .native_realization_proposal()
         .unwrap_or_else(|| panic!("{FIXTURE} native proposal"));
@@ -82,6 +83,34 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
             );
         }
     }
+    // The checked Console adapter calls a private toolchain exit leaf. Its
+    // direct plan is not a package service selection; explicitly admit only
+    // that known intrinsic's termination authority for this target. Do not
+    // infer receiver permission from arbitrary implementation demand.
+    for leaf in &proposal.providers().direct_boundary_leaves {
+        if leaf.plan.target != target_name
+            || !matches!(
+                leaf.execution,
+                backend_plan::DirectBoundaryExecution::Intrinsic(Some(
+                    effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
+                ))
+            )
+        {
+            continue;
+        }
+        for row in &leaf.plan.rows {
+            minted_rows.push(
+                provider_admission::TerminalAuthorityPermissionPolicyRow::new(
+                    leaf.plan.schema.identity_digest(),
+                    permission_identities
+                        .intern(leaf.plan.identities.text(row.requirement_identity)),
+                    effects::TerminalAuthorityDisposition::from_classes([
+                        effects::TerminalAuthorityClass::ProcessTermination,
+                    ]),
+                ),
+            );
+        }
+    }
     let permission_rows = minted_rows.into_iter().fold(
         Vec::new(),
         |mut rows: Vec<provider_admission::TerminalAuthorityPermissionPolicyRow>, row| {
@@ -105,12 +134,12 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     // Everything above is Psi production and proposal retention. The
     // measurement starts here so it attributes only the realization.
     let before = terminal_codec::module_decode_count();
-    let product = native_production::compile(
-        retained,
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let mut prepared_native = native_production::prepare(
+        &retained,
         native_production::NativeCompileRequest {
             private_entry_ram: &[],
-            optimization_selections:
-                &optimization_core::PostTerminalOptimizationSelections::default(),
+            optimization_selections: &optimizations,
             terminal_authority_policy: provider_admission::terminal_authority_policy_with_rows(
                 Vec::new(),
             )
@@ -119,11 +148,59 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
             terminal_authority_permission_policy: Some(permission_policy),
             image_request,
             imports: &[],
+            components: &[],
         },
     )
     .unwrap_or_else(|(_, diagnostics)| {
-        panic!("{FIXTURE} must realize its native artifact: {diagnostics:#?}")
+        panic!("{FIXTURE} must prepare its native artifact: {diagnostics:#?}")
     });
+    let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
+    for completion in prepared_native.scalar_completions() {
+        let artifact = completion.artifact();
+        let completed = build_time_evaluation::complete_scalar_applications(
+            artifact,
+            completion.target(),
+            completion.demand(),
+            None,
+            &mut accounting,
+            |scope| {
+                let proposal = completion
+                    .provider_proposals()
+                    .iter()
+                    .find(|proposal| proposal.target == scope)
+                    .ok_or_else(|| format!("missing {scope} provider proposal"))?;
+                let providers = proposal
+                    .selection
+                    .as_ref()
+                    .map_err(|reasons| reasons.join("; "))?
+                    .admit(artifact.view(), scope)?;
+                let profile = target::TargetProfile::from_canonical_target_name(scope)
+                    .map_err(|diagnostic| diagnostic.message)?;
+                Ok(build_time_evaluation::ScalarScopeEvaluation {
+                    carrier_layout: profile
+                        .native_realization()
+                        .map(runtime_abi::target_carrier_layout),
+                    targets: terminal_installation::admit_target_machine_selections(
+                        artifact.view(),
+                        scope,
+                    ),
+                    providers,
+                    address_model: Ok(target::TargetSemantics::close_address_model(profile).map(
+                        |model| terminal_installation::ScalarAddressModel {
+                            target: scope.to_owned(),
+                            carrier: model.carrier(),
+                            semantics_version: model.semantics_version(),
+                            commitment: model.commitment(),
+                        },
+                    )),
+                })
+            },
+        )
+        .expect("scalar completion");
+        completion.complete(completed).expect("one completion");
+    }
+    let product = native_production::compile(prepared_native)
+        .unwrap_or_else(|(_, diagnostics)| panic!("{FIXTURE} must realize: {diagnostics:#?}"));
     let realization_decodes = terminal_codec::module_decode_count() - before;
     let native_artifact::RequestedNativeArtifact::Direct(artifact) = product.artifact else {
         panic!("{FIXTURE} emits a direct native artifact")
@@ -152,7 +229,11 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     // Possessing this same artifact, its selected provider and established
     // root Binding does not delegate containing-domain death to an embedding.
     let denied = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+        entry: None,
+        filesystem: Default::default(),
+        native_provider: None,
         x86_flags: None,
+        memory_ordering: None,
         provider_proposal: None,
         artifact: artifact.psi_artifact(),
         target: None,
@@ -173,7 +254,11 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
         "embedding without host delegation must refuse before execution"
     );
     let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+        entry: None,
+        filesystem: Default::default(),
+        native_provider: None,
         x86_flags: None,
+        memory_ordering: None,
         provider_proposal: None,
         artifact: artifact.psi_artifact(),
         target: None,
@@ -222,9 +307,10 @@ fn exercise_owned_and_borrowed_instances() {
     if let Some(package_inputs) = prepared.package_inputs {
         request = request.with_package_inputs(package_inputs);
     }
-    let report = compile(request)
-        .and_then(compiler::CompileOutcomes::into_single_report)
-        .expect("ordinary empty entry produces Terminal");
+    let report =
+        omega_build::compile_sources(&mut compiler::CompilationSession::default(), request)
+            .and_then(compiler::CompileOutcomes::into_single_report)
+            .expect("ordinary empty entry produces Terminal");
     let retained = report
         .into_retained_terminal_artifact()
         .expect("retained Terminal");
@@ -251,7 +337,7 @@ fn exercise_owned_and_borrowed_instances() {
     );
     let (transferred_module, _) = published.into_semantics();
     assert_eq!(machine_storage, transferred_module.machines.as_ptr());
-    let terminal_psi::TargetMachineCallable::Machine(entry) = module.entry else {
+    let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry else {
         panic!("this fixture has an ordinary machine entry");
     };
     let entry = module.machine(entry).unwrap();
@@ -303,11 +389,26 @@ fn exercise_owned_and_borrowed_instances() {
             .is_err()
     );
     drop(restored);
+    let shared = TerminalProgram::retain(retained.artifact().retain_code());
+    assert!(std::ptr::eq(shared.entry().unwrap().result, &entry.result));
+    let mut retained_instance = shared
+        .instantiate(terminal_interpreter::TerminalInstantiation::default())
+        .expect("same-session code remains directly executable");
+    drop(shared);
     let before_load = terminal_codec::module_decode_count();
     let owned = TerminalProgram::load_envelope(&envelope).expect("owned external load");
     assert_eq!(terminal_codec::module_decode_count() - before_load, 1);
     drop(envelope);
     drop(retained);
+    let after_load = terminal_codec::module_decode_count();
+    assert_eq!(
+        retained_instance
+            .invoke(&mut TerminalFuelMeter::unbounded())
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit),
+        "retained execution must survive the original artifact owner's drop"
+    );
+    assert_eq!(terminal_codec::module_decode_count(), after_load);
     assert!(
         owned
             .instantiate(terminal_interpreter::TerminalInstantiation {

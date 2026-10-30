@@ -10,6 +10,6 @@ machine main() blocks; crashes Trap {
     let first: i32 = block choose<Selected<7>, 2>();
     let second: i32 = block choose<Selected<7>, 4>();
     transition first == 2 && second == 4 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

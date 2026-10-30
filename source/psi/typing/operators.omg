@@ -32,7 +32,7 @@ crashes Trap
         _ -> unmatched(typer, expression, matches)
     }
 
-    state select(
+    machine select(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -48,7 +48,7 @@ crashes Trap
         }
     }
 
-    state selected(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, candidate: u64 in Trapping) {
+    machine selected(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, candidate: u64 in Trapping) {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, candidate);
         let result: u64 in Trapping = Typer::declared_result(typer, item.has_return_type, item.return_type, typer.output.unit);
         Typing::set_selection(&mut typer.output, index, Selection::Machine { handle: candidate });
@@ -61,14 +61,14 @@ crashes Trap
         let right_admitted: bool = Typer::admit(typer, syntax, right_type, expression.right, true);
     }
 
-    state unmatched(typer: &mut Typer, expression: Expression, matches: u64 in Trapping) {
+    machine unmatched(typer: &mut Typer, expression: Expression, matches: u64 in Trapping) {
         transition matches == 0 {
             true -> reject(typer, expression, TypeDiagnosticCode::OperandMismatch)
             _ -> reject(typer, expression, TypeDiagnosticCode::AmbiguousMachine)
         }
     }
 
-    state reject(typer: &mut Typer, expression: Expression, code: TypeDiagnosticCode) {
+    machine reject(typer: &mut Typer, expression: Expression, code: TypeDiagnosticCode) {
         Typing::reject(&mut typer.output, code, expression.source_span);
     }
 }
@@ -90,7 +90,7 @@ crashes Trap
         _ -> result(count)
     }
 
-    state test(
+    machine test(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -106,7 +106,7 @@ crashes Trap
         }
     }
 
-    state next(
+    machine next(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -121,7 +121,7 @@ crashes Trap
         }
     }
 
-    state result(count: u64 in Trapping) -> u64 in Trapping {
+    machine result(count: u64 in Trapping) -> u64 in Trapping {
         count
     }
 }
@@ -145,7 +145,7 @@ crashes Trap
         _ -> no()
     }
 
-    state homed(
+    machine homed(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -165,7 +165,7 @@ crashes Trap
         }
     }
 
-    state visible(
+    machine visible(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -184,7 +184,7 @@ crashes Trap
         }
     }
 
-    state operands(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, item: MachineItem) -> bool {
+    machine operands(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, item: MachineItem) -> bool {
         let left: Parameter = SyntaxTrees::parameter(syntax, item.first_parameter);
         let right: Parameter = SyntaxTrees::parameter(syntax, item.first_parameter + 1);
         let left_type: u64 in Trapping = Typing::reference_type(&typer.output, left.type_reference);
@@ -194,7 +194,7 @@ crashes Trap
         left_admitted && right_admitted
     }
 
-    state no() -> bool {
+    machine no() -> bool {
         false
     }
 }
@@ -209,11 +209,11 @@ crashes Trap
         _ -> elsewhere()
     }
 
-    state data(home: TypeBinding, item: u64 in Trapping) -> bool {
+    machine data(home: TypeBinding, item: u64 in Trapping) -> bool {
         Resolver::homed_at(home, item)
     }
 
-    state elsewhere() -> bool {
+    machine elsewhere() -> bool {
         false
     }
 }
@@ -243,7 +243,7 @@ public machine Typer::operator_token(operator: OperatorKind) -> OperatorToken {
         _ -> chosen(OperatorToken::None)
     }
 
-    state chosen(token: OperatorToken) -> OperatorToken {
+    machine chosen(token: OperatorToken) -> OperatorToken {
         token
     }
 }

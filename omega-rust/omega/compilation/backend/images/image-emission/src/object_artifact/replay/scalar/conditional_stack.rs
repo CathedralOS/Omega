@@ -6,25 +6,23 @@
 //! instructions.
 
 use crate::object_artifact::replay::x86_register_info_writes_stack_pointer;
+use crate::order::strictly_increasing;
 
 use machine_code::{
     ScalarConditionalBranchEvidence, ScalarConditionalCondition, ScalarControlAffineCleanupRecord,
-    ScalarDivisionBranchEvidence, ScalarStackEvidence, ScalarStackMutation,
+    ScalarDivisionBranchEvidence, ScalarStackEvidence,
 };
 use semantic_vocabulary::MachineId;
 use target::Architecture;
-use target_operations::CallSiteOwner;
 
 use super::super::unit::stack::aarch64_stack_adjustment_at;
-use super::call_stack::scalar_call_stack_at;
 use super::conditional_regions::{
     collect_conditional_tree_regions, division_branches_in_region, validate_division_branch_regions,
 };
 use super::division_stack::replay_x86_scalar_division_region;
 use super::stack_mutation::{
-    aarch64_control_flow_instruction, aarch64_unsupported_sp_write,
-    claimed_mutations_and_call_sites, replay_scalar_mutation, validate_aarch64_scalar_mutation,
-    validate_x86_scalar_mutation,
+    ScalarReplay, aarch64_control_flow_instruction, aarch64_unsupported_sp_write,
+    replay_scalar_mutation, validate_aarch64_scalar_mutation, validate_x86_scalar_mutation,
 };
 use crate::{ObjectError, ObjectScalarCallStack, ObjectScalarStack};
 
@@ -37,11 +35,8 @@ fn replay_scalar_conditional_region_with_divisions(
     end: usize,
     require_return: bool,
     division_branches: &[ScalarDivisionBranchEvidence],
-    claimed: &mut std::collections::BTreeMap<usize, ScalarStackMutation>,
-    call_sites: &mut std::collections::BTreeMap<usize, machine_code::InternalCallRelocation>,
     allow_calls: bool,
-    evidence: &ScalarStackEvidence,
-    validated_calls: &mut Vec<ObjectScalarCallStack>,
+    walk: &mut ScalarReplay<'_>,
 ) -> Result<u32, ObjectError> {
     if division_branches.is_empty() {
         return replay_scalar_conditional_region(
@@ -51,11 +46,8 @@ fn replay_scalar_conditional_region_with_divisions(
             start,
             end,
             require_return,
-            claimed,
-            call_sites,
+            walk,
             allow_calls,
-            evidence,
-            validated_calls,
             None,
         );
     }
@@ -72,10 +64,7 @@ fn replay_scalar_conditional_region_with_divisions(
         end,
         require_return,
         division_branches,
-        claimed,
-        call_sites,
-        evidence,
-        validated_calls,
+        walk,
     )
 }
 
@@ -88,10 +77,7 @@ fn replay_scalar_conditional_terminal_region(
     end: usize,
     crash: bool,
     division_branches: &[ScalarDivisionBranchEvidence],
-    claimed: &mut std::collections::BTreeMap<usize, ScalarStackMutation>,
-    call_sites: &mut std::collections::BTreeMap<usize, machine_code::InternalCallRelocation>,
-    evidence: &ScalarStackEvidence,
-    validated_calls: &mut Vec<ObjectScalarCallStack>,
+    walk: &mut ScalarReplay<'_>,
 ) -> Result<u32, ObjectError> {
     if !crash {
         return replay_scalar_conditional_region_with_divisions(
@@ -102,11 +88,8 @@ fn replay_scalar_conditional_terminal_region(
             end,
             true,
             division_branches,
-            claimed,
-            call_sites,
             true,
-            evidence,
-            validated_calls,
+            walk,
         );
     }
     if !division_branches.is_empty() {
@@ -138,11 +121,8 @@ fn replay_scalar_conditional_terminal_region(
         start,
         crash_offset,
         false,
-        claimed,
-        call_sites,
+        walk,
         true,
-        evidence,
-        validated_calls,
         None,
     )
 }
@@ -165,13 +145,8 @@ pub(crate) fn validate_conditional_tree_scalar_stack(
         || !cleanups.is_empty() && crash_leaves.iter().any(|crash| *crash)
         || !cleanups.is_empty() && !division_branches.is_empty()
         || evidence.cleanup_preservation.is_some()
-        || decisions
-            .windows(2)
-            .any(|pair| pair[0].branch_offset >= pair[1].branch_offset)
-        || evidence
-            .mutations
-            .windows(2)
-            .any(|pair| pair[0].offset >= pair[1].offset)
+        || !strictly_increasing(&decisions, |row| row.branch_offset)
+        || !strictly_increasing(&evidence.mutations, |row| row.offset)
     {
         return Err(ObjectError::InvalidScalarConditionalEvidence {
             machine,
@@ -203,9 +178,7 @@ pub(crate) fn validate_conditional_tree_scalar_stack(
     division_regions.extend(leaves.iter().copied());
     validate_division_branch_regions(machine, division_branches, &division_regions)?;
 
-    let (mut claimed, mut call_sites) =
-        claimed_mutations_and_call_sites(architecture, machine, bytes, evidence, calls)?;
-    let mut validated_calls = Vec::with_capacity(calls.len());
+    let mut walk = ScalarReplay::new(architecture, machine, bytes, evidence, calls)?;
     let mut peak = 0;
     for (start, end, condition) in prefixes {
         let prefix_peak = replay_scalar_conditional_region_with_divisions(
@@ -216,11 +189,8 @@ pub(crate) fn validate_conditional_tree_scalar_stack(
             end,
             false,
             division_branches_in_region(division_branches, start, end),
-            &mut claimed,
-            &mut call_sites,
             condition == ScalarConditionalCondition::Expression,
-            evidence,
-            &mut validated_calls,
+            &mut walk,
         )?;
         if condition == ScalarConditionalCondition::Parameter && prefix_peak != 0 {
             return Err(ObjectError::InvalidScalarConditionalEvidence {
@@ -239,11 +209,8 @@ pub(crate) fn validate_conditional_tree_scalar_stack(
                 start,
                 end,
                 true,
-                &mut claimed,
-                &mut call_sites,
+                &mut walk,
                 true,
-                evidence,
-                &mut validated_calls,
                 Some(&cleanup.cleanup),
             )?
         } else {
@@ -255,23 +222,12 @@ pub(crate) fn validate_conditional_tree_scalar_stack(
                 end,
                 crash_leaves[index],
                 division_branches_in_region(division_branches, start, end),
-                &mut claimed,
-                &mut call_sites,
-                evidence,
-                &mut validated_calls,
+                &mut walk,
             )?
         };
         peak = peak.max(leaf_peak);
     }
-    super::stack_mutation::scalar_stack_result(
-        &claimed,
-        &call_sites,
-        machine,
-        peak,
-        evidence.stack_alignment,
-        validated_calls,
-        None,
-    )
+    walk.finish(peak, None)
 }
 
 pub(crate) fn replay_scalar_conditional_region(
@@ -281,11 +237,8 @@ pub(crate) fn replay_scalar_conditional_region(
     start: usize,
     end: usize,
     require_return: bool,
-    claimed: &mut std::collections::BTreeMap<usize, ScalarStackMutation>,
-    call_sites: &mut std::collections::BTreeMap<usize, machine_code::InternalCallRelocation>,
+    walk: &mut ScalarReplay<'_>,
     allow_calls: bool,
-    evidence: &ScalarStackEvidence,
-    validated_calls: &mut Vec<ObjectScalarCallStack>,
     scalar_affine_cleanup: Option<&machine_code::UnitAffineCleanupRecord>,
 ) -> Result<u32, ObjectError> {
     if start > end || end > bytes.len() {
@@ -323,19 +276,7 @@ pub(crate) fn replay_scalar_conditional_region(
                     continue;
                 }
                 if instruction.mnemonic() == iced_x86::Mnemonic::Call {
-                    validate_conditional_call_site(
-                        architecture,
-                        machine,
-                        bytes,
-                        call_sites,
-                        offset,
-                        allow_calls,
-                        evidence,
-                        depth,
-                        &mut peak,
-                        validated_calls,
-                        scalar_affine_cleanup,
-                    )?;
+                    walk.call(offset, allow_calls, scalar_affine_cleanup, depth, &mut peak)?;
                     continue;
                 }
                 if instruction.flow_control() != iced_x86::FlowControl::Next {
@@ -352,9 +293,7 @@ pub(crate) fn replay_scalar_conditional_region(
                     || instruction.mnemonic() == iced_x86::Mnemonic::Lea
                         && instruction.op0_register() == iced_x86::Register::RSP;
                 if stack_mutation {
-                    let mutation = claimed
-                        .remove(&offset)
-                        .ok_or(ObjectError::UnclaimedScalarStackMutation { machine, offset })?;
+                    let mutation = walk.claim(offset)?;
                     validate_x86_scalar_mutation(machine, bytes, &instruction, mutation)?;
                     replay_scalar_mutation(machine, offset, mutation.kind, &mut depth, &mut peak)?;
                     continue;
@@ -386,28 +325,14 @@ pub(crate) fn replay_scalar_conditional_region(
                     continue;
                 }
                 if encoded == 0x9400_0000 {
-                    validate_conditional_call_site(
-                        architecture,
-                        machine,
-                        bytes,
-                        call_sites,
-                        offset,
-                        allow_calls,
-                        evidence,
-                        depth,
-                        &mut peak,
-                        validated_calls,
-                        scalar_affine_cleanup,
-                    )?;
+                    walk.call(offset, allow_calls, scalar_affine_cleanup, depth, &mut peak)?;
                     continue;
                 }
                 if aarch64_control_flow_instruction(encoded) {
                     return Err(ObjectError::NonLinearScalarControlFlow { machine, offset });
                 }
                 if aarch64_stack_adjustment_at(bytes, offset) {
-                    let mutation = claimed
-                        .remove(&offset)
-                        .ok_or(ObjectError::UnclaimedScalarStackMutation { machine, offset })?;
+                    let mutation = walk.claim(offset)?;
                     validate_aarch64_scalar_mutation(machine, encoded, mutation)?;
                     replay_scalar_mutation(machine, offset, mutation.kind, &mut depth, &mut peak)?;
                 } else if aarch64_unsupported_sp_write(encoded) {
@@ -420,54 +345,4 @@ pub(crate) fn replay_scalar_conditional_region(
         return Err(ObjectError::MissingBalancedScalarReturn(machine));
     }
     Ok(peak)
-}
-
-/// Validates one claimed call site against the arm policy and folds its
-/// measured caller-live bytes into the running peak. Shared by the x86 and
-/// AArch64 walk arms, which differ only in call-instruction recognition.
-#[expect(clippy::too_many_arguments)]
-fn validate_conditional_call_site(
-    architecture: Architecture,
-    machine: MachineId,
-    bytes: &[u8],
-    call_sites: &mut std::collections::BTreeMap<usize, machine_code::InternalCallRelocation>,
-    offset: usize,
-    allow_calls: bool,
-    evidence: &ScalarStackEvidence,
-    depth: u32,
-    peak: &mut u32,
-    validated_calls: &mut Vec<ObjectScalarCallStack>,
-    scalar_affine_cleanup: Option<&machine_code::UnitAffineCleanupRecord>,
-) -> Result<(), ObjectError> {
-    let call = call_sites
-        .remove(&offset)
-        .ok_or(ObjectError::UntypedScalarInternalCall { machine, offset })?;
-    match call.owner {
-        CallSiteOwner::Operation(operation) if !allow_calls => {
-            return Err(ObjectError::ScalarConditionalCallOutsideArm {
-                machine,
-                operation,
-                offset,
-            });
-        }
-        CallSiteOwner::Operation(_) if allow_calls => {}
-        CallSiteOwner::CleanupAction { edge, .. }
-            if allow_calls
-                && scalar_affine_cleanup.is_some_and(|cleanup| cleanup.psi_edge == edge) => {}
-        _ => {
-            return Err(ObjectError::UntypedScalarInternalCall { machine, offset });
-        }
-    }
-    let validated = scalar_call_stack_at(
-        architecture,
-        machine,
-        bytes,
-        call,
-        evidence,
-        depth,
-        scalar_affine_cleanup,
-    )?;
-    *peak = (*peak).max(validated.caller_live_bytes);
-    validated_calls.push(validated);
-    Ok(())
 }

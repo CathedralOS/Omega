@@ -62,14 +62,18 @@ pub(super) fn delivered_value_type(
             .expression_table
             .constructed_value_type_reference(value),
         ExpressionNode::Name(path) => named_value_type_reference(program, path)?,
-        ExpressionNode::Atomic(_) => {
-            let event = crate::atomic_load_carrier(program, value)?;
-            let cell =
-                reference_values::declared_value_type(program, event.place, &mut substitutions)?;
-            crate::atomic_resident_type_reference(program, cell)?
-        }
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             reference_values::declared_value_type(program, value, &mut substitutions)?
+        }
+        ExpressionNode::Atomic(_) => {
+            let load = crate::atomic_load_carrier(program, value)?;
+            let cell =
+                reference_values::declared_value_type(program, load.place, &mut substitutions)?;
+            let cell = reference_values::substituted_reference(program, cell, &substitutions)?;
+            // An observation delivers the resident scalar, not the cell's
+            // declaration or its receiver's generic substitutions.
+            substitutions.clear();
+            crate::atomic_resident_type_reference(program, cell)?
         }
         _ => return None,
     };
@@ -150,6 +154,7 @@ fn carrier(program: &dyn crate::CheckingInput, reference: TypeReferenceHandle) -
 pub(super) fn delivered_carrier_conflict(
     program: &dyn crate::CheckingInput,
     scope: SymbolHandle,
+    context: ExpressionHandle,
     actual: TypeReferenceHandle,
     actual_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     required: TypeReferenceHandle,
@@ -159,6 +164,7 @@ pub(super) fn delivered_carrier_conflict(
         && carrier_conflict(
             program,
             scope,
+            context,
             actual,
             actual_substitutions,
             required,
@@ -170,6 +176,7 @@ pub(super) fn delivered_carrier_conflict(
 fn carrier_conflict(
     program: &dyn crate::CheckingInput,
     scope: SymbolHandle,
+    context: ExpressionHandle,
     actual: TypeReferenceHandle,
     actual_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     required: TypeReferenceHandle,
@@ -192,8 +199,12 @@ fn carrier_conflict(
     ) else {
         return false;
     };
-    let actual = unconstrained(actual);
-    let required = unconstrained(required);
+    // A type binder is rigid except where an already established static
+    // equality refines it. Read that occurrence's context after application
+    // substitution, including at every nested carrier comparison. Neither
+    // the destination nor the value being formed supplies a new assumption.
+    let actual = program.statically_refined_type_reference(context, unconstrained(actual));
+    let required = program.statically_refined_type_reference(context, unconstrained(required));
     let rigid = |carrier: Carrier| {
         matches!(carrier, Carrier::Parameter(parameter)
             if program.symbols.get(parameter).parent == scope)
@@ -215,6 +226,7 @@ fn carrier_conflict(
             return carrier_conflict(
                 program,
                 scope,
+                context,
                 *actual,
                 actual_substitutions,
                 *required,
@@ -298,6 +310,7 @@ fn carrier_conflict(
                 carrier_conflict(
                     program,
                     scope,
+                    context,
                     *actual,
                     actual_substitutions,
                     *required,
@@ -343,7 +356,15 @@ fn delivered_type_conflict(
             &[],
         )
     } else {
-        delivered_carrier_conflict(program, scope, delivered, &substitutions, destination, &[])
+        delivered_carrier_conflict(
+            program,
+            scope,
+            value,
+            delivered,
+            &substitutions,
+            destination,
+            &[],
+        )
     };
     // Name the delivered type the store saw: a field read's declared type
     // under its receiver's application.

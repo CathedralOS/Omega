@@ -11,7 +11,7 @@ machine Probe::classify(probe: &Probe, value: u64) -> u64 {
         false -> (0)
         _ -> (0)
     }
-    state bounds(probe: &Probe, value: u64) -> u64 {
+    machine bounds(probe: &Probe, value: u64) -> u64 {
         transition value < probe.limit {
             true -> (1)
             _ -> (0)
@@ -28,6 +28,6 @@ machine Main::main(main: &mut Main) {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() {}
+    machine done() {}
+    machine bad() {}
 }

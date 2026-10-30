@@ -12,8 +12,8 @@ use omega_language_std::console;
 data Main { }
 machine nearer(current: u64, candidate: u64, best: u64, positive: bool) -> u64 {
     transition positive { true -> forward(current, candidate, best) _ -> backward(current, candidate, best) }
-    state forward(current: u64, candidate: u64, best: u64) -> u64 { transition candidate > current && candidate < best { true -> candidate _ -> best } }
-    state backward(current: u64, candidate: u64, best: u64) -> u64 { transition candidate < current && candidate > best { true -> candidate _ -> best } }
+    machine forward(current: u64, candidate: u64, best: u64) -> u64 { transition candidate > current && candidate < best { true -> candidate _ -> best } }
+    machine backward(current: u64, candidate: u64, best: u64) -> u64 { transition candidate < current && candidate > best { true -> candidate _ -> best } }
 }
 machine scaled(value: u64 in Wrapping) -> u64 in Wrapping {
     transition value < 1000 { true -> (value * 2) _ -> value }
@@ -25,7 +25,7 @@ machine boundary(energy: u64, seed: u64 in Wrapping, positive: bool) -> u64 {
 }
 machine staged(energy: u64, seed: u64 in Wrapping) -> u64 {
     transition energy < 100 { true -> narrow(energy, seed) _ -> (energy) }
-    state narrow(energy: u64, seed: u64 in Wrapping) -> u64 {
+    machine narrow(energy: u64, seed: u64 in Wrapping) -> u64 {
         let far: u64 = 1000000;
         transition { _ -> nearer(energy, scaled(seed + 2) as u64, far, true) }
     }
@@ -34,8 +34,8 @@ machine Main::main(main: &mut Main) reaches Console {
     let endpoint: u64 = boundary(1, 3, true);
     let later: u64 = staged(1, 2);
     transition endpoint == 6 && later == 8 { true -> good(main) _ -> bad(main) }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

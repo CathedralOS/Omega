@@ -7,14 +7,14 @@ machine main() -> u64 {
         _ -> 0
     }
 
-    state choose(entries: &[Entry], start: u64, end: u64) -> u64 {
+    machine choose(entries: &[Entry], start: u64, end: u64) -> u64 {
         transition start <= end && end < entries.len {
             true -> length(entries[start..end])
             false -> 0
         }
     }
 
-    state length(entries: &[Entry]) -> u64 {
+    machine length(entries: &[Entry]) -> u64 {
         transition {
             _ -> entries.len
         }

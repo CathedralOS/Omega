@@ -22,6 +22,9 @@ pub(super) fn validate_machine(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Result<(), CodecError> {
+    if let Err(reason) = machine.validate_parameter_order() {
+        return malformed(reason);
+    }
     if machine
         .declaration
         .as_ref()
@@ -31,6 +34,10 @@ pub(super) fn validate_machine(
                 .identities
                 .text(specialization.template_callable)
                 .is_none_or(str::is_empty)
+                || module
+                    .identities
+                    .text(specialization.template_semantic_declaration)
+                    .is_none_or(str::is_empty)
         })
     {
         return malformed("machine specialization lost its exact template callable");
@@ -57,33 +64,21 @@ pub(super) fn validate_machine(
     for block in &machine.blocks {
         for operation in &block.operations {
             validate_operation_foundation(module, machine, operation).map_err(|error| {
-                let CodecError::MalformedStructuralFoundation(reason) = error else {
-                    return error;
-                };
-                let declaration = machine.declaration.as_ref();
-                CodecError::MalformedOperationFoundation {
-                    machine: declaration
-                        .and_then(|declaration| {
-                            module.identities.text(declaration.machine.identity())
-                        })
-                        .map(str::to_owned)
-                        .unwrap_or_else(|| format!("{:?}", machine.id)),
-                    state: declaration
-                        .and_then(|declaration| {
-                            module.identities.text(declaration.state.identity())
-                        })
-                        .unwrap_or("synthetic")
-                        .to_owned(),
-                    block: block.id,
-                    operation: operation.id,
-                    reason,
-                }
+                super::operation_foundation_error(module, machine, block.id, operation, error)
             })?;
         }
+    }
+    for invocation in machine.module_invocations() {
+        super::call_foundations::validate_module_invocation_entry(
+            module,
+            machine,
+            invocation.inputs,
+        )?;
     }
     validate_operation_result_places(machine)?;
     for block in &machine.blocks {
         super::call_foundations::validate_external_completion(module, machine, block)?;
+        super::call_foundations::validate_no_normal_invocation(module, block)?;
         validate_partial_affine_discards(module, machine, block)?;
     }
     Ok(())

@@ -71,10 +71,13 @@ pub(crate) fn collect_declaration_visibility_diagnostics(
         // public-interface selections. Resolution-stratum visibility still applies.
         // Package declaration admission independently checks author custody,
         // private cross-package access, and direct dependency for every kind.
-        if selection.kind() == AuthoredDeclarationSelectionKind::DomainIssuerAuthorization
-            && program
-                .symbols
-                .source_reference_can_see_symbol(selection.source_span(), symbol)
+        if matches!(
+            selection.kind(),
+            AuthoredDeclarationSelectionKind::DomainIssuerAuthorization
+                | AuthoredDeclarationSelectionKind::DomainCleanupSelection
+        ) && program
+            .symbols
+            .source_reference_can_see_symbol(selection.source_span(), symbol)
         {
             continue;
         }
@@ -152,11 +155,7 @@ pub fn validate_declaration_visibility(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     collect_declaration_visibility_diagnostics(program, &mut diagnostics);
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
 fn validate_public_const_declared_types(

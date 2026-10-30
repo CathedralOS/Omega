@@ -91,7 +91,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> missed(main)
     }
 
-    state check_value(main: &mut Main) {
+    machine check_value(main: &mut Main) {
         let by_value: bool = CoinValueEquality::equals(&main.old_coin, &main.new_coin);
 
         transition by_value {
@@ -100,7 +100,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check_binder_structural(main: &mut Main) {
+    machine check_binder_structural(main: &mut Main) {
         let structural: bool = equal<Coin, CoinEquality>(&main.old_coin, &main.new_coin);
 
         transition structural {
@@ -109,7 +109,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check_binder_value(main: &mut Main) {
+    machine check_binder_value(main: &mut Main) {
         let by_value: bool = equal<Coin, CoinValueEquality>(&main.old_coin, &main.new_coin);
 
         transition by_value {
@@ -118,7 +118,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check_nested(main: &mut Main) {
+    machine check_nested(main: &mut Main) {
         main.player = Player { pos: Pos { x: 1, y: 2 }, health: 9 };
         main.moved = Player { pos: Pos { x: 1, y: 3 }, health: 9 };
         let moved: bool = main.player != main.moved;
@@ -129,7 +129,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check_nested_call(main: &mut Main) {
+    machine check_nested_call(main: &mut Main) {
         main.moved.pos.y = 2;
         let same: bool = PlayerEquality::equals(&main.player, &main.moved);
 
@@ -139,7 +139,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check_reference_row(main: &mut Main) {
+    machine check_reference_row(main: &mut Main) {
         main.first_mark = Mark { x: 4, y: 1 };
         main.second_mark = Mark { x: 4, y: 8 };
         let same_x: bool = main.first_mark == main.second_mark;
@@ -150,7 +150,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check_guard_rows(main: &mut Main) {
+    machine check_guard_rows(main: &mut Main) {
         transition main.first_mark == main.second_mark
             && CoinValueEquality::equals(&main.old_coin, &main.new_coin)
             && !CoinEquality::equals(&main.old_coin, &main.new_coin)
@@ -161,11 +161,11 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state matched(main: &mut Main) {
+    machine matched(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state missed(main: &mut Main) {
+    machine missed(main: &mut Main) {
         Console::exit_process(71);
     }
 }

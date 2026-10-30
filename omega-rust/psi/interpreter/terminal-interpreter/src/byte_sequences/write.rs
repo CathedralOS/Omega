@@ -106,10 +106,7 @@ impl TerminalExecution<'_> {
         )
         .is_none()
             || !projected_qualifications.is_empty()
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(place))
+            || crate::custody::place_is_claimed(&self.live_claims, place)
         {
             return Err(malformed());
         }
@@ -221,10 +218,7 @@ impl TerminalExecution<'_> {
             || value.structural_type != structural_type
             || &value.qualifications != qualifications
             || !value.path.is_empty()
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(place))
+            || crate::custody::place_is_claimed(&self.live_claims, place)
             || self.live_affine_discard_at(place).is_some()
             || terminal_semantics::byte_qualification_predicates_in(
                 self.program.catalogs.structural_domains.iter(),

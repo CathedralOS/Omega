@@ -95,9 +95,7 @@ pub(super) fn counter_entry_init(
         // Continue only to a single distinct predecessor that lies outside the loop.
         let mut sources: Vec<SymbolHandle> = Vec::new();
         for edge in edges.iter().filter(|edge| edge.target == current) {
-            if !sources.contains(&edge.source) {
-                sources.push(edge.source);
-            }
+            crate::collections::push_unique(&mut sources, edge.source);
         }
         match sources.as_slice() {
             [single] if !loop_states.contains(single) => current = *single,

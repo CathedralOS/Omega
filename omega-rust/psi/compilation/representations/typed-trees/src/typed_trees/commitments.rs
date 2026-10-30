@@ -7,9 +7,15 @@ use arena::HandleSpan;
 /// `[u8; 32]` digest newtype — one nominal commitment identity per
 /// contract domain, sharing the `from_digest`/`as_bytes`/`is_zero`
 /// surface.
+///
+/// Exported because psi representations outside this crate retain the same
+/// digest carrier (`checked-trees` operator and contract commitments): a
+/// second declaration would re-state this surface instead of delegating.
+#[macro_export]
 macro_rules! digest_commitment {
     ($(#[$attr:meta])* $name:ident) => {
         $(#[$attr])*
+        #[derive(compiler_storage::Record)]
         pub struct $name([u8; 32]);
 
         impl $name {
@@ -32,7 +38,7 @@ macro_rules! digest_commitment {
 /// proof-static identities and static machine arguments are symbols; neither
 /// becomes a runtime value. Preparation records the template and arguments;
 /// checking retains the specialization's portable identity in checked facts.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct MachineSpecialization {
     pub template: symbols::SymbolHandle,
     /// Original binder arena range, retained after the live template is closed.
@@ -89,7 +95,7 @@ digest_commitment! {
     MachineTemplateCommitment
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, compiler_storage::Record)]
 pub struct ClosedConformanceApplication {
     pub declaration: symbols::SymbolHandle,
     /// Derived exact source application, prepared before checking. The zero
@@ -121,12 +127,11 @@ pub struct ClosedConformanceApplication {
     pub commitment: ClosedConformanceApplicationCommitment,
 }
 
-impl PartialEq for ClosedConformanceApplication {
-    fn eq(&self, other: &Self) -> bool {
-        // Preparation attaches an arena-local scope to the same application.
-        // A freshly reconstructed selection must still match its prepared row.
+impl ClosedConformanceApplication {
+    pub(crate) fn same_selection_metadata(&self, other: &Self) -> bool {
+        // Scopes and source occurrence receipts are checked independently.
+        // Keep every remaining declaration, value, row and commitment coordinate.
         self.declaration == other.declaration
-            && self.arguments == other.arguments
             && self.lifetime_arguments == other.lifetime_arguments
             && self.type_arguments == other.type_arguments
             && self.const_arguments == other.const_arguments
@@ -140,12 +145,18 @@ impl PartialEq for ClosedConformanceApplication {
     }
 }
 
+impl PartialEq for ClosedConformanceApplication {
+    fn eq(&self, other: &Self) -> bool {
+        self.arguments == other.arguments && self.same_selection_metadata(other)
+    }
+}
+
 impl Eq for ClosedConformanceApplication {}
 
 /// One exact const argument retained by a checked conformance application.
 /// Evaluated values exclude diagnostic display; caller binders retain both
 /// sides of the checked carrier match until final substitution.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum ClosedConformanceConstArgument {
     Evaluated {
         parameter_carrier: types::TypeReferenceHandle,
@@ -201,7 +212,7 @@ pub fn closed_conformance_applications_of<'a>(
         .collect()
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ClosedConformanceRowIdentity {
     pub declaring_trait: symbols::SymbolHandle,
     pub requirement: symbols::SymbolHandle,
@@ -219,12 +230,13 @@ pub enum ClosedConformanceApplicationSite {
     },
     Occurrence(crate::static_applications::StaticMachineApplicationHandle),
     TraitArgument(arena::Handle<TraitImplementationApplication>),
+    ProductOperand(arena::Handle<crate::product_operand::ProductOperandApplication>),
 }
 
 /// A named implementation selected by a source trait argument, independently
 /// of any runtime call. The retained scope is replayed against live authored
 /// roots; the derived supplying application cannot attest its own operands.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TraitImplementationApplication {
     pub source_scope: crate::trait_definition::RetainedTraitScope,
     pub parameter: symbols::SymbolHandle,
@@ -236,7 +248,7 @@ pub struct TraitImplementationApplication {
 /// An owned map row with its capture telescope applied. The method's own
 /// invocation telescope remains independently authored on the instance.
 /// This relation is substitution custody, never conformance admission.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CapturedMachineApplication {
     pub template: symbols::SymbolHandle,
     pub instance: symbols::SymbolHandle,
@@ -252,7 +264,7 @@ pub struct CapturedMachineApplication {
     pub parameters: Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CapturedMachineState {
     pub template: symbols::SymbolHandle,
     pub instance: symbols::SymbolHandle,
@@ -265,11 +277,15 @@ pub struct CapturedMachineState {
 /// `requirement`.  Keeping both identities on the call prevents later proof
 /// lowering from mistaking satisfier-local evidence for public witness
 /// identity.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StaticRequirementDispatch {
     /// Direct selections retain their exact authored occurrence. Evidence-bound
     /// dispatch keeps its independent invocation-specialization source.
     pub selection_application: crate::static_applications::StaticMachineApplicationHandle,
+    /// Original evidence binder selected by this call. Repeated equal
+    /// implementations in one telescope remain distinct substitutions.
+    /// Zero for direct selections and operator-algebra selection.
+    pub evidence_parameter: symbols::SymbolHandle,
     /// Non-authoritative compatibility coordinate for the selected
     /// application. `application_commitment` is the authoritative join.
     pub application_report_fingerprint: u64,

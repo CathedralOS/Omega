@@ -1,0 +1,1 @@
+exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`

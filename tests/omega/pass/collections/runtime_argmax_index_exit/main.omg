@@ -27,13 +27,13 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> step(main)
     }
 
-    state step(main: &mut Main) {
+    machine step(main: &mut Main) {
         transition main.i < 6 {
             true -> body(main)
             _ -> done(main)
         }
     }
-    state body(main: &mut Main) {
+    machine body(main: &mut Main) {
         main.cur = main.arr[main.i];
         transition main.cur > main.best_val {
             true -> keep(main)
@@ -41,7 +41,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     // New maximum: capture BOTH its value and its index.
-    state keep(main: &mut Main) {
+    machine keep(main: &mut Main) {
         main.best_val = main.cur;
         main.best_idx = main.i;
         transition {
@@ -49,26 +49,26 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     // Re-guard before the increment so `i + 1` stays provably in [0..=6].
-    state advance(main: &mut Main) {
+    machine advance(main: &mut Main) {
         transition main.i < 6 {
             true -> bump(main)
             _ -> step(main)
         }
     }
-    state bump(main: &mut Main) {
+    machine bump(main: &mut Main) {
         main.i = main.i + 1;
         transition {
             _ -> step(main)
         }
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         transition main.best_idx == 3 {
             true -> ok(main)
             false -> bad(main)
         }
     }
-    state ok(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine ok(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

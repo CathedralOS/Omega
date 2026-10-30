@@ -6,28 +6,69 @@
 //! continuation proceeds to final checking without executing the Build again.
 
 use crate::{ComputedBuildConfig, PreparedBuild};
+mod retention_identity;
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationRollback;
 use package_compilation::{
-    IndependentComponentDescription, PackageCompilationInputError, PackageCompilationInputs,
-    PackageGeneratedSourceBundle,
+    IndependentComponentDescription, PackageBuildHandoff, PackageCompilationInputError,
+    PackageCompilationInputs,
 };
 use std::path::PathBuf;
 use target::TargetProfile;
 
+#[derive(Clone)]
 pub struct PreparedPackageBuild {
     root_path: PathBuf,
     target: TargetProfile,
     inputs: PackageCompilationInputs,
     rollback: OptimizationRollback,
-    permit_unsettled_fused_service_fields: bool,
     prepared: PreparedBuild,
-    generated_sources: PackageGeneratedSourceBundle,
+    build_handoff: PackageBuildHandoff,
 }
 
 impl PreparedPackageBuild {
+    /// Equality of a complete Product source admission, not target authority.
+    /// A matching context may share typing/checking; each target still admits
+    /// its generated bundles and supplies its own realization permissions.
+    pub fn has_source_admission(
+        &self,
+        inputs: &PackageCompilationInputs,
+        rollback: &OptimizationRollback,
+    ) -> bool {
+        self.rollback == *rollback && self.same_source_inputs(inputs)
+    }
+
+    fn same_source_inputs(&self, inputs: &PackageCompilationInputs) -> bool {
+        let execution = self.prepared.build_sources.build_execution_profile;
+        package_compilation::SourceAssemblyInputs::new(Some(inputs), execution)
+            == package_compilation::SourceAssemblyInputs::new(Some(&self.inputs), execution)
+    }
+    /// Select a realization context from one completed Build. The source
+    /// continuation, executed effects and charges remain shared. Target-local
+    /// permissions are supplied by the product request, never copied here.
+    pub fn select_target(
+        &self,
+        target: TargetProfile,
+        inputs: PackageCompilationInputs,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let execution = self.prepared.build_sources.build_execution_profile;
+        inputs.validate_execution_context(Some(target), execution)?;
+        if !self.same_source_inputs(&inputs) {
+            return Err(vec![Diagnostic::error(
+                "completed Build target selection cannot change its source or semantic admission",
+            )]);
+        }
+        Self::seal(
+            self.root_path.clone(),
+            target,
+            inputs,
+            self.rollback.clone(),
+            self.prepared.clone(),
+        )
+    }
+
     /// Compare complete source-completion inputs after each activation has
-    /// independently admitted and executed Build. Target stamps, grants and
+    /// completed Build. Target stamps, grants and
     /// independent-component descriptions are realization inputs, not source.
     /// Pending typing/evaluation state must match, not merely Build's value.
     pub fn same_product_source(&self, other: &Self) -> bool {
@@ -38,9 +79,15 @@ impl PreparedPackageBuild {
             && self.prepared.build_sources == other.prepared.build_sources
             // Execution receipts and charges remain on each activation. They
             // cannot partition source work, nor be replaced by a sibling's.
-            && build.config == other_build.config
+            && build.config.same_source_choices(&other_build.config)
+            && build.root_binding_requests == other_build.root_binding_requests
+            && build.declared_product_selections == other_build.declared_product_selections
+            && build.product_selection_requests == other_build.product_selection_requests
+            && build.native_binding_requests == other_build.native_binding_requests
+            && build.native_formations == other_build.native_formations
             && build.selected_build_machine_symbol == other_build.selected_build_machine_symbol
             && build.generated_sources == other_build.generated_sources
+            && build.project_declaration == other_build.project_declaration
             && self.prepared.built.admission.application
                 == other.prepared.built.admission.application
             && package_compilation::SourceAssemblyInputs::new(
@@ -70,31 +117,63 @@ impl PreparedPackageBuild {
         inputs: PackageCompilationInputs,
         rollback: OptimizationRollback,
         prepared: PreparedBuild,
-        permit_unsettled_fused_service_fields: bool,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let generated_sources = prepared.build_sources.package_generated_source_bundle(
-            prepared.built.source.typed(),
-            &inputs,
-            target,
-            prepared
-                .built
-                .computed_build_config
-                .generated_sources
-                .clone(),
-        )?;
+        let build_handoff = prepared
+            .build_sources
+            .package_build_handoff(
+                prepared.built.source.typed(),
+                &inputs,
+                target,
+                prepared
+                    .built
+                    .computed_build_config
+                    .generated_sources
+                    .clone(),
+            )?
+            .with_checked_provider_selections(
+                prepared.built.source.typed(),
+                &prepared
+                    .built
+                    .computed_build_config
+                    .config
+                    .provider_selections,
+                prepared
+                    .built
+                    .computed_build_config
+                    .observation_summary
+                    .as_ref(),
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let build = &prepared.built.computed_build_config;
+        let (declarations, intents) =
+            build_time_evaluation::native_bindings::capture_package_intents(
+                inputs.root(),
+                &build.native_formations,
+                &build.native_binding_requests,
+            )?;
+        let build_handoff = build_handoff
+            .with_native_binding_outputs(
+                declarations,
+                intents,
+                build.config.native_binding_evaluation.clone(),
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         Ok(Self {
             root_path,
             target,
             inputs,
             rollback,
-            permit_unsettled_fused_service_fields,
             prepared,
-            generated_sources,
+            build_handoff,
         })
     }
 
-    pub fn generated_source_bundle(&self) -> &PackageGeneratedSourceBundle {
-        &self.generated_sources
+    pub fn build_handoff(&self) -> &PackageBuildHandoff {
+        &self.build_handoff
+    }
+
+    pub fn optimization_rollback(&self) -> &optimization_core::OptimizationRollback {
+        &self.rollback
     }
 
     pub fn root_path(&self) -> &std::path::Path {
@@ -107,10 +186,6 @@ impl PreparedPackageBuild {
 
     pub fn package_inputs(&self) -> &PackageCompilationInputs {
         &self.inputs
-    }
-
-    pub fn permits_unsettled_fused_service_fields(&self) -> bool {
-        self.permit_unsettled_fused_service_fields
     }
 
     pub fn timings(&self) -> &artifacts::compile_timings::CompileTimings {

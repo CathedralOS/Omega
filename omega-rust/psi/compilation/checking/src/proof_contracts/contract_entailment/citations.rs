@@ -5,9 +5,16 @@
 //! transports only unconditional guarantees. Completed-result tag facts use
 //! the caller's local binding identity and remain separate from value equations:
 //! classifying a result never invents its fields or unfolds the selected body.
+//! Runtime statement completion is independent of citation eligibility. Selection
+//! authenticates the public callable before theorem/tag intake; namespace spelling
+//! and declaration placement never choose the proof lane.
 //! Static callable contracts need their own substitution; a private selected
 //! implementation cannot supply those public guarantees implicitly.
 
+use super::specification_calls::{
+    SelectedCallContract, owner_contracts, owner_is_proof, owner_name, owner_parameters,
+    owner_return_type, owner_symbol, selected_contract_by_symbol,
+};
 use crate::proof_contracts::contract_entailment::RESULT_BINDER;
 use crate::proof_contracts::contract_entailment::law_conformance::{
     diagnostic_shape_match, display_structural_term, term_mentions_variable,
@@ -22,7 +29,7 @@ use crate::proof_contracts::contract_entailment::structural_terms::{
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::statement::StatementNode;
@@ -30,6 +37,7 @@ use typed_trees::statement::StatementNode;
 #[derive(Clone)]
 pub(super) struct CitationTarget {
     symbol: SymbolHandle,
+    invoked_symbol: SymbolHandle,
     machine_arguments: Vec<typed_trees::expression::StaticMachineArgument>,
     result_binding: SymbolHandle,
     has_static_selection: bool,
@@ -67,13 +75,50 @@ fn selected_citation_machine(
     program
         .machine_by_own_or_state_symbol(symbol)
         .filter(|machine| {
-            machine.attached_data.is_none()
-                && (machine.symbol == symbol
-                    || program
-                        .machine_states(machine)
-                        .first()
-                        .is_some_and(|entry| entry.symbol == symbol))
+            machine.symbol == symbol
+                || program
+                    .machine_states(machine)
+                    .first()
+                    .is_some_and(|entry| entry.symbol == symbol)
         })
+}
+
+/// Contract consumption retains the selected public declaration. A realization
+/// identity is used only to guard recursive self-citation, never as a source of
+/// stronger guarantees or a replacement telescope.
+fn selected_citation_contract(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<SelectedCallContract<'_>> {
+    let owner = selected_contract_by_symbol(program, symbol)?;
+    match owner {
+        SelectedCallContract::Concrete(machine, entry)
+            if program
+                .machine_states(machine)
+                .first()
+                .is_some_and(|first| first.symbol == entry.symbol) =>
+        {
+            Some(owner)
+        }
+        SelectedCallContract::Signature(_) => Some(owner),
+        _ => None,
+    }
+}
+
+fn citation_scope(owner: &SelectedCallContract<'_>) -> SymbolHandle {
+    match owner {
+        SelectedCallContract::Concrete(machine, _) => machine.symbol,
+        _ => owner_symbol(owner),
+    }
+}
+
+fn citation_is_self(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    target: &CitationTarget,
+) -> bool {
+    selected_citation_machine(program, target.invoked_symbol)
+        .is_some_and(|callee| callee.symbol == machine.symbol)
 }
 
 /// Fast eligibility check before `establish_citation` clones/re-intakes a
@@ -86,25 +131,27 @@ pub(super) fn can_establish_citation(
     arguments_len: usize,
     runtime_invocation: bool,
 ) -> bool {
-    let Some(callee) = selected_citation_machine(program, target.symbol) else {
+    let Some(owner) = selected_citation_contract(program, target.symbol) else {
         return false;
     };
-    let self_citation = std::ptr::eq(callee, machine);
-    let Some(entry) = program.machine_states(callee).first() else {
-        return false;
-    };
-    let resultless_entry = !entry.return_type.is_valid();
+    let self_citation = citation_is_self(program, machine, target);
+    let resultless_entry = matches!(
+        program
+            .type_reference_table
+            .type_reference(owner_return_type(&owner)),
+        typed_trees::types::TypeReferenceNode::Unit
+    );
     if (runtime_invocation && (self_citation || target.has_static_selection))
         || (!runtime_invocation
             && ((self_citation && !resultless_entry)
-                || !classification.is_proof_machine(program, callee)))
+                || !owner_is_proof(program, classification, &owner)))
     {
         return false;
     }
-    if program.state_parameters(entry).len() != arguments_len {
+    if owner_parameters(program, &owner).len() != arguments_len {
         return false;
     }
-    program.machine_contracts(callee).iter().any(|contract| {
+    owner_contracts(program, &owner).any(|contract| {
         contract.kind == SignatureContractKind::Ensures
             && program
                 .proof_facts
@@ -132,10 +179,10 @@ pub(super) fn citation_needs_site_judge(
     program: &dyn crate::CheckingInput,
     target: &CitationTarget,
 ) -> bool {
-    let Some(callee) = selected_citation_machine(program, target.symbol) else {
+    let Some(owner) = selected_citation_contract(program, target.symbol) else {
         return false;
     };
-    for contract in program.machine_contracts(callee) {
+    for contract in owner_contracts(program, &owner) {
         match &contract.kind {
             SignatureContractKind::Requires => {
                 if !program.proof_facts.span_or_empty(contract.facts).is_empty() {
@@ -165,34 +212,47 @@ pub(super) fn citation_argument_types(
     program: &dyn crate::CheckingInput,
     target: &CitationTarget,
 ) -> Option<Vec<typed_trees::types::TypeReferenceHandle>> {
-    let callee = selected_citation_machine(program, target.symbol)?;
-    let entry = program.machine_states(callee).first()?;
+    let owner = selected_citation_contract(program, target.symbol)?;
     Some(
-        program
-            .state_parameters(entry)
+        owner_parameters(program, &owner)
             .iter()
             .map(|parameter| parameter.type_reference)
             .collect(),
     )
 }
 
-/// Whether a statement is a CITATION: a free (receiver-less) call whose
-/// callee resolves to a free PROOF MACHINE other than the enclosing one
-/// (self-calls are recursion, owned by the descent checks and the IH).
+/// The selected public operation determines theorem relevance. A namespace
+/// supplies no runtime receiver and cannot suppress a legitimate citation;
+/// the retained public theorem contract remains authoritative after realization.
 pub(crate) fn is_citation_statement(
     program: &dyn crate::CheckingInput,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     machine: &Machine,
+    caller: SymbolHandle,
     call: &typed_trees::statement::TableCall,
 ) -> bool {
-    if !call.receiver.is_empty() {
+    let Some(owner) = super::specification_calls::selected_call_site_contract(
+        program,
+        caller,
+        crate::CallSite::Statement(call),
+    ) else {
+        return false;
+    };
+    if let SelectedCallContract::Concrete(callee, entry) = &owner
+        && !program
+            .machine_states(callee)
+            .first()
+            .is_some_and(|first| first.symbol == entry.symbol)
+    {
         return false;
     }
-    selected_citation_machine(program, call.target_symbol).is_some_and(|callee| {
-        !std::ptr::eq(callee, machine)
-            && (classification.is_proof_machine(program, callee)
-                || crate::mathematical_applications::is_indexed_logical_machine(program, callee))
-    })
+    if selected_citation_machine(program, call.target_symbol)
+        .is_some_and(|callee| callee.symbol == machine.symbol)
+    {
+        return false;
+    }
+    owner_is_proof(program, classification, &owner)
+        || matches!(owner, SelectedCallContract::Concrete(callee, _) if crate::mathematical_applications::is_indexed_logical_machine(program, callee))
 }
 
 /// Statement-call CITATIONS (ch10 "Citing Proofs"; the settled proof-citation
@@ -253,7 +313,8 @@ pub(crate) fn collect_citation_equations(
             }
             continue;
         }
-        let Some((target, argument_handles)) = citation_call_in_statement(program, statement)
+        let Some((target, argument_handles)) =
+            citation_call_in_statement(program, machine.symbol, statement)
         else {
             continue;
         };
@@ -486,52 +547,46 @@ fn suggest_conjunct_match(
 /// the expression table.
 pub(crate) fn citation_call_in_statement<'program>(
     program: &'program dyn crate::CheckingInput,
+    caller: SymbolHandle,
     statement: &'program StatementNode,
 ) -> Option<(CitationTarget, Vec<ExpressionHandle>)> {
-    match statement {
-        StatementNode::Call(call) if call.receiver.is_empty() => Some((
-            CitationTarget {
-                symbol: call.target_symbol,
-                machine_arguments: call.machine_arguments.to_vec(),
-                result_binding: SymbolHandle::invalid(),
-                has_static_selection: !call.machine_arguments.is_empty()
-                    || call.static_machine_parameter.is_valid()
-                    || !call.evidence_arguments.is_empty()
-                    || call.static_requirement_dispatch.is_some(),
-            },
-            program
-                .statement_table
-                .expression_handles(call.arguments)
-                .to_vec(),
-        )),
-        StatementNode::LocalData(local_data) => {
-            let ExpressionNode::Call(call) = program
-                .expression_table
-                .expression(local_data.initial_value)
-            else {
-                return None;
-            };
-            if call.receiver.is_valid() {
-                return None;
-            }
-            Some((
-                CitationTarget {
-                    symbol: call.target_symbol,
-                    machine_arguments: call.machine_arguments.to_vec(),
-                    result_binding: local_data.symbol,
-                    has_static_selection: !call.machine_arguments.is_empty()
-                        || call.static_machine_parameter.is_valid()
-                        || !call.evidence_arguments.is_empty()
-                        || call.static_requirement_dispatch.is_some(),
+    let (site, machine_arguments, result_binding) = match statement {
+        StatementNode::Call(call) => (
+            crate::CallSite::Statement(call),
+            call.machine_arguments.to_vec(),
+            SymbolHandle::invalid(),
+        ),
+        StatementNode::LocalData(local) => {
+            let call = program.expression_table.call_node(local.initial_value)?;
+            (
+                crate::CallSite::Expression {
+                    expression: local.initial_value,
+                    call,
                 },
-                program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .to_vec(),
-            ))
+                call.machine_arguments.to_vec(),
+                local.symbol,
+            )
         }
-        _ => None,
-    }
+        _ => return None,
+    };
+    // Selection retains the caller's public requirement view. Resolving the
+    // raw implementation symbol here would import a private guarantee through
+    // an abstract call. Namespace text is neither an operand nor authority.
+    let owner = super::specification_calls::selected_call_site_contract(program, caller, site)?;
+    let has_static_selection = !machine_arguments.is_empty()
+        || site.static_machine_parameter().is_valid()
+        || !crate::call_site_evidence_arguments(&site).is_empty()
+        || site.static_requirement_dispatch().is_some();
+    Some((
+        CitationTarget {
+            symbol: super::specification_calls::owner_symbol(&owner),
+            invoked_symbol: site.target_symbol(program),
+            machine_arguments,
+            result_binding,
+            has_static_selection,
+        },
+        crate::call_site_argument_expressions(program, &site).to_vec(),
+    ))
 }
 
 /// The machine's requires facts as expressions (empty when none).
@@ -558,15 +613,19 @@ pub(crate) fn instantiate_citation(
     allow_self_induction: bool,
 ) -> CitationFacts {
     let mut established = CitationFacts::default();
-    let Some(callee) = selected_citation_machine(program, target.symbol) else {
+    let Some(owner) = selected_citation_contract(program, target.symbol) else {
         return established;
     };
-    let self_citation = std::ptr::eq(callee, machine);
+    let self_citation = citation_is_self(program, machine, target);
     let runtime_invocation = judge.is_some_and(StructuralJudge::has_runtime_body_values);
-    let resultless_entry = program
-        .machine_states(callee)
-        .first()
-        .is_some_and(|entry| !entry.return_type.is_valid());
+    let resultless_entry = matches!(
+        program
+            .type_reference_table
+            .type_reference(owner_return_type(&owner)),
+        typed_trees::types::TypeReferenceNode::Unit
+    );
+    let callee_name = owner_name(program, &owner);
+    let scope = citation_scope(&owner);
     // A self-citation is an induction hypothesis only in a structurally
     // refined arm and only for a resultless theorem. The recursion validator
     // independently proves strict descent on that exact StatementNode::Call.
@@ -576,14 +635,14 @@ pub(crate) fn instantiate_citation(
     if (runtime_invocation && (self_citation || target.has_static_selection))
         || (!runtime_invocation
             && ((self_citation && (!allow_self_induction || !resultless_entry))
-                || !classification.is_proof_machine(program, callee)))
+                || !owner_is_proof(program, classification, &owner)))
     {
         return established;
     }
     let mut requires_facts: Vec<ExpressionHandle> = Vec::new();
     let mut requires_out_of_language = false;
     let mut ensures_facts: Vec<ExpressionHandle> = Vec::new();
-    for contract in program.machine_contracts(callee) {
+    for contract in owner_contracts(program, &owner) {
         match &contract.kind {
             SignatureContractKind::Requires => {
                 for fact in program.proof_facts.span_or_empty(contract.facts) {
@@ -611,10 +670,7 @@ pub(crate) fn instantiate_citation(
     // The ENTRY state carries the signature; further states are the
     // lemma's own sub-proofs (add_comm's per-arm states) and do not affect
     // what a citation delivers.
-    let Some(entry) = program.machine_states(callee).first() else {
-        return established;
-    };
-    let parameters = program.state_parameters(entry);
+    let parameters = owner_parameters(program, &owner);
     if parameters.len() != argument_terms.len() {
         return established;
     }
@@ -633,27 +689,20 @@ pub(crate) fn instantiate_citation(
             "machine `{}` cites `{}`, whose requires contract cannot be \
              established by this citation judgment -- its required evidence \
              must be available before importing the callee's guarantees",
-            machine.name, callee.name,
+            machine.name, callee_name,
         )));
         return established;
     }
     if let Some(judge) = judge {
         for fact in &requires_facts {
-            if !instantiated_fact_established(
-                program,
-                judge,
-                callee.symbol,
-                parameters,
-                *fact,
-                &map,
-            ) {
+            if !instantiated_fact_established(program, judge, scope, parameters, *fact, &map) {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` cites `{}`, but the callee's requires fact \
                      `{}` is not established at this citation site under the \
                      citing machine's hypotheses -- add the matching requires \
                      (or cite at operands that satisfy it)",
                     machine.name,
-                    callee.name,
+                    callee_name,
                     program.expression_table.display_name(*fact),
                 )));
                 return established;
@@ -673,7 +722,12 @@ pub(crate) fn instantiate_citation(
         }
         if let Some(judge) = judge {
             for fact in ensures_facts {
-                judge.instantiated_case_guarantees(callee, fact, &map, &mut established.cases);
+                judge.instantiated_contract_case_guarantees(
+                    &owner,
+                    fact,
+                    &map,
+                    &mut established.cases,
+                );
             }
         }
         return established;
@@ -683,21 +737,17 @@ pub(crate) fn instantiate_citation(
     map.push((
         RESULT_BINDER.to_owned(),
         StructuralTerm::Application {
-            result_type: program
-                .machine_states(callee)
-                .first()
-                .map(|entry| entry.return_type)
-                .unwrap_or_default(),
+            result_type: owner_return_type(&owner),
             target: target.symbol,
             selections: target.machine_arguments.clone(),
-            machine: callee.name.as_str().to_owned(),
+            machine: callee_name.clone(),
             arguments: argument_terms.to_vec(),
         },
     ));
     for fact in &ensures_facts {
         collect_instantiated_conjuncts(
             program,
-            callee.symbol,
+            scope,
             parameters,
             *fact,
             &map,
@@ -711,7 +761,7 @@ pub(crate) fn instantiate_citation(
         && let Some(judge) = judge
     {
         for fact in ensures_facts {
-            judge.instantiated_case_guarantees(callee, fact, &map, &mut established.cases);
+            judge.instantiated_contract_case_guarantees(&owner, fact, &map, &mut established.cases);
         }
     }
     established

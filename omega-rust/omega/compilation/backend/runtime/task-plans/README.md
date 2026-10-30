@@ -61,4 +61,4 @@ lanes, retaining address-backed scalar locals and mutable formals in their
 existing homes rather than their initializer values. Retained reference/slice
 loans still need their own checked backing and carry evidence. None of those
 joins supplies runtime backing or licenses parking; see the
-[Terminal producer](../../../driver/terminal-production/README.md#structural-results-and-suspension).
+[Terminal producer](../../../../../psi/compilation/driver/terminal-production/README.md#structural-results-and-suspension).

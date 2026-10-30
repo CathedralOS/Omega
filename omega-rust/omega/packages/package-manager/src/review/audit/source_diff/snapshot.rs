@@ -2,7 +2,12 @@
 
 use super::diff::{DiffBudget, myers_diff, render_hunks, source_line_count, split_lines};
 use super::output::BoundedOutput;
-use super::{PackageSourcePatchError, PackageSourcePatchLimits, PackageSourcePatchSide};
+use super::patch::PackageSourcePatchSide;
+use super::{
+    MAXIMUM_BYTES_PER_SNAPSHOT, MAXIMUM_ENTRIES_PER_SNAPSHOT, MAXIMUM_METADATA_BYTES_PER_SNAPSHOT,
+    PackageSourcePatchError,
+};
+use crate::Hex;
 use crate::resolution::source::PackageSourceCustody;
 use package_source::local::operations::{
     capture_verified_package_source_snapshot, verify_package_source_snapshot,
@@ -68,7 +73,6 @@ pub(super) fn render_resolution(
 pub(super) fn capture_snapshot(
     custody: &PackageSourceCustody,
     side: PackageSourcePatchSide,
-    limits: PackageSourcePatchLimits,
 ) -> Result<BTreeMap<Vec<u8>, VerifiedPackageSourceEntryKind>, PackageSourcePatchError> {
     custody
         .selection_evidence()
@@ -76,19 +80,18 @@ pub(super) fn capture_snapshot(
         .map_err(|error| PackageSourcePatchError::SourceSelectionCustody { side, error })?;
     let custody_limits = custody.source_limits();
     let review_limits = LocalSourceLimits {
-        max_entries: custody_limits
-            .max_entries
-            .min(limits.maximum_entries_per_snapshot()),
-        max_bytes: custody_limits
-            .max_bytes
-            .min(limits.maximum_bytes_per_snapshot()),
+        max_entries: custody_limits.max_entries.min(MAXIMUM_ENTRIES_PER_SNAPSHOT),
+        max_bytes: custody_limits.max_bytes.min(MAXIMUM_BYTES_PER_SNAPSHOT),
         max_depth: custody_limits.max_depth,
     };
-    let entries = capture_verified_package_source_snapshot(
-        custody.snapshot_root(),
-        custody.materialization().content(),
-        review_limits,
-    )
+    let entries = match custody.captured_source() {
+        Some(tree) => captured_entries(tree, review_limits),
+        None => capture_verified_package_source_snapshot(
+            custody.snapshot_root(),
+            custody.materialization().content(),
+            review_limits,
+        ),
+    }
     .map_err(|error| PackageSourcePatchError::SourceCustody { side, error })?;
     let mut metadata_bytes = 0_usize;
     let mut captured = BTreeMap::new();
@@ -107,17 +110,77 @@ pub(super) fn capture_snapshot(
             })
             .ok_or(PackageSourcePatchError::SourceMetadataExceeded {
                 side,
-                maximum_bytes: limits.maximum_metadata_bytes_per_snapshot(),
+                maximum_bytes: MAXIMUM_METADATA_BYTES_PER_SNAPSHOT,
             })?;
-        if metadata_bytes > limits.maximum_metadata_bytes_per_snapshot() {
+        if metadata_bytes > MAXIMUM_METADATA_BYTES_PER_SNAPSHOT {
             return Err(PackageSourcePatchError::SourceMetadataExceeded {
                 side,
-                maximum_bytes: limits.maximum_metadata_bytes_per_snapshot(),
+                maximum_bytes: MAXIMUM_METADATA_BYTES_PER_SNAPSHOT,
             });
         }
         captured.insert(relative_path, kind);
     }
     Ok(captured)
+}
+
+/// Render the same immutable namespace that the compiler consumed. A live
+/// checkout's later contents or permissions cannot replace this source view.
+fn captured_entries(
+    tree: &source::CapturedSourceTree,
+    limits: LocalSourceLimits,
+) -> Result<Vec<VerifiedPackageSourceEntry>, package_source::SourceResolveError> {
+    use package_source::SourceResolveError;
+    use source::CapturedSourceNode;
+    let mut entries = Vec::new();
+    let mut payload_bytes = 0u64;
+    for (path, node) in tree.entries() {
+        if entries.len() >= limits.max_entries {
+            return Err(SourceResolveError::TooManyFiles {
+                limit: limits.max_entries,
+            });
+        }
+        let directory_depth =
+            path.components().count() - usize::from(!matches!(node, CapturedSourceNode::Directory));
+        if directory_depth > limits.max_depth {
+            return Err(SourceResolveError::TooDeep {
+                path: path.to_path_buf(),
+                limit: limits.max_depth,
+            });
+        }
+        let size = match node {
+            CapturedSourceNode::Directory => 0,
+            CapturedSourceNode::File { bytes, .. } => bytes.len(),
+            CapturedSourceNode::Symlink { target } => target.as_os_str().as_encoded_bytes().len(),
+        };
+        payload_bytes = payload_bytes
+            .checked_add(size as u64)
+            .filter(|total| *total <= limits.max_bytes)
+            .ok_or(SourceResolveError::TooManyBytes {
+                limit: limits.max_bytes,
+            })?;
+        let kind = match node {
+            CapturedSourceNode::Directory => VerifiedPackageSourceEntryKind::Directory,
+            CapturedSourceNode::File { bytes, executable } => {
+                VerifiedPackageSourceEntryKind::File {
+                    bytes: bytes.to_vec(),
+                    executable: *executable,
+                }
+            }
+            CapturedSourceNode::Symlink { target } => VerifiedPackageSourceEntryKind::Symlink {
+                target_bytes: target.as_os_str().as_encoded_bytes().to_vec(),
+            },
+        };
+        let relative_path = path
+            .components()
+            .map(|component| component.as_os_str().as_encoded_bytes())
+            .collect::<Vec<_>>()
+            .join(&b'/');
+        entries.push(VerifiedPackageSourceEntry {
+            relative_path,
+            kind,
+        });
+    }
+    Ok(entries)
 }
 
 pub(super) fn revalidate_snapshot(
@@ -128,6 +191,9 @@ pub(super) fn revalidate_snapshot(
         .selection_evidence()
         .revalidate()
         .map_err(|error| PackageSourcePatchError::SourceSelectionCustody { side, error })?;
+    if custody.captured_source().is_some() {
+        return Ok(());
+    }
     verify_package_source_snapshot(
         custody.snapshot_root(),
         custody.materialization().content(),
@@ -233,7 +299,7 @@ fn render_file_summary(
     output.push(side)?;
     output.push("_content_commitment ")?;
     match bytes {
-        Some(bytes) => output.push_hex(&file_content_commitment(bytes))?,
+        Some(bytes) => output.push(&Hex(&file_content_commitment(bytes)).to_string())?,
         None => output.push("absent")?,
     }
     output.push("\n")

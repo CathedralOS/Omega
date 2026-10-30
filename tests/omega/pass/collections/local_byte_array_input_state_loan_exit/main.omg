@@ -9,14 +9,14 @@ machine Main::main(main: &mut Main) reaches Console {
         LineReadResult::LineComplete { count } -> inspect(main, &input, count)
         _ -> bad(main)
     }
-    state inspect(main: &mut Main, input: &[u8; 8], count: u64) {
+    machine inspect(main: &mut Main, input: &[u8; 8], count: u64) {
         transition count == 2 && input[0] == 48 && input[1] == 10 {
             true -> good(main)
             _ -> bad(main)
         }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(2); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(2); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

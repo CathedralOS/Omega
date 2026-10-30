@@ -110,7 +110,7 @@ data SharedSelection<'storage> [copy] {
 data SharedHolder<'storage> [copy] { target: &'storage Cell; }
 machine held_reference<'storage>(holder: SharedHolder<'storage>) -> &'storage Cell {
     transition { _ -> finish(holder) }
-    state finish(holder: SharedHolder<'storage>) -> &'storage Cell { holder.target }
+    machine finish(holder: SharedHolder<'storage>) -> &'storage Cell { holder.target }
 }
 data SharedEnvelope<'storage> [copy] { selection: SharedSelection<'storage>; }
 machine select_shared<'storage>(
@@ -140,7 +140,7 @@ machine read_joined_selection<'storage>(
         1 -> joined(SharedSelection::Right { stamp: 5, target: right })
         _ -> joined(SharedSelection::Empty { stamp: 7 })
     }
-    state joined(selection: SharedSelection<'storage>) -> i32 {
+    machine joined(selection: SharedSelection<'storage>) -> i32 {
         let copied: SharedSelection<'storage> = selection;
         transition copied {
             SharedSelection::Left { stamp as _, target } -> target.value
@@ -235,6 +235,6 @@ machine main() crashes Trap {
         true -> passed()
         false -> failed()
     }
-    state passed() {}
-    state failed() { crash Trap; }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }

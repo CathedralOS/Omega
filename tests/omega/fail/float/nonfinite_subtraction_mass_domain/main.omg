@@ -2,8 +2,8 @@
 // mass: +infinity - +infinity is NaN.
 use omega::language::core::float_operations;
 
-domain f64::NonnegativeMass(value)
-requires value >= 0.0;
+domain f64::NonnegativeMass
+requires self >= 0.0;
 
 machine corrected(gross: f64, tare: f64) -> f64 in NonnegativeMass
 requires gross >= tare

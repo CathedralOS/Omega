@@ -39,7 +39,7 @@ use crate::execution::terminal_unit::{
 /// borrowed view of the actual declaration, never a manufactured machine or
 /// a choice of provider; declaration identity survives into the call row.
 #[derive(Clone, Copy)]
-pub(super) enum BoundaryRequirement<'program> {
+pub(in crate::execution::terminal_unit) enum BoundaryRequirement<'program> {
     Trait {
         definition: &'program typed_trees::trait_definition::TraitDefinition,
         signature: &'program typed_trees::signature::StateSignature,
@@ -47,11 +47,21 @@ pub(super) enum BoundaryRequirement<'program> {
     Operator(&'program typed_trees::operator::OperatorDefinition),
 }
 
+impl BoundaryRequirement<'_> {
+    pub(super) fn target_symbol(self) -> SymbolHandle {
+        match self {
+            Self::Trait { signature, .. } => signature.symbol,
+            Self::Operator(operator) => operator.symbol,
+        }
+    }
+}
+
 /// Plan a requirement call with its original argument/result custody.
 /// `None` means some operand, receiver, or contract has no admitted boundary
 /// presentation; selection never weakens that signature.
 pub(super) fn build(
     program: &dyn ::validation::CheckingInput,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -72,34 +82,27 @@ pub(super) fn build(
         trace.statement(Some(coordinate.statement_index));
     };
     phase("call operation: boundary signature");
-    let (
-        owner,
-        target,
-        source_parameters,
-        signature_type_parameters,
-        return_type,
-        callback_parameters,
-    ) = match requirement {
-        BoundaryRequirement::Trait {
-            definition,
-            signature,
-        } => (
-            definition.symbol,
-            signature.symbol,
-            program.state_signature_parameters(signature),
-            program.state_signature_type_parameters(signature),
-            signature.return_type,
-            signature.native_callback_parameters.as_slice(),
-        ),
-        BoundaryRequirement::Operator(operator) => (
-            operator.symbol,
-            operator.symbol,
-            program.operator_parameters(operator),
-            program.operator_type_parameters(operator),
-            operator.return_type,
-            &[][..],
-        ),
-    };
+    let target = requirement.target_symbol();
+    let (owner, source_parameters, signature_type_parameters, return_type, callback_parameters) =
+        match requirement {
+            BoundaryRequirement::Trait {
+                definition,
+                signature,
+            } => (
+                definition.symbol,
+                program.state_signature_parameters(signature),
+                program.state_signature_type_parameters(signature),
+                signature.return_type,
+                signature.native_callback_parameters.as_slice(),
+            ),
+            BoundaryRequirement::Operator(operator) => (
+                operator.symbol,
+                program.operator_parameters(operator),
+                program.operator_type_parameters(operator),
+                operator.return_type,
+                &[][..],
+            ),
+        };
     let operator_arguments = match (requirement, call_site) {
         (BoundaryRequirement::Operator(_), validation::CallSite::Expression { call, .. }) => Some(
             crate::facts::operator_crashes::named_call_operands(program, call, source_parameters)?,
@@ -360,6 +363,7 @@ pub(super) fn build(
             };
             structural_arguments.push(result_arguments::argument(
                 program,
+                shapes,
                 facts,
                 machine.symbol,
                 state.symbol,
@@ -411,6 +415,7 @@ pub(super) fn build(
         receiving_parameter.type_reference = formal;
         if let Some(argument) = super::computation_arguments::borrowed_storage_argument(
             program,
+            shapes,
             &facts.borrow,
             machine.symbol,
             state,
@@ -455,6 +460,7 @@ pub(super) fn build(
         }
         phase("call operation: boundary argument access");
         structural_arguments.push(CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
             source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: u32::try_from(source.index).ok()?,
             },

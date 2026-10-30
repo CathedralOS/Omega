@@ -11,7 +11,6 @@ use syntax_trees::identifier::JoinedSyntaxPath;
 
 use source::SourceMap;
 use symbol_resolved_trees::SymbolResolvedTrees;
-use symbols::{SymbolHandle, SymbolKind};
 
 mod symbol_table;
 
@@ -35,6 +34,7 @@ pub(crate) mod target_machine_families;
 pub(crate) mod target_siblings;
 mod targets;
 mod top_level;
+pub(crate) mod type_predicates;
 mod type_references;
 
 use contracts::assign_contract_reference_symbols;
@@ -42,178 +42,7 @@ use domain_facts::assign_domain_fact_symbols;
 use statements::{assign_machine_signature_reference_symbols, assign_statement_reference_symbols};
 use top_level::assign_top_level_symbols;
 
-/// The exact call target a `module::member` spelling denotes, or `None` when
-/// the receiver names no top-level module and the call stays on the ordinary
-/// route. The member selects one of the source call kinds; a machine stands
-/// for its callable `entry` state, while an unresolved member still claims the
-/// call with an invalid target so later passes see a selection, not a spelling.
-/// Both statement and expression occurrences apply this one law: keeping the
-/// lookup in one place is what stops the two carriers from drifting apart.
-fn module_call_target(
-    symbols: &symbols::SymbolTable,
-    receiver_name: &str,
-    name: &str,
-    reference: source::SourceSpan,
-) -> Option<SymbolHandle> {
-    let namespace = symbols.find_top_level_by_name_and_kinds_from_source(
-        receiver_name,
-        &[SymbolKind::Module],
-        reference,
-    );
-    if !namespace.is_some_and(|symbol| symbols.get(symbol).kind == SymbolKind::Module) {
-        return None;
-    }
-    Some(
-        symbols
-            .find_top_level_by_name_and_kinds_from_source(
-                name,
-                targets::SOURCE_CALL_KINDS,
-                reference,
-            )
-            .map(|symbol| {
-                if symbols.get(symbol).kind == SymbolKind::Machine {
-                    symbols
-                        .find_child_by_name_and_kind(symbol, "entry", SymbolKind::State)
-                        .unwrap_or_else(SymbolHandle::invalid)
-                } else {
-                    symbol
-                }
-            })
-            .unwrap_or_else(SymbolHandle::invalid),
-    )
-}
-
-pub(crate) fn normalize_static_module_calls(
-    program: &mut SymbolResolvedTrees,
-    calls: &[(
-        symbol_resolved_trees::expression::ExpressionHandle,
-        Vec<symbol_resolved_trees::name::DiagnosticName>,
-    )],
-    statement_calls: &[(
-        source::SourceSpan,
-        Vec<symbol_resolved_trees::name::DiagnosticName>,
-    )],
-) {
-    use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
-    use symbols::JoinedPath;
-    for (expression, path) in calls {
-        let Some((target, receiver)) = path.split_last() else {
-            continue;
-        };
-        let receiver_name = receiver.joined_path();
-        let reference = lookup::diagnostic_path_source_span(path);
-        let name = format!("{receiver_name}::{}", target.as_str());
-        // The fixed `core::*` mathematical declarations own their exact
-        // spellings ahead of any authored module lookup: `core` is the
-        // vocabulary's fixed namespace — the declarations install as root
-        // children, never under a `Module` symbol — so an authored module
-        // cannot claim one of these names at a call site, the same law the
-        // type-reference resolver applies. This arm is also what reaches
-        // proposition-body and mathematical-term calls: their resolver
-        // leaves receiver-qualified targets for this pass.
-        let fixed = symbols::FixedCoreDeclaration::from_name(&name)
-            .and_then(|declaration| program.symbols.fixed_core_declaration_symbol(declaration))
-            .unwrap_or_else(SymbolHandle::invalid);
-        if fixed.is_valid() {
-            if let ExpressionNode::Call(call) = program
-                .tables
-                .bodies
-                .expressions
-                .expression_mut(*expression)
-            {
-                call.receiver = ExpressionHandle::invalid();
-                call.target =
-                    symbol_resolved_trees::name::DiagnosticName::from_str(&name, reference);
-                call.target_symbol = fixed;
-            }
-            continue;
-        }
-        let Some(selected) = module_call_target(&program.symbols, &receiver_name, &name, reference)
-        else {
-            continue;
-        };
-        let original_receiver = match program.tables.bodies.expressions.expression(*expression) {
-            ExpressionNode::Call(call) => call.receiver,
-            _ => continue,
-        };
-        // Declaration indexing can already have normalized this occurrence.
-        // A later body batch must not dereference its now-absent receiver.
-        if original_receiver.is_valid()
-            && let ExpressionNode::Name(original_path) = program
-                .tables
-                .bodies
-                .expressions
-                .expression(original_receiver)
-                .clone()
-        {
-            let mut prefix = String::new();
-            for (offset, member) in receiver.iter().enumerate() {
-                if !prefix.is_empty() {
-                    prefix.push_str("::");
-                }
-                prefix.push_str(member.as_str());
-                let selected_module = program
-                    .symbols
-                    .find_top_level_by_name_and_kinds_from_source(
-                        &prefix,
-                        &[SymbolKind::Module],
-                        reference,
-                    )
-                    .unwrap_or_else(SymbolHandle::invalid);
-                program
-                    .tables
-                    .bodies
-                    .expressions
-                    .set_name_path_member_symbol_at_offset(
-                        original_path.member_symbols,
-                        offset as u32,
-                        selected_module,
-                    );
-            }
-        }
-        if let ExpressionNode::Call(call) = program
-            .tables
-            .bodies
-            .expressions
-            .expression_mut(*expression)
-        {
-            call.receiver = ExpressionHandle::invalid();
-            call.target = symbol_resolved_trees::name::DiagnosticName::from_str(&name, reference);
-            call.target_symbol = selected;
-        }
-    }
-    let symbols = &program.symbols;
-    program
-        .tables
-        .declarations
-        .state_statements
-        .for_each_mut(|_, statement| {
-            let symbol_resolved_trees::statement::Statement::Call(call) = statement else {
-                return;
-            };
-            let Some((_, path)) = statement_calls
-                .iter()
-                .find(|(span, _)| *span == call.target.source_span())
-            else {
-                return;
-            };
-            let Some((target, receiver)) = path.split_last() else {
-                return;
-            };
-            let receiver_name = receiver.joined_path();
-            let reference = lookup::diagnostic_path_source_span(path);
-            let name = format!("{receiver_name}::{}", target.as_str());
-            let Some(selected) = module_call_target(symbols, &receiver_name, &name, reference)
-            else {
-                return;
-            };
-            call.receiver = arena::HandleSpan::empty();
-            call.receiver_symbol = SymbolHandle::invalid();
-            call.receiver_root_symbol = SymbolHandle::invalid();
-            call.target = symbol_resolved_trees::name::DiagnosticName::from_str(&name, reference);
-            call.target_symbol = selected;
-        });
-}
+pub(crate) use targets::normalize_static_module_calls;
 
 #[derive(Default)]
 pub(crate) struct NamespaceDeclarations {
@@ -402,10 +231,12 @@ pub(crate) fn assign_symbols(
     );
     namespace_declarations.install(&mut symbols)?;
     let has_sources = sources.is_some() || !namespace_declarations.modules.is_empty();
-    let symbols =
+    let mut symbols =
         symbol_table::insert_selected_machine_children(program, symbols, sources, 0, has_sources);
-    let diagnostics = assign_program_symbols(program, &symbols, generic_origin_frontier);
+    scope::record_declaration_owners(program, &mut symbols)?;
     program.symbols = symbols;
+    let symbols = program.symbols.clone();
+    let diagnostics = assign_program_symbols(program, &symbols, generic_origin_frontier);
     namespace_declarations.record_import_selections(program)?;
     if diagnostics.is_empty() {
         Ok(())
@@ -439,6 +270,9 @@ pub(crate) fn assign_symbols_against_resolved_base(
         roots.machines,
         true,
     );
+    let mut symbols = program.symbols.clone();
+    scope::record_declaration_owners(program, &mut symbols)?;
+    program.symbols = symbols;
     let symbols = program.symbols.clone();
     let diagnostics = assign_program_symbols(program, &symbols, generic_origin_frontier);
     namespace_declarations.record_import_selections(program)?;
@@ -464,7 +298,6 @@ pub(crate) fn assign_constant_expression_symbols(
         symbol: symbols::SymbolHandle::invalid(),
         lexical_requirements: scope::LexicalRequirements::none(),
         type_parameters: &[],
-        attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
         inherited_data_members: None,
         owned_data: &[],
@@ -490,8 +323,8 @@ pub(crate) fn assign_constant_expression_symbols(
 
 pub(crate) use expressions::reject_unqualified_case_values;
 pub(crate) use lookup::{
-    MembershipSelection, constructor_type, domain_name_reaches, membership_selection,
-    prefer_module_local_domain, qualified_payload_free_case_type,
+    MembershipSelection, builtin_type_atom_by_symbol_name, constructor_type, domain_name_reaches,
+    membership_selection, prefer_module_local_domain, qualified_payload_free_case_type,
 };
 
 /// Build the symbol table and give every reference its identity, then settle

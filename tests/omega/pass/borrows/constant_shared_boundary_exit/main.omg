@@ -42,8 +42,8 @@ machine Main::main(context: &mut Main) reaches Reader crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

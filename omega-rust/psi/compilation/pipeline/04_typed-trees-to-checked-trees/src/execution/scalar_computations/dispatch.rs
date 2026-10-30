@@ -9,7 +9,7 @@ use crate::values::scalar_expression_type;
 use checked_trees::{
     CheckedScalarComputationStructuralArgument, CheckedScalarDispatchArm,
     CheckedScalarDispatchPattern, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralArgumentSourcePlan,
 };
 use typed_trees::expression::{MatchPattern, TableMatchExpression};
 
@@ -176,6 +176,7 @@ impl Builder<'_, '_> {
                 value,
                 alias,
                 place: CheckedUnitStructuralArgumentPlan {
+                    projection_evaluations: Default::default(),
                     source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                         expression: if alias.is_valid() {
                             alias

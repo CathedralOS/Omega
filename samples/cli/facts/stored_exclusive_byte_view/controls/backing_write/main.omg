@@ -10,6 +10,6 @@ machine main() crashes Trap {
     let windows: [&mut [u8]; 1] = [&mut backing[..]];
     let written: bool = write(windows);
     transition written && backing[0] == 23 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

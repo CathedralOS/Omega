@@ -6,11 +6,12 @@
 //! runtime call-component judgment read one classification here so a member
 //! admitted by either reader carries the same produced rank.
 
-use super::super::{
-    Engine, ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
+use super::super::Engine;
+use super::fields::declared_field;
+use crate::{
+    ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticValue,
 };
-use super::fields::declared_field;
 use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::measure::MeasureDefinition;

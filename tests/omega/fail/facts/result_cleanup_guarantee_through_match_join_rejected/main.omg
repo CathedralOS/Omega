@@ -15,9 +15,9 @@ machine main() crashes Trap {
     let seed: Seed = choose(false);
     let answer: u64 = read(&make_token(&seed));
     transition first == 7 { true -> finish(answer) false -> bad() }
-    state finish(answer: u64) {
+    machine finish(answer: u64) {
         transition answer == 7 { true -> done() false -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

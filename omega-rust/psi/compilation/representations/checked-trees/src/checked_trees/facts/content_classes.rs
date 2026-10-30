@@ -29,7 +29,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// capacity of zero, so zero cannot double as the absence of a bounded byte
 /// buffer and collapsing the two would admit an unbounded carrier as a
 /// zero-capacity one.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentClassRow {
     /// No-code owned storage that tolerates primitive numeric restrictions.
     pub plain_owned_with_numeric_constraints: bool,
@@ -62,7 +62,7 @@ pub struct ContentClassRow {
 }
 
 /// Every type reference's content classification, dense by arena index.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentClassFacts {
     /// Indexed by `TypeReferenceHandle::arena_index`. Index 0 is the invalid
     /// handle, and unoccupied interior indices carry that same row.

@@ -29,7 +29,7 @@ runtime reports it as starting, wait for that environment before reading its
 files. Reconcile existing handles before creating another session. Keep the
 initial assignment bounded: one requested advance means one outcome chain.
 
-## Verify prerequisites before compiler work
+## Verify prerequisites for the affected work
 
 Run these checks on the selected executor, using bounded commands. Preserve the
 results in the task's ignored evidence directory, excluding credentials and
@@ -64,14 +64,16 @@ different cloud executor.
    recursively change system ownership, or enable a bypass mode. An actual
    permission denial must be reported with its exact action and error; do not
    route around it.
-4. **Toolchain and limits.** Activate the environment's documented setup, then
+4. **Toolchain and limits (compiler work only).** Activate the environment's documented setup, then
    run [doctor](../../../../tools/doctor.py) and `mbx doctor` when available.
    Use the pinned Rust toolchain and nextest under
    [testing](../../../../tools/testing.md). Inspect CPU quota, available memory
    and disk as well as visible processors; size build jobs to the effective
    limits. Keep one Rust build active per executor. Record the compiler's source
    revision; an unversioned preinstalled binary is not evidence about main.
-5. **A real smoke run.** With a compiler of recorded provenance, run a small
+5. **A real smoke run (compiler execution work only).** Reuse a valid retained
+   exact-source smoke receipt when its inputs are unchanged. Workflow prose and
+   unrelated Python tooling require their own focused checks, no Rust build. With a compiler of recorded provenance, run a small
    package-free fixture through normal package preparation and execution.
    `tests/omega/pass/calls/runtime_static_entry_context_exit` has an authored
    exit of 0 and observes its state mutation. On Linux, use `omega update

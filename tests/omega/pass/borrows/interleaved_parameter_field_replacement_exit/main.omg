@@ -13,7 +13,7 @@ machine Factory::choose(factory: &mut Factory, depth: u32, seed: &mut Seed) -> I
 
 machine Factory::fill(factory: &mut Factory, depth: u32, seed: &mut Seed, reward: &mut Reward, other: &mut Reward) {
     transition { _ -> install(factory, depth, seed, reward, other) }
-    state install(factory: &mut Factory, depth: u32, seed: &mut Seed, reward: &mut Reward, other: &mut Reward) {
+    machine install(factory: &mut Factory, depth: u32, seed: &mut Seed, reward: &mut Reward, other: &mut Reward) {
         reward.item = Factory::choose(factory, depth, seed);
     }
 }
@@ -38,7 +38,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(70)
         false -> finish(1)
     }
-    state finish(code: i32) { Console::exit_process(code); }
+    machine finish(code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

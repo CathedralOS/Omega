@@ -95,21 +95,84 @@ pub(crate) fn parse_proof_facts_until<'tokens, 'source>(
 pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
+    is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
+    machine_final_semicolon: bool,
+) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
+    parse_fact_list(
+        syntax_trees,
+        input,
+        is_terminator,
+        machine_final_semicolon,
+        false,
+        false,
+    )
+}
+
+/// A requires/ensures clause has a first proposition. Contextual clause names
+/// remain ordinary operand names there (`requires blocks >= 0;`); only after
+/// the first proposition can a following header terminate this list. Crash
+/// guards and other explicitly optional lists retain their empty-list grammar.
+pub(crate) fn parse_required_proof_facts_until<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
+    machine_final_semicolon: bool,
+) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
+    parse_fact_list(
+        syntax_trees,
+        input,
+        is_terminator,
+        machine_final_semicolon,
+        false,
+        true,
+    )
+}
+
+pub(crate) fn parse_logical_proof_facts_until<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
+) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
+    parse_fact_list(syntax_trees, input, is_terminator, true, true, false)
+}
+
+/// Declaration predicates require a proposition and retain the declaration's
+/// logical subject, including when a contextual clause name is its first operand.
+pub(crate) fn parse_required_logical_proof_facts_until<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
+) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
+    parse_fact_list(syntax_trees, input, is_terminator, true, true, true)
+}
+
+fn parse_fact_list<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
     mut is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
     machine_final_semicolon: bool,
+    logical_subject: bool,
+    requires_first_fact: bool,
 ) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
     let mut input = input;
     let body_start_tokens = input.tokens.len();
     let mut facts = crate::handle_spans::HandleSpanBuilder::new();
 
-    while !is_terminator(input) {
+    while (requires_first_fact && facts.is_empty()) || !is_terminator(input) {
         if input.tokens.is_empty() {
             return Err(input.error_here("expected proof fact terminator"));
         }
 
         let fact_input = input;
         let mut authored_fact_handles = Vec::new();
-        let (value, rest) = parse_proof_fact_expression_handle(syntax_trees, input)?;
+        let (value, rest) = if logical_subject {
+            crate::expressions::parse_expression::parse_logical_proof_fact_expression_handle(
+                syntax_trees,
+                input,
+            )?
+        } else {
+            parse_proof_fact_expression_handle(syntax_trees, input)?
+        };
         input = rest;
 
         if input.at_contextual("in") {
@@ -281,14 +344,11 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
             continue;
         } else if input.at_punctuation(PunctuationKind::Semicolon) {
             let after = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-            // A machine-final `;` (the CH10 bodyless `boundary machine ..
-            // ensures <fact>;` form) belongs to the MACHINE, not the fact
-            // list: when a HARD ITEM boundary follows -- the next item's
-            // keyword or end of input, never a clause keyword (`requires
-            // F; ensures ..` continues the signature) and never the body
-            // brace (`ensures F; {` keeps its body) -- leave the semicolon
-            // unconsumed for parse_machine's bodyless path. Only the
-            // machine-contract call site opts in.
+            // A final semicolon belongs to the enclosing declaration when
+            // a complete declaration head or end of input follows. Otherwise
+            // it remains a fact separator, including before another clause
+            // or a data/machine body. Logical declaration predicates and
+            // machine contracts share this boundary rule.
             if machine_final_semicolon
                 && (crate::declarations::parse_declaration::starts_following_item(
                     syntax_trees,

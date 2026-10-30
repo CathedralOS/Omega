@@ -5,5 +5,5 @@ requires slots.len == 2 {
     let local: Cell = Cell { value: 7 };
     slots[0].target = &local;
     transition { _ -> leave(slots) }
-    state leave(slots: &mut [Held]) {}
+    machine leave(slots: &mut [Held]) {}
 }

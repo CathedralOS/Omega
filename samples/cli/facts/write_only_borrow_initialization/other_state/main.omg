@@ -2,9 +2,9 @@
 // Place: other state. The initialized slot value is transported across a state transition before exact subtraction.
 // Expected exit: 0
 
-domain u64::SlotDomain(v)
+domain u64::SlotDomain
 requires
-    v >= 100u64 && v <= 100u64;
+    self >= 100u64 && self <= 100u64;
 
 data BoxedSlot {
     value: u64 in SlotDomain;
@@ -24,7 +24,7 @@ ensures
         _ -> consume(current)
     }
 
-    state consume(forwarded: u64) -> u64
+    machine consume(forwarded: u64) -> u64
     requires
         forwarded >= 100u64 && forwarded <= 100u64
     {
@@ -38,6 +38,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -17,65 +17,42 @@ pub(crate) fn build_content_facts(
     }
 }
 
-pub(crate) fn build_qualification_facts(
-    program: &dyn ::validation::CheckingInput,
-    content: checked_trees::ContentProjectionFacts,
-) -> checked_trees::QualificationFacts {
-    use checked_trees::VacuousQualificationUse;
-    use language_semantics::SemanticDomainTable;
-    /// Membership sets take the integer hasher; none is iterated for output order.
-    type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
-    use symbols::SymbolHandle;
-    use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+/// The cast-collection walk context: the program, the (machine, state) pair,
+/// the statement occurrence, and the committed-domain / vacuous-use / visited
+/// accumulators every step threads. Each recursive cast step restated this
+/// eight-argument tuple at its call site; the walk now carries it once, and a
+/// step names only the expression it descends into.
+struct CastWalk<'a, 'b> {
+    program: &'a dyn ::validation::CheckingInput,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    statement_index: u32,
+    committed: &'b mut Vec<language_semantics::SemanticDomainId>,
+    vacuous_uses: &'b mut Vec<checked_trees::VacuousQualificationUse>,
+    visited: &'b mut std::collections::HashSet<u32, symbols::BuildSymbolHasher>,
+}
 
-    fn collect_casts(
-        program: &dyn ::validation::CheckingInput,
-        machine: SymbolHandle,
-        state: SymbolHandle,
-        statement_index: u32,
-        expression: ExpressionHandle,
-        committed: &mut Vec<language_semantics::SemanticDomainId>,
-        vacuous_uses: &mut Vec<VacuousQualificationUse>,
-        visited: &mut HashSet<u32>,
-    ) {
-        if !expression.is_valid() || !visited.insert(expression.arena_index()) {
+impl CastWalk<'_, '_> {
+    fn scan(&mut self, expression: typed_trees::expression::ExpressionHandle) {
+        use checked_trees::VacuousQualificationUse;
+        use language_semantics::SemanticDomainTable;
+        use typed_trees::expression::ExpressionNode;
+
+        let program = self.program;
+        let machine = self.machine;
+        let state = self.state;
+        let statement_index = self.statement_index;
+        if !expression.is_valid() || !self.visited.insert(expression.arena_index()) {
             return;
         }
         match program.expression_table.expression(expression) {
             ExpressionNode::Match(dispatch) => {
-                collect_casts(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    dispatch.subject,
-                    committed,
-                    vacuous_uses,
-                    visited,
-                );
+                self.scan(dispatch.subject);
                 for arm in program.expression_table.match_arms(dispatch.arms) {
                     for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
-                        collect_casts(
-                            program,
-                            machine,
-                            state,
-                            statement_index,
-                            pattern,
-                            committed,
-                            vacuous_uses,
-                            visited,
-                        );
+                        self.scan(pattern);
                     }
-                    collect_casts(
-                        program,
-                        machine,
-                        state,
-                        statement_index,
-                        arm.value,
-                        committed,
-                        vacuous_uses,
-                        visited,
-                    );
+                    self.scan(arm.value);
                 }
             }
             ExpressionNode::Cast(cast) => {
@@ -92,7 +69,7 @@ pub(crate) fn build_qualification_facts(
                     }
                 };
                 if let Some(policy) = policy {
-                    committed.push(policy);
+                    self.committed.push(policy);
                 }
                 // The result type retains the normalized atomic obligations.
                 // An alias is their conjunction, not another membership to
@@ -103,14 +80,14 @@ pub(crate) fn build_qualification_facts(
                     cast.result_type,
                 ) {
                     if domain.semantic_id.is_valid() {
-                        committed.push(domain.semantic_id);
+                        self.committed.push(domain.semantic_id);
                     }
                     if ::validation::field_domains::domain_is_vacuous(
                         program,
                         domain.symbol,
                         &mut Vec::new(),
                     ) {
-                        vacuous_uses.push(VacuousQualificationUse {
+                        self.vacuous_uses.push(VacuousQualificationUse {
                             machine,
                             state,
                             statement_index,
@@ -120,168 +97,50 @@ pub(crate) fn build_qualification_facts(
                         });
                     }
                 }
-                collect_casts(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    cast.value,
-                    committed,
-                    vacuous_uses,
-                    visited,
-                );
+                self.scan(cast.value);
             }
             ExpressionNode::Binary(binary) => {
-                collect_casts(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    binary.left,
-                    committed,
-                    vacuous_uses,
-                    visited,
-                );
-                collect_casts(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    binary.right,
-                    committed,
-                    vacuous_uses,
-                    visited,
-                );
+                self.scan(binary.left);
+                self.scan(binary.right);
             }
-            ExpressionNode::Unary(unary) => collect_casts(
-                program,
-                machine,
-                state,
-                statement_index,
-                unary.operand,
-                committed,
-                vacuous_uses,
-                visited,
-            ),
-            ExpressionNode::Member(member) => collect_casts(
-                program,
-                machine,
-                state,
-                statement_index,
-                member.receiver,
-                committed,
-                vacuous_uses,
-                visited,
-            ),
-            ExpressionNode::Borrow(inner) => collect_casts(
-                program,
-                machine,
-                state,
-                statement_index,
-                inner.target,
-                committed,
-                vacuous_uses,
-                visited,
-            ),
+            ExpressionNode::Unary(unary) => self.scan(unary.operand),
+            ExpressionNode::Member(member) => self.scan(member.receiver),
+            ExpressionNode::Borrow(inner) => self.scan(inner.target),
             ExpressionNode::Indexed(indexed) => {
-                collect_casts(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    indexed.collection,
-                    committed,
-                    vacuous_uses,
-                    visited,
-                );
-                collect_casts(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    indexed.index,
-                    committed,
-                    vacuous_uses,
-                    visited,
-                );
+                self.scan(indexed.collection);
+                self.scan(indexed.index);
             }
             ExpressionNode::Range(range) => {
-                collect_casts(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    range.start,
-                    committed,
-                    vacuous_uses,
-                    visited,
-                );
-                collect_casts(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    range.end,
-                    committed,
-                    vacuous_uses,
-                    visited,
-                );
+                self.scan(range.start);
+                self.scan(range.end);
             }
             ExpressionNode::Call(call) => {
-                collect_casts(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    call.receiver,
-                    committed,
-                    vacuous_uses,
-                    visited,
-                );
+                self.scan(call.receiver);
                 for argument in program.expression_table.expression_handles(call.arguments) {
-                    collect_casts(
-                        program,
-                        machine,
-                        state,
-                        statement_index,
-                        *argument,
-                        committed,
-                        vacuous_uses,
-                        visited,
-                    );
+                    self.scan(*argument);
                 }
             }
             ExpressionNode::StructLiteral(literal) => {
                 for field in program.expression_table.struct_fields(literal.fields) {
-                    collect_casts(
-                        program,
-                        machine,
-                        state,
-                        statement_index,
-                        field.value,
-                        committed,
-                        vacuous_uses,
-                        visited,
-                    );
+                    self.scan(field.value);
                 }
             }
             ExpressionNode::ArrayLiteral(items) => {
                 for item in program.expression_table.expression_handles(*items) {
-                    collect_casts(
-                        program,
-                        machine,
-                        state,
-                        statement_index,
-                        *item,
-                        committed,
-                        vacuous_uses,
-                        visited,
-                    );
+                    self.scan(*item);
                 }
             }
             _ => {}
         }
     }
+}
+
+pub(crate) fn build_qualification_facts(
+    program: &dyn ::validation::CheckingInput,
+    content: checked_trees::ContentProjectionFacts,
+) -> checked_trees::QualificationFacts {
+    /// Membership sets take the integer hasher; none is iterated for output order.
+    type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
 
     let mut machines = Vec::new();
     let mut vacuous_uses = Vec::new();
@@ -296,96 +155,42 @@ pub(crate) fn build_qualification_facts(
                 let statement_index =
                     u32::try_from(statement_index).expect("qualification statement index overflow");
                 let mut visited = HashSet::default();
+                let mut walk = CastWalk {
+                    program,
+                    machine: machine.symbol,
+                    state: state.symbol,
+                    statement_index,
+                    committed: &mut committed,
+                    vacuous_uses: &mut vacuous_uses,
+                    visited: &mut visited,
+                };
                 match statement {
                     StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
                     StatementNode::Assignment(assignment) => {
-                        collect_casts(
-                            program,
-                            machine.symbol,
-                            state.symbol,
-                            statement_index,
-                            assignment.target,
-                            &mut committed,
-                            &mut vacuous_uses,
-                            &mut visited,
-                        );
-                        collect_casts(
-                            program,
-                            machine.symbol,
-                            state.symbol,
-                            statement_index,
-                            assignment.value,
-                            &mut committed,
-                            &mut vacuous_uses,
-                            &mut visited,
-                        );
+                        walk.scan(assignment.target);
+                        walk.scan(assignment.value);
                     }
                     StatementNode::Expression(expression) => {
-                        collect_casts(
-                            program,
-                            machine.symbol,
-                            state.symbol,
-                            statement_index,
-                            *expression,
-                            &mut committed,
-                            &mut vacuous_uses,
-                            &mut visited,
-                        );
+                        walk.scan(*expression);
                     }
                     StatementNode::LocalData(local) => {
-                        collect_casts(
-                            program,
-                            machine.symbol,
-                            state.symbol,
-                            statement_index,
-                            local.initial_value,
-                            &mut committed,
-                            &mut vacuous_uses,
-                            &mut visited,
-                        );
+                        walk.scan(local.initial_value);
                     }
                     StatementNode::Call(call) => {
                         for argument in program.statement_table.expression_handles(call.arguments) {
-                            collect_casts(
-                                program,
-                                machine.symbol,
-                                state.symbol,
-                                statement_index,
-                                *argument,
-                                &mut committed,
-                                &mut vacuous_uses,
-                                &mut visited,
-                            );
+                            walk.scan(*argument);
                         }
                     }
                     StatementNode::Transition(transition) => {
                         if let typed_trees::statement::TransitionGuardNode::When(guard) =
                             &transition.guard
                         {
-                            collect_casts(
-                                program,
-                                machine.symbol,
-                                state.symbol,
-                                statement_index,
-                                *guard,
-                                &mut committed,
-                                &mut vacuous_uses,
-                                &mut visited,
-                            );
+                            walk.scan(*guard);
                         }
                         for target in transition.targets() {
                             match program.statement_table.transition_target(target) {
                                 typed_trees::statement::TransitionTargetNode::Value(value) => {
-                                    collect_casts(
-                                        program,
-                                        machine.symbol,
-                                        state.symbol,
-                                        statement_index,
-                                        *value,
-                                        &mut committed,
-                                        &mut vacuous_uses,
-                                        &mut visited,
-                                    )
+                                    walk.scan(*value)
                                 }
                                 typed_trees::statement::TransitionTargetNode::Named {
                                     arguments,
@@ -394,16 +199,7 @@ pub(crate) fn build_qualification_facts(
                                     for argument in
                                         program.statement_table.expression_handles(*arguments)
                                     {
-                                        collect_casts(
-                                            program,
-                                            machine.symbol,
-                                            state.symbol,
-                                            statement_index,
-                                            *argument,
-                                            &mut committed,
-                                            &mut vacuous_uses,
-                                            &mut visited,
-                                        );
+                                        walk.scan(*argument);
                                     }
                                 }
                                 _ => {}

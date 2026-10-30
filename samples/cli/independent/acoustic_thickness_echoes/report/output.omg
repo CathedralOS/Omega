@@ -9,11 +9,11 @@ invokes Console;
         true -> negative(value)
         false -> digit(value, 1000000000, false)
     }
-    state negative(value: i64 in Saturating) {
+    machine negative(value: i64 in Saturating) {
         Console::write("-");
         transition { _ -> digit(0 - value, 1000000000, false) }
     }
-    state digit(value: i64 in Saturating, place: i64 in Saturating, started: bool)
+    machine digit(value: i64 in Saturating, place: i64 in Saturating, started: bool)
     requires place > 0 {
         let number: i64 in Saturating = value / place;
         let remaining: i64 in Saturating = value % place;
@@ -22,18 +22,18 @@ invokes Console;
             false -> next(remaining, place, started)
         }
     }
-    state emit(value: i64 in Saturating, place: i64 in Saturating, number: i64 in Saturating) {
+    machine emit(value: i64 in Saturating, place: i64 in Saturating, number: i64 in Saturating) {
         Console::write_byte(narrow_i64_to_i32_saturating((number + 48) as i64));
         transition { _ -> next(value, place, true) }
     }
-    state next(value: i64 in Saturating, place: i64 in Saturating, started: bool) {
+    machine next(value: i64 in Saturating, place: i64 in Saturating, started: bool) {
         let following: i64 in Saturating = place / 10;
         transition following > 0 {
             true -> digit(value, following, started)
             false -> done()
         }
     }
-    state done() {}
+    machine done() {}
 }
 public machine write_echo(index: u64 in Saturating, result: EchoResult) reaches Console
 invokes Console;
@@ -47,15 +47,15 @@ invokes Console;
         result.order == 1 -> primary(result)
         _ -> multiple(result)
     }
-    state unmatched() { Console::write_line("unmatched"); }
-    state ambiguous(result: EchoResult) {
+    machine unmatched() { Console::write_line("unmatched"); }
+    machine ambiguous(result: EchoResult) {
         Console::write("ambiguous paths="); write_number(result.matches); Console::write_line("");
     }
-    state primary(result: EchoResult) {
+    machine primary(result: EchoResult) {
         Console::write("primary layer="); write_number(result.layer);
         Console::write(" thickness_um="); write_number(result.thickness); Console::write_line("");
     }
-    state multiple(result: EchoResult) {
+    machine multiple(result: EchoResult) {
         Console::write("multiple layer="); write_number(result.layer);
         Console::write(" order="); write_number(result.order); Console::write_line("");
     }

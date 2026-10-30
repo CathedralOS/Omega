@@ -26,19 +26,19 @@ data Holder {
 machine Holder::copy_all(holder: &mut Holder, source: &Holder) {
     transition { _ -> copy(holder, source, 0) }
 
-    state copy(holder: &mut Holder, source: &Holder, position: u64) {
+    machine copy(holder: &mut Holder, source: &Holder, position: u64) {
         transition position < 4 {
             true -> step(holder, source, position)
             false -> done(holder)
         }
     }
 
-    state step(holder: &mut Holder, source: &Holder, position: u64) {
+    machine step(holder: &mut Holder, source: &Holder, position: u64) {
         Cell::copy_from(&mut holder.cells[position], &source.cells[position]);
         transition { _ -> copy(holder, source, position + 1) }
     }
 
-    state done(holder: &mut Holder) { }
+    machine done(holder: &mut Holder) { }
 }
 
 data Main {
@@ -59,11 +59,11 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> missed(main)
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state missed(main: &mut Main) {
+    machine missed(main: &mut Main) {
         Console::exit_process(71);
     }
 }

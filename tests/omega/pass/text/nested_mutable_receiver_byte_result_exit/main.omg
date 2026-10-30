@@ -1,7 +1,7 @@
-domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8]::Utf8 requires valid_utf8(self);
 use omega_language_std::console;
 
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 8]::Utf8 requires valid_utf8(self);
 data Labels [copy] { first: TextBuffer; second: TextBuffer; }
 data Main { generated: u64 in Wrapping; observed: Labels; }
 
@@ -31,7 +31,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 
@@ -44,8 +44,8 @@ machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
         true -> checked(bytes)
         false -> bad()
     }
-    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
-    state bad() { crash Trap; }
+    machine checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    machine bad() -> &[u8] in Utf8 { crash Trap; }
 }
 machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
     let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);

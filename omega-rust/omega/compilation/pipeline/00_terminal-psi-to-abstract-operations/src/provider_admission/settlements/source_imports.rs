@@ -189,13 +189,11 @@ pub(super) fn derive_source_evaluated_mechanisms(
 
 /// A toolchain-settled host cohort supplies one exact mechanism row for a
 /// demanded leaf, so classification does not require the receiving policy to
-/// spell it. Name-keyed like [`ordinary_release_cohort`]: the schema method
-/// selects the cohort, and the row binds the exact mechanism this leaf
-/// computed. The `DarwinClock` cohort additionally requires that mechanism
-/// to be the exact libSystem import its member was reviewed against.
-/// Ordinary-release cohorts mint nothing here — an unconstrained
-/// generic key cannot inherit the occurrence-specific release proof — and
-/// unrecognized names mint nothing, so both still demand a receiving row or
+/// spell it. The policy module owns which cohort owns a requirement and what
+/// row it mints; this site only binds the exact mechanism this leaf computed.
+/// Ordinary-release cohorts mint nothing here — an unconstrained generic key
+/// cannot inherit the occurrence-specific release proof — and unrecognized
+/// names mint nothing, so both still demand a receiving row or a
 /// release-contract bound key.
 fn settled_host_cohort_row(
     provider_plan: &ProviderPlan,
@@ -207,30 +205,11 @@ fn settled_host_cohort_row(
         .methods
         .iter()
         .find(|method| method.name == row.method)?;
-    crate::provider_admission::terminal_authority_policy::filesystem_mechanism_row(
-        mechanism, method,
+    crate::provider_admission::terminal_authority_policy::cohort_mechanism_row(
+        mechanism,
+        &provider_plan.schema,
+        method,
     )
-    .ok()
-    .or_else(|| {
-        crate::provider_admission::terminal_authority_policy::time_host_mechanism_row(
-            mechanism, method,
-        )
-        .ok()
-    })
-    .or_else(|| {
-        crate::provider_admission::terminal_authority_policy::console_mechanism_row(
-            mechanism, method,
-        )
-        .ok()
-    })
-    .or_else(|| {
-        crate::provider_admission::terminal_authority_policy::darwin_clock_mechanism_row(
-            mechanism,
-            &provider_plan.schema,
-            method,
-        )
-        .ok()
-    })
 }
 
 /// Join only demanded requirements; counts retain malformed duplicate evidence
@@ -265,7 +244,7 @@ fn join_import_coverage_rows<'input>(
                 ..
             } => (
                 boundary,
-                semantic_vocabulary::BoundaryInvocationSite::Operation(*psi_operation),
+                semantic_vocabulary::InvocationSite::Operation(*psi_operation),
             ),
             abstract_operations::AbstractOperation::ExternalCompletion {
                 boundary,
@@ -273,7 +252,7 @@ fn join_import_coverage_rows<'input>(
                 ..
             } => (
                 boundary,
-                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*psi_edge),
+                semantic_vocabulary::InvocationSite::ExternalCompletion(*psi_edge),
             ),
             _ => continue,
         };

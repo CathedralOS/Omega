@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, package_name());
+    Build::depend_as(builder, "sibling", Source::Path { location: "../sibling" });
+}
+machine package_name() -> &[u8] { "workspace_selected" }

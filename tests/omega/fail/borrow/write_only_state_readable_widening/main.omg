@@ -3,10 +3,10 @@ data Pair { cell: Cell; }
 
 machine widen_mutable(pair: &write Pair) {
     transition { _ -> store(&mut pair.cell) }
-    state store(cell: &mut Cell) { cell.value = 1; }
+    machine store(cell: &mut Cell) { cell.value = 1; }
 }
 
 machine widen_shared(pair: &write Pair) {
     transition { _ -> observe(&pair.cell) }
-    state observe(cell: &Cell) -> i64 { cell.value }
+    machine observe(cell: &Cell) -> i64 { cell.value }
 }

@@ -29,7 +29,7 @@ requires width == 16 || width == 32;
 {
     let stored: Stored = Stored { ticket: dispatch(selected, Ticket { token: Token { drops: drops }, marker: 0 }, width) };
     transition { _ -> finish(forward(stored.ticket), width) }
-    state finish(ticket: Ticket, width: u32) -> bool {
+    machine finish(ticket: Ticket, width: u32) -> bool {
         let correct: bool = ticket.marker == width;
         settle(ticket.token);
         correct
@@ -40,8 +40,8 @@ machine check(drops: &mut [u64; 1]) crashes Trap {
     let first_settled: bool = drops[0] == 1;
     let second: bool = observe(Second as dyn Family, drops, 32);
     transition first && first_settled && second && drops[0] == 2 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 linux_x86_64 machine helper(counter: &mut [u64; 1]) crashes Trap { check(counter); }

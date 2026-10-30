@@ -23,7 +23,7 @@ requires input <= 255u16
 ensures result == input || result < input
 {
     transition { _ -> finish(input) }
-    state finish(saved: u16) -> u16 { saved }
+    machine finish(saved: u16) -> u16 { saved }
 }
 
 data Main { hits: i32 in Wrapping; }
@@ -42,8 +42,8 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

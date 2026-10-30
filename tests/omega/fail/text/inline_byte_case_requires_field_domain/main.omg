@@ -1,5 +1,5 @@
 // A case field's receiving domain cannot qualify an invalid completed operand.
-domain [u8; 2]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 2]::Ascii requires ascii_only(self);
 data Reply {
     case Empty;
     case Message(content: [u8; 2] in Ascii);

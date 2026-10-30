@@ -1,6 +1,7 @@
 //! Control transfer, return, cleanup, and crash tags.
 
 use super::super::AbstractSuccessor;
+use super::calls_and_effects::encode_claim_transfer;
 use super::{AbstractOperation, CanonicalBytes};
 use crate::optimization_unit::identity::carrier_encoding::{
     encode_binding, encode_ids, encode_scalar_type, encode_structural_argument,
@@ -13,6 +14,28 @@ use crate::optimization_unit::identity::structural_encoding::{
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {
+        O::InvokeNoNormal {
+            psi_edge,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => {
+            bytes.u8(253);
+            bytes.id(*psi_edge);
+            bytes.id(*callee);
+            encode_ids(bytes, arguments);
+            bytes.slice(structural_arguments, encode_structural_argument);
+            bytes.slice(claim_transfers, encode_claim_transfer);
+            encode_ids(bytes, requirement_obligations);
+            bytes.slice(
+                crash_continuations,
+                crate::optimization_unit::identity::structural_encoding::encode_crash_route_bucket,
+            );
+        }
+
         O::Jump {
             psi_edge,
             target,
@@ -56,6 +79,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                     bytes.id(payload.field);
                     encode_scalar_type(bytes, payload.scalar_type);
                 }
+                bytes.slice(&case.structural_bindings, encode_structural_binding);
                 bytes.slice(&case.cleanup_actions, encode_cleanup);
             }
         }

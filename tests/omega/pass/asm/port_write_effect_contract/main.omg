@@ -27,7 +27,7 @@ machine local_values() reaches PortIo {
 }
 machine another_state(port: u16, byte: u8) reaches PortIo {
     transition true { true -> work(port, byte) }
-    state work(port: u16, byte: u8) {
+    machine work(port: u16, byte: u8) {
         asm where ensures port_written(port, byte) { out port, byte }
     }
 }

@@ -7,6 +7,6 @@ const ALIAS: [u64; SIZE] = SOURCE;
 const SELECTED: [u64; 1] = ALIAS;
 machine main() crashes Trap {
     transition SELECTED[0] == 3 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

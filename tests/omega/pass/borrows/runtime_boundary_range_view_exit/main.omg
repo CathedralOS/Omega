@@ -17,7 +17,7 @@ machine first(bytes: &[u8]) -> u8 {
         true -> read(bytes)
         _ -> (0)
     }
-    state read(bytes: &[u8]) -> u8 { bytes[0] }
+    machine read(bytes: &[u8]) -> u8 { bytes[0] }
 }
 
 data Main { bytes: [u8; 4]; }
@@ -30,8 +30,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

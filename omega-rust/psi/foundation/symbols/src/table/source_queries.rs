@@ -57,10 +57,23 @@ impl SymbolTable {
         occurrence: SourceSpan,
         alias: &str,
     ) -> Option<PackageKeyIdentity> {
-        let requester = self.source_file(occurrence)?.package_identity?;
         self.sources
             .as_deref()?
-            .product_dependency_target(requester, alias)
+            .product_dependency_at(occurrence, alias)
+    }
+
+    /// Executed Build descriptions keep their original source occurrence.
+    /// Product admission may seal that anonymous source as a new instance;
+    /// only the source producer's exact correspondence rejoins its namespace.
+    /// Without one, the original occurrence remains subject to ordinary refusal.
+    pub fn rejoin_product_occurrence(&self, occurrence: SourceSpan) -> SourceSpan {
+        let selected = self.sources.as_deref().and_then(|sources| {
+            let original = sources.get(occurrence.source_id)?;
+            sources.rejoined_source_id(original)
+        });
+        selected.map_or(occurrence, |source| {
+            SourceSpan::new(source, occurrence.span)
+        })
     }
 
     /// Resolve a designated product operand under its author's package scope.
@@ -101,6 +114,59 @@ impl SymbolTable {
         self.find_declaration_from_source(path, occurrence, candidates, true, token_bound_machines)
     }
 
+    /// Exact completed-Build scope, authenticated by package output custody.
+    /// Candidates are Product declarations only; this grants no ordinary host
+    /// visibility and does not make a dependency's private members public.
+    pub fn find_captured_product_declaration(
+        &self,
+        path: &str,
+        package: PackageKeyIdentity,
+        stratum: source::SourceResolutionStratum,
+        candidates: impl IntoIterator<Item = (SymbolHandle, bool)>,
+    ) -> Option<SymbolHandle> {
+        let sources = self.sources.as_deref()?;
+        let qualified = path.split_once("::");
+        let dependency =
+            qualified.and_then(|(alias, _)| sources.product_dependency_target(package, alias));
+        let target = dependency.unwrap_or(package);
+        let path = match (qualified, dependency) {
+            (Some((_, remaining)), Some(_)) => remaining,
+            _ => path,
+        };
+        let mut selected = None;
+        let mut selected_exact = false;
+        let mut ambiguous = false;
+        for (symbol, public) in candidates {
+            if !self.symbol_source_is_selected(symbol)
+                || self.symbol_product_package_identity(symbol) != Some(target)
+                || dependency.is_some() && !public
+            {
+                continue;
+            }
+            let file = self
+                .symbol_provenance_source_span(symbol)
+                .and_then(|span| self.source_file(span))?;
+            // The same temporal law as a source-issued Product description:
+            // current outputs cannot justify a prior Build formation, and a
+            // package cannot select its own newly generated declarations.
+            if !source::SourceMap::captured_reference_can_see_stratum(package, stratum, file) {
+                continue;
+            }
+            let exact = self.display_path(symbol, "::") == path;
+            if !exact && (dependency.is_some() || self.name(symbol) != path) {
+                continue;
+            }
+            if selected.is_none() || exact && !selected_exact {
+                selected = Some(symbol);
+                selected_exact = exact;
+                ambiguous = false;
+            } else if exact == selected_exact && selected != Some(symbol) {
+                ambiguous = true;
+            }
+        }
+        if ambiguous { None } else { selected }
+    }
+
     fn find_declaration_from_source(
         &self,
         path: &str,
@@ -109,6 +175,15 @@ impl SymbolTable {
         admit_toolchain: bool,
         token_bound_machines: &[SymbolHandle],
     ) -> Option<SymbolHandle> {
+        let occurrence = self.rejoin_product_occurrence(occurrence);
+        if occurrence.span.start != occurrence.span.end
+            && self
+                .sources
+                .as_deref()
+                .is_some_and(|sources| !sources.source_is_selected(occurrence.source_id))
+        {
+            return None;
+        }
         let qualified = path.split_once("::");
         let dependency =
             qualified.and_then(|(alias, _)| self.product_dependency_target(occurrence, alias));
@@ -121,6 +196,7 @@ impl SymbolTable {
         let mut ambiguous = false;
         for (symbol, is_public) in candidates {
             if !symbol.is_valid()
+                || !self.symbol_source_is_selected(symbol)
                 || !match dependency {
                     Some(package) => {
                         is_public && self.symbol_product_package_identity(symbol) == Some(package)
@@ -144,6 +220,9 @@ impl SymbolTable {
                     }
                 }
             {
+                continue;
+            }
+            if !self.source_reference_can_describe_product_symbol(occurrence, symbol) {
                 continue;
             }
             let exact = self.display_path(symbol, "::") == declaration_path;
@@ -171,6 +250,21 @@ impl SymbolTable {
             }
         }
         if ambiguous { None } else { selected }
+    }
+
+    /// A designated Product bridge keeps the ordinary temporal/stratum policy
+    /// while its caller separately admits exact Product package visibility.
+    pub fn source_reference_can_describe_product_symbol(
+        &self,
+        reference: SourceSpan,
+        symbol: SymbolHandle,
+    ) -> bool {
+        match (&self.sources, self.symbol_provenance_source_span(symbol)) {
+            (Some(sources), Some(declaration)) => {
+                sources.reference_can_see_stratum(reference, declaration)
+            }
+            _ => !self.has_source_metadata(),
+        }
     }
 
     /// Compare declaration provenance at the lexical package boundary: the
@@ -269,7 +363,9 @@ impl SymbolTable {
     /// format; compiler-internal consumers remain responsible for canonical
     /// framing.
     pub fn source_files(&self) -> impl Iterator<Item = &SourceFile> {
-        self.sources.iter().flat_map(|sources| sources.files())
+        self.sources
+            .iter()
+            .flat_map(|sources| sources.selected_files())
     }
 
     /// The authored symbol a generated symbol derives from, or `symbol`

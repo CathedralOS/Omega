@@ -9,7 +9,7 @@ machine main() reaches MachineControl {
     disable();
     enable();
     transition { _ -> idle() }
-    state idle() {
+    machine idle() {
         asm { cli }
         asm { hlt }
         transition { _ -> idle() }

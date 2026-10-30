@@ -59,14 +59,13 @@ whether a fixture never built on this host or built and no longer does, which
 is how eight macOS rows went on claiming `exit:70` for programs whose check
 leg had started refusing.
 
-A row's `@<sha>` stamp is provenance: it claims the observation was made at
-that revision. `--record` therefore refuses to stamp a revision that is not an
-ancestor of the published main this checkout can see, because a stamp naming an
-unlanded candidate is destroyed by the next rebase and leaves a row no reader
-can check. Record with HEAD at the published base the candidate sits on and the
-fixture changes staged: the stamp then reads `@<base>+wt` and the base stays an
-ancestor after the candidate is rebased. The tool never substitutes a revision
-of its own; what a row stamps is the recorder's choice.
+A row's `@<sha>` stamp is provenance, not a requirement to run on main.
+`--record` retains an unlanded source commit in `refs/corpus-observations/` and
+an exportable Git bundle under `build/corpus-source/` before writing the rows.
+Publish that bundle with the PR evidence and preserve it through squash/cleanup.
+A `+wt` marker still identifies dirty-source observations; preserve their source
+patches and replay inputs alongside the bundle. Recording never substitutes a
+base revision or requires a postlanding compiler rebuild.
 
 `--native-target <target>` builds for another catalogued target and diffs
 against that target's golden. Products execute only where the host runs
@@ -129,6 +128,17 @@ additions, so shards can be recorded or diffed on separate sessions/machines.
 The full corpus is scheduled-workload cost, not loop cost — subsets are the
 iteration gate; the unfiltered diff is the baseline/scheduled gate.
 
+`--audit-slice k/N` re-observes one bounded slice of the golden instead of
+accepting its pins: rows are ordered by stamp distance behind HEAD
+(unresolvable stamps first, then oldest), the 0-based k-th of N balanced parts
+is fed through that same `--filter` plumbing, and every golden row outside the
+slice is reported `unverified` rather than `clean`. `--filter` narrows which
+rows of the slice this run re-observes (the slice still owns the accounting).
+The summary prints `N verified / M unverified`; the run exits 1 at most (never
+3) when the only concern is the rows it did not observe, so a daily job can
+audit the stale tail without blocking merges. It never records, and never
+combines with `--record`, `--compare`, `--shard` or `--bisect`.
+
 This is the iteration smoke gate, not the landing gate: validation scopes are
 defined by tools/testing.md. Compiler source behavior stays in corpus fixtures;
 Rust unit tests belong only to the independent pure owners named there.
@@ -176,6 +186,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import subprocess
 import tempfile
 import sys
@@ -359,6 +370,50 @@ def terminal_target_failures(records: list[dict], corpus: Path) -> list[dict]:
             failures.append(oracle_failure(
                 record, f"{record['fixture']}: expected unchanged Terminal artifact with exact target outcomes; "
                         f"observed {record['status']} {facts}; {'; '.join(mismatches)}"))
+    return failures
+
+
+def terminal_fence_failures(records: list[dict], corpus: Path) -> list[dict]:
+    """Exact ordering events and pause progress are authored execution oracles."""
+    failures = []
+    kinds = {"lfence", "sfence", "mfence", "dmb_ld", "dmb_st", "dmb_sy"}
+    for record in records:
+        fixture = corpus / record["fixture"]
+        path = fixture / "expected_terminal_fences.txt"
+        if not path.exists():
+            continue
+        try:
+            expectations = {}
+            if not (fixture / "expected_terminal_targets.txt").is_file():
+                raise ValueError("fence observations require explicit target installations")
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                words = line.split()
+                if not words:
+                    continue
+                target, *sequence = words
+                if (not target.isascii()
+                        or not all(character.isalnum() or character == "_" for character in target)
+                        or target in expectations or not sequence
+                        or any(name not in kinds for name in sequence)):
+                    raise ValueError(f"line {number} needs a unique target and known nonempty fence sequence")
+                expectations[target] = ",".join(sequence)
+            if not expectations:
+                raise ValueError("no fence expectations")
+        except (OSError, UnicodeError, ValueError) as error:
+            failures.append(oracle_failure(
+                record, f"{record['fixture']}: invalid Terminal fence expectation ({error})",
+                recordable=False))
+            continue
+        facts = record.get("facts", {})
+        mismatches = [f"{target} expected {expected}, observed {facts.get('terminal-fences.' + target, 'missing')}"
+                      for target, expected in expectations.items()
+                      if facts.get("terminal-fences." + target) != expected]
+        if (record["status"] not in corpus_records.SUCCESS_STATUSES
+                or facts.get("terminal-fence-artifact") != "unchanged"
+                or facts.get("terminal-fences") != "match" or mismatches):
+            failures.append(oracle_failure(
+                record, f"{record['fixture']}: expected exact fence events with missing/wrong-model refusal "
+                        f"and replay-free fuel progress; observed {record['status']} {facts}; {'; '.join(mismatches)}"))
     return failures
 
 
@@ -1086,6 +1141,57 @@ def commits_between(revision):
     return int(count) if count and count.isdigit() else None
 
 
+AUDIT_SLICE = re.compile(r"^([0-9]+)/([0-9]+)$")
+
+
+def parse_audit_slice(value):
+    """`k/N` -> (k, N): the 0-based k-th of N balanced parts of a golden."""
+    match = AUDIT_SLICE.match((value or "").strip())
+    if not match:
+        raise ValueError(f"--audit-slice wants k/N, not {value!r}")
+    index, count = int(match.group(1)), int(match.group(2))
+    if count < 1 or index >= count:
+        raise ValueError(f"--audit-slice {value} names no slice: k must be "
+                         f"0..N-1 for a positive N")
+    return index, count
+
+
+def audit_order(records, distance=None) -> list:
+    """Fixture names to audit, oldest stamp first.
+
+    A stamp that does not resolve (absent, or a revision this shallow clone
+    cannot measure) has no distance, and such a row is the least trustworthy
+    evidence in the golden, so it sorts before any measured distance. Ties fall
+    back to the fixture name, so a slice is reproducible on any host. Distances
+    are cached per revision: a golden holds thousands of rows over a handful of
+    stamps, and one Git process per row would cost more than the audit.
+    """
+    distance = distance or commits_between
+    behind_by_revision = {}
+    ranked = []
+    for record in records:
+        revision = (record.get("recorded_at") or "").split("+", 1)[0]
+        if revision not in behind_by_revision:
+            behind_by_revision[revision] = (distance(revision)
+                                            if revision else None)
+        behind = behind_by_revision[revision]
+        ranked.append((0 if behind is None else 1, -(behind or 0),
+                       record["fixture"]))
+    ranked.sort()
+    return [fixture for _unresolved, _behind, fixture in ranked]
+
+
+def audit_partition(names, index, count) -> list:
+    """Balanced contiguous slice `index` of `count`, oldest first.
+
+    `index * total // count` .. `(index + 1) * total // count`, so every slice
+    of an ordered golden is disjoint, in order, and differs in size by at most
+    one row; slice 0 of 1 is the whole list.
+    """
+    total = len(names)
+    return names[index * total // count:(index + 1) * total // count]
+
+
 def load_average():
     """1-minute load average, or None where the host has none (Windows)."""
     try:
@@ -1232,16 +1338,10 @@ def measurement_stamp(golden) -> str | None:
 def upstream_main() -> str | None:
     """The published main ref this checkout can see; None when it can see none.
 
-    `origin/main` is this repository's convention and the branch's own
-    configured upstream is the more specific answer where one exists, so both
-    are tried before any other remote's `main`. A checkout that can show no
-    remote main cannot show that a revision stays inspectable.
+    Only remote main refs count as published ancestors. A feature branch's
+    configured upstream is not published main. This is a local read, no fetch.
     """
     candidates = []
-    configured = git_out("rev-parse", "--abbrev-ref", "--symbolic-full-name",
-                         "@{upstream}")
-    if configured:
-        candidates.append(configured)
     for line in (git_out("for-each-ref", "--format=%(refname)",
                          "refs/remotes/") or "").splitlines():
         if line.endswith("/main"):
@@ -1252,15 +1352,57 @@ def upstream_main() -> str | None:
     return None
 
 
-def is_ancestor(revision: str, ref: str) -> bool:
-    """Whether `revision` is reachable from `ref`. A revision is its own
-    ancestor, so a stamp naming the published tip itself is inspectable."""
+def retain_record_source(revision: str) -> str | None:
+    """Retain exact source independently of main/queue SHA and branch cleanup.
+
+    The bundle excludes only a locally known published ancestor. It can be
+    restored in a clone containing that prerequisite; with no main it contains
+    the complete history. Never replace a previously retained source bundle.
+    """
+    ref = "refs/corpus-observations/" + revision
+    directory = ROOT / "build" / "corpus-source"
+    bundle = directory / (revision + ".bundle")
+    main = upstream_main()
+    base = git_out("merge-base", revision, main) if main else None
+    if base == revision:
+        return None  # Already retained in published history; no export needed.
+    temporary = None
     try:
-        return subprocess.run(["git", "merge-base", "--is-ancestor", revision, ref],
-                              cwd=ROOT, capture_output=True, text=True,
-                              timeout=60).returncode == 0
-    except (OSError, subprocess.TimeoutExpired):
-        return False
+        directory.mkdir(parents=True, exist_ok=True)
+        def run(*args):
+            return subprocess.run(["git", *args], cwd=ROOT, capture_output=True,
+                                  text=True, timeout=60, check=True)
+        run("update-ref", ref, revision)
+        if not bundle.exists():
+            # NamedTemporaryFile's open handle prevents Git writing on Windows.
+            with tempfile.NamedTemporaryFile(dir=directory, suffix=".bundle", delete=False) as stream:
+                temporary = Path(stream.name)
+            args = ["bundle", "create", str(temporary), ref]
+            if base:
+                args.append("^" + base)
+            run(*args)
+            run("bundle", "verify", str(temporary))
+            # Concurrent writers may publish the same immutable source; no
+            # existing evidence is overwritten.
+            try:
+                os.link(temporary, bundle)
+            except FileExistsError:
+                pass
+        # verify/list-heads check only the header and prerequisites. Unbundle
+        # also authenticates the full pack (including its checksum), so a
+        # truncated/corrupt export cannot be recorded as retained provenance.
+        # It imports objects only; it moves no branch, checkout or source.
+        heads = run("bundle", "unbundle", str(bundle)).stdout.splitlines()
+        if f"{revision} {ref}" not in heads:
+            return "retained source bundle does not bind the stamped revision"
+        print(f"corpus_gate: retained source evidence {bundle}; publish with PR evidence",
+              file=sys.stderr)
+        return None
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+        return f"cannot retain stamped source evidence: {error}"
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def revision_absent_paths(revision: str, paths) -> list:
@@ -1292,16 +1434,9 @@ def revision_absent_paths(revision: str, paths) -> list:
 def stamp_provenance_problem(stamp: str | None, fixtures=()) -> str | None:
     """Why `--record` must not write rows stamped `stamp`, or None when it may.
 
-    A stamp claims the observation was made at a revision, and the claim is
-    only checkable while a reader can still inspect that revision. The
-    recording checkout's HEAD is not automatically one: a stamp naming the
-    candidate is destroyed by the next rebase, and one naming a commit that
-    only a local branch or a pruned remote branch reaches survives in the
-    recording clone alone. Both leave rows whose provenance nobody can check,
-    which is the weakness tools/testing.md measures. So a stamp is written only
-    for a revision that resolves here AND is an ancestor of the published main
-    this checkout can see; anything else is refused with the reason, and the
-    anchoring convention that satisfies the check is named in the refusal.
+    A source commit need not be on main. Preserve it in an exportable bundle
+    before writing evidence so a squash or branch cleanup cannot erase it.
+    Main/queue SHA movement never calls for another measurement.
 
     `fixtures` is what the run would stamp. A stamp with no `+wt` marker
     claims the named revision had the tree these rows were measured from, so
@@ -1315,16 +1450,13 @@ def stamp_provenance_problem(stamp: str | None, fixtures=()) -> str | None:
     if not stamp:
         return None
     revision = stamp[: -len("+wt")] if stamp.endswith("+wt") else stamp
-    if not git_out("rev-parse", "--verify", "--quiet", f"{revision}^{{commit}}"):
+    full_revision = git_out("rev-parse", "--verify", "--quiet", f"{revision}^{{commit}}")
+    if not full_revision:
         return (f"the revision it names ({revision}) does not resolve to a commit "
                 f"in this checkout")
-    main = upstream_main()
-    if main is None:
-        return ("this checkout can see no published main ref (origin/main) to test "
-                "ancestry against")
-    if not is_ancestor(revision, main):
-        return (f"it is not an ancestor of {main}, the published main this checkout "
-                f"can see, so only the recording clone's own object store holds it")
+    problem = retain_record_source(full_revision)
+    if problem:
+        return problem
     if stamp.endswith("+wt"):
         return None
     corpus = ROOT / "tests" / "omega"
@@ -1535,6 +1667,13 @@ def main() -> int:
     parser.add_argument("--shard",
                         help="k/N — deterministic hash-slice of the corpus "
                              "(sets OMEGA_CORPUS_SHARD for the runner)")
+    parser.add_argument("--audit-slice", metavar="K/N",
+                        help="re-observe only the K-th of N balanced slices of "
+                             "the golden, ordered by stamp distance behind HEAD "
+                             "(unresolvable stamps first, then oldest); every "
+                             "row outside the slice is reported unverified, the "
+                             "summary prints verified/unverified counts, and "
+                             "the run exits 1 (moved) at most")
     parser.add_argument("--list-pinned-regressions", action="store_true",
                         help="read the selected golden and name rows pinned in a "
                              "status their tier contradicts; does not build or run "
@@ -1609,6 +1748,54 @@ def main() -> int:
             options.golden = ROOT / "tests" / "omega" / f"corpus_{name}_{target}.txt"
     if options.list_pinned_regressions:
         return list_pinned_regressions(options.golden)
+    audit = None
+    audit_selected = []
+    if options.audit_slice:
+        # A slice selects its own rows; letting --record or --compare through
+        # would re-pin or measure rows the slice does not cover. Bisect reads
+        # 1..127 as "bad", and an audit exits 1 for rows it never observed.
+        try:
+            audit = parse_audit_slice(options.audit_slice)
+        except ValueError as error:
+            print(f"corpus_gate: {error}", file=sys.stderr)
+            return usage_error
+        incompatible = [flag for flag, value in (
+            ("--record", options.record), ("--compare", options.compare),
+            ("--shard", options.shard), ("--bisect", options.bisect)) if value]
+        if incompatible:
+            print("corpus_gate: --audit-slice selects its own rows and exits "
+                  "moved for the rows it does not observe; it cannot combine "
+                  "with " + ", ".join(incompatible), file=sys.stderr)
+            return usage_error
+        try:
+            audited = corpus_records.read(options.golden)
+        except (OSError, UnicodeError, ValueError) as error:
+            print(f"corpus_gate: cannot read golden {options.golden}: "
+                  f"{error}", file=sys.stderr)
+            return usage_error
+        ordered = audit_order(audited)
+        audit_selected = audit_partition(ordered, *audit)
+        if options.filter:
+            # A filter narrows which rows this run can re-observe; it uses the
+            # runner's own contract (trimmed substrings of `tier/group/name`).
+            fragments = [part.strip() for part in options.filter.split(",")
+                         if part.strip()]
+            audit_selected = [fixture for fixture in audit_selected
+                              if any(fragment in fixture
+                                     for fragment in fragments)]
+            if not audit_selected:
+                print(f"corpus_gate: --filter {options.filter!r} selects none "
+                      f"of the rows in --audit-slice "
+                      f"{options.audit_slice}", file=sys.stderr)
+                return usage_error
+        if not audit_selected:
+            print(f"corpus_gate: --audit-slice {options.audit_slice} selects "
+                  f"none of the golden's {len(ordered)} rows", file=sys.stderr)
+            return usage_error
+        # The existing --filter plumbing sets the runner's selection and keeps
+        # the diff subset-scoped; a slice of the whole golden needs no filter.
+        if len(audit_selected) < len(ordered):
+            options.filter = ",".join(audit_selected)
     compare_revision = None
     if options.baseline_runner and not options.compare:
         print("corpus_gate: --baseline-runner requires --compare")
@@ -1699,6 +1886,7 @@ def main() -> int:
               f"{facts['migration-capability']} ({facts['migration-task']}, "
               f"{facts['migration-route']})")
     failures = terminal_target_failures(records, ROOT / "tests" / "omega")
+    failures.extend(terminal_fence_failures(records, ROOT / "tests" / "omega"))
     # A publication refusal is weighed on every leg that published, not on the
     # native leg alone: the check leg realizes an entry-binding pass fixture
     # itself, so its own row is the evidence the authored oracle speaks about.
@@ -1793,13 +1981,9 @@ def main() -> int:
         if problem:
             message = (
                 f"a row stamped @{stamp} would claim an observation at a revision "
-                f"nobody can inspect: {problem}. Anchor the record at a published "
-                f"base instead: leave the fixture and golden changes staged with "
-                f"HEAD at the base the candidate sits on, then re-run --record, and "
-                f"the stamp names that base with the +wt marker (@<base>+wt), which "
-                f"stays an ancestor after the candidate is rebased. The tool does "
-                f"not substitute a revision of its own — what a row stamps is the "
-                f"recorder's choice")
+                f"cannot be retained or inspected: {problem}. Preserve the exact "
+                f"source evidence and retry recording on this fixed candidate; "
+                f"do not move HEAD to main or relabel the observation")
             print(f"corpus_gate: --record refused: {message}", file=sys.stderr)
             write_verdict(options, verdict_document(
                 options, leg, target, "infrastructure_failed", usage_error, records,
@@ -1904,6 +2088,15 @@ def main() -> int:
     golden_context = corpus_records.read_context(options.golden)
     golden = dict(prior)
     actual = {record["fixture"]: record for record in records}
+    # A slice can only speak for the rows it re-observed. `verified` counts the
+    # slice rows this run actually compared; every other golden row -- another
+    # slice's, or a slice row the runner never produced -- is unverified.
+    audit_verified = audit_unverified = None
+    audit_set = set(audit_selected)
+    if audit is not None:
+        compared = set(actual) & set(golden)
+        audit_verified = len(compared & audit_set)
+        audit_unverified = len(golden) - audit_verified
 
     structural_moves = []
     structured_diffs = []
@@ -1912,6 +2105,14 @@ def main() -> int:
     perf_notes = []
     for fixture, record in actual.items():
         before = golden.get(fixture)
+        if audit is not None and fixture not in audit_set:
+            # Compared only because a filter fragment collided with this row:
+            # it belongs to another slice, so it is not evidence this run may
+            # call clean, and it is not a move this run may report either.
+            classified.append({"fixture": fixture, "verdict": "unverified",
+                               "reasons": ["outside the audited slice"],
+                               "before": before, "after": record})
+            continue
         verdict, reasons = classify(before, record)
         if verdict != "clean":
             classified.append({"fixture": fixture, "verdict": verdict,
@@ -1996,6 +2197,9 @@ def main() -> int:
                f"{len(wrong_reason_fixtures)} rejected without their expected "
                f"fragment, "
                f"{len(not_rejected_fixtures)} fail fixtures did not reject")
+    if audit is not None:
+        summary += (f"; audit slice {audit[0]}/{audit[1]}: "
+                    f"{audit_verified} verified / {audit_unverified} unverified")
     executed = [r for r in records if "exit" in r.get("facts", {})]
     if executed:
         exits = collections.Counter(r["facts"]["exit"] for r in executed)
@@ -2078,7 +2282,12 @@ def main() -> int:
             [], None, golden_provenance, perf_context))
         return code
     if not structural_moves and not perf_moves:
-        print(f"corpus_gate: clean — {summary}")
+        # A slice that did not re-observe the whole golden cannot report clean:
+        # it reports what it verified and exits moved (1). Exit 3 stays for a
+        # real regression among the rows it did observe, so a daily audit never
+        # blocks a merge over rows it never looked at.
+        audited_only = audit is not None and audit_unverified
+        print(f"corpus_gate: {'audited' if audited_only else 'clean'} — {summary}")
         print(provenance)
         print(jobs)
         print_expectation_defects()
@@ -2091,10 +2300,12 @@ def main() -> int:
         # A clean run still rewrites the file, so a reader never mistakes a
         # previous run's moves for this one's.
         write_moves()
+        code = 1 if audited_only else 0
         write_verdict(options, verdict_document(
-            options, leg, target, "clean", 0, records, classified, [], None,
+            options, leg, target, "audited" if audited_only else "clean", code,
+            records, classified, [], None,
             golden_provenance, perf_context))
-        return 0
+        return code
     for line in structural_moves[:60]:
         print(line)
     for line in perf_moves[:60]:

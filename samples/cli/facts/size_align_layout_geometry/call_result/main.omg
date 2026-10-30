@@ -19,10 +19,10 @@ machine main() crashes Trap {
     let s: u64 = query_size();
     let a: u64 = query_align();
     let diff: u64 = s - (a * 2u64);
-    transition diff == 0 {
+    transition diff == 0 && s == 16u64 && a == 8u64 {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

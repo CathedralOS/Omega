@@ -4,9 +4,9 @@ machine increment(context: &mut Context) -> bool requires context.count < 6 { co
 machine main(context: &mut Context) crashes Trap {
     context.count = 5;
     transition context.count < 6 && increment(context) { true -> verify(context) false -> bad() }
-    state verify(context: &Context) { transition context.count == 6 { true -> done() false -> bad() } }
-    state done() { }
-    state bad() { crash Trap; }
+    machine verify(context: &Context) { transition context.count == 6 { true -> done() false -> bad() } }
+    machine done() { }
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

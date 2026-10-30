@@ -18,6 +18,6 @@ machine main() crashes Trap {
     let stream: Stream = Stream { identity: 41 };
     let observed: u64 = receive(borrow_stream(&stream));
     transition observed == 41 && stream.identity == 41 { true -> done() false -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

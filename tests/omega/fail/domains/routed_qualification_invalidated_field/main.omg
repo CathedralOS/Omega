@@ -1,5 +1,5 @@
 data Capacity [copy] { owner: u64; active: u64; }
-domain Capacity::Held(value) requires value.owner != 0 established by acquire;
+domain Capacity::Held requires self.owner != 0 established by acquire;
 machine acquire(owner: u64) -> Capacity in Capacity::Held
 requires owner != 0 { Capacity { owner: owner, active: 0 } }
 machine corrupt(capacity: Capacity in Capacity::Held) -> Capacity in Capacity::Held {

@@ -7,10 +7,11 @@ use super::{
 };
 use register_model::RegisterConstraintKey;
 use selected_instructions::{
-    LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey, MachineEffectDeclaration,
-    MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
+    LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    SelectedInstructionKind,
 };
 use target::NativeTarget;
 
@@ -59,11 +60,12 @@ pub(crate) fn declaration(
     target: NativeTarget,
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
-    super::hosted_alternative_declaration(
-        constraint,
+    MachineEffectDeclaration::single(
         MachineSemanticKind::HostedReadByte,
+        constraint,
         MachineMemoryEffect::HostedReadByteV1,
         MachineTrapBehavior::HostedReadFailureV1,
+        MachineBarrier::ExternalEffect,
         MachineAlternativeFamily::HostedReadByte,
         MachineSizeKnowledge::ExactBytes(leaf_bytes(target)),
         effects(),

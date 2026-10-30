@@ -2,24 +2,12 @@
 //! Selection supplies the execution identity. This shape check never selects
 //! an implementation from a source name or from a similarly shaped sum.
 use calling_conventions::{ConventionalSumLayout, ValueShape};
-use semantic_vocabulary::ScalarType;
-use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
+use terminal_psi::StructuralTypeDeclaration;
 
 pub fn conventional_float_class_layout(
     declaration: &StructuralTypeDeclaration,
 ) -> Option<ConventionalSumLayout> {
-    let StructuralTypeShape::Sum { cases } = &declaration.shape else {
-        return None;
-    };
-    let [nan, infinity, normal, subnormal, zero] = cases.as_slice() else {
-        return None;
-    };
-    if !nan.fields.is_empty()
-        || [infinity, normal, subnormal, zero].iter().any(|case| {
-            !matches!(case.fields.as_slice(), [field] if !field.relevance.is_erased()
-            && field.field_type == StructuralFieldType::Scalar(ScalarType::Boolean))
-        })
-    {
+    if !declaration.is_float_class_shape() {
         return None;
     }
     let layout = calling_conventions::evaluate_conventional_sum_layout(

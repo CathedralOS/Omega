@@ -29,8 +29,8 @@ reaches Reading crashes Trap {
     let other: i32 = 19;
     let result: i32 = observed(&main.value, &other);
     transition result == 37 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 linux_x86_64 machine Providers::provider_defaults(defaults: &mut Providers) {

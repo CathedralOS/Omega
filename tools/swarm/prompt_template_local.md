@@ -14,11 +14,13 @@ same capability. If a witness already passes, verify what it establishes and
 take the next required witness; do not manufacture a failure. An explicitly
 sample-only assignment remains limited to that sample.
 
-Complete the mandatory main preflight in `AGENTS.md` before dispatch. The
+For a new assignment, complete the initial main preflight in `AGENTS.md` before dispatch. The
 coordinator must successfully fetch main and record its exact commit before
 creating workers. New worktrees use that commit; resumed worktrees retain their
-unpublished work and integrate current main at a safe checkpoint. Reread the
-updated instructions before implementation. A failed fetch stops a new launch.
+unpublished work, fixed base and warm producers. Main/queue SHA movement alone
+never requires pull, rebase, rebuild or requalification. Integrate only an actual
+conflict, concrete prerequisite or changed affected source. Reread the
+applicable instructions before implementation. A failed fetch stops a new launch.
 
 Read and follow, in this order:
 
@@ -126,9 +128,10 @@ its frontier in the claim note and the sample README first.
   GC with the coordinator; inspect `mbx gc --dry-run` first. Cache budgets do not
   bound unmanaged outputs. Do not delete another slot's active targets,
   unpublished work or ignored package-review state to make room.
-- Refetch `origin/main` before enqueueing. If the assigned acceptance already
-  passes on main, verify and report `superseded`; a passing first witness does
-  not supersede the remaining requirements of a capability assignment.
+- Inspect peer claims and PRs for duplicate repairs without moving the fixed
+  base. A passing first witness does not supersede the remaining requirements
+  of a capability assignment. Postlanding verification reads PR/commit/CI
+  evidence; it does not rebuild or rerun qualification.
 - On Windows, never use `2>nul` or `>nul` to silence output: Git Bash
   creates a literal file named `nul` in the worktree, which lands as an
   untracked file and can block a publish from the main checkout. Drop the

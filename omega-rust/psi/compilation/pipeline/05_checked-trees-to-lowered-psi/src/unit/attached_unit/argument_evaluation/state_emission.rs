@@ -56,7 +56,7 @@ pub(super) fn emit_state(
         erased_proof_formal_declarations(identities, checked, source_erased_proof_formals);
     // Expansion-state order is not dominance order. Only observations made
     // within this state's path may be reused while emitting its decisions.
-    operations.length_observations.clear();
+    operations.storage_observations.clear();
     let mut values = parameters.to_vec();
     let mut block_parameters = parameters.to_vec();
     let mut block_structural_parameters = state.structural_parameters.clone();
@@ -146,6 +146,8 @@ pub(super) fn emit_state(
             let claim_transfers = crate::emission::claim_bindings::emit_prepared_claim_transfers(
                 &call.claim_transfers,
                 calls.claims.bindings(),
+                &structural_arguments,
+                &mut evaluation.current_claims,
             )?;
             let produced = terminal_psi::OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -170,6 +172,7 @@ pub(super) fn emit_state(
                 &frontier,
             )?;
             let mut span = super::BlockEmissionSpan {
+                current_claims: evaluation.current_claims.clone(),
                 erased_scalar_formals: std::mem::take(&mut block_erased_formals),
                 erased_proof_formals: std::mem::take(&mut block_erased_proof_formals),
                 id: block,
@@ -196,6 +199,7 @@ pub(super) fn emit_state(
                     operations,
                     |_| unsupported("scalar call requested structural result storage"),
                 )?;
+            evaluation.current_claims = span.current_claims;
             block = span.id;
             block_erased_formals = span.erased_scalar_formals;
             block_erased_proof_formals = span.erased_proof_formals;
@@ -246,6 +250,7 @@ pub(super) fn emit_state(
                 next_value,
                 operations,
                 calls,
+                &mut evaluation.current_claims,
             )?;
             values.push(ValueDeclaration {
                 qualifications: value_type.qualifications,
@@ -255,6 +260,7 @@ pub(super) fn emit_state(
         }
     }
     let mut effect_span = super::BlockEmissionSpan {
+        current_claims: evaluation.current_claims.clone(),
         erased_scalar_formals: std::mem::take(&mut block_erased_formals),
         erased_proof_formals: std::mem::take(&mut block_erased_proof_formals),
         id: block,
@@ -277,6 +283,7 @@ pub(super) fn emit_state(
         source_erased_proof_formals,
         evaluation,
     )?;
+    evaluation.current_claims = effect_span.current_claims;
     block = effect_span.id;
     block_erased_formals = effect_span.erased_scalar_formals;
     block_erased_proof_formals = effect_span.erased_proof_formals;
@@ -431,6 +438,9 @@ pub(super) fn emit_state(
                 .any(|region| !region.conditions.is_empty() || region.selected_region.is_some())
             {
                 super::cleanup_control::CleanupEmission {
+                    structural_types: calls.structural_types,
+                    source_parameters: &evaluation.structural_parameters,
+                    previous_parameter_homes: &evaluation.previous_parameter_homes,
                     checked,
                     current: &mut block,
                     parameters: &mut block_parameters,
@@ -455,15 +465,18 @@ pub(super) fn emit_state(
             };
             let edge = edge_id(allocate_dense(next_edge)?);
             if let Some(plan) = claim_edge {
-                operations.claim_edge_bindings.extend(
-                    crate::emission::claim_bindings::selections::edge_bindings(
-                        checked,
-                        &plan.destinations,
-                        &plan.route,
-                        edge,
-                        &calls.claims,
-                    )?,
-                );
+                let aliases = crate::emission::claim_bindings::selections::edge_bindings(
+                    checked,
+                    &plan.destinations,
+                    &plan.route,
+                    edge,
+                    &calls.claims,
+                )?;
+                // The caller meets these exact completed predecessor names;
+                // publication applies the same simultaneous edge aliases.
+                evaluation.current_claims =
+                    evaluation.current_claims.with_edge_aliases(&aliases)?;
+                operations.claim_edge_bindings.extend(aliases);
             }
             Terminator::Jump {
                 structural_arguments: structural_arguments.clone(),
@@ -716,6 +729,7 @@ pub(super) fn emit_state(
             let mut case_edges = Vec::with_capacity(cases.len());
             for case in cases {
                 case_edges.push(terminal_psi::StructuralCaseSuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(allocate_dense(next_edge)?),
                     target: if *case == *selected {
                         selected_block
@@ -798,6 +812,7 @@ pub(super) fn emit_state(
                         },
                     ));
                     case_edges.push(terminal_psi::StructuralCaseSuccessorEdge {
+                        structural_arguments: Vec::new(),
                         edge: edge_id(allocate_dense(next_edge)?),
                         target: selected_block,
                         case: *case,
@@ -844,6 +859,7 @@ pub(super) fn emit_state(
                         fallback_block = Some(block);
                     }
                     case_edges.push(terminal_psi::StructuralCaseSuccessorEdge {
+                        structural_arguments: Vec::new(),
                         edge: edge_id(allocate_dense(next_edge)?),
                         target: fallback_block.expect("armed-edge loop emitted fallback"),
                         case: *case,

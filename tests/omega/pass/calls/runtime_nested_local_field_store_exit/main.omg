@@ -24,8 +24,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> success(main)
         false -> failure(main)
     }
-    state success(main: &mut Main) { Console::exit_process(42); }
-    state failure(main: &mut Main) { Console::exit_process(1); }
+    machine success(main: &mut Main) { Console::exit_process(42); }
+    machine failure(main: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -1,31 +1,34 @@
 // Explicit buffer construction preserves Room A1 and live length 7.
-// Compile-checked probe; hit remains 1 on success.
-domain [u8; 16]::Ascii(bytes) requires ascii_only(bytes);
-domain [u8]::Ascii(bytes) requires ascii_only(bytes);
+// Expected exit: 0. The entry checks the selected success result.
+domain [u8; 16]::Ascii requires ascii_only(self);
+domain [u8]::Ascii requires ascii_only(self);
 data TextBuffer where used <= 16 { storage: [u8; 16] in Ascii; used: u64; }
 machine live(buffer: &TextBuffer) -> &[u8] in Ascii { &buffer.storage[..buffer.used] }
 machine copy(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64)
 requires start <= 16; bytes.len <= 16 - start
+ensures buffer in Ascii
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
-    state copying(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine copying(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 16; index <= 16
+    ensures buffer in Ascii
     {
         transition index < bytes.len && start + index < 16 {
             true -> writing(buffer, bytes, start, index)
             _ -> done()
         }
     }
-    state writing(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine writing(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 16; index < 16; index < bytes.len; start + index < 16
+    ensures buffer in Ascii
     {
         buffer[start + index] = bytes[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
     }
-    state done() {}
+    machine done() {}
 }
 
-domain [u8; 4]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 4]::Ascii requires ascii_only(self);
 data Label where used <= 4 { storage: [u8; 4] in Ascii; used: u64; }
 machine label_live(label: &Label) -> &[u8] in Ascii
 ensures result.len == label.used && result.len <= 4
@@ -47,12 +50,14 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() {
+machine entry_start() crashes Trap {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
+    transition entry_storage.hits == 1 { true -> {} false -> bad() }
+    machine bad() crashes Trap { crash Trap; }
 }

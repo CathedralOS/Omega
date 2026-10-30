@@ -10,9 +10,9 @@ ensures ticket in Issued
         true -> qualify(ticket)
         _ -> qualify(&mut private)
     }
-    state qualify(selected: &mut Ticket) -> bool {
+    machine qualify(selected: &mut Ticket) -> bool {
         selected = issue();
         transition { _ -> finish() }
     }
-    state finish() -> bool { true }
+    machine finish() -> bool { true }
 }

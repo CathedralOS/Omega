@@ -1,0 +1,9 @@
+// Expected exit: 0
+machine quotient(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping {
+ transition left / right == 12 { true -> divided(left, right) false -> (0) }
+ machine divided(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping { left / right }
+}
+machine main() crashes Trap {
+ transition quotient(84, 7) == 12 && quotient(84, 0) == 0 { true -> {} false -> bad() }
+ machine bad() crashes Trap { crash Trap; }
+}

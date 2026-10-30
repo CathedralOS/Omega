@@ -26,21 +26,21 @@ machine Main::main(context: &mut Main) reaches Console {
         false -> bad(context)
     }
 
-    state payload(context: &mut Main) {
+    machine payload(context: &mut Main) {
         transition context.event {
             Event::Treasure { consumed as _, gold } -> amount(context, gold)
             _ -> bad(context)
         }
     }
 
-    state amount(context: &mut Main, gold: u64) {
+    machine amount(context: &mut Main, gold: u64) {
         transition gold == 50 {
             true -> replace_command(context)
             false -> bad(context)
         }
     }
 
-    state replace_command(context: &mut Main) {
+    machine replace_command(context: &mut Main) {
         let next: Command = Command::Set { value: 20 };
         context.command = next;
         transition context.command {
@@ -49,15 +49,15 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
 
-    state command_value(context: &mut Main, value: u64) {
+    machine command_value(context: &mut Main, value: u64) {
         transition value == 20 {
             true -> good(context)
             false -> bad(context)
         }
     }
 
-    state good(context: &mut Main) { Console::exit_process(70); }
-    state bad(context: &mut Main) { Console::exit_process(71); }
+    machine good(context: &mut Main) { Console::exit_process(70); }
+    machine bad(context: &mut Main) { Console::exit_process(71); }
 }
 
 machine Main::store_copy(context: &mut Main) {

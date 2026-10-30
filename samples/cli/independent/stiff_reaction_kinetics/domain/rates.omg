@@ -5,8 +5,8 @@ use domain::model;
 public data Field [copy] { a: f64; b: f64; c: f64; aa: f64; ab: f64; ac: f64; ba: f64; bb: f64; bc: f64; ca: f64; cb: f64; cc: f64; }
 public machine magnitude(value: f64) -> f64 {
     transition value < 0.0 { true -> negative(value) false -> positive(value) }
-    state negative(value: f64) -> f64 { 0.0 - value }
-    state positive(value: f64) -> f64 { value }
+    machine negative(value: f64) -> f64 { 0.0 - value }
+    machine positive(value: f64) -> f64 { value }
 }
 public machine maximum(left: f64, right: f64) -> f64 { match left > right { true -> left false -> right } }
 machine power(value: f64, order: u64) -> f64 { match order { 0 -> 1.0 1 -> value _ -> value * value } }
@@ -53,6 +53,6 @@ public machine norm(value: &Vector, baseline: &Vector, problem: &Problem) -> f64
         true -> finite(a, b, c)
         false -> invalid()
     }
-    state finite(a: f64, b: f64, c: f64) -> f64 { maximum(a, maximum(b, c)) }
-    state invalid() -> f64 { 1e100 }
+    machine finite(a: f64, b: f64, c: f64) -> f64 { maximum(a, maximum(b, c)) }
+    machine invalid() -> f64 { 1e100 }
 }

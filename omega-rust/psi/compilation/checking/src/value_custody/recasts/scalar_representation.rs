@@ -341,25 +341,25 @@ fn narrow_to_float_interval(
     }
 }
 
-/// Narrow one record field's leaf by its declaration's interval-only `where`
-/// conjuncts (`data_where_field_literal_bounds`), so a bound spelled as a data
-/// fact compares exactly as the revoked bracketed range did. Integer bounds
-/// read their literal as an integer; float bounds read the literal's exact
-/// meaning at the field's format and admit only closed comparisons, because a
-/// strict float bound has no closed endpoint in this vocabulary. `None` when a
-/// bound cannot be stated exactly, which keeps the record fenced.
-pub(super) fn narrow_by_field_literal_bounds(
+/// Consume complete field-validity rows without reopening predicate bodies.
+/// Integer envelopes become exact stored bit sets. IEEE literal comparisons
+/// keep their selected meaning and format; unsupported bounds fence the record.
+pub(super) fn narrow_by_field_representation_bounds(
     program: &dyn crate::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     facts: &mut MutableScalarRepresentationFacts,
     primitive: PrimitiveType,
-    bounds: &[crate::proof_contracts::default_domains::FieldLiteralBound],
+    bounds: &[crate::proof_contracts::default_domains::FieldRepresentationBound],
 ) -> Option<()> {
+    use crate::proof_contracts::default_domains::FieldRepresentationBound;
     use typed_trees::expression::BinaryOperator;
     if matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) {
         let mut minimum = FloatEndpoint::NEGATIVE_INFINITY;
         let mut maximum = FloatEndpoint::POSITIVE_INFINITY;
         for bound in bounds {
+            let FieldRepresentationBound::FloatLiteral(bound) = bound else {
+                return None;
+            };
             let meaning =
                 crate::proof_contracts::default_domains::float_field_literal_bound_meaning(
                     program,
@@ -390,19 +390,15 @@ pub(super) fn narrow_by_field_literal_bounds(
         return None;
     };
     for bound in bounds {
-        let literal = program.expression_table.integer_node(bound.literal)?;
-        let literal = literal
-            .decimal_value_i128()
-            .and_then(|value| i64::try_from(value).ok())?;
-        let (minimum, maximum) = primitive_integer_extent(primitive)?;
-        let (minimum, maximum) = match bound.operator {
-            BinaryOperator::LessOrEqual => (minimum, literal),
-            BinaryOperator::Less => (minimum, literal.checked_sub(1)?),
-            BinaryOperator::GreaterOrEqual => (literal, maximum),
-            BinaryOperator::Greater => (literal.checked_add(1)?, maximum),
-            BinaryOperator::Equal => (literal, literal),
-            _ => return None,
+        let FieldRepresentationBound::Integer {
+            minimum, maximum, ..
+        } = bound
+        else {
+            return None;
         };
+        let (carrier_minimum, carrier_maximum) = primitive_integer_extent(primitive)?;
+        let minimum = minimum.unwrap_or(carrier_minimum).max(carrier_minimum);
+        let maximum = maximum.unwrap_or(carrier_maximum).min(carrier_maximum);
         let interval = integer_range_bit_patterns(primitive, (minimum, maximum))?;
         *values = intersect_bit_pattern_intervals(std::mem::take(values), &interval);
     }

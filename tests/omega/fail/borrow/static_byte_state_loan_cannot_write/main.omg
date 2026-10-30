@@ -2,5 +2,5 @@
 machine main() {
     let mut bytes: [u8; 4];
     transition { _ -> damage(&bytes) }
-    state damage(bytes: &[u8; 4]) { bytes[1] = 0; }
+    machine damage(bytes: &[u8; 4]) { bytes[1] = 0; }
 }

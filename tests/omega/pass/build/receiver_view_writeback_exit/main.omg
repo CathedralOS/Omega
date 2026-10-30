@@ -27,6 +27,13 @@ machine frame_leaf() {}
 machine frame_nested() { frame_leaf(); }
 machine frame_sequence() { frame_nested(); frame_nested(); }
 
+machine observation_leaf(value: u32) -> u32 { value }
+machine observed_call_results() -> u64 {
+    let first: u32 = observation_leaf(11);
+    let second: u32 = observation_leaf(37);
+    (first as u64) + (second as u64)
+}
+
 machine copy_array(values: [u32; 3]) -> [u32; 3] { values }
 machine empty_array_result() -> [u32; 0] { [] }
 data Cell { value: u32; }
@@ -85,6 +92,6 @@ machine fail_after_write(settings: &mut Settings) crashes Trap {
 
 machine main() crashes Trap {
     transition exercise() { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

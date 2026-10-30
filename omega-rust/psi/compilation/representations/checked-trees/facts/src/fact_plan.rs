@@ -4,6 +4,25 @@ pub mod contexts;
 pub mod evidence;
 pub mod places;
 
+/// The plan's arena roots, named once.
+///
+/// Every whole-plan operation — copy, storage-reusing replacement, page
+/// extension, page handoff, adoption, capacity construction — and every test
+/// that must touch all arenas derives its field list from this roster, so a
+/// new arena is classified here instead of in each operation. `contexts` is the
+/// one derived index root and each operation names it beside the roster
+/// because its behavior (a shared index, not an arena page) differs.
+macro_rules! fact_plan_root_roster {
+    ($callback:ident $(, $argument:ident)*) => {
+        $callback!(
+            $($argument,)* places, place_segments, facts, scalar_values, boolean_predicates,
+            boolean_predicate_bindings, integer_ranges, qualification_correspondences,
+            domain_definition_facts, data_definition_facts, instantiated_expressions, refs,
+            symbol_sets, qualification_issuers,
+        );
+    };
+}
+
 #[cfg(test)]
 mod tests;
 
@@ -26,8 +45,9 @@ pub type FactContextHandle = Handle<FactContext>;
 pub type PlaceHandle = Handle<Place>;
 pub type QualificationCorrespondenceHandle = Handle<QualificationCorrespondence>;
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FactPlan {
+    pub qualification_issuers: Arena<crate::BoundaryQualificationIssuerRecord>,
     pub places: Arena<Place>,
     pub place_segments: Arena<PlaceSegment>,
     pub facts: Arena<Fact>,
@@ -45,19 +65,21 @@ pub struct FactPlan {
 }
 
 /// Whole-plan operations over the complete root set: copying, storage-reusing
-/// replacement, page extension, page handoff, and page adoption.
+/// replacement, capacity construction, page extension, page handoff, and page
+/// adoption.
 ///
-/// The roots are classified once, here. Every generated method names every
-/// field of `FactPlan` in a destructuring pattern, so a new arena must be
-/// classified in this list before the plan compiles, and `clone_from` — the
+/// The roots come from `fact_plan_root_roster!`. Every generated method names
+/// every field of `FactPlan` in a destructuring pattern, so a new arena must be
+/// classified in that roster before the plan compiles, and `clone_from` — the
 /// one fan-out a struct literal cannot check — cannot keep an old root while
 /// replacing the others.
-macro_rules! fact_plan_roots {
+macro_rules! fact_plan_root_impls {
     ($($root:ident),* $(,)?) => {
         impl Clone for FactPlan {
             fn clone(&self) -> Self {
                 Self {
                     $($root: self.$root.clone(),)*
+                    contexts: self.contexts.clone(),
                 }
             }
 
@@ -67,80 +89,77 @@ macro_rules! fact_plan_roots {
             /// their meaning after replacement.
             fn clone_from(&mut self, source: &Self) {
                 $(self.$root.clone_from(&source.$root);)*
+                self.contexts.clone_from(&source.contexts);
             }
         }
 
-        /// Page partitioning for producers that extend one baseline plan from
-        /// several workers. A worker copies the baseline, writes each
-        /// partition on its own page, and hands back only those pages;
-        /// adopting them keeps every handle the worker minted.
         impl FactPlan {
+            pub fn with_capacity(fact_capacity: usize, context_capacity: usize) -> Self {
+                Self {
+                    $($root: Arena::with_capacity(fact_capacity),)*
+                    contexts: contexts::FactContexts::with_capacity(context_capacity),
+                }
+            }
+
             /// Share the established baseline before independent producers fork it.
             /// Every arena and the derived context index freeze together; later
             /// pages belong to their producer and do not rewrite this baseline.
             pub fn share_pages(&mut self) {
-                let Self { $($root,)* } = self;
+                let Self { $($root,)* contexts } = self;
                 $($root.share_pages();)*
+                contexts.share_pages();
             }
 
             /// Append later rows of every arena on page `generation`.
             pub fn begin_page(&mut self, generation: u32) {
-                let Self { $($root,)* } = self;
+                let Self { $($root,)* contexts } = self;
                 $($root.begin_page(generation);)*
+                contexts.begin_page(generation);
             }
 
             /// The pages written after the first, leaving this plan at its first page.
             pub fn take_additional_pages(&mut self) -> Self {
-                let Self { $($root,)* } = self;
+                let Self { $($root,)* contexts } = self;
                 Self {
                     $($root: $root.take_additional_pages(),)*
+                    contexts: contexts.take_additional_pages(),
                 }
             }
 
             /// Adopt pages taken from a copy of this plan's baseline.
             pub fn adopt_additional_pages(&mut self, other: Self) {
-                let Self { $($root,)* } = other;
+                let Self { $($root,)* contexts } = other;
                 $(self.$root.adopt_additional_pages($root);)*
+                self.contexts.adopt_additional_pages(contexts);
             }
         }
     };
 }
 
-fact_plan_roots!(
-    places,
-    place_segments,
-    facts,
-    scalar_values,
-    boolean_predicates,
-    boolean_predicate_bindings,
-    integer_ranges,
-    qualification_correspondences,
-    domain_definition_facts,
-    data_definition_facts,
-    instantiated_expressions,
-    refs,
-    contexts,
-    symbol_sets,
-);
+fact_plan_root_roster!(fact_plan_root_impls);
 
 impl FactPlan {
-    pub fn with_capacity(fact_capacity: usize, context_capacity: usize) -> Self {
-        Self {
-            places: Arena::with_capacity(fact_capacity),
-            place_segments: Arena::with_capacity(fact_capacity),
-            facts: Arena::with_capacity(fact_capacity),
-            scalar_values: Arena::with_capacity(fact_capacity),
-            boolean_predicates: Arena::with_capacity(fact_capacity),
-            boolean_predicate_bindings: Arena::with_capacity(fact_capacity),
-            integer_ranges: Arena::with_capacity(fact_capacity),
-            qualification_correspondences: Arena::with_capacity(fact_capacity),
-            domain_definition_facts: Arena::with_capacity(fact_capacity),
-            data_definition_facts: Arena::with_capacity(fact_capacity),
-            instantiated_expressions: Arena::with_capacity(fact_capacity),
-            refs: Arena::with_capacity(fact_capacity),
-            contexts: contexts::FactContexts::with_capacity(context_capacity),
-            symbol_sets: Arena::with_capacity(fact_capacity),
+    /// Actual admitted occurrences, including facts outside emitted roots.
+    /// The declaration inventory alone does not create a grant obligation.
+    pub fn admitted_qualification_issuers(
+        &self,
+    ) -> Result<Vec<&language_semantics::BoundaryQualificationIssuer>, &'static str> {
+        let mut issuers = Vec::new();
+        for (_, fact) in self.facts.iter().filter(|(_, fact)| {
+            fact.evidence.origin == language_semantics::QualificationEvidenceOrigin::AdmittedReceipt
+        }) {
+            if !self.qualification_issuers.is_valid(fact.evidence.issuer) {
+                return Err("admitted qualification evidence has no retained issuer");
+            }
+            let record = self.qualification_issuers.get(fact.evidence.issuer);
+            if record.source_symbol != fact.evidence.source_symbol
+                || record.requirement_symbol != fact.evidence.requirement_symbol
+            {
+                return Err("admitted qualification evidence does not name its retained issuer");
+            }
+            issuers.push(&record.issuer);
         }
+        Ok(issuers)
     }
 
     pub fn append_fact(&mut self, fact: Fact) -> FactHandle {
@@ -509,10 +528,67 @@ impl FactPlan {
     }
 
     pub fn fact_place_equals(&self, fact_place: FactPlace, place: PlaceHandle) -> bool {
-        match fact_place {
-            FactPlace::Place(other) => self.places_equal(other, place),
-            _ => false,
+        self.fact_places_equal(fact_place, FactPlace::Place(place))
+    }
+
+    /// Exact fact subject equality, including structural place geometry.
+    /// Distinct subject vocabularies do not become aliases of one another.
+    pub fn fact_places_equal(&self, left: FactPlace, right: FactPlace) -> bool {
+        match (left, right) {
+            (FactPlace::Place(left), FactPlace::Place(right)) => self.places_equal(left, right),
+            _ => left == right,
         }
+    }
+
+    /// Scratch partition key only: callers must still compare complete subjects
+    /// with `fact_places_equal` before sharing any evidence or storage epoch.
+    pub fn fact_place_bucket_hash(&self, place: FactPlace) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        std::mem::discriminant(&place).hash(&mut hash);
+        match place {
+            FactPlace::Unknown => {}
+            FactPlace::Place(place) => {
+                let place = self.places.get(place);
+                places::place_bucket_hash(
+                    place.root,
+                    self.place_segments.span_or_empty(place.segments),
+                )
+                .hash(&mut hash);
+            }
+            FactPlace::Symbol(symbol) => symbol.hash(&mut hash),
+            FactPlace::Expression(expression) => expression.hash(&mut hash),
+            FactPlace::TypeReference(reference) => reference.hash(&mut hash),
+        }
+        hash.finish()
+    }
+
+    /// Couple facts about the same exact subject, retaining first group order
+    /// and every reference's original order and multiplicity within its group.
+    /// Keys only partition scratch candidates; complete equality handles every
+    /// collision. No place/evidence cache survives this immutable batch.
+    pub fn group_fact_refs_by_place(&self, references: HandleSpan<FactRef>) -> Vec<Vec<FactRef>> {
+        let references = self.refs.span_or_empty(references);
+        let subjects: Vec<_> = references
+            .iter()
+            .map(|reference| self.facts.get(reference.fact).place)
+            .collect();
+        let buckets = places::PlaceBucketIndex::new(
+            subjects
+                .iter()
+                .map(|place| self.fact_place_bucket_hash(*place)),
+        );
+        let first = buckets.group_equal_positions(|left, right| {
+            self.fact_places_equal(subjects[left], subjects[right])
+        });
+        let mut groups: Vec<Vec<FactRef>> = (0..references.len()).map(|_| Vec::new()).collect();
+        for (position, reference) in references.iter().enumerate() {
+            groups[first[position]].push(*reference);
+        }
+        groups
+            .into_iter()
+            .filter(|group| !group.is_empty())
+            .collect()
     }
 
     pub fn places_equal(&self, left: PlaceHandle, right: PlaceHandle) -> bool {
@@ -536,10 +612,10 @@ impl FactPlan {
         // to reconcile with executable places or another machine's formal.
         if matches!(
             self.places.get(left).root,
-            PlaceRoot::InvocationReferent { .. }
+            PlaceRoot::InvocationReferent { .. } | PlaceRoot::InvocationOutput(_)
         ) || matches!(
             self.places.get(right).root,
-            PlaceRoot::InvocationReferent { .. }
+            PlaceRoot::InvocationReferent { .. } | PlaceRoot::InvocationOutput(_)
         ) {
             return false;
         }

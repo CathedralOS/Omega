@@ -7,13 +7,13 @@ data Moments { aa: f64; ab: f64; bb: f64; ay: f64; by: f64; }
 machine moments(chromatogram: &Chromatogram, sums: &mut Moments) {
     sums.aa = 0.0; sums.ab = 0.0; sums.bb = 0.0; sums.ay = 0.0; sums.by = 0.0;
     transition { _ -> scan(chromatogram, sums, 0) }
-    state scan(chromatogram: &Chromatogram, sums: &mut Moments, index: i32 in Wrapping) {
+    machine scan(chromatogram: &Chromatogram, sums: &mut Moments, index: i32 in Wrapping) {
         transition index >= 0 && index < 5 {
             true -> add(chromatogram, sums, index)
             _ -> done()
         }
     }
-    state add(chromatogram: &Chromatogram, sums: &mut Moments, index: i32 in Wrapping) {
+    machine add(chromatogram: &Chromatogram, sums: &mut Moments, index: i32 in Wrapping) {
         let a: f64 = chromatogram.profile_a[index];
         let b: f64 = chromatogram.profile_b[index];
         let y: f64 = chromatogram.observed[index];
@@ -24,18 +24,18 @@ machine moments(chromatogram: &Chromatogram, sums: &mut Moments) {
         sums.by = sums.by + b * y;
         transition { _ -> scan(chromatogram, sums, index + 1) }
     }
-    state done() { }
+    machine done() { }
 }
 machine squared_error(chromatogram: &Chromatogram, a: f64, b: f64) -> f64 {
     transition { _ -> scan(chromatogram, a, b, 0, 0.0) }
-    state scan(chromatogram: &Chromatogram, a: f64, b: f64,
+    machine scan(chromatogram: &Chromatogram, a: f64, b: f64,
                index: i32 in Wrapping, sum: f64) -> f64 {
         transition index >= 0 && index < 5 {
             true -> add(chromatogram, a, b, index, sum)
             _ -> sum
         }
     }
-    state add(chromatogram: &Chromatogram, a: f64, b: f64,
+    machine add(chromatogram: &Chromatogram, a: f64, b: f64,
               index: i32 in Wrapping, sum: f64) -> f64 {
         let predicted: f64 = a * chromatogram.profile_a[index] + b * chromatogram.profile_b[index];
         let residual: f64 = chromatogram.observed[index] - predicted;
@@ -48,11 +48,11 @@ machine consider(chromatogram: &Chromatogram, fit: &mut Fit, mask: i32, a: f64, 
         true -> evaluate(chromatogram, fit, mask, a, b)
         _ -> done()
     }
-    state evaluate(chromatogram: &Chromatogram, fit: &mut Fit, mask: i32, a: f64, b: f64) {
+    machine evaluate(chromatogram: &Chromatogram, fit: &mut Fit, mask: i32, a: f64, b: f64) {
         let sse: f64 = squared_error(chromatogram, a, b);
         fit.amount_a = a; fit.amount_b = b; fit.mask = mask; fit.sse = sse;
     }
-    state done() { }
+    machine done() { }
 }
 machine finish_fit(chromatogram: &Chromatogram, fit: &mut Fit) {
     fit.area_a = fit.amount_a * (0.5 * (chromatogram.profile_a[0] + chromatogram.profile_a[4])
@@ -60,19 +60,19 @@ machine finish_fit(chromatogram: &Chromatogram, fit: &mut Fit) {
     fit.area_b = fit.amount_b * (0.5 * (chromatogram.profile_b[0] + chromatogram.profile_b[4])
         + chromatogram.profile_b[1] + chromatogram.profile_b[2] + chromatogram.profile_b[3]);
     transition { _ -> scan(chromatogram, fit, 0) }
-    state scan(chromatogram: &Chromatogram, fit: &mut Fit, index: i32 in Wrapping) {
+    machine scan(chromatogram: &Chromatogram, fit: &mut Fit, index: i32 in Wrapping) {
         transition index >= 0 && index < 5 {
             true -> write(chromatogram, fit, index)
             _ -> done()
         }
     }
-    state write(chromatogram: &Chromatogram, fit: &mut Fit, index: i32 in Wrapping) {
+    machine write(chromatogram: &Chromatogram, fit: &mut Fit, index: i32 in Wrapping) {
         let value: f64 = fit.amount_a * chromatogram.profile_a[index] + fit.amount_b * chromatogram.profile_b[index];
         fit.reconstruction[index] = value;
         fit.residual[index] = chromatogram.observed[index] - value;
         transition { _ -> scan(chromatogram, fit, index + 1) }
     }
-    state done() { }
+    machine done() { }
 }
 public machine fit_components(chromatogram: &Chromatogram, fit: &mut Fit) -> bool {
     let mut sums: Moments;
@@ -81,7 +81,7 @@ public machine fit_components(chromatogram: &Chromatogram, fit: &mut Fit) -> boo
         true -> enumerate(chromatogram, fit, &sums)
         _ -> false
     }
-    state enumerate(chromatogram: &Chromatogram, fit: &mut Fit, sums: &Moments) -> bool {
+    machine enumerate(chromatogram: &Chromatogram, fit: &mut Fit, sums: &Moments) -> bool {
         fit.amount_a = 0.0; fit.amount_b = 0.0; fit.mask = 0;
         fit.sse = squared_error(chromatogram, 0.0, 0.0);
         let numerator_b: f64 = sums.by * sums.aa - sums.ay * sums.ab;
@@ -94,7 +94,7 @@ public machine fit_components(chromatogram: &Chromatogram, fit: &mut Fit) -> boo
             _ -> ambiguous(chromatogram, fit)
         }
     }
-    state full(chromatogram: &Chromatogram, fit: &mut Fit, sums: &Moments, determinant: f64) -> bool {
+    machine full(chromatogram: &Chromatogram, fit: &mut Fit, sums: &Moments, determinant: f64) -> bool {
         fit.nonidentifiable = false;
         let numerator_a: f64 = sums.ay * sums.bb - sums.by * sums.ab;
         let numerator_b: f64 = sums.by * sums.aa - sums.ay * sums.ab;
@@ -105,7 +105,7 @@ public machine fit_components(chromatogram: &Chromatogram, fit: &mut Fit) -> boo
         finish_fit(chromatogram, fit);
         true
     }
-    state ambiguous(chromatogram: &Chromatogram, fit: &mut Fit) -> bool {
+    machine ambiguous(chromatogram: &Chromatogram, fit: &mut Fit) -> bool {
         // Proportional profiles span the same ray. A alone is the earliest
         // nonempty representative; avoid roundoff deciding an exact A/B tie.
         fit.nonidentifiable = true;

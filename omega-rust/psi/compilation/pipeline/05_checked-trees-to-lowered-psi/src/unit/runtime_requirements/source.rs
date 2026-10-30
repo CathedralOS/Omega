@@ -47,23 +47,40 @@ pub(crate) fn validate_runtime_memberships(
         ))?
         .iter();
     let mut subjects = crash.runtime_membership_subjects().iter();
-    if checked
-        .machine_contracts(machine)
-        .iter()
-        .chain(checked.state_contracts(state))
-        .any(|contract| {
-            contract.kind == SignatureContractKind::Requires && contract.binding.is_some()
-        })
-    {
-        return unsupported("runtime entry requirement cannot erase an evidence binding");
-    }
     let facts = checked
         .machine_contracts(machine)
         .iter()
-        .chain(checked.state_contracts(state))
-        .filter(|contract| contract.kind == SignatureContractKind::Requires)
-        .flat_map(|contract| checked.proof_facts.span_or_empty(contract.facts));
-    for (ordinal, fact) in facts.enumerate() {
+        .map(|contract| (true, contract))
+        .chain(
+            checked
+                .state_contracts(state)
+                .iter()
+                .map(|contract| (false, contract)),
+        )
+        .filter(|(_, contract)| contract.kind == SignatureContractKind::Requires)
+        .flat_map(|(machine_owned, contract)| {
+            contract
+                .facts
+                .handles()
+                .map(move |fact| (machine_owned, contract, fact))
+        });
+    for (ordinal, (machine_owned, contract, fact_handle)) in facts.enumerate() {
+        let fact = checked.proof_facts.get(fact_handle);
+        if contract.binding.is_some() {
+            if !machine_owned
+                || fact.as_proposition().is_none()
+                || checked
+                    .facts
+                    .proof
+                    .machine_requires_fact(&checked.typed, machine_symbol, fact_handle)
+                    .is_none_or(|row| row.evidence_term.is_none())
+            {
+                return unsupported(
+                    "runtime entry requirement lost its exact machine evidence lane",
+                );
+            }
+            continue;
+        }
         if validation::restates_structural_parameter_qualification(&checked.typed, state, fact) {
             continue;
         }

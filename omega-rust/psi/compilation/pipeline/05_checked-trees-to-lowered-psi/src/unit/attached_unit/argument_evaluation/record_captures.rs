@@ -17,6 +17,7 @@ impl Evaluation {
         state: symbols::SymbolHandle,
         statement: u32,
         types: &[StructuralTypeDeclaration],
+        domains: &[terminal_psi::StructuralDomainDeclaration],
         values: &[ValueDeclaration],
         next_place: &mut u64,
         next_value: &mut u64,
@@ -63,6 +64,7 @@ impl Evaluation {
                 argument,
                 values,
                 types,
+                domains,
                 next_place,
                 operations,
                 private_places,
@@ -82,6 +84,7 @@ impl Evaluation {
                     Some(facts::PlaceRoot::Symbol(symbol)),
                     values,
                     types,
+                    domains,
                     next_place,
                     operations,
                     private_places,
@@ -160,12 +163,18 @@ impl Evaluation {
                     );
                 }
                 let value = emit_direct_expression(&selector, values, next_value, operations);
+                let value =
+                    super::super::primitive_locals::completed_scalar(value, values, operations)?;
                 let (place, declaration) = super::super::primitive_locals::push_established_local(
                     next_place,
                     operations,
                     value,
                     structural_type,
-                    types,
+                    super::super::primitive_locals::PrimitiveStorageCatalog {
+                        types,
+                        domains,
+                        scalars: self.shared_qualifications.catalog(),
+                    },
                     None,
                 )?;
                 private_places.push(declaration);

@@ -19,6 +19,7 @@ pub struct SelectedConstantEvaluation {
     /// machine body. Each row carries the exact provider entry the semantic
     /// evaluation owner rebinds to on its private evaluation copy.
     provider_bodies: Vec<SelectedBuildTimeProviderBody>,
+    target_bodies: Vec<build_time_evaluation::SelectedBuildTimeTargetBody>,
     /// The exact selected target the deferred folds are answered under — the
     /// explicit target custody a retained `size_of`/`align_of` query names its
     /// subject from. Never the host's facts: a `--target` build folds every
@@ -49,52 +50,21 @@ impl SelectedConstantEvaluation {
         typed: &mut TypedTrees,
         pending: Vec<PreCheckEvaluation>,
     ) -> Result<(), Vec<Diagnostic>> {
-        provider_planning::data_layout_queries::fold_data_layout_queries(
-            typed,
-            self.target_profile,
-            &self.opaque_representation_selections,
-            true,
-            &self.selection,
-        )?;
-        let mut evaluated = Vec::with_capacity(pending.len());
-        for continuation in pending {
-            evaluated.push(continuation.evaluate_selected_operators(
-                typed,
-                SelectedBuildTimeOperators {
-                    operators: &self.operators,
-                    provider_bodies: &self.provider_bodies,
-                },
-            )?);
+        build_time_evaluation::SelectedConstantEvaluationRequest {
+            program: typed,
+            pending,
+            operators: SelectedBuildTimeOperators {
+                operators: &self.operators,
+                provider_bodies: &self.provider_bodies,
+            },
+            target_bodies: &self.target_bodies,
+            selection: &self.selection,
+            layouts: &provider_planning::data_layout_queries::TargetLayoutQueries {
+                target: self.target_profile,
+                opaque_representations: &self.opaque_representation_selections,
+            },
         }
-        // The deferred evaluation installed the validated plan-laid layouts;
-        // queries over `Policy<Schema>` operands fold now, and any operand the
-        // program never instantiated reports the layout authority's own
-        // missing-layout diagnostic.
-        provider_planning::data_layout_queries::fold_data_layout_queries(
-            typed,
-            self.target_profile,
-            &self.opaque_representation_selections,
-            false,
-            &self.selection,
-        )?;
-        for continuation in evaluated {
-            continuation.finish(typed)?;
-        }
-        Ok(())
-    }
-
-    /// The provider rows this target's pending constant folds are evaluated
-    /// under — the part of the selection every realized target must agree on,
-    /// since each fold lands its value in the one checked program.
-    /// `target_profile` and the opaque representation selections are legitimate
-    /// per-target layout custody and are not part of the agreement.
-    pub fn pending_fold_providers(
-        &self,
-    ) -> (
-        &[SelectedBuildTimeBinaryOperator],
-        &[SelectedBuildTimeProviderBody],
-    ) {
-        (&self.operators, &self.provider_bodies)
+        .evaluate()
     }
 
     /// Join provider authority once for every retained source use. Psi prepares
@@ -115,6 +85,10 @@ impl SelectedConstantEvaluation {
         let mut selected = Self {
             operators: Vec::new(),
             provider_bodies: Vec::new(),
+            target_bodies: provider_planning::target_machines::selected_constant_target_bodies(
+                context,
+                target_profile,
+            )?,
             target_profile,
             selection: typed_trees::references::DeclarationSelection::from_program(typed),
             opaque_representation_selections: opaque_representation_selections.to_vec(),

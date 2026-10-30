@@ -11,6 +11,28 @@ pub(super) struct ContractSubject {
 }
 
 impl ContractPredicates<'_, '_> {
+    /// Exact phase-scoped storage actual for a declared predicate telescope. Shared
+    /// presentation unwraps only this authored borrow; no initializer is read.
+    pub(super) fn predicate_actual_storage(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<(
+        u32,
+        Vec<CheckedStructuralPredicatePathSegment>,
+        TypeReferenceHandle,
+    )> {
+        let expression = match self.program.expression_table.expression(expression) {
+            ExpressionNode::Borrow(borrow)
+                if borrow.access == language_core::ReferenceAccess::Shared =>
+            {
+                borrow.target
+            }
+            _ => expression,
+        };
+        let subject = self.logical_subject(expression, 0)?;
+        Some((subject.position, subject.path, subject.reference))
+    }
+
     fn logical_readable_path(
         &self,
         position: u32,
@@ -147,12 +169,14 @@ impl ContractPredicates<'_, '_> {
         let term = if primitive_type == PrimitiveType::Bool {
             CheckedScalarExpression::Boolean(Box::new(
                 CheckedBooleanExpression::StructuralParameterField {
+                    observation: Default::default(),
                     parameter_position: observed.position,
                     path: observed.path,
                 },
             ))
         } else {
             CheckedScalarExpression::StructuralParameterField {
+                observation: Default::default(),
                 parameter_position: observed.position,
                 path: observed.path,
                 primitive_type,

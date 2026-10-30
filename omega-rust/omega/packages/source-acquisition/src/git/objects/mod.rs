@@ -12,7 +12,9 @@ pub(crate) mod tree;
 pub(in crate::git) use batch::{
     ExactGitObjectAvailability, ExactGitObjectKind, probe_exact_git_object,
 };
-pub(crate) use inspection::{inspect_git_tree, inspect_git_tree_graph};
+pub(crate) use inspection::{
+    AuthenticatedGitTreeInspection, inspect_git_tree, inspect_git_tree_graph,
+};
 pub(crate) use object_rows::{GitBlobBytes, GitTreeEntry, GitTreeEntryKind};
 pub(crate) use projection::GitTreeProjectionRequest;
 

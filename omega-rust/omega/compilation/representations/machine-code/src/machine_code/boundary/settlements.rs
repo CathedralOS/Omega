@@ -55,7 +55,7 @@ impl BoundaryResultRecord {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundarySettlementRecord {
-    pub invocation_site: semantic_vocabulary::BoundaryInvocationSite,
+    pub invocation_site: semantic_vocabulary::InvocationSite,
     pub boundary: BoundaryMachineId,
     pub execution: BoundaryExecutionRecord,
     pub realization: BoundaryRealization,

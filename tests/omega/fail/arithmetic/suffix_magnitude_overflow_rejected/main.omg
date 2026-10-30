@@ -7,5 +7,5 @@ data Main { }
 machine Main::main(main: &mut Main) {
     let a: i8 = 200i8;
     transition a == 100 { true -> done(main) _ -> done(main) }
-    state done(main: &Main) { Console::exit_process(70); }
+    machine done(main: &Main) { Console::exit_process(70); }
 }

@@ -24,7 +24,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // Loop head: stop once every bit has been shifted out.
-    state step(word: u32 in Wrapping, count: u32 in Wrapping) {
+    machine step(word: u32 in Wrapping, count: u32 in Wrapping) {
         transition word == 0 {
             true -> done(count)
             _ -> count_bit(word, count)
@@ -32,7 +32,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // Loop body: accumulate the low bit, then shift it away.
-    state count_bit(word: u32 in Wrapping, count: u32 in Wrapping) {
+    machine count_bit(word: u32 in Wrapping, count: u32 in Wrapping) {
         let bit: u32 in Wrapping = word & 1;
         let next_count: u32 in Wrapping = count + bit;
         let next_word: u32 in Wrapping = word >> 1;
@@ -41,7 +41,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state done(count: u32 in Wrapping) {
+    machine done(count: u32 in Wrapping) {
         let result: i32 = narrow_u32_to_i32_trapping(count as u32);
         Console::write_line("result: the population count, 24 for 0xDEADBEEF (the exit code)");
         Console::write_line("[press Enter to close]");

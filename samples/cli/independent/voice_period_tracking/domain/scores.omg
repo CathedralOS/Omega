@@ -5,21 +5,21 @@ module domain.scores;
 public machine lag_sum(samples: &[i32 in Wrapping; 32], length: i32 in Wrapping, lag: i32 in Wrapping) -> i32 in Wrapping
 crashes Trap {
     transition { _ -> scan(samples, length, lag, 0, 0) }
-    state scan(samples: &[i32 in Wrapping; 32], length: i32 in Wrapping, lag: i32 in Wrapping, cursor: i32 in Wrapping, sum: i32 in Wrapping) -> i32 in Wrapping {
+    machine scan(samples: &[i32 in Wrapping; 32], length: i32 in Wrapping, lag: i32 in Wrapping, cursor: i32 in Wrapping, sum: i32 in Wrapping) -> i32 in Wrapping {
         transition cursor < length - lag {
             true -> bounds(samples, length, lag, cursor, sum)
             _ -> sum
         }
     }
-    state bounds(samples: &[i32 in Wrapping; 32], length: i32 in Wrapping, lag: i32 in Wrapping, cursor: i32 in Wrapping, sum: i32 in Wrapping) -> i32 in Wrapping {
+    machine bounds(samples: &[i32 in Wrapping; 32], length: i32 in Wrapping, lag: i32 in Wrapping, cursor: i32 in Wrapping, sum: i32 in Wrapping) -> i32 in Wrapping {
         transition cursor >= 0 && cursor < 32 && cursor + lag >= 0 && cursor + lag < 32 {
             true -> pair(samples, length, lag, cursor, sum)
             _ -> invalid()
         }
     }
-    state pair(samples: &[i32 in Wrapping; 32], length: i32 in Wrapping, lag: i32 in Wrapping, cursor: i32 in Wrapping, sum: i32 in Wrapping) -> i32 in Wrapping {
+    machine pair(samples: &[i32 in Wrapping; 32], length: i32 in Wrapping, lag: i32 in Wrapping, cursor: i32 in Wrapping, sum: i32 in Wrapping) -> i32 in Wrapping {
         let difference: i32 in Wrapping = samples[cursor] - samples[cursor + lag];
         transition { _ -> scan(samples, length, lag, cursor + 1, sum + difference * difference) }
     }
-    state invalid() -> i32 in Wrapping { crash Trap; }
+    machine invalid() -> i32 in Wrapping { crash Trap; }
 }

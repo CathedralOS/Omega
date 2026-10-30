@@ -1,22 +1,142 @@
 //! Complete scalar declarations after their target observations have closed.
 //!
 //! Readiness preserves the whole expression and its selected dependencies.
-//! Omega supplies layout answers under the selected target; it does not supply
-//! arithmetic meaning or invocation permission. The ordinary scalar evaluator
+//! Omega supplies layout answers and exact selected execution under the target;
+//! neither supplies invocation permission. The ordinary scalar evaluator
 //! checks the declared carrier, every authored operator and admitted helper.
 //! Only completed declaration values return from the private evaluation forest.
 
-use super::invocations::{CheckedInitializers, append_probe};
+use super::invocations::CheckedInitializers;
 use crate::build_time_evaluation::EvaluationDomain;
 use crate::const_evaluation::const_generic_expressions::{scalar_probe_destination, value};
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 use typed_trees::TypedTrees;
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn constant_entries_separate_initializer_reads_from_their_value_job() {
+        let tokens = source_files_to_tokens::Lexer::new(
+            "data Cell { code: u64; } machine bytes() -> u64 { size_of<Cell>() }",
+        )
+        .tokenize()
+        .expect("lex");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
+        )
+        .expect("resolve");
+        let mut typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .expect("type");
+        let machine = typed
+            .realized_machine_named("bytes")
+            .expect("query source")
+            .clone();
+        let declared_type = typed.machine_states(&machine)[0].return_type;
+        let expression = typed.expression_table.iter_expressions().find_map(|(handle, expression)| {
+            matches!(expression, typed_trees::expression::ExpressionNode::Call(call) if call.layout_query.is_some()).then_some(handle)
+        }).expect("layout query");
+        let symbol = typed.symbols.insert_generated_root_from(
+            machine.symbol,
+            symbols::SymbolKind::Const,
+            "BYTES",
+        );
+        typed.push_const_declaration(typed_trees::constant::ConstDeclaration {
+            symbol,
+            declared_type,
+            authored_initializer: expression,
+            materialized_initializer: expression,
+            pending_target_observation: true,
+            ..Default::default()
+        });
+        retain_entries(&mut typed, &EvaluationDomain::all());
+        let declaration = typed
+            .const_declarations()
+            .iter()
+            .find(|declaration| declaration.evaluation_entry.is_valid())
+            .expect("retained initializer");
+        assert_ne!(
+            declaration.materialized_initializer,
+            declaration.evaluation_expression
+        );
+        let references = typed_trees::references::collect_selected_program_references(
+            &typed,
+            &typed_trees::references::DeclarationSelection::from_symbols([declaration.symbol]),
+        );
+        assert!(
+            references
+                .expressions
+                .contains(&declaration.evaluation_expression),
+            "the declaration owns the detached entry's query occurrences"
+        );
+        let entry = typed
+            .constant_evaluation_for_expression(
+                declaration.materialized_initializer,
+                declaration.symbol,
+            )
+            .expect("exact source context")
+            .expect("source names the value job");
+        assert_eq!(
+            entry.evaluation_expression,
+            declaration.evaluation_expression
+        );
+        assert!(
+            typed
+                .constant_evaluation_for_expression(
+                    declaration.evaluation_expression,
+                    symbols::SymbolHandle::invalid()
+                )
+                .expect("body is a distinct occurrence")
+                .is_none(),
+            "entry body must not read its own value job"
+        );
+    }
+}
+use typed_trees::constant_recipes::create_evaluation_entry;
+/// Each deferred declaration owns one complete expression entry before target
+/// selection. Detached entries are not ordinary checked/runtime machines; the
+/// exact evaluator still establishes their arithmetic and call obligations.
+pub(crate) fn retain_entries(typed: &mut TypedTrees, domain: &EvaluationDomain) {
+    let declarations = typed
+        .roots
+        .const_declarations
+        .handles()
+        .filter_map(|handle| {
+            let declaration = typed.tables.const_declarations.get(handle);
+            (domain.contains(declaration.symbol)
+                && declaration.evaluated_value.is_none()
+                && !declaration.evaluation_entry.is_valid()
+                && scalar_probe_destination(typed, declaration.declared_type).is_some())
+            .then(|| (handle, declaration.clone()))
+        })
+        .collect::<Vec<_>>();
+    for (handle, declaration) in declarations {
+        let expression = typed
+            .expression_table
+            .insert_copy(declaration.materialized_initializer);
+        let entry = create_evaluation_entry(
+            typed,
+            declaration.symbol,
+            format!("@constant-{}", typed.symbols.name(declaration.symbol)),
+            expression,
+            declaration.declared_type,
+        );
+        let entry = typed.tables.machines.insert(entry);
+        let declaration = typed.tables.const_declarations.get_mut(handle);
+        declaration.evaluation_entry = entry;
+        declaration.evaluation_expression = expression;
+    }
+}
+
 pub(crate) fn settle(
     typed: &mut TypedTrees,
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &EvaluationDomain,
+    selected: crate::SelectedBuildTimeOperators<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut declarations = typed
         .const_declarations()
@@ -32,30 +152,50 @@ pub(crate) fn settle(
     if declarations.is_empty() {
         return Ok(());
     }
+    // Form calls on the declaration that owns the recipe. Private evaluation
+    // may specialize a copy, but receiving replay must retain these exact
+    // authored targets and occurrence identities on the original graph.
+    while !validation::resolve_named_result_overloads(typed)?.is_empty() {}
+    typed_trees_to_typed_trees::bind_pre_specialization_authored_selections(typed)
+        .map_err(|diagnostic| vec![diagnostic])?;
     while !declarations.is_empty() {
         let mut ready = None;
         for (ordinal, (declaration, _)) in declarations.iter().enumerate() {
-            let mut probes = typed.clone();
-            let owner = append_probe(
-                &mut probes,
-                declaration.symbol,
-                format!("@target-constant-{ordinal}"),
-                declaration.materialized_initializer,
-                declaration.declared_type,
-            );
+            if !typed.tables.machines.is_valid(declaration.evaluation_entry) {
+                return Err(super::failure(
+                    declaration.initializer_source_span,
+                    "deferred constant lost its source-owned evaluation entry",
+                ));
+            }
+            let mut source_probes = typed.clone();
+            let entry = source_probes
+                .tables
+                .machines
+                .get(declaration.evaluation_entry)
+                .clone();
+            let owner = entry.symbol;
+            source_probes.push_machine(entry);
+            let execution_probes =
+                crate::machine_execution::selected_operators::prepare_selected_execution(
+                    &source_probes,
+                    selected.provider_bodies,
+                    selected.operators,
+                )
+                .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?
+                .unwrap_or_else(|| source_probes.clone());
             let mut work = domain.clone();
             work.include(owner);
-            let work = work.demanded_roots(&probes, &[owner]);
+            let work = work.demanded_roots(&execution_probes, &[owner]);
             // Source selections, including helper bodies and unexecuted arms,
             // order aliases before consumers. A provisional value is never a
             // canonical dependency, regardless of declaration order in source.
-            let references = work.references(&probes);
+            let references = work.references(&execution_probes);
             let pending_dependency =
                 references
                     .authored_selection_occurrences
                     .iter()
                     .any(|occurrence| {
-                        probes
+                        execution_probes
                             .authored_declaration_selections()
                             .get(*occurrence)
                             .and_then(|selection| {
@@ -64,15 +204,15 @@ pub(crate) fn settle(
                                     .as_resolved()
                                     .map(|selected| selected.selected_symbol())
                             })
-                            .and_then(|symbol| probes.const_declaration_by_symbol(symbol))
+                            .and_then(|symbol| execution_probes.const_declaration_by_symbol(symbol))
                             .is_some_and(|dependency| dependency.evaluated_value.is_none())
                     });
             if !pending_dependency {
-                ready = Some((ordinal, probes, owner, work));
+                ready = Some((ordinal, source_probes, execution_probes, owner, work));
                 break;
             }
         }
-        let Some((ordinal, mut probes, owner, work)) = ready else {
+        let Some((ordinal, mut source_probes, mut execution_probes, owner, work)) = ready else {
             return Err(super::failure(
                 declarations[0].0.initializer_source_span,
                 "target constant dependency cycle or unavailable canonical input",
@@ -83,17 +223,68 @@ pub(crate) fn settle(
         for root in [
             declaration.authored_initializer,
             declaration.materialized_initializer,
+            declaration.evaluation_expression,
         ] {
             if root.is_valid() {
                 crate::const_evaluation::const_generic_expressions::retain_current_initializer_calls(
-                    &mut probes, owner, root,
+                    &mut source_probes, owner, root,
                 ).map_err(&failure)?;
             }
         }
+        // The probe collected the whole source call closure before provider
+        // substitution and private specialization. Return the attachments using
+        // their original ledger identities; a private selection cannot become source authority.
+        for root in [
+            declaration.authored_initializer,
+            declaration.materialized_initializer,
+            declaration.evaluation_expression,
+        ] {
+            if !root.is_valid() {
+                continue;
+            }
+            for occurrence in source_probes
+                .expression_table
+                .authored_selection_occurrences(root)
+            {
+                let selection = source_probes
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .ok_or_else(|| {
+                        failure("target constant lost its call roster selection".into())
+                    })?;
+                if selection.kind() != language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call {
+                    continue;
+                }
+                if typed.authored_declaration_selections().get(occurrence) != Some(selection)
+                    || execution_probes
+                        .authored_declaration_selections()
+                        .get(occurrence)
+                        != Some(selection)
+                {
+                    return Err(failure(
+                        "target constant call roster contains a selection outside its source graph"
+                            .into(),
+                    ));
+                }
+                typed
+                    .expression_table
+                    .attach_authored_selection_occurrences(root, [occurrence]);
+                execution_probes
+                    .expression_table
+                    .attach_authored_selection_occurrences(root, [occurrence]);
+            }
+        }
+        let work = work.demanded_roots(&execution_probes, &[owner]);
         // Extending work with a private probe preserves the original execution
         // selection: a Product description in a Build forest grants no body demand.
-        let prepared = crate::PreparedBuildMachineProgram::prepare_in(&probes, &work)?;
-        let checked = CheckedInitializers::prepare(&prepared, authority.clone(), &[owner])?;
+        let prepared = crate::PreparedBuildMachineProgram::prepare_in(&execution_probes, &work)?;
+        let checked = CheckedInitializers::prepare(
+            &prepared,
+            authority.clone(),
+            &[owner],
+            &work.accounting,
+            selected.operators,
+        )?;
         let execution = checked.typed();
         let machine = execution
             .machine(owner)
@@ -108,7 +299,7 @@ pub(crate) fn settle(
             execution,
             machine,
             state,
-            declaration.materialized_initializer,
+            declaration.evaluation_expression,
             destination,
             execution.arithmetic_domain_for_type_reference(declaration.declared_type),
             Some(&calls),
@@ -118,33 +309,6 @@ pub(crate) fn settle(
             eprintln!("{warning}");
         }
         let completed = value.declaration_value();
-        // Preserve the source-owned roster, not private specialization symbols.
-        // The receiving replay specializes and checks that exact inventory.
-        for root in [
-            declaration.authored_initializer,
-            declaration.materialized_initializer,
-        ] {
-            if root.is_valid() {
-                let occurrences = probes
-                    .expression_table
-                    .authored_selection_occurrences(root)
-                    .collect::<Vec<_>>();
-                for occurrence in occurrences {
-                    let selection = probes
-                        .authored_declaration_selections()
-                        .get(occurrence)
-                        .ok_or_else(|| {
-                            failure("pending initializer lost retained call custody".into())
-                        })?;
-                    if selection.kind() == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call {
-                        let selected = selection.target().as_resolved().ok_or_else(|| failure("pending initializer call lost its source target".into()))?.selected_symbol();
-                        let retained = typed.record_resolved_authored_declaration_selection_once(selection.source_span(), selection.exposure(), selection.kind(), selected)
-                            .map_err(|reason| failure(format!("pending initializer call custody cannot return: {reason:?}")))?;
-                        typed.expression_table.attach_authored_selection_occurrences(root, [retained]);
-                    }
-                }
-            }
-        }
         let materialized = match &value {
             value::ScalarValue::UndeterminedNaN(format) => {
                 typed_trees::expression::ExpressionNode::UndeterminedNaN(*format)

@@ -10,11 +10,11 @@ use super::{
     ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
     X86_64SelectedFormFootprint,
 };
-use register_model::{RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel};
+use register_model::{
+    RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel, views_with_access,
+};
 use selected_instructions::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, SelectedInstructionKind,
+    MachineAlternativeKey, MachineEncodedEffects, SelectedInstructionKind,
 };
 use target::NativeTarget;
 
@@ -60,11 +60,7 @@ pub fn validate_x86_64_selected_system_call_form(
         || number < 0
         || physical.identity() != crate::canonical_x86_64_physical_register_model_identity()
         || !matches!(kind, SelectedInstructionKind::NormalizedForeignCall { .. })
-        || alternative
-            != (MachineAlternativeKey {
-                family: MachineAlternativeFamily::NormalizedForeignCall,
-                variant: 0,
-            })
+        || alternative != kind.call_alternative_key()
     {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
@@ -80,49 +76,10 @@ pub fn validate_x86_64_selected_system_call_form(
     let catalog = crate::x86_64_register_constraint_catalog_for(physical);
     let keys = crate::x86_64_linux_system_call_keys();
     let row = catalog
-        .constraints
-        .iter()
-        .find(|row| {
-            keys.contains(&row.key)
-                && row.operands.len() == operand_views.len()
-                && row.operands.len() == operand_accesses.len()
-                && row
-                    .operands
-                    .iter()
-                    .zip(operand_views.iter().zip(operand_accesses))
-                    .all(|(operand, (view, access))| {
-                        operand.fixed_view == Some(*view) && operand.access == *access
-                    })
-        })
+        .row_matching(&keys, operand_views, operand_accesses)
         .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
-    let effects = MachineEncodedEffects {
-        external_operand_reads: row
-            .operands
-            .iter()
-            .filter(|operand| operand.access == RegisterOperandAccess::Use)
-            .map(|operand| operand.operand)
-            .collect(),
-        external_operand_writes: row
-            .operands
-            .iter()
-            .filter(|operand| operand.access == RegisterOperandAccess::Def)
-            .map(|operand| operand.operand)
-            .collect(),
-        implicit_unit_uses: row.implicit_uses.clone(),
-        implicit_unit_defs: row.implicit_defs.clone(),
-        implicit_unit_clobbers: row.clobbers.clone(),
-        memory: MachineEncodedMemoryEffect::NoneV1,
-        stack: MachineEncodedStackEffect::UnchangedV1,
-        trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-        control: MachineEncodedControlEffect::SupervisorCallV1,
-    };
-    let views_for = |access| {
-        operand_views
-            .iter()
-            .zip(operand_accesses)
-            .filter_map(|(view, actual)| (*actual == access).then_some(*view))
-            .collect()
-    };
+    let effects = MachineEncodedEffects::supervisor_call_v1(row);
+    let views_for = |access| views_with_access(operand_views, operand_accesses, access);
     Ok(ValidatedX86_64SelectedFormEncoding {
         bytes: bytes.to_vec(),
         footprint: X86_64SelectedFormFootprint {
@@ -137,6 +94,7 @@ pub fn validate_x86_64_selected_system_call_form(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use selected_instructions::{MachineEncodedControlEffect, MachineEncodedStackEffect};
     use semantic_vocabulary::BoundaryMachineId;
 
     #[test]
@@ -149,7 +107,7 @@ mod tests {
             ordinal: 0,
         };
         let alternative = MachineAlternativeKey {
-            family: MachineAlternativeFamily::NormalizedForeignCall,
+            family: selected_instructions::MachineAlternativeFamily::NormalizedForeignCall,
             variant: 0,
         };
         for key in crate::x86_64_linux_system_call_keys() {

@@ -11,7 +11,7 @@ machine reject() -> u64 {
         Choice::Full { value } -> saved(&mut frame, held, value)
         Choice::Empty -> (0)
     }
-    state saved(frame: &mut Frame, held: &Choice, snapshot: u64) -> u64 {
+    machine saved(frame: &mut Frame, held: &Choice, snapshot: u64) -> u64 {
         frame.items[1] = Choice::Empty;
         transition held {
             Choice::Full { value } -> (value)

@@ -165,12 +165,12 @@ infer support from the mere presence of those declarations.
 
 One compilation serves every provided target. Psi runs once: source loading,
 parsing, resolution, typing, checking, proof, and Terminal Psi production do
-not observe a selected target. A target-scoped machine declaration
-(`windows_x86_64 machine Owner::name(...)`) is one body of a family keyed by
-target under one path; every body of every family is resolved, typed, and
-checked on every compilation, so a compile on a Windows host reports a macOS
-body's errors. Terminal Psi carries every body with its target tag. A family
-is data selected by target, never a branch removed before checking.
+not observe a selected target. Every supplied named implementation is resolved,
+typed, checked, and published under its ordinary declaration identity, including
+implementations not selected for realization. A Windows realization therefore
+does not hide an error in a supplied macOS implementation. Target-prefixed
+machine declarations and implicit same-path target-body families are retired;
+targets are Build/toolchain data, not source declaration modifiers.
 
 Build evaluation runs once for the whole compilation. It does not observe a
 single selected target and cannot branch on one; target-dependent selections
@@ -190,9 +190,10 @@ that selects one provider for all targets, satisfies the rule trivially.
 Realization is per target. The realization set defaults to every deployable
 target profile the toolchain closure provides; an explicit `--target` selection
 narrows realization only and never narrows checking. Omega selects each
-family's body and each row for the target it realizes. A realized target with
-no body for a called family, or no row for a required selection, rejects that
-realization; it does not invalidate the portable semantics or another target's
+required provider from the exact Build row for the target it realizes. Its
+selected transitive closure must satisfy the requirement and the target's ABI,
+import, layout, and ISA constraints. A missing, ambiguous, or incompatible row
+rejects that realization; it does not invalidate the portable semantics or another target's
 realization. Return one outcome per realized target; one realization's failure
 cannot suppress another's. An aggregate exit code or human summary is
 orchestration, not support, audit, or completeness evidence.
@@ -202,37 +203,20 @@ committed realizations. CI may cross-compile several targets on one host or
 check without physical realization; neither activity creates a language
 support set.
 
-The Rust reference compiler does not implement this contract yet. Its common
-lowering route retains checked target bodies and opaque contracts in Terminal
-families; native work is scoped without changing that canonical storage. It
-retains concrete checked provider candidates for every family member, including
-implementations of uncalled boundary-trait requirements. Native installation
-matches actual callable IDs remaining in the selected deployment's execution scope,
-not whichever candidate first shares a portable overload identity. Ordinary
-named evidence arguments and named maps dispatch through closed family members;
-differing or nested per-member requirement conjunctions remain incomplete. The
-compiler executes Build and completes source typing once within one `CompileRequest`;
-checking and Terminal production remain inside the per-target route, with
-provider settlement before checking. Package batch callers still need to use
-that shared invocation. Build staging is invocation-owned; artifact publication
-chooses per-target output directories separately. The compiler no longer rewrites
-source roles or calls to select a target body: providers and roots select exact
-member handles. Portable runtime calls use an independent bodyless family head:
-callers meet every member's premises and the joined conservative effect/crash
-envelope. Portable calls import only public result equations shared by every
-retained member after exact parameter and result substitution, never one
-selected member's private guarantees. Proof dependencies include every member,
-so the bodyless family head cannot hide a circular justification. Native and
-Terminal execution select the exact deployment-tag member and preserve ordinary
-call custody, including returned linear owners, claims inside affine records,
-and declaration-owned descendant qualifications.
-Closed generic applications retain the whole specialized cohort;
-unsupported generic demand conjunctions reject rather than adopt a lexical
-prototype. Explicit boundary requirements and target-local calls retain their
-own contracts. Complete requirement-conjunction transport,
-all entry/result routes, source-free target-default effects and one-artifact
-multi-target realization remain unfinished. The
-[pipeline route items](../../../TASKS.md#pipeline-route) own the repair.
+The Rust reference compiler does not implement this contract yet. It still
+accepts target-prefixed declarations and carries deployment-tagged family
+members and synthesized portable family heads. Those are migration machinery,
+not a second supported selection model. `BUILD-OWNED-TARGET-SELECTION` in the
+[pipeline route items](../../../TASKS.md#pipeline-route) owns their removal and
+the migration to explicit requirements and named implementations. Callers must
+use the requirement's public contract, never a selected implementation's private
+guarantees or a synthesized intersection of alternate bodies.
+
+The compiler executes Build and completes source typing once within one
+`CompileRequest`; checking and Terminal production remain inside the per-target
+route, with provider settlement before checking. Completing the single Psi
+artifact and source-free per-target settlement remains work on the same board.
+No documentation change here establishes those implementation results.
 
 ## Directional wire compatibility
 

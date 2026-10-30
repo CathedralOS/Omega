@@ -2,9 +2,9 @@
 // then that local field stored into a qualified borrowed-view local: each
 // store installs the same backing and extent, no byte is copied, and the
 // view local reads its declared Utf8 home like any other shared view.
-domain [u8]::Utf8(bytes)
+domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 use omega_language_std::console;
 
 data Room [copy] { label: &[u8] in Utf8; }
@@ -17,7 +17,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.source.label = "Gate";
     transition { _ -> observe(main) }
 
-    state observe(main: &mut Main) {
+    machine observe(main: &mut Main) {
         let room: Room;
         let mut out_line: &[u8] in Utf8;
         room.label = main.source.label;
@@ -28,8 +28,8 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

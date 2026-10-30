@@ -4,14 +4,14 @@ machine first(values: &[u64]) -> u64 {
         true -> select(values, 0)
         false -> empty()
     }
-    state select(values: &[u64], position: u64) -> u64 {
+    machine select(values: &[u64], position: u64) -> u64 {
         transition position < values.len {
             true -> read(values, position)
             false -> empty()
         }
     }
-    state read(values: &[u64], position: u64) -> u64 { values[position] }
-    state empty() -> u64 { 0 }
+    machine read(values: &[u64], position: u64) -> u64 { values[position] }
+    machine empty() -> u64 { 0 }
 }
 
 machine main() crashes Trap {
@@ -22,6 +22,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

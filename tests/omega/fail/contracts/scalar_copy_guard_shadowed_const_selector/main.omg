@@ -3,6 +3,6 @@ machine probe<const selector: u64>(bytes: &Bytes, bad: u64) requires selector <=
     let copied: u8 = bytes.items[selector];
     let selector: u64 = bad;
     transition copied >= 48 { true -> bounded(bytes, selector) false -> done() }
-    state bounded(bytes: &Bytes, selected: u64) requires selected < 64 requires bytes.items[selected] >= 48 { }
-    state done() { }
+    machine bounded(bytes: &Bytes, selected: u64) requires selected < 64 requires bytes.items[selected] >= 48 { }
+    machine done() { }
 }

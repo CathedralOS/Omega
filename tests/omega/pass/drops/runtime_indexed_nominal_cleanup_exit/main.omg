@@ -136,7 +136,7 @@ reaches Console
 {
     let local: Token = Token { ready: true, byte: 71 };
     transition { _ -> finish(input.pairs[0].left, outgoing()) }
-    state finish(selected: Token, byte: i32)
+    machine finish(selected: Token, byte: i32)
     requires selected.ready
     {
         Console::write_byte(byte);

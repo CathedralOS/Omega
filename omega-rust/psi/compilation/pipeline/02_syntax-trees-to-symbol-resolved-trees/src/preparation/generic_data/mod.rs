@@ -36,7 +36,7 @@ use syntax_trees::types::{
 mod arguments;
 mod const_evaluation;
 mod discovery;
-pub(super) mod domain_heads;
+pub(crate) mod domain_heads;
 mod eligibility;
 pub(crate) use crate::preparation::type_equations as equations;
 pub(crate) use equations::{template_type_equation_offsets, validate_materialized_type_equations};
@@ -63,8 +63,9 @@ pub(crate) use const_evaluation::{
     prove_const_literal_predicates,
 };
 pub(in crate::preparation::generic_data) use const_evaluation::{
-    EvaluatedConst, canonicalize_closed_domain_indices, canonicalize_const_definition,
-    canonicalize_selected_declaration_value, canonicalize_selected_index_expression,
+    ConstPredicateAdmission, EvaluatedConst, canonicalize_closed_domain_indices,
+    canonicalize_const_definition, canonicalize_selected_declaration_value,
+    canonicalize_selected_declaration_value_with_admission, canonicalize_selected_index_expression,
     capture_machine_runtime_template_names, checked_fact_integer,
     collect_data_type_reference_positions, collect_machine_type_reference_positions,
     const_integer_in_envelope, const_integer_type, domain_index_parameters,
@@ -88,6 +89,93 @@ use synthesis::desugar_generic_data_instances;
 pub(crate) use synthesis::desugar_generic_data_instances_in;
 pub(crate) use work_domain::GenericDataWorkDomain;
 
+/// Combined closed constant arguments across data declarations, array extents, and machines.
+pub struct ClosedConstArguments {
+    pub data_arguments: Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
+    pub extent_arguments: Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
+    pub machine_arguments: Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
+}
+
+pub fn closed_const_arguments(
+    syntax: &mut SyntaxTrees,
+    sources: Option<std::sync::Arc<source::SourceMap>>,
+    top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
+    declaration_syntax: Option<&SyntaxTrees>,
+) -> Result<ClosedConstArguments, Vec<Diagnostic>> {
+    let data_positions = collect_data_type_reference_positions(syntax, false);
+    let data_public_positions: HashSet<TypeReferenceHandle> =
+        collect_data_type_reference_positions(syntax, true)
+            .into_iter()
+            .collect();
+    let (machine_positions, machine_public_positions_vec) =
+        collect_machine_type_reference_positions(syntax);
+    let machine_public_positions: HashSet<TypeReferenceHandle> =
+        machine_public_positions_vec.into_iter().collect();
+    let (data_arguments, machine_arguments) = {
+        let selection = declaration_selection::ConstantSelection::with_retained_base(
+            syntax,
+            sources,
+            top_level_bindings,
+            retained_base,
+        )?;
+        let data_arguments = collect_closed_const_arguments(
+            syntax,
+            &selection,
+            declaration_syntax,
+            &data_positions,
+            &data_public_positions,
+            false,
+        );
+        let mut machine_arguments = collect_closed_const_arguments(
+            syntax,
+            &selection,
+            declaration_syntax,
+            &machine_positions,
+            &machine_public_positions,
+            true,
+        );
+        static_argument_positions::collect(
+            syntax,
+            &selection,
+            declaration_syntax,
+            &machine_positions,
+            &machine_public_positions,
+            &mut machine_arguments,
+        );
+        (data_arguments, machine_arguments)
+    };
+    let destination = syntax
+        .type_references
+        .insert_named(Identifier::generated("u64"));
+    let mut extent_arguments = Vec::new();
+    for owner in data_positions.iter().chain(machine_positions.iter()) {
+        let TypeReferenceNode::FixedArray {
+            length: FixedArrayLength::Expression(value),
+            ..
+        } = syntax.type_references.type_reference(*owner)
+        else {
+            continue;
+        };
+        if matches!(
+            syntax.type_references.type_reference(*value),
+            TypeReferenceNode::ConstExpression(_)
+        ) && !extent_arguments
+            .iter()
+            .any(|(existing, _, _)| existing == value)
+        {
+            let is_public =
+                data_public_positions.contains(owner) || machine_public_positions.contains(owner);
+            extent_arguments.push((*value, destination, is_public));
+        }
+    }
+    Ok(ClosedConstArguments {
+        data_arguments,
+        extent_arguments,
+        machine_arguments,
+    })
+}
+
 /// Authored constant arguments in concrete data fields and constant declarations.
 /// Open templates and machine lexical scopes cannot borrow a standalone probe.
 /// These handles borrow the input syntax; no provisional program escapes. That
@@ -95,21 +183,88 @@ pub(crate) use work_domain::GenericDataWorkDomain;
 /// resolution request, which consumes the forest it prepares.
 /// Each tuple retains the argument, parameter type, and real owner's public exposure.
 pub fn closed_data_const_argument_expressions(
-    syntax: &SyntaxTrees,
+    syntax: &mut SyntaxTrees,
     sources: Option<std::sync::Arc<source::SourceMap>>,
     top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
+    declaration_syntax: Option<&SyntaxTrees>,
 ) -> Result<Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>, Vec<Diagnostic>> {
-    let selection =
-        declaration_selection::ConstantSelection::new(syntax, sources, top_level_bindings)?;
     let positions = collect_data_type_reference_positions(syntax, false);
-    let public_positions = collect_data_type_reference_positions(syntax, true);
+    if !positions_may_have_closed_const_arguments(syntax, &positions) {
+        return Ok(Vec::new());
+    }
+    let selection = declaration_selection::ConstantSelection::with_retained_base(
+        syntax,
+        sources,
+        top_level_bindings,
+        retained_base,
+    )?;
+    let public_positions: HashSet<TypeReferenceHandle> =
+        collect_data_type_reference_positions(syntax, true)
+            .into_iter()
+            .collect();
     Ok(collect_closed_const_arguments(
         syntax,
         &selection,
+        declaration_syntax,
         &positions,
         &public_positions,
         false,
     ))
+}
+
+fn positions_may_have_closed_const_arguments(
+    syntax: &SyntaxTrees,
+    positions: &[TypeReferenceHandle],
+) -> bool {
+    positions.iter().any(
+        |position| match syntax.type_references.type_reference(*position) {
+            TypeReferenceNode::Generic { arguments, .. } => syntax
+                .type_references
+                .type_reference_handles(*arguments)
+                .iter()
+                .any(
+                    |argument| match syntax.type_references.type_reference(*argument) {
+                        TypeReferenceNode::ConstExpression(_) => true,
+                        TypeReferenceNode::Named(name) => {
+                            syntax
+                                .type_references
+                                .const_argument_normalization(*argument)
+                                .is_none()
+                                && ConstScalarSpelling::from_bare_name(name.as_str(syntax))
+                                    .is_none()
+                        }
+                        _ => false,
+                    },
+                ),
+            TypeReferenceNode::Constrained { constraints, .. } => syntax
+                .type_references
+                .constraints(*constraints)
+                .iter()
+                .any(|constraint| match constraint {
+                    TypeConstraintNode::Domain(domain) => syntax
+                        .type_references
+                        .type_reference_handles(domain.arguments)
+                        .iter()
+                        .any(
+                            |argument| match syntax.type_references.type_reference(*argument) {
+                                TypeReferenceNode::ConstExpression(_) => true,
+                                TypeReferenceNode::Named(name) => {
+                                    syntax
+                                        .type_references
+                                        .const_argument_normalization(*argument)
+                                        .is_none()
+                                        && ConstScalarSpelling::from_bare_name(name.as_str(syntax))
+                                            .is_none()
+                                }
+                                _ => false,
+                            },
+                        ),
+                    _ => false,
+                }),
+            _ => false,
+        },
+    )
 }
 
 /// Reachable concrete array-extent uses share ordinary constant-expression
@@ -178,18 +333,32 @@ pub fn retain_deferred_array_extent(
 /// supplies destinations, not value-selection authority: callers must resolve
 /// each expression in its original machine and state scope before evaluation.
 pub fn closed_machine_const_arguments(
-    syntax: &SyntaxTrees,
+    syntax: &mut SyntaxTrees,
     sources: Option<std::sync::Arc<source::SourceMap>>,
     top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
+    declaration_syntax: Option<&SyntaxTrees>,
 ) -> Result<Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>, Vec<Diagnostic>> {
-    let selection =
-        declaration_selection::ConstantSelection::new(syntax, sources, top_level_bindings)?;
-    let (positions, public_positions) = collect_machine_type_reference_positions(syntax);
-    let mut arguments =
-        collect_closed_const_arguments(syntax, &selection, &positions, &public_positions, true);
+    let selection = declaration_selection::ConstantSelection::with_retained_base(
+        syntax,
+        sources,
+        top_level_bindings,
+        retained_base,
+    )?;
+    let (positions, public_positions_vec) = collect_machine_type_reference_positions(syntax);
+    let public_positions: HashSet<TypeReferenceHandle> = public_positions_vec.into_iter().collect();
+    let mut arguments = collect_closed_const_arguments(
+        syntax,
+        &selection,
+        declaration_syntax,
+        &positions,
+        &public_positions,
+        true,
+    );
     static_argument_positions::collect(
         syntax,
         &selection,
+        declaration_syntax,
         &positions,
         &public_positions,
         &mut arguments,
@@ -198,19 +367,23 @@ pub fn closed_machine_const_arguments(
 }
 
 fn collect_closed_const_arguments(
-    syntax: &SyntaxTrees,
+    syntax: &mut SyntaxTrees,
     selection: &declaration_selection::ConstantSelection<'_>,
+    declaration_syntax: Option<&SyntaxTrees>,
     positions: &[TypeReferenceHandle],
-    public_positions: &[TypeReferenceHandle],
+    public_positions: &HashSet<TypeReferenceHandle>,
     include_machine_casts: bool,
 ) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)> {
     let mut pending = Vec::new();
-    let mut retain_arguments = |parameters: &[TypeParameter], arguments: &[TypeReferenceHandle]| {
+    let mut seen_pending = HashSet::new();
+    let mut retain_arguments = |syntax: &SyntaxTrees,
+                                parameters: &[Option<TypeReferenceHandle>],
+                                arguments: &[TypeReferenceHandle]| {
         if parameters.len() != arguments.len() {
             return;
         }
         for (parameter, argument) in parameters.iter().zip(arguments) {
-            if let TypeParameterKind::Const { type_reference } = parameter.kind
+            if let Some(type_reference) = *parameter
                 && match syntax.type_references.type_reference(*argument) {
                     TypeReferenceNode::ConstExpression(_) => true,
                     TypeReferenceNode::Named(name) => {
@@ -222,7 +395,7 @@ fn collect_closed_const_arguments(
                     }
                     _ => false,
                 }
-                && !pending.iter().any(|(existing, _, _)| existing == argument)
+                && seen_pending.insert(*argument)
             {
                 pending.push((
                     *argument,
@@ -233,34 +406,27 @@ fn collect_closed_const_arguments(
         }
     };
     for position in positions {
-        match syntax.type_references.type_reference(*position) {
+        match syntax.type_references.type_reference(*position).clone() {
             TypeReferenceNode::Generic {
                 base_name,
                 arguments,
                 ..
             } => {
-                let mut definitions = syntax.root_items().filter_map(|item| match item {
-                    Item::Data(definition)
-                        if definition.name.as_str(syntax) == base_name.as_str(syntax) =>
-                    {
-                        Some(definition)
-                    }
-                    _ => None,
-                });
-                let Some(definition) = definitions.next() else {
-                    continue;
-                };
-                // Ambiguous template selection is not resolved by visitation order.
-                if definitions.next().is_some() {
-                    continue;
+                let arguments = syntax
+                    .type_references
+                    .type_reference_handles(arguments)
+                    .to_vec();
+                if let Some(parameters) = selection.const_parameter_carriers(
+                    syntax,
+                    declaration_syntax,
+                    &base_name,
+                    &[symbols::SymbolKind::Data],
+                ) {
+                    retain_arguments(syntax, &parameters, &arguments);
                 }
-                retain_arguments(
-                    syntax.items.type_parameters(definition.type_parameters),
-                    syntax.type_references.type_reference_handles(*arguments),
-                );
             }
             TypeReferenceNode::Constrained { constraints, .. } => {
-                for constraint in syntax.type_references.constraints(*constraints) {
+                for constraint in syntax.type_references.constraints(constraints) {
                     let TypeConstraintNode::Domain(domain) = constraint else {
                         continue;
                     };
@@ -272,8 +438,16 @@ fn collect_closed_const_arguments(
                     ) else {
                         continue;
                     };
+                    let carriers = parameters
+                        .iter()
+                        .map(|parameter| match parameter.kind {
+                            TypeParameterKind::Const { type_reference } => Some(type_reference),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>();
                     retain_arguments(
-                        parameters,
+                        syntax,
+                        &carriers,
                         syntax
                             .type_references
                             .type_reference_handles(domain.arguments),
@@ -284,20 +458,25 @@ fn collect_closed_const_arguments(
         }
     }
     if include_machine_casts {
-        let concrete = concrete_machine_expression_handles(syntax);
+        let mut concrete = None;
         for (handle, expression) in syntax.expressions.iter_expressions() {
-            if !concrete.contains(handle) {
-                continue;
-            }
             let ExpressionNode::Cast(cast) = expression else {
                 continue;
             };
+            if cast.semantic_domain_arguments.is_empty() {
+                continue;
+            }
             let members = syntax
                 .expressions
                 .identifier_path_members(cast.semantic_domain);
             let Some(first) = members.first() else {
                 continue;
             };
+            let concrete =
+                concrete.get_or_insert_with(|| concrete_machine_expression_handles(syntax));
+            if !concrete.contains(handle) {
+                continue;
+            }
             if members.iter().any(|member| {
                 let span = member.source_span();
                 span.source_id != first.source_span().source_id || span.span.start > span.span.end
@@ -318,8 +497,16 @@ fn collect_closed_const_arguments(
             else {
                 continue;
             };
+            let carriers = parameters
+                .iter()
+                .map(|parameter| match parameter.kind {
+                    TypeParameterKind::Const { type_reference } => Some(type_reference),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
             retain_arguments(
-                parameters,
+                syntax,
+                &carriers,
                 syntax
                     .type_references
                     .type_reference_handles(cast.semantic_domain_arguments),
@@ -342,6 +529,72 @@ fn unique_domain_index_parameters<'syntax>(
     domain_index_parameters(syntax, definition)
 }
 
+/// Whether this exact selected destination carries declaration predicates.
+/// This schedules the ordinary checked result judgment; it proves nothing.
+pub(crate) fn const_destination_requires_proof(
+    syntax: &SyntaxTrees,
+    definition: &ConstDefinition,
+    selection: Option<&declaration_selection::ConstantSelection>,
+) -> bool {
+    const_evaluation::const_type_requires_declaration_proof(
+        syntax,
+        definition.type_reference,
+        &mut Vec::new(),
+        selection,
+    )
+}
+
+pub(crate) fn canonicalize_pending_initializer_payload(
+    syntax: &SyntaxTrees,
+    definition: &ConstDefinition,
+    selection: Option<&declaration_selection::ConstantSelection>,
+) -> Result<crate::resolution::ConstInitializerPayload, String> {
+    let mut payload = definition.clone();
+    while let TypeReferenceNode::Constrained { base_type, .. } = syntax
+        .type_references
+        .type_reference(payload.type_reference)
+    {
+        payload.type_reference = *base_type;
+    }
+    let value = canonicalize_selected_declaration_value_with_admission(
+        syntax,
+        &payload,
+        selection,
+        ConstPredicateAdmission::PendingDestination,
+    )?;
+    Ok(crate::resolution::ConstInitializerPayload {
+        value,
+        pending_destination: if let Some(obligation) = &definition.pending_qualification {
+            if obligation.declaration != definition.name.source_span()
+                || obligation.initializer != definition.value
+            {
+                return Err(
+                    "private constant payload drifted from its pending destination".to_owned(),
+                );
+            }
+            // A private input may expose only the carrier while its original
+            // full destination remains owed. Preserve that debt verbatim.
+            Some(obligation.clone())
+        } else if !definition
+            .qualification
+            .as_ref()
+            .is_some_and(|qualification| {
+                qualification.destination == definition.type_reference
+                    && qualification.initializer == definition.value
+            })
+            && const_destination_requires_proof(syntax, definition, selection)
+        {
+            Some(crate::resolution::ConstDestinationObligation {
+                declaration: definition.name.source_span(),
+                destination: definition.type_reference,
+                initializer: definition.value,
+            })
+        } else {
+            None
+        },
+    })
+}
+
 /// Canonicalize one source const declaration against its own declared type.
 ///
 /// This is the narrow handoff used by declaration/API retention. The returned
@@ -362,6 +615,9 @@ pub(crate) fn canonicalize_selected_declared_const_definition(
     definition: &ConstDefinition,
     selection: Option<&declaration_selection::ConstantSelection>,
 ) -> Result<CanonicalConstValue, String> {
+    if definition.pending_qualification.is_some() {
+        return Err("constant destination qualification remains pending".to_owned());
+    }
     let mut payload = definition.clone();
     if let TypeReferenceNode::Constrained {
         base_type,
@@ -398,7 +654,23 @@ pub(crate) fn canonicalize_selected_declared_const_definition(
             payload.type_reference = *base_type;
         }
     }
-    canonicalize_selected_declaration_value(syntax, &payload, selection)
+    if definition
+        .qualification
+        .as_ref()
+        .is_some_and(|qualification| {
+            qualification.destination == definition.type_reference
+                && qualification.initializer == definition.value
+        })
+    {
+        canonicalize_selected_declaration_value_with_admission(
+            syntax,
+            &payload,
+            selection,
+            ConstPredicateAdmission::CheckedDestination,
+        )
+    } else {
+        canonicalize_selected_declaration_value(syntax, &payload, selection)
+    }
 }
 
 /// Find `Base<Args..>` spellings in FIELD type position where `Base` is a

@@ -9,7 +9,7 @@ requires remaining <= 9
         true -> right(remaining)
         false -> finish()
     }
-    state finish() -> u64 { 70 }
+    machine finish() -> u64 { 70 }
 }
 
 machine right(remaining: u64)
@@ -27,6 +27,6 @@ machine main() crashes Trap {
         true -> done()
         false -> failed()
     }
-    state done() {}
-    state failed() { crash Trap; }
+    machine done() {}
+    machine failed() { crash Trap; }
 }

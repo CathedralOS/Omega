@@ -24,13 +24,13 @@ machine main() crashes Trap {
         true -> step(sum)
         _ -> bad()
     }
-    state step(forwarded: i8) {
+    machine step(forwarded: i8) {
         let check: i32 = verify_sum(forwarded);
         transition check == 0 {
             true -> done()
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -6,7 +6,7 @@ crashes Trap allow {
         true -> risky(value)
         _ -> 0.0f32 as f32 in Trapping
     }
-    state risky(value: f32 in Trapping) -> f32 in Trapping {
+    machine risky(value: f32 in Trapping) -> f32 in Trapping {
         value * 2.0f32
     }
 }
@@ -17,7 +17,7 @@ crashes Trap allow {
         true -> risky(value)
         _ -> 0.0f32 as f32 in Trapping
     }
-    state risky(value: f64 in Trapping) -> f32 in Trapping {
+    machine risky(value: f64 in Trapping) -> f32 in Trapping {
         F32::from_f64(value)
     }
 }
@@ -30,6 +30,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

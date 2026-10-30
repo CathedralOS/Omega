@@ -2,6 +2,7 @@
 //! Arrival transport resolves storage once, independently of whether an entry
 //! or state edge supplied it. Operation validation owns access permissions;
 //! native geometry must not reinterpret qualification or frozen-content rules.
+use super::descriptor_operands::observes_measured_length;
 use super::{KnownInteger, KnownScalar};
 use crate::LoweringError;
 use crate::lowering::scalar::expressions::{insert_value, unsigned_u64_endpoint};
@@ -232,7 +233,7 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
         if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
             return Err(invalid());
         }
-        let (selected, indices) = super::descriptor_operands::descriptor_projection(
+        let (selected, indices) = super::descriptor_operands::descriptor_metadata_projection(
             function,
             structural_types,
             backings,
@@ -336,7 +337,7 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
             };
             if index_type.sign() != IntegerSign::Unsigned
                 || index_type.bits() != 64
-                || !observes_length(values, lengths, *length, source)
+                || !observes_measured_length(values, lengths, *length, source, true)
             {
                 return Err(invalid());
             }
@@ -479,26 +480,27 @@ pub(in crate::lowering) fn resolve_byte_view(
         let StructuralTypeShape::ByteSequence(carrier) = declaration.shape else {
             return Err(invalid());
         };
-        // A matched window joins as an affine mutable block parameter. Shared
-        // observations stay unrestricted. An owned arrival is only a bounded
-        // owner, never a borrowed descriptor.
-        let affine_loan = matches!(
-            (semantic.access, semantic.multiplicity, &carrier),
-            (
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow,
-                StructuralMultiplicity::Affine,
-                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-            )
-        );
-        let owned = semantic.access == StructuralAccess::Owned;
-        if !(semantic.multiplicity == StructuralMultiplicity::Unrestricted || affine_loan)
-            || !semantic.projected_qualifications.is_empty()
-            || owned
-                && !matches!(
-                    carrier,
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+        // A descriptor may arrive as a value or through its storage address.
+        // Its backing permission remains the declared contained ceiling;
+        // owning descriptor words does not own the referenced bytes.
+        let backing_access = match carrier {
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                if semantic.multiplicity == StructuralMultiplicity::Unrestricted =>
+            {
+                semantic.access
+            }
+            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+            | terminal_psi::ByteSequenceCarrier::BoundedView { .. } => {
+                terminal_semantics::descriptor_parameter_access(
+                    semantic,
+                    structural_types.values().copied(),
                 )
-        {
+                .ok_or_else(invalid)?
+            }
+            _ => return Err(invalid()),
+        };
+        let owned = semantic.access == StructuralAccess::Owned;
+        if !semantic.projected_qualifications.is_empty() {
             return Err(invalid());
         }
         // The semantic declaration is authenticated above. Only physical
@@ -515,7 +517,7 @@ pub(in crate::lowering) fn resolve_byte_view(
                     place,
                     structural_type: semantic.structural_type,
                 },
-                semantic.access,
+                backing_access,
             ));
         }
         let parameter = parameters
@@ -551,7 +553,7 @@ pub(in crate::lowering) fn resolve_byte_view(
                 place,
                 placement: parameter.placement.clone(),
             },
-            semantic.access,
+            backing_access,
         ));
     }
     let Some(AbstractOperation::ByteSequenceSubslice { psi_operation, result, source, start, end, length, obligation }) =
@@ -666,33 +668,6 @@ fn owned_byte_result<'a>(
     });
     let result = matching.next()?;
     matching.next().is_none().then_some(result)
-}
-
-fn observes_length(
-    values: &BTreeMap<ValueId, KnownScalar>,
-    lengths: &BTreeMap<ValueId, PlaceId>,
-    length: ValueId,
-    source: PlaceId,
-) -> bool {
-    let Some(KnownScalar::Integer { scalar_type, value }) = values.get(&length) else {
-        return false;
-    };
-    if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
-        return false;
-    }
-    match value {
-        KnownInteger::Runtime(TargetIntegerExpression::ByteSequenceLength {
-            source: observed,
-            source_value,
-            ..
-        }) => observed.place == source && observed.path.is_empty() && *source_value == length,
-        KnownInteger::Runtime(TargetIntegerExpression::ScalarHome(home)) => {
-            home.source_value == length
-                && home.scalar_type == ScalarType::Integer(*scalar_type)
-                && lengths.get(&length) == Some(&source)
-        }
-        _ => false,
-    }
 }
 
 /// Join a completed descriptor to its exact producer and required result home.

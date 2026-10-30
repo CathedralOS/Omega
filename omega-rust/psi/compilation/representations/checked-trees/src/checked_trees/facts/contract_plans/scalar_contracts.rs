@@ -15,7 +15,7 @@ use numerics::literals::IntegerLiteral;
 /// never an integer predecessor of the endpoint. NaN satisfies neither
 /// comparison. `position` names the dense entry scalar parameter position,
 /// the same namespace `ClosedScalarContractValue` positions use.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct ClosedFloatRangeRequirement {
     pub position: usize,
     pub primitive_type: typed_trees::types::PrimitiveType,
@@ -34,7 +34,7 @@ pub struct ClosedFloatRangeRequirement {
 /// reads `minimum <= x <= maximum`. Each endpoint literal keeps its exact
 /// landing, the same identity the requires-tail `Predicate` conjunction
 /// carries.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ClosedIntegerRangeRequirement {
     pub position: usize,
     pub primitive_type: typed_trees::types::PrimitiveType,
@@ -42,7 +42,7 @@ pub struct ClosedIntegerRangeRequirement {
     pub maximum: IntegerLiteral,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum ClosedScalarContractValue {
     Boolean(bool),
     Integer(IntegerLiteral),
@@ -52,6 +52,9 @@ pub enum ClosedScalarContractValue {
     /// mutable post-state values do not inhabit this namespace. Structural
     /// observations retain their authored parameter root; case guarantees
     /// additionally have an explicit result root, not a scalar ordinal.
+    /// Target-dependent operands retain exact `ConstantApplication` leaves;
+    /// absence of a closed atom must not erase this authored clause. The
+    /// publication namespace supplies values only after target discharge.
     Predicate(crate::CheckedBooleanExpression),
     /// One authored floating entry range in that same entry-parameter
     /// namespace. The clause keeps IEEE bit-exact endpoints and the authored
@@ -74,7 +77,7 @@ pub enum ClosedScalarContractValue {
     },
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ClosedScalarValueContractPlan {
     requires: Vec<Option<ClosedScalarContractValue>>,
     /// Length of the authored `requires` prefix inside `requires`; the

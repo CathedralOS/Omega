@@ -33,15 +33,15 @@ crashes Trap
         true -> classify(table, index)
         _ -> absent()
     }
-    state classify(table: &Table, index: u64 in Trapping) {
+    machine classify(table: &Table, index: u64 in Trapping) -> u64 {
         transition table.modes[index] {
             Mode::Idle -> idle()
             Mode::Busy -> occupied()
         }
     }
-    state idle() { 1 }
-    state occupied() { 2 }
-    state absent() { 0 }
+    machine idle() -> u64 { 1 }
+    machine occupied() -> u64 { 2 }
+    machine absent() -> u64 { 0 }
 }
 
 machine Main::main(main: &mut Main) crashes Trap {
@@ -58,8 +58,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> passed()
         _ -> failed()
     }
-    state passed() {}
-    state failed() { crash Trap; }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

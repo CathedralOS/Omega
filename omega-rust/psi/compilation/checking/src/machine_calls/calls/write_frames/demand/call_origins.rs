@@ -1,7 +1,7 @@
 //! Typed invocation storage, using the same caller prefix as write frames.
 use super::super::caller_aliases::{
-    CallOriginContext, CallWriteOrigins, CallerWriteSite, LocalWriteSource, caller_statement_owner,
-    with_caller_origin_context,
+    CallOriginContext, CallWriteOrigins, CallerWriteSite, LocalWriteOrigin, LocalWriteSource,
+    caller_statement_owner, prefix_reference_origins, with_caller_origin_context,
 };
 use super::{CallFrameResolver, ExpressionHandle, Machine, TableCall};
 use crate::machine_calls::calls::write_frames as frames;
@@ -109,6 +109,13 @@ impl<'program> CallFrameResolver<'program> {
                     .prefix_may_change_origins(machine, statement, site, prefix);
                 Some(CallWriteOrigins {
                     receiver: Some(Vec::new()),
+                    references: self.capture_reference_origins(
+                        machine,
+                        site,
+                        prefix,
+                        &arguments,
+                        preceding_effect,
+                    ),
                     arguments: self.capture_operand_origins(
                         machine,
                         inference,
@@ -208,30 +215,51 @@ impl<'program> CallFrameResolver<'program> {
                 let mut result = CallWriteOrigins {
                     receiver: Some(Vec::new()),
                     arguments: Vec::new(),
+                    references: None,
                 };
-                // Concrete entries and instantiated dynamic slots receive all
-                // data through explicit operands. A trait namespace retained
-                // on the call is not an implicit receiver storage origin.
-                // A selected named operator has the same explicit operand
-                // roster as a machine. Its namespace is a declaration owner,
-                // never a hidden storage receiver. Retain the exact selection
-                // before capturing operands, just as the write collector does;
-                // otherwise an empty signature ceiling becomes opaque here.
-                let callee_is_resolved = frames::machine_state_by_symbol(program, target).is_some()
-                    || program.dynamic_slot_by_symbol(target).is_some()
+                // Exact callable entries carry their data in explicit operands.
+                // Named expression calls also share the typed representation's
+                // namespace/arity judgment, including bodyless operators. A
+                // selected code qualifier supplies no caller storage; an unknown
+                // or value receiver keeps chronological origin capture below.
+                let callee_has_explicit_parameters = frames::machine_state_by_symbol(program, target).is_some()
+                        || program.dynamic_slot_by_symbol(target).is_some()
+                        || crate::selected_requirement_signature(program, target).is_some()
+                    // An open evidence member has the same declaration-only
+                    // qualifier as its closed realization. Authenticate that
+                    // exact member before asking for runtime receiver origins;
+                    // the signature still owns all explicit-operand writes.
                     || match site {
-                        CallerWriteSite::Expression(expression) => program
-                            .expression_table
-                            .call_node(expression)
-                            .is_some_and(|call| {
-                                program.call_has_no_runtime_receiver_for_target(call)
-                            }),
-                        CallerWriteSite::Call(call) => typed_trees::operator::selected_named_statement_call_has_no_runtime_receiver(program, call),
+                        CallerWriteSite::Call(call) => crate::machine_calls::calls::requirement_namespace_member(
+                            program, call.receiver_symbol, call.target_symbol,
+                        ),
+                        CallerWriteSite::Expression(expression) => program.expression_table.call_node(expression)
+                            .and_then(|call| program.expression_table.name_path_node(call.receiver)
+                                .map(|receiver| (receiver.symbol, call.target_symbol)))
+                            .is_some_and(|(namespace, member)| crate::machine_calls::calls::requirement_namespace_member(
+                                program, namespace, member,
+                            )),
                         _ => false,
+                    } || match site {
+                    CallerWriteSite::Expression(expression) => program
+                        .expression_table
+                        .call_node(expression)
+                        .is_some_and(|call| program.call_has_no_runtime_receiver_for_target(call)),
+                    CallerWriteSite::Call(call) => {
+                        typed_trees::operator::selected_named_statement_call_has_no_runtime_receiver(
+                            program, call,
+                        )
                     }
+                    _ => false,
+                }
                     || frames::boundary_calls::boundary_trait_signature_and_receiver(
-                        program, machine, &receiver_members, name, site,
-                    ).is_some_and(|(_, has_runtime_receiver)| !has_runtime_receiver);
+                        program,
+                        machine,
+                        &receiver_members,
+                        name,
+                        site,
+                    )
+                    .is_some_and(|(_, has_runtime_receiver)| !has_runtime_receiver);
                 // A nested call can follow effects in an enclosing operand. The
                 // prefix owner has not captured those substatement updates.
                 // Reuse its expression inventory and frame query; do not
@@ -241,7 +269,7 @@ impl<'program> CallFrameResolver<'program> {
                 let preceding_effect = nested_effect
                     || (receiver_expression.is_valid()
                         && self.operand_may_change_origins(machine, receiver_expression, prefix));
-                if !callee_is_resolved
+                if !callee_has_explicit_parameters
                     && (!receiver_members.is_empty() || receiver_expression.is_valid())
                 {
                     result.receiver = if receiver_expression.is_valid() {
@@ -277,8 +305,42 @@ impl<'program> CallFrameResolver<'program> {
                     &argument_types,
                     preceding_effect,
                 )?;
+                result.references = self.capture_reference_origins(
+                    machine,
+                    site,
+                    prefix,
+                    arguments,
+                    preceding_effect,
+                );
                 Some(result)
             },
+        )
+    }
+
+    /// The entire leaf roster must survive every operand before invocation.
+    /// A captured outer address does not freeze its stored inner pointers.
+    fn capture_reference_origins(
+        &self,
+        machine: &'program Machine,
+        site: CallerWriteSite<'_>,
+        prefix: &CallOriginContext<'_>,
+        arguments: &[ExpressionHandle],
+        preceding_effect: bool,
+    ) -> Option<Vec<LocalWriteOrigin>> {
+        if preceding_effect
+            || arguments
+                .iter()
+                .any(|argument| self.operand_may_change_origins(machine, *argument, prefix))
+        {
+            return None;
+        }
+        let (state, _, index) = caller_statement_owner(self.program, machine, site)?;
+        prefix_reference_origins(
+            self.program,
+            Some((state, index)),
+            prefix.stored,
+            prefix.aliases,
+            prefix.divergent,
         )
     }
 
@@ -402,14 +464,7 @@ impl<'program> CallFrameResolver<'program> {
         let program = self.program;
         let members = program.statement_table.name_path_members(call.receiver);
         let root = call.receiver_root_symbol;
-        let root_reference = program
-            .state_parameter_by_symbol(state, root)
-            .map(|parameter| parameter.type_reference)
-            .or_else(|| {
-                program
-                    .state_local_declaration(state, root)
-                    .map(|(_, local)| local.type_reference)
-            })?;
+        let root_reference = crate::state_root_type(program, state, root)?;
         let (segments, _) = frames::reference_origins::retained_receiver_projection(
             program,
             root_reference,
@@ -469,6 +524,7 @@ impl<'program> CallFrameResolver<'program> {
         // stored reference without its retained origin.
         frames::reference_subjects::validate_owned_projection(program, root_reference, &segments)?;
         Some(vec![LocalWriteSource {
+            invocation_output: None,
             is_image_storage: false,
             recasts: Vec::new(),
             root,

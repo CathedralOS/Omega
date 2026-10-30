@@ -1,0 +1,17 @@
+// Expected exit: 0. Both runtime arms must retain actual Issued membership and their distinct values.
+data Ticket [copy] { value: u64; }
+domain Ticket::Issued established by mint;
+machine mint(value: u64) -> Ticket
+ensures result in Ticket::Issued { Ticket { value: value } }
+machine consume(ticket: Ticket in Ticket::Issued) -> u64 { ticket.value }
+machine select_ticket(choose: bool, expected: u64) crashes Trap {
+    let selected: Ticket = match choose { true -> mint(66051), false -> Ticket { value: 513 } };
+    let observed: u64 = consume(selected);
+    transition observed == expected { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
+machine entry_start() crashes Trap {
+    select_ticket(true, 66051);
+    select_ticket(false, 513);
+}

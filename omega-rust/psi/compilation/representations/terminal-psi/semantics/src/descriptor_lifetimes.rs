@@ -7,11 +7,17 @@
 use semantic_vocabulary::{BlockId, PlaceId, StructuralCaseId, StructuralFieldId};
 use std::collections::{BTreeMap, BTreeSet};
 
+mod arrivals;
+pub use arrivals::{
+    DescriptorContentsQuery, DescriptorContentsStep, DescriptorFlowBinding, DescriptorFlowSource,
+};
 mod locations;
+mod residences;
 pub use locations::{
     canonical_descriptor_location, descriptor_location, descriptor_location_type, descriptor_path,
     fixed_runtime_index_alternatives,
 };
+pub use residences::{DescriptorResidenceRules, descriptor_residence_live_positions};
 
 pub type DescriptorPosition = (BlockId, u32);
 
@@ -69,10 +75,18 @@ pub struct DescriptorFlowStep {
 pub struct DescriptorFlowEdge {
     pub target: DescriptorPosition,
     pub parameters: Vec<DescriptorLocation>,
-    pub bindings: Vec<(DescriptorLocation, DescriptorLocation)>,
+    pub bindings: Vec<DescriptorFlowBinding>,
 }
 
 impl DescriptorFlowEdge {
+    pub fn derivations(
+        &self,
+    ) -> impl Clone + Iterator<Item = (&DescriptorLocation, &DescriptorLocation)> {
+        self.bindings
+            .iter()
+            .filter_map(DescriptorFlowBinding::locations)
+    }
+
     pub fn forward(&self, source: &DescriptorLocation) -> Vec<DescriptorLocation> {
         let mut result = Vec::new();
         if !self
@@ -83,8 +97,7 @@ impl DescriptorFlowEdge {
             result.push(source.clone());
         }
         result.extend(
-            self.bindings
-                .iter()
+            self.derivations()
                 .filter_map(|(actual, parameter)| source.transported(actual, parameter)),
         );
         result
@@ -253,12 +266,14 @@ fn authorized_locations(
                         let mut after = transport_authority(
                             before,
                             &step.definitions,
-                            &step.authority_derivations,
+                            step.authority_derivations
+                                .iter()
+                                .map(|(source, destination)| (source, destination)),
                         );
                         if *predecessor == birth {
                             after.insert(descriptor.clone());
                         }
-                        transport_authority(&after, &edge.parameters, &edge.bindings)
+                        transport_authority(&after, &edge.parameters, edge.derivations())
                     });
             let mut current = incoming.next().unwrap_or_default();
             for other in incoming {
@@ -275,10 +290,16 @@ fn authorized_locations(
     }
 }
 
-fn transport_authority(
+fn transport_authority<'locations>(
     before: &BTreeSet<DescriptorLocation>,
     definitions: &[DescriptorLocation],
-    derivations: &[(DescriptorLocation, DescriptorLocation)],
+    derivations: impl Clone
+    + Iterator<
+        Item = (
+            &'locations DescriptorLocation,
+            &'locations DescriptorLocation,
+        ),
+    >,
 ) -> BTreeSet<DescriptorLocation> {
     let mut after = before
         .iter()
@@ -293,13 +314,13 @@ fn transport_authority(
         .iter()
         .flat_map(|location| {
             derivations
-                .iter()
+                .clone()
                 .filter_map(move |(source, destination)| location.transported(source, destination))
         })
         .collect::<BTreeSet<_>>();
     for candidate in candidates {
         let sources = derivations
-            .iter()
+            .clone()
             .filter_map(|(source, destination)| candidate.transported(destination, source))
             .collect::<Vec<_>>();
         if !sources.is_empty() && sources.iter().all(|source| before.contains(source)) {

@@ -41,6 +41,288 @@ transport of the premise subject and its read changes.
 The row has no root `main.omg`; `local` is its canonical local witness. The
 landed local plus twin came from the item's pin commit `49bf309359c`.
 
+## Constant-initializer production
+
+The same fact also originates in the closed application
+`const DIRECT: bool = apply<witness>(true)`. The
+[`constant_initializer/main.omg`](constant_initializer/main.omg) root preserves
+its frozen authored source, including `hold(DIRECT)` through its local read;
+its [twin](constant_initializer/invalid/main.omg) changes only `premise`'s result
+to `false`. Source SHA-256:
+`63c626098e6ab12f1f0b5d4e887202f43fe1b6df2895350878b1b45605e83555`.
+
+This production carries the resulting value through the same nine places.
+Each positive and twin keeps the exact constant application, selected `witness`
+body, abstract signature premise, and `hold` operation. Parameter and relay
+contracts transport the exact `direct == true` obligation; they do not add a
+caller guard. Nested machines declare their own crash routes explicitly.
+
+| Place | Positive | Reject twin |
+| --- | --- | --- |
+| local | [`constant_initializer/local/main.omg`](constant_initializer/local/main.omg) | [`constant_initializer/local/invalid/main.omg`](constant_initializer/local/invalid/main.omg) |
+| field | [`constant_initializer/field/main.omg`](constant_initializer/field/main.omg) | [`constant_initializer/field/invalid/main.omg`](constant_initializer/field/invalid/main.omg) |
+| parameter | [`constant_initializer/parameter/main.omg`](constant_initializer/parameter/main.omg) | [`constant_initializer/parameter/invalid/main.omg`](constant_initializer/parameter/invalid/main.omg) |
+| call_result | [`constant_initializer/call_result/main.omg`](constant_initializer/call_result/main.omg) | [`constant_initializer/call_result/invalid/main.omg`](constant_initializer/call_result/invalid/main.omg) |
+| match_join | [`constant_initializer/match_join/main.omg`](constant_initializer/match_join/main.omg) | [`constant_initializer/match_join/invalid/main.omg`](constant_initializer/match_join/invalid/main.omg) |
+| const_name | [`constant_initializer/const_name/main.omg`](constant_initializer/const_name/main.omg) | [`constant_initializer/const_name/invalid/main.omg`](constant_initializer/const_name/invalid/main.omg) |
+| other_state | [`constant_initializer/other_state/main.omg`](constant_initializer/other_state/main.omg) | [`constant_initializer/other_state/invalid/main.omg`](constant_initializer/other_state/invalid/main.omg) |
+| other_machine | [`constant_initializer/other_machine/main.omg`](constant_initializer/other_machine/main.omg) | [`constant_initializer/other_machine/invalid/main.omg`](constant_initializer/other_machine/invalid/main.omg) |
+| target_body | [`constant_initializer/target_body/main.omg`](constant_initializer/target_body/main.omg) | [`constant_initializer/target_body/invalid/main.omg`](constant_initializer/target_body/invalid/main.omg) |
+
+The nine places are pinned as
+`tests/omega/{pass,fail}/facts/abstract_signature_call_constant_initializer_through_<place>_{exit,rejected}`;
+the unchanged root is pinned by the corresponding
+`abstract_signature_call_constant_initializer_{exit,rejected}` fixtures. The
+positive fixtures author exit 0, and the rejects require `structurally false`
+and `premise(kept)`.
+
+The fixed baseline `aa202339cb2f513fbf478efa46f212a6d94680fd` refuses the
+unchanged root before execution with
+`constant initializer call has no exact ordinary machine declaration: selected MachineParameter`.
+The optimized baseline CLI digest is
+`c17e6b7a283b3e6898b975a7f8b596d17422dc1132f0fe8d4907bb8fca1e7c45`;
+qualification receipt `cec7a06e6adb4037aa71cf85c2ba67d7` retains exit 1,
+the source/oracle hashes, and no invalidations. No baseline runtime is claimed.
+
+### Callable composition controls
+
+[`forwarded`](constant_initializer/forwarded/main.omg) passes the selected
+callback through another static binder before evaluating the same application.
+[`selected_entries`](constant_initializer/selected_entries/main.omg) evaluates
+both `apply<witness>(true)` and `apply<alternate>(true)`: their signatures agree,
+but their bodies return opposite values, and `hold`/`hold_false` consume those
+exact results. Both have premise-false twins and corpus pins. The
+[`wrong_result`](constant_initializer/wrong_result/main.omg) control instead
+keeps the premise true and changes only the selected `witness` result to false;
+it must refuse `hold`'s `direct == true` contract. This checks the oracle and
+selected body independently of the premise refusal.
+
+### Statement and terminal call productions
+
+Independent review of candidate `97d993169881f1071faf16ac700e00ebface2d01`
+found two additional valid productions of this same constant call:
+[`terminal_callback`](constant_initializer/terminal_callback/main.omg) forwards
+`Observe(kept)` through a terminal transition, and
+[`statement_explicit_discard`](constant_initializer/statement_explicit_discard/main.omg)
+explicitly discards the call before returning `true`. Both preserve the frozen
+premise, selected callback, constant and exit-0 oracle. Their pre-repair
+constant forms refuse respectively with `constant call differs from its exact
+authored selection` and `authored statement call reclassification found duplicate
+selections for the same source token`, while their runtime controls execute in
+both engines. Frozen source hashes are respectively
+`2c740bc17e25f12d6c0137408a17bf1fa676c2ff309ff422c8a08b4d11ad10a0`
+and `5c1d78452b23dae080d466a3fc98ec019f8ff03deb101c18acb1aac20c14203a`.
+
+Both productions have premise-false twins and corpus pins. Their required
+repair carries the original binder on the shared call-occurrence view in every
+call position and retains one authored selection across recipe, materialized,
+expression and statement copies. Duplicate or inconsistent selections remain
+errors. The rejected C1 review and its raw independent observations are retained.
+At repaired source `74b572b3e1769346ef76cc50f24ce138b78a14b3`, both frozen
+productions execute with native exit 0 and Terminal exit 0, and both premise-false
+twins refuse the intended obligation. This is the same fact and transport row;
+the additional call positions do not create another nine-place matrix.
+
+### Calls inside the supplied body
+
+Independent review of `0cb9d9fe3c9272d60ca402aab5c2353bd5e4718f` found that
+ordinary terminal calls inside the selected callback still lose their authored
+callable-entry selection. Frozen
+[`supplied_body_terminal`](constant_initializer/supplied_body_terminal/main.omg)
+and [`unexecuted_body_dependency`](constant_initializer/unexecuted_body_dependency/main.omg)
+retain the same callback, premise, constant and `hold` consumer. The second
+also retains a call in an unexecuted branch, so source custody must cover the
+whole selected body. Both constant forms refuse `constant call differs from its
+exact authored selection`; separate runtime-oracle controls observe native 0 and
+Terminal 0. An initial runtime variant that retained `hold` could not prove its
+result contract and supplies no runtime evidence.
+
+Both frozen positives have premise-false twins and matching corpus pins. The
+rejected C3 review remains immutable. This closure repair rejoins the exact
+machine's callable entry declaration while terminal invocation keeps its machine
+identity; a matching name or signature grants no selection. At source
+`a8b77070b93c27ae30c01988bf046f2b0ee90c8f`, both frozen positives execute with
+native exit 0 and Terminal exit 0. Their twins now reject the intended premise,
+rather than being masked by the custody error. The source dependency producer
+emits that exact callable entry too, so recipe and body copies retain one
+consistent authored selection. Deferred body demand still grants no call
+admission.
+
+### Requirement accounting for this production
+
+- **Establishment:** the closed invocation evaluates only after ordinary checked
+  specialization and concrete premise/failure admission. `premise(kept)` is an
+  obligation before the result exists; it never establishes itself.
+- **Identity and lifetime:** dependency discovery records the source binder and
+  explicit callback body separately. Replay rejoins the original binder to the
+  exact entry in its owning specialization. The constants are immutable value
+  snapshots; the composition controls distinguish equal ABI signatures.
+- **Composition:** the same computed result reaches `hold` through all nine
+  places. Parameters and relay contracts prove arrival under the actual
+  constant substitution; joins keep the same result in both arms. No caller
+  guard replaces the carried fact.
+- **Soundness boundaries:** every premise-false twin refuses its own obligation,
+  and the wrong-result control refuses the consumer's required result. These
+  closed Boolean computations acquire no authority, borrow no storage, and
+  introduce no runtime service reach; other custody modes remain outside this
+  row's evidence.
+- **Psi 05–07:** constant evaluation retains and validates authored call custody
+  before materializing the Boolean. The resulting program lowers through
+  Terminal Psi, whose interpreter must observe exit 0 beside native execution.
+- **Omega 00–02:** all positives retain the four hosted `ProgramEntry` bindings
+  and add `macos_x86_64` for this host. Static callback binders are erased; the
+  result uses the ordinary Boolean carrier and call placement.
+- **Omega 03–06:** the Intel host exercises scalar/record homes, calls, joins,
+  nested-machine arrivals, and the consumer's success/crash control flow.
+- **Omega 07–09 and emission:** actual host Mach-O execution must agree with
+  Terminal Psi. The other four authored targets have no runtime observation
+  on this Intel host and remain outside this run's platform qualification.
+
+## Applied generic callback production
+
+The next production under **OPERATOR-MACHINE-SUPPLY** keeps the same premise,
+selected body and `hold` operation, and supplies the callback's explicit static
+tuple: `const DIRECT: bool = apply<witness<1>>(true)`, with
+`witness<const Marker: u64>`. The unused parameter still owes its declared kind,
+carrier and bounds. The original [root](constant_initializer/applied_callback/main.omg)
+used for the historical observations below had source SHA-256
+`e5383eb6e400c986fd0c5a1b5b93b5da04b0881b8a993c214266abca86415b7b`.
+The optimized producer from fixed source
+`37f85b4aa3810cfb579257afb37cc8b99508c84f` refuses it before execution with
+`a nested machine application without a completely admitted callable tuple`.
+That is the formation gap after the constant-custody repair in PR 253.
+The first repair candidate, `f2dcd8f0c3adc0ed943d2987aa49af7097cf1f87`,
+executes the unchanged root with native exit 0 and Terminal exit 0. The full
+new production is now pinned at optimized producer
+`3c2ec6aaf4ddff261c9d25f85b2a664a440a3da0`: its root, nine transports and six
+compositions observe native exit 0 and Terminal exit 0 on Intel macOS, and its
+22 invalid controls reach their intended obligations. The current qualification
+ledger retains full-fact public acceptance and affected-consumer checks; exact
+independent review and publication are separately bound to the author candidate.
+These observations do not close the parent capability.
+
+| Place | Positive | Reject twin |
+| --- | --- | --- |
+| local | [local](constant_initializer/applied_callback/local/main.omg) | [invalid](constant_initializer/applied_callback/local/invalid/main.omg) |
+| field | [field](constant_initializer/applied_callback/field/main.omg) | [invalid](constant_initializer/applied_callback/field/invalid/main.omg) |
+| parameter | [parameter](constant_initializer/applied_callback/parameter/main.omg) | [invalid](constant_initializer/applied_callback/parameter/invalid/main.omg) |
+| call result | [call result](constant_initializer/applied_callback/call_result/main.omg) | [invalid](constant_initializer/applied_callback/call_result/invalid/main.omg) |
+| match join | [match join](constant_initializer/applied_callback/match_join/main.omg) | [invalid](constant_initializer/applied_callback/match_join/invalid/main.omg) |
+| const name | [const name](constant_initializer/applied_callback/const_name/main.omg) | [invalid](constant_initializer/applied_callback/const_name/invalid/main.omg) |
+| nested machine | [other state](constant_initializer/applied_callback/other_state/main.omg) | [invalid](constant_initializer/applied_callback/other_state/invalid/main.omg) |
+| another machine | [other machine](constant_initializer/applied_callback/other_machine/main.omg) | [invalid](constant_initializer/applied_callback/other_machine/invalid/main.omg) |
+| target body | [target body](constant_initializer/applied_callback/target_body/main.omg) | [invalid](constant_initializer/applied_callback/target_body/invalid/main.omg) |
+
+Each twin changes only the premise's own result to false. The nine transports
+and root are pinned under
+`tests/omega/{pass,fail}/facts/abstract_signature_call_applied_callback_*`.
+The same selected-tuple mechanism also has positive compositions for an unused
+[type argument](constant_initializer/applied_callback/type_argument/main.omg),
+an unused [copy bound](constant_initializer/applied_callback/type_bound/main.omg),
+[opposite results from two applications of one provider](constant_initializer/applied_callback/opposite_instances/main.omg),
+[a repeated recipe](constant_initializer/applied_callback/repeated_recipe/main.omg)
+and [forwarding through another binder](constant_initializer/applied_callback/forwarded_applied/main.omg),
+plus an unused [structural array type](constant_initializer/applied_callback/structural_type_argument/main.omg).
+Each has a premise-false twin. Additional controls pin an unused type-bound
+violation, an out-of-range const argument, a stronger callback premise, a wider
+crash contract, and an incorrect result selected by a different application.
+Those controls must reach their own obligations; a missing tuple is insufficient.
+
+The structural array production exposed a second declaration-context gap after
+the numeric and named-type cases passed. The unchanged source
+`apply<witness<[u8; 4]>>(true)` still refused at fixed source 37 and the historical
+CCA producer with no retained caller type/lifetime context. A private checking
+projection omitted its compiler-created probe root, while arena span relocation
+left four identical declaration headers. Lexical type formation now reads the
+exact supplying declaration independently of executable root membership. All
+retained copies must agree on the complete declaration; conflicting revisions
+refuse, and reading a header grants no executable body. The structural positive
+now observes both exits at 0, its [premise-false twin](constant_initializer/applied_callback/structural_type_argument/invalid/main.omg)
+rejects the premise, and an [undeclared lifetime](constant_initializer/applied_callback/undeclared_structural_lifetime/main.omg)
+still rejects ordinary type formation. This region-free array and the negative
+lifetime control do not establish general projected reference-lifetime support.
+
+The repair prepares the ordinary occurrence-owned provider view for retained
+constant recipes. It preserves the authored arguments for replay and consumes
+the selected roster only in executable occurrences. Full tuple formation and
+callable refinement remain separate checking obligations. Pre-integration host public
+acceptance records 41 positive executions and 48 intended refusals, while the
+explicit both-engine capture records 41 native/Terminal exit-0 pairs and retains
+287 products plus all 41 approved locks. The 89-fixture source corpus preserves
+raw exit 1 for ten inherited timing flags; the 41-fixture both-engine corpus
+preserves raw exit 1 for three inherited timing flags. Every such flag is an
+existing I1 row, strictly faster now, with unchanged execution and oracle fields;
+new fixtures permit no movement. The ledger retains those raw failures rather
+than weakening their goldens.
+
+GitHub reported an actual merge conflict for PR 293, requiring integration of
+main `e30c4a48ed7fa75d18636474ff74e60116d1bc52`. The owned compiler delta stayed
+unchanged, and every incoming golden record and all authored witness/oracle
+files were preserved. Optimized integrated producer
+`c00365388d873e8c54b084d9a14778009ae4465f` re-established all 41 native/Terminal
+exit-0 pairs and all 48 intended refusals. Its 89-fixture source corpus retains
+raw exit 1 for 16 known I1 timing flags; its 41-fixture both-engine corpus retains
+raw exit 1 for two. Every flag is strictly faster than I1, with unchanged
+execution fields and oracles. The existing 38 contextual fixtures still retain
+the exact fixed-37 raw exit 3 boundary below. Integrated receipts, 287 products
+and 41 approved replay locks are retained separately from the earlier producer;
+exact integrated review is a separate qualification gate.
+
+Further valid-positive refusals are retained against fixed baseline 37
+and the historical first candidate `f2dcd8f`: a provider tuple containing a Machine argument refuses
+`an unclosed machine or runtime operand`, a cross-module const alias loses its
+exact declaration selection, and a generic abstract-premise call confuses its
+actual and required `T`. Their current producer behavior has not been re-observed;
+they remain the same parent's next formation work.
+This Type/Const application step does not claim those repairs. The broader
+task's law, declaration migration and other-host acceptance remain open.
+
+The bounded existing contextual-call check also preserves two inherited
+open-Const refusals:
+[`contextual_static_machine_const_scopes_exit`](../../../../tests/omega/pass/generics/contextual_static_machine_const_scopes_exit/main.omg)
+and [`contextual_static_machine_open_const_exit`](../../../../tests/omega/pass/generics/contextual_static_machine_open_const_exit/main.omg).
+Both fixed producer 37 and current producer `3c2ec6aaf4dd` refuse those positives
+before execution. All 38 selected existing fixtures retain exactly the same
+status, diagnostic, facts and oracle fields, including three inherited diagnostic
+movements. The raw gate exit remains 3, with no oracle or infrastructure errors;
+it is an attributed inherited failure, not a clean corpus or an accepted language
+restriction. Open-Const families remain part of the parent formation acceptance.
+
+### Current call-binding regression and runtime oracles
+
+Fresh optimized main `532d0d8da7760884ec2b031db81f5c3a17bcb5dc` refuses all
+sixteen existing applied-callback positives with `authored probe changed the
+original call declaration selection`. Their twenty-two invalid controls stop at
+that earlier refusal instead of their intended obligations. The independent
+`size_of` shadowing control loses its original binding declaration too.
+
+Resolution now records the original ledger declaration beside the selected
+declaration. Local specialization preserves the original occurrence while
+rebasing the selected callable. Source custody records the requirement;
+executable closure discovery follows its separately selected body. Contract
+walks retain their own lexical owners, including nested callable signatures.
+
+The applied-callback witnesses retain `hold`'s `direct == true` prerequisite and
+return the consumed `direct` value instead of a constant. A corrupted runtime
+value therefore reaches the trapping branch. The opposite-instance witnesses
+also consume `hold_false`'s returned `!direct`; their two selected applications
+must preserve opposite results. No caller guard establishes either prerequisite
+before its consuming call. Historical source digests above describe the original
+versions, not these strengthened runtime oracles.
+
+The [nested body](constant_initializer/applied_callback/nested_body/main.omg)
+adds a nested generic callable to the selected callback, with a
+[premise-false twin](constant_initializer/applied_callback/nested_body/invalid/main.omg).
+It keeps the same premise and `hold` operation. Normalization rejoins its exact
+reachable declaration without promoting it into root scope; open enclosing
+machines and implementations remain lookup context rather than concrete work.
+Its corpus pins are `abstract_signature_call_applied_callback_nested_body_*`.
+
+Producer-bound runs and comparison records live under the existing
+`CHECKED-PACKAGE-REUSE` claim `46e8022fc1394040925f256c6a3ede16` and
+`build/checked-reuse-20261022/call-binding-*`. This repairs a current-main
+prerequisite; it does not close checked-package persistence or timing acceptance.
+
 ## Execution
 
 Every positive place binds `ProgramEntry` for all four hosted targets
@@ -175,11 +457,75 @@ and no fixture key or diagnostic continuation line was lost.
 7. **Instruction selection, register homes, and activation frame realization
    (`Omega 03–06`):** the executed images select the call/return path for the
    selected `witness` body and assign register homes and disjoint frame slots
-   for the entry machine and its helpers, with the `true` arm routed to the
+   for the entry machine and its helpers, with the `true` arm routed to `done()` and the other arm to the
    `bad()` trap.
 8. **Form encoding, branch relaxation, relocations, and native image emission
    (`Omega 07–09` + emission):** the emitted host image executes and agrees with
    Terminal Psi (`omega run --both`), and the twins reject before emission.
+
+## Fixed-base constant-production observations
+
+At source checkpoint `289c0e2e27400b3f9c2640b0fea7504807b254fd`, the optimized
+CLI SHA-256 is
+`98362f018b493b0774979dc4ccaa65ef90e04932457d5b279de9b2b836ba45aa`,
+and the corpus runner is
+`27c25a0d0901cab630aeec55f3dea9d107d121215cc620ea9745b956b292f975`.
+Their generation record binds the compiler, library, Cargo, and toolchain
+inputs; both report opt-level 1. The focused corpus `--both` observation covers
+21 positive fixtures (the prior nine, this production's root and nine places,
+and two composition controls): each native and Terminal run exits 0 and the
+engines agree. Its initial verdict is additions to the Intel host golden,
+with no lost successes or runtime oracle failures; the Jev advisory is
+`record_safe`.
+
+The preliminary public sample gate reports 21/21 native positives and 22/22
+intended-invalid controls, using the earlier implementation producer
+`be69a36903ae7c7d63d36f9ae186ce4896d867fd618eaa6a07d7cca7f27d04c9`.
+That observation retains its actual producer identity. The pinned qualification ledger, raw engine streams, prepared locks, source
+snapshots, and required independent review use `build/swarm/operator/`; the PR
+identifies their exact submitted candidate. Package preparation is completed for nested
+projects from leaves to root before frozen execution captures.
+
+### Statement and terminal repair observations
+
+The repaired optimized source generation is
+`74b572b3e1769346ef76cc50f24ce138b78a14b3`: CLI SHA-256
+`d96499467e1ac027b9a5b3f81c3dba187d08940aa48702cdd9ea15c5fc65a094`,
+corpus runner SHA-256
+`aa0fc7bdecd39ce7acf635f90840f1dfec90ae5d0d918182b512daa04ec3a70d`.
+The focused corpus checks 23 positives and rejects 24 intended-invalid controls
+with every expected refusal fragment. All 23 positive fixtures execute with
+native exit 0, Terminal exit 0 and engine agreement on `macos_x86_64`.
+The count includes the prior nine places, the constant root and nine places,
+forwarded and opposite-body controls, and the statement and terminal productions.
+The four affected crates pass scoped `mbx check` and `mbx clippy`.
+
+A bounded 42-fixture constants check also exercised the affected normalization
+consumer. Its three existing red or stale-control cases and its three semantic
+moves against the older golden were reproduced on the immutable fixed-AA CLI,
+with unchanged fixture and library inputs. Those baseline observations retain
+their own source identities; this change records no unrelated constants golden.
+These observations do not establish that the whole constants domain is green.
+The preserved ledger, exact producer receipts, raw baseline and current streams,
+accepted locks and independent review remain under `build/swarm/operator/`.
+
+### Supplied-body closure repair observations
+
+At optimized source `a8b77070b93c27ae30c01988bf046f2b0ee90c8f`, CLI SHA-256
+`fc69138f217ea07c4c79d62097f8ff56811de4350194eb1b6167df606c8967ac`
+and corpus runner SHA-256
+`08b93723e7daf5083085164a7ba651199d5e7ce2645d80b468b66713de2d3ccc`,
+the focused source corpus checks 25 positives and rejects 26 controls for their
+expected reasons. All 25 positive corpus fixtures execute with native exit 0,
+Terminal exit 0 and agreement on `macos_x86_64`. The prior source rows do not
+move; only the two supplied-body positive/twin pairs and two runtime observations
+are new. Four affected crates pass `mbx check` and `mbx clippy`.
+
+All 42 bounded constants observations have the same status, facts, expected
+fragment result and diagnostics as the earlier C2 measurement. The six AA
+baseline attributions above therefore still apply; no unrelated constants rows
+are recorded. The rejected C1/C3 reviews, both source generations and all
+nonaccepted intermediate observations retain their original identities.
 
 ## What remains open
 
@@ -188,7 +534,8 @@ and no fixture key or diagnostic continuation line was lost.
   default predicates, citation/induction guarantees, the
   `OpenIndexOperationSelection` frontier, and the `operator` introducer
   retirement.
-- Native execution on the four authored hosted targets is measured through the
-  host the run executes (macOS arm64 here); `macos_arm64::ProgramEntry` is one
-  of the four bindings, and the other three remain realized-by-binding, not
-  executed on this host.
+- The current constant-production runtime evidence is from the Intel
+  `macos_x86_64` host, in addition to the historical Apple Silicon observations
+  above. All four required hosted bindings remain authored; their execution is
+  unobserved by the current Intel run. Other static-argument applications,
+  effects, authority and loans need their own demonstrated parent acceptance.

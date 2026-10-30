@@ -10,8 +10,8 @@ machine Keeper::drop(keeper: &mut Keeper) requires keeper.code == 7 {
 machine observe(keeper: &Keeper) {}
 machine check(output: &Counter) crashes Trap {
     transition output.value == 7 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 const code: u64 = 7;
 machine main() crashes Trap {

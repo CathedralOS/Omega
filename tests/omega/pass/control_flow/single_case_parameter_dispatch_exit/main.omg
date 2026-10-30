@@ -27,7 +27,7 @@ machine Only::code(only: Only) -> u64 in Wrapping {
         Only::Sole -> value(30)
     }
 
-    state value(code: u64 in Wrapping) -> u64 in Wrapping {
+    machine value(code: u64 in Wrapping) -> u64 in Wrapping {
         code
     }
 }
@@ -37,7 +37,7 @@ machine Carried::code(carried: Carried) -> u64 in Wrapping {
         Carried::Value { handle } -> value(handle)
     }
 
-    state value(code: u64 in Wrapping) -> u64 in Wrapping {
+    machine value(code: u64 in Wrapping) -> u64 in Wrapping {
         code
     }
 }
@@ -47,7 +47,7 @@ machine Wide::code(wide: Wide) -> u64 in Wrapping {
         Wide::Four { first, second, third, fourth } -> value(first + second + third + fourth)
     }
 
-    state value(code: u64 in Wrapping) -> u64 in Wrapping {
+    machine value(code: u64 in Wrapping) -> u64 in Wrapping {
         code
     }
 }
@@ -63,7 +63,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> done(main, 71)
     }
 
-    state done(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine done(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

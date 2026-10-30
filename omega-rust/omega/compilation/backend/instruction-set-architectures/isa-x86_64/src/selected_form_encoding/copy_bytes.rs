@@ -5,8 +5,11 @@ use super::{
     ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
     X86_64SelectedFormEncodingError,
 };
-use crate::selected_form_encoding::instruction_bytes::{modrm, rex};
-use crate::selected_form_encoding::request_validation::resolve_registers;
+use crate::selected_form_encoding::instruction_bytes::{
+    append_increment, append_indexed_byte_load, append_register_compare, append_self_clear,
+    append_self_test, modrm, rex,
+};
+use crate::selected_form_encoding::request_validation::byte_loop_registers;
 pub(super) fn encode(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
@@ -17,24 +20,12 @@ pub(super) fn encode(
         request(physical, alternative, operands, displacement)?;
     let mut bytes = Vec::with_capacity(36);
     for register in [cursor, byte] {
-        bytes.extend_from_slice(&[
-            rex(register, 0, register),
-            0x31,
-            modrm(3, register, register),
-        ]);
+        append_self_clear(&mut bytes, register);
     }
-    bytes.extend_from_slice(&[rex(count, 0, count), 0x85, modrm(3, count, count), 0x74, 25]);
-    bytes.extend_from_slice(&[
-        rex(byte, cursor, source),
-        0x0f,
-        0xb6,
-        modrm(2, byte, 4),
-        ((cursor & 7) << 3) | (source & 7),
-        0,
-        0,
-        0,
-        0,
-    ]);
+    append_self_test(&mut bytes, count);
+    // jz past both accesses.
+    bytes.extend([0x74, 25]);
+    append_indexed_byte_load(&mut bytes, byte, source, cursor, 0);
     bytes.extend_from_slice(&[
         rex(byte, cursor, destination) & !8,
         0x88,
@@ -45,14 +36,10 @@ pub(super) fn encode(
         0,
         0,
     ]);
-    bytes.extend_from_slice(&[rex(0, 0, cursor), 0xff, modrm(3, 0, cursor)]);
-    bytes.extend_from_slice(&[
-        rex(count, 0, cursor),
-        0x39,
-        modrm(3, count, cursor),
-        0x72,
-        0xe7,
-    ]);
+    append_increment(&mut bytes, cursor);
+    append_register_compare(&mut bytes, count, cursor);
+    // jb back to the load.
+    bytes.extend([0x72, 0xe7]);
     validate(physical, alternative, operands, displacement, &bytes)
 }
 
@@ -143,20 +130,14 @@ fn request(
     operands: &[RegisterViewId],
     displacement: u32,
 ) -> Result<[u8; 5], X86_64SelectedFormEncodingError> {
-    super::request_validation::guard_canonical(physical)?;
-    if displacement != 0
-        || alternative
-            != (MachineAlternativeKey {
-                family: MachineAlternativeFamily::CopyBytes,
-                variant: 0,
-            })
-    {
-        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
-    }
-    let registers: [u8; 5] = resolve_registers(physical, operands)?
-        .try_into()
-        .map_err(|_| X86_64SelectedFormEncodingError::OperandCountMismatch)?;
-    if registers[..3].contains(&registers[3]) || registers[..4].contains(&registers[4]) {
+    let registers = byte_loop_registers::<5>(
+        physical,
+        alternative,
+        MachineAlternativeFamily::CopyBytes,
+        operands,
+        3,
+    )?;
+    if displacement != 0 {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
     Ok(registers)
@@ -244,14 +225,10 @@ mod tests {
             assert_eq!(encoded.bytes().len(), 36);
             assert_eq!(encoded.footprint().register_reads, operands[..3]);
             assert_eq!(encoded.footprint().register_writes, operands[3..]);
-            for bit in 0..encoded.bytes().len() * 8 {
-                let mut changed = encoded.bytes().to_vec();
-                changed[bit / 8] ^= 1 << (bit % 8);
-                assert!(
-                    validate(&physical, alternative, &operands, 0, &changed).is_err(),
-                    "bit {bit}"
-                );
-            }
+            crate::selected_form_encoding::assert_every_bit_flip_rejected(
+                encoded.bytes(),
+                |changed| validate(&physical, alternative, &operands, 0, changed).is_err(),
+            );
             super::super::assert_byte_fragility(encoded.bytes(), |bytes| {
                 validate(&physical, alternative, &operands, 0, bytes).is_err()
             });

@@ -29,7 +29,7 @@
 
 use super::exploration::{ValueShape, admitted_predicate_machine, value_shape};
 use crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning;
-use crate::proof_contracts::contract_entailment::{
+use crate::{
     ScopedArithmeticComparison as Comparison, ScopedArithmeticValue as Integer,
     scoped_arithmetic_comparisons_unsatisfiable,
 };
@@ -43,8 +43,19 @@ use typed_trees::statement::{
 };
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+mod exact_conditions;
+mod read_subjects;
+pub(super) use exact_conditions::exact_conjunction;
+mod record_observations;
+mod storage;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Value {
+    Record {
+        identity: usize,
+        reference: TypeReferenceHandle,
+        projection: Vec<facts::PlaceSegment>,
+    },
     Integer {
         value: Integer,
         carrier: Option<TypeReferenceHandle>,
@@ -60,6 +71,8 @@ enum Value {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Boolean {
     Constant(bool),
+    /// Private two-valued observation. It never becomes an integer subject.
+    Variable(Integer),
     Comparison(Comparison),
     And(Box<Self>, Box<Self>),
     Or(Box<Self>, Box<Self>),
@@ -91,6 +104,7 @@ struct Path {
     comparisons: Vec<Comparison>,
     clauses: Vec<Clause>,
     observations: Vec<Observation>,
+    storage: Vec<storage::Home>,
 }
 
 #[derive(Clone)]
@@ -98,6 +112,7 @@ struct Frame {
     machine: usize,
     state: usize,
     bindings: Vec<(SymbolHandle, Value)>,
+    storage: Vec<storage::Binding>,
 }
 
 struct Lemma {
@@ -135,6 +150,8 @@ struct Implication<'program> {
     next_identity: usize,
     lemmas: Vec<Lemma>,
     updates: Vec<CollectionUpdate>,
+    records: Vec<record_observations::Observation>,
+    record_updates: Vec<record_observations::Update>,
     antecedents: Vec<Boolean>,
 }
 
@@ -160,6 +177,8 @@ pub(super) fn proves(
         next_identity: 0,
         lemmas: Vec::new(),
         updates: Vec::new(),
+        records: Vec::new(),
+        record_updates: Vec::new(),
         antecedents: Vec::new(),
     };
     let started = std::time::Instant::now();
@@ -184,6 +203,180 @@ pub(super) fn proves(
     proved
 }
 
+/// The same consequence judgment used by helper theorems, projected onto
+/// integer argument pairs. Start with complete carrier domains: a convenient
+/// caller bound, the callee's desired ensures, or an unproved goal never seeds
+/// the proof. The caller separately establishes availability and actual identity.
+pub(super) fn ordering_consequences(
+    program: &dyn crate::CheckingInput,
+    application: &super::PredicateApplication<'_>,
+) -> Vec<super::PredicateOrderingConsequence> {
+    ordering_relations(program, application, RelationMeaning::Necessary)
+}
+
+pub(super) fn exact_ordering(
+    program: &dyn crate::CheckingInput,
+    application: &super::PredicateApplication<'_>,
+) -> Option<super::PredicateOrderingConsequence> {
+    ordering_relations(program, application, RelationMeaning::Equivalent)
+        .into_iter()
+        .next()
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RelationMeaning {
+    Necessary,
+    Equivalent,
+}
+
+fn ordering_relations(
+    program: &dyn crate::CheckingInput,
+    application: &super::PredicateApplication<'_>,
+    meaning: RelationMeaning,
+) -> Vec<super::PredicateOrderingConsequence> {
+    let machine = &program.machines()[application.machine];
+    let Some(entry) = program.machine_states(machine).first() else {
+        return Vec::new();
+    };
+    let parameters = program.state_parameters(entry);
+    if parameters.len() != application.arguments.len() {
+        return Vec::new();
+    }
+    let mut proof = Implication {
+        program,
+        context: machine,
+        remaining: WORK_BUDGET,
+        next_identity: 0,
+        lemmas: Vec::new(),
+        updates: Vec::new(),
+        records: Vec::new(),
+        record_updates: Vec::new(),
+        antecedents: Vec::new(),
+    };
+    let mut path = Path::default();
+    let Some(arguments) = parameters
+        .iter()
+        .map(|parameter| proof.parameter(parameter.type_reference, &mut path))
+        .collect::<Option<Vec<_>>>()
+    else {
+        return Vec::new();
+    };
+    let mut subjects = Vec::new();
+    for ((parameter, argument), value) in parameters
+        .iter()
+        .zip(application.arguments.iter())
+        .zip(&arguments)
+    {
+        if proof
+            .integer_subjects(
+                *argument,
+                parameter.type_reference,
+                value.clone(),
+                &mut path,
+                &mut subjects,
+                0,
+            )
+            .is_none()
+        {
+            return Vec::new();
+        }
+    }
+    let frame = Frame {
+        machine: application.machine,
+        state: 0,
+        storage: Vec::new(),
+        bindings: parameters
+            .iter()
+            .zip(&arguments)
+            .map(|(parameter, value)| (parameter.symbol, value.clone()))
+            .collect(),
+    };
+    let subjects = subjects
+        .into_iter()
+        .map(|(subject, value)| (super::PredicateIntegerOperand::Argument(subject), value))
+        .collect();
+    let Some(candidates) = proof.runtime_read_subjects(application, &frame, path, subjects) else {
+        return Vec::new();
+    };
+    let Some((_, roster)) = candidates.first() else {
+        return Vec::new();
+    };
+    let mut consequences = Vec::new();
+    for left_position in 0..roster.len() {
+        for right_position in (left_position + 1)..roster.len() {
+            for operator in [
+                BinaryOperator::NotEqual,
+                BinaryOperator::Equal,
+                BinaryOperator::Less,
+                BinaryOperator::LessOrEqual,
+                BinaryOperator::Greater,
+                BinaryOperator::GreaterOrEqual,
+            ] {
+                let mut proved = true;
+                for (path, subjects) in &candidates {
+                    let goal = Boolean::Comparison(compare(
+                        operator,
+                        subjects[left_position].1.clone(),
+                        subjects[right_position].1.clone(),
+                    ));
+                    // The goal and body share this original full-carrier frame;
+                    // every read-equality branch remains a separate obligation.
+                    if proof.spend().is_none() {
+                        return consequences;
+                    }
+                    if proof.generalized_activation(
+                        application.machine,
+                        0,
+                        arguments.clone(),
+                        path.clone(),
+                        &goal,
+                        Judgment::Consequence,
+                        0,
+                    ) != Some(true)
+                    {
+                        proved = false;
+                        break;
+                    }
+                    if meaning == RelationMeaning::Equivalent {
+                        let Some(Some(converse_path)) = proof.assume(path.clone(), &goal, true)
+                        else {
+                            proved = false;
+                            break;
+                        };
+                        if proof.generalized_activation(
+                            application.machine,
+                            0,
+                            arguments.clone(),
+                            converse_path,
+                            &Boolean::Constant(true),
+                            Judgment::RequiredResult,
+                            0,
+                        ) != Some(true)
+                        {
+                            proved = false;
+                            break;
+                        }
+                    }
+                }
+                if proved {
+                    consequences.push(super::PredicateOrderingConsequence {
+                        left: roster[left_position].0.clone(),
+                        right: roster[right_position].0.clone(),
+                        operator,
+                    });
+                    if meaning == RelationMeaning::Equivalent {
+                        return consequences;
+                    }
+                }
+                if proof.remaining == 0 {
+                    return consequences;
+                }
+            }
+        }
+    }
+    consequences
+}
+
 /// Steps one theorem judgment may spend across its activations, reads,
 /// assumptions, expression evaluations and statement visits before it
 /// stands down.
@@ -206,11 +399,18 @@ impl Implication<'_> {
             };
             bindings.push((parameter.symbol, value));
         }
-        let frame = Frame {
+        let mut frame = Frame {
             machine: machine_position,
             state: 0,
             bindings,
+            storage: Vec::new(),
         };
+        if self
+            .seed_body_storage(&mut frame, &mut path, program.state_parameters(entry))
+            .is_none()
+        {
+            return false;
+        }
         let mut candidates = vec![(path, Vec::<Boolean>::new())];
         for premise in program.contract_expressions(
             program.machine_contracts(machine).iter(),
@@ -248,8 +448,9 @@ impl Implication<'_> {
             };
             for (mut frame, path) in exits {
                 // Ensures expressions are authored in entry scope even when a
-                // different state returns. Bindings retain exact symbol identity
-                // and current collection versions across the state transfer.
+                // terminal callee returns. Bindings retain exact symbol identity
+                // and current collection versions across explicit arguments.
+                frame.machine = machine_position;
                 frame.state = 0;
                 let Some(goals) = self.expression(&frame, path, goal, 0) else {
                     return false;
@@ -331,7 +532,8 @@ impl Implication<'_> {
     /// recurrent mutating state needs a store invariant; it is not unrolled
     /// here. Predicate recurrence below has its separate checked induction.
     fn body_exits(&mut self, frame: Frame, path: Path) -> Option<Vec<(Frame, Path)>> {
-        let mut pending = vec![(0usize, frame, path, vec![0usize])];
+        let entry = (frame.machine, frame.state);
+        let mut pending = vec![(0usize, frame, path, vec![entry])];
         let mut exits = Vec::new();
         while let Some((position, frame, path, visited)) = pending.pop() {
             self.spend()?;
@@ -350,12 +552,7 @@ impl Implication<'_> {
                     if local.ordinary_value_initializer().is_some()
                         && local.relevance == language_core::BindingRelevance::Relevant =>
                 {
-                    for (path, value) in self.expression(&frame, path, local.initial_value, 0)? {
-                        let mut frame = frame.clone();
-                        frame.bindings.push((
-                            local.symbol,
-                            declared_value(self.program, value, local.type_reference)?,
-                        ));
+                    for (frame, path) in self.body_local(&frame, path, local)? {
                         pending.push((position + 1, frame, path, visited.clone()));
                     }
                 }
@@ -393,8 +590,35 @@ impl Implication<'_> {
                             {
                                 TransitionTargetNode::Terminal => exits.push((frame.clone(), path)),
                                 TransitionTargetNode::Value(value) => {
-                                    for (path, _) in self.expression(&frame, path, *value, 0)? {
-                                        exits.push((frame.clone(), path));
+                                    // Terminal machine calls have already normalized to
+                                    // ordinary Call values. Execute the exact invocation;
+                                    // evaluating it as a Boolean predicate would lose writes.
+                                    if let ExpressionNode::Call(call) =
+                                        self.program.expression_table.expression(*value)
+                                    {
+                                        if !call.is_ordinary_positional_call() {
+                                            return None;
+                                        }
+                                        for (frame, path) in self.body_invocation(
+                                            &frame,
+                                            path,
+                                            call.target_symbol,
+                                            self.program
+                                                .expression_table
+                                                .expression_handles(call.arguments),
+                                        )? {
+                                            let destination = (frame.machine, frame.state);
+                                            if visited.contains(&destination) {
+                                                return None;
+                                            }
+                                            let mut visited = visited.clone();
+                                            visited.push(destination);
+                                            pending.push((0, frame, path, visited));
+                                        }
+                                    } else {
+                                        for (path, _) in self.expression(&frame, path, *value, 0)? {
+                                            exits.push((frame.clone(), path));
+                                        }
                                     }
                                 }
                                 TransitionTargetNode::Named {
@@ -406,36 +630,15 @@ impl Implication<'_> {
                                 } if !static_machine_parameter.is_valid()
                                     && evidence_arguments.is_empty() =>
                                 {
-                                    let destination = typed_trees::state::state_position(
-                                        self.program.machine_states(machine),
-                                        target.symbol,
-                                    )?;
-                                    if visited.contains(&destination) {
-                                        return None;
-                                    }
-                                    let parameters = self.program.state_parameters(
-                                        &self.program.machine_states(machine)[destination],
-                                    );
-                                    for (path, arguments) in self.arguments(
+                                    for (frame, path) in self.body_invocation(
                                         &frame,
                                         path,
+                                        target.symbol,
                                         self.program.statement_table.expression_handles(*arguments),
-                                        0,
                                     )? {
-                                        if parameters.len() != arguments.len() {
+                                        let destination = (frame.machine, frame.state);
+                                        if visited.contains(&destination) {
                                             return None;
-                                        }
-                                        let mut frame = frame.clone();
-                                        frame.state = destination;
-                                        for (parameter, value) in parameters.iter().zip(arguments) {
-                                            frame.bindings.push((
-                                                parameter.symbol,
-                                                declared_value(
-                                                    self.program,
-                                                    value,
-                                                    parameter.type_reference,
-                                                )?,
-                                            ));
                                         }
                                         let mut visited = visited.clone();
                                         visited.push(destination);
@@ -448,8 +651,32 @@ impl Implication<'_> {
                     }
                 }
                 StatementNode::Expression(expression) if position + 1 == statements.len() => {
-                    for (path, _) in self.expression(&frame, path, *expression, 0)? {
-                        exits.push((frame.clone(), path));
+                    if let ExpressionNode::Call(call) =
+                        self.program.expression_table.expression(*expression)
+                    {
+                        if !call.is_ordinary_positional_call() {
+                            return None;
+                        }
+                        for (frame, path) in self.body_invocation(
+                            &frame,
+                            path,
+                            call.target_symbol,
+                            self.program
+                                .expression_table
+                                .expression_handles(call.arguments),
+                        )? {
+                            let destination = (frame.machine, frame.state);
+                            if visited.contains(&destination) {
+                                return None;
+                            }
+                            let mut visited = visited.clone();
+                            visited.push(destination);
+                            pending.push((0, frame, path, visited));
+                        }
+                    } else {
+                        for (path, _) in self.expression(&frame, path, *expression, 0)? {
+                            exits.push((frame.clone(), path));
+                        }
                     }
                 }
                 _ => return None,
@@ -458,78 +685,85 @@ impl Implication<'_> {
         Some(exits)
     }
 
-    fn assignment(
+    /// Bind one supported terminal invocation simultaneously. Caller bindings
+    /// remain live aliases so writes update the actual caller-visible version;
+    /// Requires snapshots remain separate antecedents. No callee contract or
+    /// pending postcondition is imported as evidence for its executable body.
+    fn body_invocation(
         &mut self,
         frame: &Frame,
         path: Path,
-        target: ExpressionHandle,
-        source: ExpressionHandle,
+        target: SymbolHandle,
+        arguments: &[ExpressionHandle],
     ) -> Option<Vec<(Frame, Path)>> {
-        let machine = &self.program.machines()[frame.machine];
-        let state = &self.program.machine_states(machine)[frame.state];
-        let ExpressionNode::Indexed(indexed) = self.program.expression_table.expression(target)
-        else {
-            return None;
-        };
-        if !crate::value_custody::places::place_has_builtin_coordinates(
-            self.program,
-            machine,
-            Some(state),
-            target,
-        ) {
-            return None;
-        }
-        let mut result = Vec::new();
-        for (path, collection) in self.expression(frame, path, indexed.collection, 0)? {
-            let Value::Collection {
-                identity: previous,
-                length,
-                element,
-            } = collection
-            else {
+        let caller = &self.program.machines()[frame.machine];
+        let destination = if let Some(state) =
+            typed_trees::state::state_position(self.program.machine_states(caller), target)
+                .filter(|position| *position != 0)
+        {
+            (frame.machine, state)
+        } else {
+            let (position, callee) =
+                self.program
+                    .machines()
+                    .iter()
+                    .enumerate()
+                    .find(|(_, callee)| {
+                        callee.symbol == target
+                            || self
+                                .program
+                                .machine_states(callee)
+                                .first()
+                                .is_some_and(|entry| entry.symbol == target)
+                    })?;
+            // Unknown or incomplete provider bodies cannot acquire preservation
+            // from an empty statement roster. Static applications need their
+            // own exact telescope; lexical ancestry supplies no runtime values.
+            if callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+                || !callee.body_is_present
+                || callee.structural_type_equations_pending
+                || callee.suspends
+                || callee.blocks
+                || !callee.type_parameters.is_empty()
+                || !self.program.machine_owned_data(callee).is_empty()
+                || !self
+                    .program
+                    .service_reach_rows
+                    .services(callee.service_reach_row)
+                    .is_empty()
+            {
                 return None;
-            };
-            for (path, selector) in self.expression(frame, path, indexed.index, 0)? {
-                let Value::Integer {
-                    value: selector, ..
-                } = selector
-                else {
-                    return None;
-                };
-                if !self.implies(
-                    &path,
-                    &compare(BinaryOperator::GreaterOrEqual, selector.clone(), number(0)),
-                ) || !self.implies(
-                    &path,
-                    &compare(BinaryOperator::Less, selector.clone(), length.clone()),
-                ) {
-                    return None;
-                }
-                for (path, value) in self.expression(frame, path, source, 0)? {
-                    let value = declared_value(self.program, value, element)?;
-                    let identity = self.next_identity;
-                    self.next_identity += 1;
-                    self.updates.push(CollectionUpdate {
-                        identity,
-                        previous,
-                        selector: selector.clone(),
-                        value,
-                    });
-                    let mut frame = frame.clone();
-                    for (_, value) in &mut frame.bindings {
-                        if let Value::Collection {
-                            identity: current, ..
-                        } = value
-                            && *current == previous
-                        {
-                            *current = identity;
-                        }
-                    }
-                    result.push((frame, path));
-                }
             }
+            (position, 0)
+        };
+        let state = &self
+            .program
+            .machine_states(&self.program.machines()[destination.0])[destination.1];
+        let parameters = self.program.state_parameters(state);
+        // These are already captured runtime actuals, including readable
+        // exclusive references (marked is_mutable in the typed signature). Predicate induction's fresh-formal admission
+        // deliberately accepts shared references only; it is not this binder.
+        // Binding retains exact reference backing or creates an independent
+        // owned home; ordinary source admission still owns access and custody.
+        if parameters.len() != arguments.len()
+            || parameters
+                .iter()
+                .any(|parameter| parameter.is_const || parameter.relevance.is_erased())
+        {
+            return None;
         }
-        Some(result)
+        self.body_arguments(frame, path, arguments, parameters)?
+            .into_iter()
+            .map(|(mut path, arguments)| {
+                let mut frame = frame.clone();
+                frame.machine = destination.0;
+                frame.state = destination.1;
+                for (parameter, argument) in parameters.iter().zip(arguments) {
+                    self.bind_body_storage(&mut frame, &mut path, parameter.symbol, argument)?;
+                }
+                Some((frame, path))
+            })
+            .collect()
     }
 
     fn spend(&mut self) -> Option<()> {
@@ -544,6 +778,13 @@ impl Implication<'_> {
             identity: format!("collection-proof:{identity}"),
             unsigned,
         }
+    }
+
+    fn boolean(&mut self, path: &mut Path) -> Option<Value> {
+        self.spend()?;
+        let value = self.atom(true);
+        boolean_bounds(path, &value);
+        Some(Value::Boolean(Boolean::Variable(value)))
     }
 
     fn integer(&mut self, carrier: TypeReferenceHandle, path: &mut Path) -> Option<Value> {
@@ -596,7 +837,16 @@ impl Implication<'_> {
                     element: element_type,
                 })
             }
-            ValueShape::Boolean => None,
+            ValueShape::Record(reference) => {
+                let identity = self.next_identity;
+                self.next_identity += 1;
+                Some(Value::Record {
+                    identity,
+                    reference,
+                    projection: Vec::new(),
+                })
+            }
+            ValueShape::Boolean => self.boolean(path),
         }
     }
 
@@ -728,9 +978,19 @@ impl Implication<'_> {
         }
         match goal {
             Boolean::Constant(value) => *value,
+            Boolean::Variable(value) => self.implies(
+                path,
+                &compare(BinaryOperator::Equal, value.clone(), number(1)),
+            ),
             Boolean::Comparison(comparison) => self.implies(path, comparison),
             Boolean::And(left, right) => self.entails(path, left) && self.entails(path, right),
-            Boolean::Or(left, right) => self.entails(path, left) || self.entails(path, right),
+            Boolean::Or(left, right) => {
+                self.entails(path, left)
+                    || self.entails(path, right)
+                    || self
+                        .assume_readonly(path, goal, false)
+                        .is_some_and(|assumed| assumed.is_none_or(|path| self.impossible(&path)))
+            }
             Boolean::Not(value) => self
                 .assume_readonly(path, value, true)
                 .is_some_and(|assumed| assumed.is_none_or(|path| self.impossible(&path))),
@@ -845,6 +1105,14 @@ impl Implication<'_> {
                 {
                     return None;
                 }
+                if let Some(binding) = frame
+                    .storage
+                    .iter()
+                    .rev()
+                    .find(|binding| binding.symbol == name.symbol)
+                {
+                    return self.storage_value(path, &binding.place);
+                }
                 let value = frame
                     .bindings
                     .iter()
@@ -876,6 +1144,18 @@ impl Implication<'_> {
                         ))
                     })
                     .collect()
+            }
+            ExpressionNode::Member(member) => {
+                let symbol = crate::value_custody::places::effective_member_symbol(
+                    self.program,
+                    member.receiver,
+                    member,
+                );
+                let mut result = Vec::new();
+                for (path, receiver) in self.expression(frame, path, member.receiver, depth + 1)? {
+                    result.push(self.record_member(path, receiver, symbol)?);
+                }
+                Some(result)
             }
             ExpressionNode::Indexed(indexed) => {
                 if !crate::value_custody::places::place_has_builtin_coordinates(
@@ -1191,12 +1471,7 @@ impl Implication<'_> {
         let owner = self.program.machines().get(machine)?;
         let target = self.program.machine_states(owner).get(state)?;
         let parameters = self.program.state_parameters(target);
-        if parameters.len() != arguments.len()
-            || parameters.iter().any(|parameter| {
-                parameter.is_mutable
-                    || value_shape(self.program, parameter.type_reference).is_none()
-            })
-        {
+        if !admitted_activation_parameters(self.program, parameters, arguments.len()) {
             return None;
         }
         let mut recurrent = false;
@@ -1211,6 +1486,14 @@ impl Implication<'_> {
             }
             recurrent = true;
             let replacements = substitutions(self.program, &lemma.arguments, &arguments)?;
+            // The induction hypothesis concludes the instantiated goal. A
+            // decrease alone cannot prove the old goal when that conclusion
+            // mentions a changed formal (P(a - 1, b) need not imply a != b).
+            // Existing observation goals stay outside generalized rank names;
+            // direct relation queries additionally require this exact check.
+            if substitute_boolean(&lemma.goal, &replacements) != *goal {
+                continue;
+            }
             if !lemma
                 .premises
                 .iter()
@@ -1249,19 +1532,7 @@ impl Implication<'_> {
             return None;
         }
         // Keep a dependent transfer inside its enclosing induction scope.
-        let dependent = arguments.iter().any(|argument| {
-            let Value::Integer { value, .. } = argument else {
-                return false;
-            };
-            self.lemmas.iter().any(|lemma| {
-                lemma.arguments.iter().any(|formal| {
-                    let Value::Integer { value: formal, .. } = formal else {
-                        return false;
-                    };
-                    contains(value, formal)
-                })
-            })
-        });
+        let dependent = self.depends_on_enclosing_activation(&arguments, &path)?;
         let mut generalized = parameters
             .iter()
             .zip(&arguments)
@@ -1286,6 +1557,18 @@ impl Implication<'_> {
                             identity: *identity,
                             length: length.clone(),
                             element: element_type,
+                        },
+                        (
+                            ValueShape::Record(reference),
+                            Value::Record {
+                                identity,
+                                projection,
+                                ..
+                            },
+                        ) => Value::Record {
+                            identity: *identity,
+                            reference,
+                            projection: projection.clone(),
                         },
                         (ValueShape::Boolean, Value::Boolean(value)) => {
                             Value::Boolean(value.clone())
@@ -1361,12 +1644,98 @@ impl Implication<'_> {
             }
             path.comparisons.extend(formal_bounds);
         }
+        self.generalized_activation(machine, state, generalized, path, goal, judgment, depth)
+    }
+
+    fn depends_on_enclosing_activation(
+        &mut self,
+        arguments: &[Value],
+        path: &Path,
+    ) -> Option<bool> {
+        let formals = self
+            .lemmas
+            .iter()
+            .flat_map(|lemma| lemma.arguments.iter().cloned())
+            .collect::<Vec<_>>();
+        for argument in arguments {
+            let Value::Integer { value, .. } = argument else {
+                continue;
+            };
+            for formal in &formals {
+                self.spend()?;
+                match formal {
+                    Value::Integer { value: formal, .. } if contains(value, formal) => {
+                        return Some(true);
+                    }
+                    Value::Collection { identity, .. }
+                        if self.collection_observes_integer(*identity, value, path)? =>
+                    {
+                        return Some(true);
+                    }
+                    Value::Record {
+                        identity,
+                        projection,
+                        ..
+                    } => {
+                        if self.record_observes_integer(*identity, projection, value, path)? {
+                            return Some(true);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Some(false)
+    }
+
+    fn collection_observes_integer(
+        &mut self,
+        identity: usize,
+        value: &Integer,
+        path: &Path,
+    ) -> Option<bool> {
+        for observation in &path.observations {
+            self.spend()?;
+            if observation.collection == identity
+                && let Value::Integer {
+                    value: observed, ..
+                } = &observation.value
+                && contains(value, observed)
+            {
+                return Some(true);
+            }
+        }
+        Some(false)
+    }
+
+    /// Check one already-generalized formal frame. Call activation prepares
+    /// it by freshening caller values; a generic relation query constructs its
+    /// full-carrier formals directly. Both enter the same contract, all-return
+    /// and well-founded induction judgment without changing goal identities.
+    fn generalized_activation(
+        &mut self,
+        machine: usize,
+        state: usize,
+        arguments: Vec<Value>,
+        path: Path,
+        goal: &Boolean,
+        judgment: Judgment,
+        depth: usize,
+    ) -> Option<bool> {
+        let owner = self.program.machines().get(machine)?;
+        let target = self.program.machine_states(owner).get(state)?;
+        let parameters = self.program.state_parameters(target);
+        if !admitted_activation_parameters(self.program, parameters, arguments.len()) {
+            return None;
+        }
+        let dependent = self.depends_on_enclosing_activation(&arguments, &path)?;
         let frame = Frame {
             machine,
             state,
+            storage: Vec::new(),
             bindings: parameters
                 .iter()
-                .zip(&generalized)
+                .zip(&arguments)
                 .map(|(parameter, value)| (parameter.symbol, value.clone()))
                 .collect(),
         };
@@ -1396,7 +1765,7 @@ impl Implication<'_> {
         let mut result = true;
         for path in paths {
             if !dependent {
-                let measures = generalized
+                let measures = arguments
                     .iter()
                     .enumerate()
                     .filter(|(_, value)| matches!(value, Value::Integer { .. }))
@@ -1410,7 +1779,7 @@ impl Implication<'_> {
                 self.lemmas.push(Lemma {
                     machine,
                     state,
-                    arguments: generalized.clone(),
+                    arguments: arguments.clone(),
                     premises: path.comparisons.clone(),
                     premise_clauses: path.clauses.clone(),
                     measures,
@@ -1601,6 +1970,20 @@ impl Implication<'_> {
     }
 }
 
+/// One admission policy for caller-derived and directly generalized frames.
+/// readable_shape adapts an already admitted read; it must not silently admit
+/// mutable-reference proof formals when a relation query constructs its frame.
+pub(super) fn admitted_activation_parameters(
+    program: &dyn crate::CheckingInput,
+    parameters: &[typed_trees::signature::StateParameter],
+    argument_count: usize,
+) -> bool {
+    parameters.len() == argument_count
+        && parameters.iter().all(|parameter| {
+            !parameter.is_mutable && value_shape(program, parameter.type_reference).is_some()
+        })
+}
+
 fn number(value: i128) -> Integer {
     Integer::Integer(BigInt::from_i128(value))
 }
@@ -1635,6 +2018,7 @@ fn integer_atoms(value: &Integer, atoms: &mut Vec<Integer>) {
 
 fn boolean_atoms(value: &Boolean, atoms: &mut Vec<Integer>) {
     match value {
+        Boolean::Variable(value) => integer_atoms(value, atoms),
         Boolean::Comparison(comparison) => {
             integer_atoms(&comparison.left, atoms);
             integer_atoms(&comparison.right, atoms);
@@ -1666,6 +2050,52 @@ fn substitute(value: &Integer, replacements: &[(Integer, Integer)]) -> Integer {
     }
 }
 
+fn substitute_value(value: &Value, replacements: &[(Integer, Integer)]) -> Value {
+    match value {
+        Value::Record { .. } => value.clone(),
+        Value::Integer { value, carrier } => Value::Integer {
+            value: substitute(value, replacements),
+            carrier: *carrier,
+        },
+        Value::Collection {
+            identity,
+            length,
+            element,
+        } => Value::Collection {
+            identity: *identity,
+            length: substitute(length, replacements),
+            element: *element,
+        },
+        Value::Boolean(value) => Value::Boolean(substitute_boolean(value, replacements)),
+    }
+}
+
+fn substitute_boolean(value: &Boolean, replacements: &[(Integer, Integer)]) -> Boolean {
+    match value {
+        Boolean::Constant(value) => Boolean::Constant(*value),
+        Boolean::Variable(value) => Boolean::Variable(substitute(value, replacements)),
+        Boolean::Comparison(comparison) => {
+            Boolean::Comparison(substitute_comparison(comparison, replacements))
+        }
+        Boolean::And(left, right) => Boolean::And(
+            Box::new(substitute_boolean(left, replacements)),
+            Box::new(substitute_boolean(right, replacements)),
+        ),
+        Boolean::Or(left, right) => Boolean::Or(
+            Box::new(substitute_boolean(left, replacements)),
+            Box::new(substitute_boolean(right, replacements)),
+        ),
+        Boolean::Not(value) => Boolean::Not(Box::new(substitute_boolean(value, replacements))),
+        Boolean::Call { machine, arguments } => Boolean::Call {
+            machine: *machine,
+            arguments: arguments
+                .iter()
+                .map(|argument| substitute_value(argument, replacements))
+                .collect(),
+        },
+    }
+}
+
 fn substitute_comparison(
     comparison: &Comparison,
     replacements: &[(Integer, Integer)],
@@ -1690,11 +2120,31 @@ const SPLIT_CONSULTATIONS: usize = 256;
 /// Clauses one assumption may expand to; a wider distribution is declined.
 const MAXIMUM_CLAUSES: usize = 64;
 
+/// This internal solver carrier records only Boolean truth. It supplies no
+/// executable integer value, arithmetic carrier or source comparison meaning.
+fn boolean_bounds(path: &mut Path, value: &Integer) {
+    path.comparisons.push(compare(
+        BinaryOperator::GreaterOrEqual,
+        value.clone(),
+        number(0),
+    ));
+    path.comparisons.push(compare(
+        BinaryOperator::LessOrEqual,
+        value.clone(),
+        number(1),
+    ));
+}
+
 /// `value == holds` in conjunctive normal form over comparisons. No clause
 /// is `true`; an empty clause is `false`. A predicate call has no
 /// comparison form.
 fn clauses(value: &Boolean, holds: bool) -> Option<Vec<Clause>> {
     match value {
+        Boolean::Variable(value) => Some(vec![vec![compare(
+            BinaryOperator::Equal,
+            value.clone(),
+            number(i128::from(holds)),
+        )]]),
         Boolean::Constant(value) => Some(if *value == holds {
             Vec::new()
         } else {
@@ -1838,6 +2288,18 @@ fn declared_value(
             length,
             element: element_type,
         },
+        (
+            ValueShape::Record(reference),
+            Value::Record {
+                identity,
+                projection,
+                ..
+            },
+        ) => Value::Record {
+            identity,
+            reference,
+            projection,
+        },
         (ValueShape::Boolean, Value::Boolean(value)) => Value::Boolean(value),
         _ => return None,
     })
@@ -1906,6 +2368,7 @@ fn substitutions(
                 && first_length == second_length
                 && program.primitive_type_reference(*first_element)
                     == program.primitive_type_reference(*second_element) => {}
+            (Value::Record { .. }, Value::Record { .. }) if formal == argument => {}
             _ => return None,
         }
     }

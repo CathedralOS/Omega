@@ -45,29 +45,29 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad_balance(main)
     }
 
-    state check_dispensed(main: &mut Main) {
+    machine check_dispensed(main: &mut Main) {
         transition main.register.dispensed == 75 {
             true -> good_verdict(main)
             false -> bad_dispensed(main)
         }
     }
 
-    state good_verdict(main: &mut Main) {
+    machine good_verdict(main: &mut Main) {
         Console::write_line("PASS: balance spent and 75c dispensed (exit 70)");
         transition { _ -> report(main, 70) }
     }
 
-    state bad_balance(main: &mut Main) {
+    machine bad_balance(main: &mut Main) {
         Console::write_line("FAIL: the balance was not fully spent (exit 71)");
         transition { _ -> report(main, 71) }
     }
 
-    state bad_dispensed(main: &mut Main) {
+    machine bad_dispensed(main: &mut Main) {
         Console::write_line("FAIL: dispensed total was not 75 cents (exit 72)");
         transition { _ -> report(main, 72) }
     }
 
-    state report(main: &mut Main, code: i32 in Saturating) {
+    machine report(main: &mut Main, code: i32 in Saturating) {
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(code as i32);
@@ -83,11 +83,11 @@ machine Main::apply(main: &mut Main, event: Event) {
         _ -> idle()
     }
 
-    state add_balance(main: &mut Main, cents: i32 in Saturating) {
+    machine add_balance(main: &mut Main, cents: i32 in Saturating) {
         main.register.balance = main.register.balance + cents;
     }
 
-    state try_dispense(main: &mut Main, slot: i32 in Saturating) {
+    machine try_dispense(main: &mut Main, slot: i32 in Saturating) {
         let price: i32 in Saturating = Main::price_of(slot);
         transition main.register.balance >= price {
             true -> dispense(main, price)
@@ -95,12 +95,12 @@ machine Main::apply(main: &mut Main, event: Event) {
         }
     }
 
-    state dispense(main: &mut Main, price: i32 in Saturating) {
+    machine dispense(main: &mut Main, price: i32 in Saturating) {
         main.register.dispensed = main.register.dispensed + price;
         main.register.balance = 0;
     }
 
-    state idle() {
+    machine idle() {
     }
 }
 
@@ -111,13 +111,13 @@ machine Main::price_of(slot: i32 in Saturating) -> i32 in Saturating {
         _ -> zero()
     }
 
-    state seventy_five() -> i32 in Saturating {
+    machine seventy_five() -> i32 in Saturating {
         transition {
             _ -> 75
         }
     }
 
-    state zero() -> i32 in Saturating {
+    machine zero() -> i32 in Saturating {
         transition {
             _ -> 0
         }

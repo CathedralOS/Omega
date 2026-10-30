@@ -1,0 +1,12 @@
+// Expected exit: 0
+// A public body is checked for arbitrary inputs, regardless of the known caller.
+machine same(left: u64, right: u64) -> u64 requires left == right { left }
+public machine public_value(left: u64, right: u64) -> u64 requires left == right {
+    let selected: u64 = match true { true -> left false -> left };
+    same(selected, right)
+}
+machine main() crashes Trap {
+    let first: u64 = public_value(7, 7); let second: u64 = public_value(9, 9);
+    transition first == 7 && second == 9 { true -> done() false -> bad() }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}

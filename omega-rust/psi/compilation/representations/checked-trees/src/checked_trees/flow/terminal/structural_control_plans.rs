@@ -13,7 +13,7 @@ use typed_trees::types::PrimitiveType;
 /// `EdgeCleanupPlan`: executable rows name only whole, claim-free affine
 /// parameters whose checked state-exit events can be realized as terminal-Psi
 /// trivial discards. Composed graphs use exact normal-exit actions instead.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralControlCleanupPlans {
     pub states: Vec<CheckedStructuralControlStateCleanupPlan>,
 }
@@ -42,7 +42,7 @@ impl CheckedStructuralControlCleanupPlans {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralControlStateCleanupPlan {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -51,7 +51,7 @@ pub struct CheckedStructuralControlStateCleanupPlan {
     pub edges: Vec<CheckedStructuralControlEdgeCleanupPlan>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralControlEdgeCleanupPlan {
     pub statement_ordinal: u32,
     pub target_state: SymbolHandle,
@@ -61,10 +61,24 @@ pub struct CheckedStructuralControlEdgeCleanupPlan {
     pub trivial_affine_discard_parameter_positions: Vec<u32>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Arrival and caller completion are separate: fusing a terminal invocation
+/// into a graph edge does not create a normal return from its callee.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedSuccessorCompletion {
+    StateArrival,
+    ReturningInvocation,
+    NoNormalInvocation,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralControlSuccessorPlan {
     pub statement_ordinal: u32,
     pub target_state: SymbolHandle,
+    /// A prepared executable occurrence of the authored target. Source plans
+    /// leave this absent; custody specialization can retain several occurrences
+    /// of one declaration without inventing new source symbols or facts.
+    pub target_occurrence: Option<u32>,
+    pub completion: CheckedSuccessorCompletion,
     /// Whether the transition selects the state's authored continuation
     /// rather than its ordinary target. Scalar terminators and the composed
     /// route share this one plan; a scalar edge carries only this identity
@@ -89,6 +103,7 @@ impl CheckedStructuralControlSuccessorPlan {
     pub fn new(
         statement_ordinal: u32,
         target_state: SymbolHandle,
+        completion: CheckedSuccessorCompletion,
         is_continuation: bool,
         transfers: Vec<CheckedStructuralControlTransferPlan>,
         scalar_arguments: Vec<CheckedStructuralScalarArgumentPlan>,
@@ -99,6 +114,8 @@ impl CheckedStructuralControlSuccessorPlan {
         CheckedStructuralControlSuccessorPlan {
             statement_ordinal,
             target_state,
+            target_occurrence: None,
+            completion,
             is_continuation,
             transfers,
             scalar_arguments,
@@ -121,12 +138,13 @@ impl CheckedStructuralControlSuccessorPlan {
                     operands,
                     establishment,
                     ..
-                } => Some((operands, establishment.as_ref())),
+                } => Some((operands, Some(establishment.as_ref()))),
+                CheckedStructuralControlTransferSourcePlan::EvaluateNoNormal { operations } => {
+                    Some((operations, None))
+                }
                 _ => None,
             })
-            .flat_map(|(operands, establishment)| {
-                operands.iter().chain(std::iter::once(establishment))
-            })
+            .flat_map(|(operands, establishment)| operands.iter().chain(establishment))
     }
 
     /// Calls retained by the complete selected-edge operand sequence.
@@ -135,9 +153,23 @@ impl CheckedStructuralControlSuccessorPlan {
             .flat_map(crate::CheckedUnitEffectOperationPlan::with_value_calls)
             .filter(|operation| operation.call().is_some())
     }
+
+    /// A normal source completion owes its selected lexical disposal. An
+    /// invocation without a return still evaluates operands and enters its
+    /// target; it does not invent disposal or domain-abandonment authority.
+    pub fn has_normal_caller_completion(&self) -> bool {
+        self.completion != CheckedSuccessorCompletion::NoNormalInvocation
+            && self.has_normal_continuation()
+    }
+
+    /// Operand evaluation can stop before any state arrival or transfer.
+    pub fn has_normal_continuation(&self) -> bool {
+        self.operand_operations()
+            .all(crate::CheckedUnitEffectOperationPlan::has_normal_continuation)
+    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralScalarArgumentPlan {
     /// Authored target-argument position retained as the checked expression
     /// coordinate.
@@ -158,7 +190,7 @@ impl Default for CheckedStructuralScalarArgumentPlan {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedStructuralScalarArgumentSourcePlan {
     /// Exact source scalar parameter, including its source-name binding checks.
     Parameter { index: u32 },
@@ -167,7 +199,7 @@ pub enum CheckedStructuralScalarArgumentSourcePlan {
     Expression,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralControlTransferPlan {
     pub source: CheckedStructuralControlTransferSourcePlan,
     pub target_parameter_index: u32,
@@ -176,13 +208,21 @@ pub struct CheckedStructuralControlTransferPlan {
     /// Reference construction syntax and intermediate descriptors do not name
     /// the ultimate home; operand-completion provenance does.
     pub retained_loan_backing: Option<u32>,
-    /// Local owned storage reached through the captured backing's contained
-    /// loans. Each pair is (dependent result binding, parent result binding).
+    /// Complete whole-operand ingress provenance from checked loan resources.
+    /// Empty supplies no ingress judgment. Descriptor storage is not ownership
+    /// of its referent; payload evaluation and retained parent debts stay separate.
+    pub incoming_loan_resources: Vec<arena::Handle<crate::CheckedCallBorrowLoanResource>>,
+    /// Owned storage reached through the captured backing's contained loans.
+    /// Each pair names the exact dependent and parent in the source frame.
     /// These lifetime edges grant neither relocation nor disposal authority.
-    pub retained_loan_parents: Vec<(u32, u32)>,
-    /// Local parents of this completed by-value operand's stored reference
-    /// leaves. The target parameter, not a constructor spelling, owns them.
-    pub retained_operand_parents: Vec<u32>,
+    pub retained_loan_parents: Vec<(
+        crate::CheckedUnitStructuralArgumentSourcePlan,
+        crate::CheckedUnitStructuralArgumentSourcePlan,
+    )>,
+    /// Local parents retained by this completed operand, including every
+    /// possible home of a selected reference. The exact target parameter
+    /// retains their lifetime; it gains no ownership or disposal authority.
+    pub retained_operand_parents: Vec<crate::CheckedUnitStructuralArgumentSourcePlan>,
 }
 
 impl Default for CheckedStructuralControlTransferPlan {
@@ -191,13 +231,14 @@ impl Default for CheckedStructuralControlTransferPlan {
             source: CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 },
             target_parameter_index: 0,
             retained_loan_backing: None,
+            incoming_loan_resources: Vec::new(),
             retained_loan_parents: Vec::new(),
             retained_operand_parents: Vec::new(),
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedStructuralControlTransferSourcePlan {
     /// Exact earlier state-local call result; rejoined to its producing operation.
     StructuralResult {
@@ -253,6 +294,12 @@ pub enum CheckedStructuralControlTransferSourcePlan {
         operands: CheckedOperandSequence,
         establishment: Box<crate::CheckedUnitEffectOperationPlan>,
         presentation: CheckedUnitStructuralArgumentPlan,
+    },
+    /// The selected edge stops while evaluating this required argument. The
+    /// remaining arguments and state arrival never execute; there is no
+    /// result home or presentation pretending to transfer to the destination.
+    EvaluateNoNormal {
+        operations: CheckedOperandSequence,
     },
     /// A borrowed-place argument loans the named subtree
     /// into the borrowed target parameter: the successor argument keeps the

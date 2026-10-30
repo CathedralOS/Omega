@@ -28,6 +28,6 @@ machine main() crashes Trap {
     let values: [u64; 4] = [1, 2, 4, 8];
     let indices: Indices = Indices { index_u8: 0, index_u16: 1, index_u32: 2, index_u64: 3, index_i8: 0, index_i16: 1, index_i32: 2, index_i64: 2 };
     transition read_all(values, &indices) == 12 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

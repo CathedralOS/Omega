@@ -12,6 +12,6 @@ reaches Output
         true -> walk(index + 1, limit)
         _ -> done()
     }
-    state done() { Provider::emit_byte(10); }
+    machine done() { Provider::emit_byte(10); }
 }
 machine program() reaches Output { walk(0, 4); }

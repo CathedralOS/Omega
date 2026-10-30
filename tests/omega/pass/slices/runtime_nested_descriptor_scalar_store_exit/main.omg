@@ -7,28 +7,28 @@ machine store<'storage>(groups: &mut [Group<'storage>], group: u64, window: u64,
         true -> select_window(groups, group, window, replacement)
         false -> done()
     }
-    state select_window(groups: &mut [Group<'storage>], group: u64, window: u64, replacement: i32)
+    machine select_window(groups: &mut [Group<'storage>], group: u64, window: u64, replacement: i32)
     requires group < groups.len {
         transition window < groups[group].windows.len {
             true -> select_cell(groups, group, window, replacement)
             false -> done()
         }
     }
-    state select_cell(groups: &mut [Group<'storage>], group: u64, window: u64, replacement: i32)
+    machine select_cell(groups: &mut [Group<'storage>], group: u64, window: u64, replacement: i32)
     requires group < groups.len && window < groups[group].windows.len {
         transition groups[group].windows[window].count < groups[group].windows[window].cells.len {
             true -> write(groups, group, window, replacement)
             false -> done()
         }
     }
-    state write(groups: &mut [Group<'storage>], group: u64, window: u64, replacement: i32)
+    machine write(groups: &mut [Group<'storage>], group: u64, window: u64, replacement: i32)
     requires group < groups.len && window < groups[group].windows.len
         && groups[group].windows[window].count < groups[group].windows[window].cells.len {
         let position: u64 = groups[group].windows[window].count;
         groups[group].windows[window].cells[position].value = replacement;
         groups[group].windows[window].count = groups[group].windows[window].count + 1;
     }
-    state done() {}
+    machine done() {}
 }
 machine main() crashes Trap {
     let mut cells: [Cell; 3] = [
@@ -44,6 +44,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

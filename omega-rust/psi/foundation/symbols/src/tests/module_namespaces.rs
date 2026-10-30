@@ -562,3 +562,83 @@ fn qualified_generic_domain_does_not_select_a_root_or_module_local_leaf() {
         );
     }
 }
+
+#[test]
+fn warmed_lookup_environment_tracks_module_registration_and_rename() {
+    let (mut symbols, declarations, _) = namespace_table(
+        [1, 2, 2],
+        vec![SourceScopedTopLevelBinding::module_import(
+            SourceId(0),
+            SourceId(1),
+            "dependency::api",
+            1,
+        )],
+    );
+    assert_eq!(data_reference(&symbols, 0, "Item"), Some(declarations[1]));
+    register_module(&mut symbols, 1, &["api"]);
+    assert_eq!(data_reference(&symbols, 0, "Item"), None);
+    assert_eq!(
+        data_reference(&symbols, 0, "dependency::api::Item"),
+        Some(declarations[1])
+    );
+
+    let module = symbols.source_module(SourceId(1));
+    let original = symbols.clone();
+    symbols.rename(module, "renamed");
+    assert_eq!(data_reference(&symbols, 0, "dependency::api::Item"), None);
+    assert_eq!(
+        data_reference(&symbols, 0, "dependency::renamed::Item"),
+        Some(declarations[1])
+    );
+    assert_eq!(
+        data_reference(&original, 0, "dependency::api::Item"),
+        Some(declarations[1])
+    );
+    assert_eq!(
+        data_reference(&original, 0, "dependency::renamed::Item"),
+        None
+    );
+}
+
+#[test]
+fn callable_roster_retains_all_visible_module_declarations() {
+    let (_, _, sources) = namespace_table([1, 1, 2], Vec::new());
+    let mut builder =
+        SymbolTableBuilder::with_sources_and_top_level_bindings(Some(sources), Vec::new());
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let declarations = SymbolTableBuilder::child_handles(builder.insert_children(
+        root,
+        (0..3).map(|_| {
+            (
+                SymbolKind::Machine,
+                SymbolNameRef::OwnedSource {
+                    value: "Item",
+                    source_span: reference(0),
+                },
+            )
+        }),
+    ))
+    .collect::<Vec<_>>();
+    let mut symbols = builder.finish();
+    register_module(&mut symbols, 0, &["math"]);
+    for name in ["Item", "math::Item"] {
+        assert_eq!(
+            symbols.top_level_candidates_from_source(name, &[SymbolKind::Machine], reference(0)),
+            declarations
+        );
+        assert!(matches!(
+            symbols.lookup_signature_free_top_level_from_source_matching(
+                name,
+                &[SymbolKind::Machine],
+                reference(0),
+                |_| true
+            ),
+            crate::SymbolLookup::Ambiguous { .. }
+        ));
+    }
+    assert!(
+        symbols
+            .top_level_candidates_from_source("math::Item", &[SymbolKind::Machine], reference(2))
+            .is_empty()
+    );
+}

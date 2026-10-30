@@ -1,12 +1,12 @@
-//! Value-position expression-call scanning and bound validation.
+//! Expression-call scanning with explicit value, statement and terminal use.
 //!
 //! The parent call validator owns shared argument/type rules. This child
 //! owns recursive expression traversal, value-callee resolution, and the
 //! diagnostics emitted at those scan sites.
 
 use super::{
-    free_machine_entry_state, machine_state_by_symbol, register_read_mnemonic,
-    selected_float_operation_retains_argument_policy, user_asm_contract,
+    call_carrier_matcher, free_machine_entry_state, machine_state_by_symbol,
+    register_read_mnemonic, selected_float_operation_retains_argument_policy, user_asm_contract,
     validate_asm_operand_constraint, validate_call_arguments,
     validate_machine_call_type_parameter_bounds, validate_value_call_arguments,
 };
@@ -142,13 +142,19 @@ struct ValueCallSite<'a> {
     call: &'a TableCallExpression,
     arguments: &'a [ExpressionHandle],
     executes: bool,
+    unit_completion: bool,
 }
 
 impl ValueCallSite<'_> {
     /// Every resolved callee owes the same checks, whichever route found it:
     /// a value-producing result, a concrete specialization, its type-parameter
     /// bounds, and argument arity and classes.
-    fn validate_callee(&self, callee: ValueCallee<'_>, diagnostics: &mut Vec<Diagnostic>) {
+    fn validate_callee(
+        &self,
+        callee: ValueCallee<'_>,
+        diagnostics: &mut Vec<Diagnostic>,
+        formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
+    ) {
         report_void_value_callee(
             self.program,
             callee.machine,
@@ -156,6 +162,7 @@ impl ValueCallSite<'_> {
             self.current_state,
             callee.state,
             self.expression,
+            self.unit_completion,
             diagnostics,
         );
         fence_generic_value_callee(
@@ -188,8 +195,17 @@ impl ValueCallSite<'_> {
             diagnostics,
             self.expression,
             self.call,
+            formation_obligations,
         );
     }
+}
+
+/// Only the direct root receives its actual use; descendants are values.
+#[derive(Clone, Copy)]
+enum CallExpressionUse {
+    Value,
+    Statement,
+    TerminalResult,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -202,10 +218,11 @@ fn validate_expression_call_bounds(
     value_environment: &ValueEnvironment,
     expression: ExpressionHandle,
     call: &TableCallExpression,
-    statement_root: bool,
+    expression_use: CallExpressionUse,
     executes: bool,
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     // A checked mathematical application in an erased initializer has no
     // machine entry or executable call obligations. Its complete dependent
@@ -225,13 +242,23 @@ fn validate_expression_call_bounds(
         // The outer scanner still visits the call's argument expressions.
         return;
     }
-    let unit_statement = statement_root
-        && crate::machine_calls::calls::unit_statement_call_is_admitted(
+    let unit_completion = match expression_use {
+        CallExpressionUse::Value => false,
+        CallExpressionUse::Statement => {
+            crate::machine_calls::calls::unit_statement_call_is_admitted(
+                program,
+                current_machine,
+                current_state,
+                expression,
+            )
+        }
+        CallExpressionUse::TerminalResult => super::unit_returns::call_completes_unit_state(
             program,
             current_machine,
             current_state,
             expression,
-        );
+        ),
+    };
     crate::proof_contracts::contract_entailment::validate_const_range_call(
         program,
         current_machine,
@@ -253,7 +280,7 @@ fn validate_expression_call_bounds(
         call.target_symbol,
     ) {
         Ok(Some(requirement)) => {
-            if !unit_statement
+            if !unit_completion
                 && (!requirement.signature.return_type.is_valid()
                     || matches!(
                         program
@@ -274,6 +301,7 @@ fn validate_expression_call_bounds(
                 &requirement,
                 writable_roots,
                 diagnostics,
+                formation_obligations,
             );
             return;
         }
@@ -293,7 +321,7 @@ fn validate_expression_call_bounds(
         call_arguments,
     ) {
         Ok(Some(dynamic)) => {
-            if !unit_statement
+            if !unit_completion
                 && (!dynamic.signature.return_type.is_valid()
                     || matches!(
                         program
@@ -314,6 +342,7 @@ fn validate_expression_call_bounds(
                 &dynamic,
                 writable_roots,
                 diagnostics,
+                formation_obligations,
             );
             return;
         }
@@ -324,7 +353,7 @@ fn validate_expression_call_bounds(
         Ok(None) => {}
     }
     if super::unit_returns::call_returns_unit(program, current_machine, expression)
-        && !unit_statement
+        && !unit_completion
     {
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` state `{}`: `{}(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local",
@@ -472,22 +501,16 @@ fn validate_expression_call_bounds(
             writable_roots.statements,
             selected_float_operation_retains_argument_policy(program, operator.symbol),
             &[],
-            |argument, required| {
-                crate::value_custody::expression_types::argument_matches_call_carrier(
-                    program,
-                    current_machine.symbol,
-                    argument,
-                    required,
-                    &[],
-                )
-            },
+            call_carrier_matcher(program, current_machine.symbol, &[]),
             diagnostics,
+            formation_obligations,
         );
         validate_named_float_to_integer_call(
             program,
             current_machine,
             current_state,
             value_environment,
+            expression,
             operator,
             arguments,
             diagnostics,
@@ -528,6 +551,7 @@ fn validate_expression_call_bounds(
         call,
         arguments,
         executes,
+        unit_completion,
     };
 
     // A named implementation qualifies its requirement call
@@ -540,7 +564,11 @@ fn validate_expression_call_bounds(
     {
         match machine_state_by_symbol(program, call.target_symbol) {
             Some((machine, state)) => {
-                site.validate_callee(ValueCallee::named(machine, state, call), diagnostics);
+                site.validate_callee(
+                    ValueCallee::named(machine, state, call),
+                    diagnostics,
+                    formation_obligations,
+                );
             }
             None => diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` state `{}`: {}",
@@ -576,16 +604,9 @@ fn validate_expression_call_bounds(
             writable_roots.statements,
             false,
             &[],
-            |argument, required| {
-                crate::value_custody::expression_types::argument_matches_call_carrier(
-                    program,
-                    current_machine.symbol,
-                    argument,
-                    required,
-                    &[],
-                )
-            },
+            call_carrier_matcher(program, current_machine.symbol, &[]),
             diagnostics,
+            formation_obligations,
         );
         return;
     }
@@ -596,7 +617,7 @@ fn validate_expression_call_bounds(
         if let Some(signature) =
             program.machine_parameter_signature_in(current_machine, call.target_symbol)
         {
-            if !signature.return_type.is_valid() && !unit_statement {
+            if !signature.return_type.is_valid() && !unit_completion {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` state `{}`: machine parameter `{}` does not return a value but is used in a VALUE position",
                     current_machine.name,
@@ -614,6 +635,7 @@ fn validate_expression_call_bounds(
                 &call.machine_arguments,
                 writable_roots,
                 diagnostics,
+                formation_obligations,
             );
             return;
         }
@@ -635,7 +657,7 @@ fn validate_expression_call_bounds(
                     .map(|(machine, state)| ValueCallee::named(machine, state, call))
             });
         if let Some(callee) = callee {
-            site.validate_callee(callee, diagnostics);
+            site.validate_callee(callee, diagnostics, formation_obligations);
             return;
         }
         report_unresolved_value_call(
@@ -720,6 +742,7 @@ fn validate_expression_call_bounds(
         site.validate_callee(
             ValueCallee::declared(callee_machine, callee_state),
             diagnostics,
+            formation_obligations,
         );
         return;
     }
@@ -741,6 +764,7 @@ fn validate_named_float_to_integer_call(
     current_machine: &Machine,
     current_state: &State,
     value_environment: &ValueEnvironment,
+    expression: ExpressionHandle,
     operator: &typed_trees::operator::OperatorDefinition,
     arguments: &[ExpressionHandle],
     diagnostics: &mut Vec<Diagnostic>,
@@ -771,6 +795,11 @@ fn validate_named_float_to_integer_call(
         value_environment,
         *value,
         target,
+    ) || crate::proof_contracts::contract_entailment::float_integer_conversion_fits_at_occurrence(
+        program,
+        current_machine,
+        current_state,
+        expression,
     ) {
         return;
     }

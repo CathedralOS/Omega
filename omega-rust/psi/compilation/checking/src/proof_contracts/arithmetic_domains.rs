@@ -34,17 +34,21 @@ pub use declared_float_facts::{DeclaredFloatFieldBound, declared_float_field_bou
 mod assignments;
 mod bigint_interval;
 mod bitwise;
+pub(crate) use bitwise::binary as bitwise_binary;
 mod referent_predicates;
 pub(crate) use referent_predicates::referent_predicates_preserved;
 mod call_result_bounds;
+mod deferred_bounds;
+mod deferred_observations;
 pub(crate) use call_result_bounds::normal_return_referent_interval;
+pub(crate) use deferred_observations::deferred_integer_observation;
 mod call_result_measures;
 pub use call_result_measures::normal_return_length_collection;
 mod cast_ranges;
 mod dispatch_environments;
 pub(crate) use dispatch_environments::dispatch_arm_environments;
 pub(in crate::proof_contracts) use dispatch_environments::{
-    DispatchSelection, dispatch_arm_contexts,
+    DispatchCondition, DispatchSelection, dispatch_arm_contexts,
 };
 mod cited_element_bounds;
 mod copied_values;
@@ -57,10 +61,12 @@ mod domain_exclusions;
 pub(crate) mod domain_intervals;
 mod expression_analysis;
 pub(crate) use declaration_values::{LocalValueFormation, validate_declaration_value_range};
+pub(crate) use expression_analysis::TrappingReceiptDemand;
 mod float_arithmetic;
 mod float_contracts;
 pub use float_contracts::{float_return_postcondition, normal_return_float_predicates};
 mod guard_narrowing;
+pub(crate) use guard_narrowing::ReturnInference;
 mod guard_requirements;
 mod integer_carriers;
 mod integer_ranges;
@@ -72,6 +78,7 @@ mod live_integer_constraints;
 mod monotonic_update;
 mod operand_reports;
 mod ordered_values;
+pub(crate) use ordered_values::{Operand as ScalarOperand, operand as scalar_operand};
 mod place_paths;
 mod range_constraints;
 pub(crate) use range_constraints::declares_bracketed_range;
@@ -80,6 +87,7 @@ mod selected_scalar_intervals;
 mod slice_lengths;
 pub use bigint_interval::{BigIntInterval, bitwise_carrier_bounds, floor_shift_right};
 pub use interval::Interval;
+pub(crate) use return_ranges::infer_return_interval;
 pub use return_ranges::normal_return_integer_bounds;
 pub(crate) use selected_scalar_intervals::binary as selected_integer_binary_interval;
 pub use selected_scalar_intervals::{
@@ -90,7 +98,8 @@ pub use selected_scalar_intervals::{
 pub(crate) use slice_lengths::{carried_slice_length, publish_slice_length};
 mod stored_integer_writes;
 pub(crate) use guard_narrowing::{
-    OccurrenceValueEnvironments, occurrence_value_environment, occurrence_value_environments,
+    OccurrenceValueEnvironments, occurrence_integer_child_values, occurrence_value_environment,
+    occurrence_value_environments,
 };
 mod total_specification;
 mod unsigned_representability;
@@ -111,9 +120,10 @@ pub(crate) use expression_analysis::ArithmeticDecisions;
 pub(crate) use float_arithmetic::float_source_proves_integer_conversion;
 pub(crate) use float_arithmetic::{FloatSourceBounds, float_source_bounds};
 pub use guard_narrowing::{
-    arrival_integer_expression_bounds, occurrence_collection_footprint_fits,
+    OccurrenceIntegerBounds, arrival_integer_expression_bounds,
+    occurrence_collection_footprint_fits, occurrence_integer_bounds,
     occurrence_integer_expression_bounds, occurrence_integer_expression_fits_range,
-    occurrence_integer_expressions_bounds,
+    occurrence_integer_expression_recipe, occurrence_integer_expressions_bounds,
 };
 pub(crate) use guard_narrowing::{
     fall_through_narrowed_environment, guard_narrowed_environment, incoming_guard_environments,
@@ -123,8 +133,9 @@ pub(crate) use guard_narrowing::{
 pub use integer_ranges::integer_widen_is_total;
 pub(crate) use integer_ranges::{
     integer_bit_width, integer_source_bounds, literal_i64, primitive_range,
+    validate_anonymous_address_landing, validate_anonymous_integer_primitive_range,
     validate_anonymous_integer_range, validate_value_range,
-    validate_value_range_retaining_decisions,
+    validate_value_range_retaining_decisions, validate_value_range_retaining_obligations,
 };
 pub(crate) use invariant_bounds::{
     call_result_interval, immutable_integer_expression_interval, standing_integer_interval,
@@ -136,9 +147,7 @@ pub use invariant_bounds::{
     stored_integer_bounds,
 };
 pub use monotonic_update::builtin_monotonic_integer_update_bounds;
-pub(crate) use operand_reports::{
-    is_arithmetic, report_mismatched_integer_operands, report_out_of_range_comparison_literal,
-};
+pub(crate) use operand_reports::{is_arithmetic, report_mismatched_integer_operands};
 pub(crate) use ordered_values::observation_survives_writes;
 pub use ordered_values::validate_ordered_requirement_call_totality;
 pub(crate) use place_paths::place_path;

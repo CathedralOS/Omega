@@ -16,8 +16,7 @@ pub fn validate_behavior_plan(
             continue;
         };
 
-        if machine.attached_data.is_some()
-            && machine.name.as_str().ends_with("::drop")
+        if crate::value_custody::cleanup::is_reserved_cleanup(program, machine)
             && (machine.suspends
                 || machine.blocks
                 || machine_summary.transitive_may_suspend

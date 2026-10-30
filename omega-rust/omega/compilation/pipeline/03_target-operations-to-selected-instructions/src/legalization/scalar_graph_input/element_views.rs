@@ -9,18 +9,48 @@ pub(in crate::legalization) fn descriptor_geometry(
     source: &StructuralArgument,
     types: &[StructuralTypeDeclaration],
 ) -> Option<crate::structural_inputs::structural_reference_input::ReferenceSourceGeometry> {
+    descriptor_geometry_access(function, source, types, false)
+}
+
+/// Extent observations read descriptor metadata, not payload. A write-only
+/// source still supplies geometry under its own authority; a stored-referent
+/// crossing would turn that observation into a read through the pointer, so
+/// this lane keeps refusing it.
+pub(in crate::legalization) fn descriptor_metadata_geometry(
+    function: &PsiOptimizationFunction,
+    source: &StructuralArgument,
+    types: &[StructuralTypeDeclaration],
+) -> Option<crate::structural_inputs::structural_reference_input::ReferenceSourceGeometry> {
+    descriptor_geometry_access(function, source, types, true)
+}
+
+fn descriptor_geometry_access(
+    function: &PsiOptimizationFunction,
+    source: &StructuralArgument,
+    types: &[StructuralTypeDeclaration],
+    metadata: bool,
+) -> Option<crate::structural_inputs::structural_reference_input::ReferenceSourceGeometry> {
     let actual = optimization_unit_semantics::structural_place_backing_access(
         function,
         source.place,
         types.iter(),
     )?;
-    if !matches!(
+    if (!matches!(
         source.access,
         StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-    ) || !(actual == source.access
-        || actual == StructuralAccess::Owned
-        || actual == StructuralAccess::MutableBorrow
-            && source.access == StructuralAccess::SharedBorrow)
+    ) && !(metadata && source.access == StructuralAccess::WriteOnlyBorrow))
+        || !(actual == source.access
+            || actual == StructuralAccess::Owned
+            || actual == StructuralAccess::MutableBorrow
+                && source.access == StructuralAccess::SharedBorrow)
+    {
+        return None;
+    }
+    if source.access == StructuralAccess::WriteOnlyBorrow
+        && source
+            .path
+            .iter()
+            .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Referent))
     {
         return None;
     }
@@ -51,9 +81,15 @@ pub(in crate::legalization) fn descriptor_geometry(
     } else {
         source.access
     };
-    if !optimization_unit_semantics::descriptor_argument_accessible(
-        function, source, types, requested,
-    ) {
+    if if source.access == StructuralAccess::WriteOnlyBorrow {
+        !optimization_unit_semantics::descriptor_metadata_argument_accessible(
+            function, source, types, requested,
+        )
+    } else {
+        !optimization_unit_semantics::descriptor_argument_accessible(
+            function, source, types, requested,
+        )
+    } {
         return None;
     }
     crate::structural_inputs::structural_reference_input::descriptor_source_geometry(
@@ -69,7 +105,7 @@ pub(in crate::legalization) fn length_geometry(
     source: &StructuralArgument,
     types: &[StructuralTypeDeclaration],
 ) -> Option<crate::structural_inputs::structural_reference_input::ReferenceSourceGeometry> {
-    let mut geometry = descriptor_geometry(function, source, types)?;
+    let mut geometry = descriptor_metadata_geometry(function, source, types)?;
     if !geometry.readable
         || !types.iter().any(|declaration| {
             declaration.id == geometry.selected
@@ -95,7 +131,7 @@ pub(in crate::legalization) fn byte_length_geometry(
     crate::structural_inputs::structural_reference_input::ReferenceSourceGeometry,
     terminal_psi::ByteSequenceCarrier,
 )> {
-    let mut geometry = descriptor_geometry(function, source, types)?;
+    let mut geometry = descriptor_metadata_geometry(function, source, types)?;
     if !geometry.readable {
         return None;
     }
@@ -122,7 +158,7 @@ pub(in crate::legalization) fn fixed_byte_length(
     source: &StructuralArgument,
     types: &[StructuralTypeDeclaration],
 ) -> Option<u64> {
-    let geometry = descriptor_geometry(function, source, types)?;
+    let geometry = descriptor_metadata_geometry(function, source, types)?;
     if !geometry.readable
         || !types.iter().any(|row| {
             row.id == geometry.selected

@@ -22,7 +22,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main, 78)
     }
 
-    state static_local_face(main: &mut Main) {
+    machine static_local_face(main: &mut Main) {
         let base: f32 = 16777216.0;
         let stepped: f32 = base + 1.0 + 1.0;
         transition stepped == base {
@@ -31,7 +31,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state runtime_face(main: &mut Main) {
+    machine runtime_face(main: &mut Main) {
         let stepped: f32 = main.value + 1.0 + 1.0;
         transition stepped == main.value {
             true -> good(main)
@@ -39,8 +39,8 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) { Console::exit_process(77); }
-    state bad(main: &mut Main, code2: i32) { Console::exit_process(code2); }
+    machine good(main: &mut Main) { Console::exit_process(77); }
+    machine bad(main: &mut Main, code2: i32) { Console::exit_process(code2); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

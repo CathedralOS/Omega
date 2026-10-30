@@ -4,7 +4,8 @@
 
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 
-pub use facts::ScalarValue;
+pub use numerics::scalar_predicates::ScalarValue;
+pub(super) use numerics::scalar_predicates::{PredicateNode, PredicateOperator, evaluate_nodes};
 
 /// Closed Boolean facts need no state-entry premise. Resolve no names or
 /// runtime leaves, and use only the independently selected builtin meanings.
@@ -73,102 +74,68 @@ pub fn evaluate_for_atoms(
     comparison_is_admitted: &impl Fn(&ScalarValue, &ScalarValue) -> bool,
     observe_boolean: &mut impl FnMut(ExpressionHandle) -> Option<bool>,
 ) -> Option<ScalarValue> {
+    evaluate_nodes(
+        expression,
+        &mut |expression| source_node(program, expression, observe_boolean),
+        resolve_leaf,
+        comparison_is_admitted,
+    )
+}
+
+pub(super) fn source_node(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    observe_boolean: &mut impl FnMut(ExpressionHandle) -> Option<bool>,
+) -> Option<PredicateNode<ExpressionHandle, ExpressionHandle>> {
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
+    if let Some(value) = program.static_boolean_value(expression) {
+        return Some(PredicateNode::Value(ScalarValue::Boolean(value)));
+    }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(value) => return value.value_bignum().map(ScalarValue::Integer),
-        ExpressionNode::Boolean(value) => return Some(ScalarValue::Boolean(*value)),
+        ExpressionNode::Integer(value) => {
+            return value
+                .value_bignum()
+                .map(|value| PredicateNode::Value(ScalarValue::Integer(value)));
+        }
+        ExpressionNode::Boolean(value) => {
+            return Some(PredicateNode::Value(ScalarValue::Boolean(*value)));
+        }
         _ => {}
     }
     if let Some(value) = observe_boolean(expression) {
-        return Some(ScalarValue::Boolean(value));
+        return Some(PredicateNode::Value(ScalarValue::Boolean(value)));
     }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(borrow) => evaluate_for_atoms(
-            program,
-            borrow.target,
-            resolve_leaf,
-            comparison_is_admitted,
-            observe_boolean,
-        ),
+    Some(match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow) => PredicateNode::Forward(borrow.target),
         ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-            let ScalarValue::Boolean(value) = evaluate_for_atoms(
-                program,
-                unary.operand,
-                resolve_leaf,
-                comparison_is_admitted,
-                observe_boolean,
-            )?
-            else {
-                return None;
-            };
-            Some(ScalarValue::Boolean(!value))
+            PredicateNode::Not(unary.operand)
         }
-        ExpressionNode::Binary(binary)
-            if matches!(
-                binary.operator,
-                BinaryOperator::And
-                    | BinaryOperator::Or
-                    | BinaryOperator::Equal
-                    | BinaryOperator::NotEqual
-                    | BinaryOperator::Less
-                    | BinaryOperator::LessOrEqual
-                    | BinaryOperator::Greater
-                    | BinaryOperator::GreaterOrEqual
-            ) =>
-        {
-            let left = evaluate_for_atoms(
-                program,
-                binary.left,
-                resolve_leaf,
-                comparison_is_admitted,
-                observe_boolean,
-            )?;
-            // An unevaluated Boolean operand supplies neither a value premise
-            // nor a comparison obligation. Leaf lookup must follow the same
-            // selective schedule as the expression it is proving.
-            match (&left, binary.operator) {
-                (ScalarValue::Boolean(false), BinaryOperator::And) => {
-                    return Some(ScalarValue::Boolean(false));
-                }
-                (ScalarValue::Boolean(true), BinaryOperator::Or) => {
-                    return Some(ScalarValue::Boolean(true));
-                }
-                _ => {}
+        ExpressionNode::Binary(binary) if predicate_operator(binary.operator).is_some() => {
+            PredicateNode::Binary {
+                operator: predicate_operator(binary.operator)?,
+                left: binary.left,
+                right: binary.right,
             }
-            let right = evaluate_for_atoms(
-                program,
-                binary.right,
-                resolve_leaf,
-                comparison_is_admitted,
-                observe_boolean,
-            )?;
-            if !matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
-                && !comparison_is_admitted(&left, &right)
-            {
-                return None;
-            }
-            let value = match (left, right) {
-                (ScalarValue::Boolean(left), ScalarValue::Boolean(right)) => {
-                    match binary.operator {
-                        BinaryOperator::And => left && right,
-                        BinaryOperator::Or => left || right,
-                        BinaryOperator::Equal => left == right,
-                        BinaryOperator::NotEqual => left != right,
-                        _ => return None,
-                    }
-                }
-                (ScalarValue::Integer(left), ScalarValue::Integer(right)) => {
-                    binary.operator.evaluate_comparison(&left, &right)?
-                }
-                _ => return None,
-            };
-            Some(ScalarValue::Boolean(value))
         }
         // Arithmetic, calls, casts, and projections need the caller's exact
         // value evidence. Literal operands do not grant a runtime arithmetic
         // interpretation here (e.g. wrapping u8 addition is not i64 addition).
-        _ => resolve_leaf(expression),
-    }
+        _ => PredicateNode::Leaf(expression),
+    })
+}
+
+fn predicate_operator(operator: BinaryOperator) -> Option<PredicateOperator> {
+    Some(match operator {
+        BinaryOperator::And => PredicateOperator::And,
+        BinaryOperator::Or => PredicateOperator::Or,
+        BinaryOperator::Equal => PredicateOperator::Equal,
+        BinaryOperator::NotEqual => PredicateOperator::NotEqual,
+        BinaryOperator::Less => PredicateOperator::Less,
+        BinaryOperator::LessOrEqual => PredicateOperator::LessOrEqual,
+        BinaryOperator::Greater => PredicateOperator::Greater,
+        BinaryOperator::GreaterOrEqual => PredicateOperator::GreaterOrEqual,
+        _ => return None,
+    })
 }

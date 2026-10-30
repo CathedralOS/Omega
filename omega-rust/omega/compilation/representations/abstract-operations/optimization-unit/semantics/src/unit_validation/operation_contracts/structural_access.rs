@@ -8,6 +8,8 @@ use semantic_vocabulary::{PlaceId, StructuralDomainId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_semantics::structural_paths_may_overlap;
 
+mod descriptor_access;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum StructuralProjectionPolicy {
     Unit,
@@ -17,6 +19,8 @@ pub(crate) enum StructuralProjectionPolicy {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct StructuralSourceContract<'a> {
+    caller: &'a PsiOptimizationFunction,
+    place: PlaceId,
     pub(crate) structural_type: StructuralTypeId,
     pub(crate) multiplicity: terminal_psi::StructuralMultiplicity,
     pub(crate) access: terminal_psi::StructuralAccess,
@@ -36,6 +40,15 @@ impl StructuralSourceContract<'_> {
     pub(crate) fn backing_access<'types>(
         &self,
         types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+    ) -> Option<terminal_psi::StructuralAccess> {
+        descriptor_access::backing_access(self.caller, self.place, types)
+    }
+
+    /// Declared result/arrival ceiling. This is lineage metadata; consumers
+    /// requiring referent authority use the typed backing_access query above.
+    fn claimed_backing_access<'types>(
+        &self,
+        types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
     ) -> terminal_psi::StructuralAccess {
         if self.access == terminal_psi::StructuralAccess::Owned
             && let Some(result) = self.operation_result
@@ -45,13 +58,13 @@ impl StructuralSourceContract<'_> {
             return access;
         }
         if self.access == terminal_psi::StructuralAccess::Owned
-            && self.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-            && terminal_semantics::descriptor_results::is_shared_descriptor(
+            && let Some(access) = terminal_semantics::descriptor_results::descriptor_value_access(
                 types,
                 self.structural_type,
+                self.multiplicity,
             )
         {
-            terminal_psi::StructuralAccess::SharedBorrow
+            access
         } else {
             self.access
         }
@@ -267,6 +280,29 @@ pub(crate) fn structural_arguments_match<'declaration, Formal>(
 where
     abstract_operations::StructuralCallFormal<'declaration>: From<&'declaration Formal>,
 {
+    structural_arguments_match_at_invocation(
+        caller,
+        consumer.map(Into::into),
+        arguments,
+        parameters,
+        types,
+        domains,
+        projection,
+    )
+}
+
+pub(crate) fn structural_arguments_match_at_invocation<'declaration, Formal>(
+    caller: &PsiOptimizationFunction,
+    consumer: Option<semantic_vocabulary::InvocationSite>,
+    arguments: &[terminal_psi::StructuralArgument],
+    parameters: &'declaration [Formal],
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
+    projection: StructuralProjectionPolicy,
+) -> bool
+where
+    abstract_operations::StructuralCallFormal<'declaration>: From<&'declaration Formal>,
+{
     if arguments.len() != parameters.len() {
         return false;
     }
@@ -333,14 +369,15 @@ where
                 terminal_psi::StructuralTypeShape::ElementView { .. }
             )
         }) && argument.access != terminal_psi::StructuralAccess::Owned
-            && !terminal_semantics::descriptor_source_projection_accessible(
-                types.values().copied(),
-                source.structural_type,
-                source.multiplicity,
-                source.access,
-                &argument.path,
-                argument.access,
-            )
+            && (source.backing_access(types.values().copied()).is_none()
+                || !terminal_semantics::descriptor_source_projection_accessible(
+                    types.values().copied(),
+                    source.structural_type,
+                    source.multiplicity,
+                    source.access,
+                    &argument.path,
+                    argument.access,
+                ))
         {
             return false;
         }
@@ -382,14 +419,8 @@ where
             )
             .is_some())
                 || owned_bounded_owner_loan(caller, argument, parameter, &source, types, domains))
-            && !caller
-                .entry_claim_declarations
-                .iter()
-                .any(|claim| claim.input == argument.place)
-            && !caller
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == argument.place);
+            && !caller.entry_claim_declared(argument.place)
+            && !caller.content_entry_claim_declared(argument.place);
 
         // A projection through a reference carrier names the carrier's exact
         // primitive referent, never a byte of the carrier itself. This mirrors
@@ -459,10 +490,9 @@ where
         // also fit the backing permission; Owned is not permission to mutate
         // through a returned or copied shared descriptor.
         if argument.access != terminal_psi::StructuralAccess::Owned
-            && !structural_access_can_supply(
-                source.backing_access(types.values().copied()),
-                argument.access,
-            )
+            && !source
+                .backing_access(types.values().copied())
+                .is_some_and(|access| structural_access_can_supply(access, argument.access))
         {
             return false;
         }
@@ -535,14 +565,8 @@ where
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
                 && result.qualification_establishments.is_empty()
-        }) && !caller
-            .entry_claim_declarations
-            .iter()
-            .any(|claim| claim.input == argument.place)
-            && !caller
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == argument.place);
+        }) && !caller.entry_claim_declared(argument.place)
+            && !caller.content_entry_claim_declared(argument.place);
         let completed_affine_result =
             completed_result && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine;
         let unrestricted_mutable_subloan = static_borrowed_path
@@ -673,14 +697,8 @@ where
                 qualifications: source.qualifications.to_vec(),
                 projected_qualifications: source.projected_qualifications.to_vec(),
             })
-            && !caller
-                .entry_claim_declarations
-                .iter()
-                .any(|claim| claim.input == argument.place)
-            && !caller
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == argument.place);
+            && !caller.entry_claim_declared(argument.place)
+            && !caller.content_entry_claim_declared(argument.place);
         // Raw carrier equality cannot weaken a qualified owner's exclusive loan.
         if borrowed_owner_expected && !bounded_owner_presentation {
             return false;
@@ -890,20 +908,14 @@ where
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && parameter.projected_qualifications.is_empty()
-            && !caller
-                .entry_claim_declarations
-                .iter()
-                .any(|claim| claim.input == argument.place)
-            && !caller
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == argument.place)
+            && !caller.entry_claim_declared(argument.place)
+            && !caller.content_entry_claim_declared(argument.place)
             && terminal_semantics::byte_parameter_predicates_in(
                 domains.values().copied(),
                 parameter,
             )
             .zip(consumer.and_then(|consumer| {
-                crate::unit_validation::function_structure::copied_field_predicates_at_transfer(
+                crate::unit_validation::function_structure::copied_field_predicates_at_invocation(
                     types.values().copied(),
                     caller,
                     argument.place,
@@ -1112,6 +1124,8 @@ pub(crate) fn structural_source_contract(
     caller
         .arrival_parameter(place)
         .map(|parameter| StructuralSourceContract {
+            caller,
+            place,
             structural_type: parameter.structural_type,
             multiplicity: parameter.multiplicity,
             access: parameter.access,
@@ -1142,6 +1156,8 @@ pub(crate) fn structural_source_contract(
                     return None;
                 };
                 (declaration.id == place).then_some(StructuralSourceContract {
+                    caller,
+                    place,
                     structural_type: structural_type.id,
                     multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     access: terminal_psi::StructuralAccess::SharedBorrow,
@@ -1167,6 +1183,8 @@ fn trivial_affine_local_contract(
             structural_type,
             ..
         } if declaration.id == place => Some(StructuralSourceContract {
+            caller,
+            place,
             structural_type: structural_type.id,
             multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             access: terminal_psi::StructuralAccess::Owned,
@@ -1182,7 +1200,7 @@ fn trivial_affine_local_contract(
 /// Owning a result row is not sufficient: local storage and view operations
 /// expose loans, while a reference result owns only its permission carrier.
 pub(crate) fn structural_operation_result_contract<'a>(
-    caller: &PsiOptimizationFunction,
+    caller: &'a PsiOptimizationFunction,
     operation: &'a O,
 ) -> Option<StructuralSourceContract<'a>> {
     let (result, access) = match operation {
@@ -1224,6 +1242,8 @@ pub(crate) fn structural_operation_result_contract<'a>(
                 _ => return None,
             };
     Some(StructuralSourceContract {
+        caller,
+        place: result.place,
         structural_type: result.structural_type,
         multiplicity: result.multiplicity,
         access,
@@ -1364,12 +1384,10 @@ fn view_access(
                 destination,
                 ..
             } => {
-                // A reference crossing needs the typed referent-permission
-                // validator; ownership of the carrier grants no such access.
-                if source
-                    .path
-                    .contains(&terminal_psi::StructuralPathSegment::Referent)
-                    || *destination != result.place
+                // This walk authenticates producer lineage and requested
+                // access. Typed backing_access independently checks each full
+                // source path, including every stored-reference ceiling.
+                if *destination != result.place
                     || !matches!(
                         (source.access, result.multiplicity),
                         (Access::SharedBorrow, Multiplicity::Unrestricted)

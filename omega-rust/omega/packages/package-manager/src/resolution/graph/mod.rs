@@ -1,28 +1,27 @@
 //! Complete dependency-graph construction and identity.
 //!
-//! [`resolve`] connects declared workspace, local, and Git requests to source
-//! custody. [`reconcile`] builds the complete dependency closure, this file
+//! Source acquisition executes declarations before [`reconcile`] builds the
+//! complete dependency closure. [`accepted`] compares retained lock subjects;
+//! [`git_pins`] selects exact acquisition policy. This file
 //! owns its validated shape ([`ResolvedPackageClosure`]), and [`subject`]
 //! gives that exact closure a canonical review subject.
 
+mod accepted;
+mod git_pins;
 pub(crate) mod reconcile;
-mod resolve;
 mod root_request;
 pub(crate) mod subject;
 
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::declarations::{AliasName, PackageKey};
+pub(crate) use accepted::{
+    admit_locked_issued_source_request, admit_locked_source_request, mutable_local_graph_matches,
+};
+pub(crate) use git_pins::{GitDependencyPins, GitResolutionOptions};
 use package_source::{IdentityError, ImmutableSourceResolution};
 pub(crate) use reconcile::{
-    DependencyRequestPath, ExactTargetPackageSourceClosure, PackageSourceClosureLimits,
-    PackageSourceClosureResolutionError, ResolvedPackageSourceClosure,
-};
-pub(crate) use resolve::resolve_locked_local_project_closure;
-pub(crate) use resolve::{
-    GitDependencyPins, GitResolutionOptions, ResolveDependencySourceError,
-    ResolveExternalLocalPackageClosureError, resolve_external_local_project_closure,
-    resolve_staged_external_local_project_closure,
+    DependencyRequestPath, ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure,
 };
 pub(crate) use root_request::PackageRootSourceRequest;
 use std::collections::{BTreeMap, BTreeSet};
@@ -60,6 +59,24 @@ impl ResolvedSourceIdentity {
     ) -> Self {
         debug_assert!(resolution.matches_lineage(key.source_lineage()));
         Self { key, resolution }
+    }
+
+    /// Position of `key` in a canonically sorted package roster.
+    ///
+    /// Every roster in a canonical source closure is sorted by package key, so
+    /// one search answers it; a second spell of the search at a caller is a
+    /// second contract that can drift (two of them filtered on exact identity).
+    pub(crate) fn index_in(packages: &[Self], key: &PackageKey) -> Option<usize> {
+        packages
+            .binary_search_by(|source| source.key().cmp(key))
+            .ok()
+    }
+
+    /// Position of this exact identity - package key and immutable resolution -
+    /// in a canonically sorted roster. A key match with a different resolution
+    /// is not that identity.
+    pub(crate) fn exact_index_in(packages: &[Self], identity: &Self) -> Option<usize> {
+        Self::index_in(packages, identity.key()).filter(|position| &packages[*position] == identity)
     }
 
     pub fn key(&self) -> &PackageKey {
@@ -263,7 +280,7 @@ impl ResolvedPackageClosure {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageClosureValidationError {
+pub(crate) enum PackageClosureValidationError {
     InvalidRootRole {
         role: BuildDeclarationKind,
     },

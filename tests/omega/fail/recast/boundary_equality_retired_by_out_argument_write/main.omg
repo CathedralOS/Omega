@@ -21,7 +21,7 @@ machine Main::main(main: &mut Main) reaches Firmware {
     Firmware::refill(&mut main.cap);
     transition { _ -> read(main.size, main.cap, main) }
 
-    state read(size: u32, cap: u32, main: &mut Main) {
+    machine read(size: u32, cap: u32, main: &mut Main) {
         let word: &u32 = &main.buf[size] as &u32;
     }
 }

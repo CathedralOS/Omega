@@ -81,6 +81,7 @@ impl Evaluation {
             &self.shared_qualifications,
             environment.machine,
             operations,
+            environment.next_place,
         )?;
         let qualification = expansion.qualification_edge(&source_types, value.value_type(), 0);
         let entry = expansion.direct_value(&source_types, qualification, operand)?;
@@ -141,6 +142,7 @@ impl Evaluation {
             &self.shared_qualifications,
             root.machine,
             operations,
+            environment.next_place,
         )?;
         let entry =
             expansion.retained_root(identities, root, bindings, &source_types, result_type, 0)?;
@@ -354,16 +356,7 @@ impl Evaluation {
                 }
             }
         }
-        let bindings = self
-            .scalar_bindings
-            .clone()
-            .with_primitive_storage(&self.primitive_storage)
-            .with_structural_locals(&self.structural_locals)
-            .with_view_locals(&self.view_locals)
-            .with_element_views(&self.element_views)
-            .with_structural_parameters(&self.structural_parameters)
-            .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases)
-            .with_place_observations(&self.place_observations);
+        let bindings = self.contextual_bindings();
         let qualifications = &self.shared_qualifications;
         let source_types = values
             .iter()
@@ -407,6 +400,7 @@ impl Evaluation {
             qualifications,
             machine,
             operations,
+            environment.next_place,
         )?;
         let entry = match value {
             CheckedCallScalarArgument::Pure(_) => expansion.retained_pure_value(

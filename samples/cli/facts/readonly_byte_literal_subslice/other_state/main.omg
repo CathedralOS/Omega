@@ -10,7 +10,7 @@ ensures result == 0u64
     transition {
         _ -> step(window.len)
     }
-    state step(window_len: u64) -> u64
+    machine step(window_len: u64) -> u64
     requires window_len == 10u64
     {
         let total: u64 = window_len * 10u64;
@@ -23,6 +23,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

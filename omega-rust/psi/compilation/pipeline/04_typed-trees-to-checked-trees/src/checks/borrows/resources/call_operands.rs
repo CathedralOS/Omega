@@ -23,6 +23,7 @@ use checked_trees::{
 struct ResourceDraft {
     resource: CheckedCallBorrowLoanResource,
     path: Vec<BorrowLoanOwnerSegment>,
+    backing: CapturedPlace,
 }
 
 pub(super) fn install(program: &dyn validation::CheckingInput, facts: &mut CheckFacts) {
@@ -48,6 +49,7 @@ pub(super) fn install(program: &dyn validation::CheckingInput, facts: &mut Check
     }
     facts.borrow.call_loan_resources.reset_retain_capacity();
     facts.borrow.call_loan_paths.reset_retain_capacity();
+    facts.borrow.call_loan_backing_paths.reset_retain_capacity();
     facts.borrow.call_loan_parents = parents;
     for mut draft in resources {
         let owner = facts
@@ -59,6 +61,18 @@ pub(super) fn install(program: &dyn validation::CheckingInput, facts: &mut Check
         else {
             continue;
         };
+        if draft.backing.root != draft.resource.parent_lifetime.root {
+            continue;
+        }
+        draft.resource.backing_incoming_reference = draft.backing.incoming_reference;
+        draft.resource.backing_incoming_owner_path = facts
+            .borrow
+            .call_loan_backing_paths
+            .insert_many(draft.backing.incoming_owner_path);
+        draft.resource.backing_path = facts
+            .borrow
+            .call_loan_backing_paths
+            .insert_many(draft.backing.segments);
         draft.resource.capture_path = facts.borrow.call_loan_paths.insert_many(path);
         draft.resource.owner_path = facts.borrow.owner_segments.insert_many(draft.path);
         facts.borrow.call_loan_resources.insert(draft.resource);
@@ -88,9 +102,18 @@ fn collect(
     if paths.is_empty() {
         return;
     }
-    if !capture.alternatives.is_empty() {
+    if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion {
+        let Some(alternatives) = facts.flow.control.operand_alternatives.span(alternatives) else {
+            return;
+        };
+        if alternatives.is_empty() {
+            return;
+        }
         let mut complete = Vec::new();
-        for alternative in capture.alternatives.handles() {
+        for alternative in alternatives {
+            if !alternative.source_arm.is_valid() {
+                return;
+            }
             let mut branch = Vec::new();
             collect(
                 program,
@@ -98,7 +121,7 @@ fn collect(
                 state,
                 call,
                 owner_operand,
-                alternative,
+                alternative.value,
                 path,
                 &mut branch,
                 parents,
@@ -115,12 +138,12 @@ fn collect(
         resources.extend(complete);
         return;
     }
-    if !capture.children.is_empty() {
+    if !capture.constructed_children().is_empty() {
         for child in facts
             .flow
             .control
             .operand_children
-            .span_or_empty(capture.children)
+            .span_or_empty(capture.constructed_children())
         {
             let mut child_path = path.to_vec();
             child_path.extend(crate::borrow::owner_path_from_place_segments(
@@ -254,12 +277,29 @@ fn collect(
                         state_symbol: state.state_symbol,
                         root: row.root,
                     },
+                    backing_incoming_reference: Handle::invalid(),
+                    backing_incoming_owner_path: HandleSpan::empty(),
+                    backing_path: HandleSpan::empty(),
                 },
                 path: owner_path,
+                backing: CapturedPlace {
+                    incoming_reference: row.incoming_reference,
+                    incoming_owner_path: facts
+                        .borrow
+                        .access_segments
+                        .span_or_empty(row.incoming_owner_path)
+                        .to_vec(),
+                    root: row.root,
+                    segments: facts.borrow.loan_segments(row).to_vec(),
+                },
             });
         }
     }
 }
+
+pub(in crate::checks::borrows) use validation::completed_storage::{
+    FrozenReferenceSelection, frozen_reference_leaf,
+};
 
 /// Lifetime retention follows the captured contents of every stored reference
 /// crossing, just as a referent access does. Resolving only a reference local
@@ -340,6 +380,10 @@ pub(in crate::checks::borrows) fn retained_places(
                     loan.storage_owner,
                     facts.borrow.loan_owner_path(loan),
                     loan.incoming_reference,
+                    facts
+                        .borrow
+                        .access_segments
+                        .span_or_empty(loan.incoming_owner_path),
                     loan.root,
                     facts.borrow.loan_segments(loan),
                 )),
@@ -391,6 +435,7 @@ pub(in crate::checks::borrows) fn retained_places(
                             .owner_segments
                             .span_or_empty(incoming.owner_path),
                         incoming_reference,
+                        &[][..],
                         root,
                         &[][..],
                     )),
@@ -640,14 +685,23 @@ fn projected_operand_places(
     use checked_trees::{
         CheckedReferenceOriginProjection as Projection, CheckedUnitStructuralPathSegment as Segment,
     };
-    if !operand.alternatives.is_empty() {
+    if let checked_trees::FlowOperandCompletion::Selected(alternatives) = operand.completion {
+        let alternatives = facts.flow.control.operand_alternatives.span(alternatives)?;
+        if alternatives.is_empty() {
+            return None;
+        }
         let mut complete = Vec::new();
-        for alternative in facts.flow.control.operands.span(operand.alternatives)? {
+        for alternative in alternatives {
+            if !alternative.source_arm.is_valid()
+                || !facts.flow.control.operands.is_valid(alternative.value)
+            {
+                return None;
+            }
             let places = projected_operand_places(
                 program,
                 facts,
                 state,
-                alternative,
+                facts.flow.control.operands.get(alternative.value),
                 reference,
                 path,
                 invocation,
@@ -663,7 +717,7 @@ fn projected_operand_places(
     // A by-value constructed input already owns captures for its children.
     // Select the child before asking for a storage place: the constructor need
     // not have a named home, and later siblings cannot rewrite its capture.
-    if !operand.children.is_empty() {
+    if !operand.constructed_children().is_empty() {
         let count = path
             .iter()
             .take_while(|projection| !matches!(projection, Projection::Exact(Segment::Referent)))
@@ -677,7 +731,7 @@ fn projected_operand_places(
             .flow
             .control
             .operand_children
-            .span(operand.children)?
+            .span(operand.constructed_children())?
             .iter()
             .filter_map(|child| {
                 let prefix = facts.flow.control.operand_child_paths.span(child.path)?;
@@ -726,6 +780,7 @@ fn projected_operand_places(
             operand.constraints,
             CapturedPlace {
                 incoming_reference: Handle::invalid(),
+                incoming_owner_path: Default::default(),
                 root: source.root,
                 segments: source.segments,
             },
@@ -735,6 +790,7 @@ fn projected_operand_places(
         vec![crate::checks::borrows::aliases::ResolvedAlias {
             place: CapturedPlace {
                 incoming_reference: Handle::invalid(),
+                incoming_owner_path: Default::default(),
                 root: source.root,
                 segments: source.segments,
             },

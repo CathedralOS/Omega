@@ -278,7 +278,7 @@ pub(super) fn check(
                     )?;
                 } else if matches!(
                     instruction.kind,
-                    selected_instructions::selected_call_triple_pattern!(..)
+                    selected_instructions::selected_call_pattern!(..)
                 ) {
                     if function_frame.is_none() {
                         return Err(WholeFunctionExitContractError::NonReturnControlEffect(

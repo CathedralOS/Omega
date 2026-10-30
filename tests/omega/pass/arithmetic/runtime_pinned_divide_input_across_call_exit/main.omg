@@ -10,13 +10,13 @@ machine Main::main(main: &mut Main) reaches Console {
         ByteRead::Byte { value } -> emit(main, value)
         _ -> missing(main)
     }
-    state emit(main: &mut Main, value: i32) {
+    machine emit(main: &mut Main, value: i32) {
         let amount: i32 in Wrapping = (value as i32 in Wrapping) + 10000;
         number(amount as i32);
         Console::write_byte(10);
         Console::exit_process(0);
     }
-    state missing(main: &mut Main) { Console::exit_process(70); }
+    machine missing(main: &mut Main) { Console::exit_process(70); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

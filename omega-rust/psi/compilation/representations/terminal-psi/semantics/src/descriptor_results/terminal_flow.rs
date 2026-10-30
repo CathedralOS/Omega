@@ -1,7 +1,8 @@
 //! Current Terminal operations adapted once for both contents and cohort replay.
 use super::*;
 use crate::descriptor_lifetimes::{
-    DescriptorFlowEdge, descriptor_location, descriptor_location_type,
+    DescriptorFlowBinding, DescriptorFlowEdge, DescriptorFlowSource, descriptor_location,
+    descriptor_location_type,
 };
 
 /// Ordinary edges transport evaluated SSA operands. A case edge instead births
@@ -17,11 +18,47 @@ enum ScalarArrival<'a> {
     },
 }
 
+/// Physical address roles accompany the complete borrowed-storage graph.
+/// They do not alter the pointer/value representation used by origin replay.
+pub(super) fn residence_rules(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Option<crate::descriptor_lifetimes::DescriptorResidenceRules> {
+    let mut rules = crate::descriptor_lifetimes::DescriptorResidenceRules::default();
+    for block in &machine.blocks {
+        for (ordinal, operation) in block.operations.iter().enumerate() {
+            let position = (block.id, u32::try_from(ordinal).ok()?);
+            match &operation.kind {
+                terminal_psi::element_view_establish_pair_pattern!(source, ..)
+                | OperationKind::EstablishPlacedReference { source, .. }
+                | OperationKind::EstablishReference { source, .. } => {
+                    let (source, _, capture) = captured_storage_source(
+                        &module.structural_types,
+                        source,
+                        machine.structural_place_type(source.place)?,
+                        position,
+                    )?;
+                    if capture == CapturedBacking::StorageAddress {
+                        rules.captures.insert((
+                            position,
+                            source,
+                            DescriptorLocation::whole(operation.result.structural()?.place),
+                        ));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    Some(rules)
+}
+
 pub(super) fn adapt(
     module: &TerminalModule,
     machine: &TerminalMachine,
     slot_kind: DescriptorSlotKind,
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
+    selector_graph: Option<&[DescriptorMachine]>,
 ) -> Option<DescriptorMachine> {
     let scalar_expressions = super::payload_predicates::TerminalScalarExpressions::new(machine);
     let mut graph = DescriptorMachine {
@@ -43,6 +80,8 @@ pub(super) fn adapt(
         place_types: BTreeMap::new(),
         entry: (machine.entry, 0),
         flow: BTreeMap::new(),
+        case_constructors: BTreeMap::new(),
+        case_successors: BTreeMap::new(),
         originations: BTreeMap::new(),
         projections: BTreeMap::new(),
         contents_queries: BTreeMap::new(),
@@ -71,7 +110,6 @@ pub(super) fn adapt(
         payload_scalar_parameters: BTreeMap::new(),
         payload_edge_predicates: BTreeMap::new(),
         payload_scalar_bindings: BTreeMap::new(),
-        payload_arrivals: BTreeMap::new(),
         unresolved_contents_writes: BTreeSet::new(),
         storage_derivations: BTreeSet::new(),
         calls: BTreeMap::new(),
@@ -85,7 +123,7 @@ pub(super) fn adapt(
             place: place.id,
             definition: terminal_definition(module, machine, place.id, place.kind)?,
         });
-        if let Some(ty) = place_type(machine, place.id) {
+        if let Some(ty) = machine.structural_place_type(place.id) {
             graph.place_types.insert(place.id, ty);
         }
     }
@@ -185,6 +223,19 @@ pub(super) fn adapt(
                             semantic_vocabulary::ScalarTerm::value(result.id, result.scalar_type),
                         ));
                 }
+            }
+            if let OperationKind::PrimitiveScalarRead { source, path } = &operation.kind
+                && let Some(location) = location(*source, path, None)
+                && let Some(result) = operation.result.scalar_ref()
+            {
+                graph
+                    .scalar_payload_reads
+                    .entry(position)
+                    .or_default()
+                    .push((
+                        location,
+                        semantic_vocabulary::ScalarTerm::value(result.id, result.scalar_type),
+                    ));
             }
             let mut step = DescriptorFlowStep::default();
             operation.kind.clone().map_structural_uses(&mut |place| {
@@ -396,9 +447,7 @@ pub(super) fn adapt(
                     )?;
                     step.inputs = vec![query.observation()];
                 }
-                OperationKind::EstablishNativeCodeLayout { .. }
-                    if slot_kind == DescriptorSlotKind::Views =>
-                {
+                OperationKind::EstablishNativeCodeLayout { .. } if slot_kind.tracks_views() => {
                     let result = result?;
                     let destination = native_code_layout_regions(&module.structural_types, result)?;
                     step.definitions.push(destination.clone());
@@ -412,6 +461,14 @@ pub(super) fn adapt(
                 }
                 OperationKind::EstablishZeroedStructural {} => {
                     let result = result?;
+                    graph.case_constructors.insert(
+                        position,
+                        zeroed_case_predicates(
+                            &module.structural_types,
+                            result.place,
+                            result.structural_type,
+                        ),
+                    );
                     for slot in slot_kind
                         .inventory(
                             &module.structural_types,
@@ -477,7 +534,7 @@ pub(super) fn adapt(
                         )?;
                     step.derivations
                         .push((source_location.clone(), destination.clone()));
-                    if slot_kind == DescriptorSlotKind::References
+                    if slot_kind.tracks_references()
                         && capture == CapturedBacking::StorageAddress
                         && matches!(
                             operation.kind,
@@ -784,6 +841,13 @@ pub(super) fn adapt(
                     if let OperationKind::EstablishStructuralCase { result_case, .. } =
                         &operation.kind
                     {
+                        graph.case_constructors.insert(
+                            position,
+                            vec![DescriptorCasePredicate {
+                                subject: DescriptorLocation::whole(result?.place),
+                                case: *result_case,
+                            }],
+                        );
                         let result_type = result?.structural_type;
                         let shape = &module.structural_type(result_type)?.shape;
                         let cases = match shape {
@@ -849,11 +913,20 @@ pub(super) fn adapt(
                     }
                 }
                 OperationKind::CallDynamic {
+                    selector,
                     interface,
                     slot,
                     structural_arguments,
                     ..
                 } => {
+                    let effects_machine = selected_effects_machine(
+                        module,
+                        machine,
+                        selector_graph,
+                        *selector,
+                        *interface,
+                        *slot,
+                    );
                     let realizations =
                         public_realizations(&module.dynamic_dispatch, *interface, *slot)?;
                     let slot = module
@@ -861,7 +934,7 @@ pub(super) fn adapt(
                         .interface(*interface)?
                         .slots
                         .get(usize::try_from(*slot).ok()?)?;
-                    let call = public_invocation(
+                    let mut call = public_invocation(
                         operation.id,
                         &module.structural_types,
                         slot_kind,
@@ -871,15 +944,31 @@ pub(super) fn adapt(
                         result,
                         &graph.place_types,
                     )?;
-                    for actual in structural_arguments.iter().filter(|actual| {
-                        realizations.is_empty() && actual.access != StructuralAccess::SharedBorrow
-                    }) {
-                        step.definitions.extend(writable_descriptor_slots(
-                            &module.structural_types,
-                            &graph.place_types,
-                            actual,
-                            slot_kind,
-                        )?);
+                    // Replay skips an incomplete invocation, so neither an
+                    // exact selection nor a catalog union may remove its fence.
+                    let complete_contents = call.argument_contents.iter().all(Option::is_some);
+                    let effects_machine = effects_machine.filter(|_| complete_contents);
+                    if let DescriptorInvocationTarget::Public {
+                        effects_machine: target,
+                        ..
+                    } = &mut call.target
+                    {
+                        *target = effects_machine;
+                    }
+                    let has_stored_effects = complete_contents
+                        && (effects_machine.is_some() || !realizations.is_empty());
+                    if !has_stored_effects {
+                        for actual in structural_arguments
+                            .iter()
+                            .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
+                        {
+                            step.definitions.extend(writable_descriptor_slots(
+                                &module.structural_types,
+                                &graph.place_types,
+                                actual,
+                                slot_kind,
+                            )?);
+                        }
                     }
                     if matches!(
                         call.target,
@@ -887,7 +976,7 @@ pub(super) fn adapt(
                             invalidates_contents: true,
                             ..
                         }
-                    ) && realizations.is_empty()
+                    ) && !has_stored_effects
                     {
                         graph.unresolved_contents_writes.insert(position);
                         step.may_escape = true;
@@ -945,8 +1034,10 @@ pub(super) fn adapt(
                         if result.structural_type != expected.structural_type
                             || result.multiplicity != expected.multiplicity
                             || result.qualifications != expected.qualifications
-                            || result.projected_qualifications != expected.projected_qualifications
-                            || !result.claims.is_empty()
+                            || !expected
+                                .projected_qualifications
+                                .iter()
+                                .all(|row| result.projected_qualifications.contains(row))
                         {
                             return None;
                         }
@@ -1136,31 +1227,32 @@ pub(super) fn adapt(
                 .map(|parameter| DescriptorLocation::whole(parameter.place))
                 .collect::<Vec<_>>();
             let mut bindings = Vec::new();
-            let mut payload_bindings = Vec::new();
-            for (argument, parameter) in arguments.iter().zip(&parameters) {
-                if let Some(source) = location(argument.place, &argument.path, None) {
-                    bindings.push((source, parameter.clone()));
+            for (argument, parameter) in arguments.iter().zip(&block.structural_parameters) {
+                if argument.access != parameter.access {
+                    return None;
+                }
+                let source = if let Some(source) = location(argument.place, &argument.path, None) {
+                    DescriptorFlowSource::Location(source)
                 } else {
-                    payload_bindings.push(PayloadMembershipBinding {
-                        parameter: parameter.root,
-                        source: descriptor_contents_query(
+                    step.may_escape = true;
+                    DescriptorFlowSource::from_query(
+                        argument.place,
+                        descriptor_contents_query(
                             &module.structural_types,
                             argument.place,
                             *graph.place_types.get(&argument.place)?,
                             &argument.path,
                             None,
                         ),
-                    });
-                    step.may_escape = true;
-                    step.inputs.push(DescriptorLocation::whole(argument.place));
-                }
-            }
-            step.inputs
-                .extend(bindings.iter().map(|(source, _)| source.clone()));
-            if !payload_bindings.is_empty() {
-                let arrivals = graph.payload_arrivals.entry(position).or_default();
-                arrivals.resize_with(step.successors.len() + 1, Vec::new);
-                arrivals[step.successors.len()] = payload_bindings;
+                    )
+                };
+                step.inputs.push(source.observation());
+                bindings.push(DescriptorFlowBinding::new(
+                    source,
+                    DescriptorLocation::whole(parameter.place),
+                    argument.access,
+                    parameter.access,
+                )?);
             }
             step.successors.push(DescriptorFlowEdge {
                 target: (target, 0),
@@ -1207,13 +1299,14 @@ pub(super) fn adapt(
                             case: case.case,
                             fields: &case.payload_fields,
                         },
-                        &[],
+                        &case.structural_arguments,
                     )?;
                 }
             }
             Terminator::ReturnStructural { source, .. } => {
                 if let Some(returns) = &mut graph.returns {
-                    if place_type(machine, *source)? != machine.result.structural()?.structural_type
+                    if machine.structural_place_type(*source)?
+                        != machine.result.structural()?.structural_type
                     {
                         return None;
                     }
@@ -1227,8 +1320,12 @@ pub(super) fn adapt(
             Terminator::ExternalCompletion {
                 structural_arguments,
                 ..
+            }
+            | Terminator::InvokeNoNormal {
+                structural_arguments,
+                ..
             } => {
-                // External completion observes its actuals but never contributes
+                // A nonreturning invocation observes its actuals but never contributes
                 // a normal-return descriptor or a post-call ownership frontier.
                 for argument in structural_arguments {
                     if let Some(source) = location(argument.place, &argument.path, None) {
@@ -1242,6 +1339,29 @@ pub(super) fn adapt(
             _ => {
                 graph.normal_exits.push(position);
             }
+        }
+        if let Terminator::StructuralCase {
+            source,
+            path,
+            cases,
+        } = &block.terminator
+        {
+            let subject = location(*source, path, None)?;
+            graph.case_successors.insert(
+                position,
+                cases
+                    .iter()
+                    .map(|case| {
+                        (
+                            DescriptorCasePredicate {
+                                subject: subject.clone(),
+                                case: case.case,
+                            },
+                            true,
+                        )
+                    })
+                    .collect(),
+            );
         }
         if let Terminator::Conditional { condition, .. } = &block.terminator
             && let Some(term) = scalar_expressions.expression(*condition)
@@ -1381,4 +1501,158 @@ fn mark_opaque_call_occupancy(
         )?);
     }
     Some(())
+}
+
+fn selected_effects_machine(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    selector_graph: Option<&[DescriptorMachine]>,
+    selector: semantic_vocabulary::ValueId,
+    interface: u32,
+    slot: u32,
+) -> Option<semantic_vocabulary::MachineId> {
+    #[derive(Clone, PartialEq, Eq)]
+    struct SelectedTable(u32);
+    let table = crate::unchanged_scalar_identity(selector, |value| {
+        let mut definitions = machine.operations().filter(|operation| {
+            operation
+                .result
+                .scalar_ref()
+                .is_some_and(|result| result.id == value)
+        });
+        if let Some(operation) = definitions.next() {
+            if definitions.next().is_some() {
+                return None;
+            }
+            if let OperationKind::SelectImplementation { table } = operation.kind {
+                return Some(crate::UnchangedScalarOrigin::Known(SelectedTable(table)));
+            }
+            let sources = super::unchanged_stored_scalar_sources(
+                &module.structural_types,
+                selector_graph?,
+                machine.id,
+                value,
+                |(block, index)| {
+                    let Some(operation) = machine
+                        .blocks
+                        .iter()
+                        .find(|row| row.id == block)
+                        .and_then(|block| block.operations.get(index as usize))
+                    else {
+                        return Vec::new();
+                    };
+                    let Some(graph) = selector_graph
+                        .and_then(|graph| graph.iter().find(|row| row.id == machine.id))
+                    else {
+                        return Vec::new();
+                    };
+                    let mut writes = Vec::new();
+                    let mut write = |root, path: &[StructuralPathSegment], field, actual| {
+                        if let Some(location) = graph.place_types.get(&root).and_then(|ty| {
+                            descriptor_location(&module.structural_types, root, *ty, path, field)
+                        }) {
+                            writes.push((location, actual));
+                        }
+                    };
+                    match &operation.kind {
+                        OperationKind::EstablishPrimitiveLocal { value, .. } => {
+                            if let Some(result) = operation.result.structural() {
+                                write(result.place, &[], None, *value);
+                            }
+                        }
+                        OperationKind::WriteOnlyPrimitiveStore {
+                            destination,
+                            path,
+                            value,
+                            ..
+                        } => write(*destination, path, None, *value),
+                        OperationKind::StructuralScalarFieldStore {
+                            destination,
+                            path,
+                            field,
+                            value,
+                            ..
+                        } => write(*destination, path, Some(*field), *value),
+                        OperationKind::EstablishRecord { fields } => {
+                            if let Some(result) = operation.result.structural() {
+                                for field in fields {
+                                    if let terminal_psi::RecordFieldValue::Scalar {
+                                        value, ..
+                                    } = &field.value
+                                    {
+                                        write(result.place, &[], Some(field.field), *value);
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                    writes
+                },
+            )?;
+            return Some(crate::UnchangedScalarOrigin::Incoming(sources));
+        }
+        let mut owners = machine.blocks.iter().filter_map(|block| {
+            block
+                .parameters
+                .iter()
+                .position(|parameter| parameter.id == value)
+                .map(|ordinal| (block.id, ordinal))
+        });
+        let (owner, ordinal) = owners.next()?;
+        if owners.next().is_some() || owner == machine.entry {
+            return None;
+        }
+        let mut incoming = Vec::new();
+        for block in &machine.blocks {
+            if crate::control_graph::reaches_by_case(block, owner) {
+                return None;
+            }
+            for binding in crate::control_graph::forwarded_bindings(block) {
+                if binding.target == owner {
+                    incoming.push(*binding.arguments?.get(ordinal)?);
+                }
+            }
+        }
+        Some(crate::UnchangedScalarOrigin::Incoming(incoming))
+    })?
+    .0;
+    let target =
+        super::selected_stored_effects_row(&module.dynamic_dispatch, table, interface, slot)?;
+    let signature = module
+        .dynamic_dispatch
+        .interface(interface)?
+        .slots
+        .get(usize::try_from(slot).ok()?)?;
+    let mut bodies = module.machines.iter().filter(|body| body.id == target);
+    let body = bodies.next()?;
+    if bodies.next().is_some()
+        || matches!(
+            signature.result,
+            terminal_psi::BoundaryMachineResult::Structural(_)
+        )
+        || matches!(&signature.result, terminal_psi::BoundaryMachineResult::Scalar(result)
+            if result.qualifications != semantic_vocabulary::ScalarQualificationSetId::ZERO)
+        || !signature.result.matches_machine_result(&body.result)
+        || body.parameters.len() != signature.scalar_parameters.len()
+        || !body
+            .parameters
+            .iter()
+            .zip(&signature.scalar_parameters)
+            .all(|(actual, expected)| actual.scalar_type == *expected)
+        || body.structural_parameters.len() != signature.structural_parameters.len()
+        || !body
+            .structural_parameters
+            .iter()
+            .zip(&signature.structural_parameters)
+            .all(|(actual, expected)| {
+                actual.position == expected.position
+                    && actual.structural_type == expected.structural_type
+                    && actual.access == expected.access
+                    && actual.multiplicity == expected.multiplicity
+            })
+    {
+        return None;
+    }
+    Some(target)
 }

@@ -20,30 +20,30 @@ machine Collection::main(collection: &mut Collection) reaches Console {
         LineReadResult::EndOfInput { count } -> eof(collection, count)
         _ -> invalid(collection)
     }
-    state newline(collection: &mut Collection, count: u64) {
+    machine newline(collection: &mut Collection, count: u64) {
         transition count == 12 && collection.input[11] == 10 {
             true -> decode(collection)
             false -> invalid(collection)
         }
     }
-    state eof(collection: &mut Collection, count: u64) {
+    machine eof(collection: &mut Collection, count: u64) {
         transition count == 11 {
             true -> decode(collection)
             false -> invalid(collection)
         }
     }
-    state decode(collection: &mut Collection) {
+    machine decode(collection: &mut Collection) {
         let valid: bool = parse(&collection.input, &mut collection.plan);
         transition valid {
             true -> route(collection)
             false -> invalid(collection)
         }
     }
-    state route(collection: &mut Collection) {
+    machine route(collection: &mut Collection) {
         solve(&collection.plan, &mut collection.certificate);
         report(&collection.certificate);
     }
-    state invalid(collection: &mut Collection) {
+    machine invalid(collection: &mut Collection) {
         Console::write_line("INVALID: expected C A B RA RB LA(2) LB(2) H(2), eleven digits; C=1..2, A/B=1..9, ready<=latest");
         Console::exit_process(64);
     }

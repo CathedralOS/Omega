@@ -20,15 +20,15 @@ fn collects_domain_surface() {
 
     syntax_trees.push_root_item(Item::Domain(DomainDefinition {
         name: Identifier::generated("NonEmpty"),
-        subject: None,
         type_parameters: HandleSpan::empty(),
         target_type,
         index_arguments: HandleSpan::empty(),
         is_public: false,
         alias: None,
+        cleanup_selection: None,
         authored_routes: Vec::new(),
         classification: None,
-        predicate_body: language_semantics::DomainPredicateBody::Bodyless,
+        predicate_presence: language_semantics::DomainPredicatePresence::Absent,
         facts: HandleSpan::empty(),
         operators: HandleSpan::empty(),
         semantic_clause_token_count: 3,
@@ -41,8 +41,8 @@ fn collects_domain_surface() {
     assert_eq!(domain.name, "NonEmpty");
     assert_eq!(domain.target_type, "String");
     assert_eq!(
-        domain.predicate_body,
-        language_semantics::DomainPredicateBody::Bodyless
+        domain.predicate_presence,
+        language_semantics::DomainPredicatePresence::Absent
     );
     assert_eq!(domain.fact_count, 0);
     assert_eq!(domain.membership_fact_count, 0);
@@ -141,7 +141,7 @@ fn collects_bounded_type_sites() {
     });
     let state_handle = syntax_trees.items.append_state_handle(state);
     syntax_trees.push_root_item(Item::Machine(Machine {
-        nested_machines: Vec::new(),
+        nested_machines: HandleSpan::empty(),
         name: Identifier::generated("main"),
         generic_data_template: Default::default(),
         default_body_trait: Default::default(),

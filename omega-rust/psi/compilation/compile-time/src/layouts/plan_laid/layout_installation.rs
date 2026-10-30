@@ -19,6 +19,20 @@ pub(crate) fn compute_plan_laid_layouts_in(
     }
 
     let execution = domain.execution_program(typed);
+    let admission = crate::BuildTimeAdmissionPlan::infer(&execution, selection_authority.clone());
+    let invariant_pending = records
+        .iter()
+        .filter_map(|record| {
+            let policy = typed.realized_machine_named(&record.policy_machine)?;
+            if !policy.target_family_interface {
+                return None;
+            }
+            typed
+                .data_definition_by_name_str(&record.synthetic_name)
+                .map(|data| data.symbol)
+        })
+        .collect::<Vec<_>>();
+    let mut materialized_pending = None;
     let mut layouts = Vec::with_capacity(records.len());
     let mut target_layouts = arena::Arena::new();
     let mut captured_schema_fields = arena::Arena::new();
@@ -77,7 +91,12 @@ pub(crate) fn compute_plan_laid_layouts_in(
             .live_data_fields(typed.data_members(schema))
             .map(|field| field.symbol)
             .collect::<Vec<_>>();
-        require_invariant_schema(typed, records, schema_symbol).map_err(|reason| {
+        super::super::schema_reflection::require_invariant_schema(
+            typed,
+            schema_symbol,
+            &invariant_pending,
+        )
+        .map_err(|reason| {
             vec![Diagnostic::error(format!(
                 "plan-laid value type `{}`: {reason}",
                 record.synthetic_name
@@ -99,20 +118,23 @@ pub(crate) fn compute_plan_laid_layouts_in(
         }
         let family_schema = family
             .map(|_| {
-                let pending = records
-                    .iter()
-                    .filter_map(|record| {
-                        let data = execution.data_definition_by_name_str(&record.synthetic_name)?;
-                        execution
-                            .plan_laid_layout(data.symbol)
-                            .is_none()
-                            .then_some(data.symbol)
-                    })
-                    .collect::<Vec<_>>();
+                let pending = materialized_pending.get_or_insert_with(|| {
+                    records
+                        .iter()
+                        .filter_map(|record| {
+                            let data =
+                                execution.data_definition_by_name_str(&record.synthetic_name)?;
+                            execution
+                                .plan_laid_layout(data.symbol)
+                                .is_none()
+                                .then_some(data.symbol)
+                        })
+                        .collect::<Vec<_>>()
+                });
                 super::super::schema_reflection::require_materialized_schema(
                     &execution,
                     schema_symbol,
-                    &pending,
+                    pending,
                 )?;
                 prepare_family_schema(&execution, schema_symbol, &record.schema_data)
             })
@@ -130,8 +152,6 @@ pub(crate) fn compute_plan_laid_layouts_in(
                 fields: captured_schema_fields.insert_many(retained.iter().cloned()),
             }
         });
-        let admission =
-            crate::BuildTimeAdmissionPlan::infer(&execution, selection_authority.clone());
         let evaluate = |machine_symbol| {
             let machine = execution.machine_by_symbol(machine_symbol).ok_or_else(|| {
                 vec![Diagnostic::error(
@@ -163,14 +183,27 @@ pub(crate) fn compute_plan_laid_layouts_in(
                         fields,
                         *fingerprint,
                         selection,
+                        Some(&admission),
+                        &domain.accounting,
                     )
                 }
-                None => super::super::layout_plans::compute_native_layout_plan_for_machine(
-                    &execution,
-                    machine_symbol,
-                    &record.schema_data,
-                    selection,
-                ),
+                None => {
+                    let (fields, fingerprint) = super::super::schema_reflection::schema_fields(
+                        &execution,
+                        &record.schema_data,
+                    )
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                    super::super::layout_plans::compute_native_layout_plan_with_schema(
+                        &execution,
+                        machine_symbol,
+                        &record.schema_data,
+                        &fields,
+                        fingerprint,
+                        selection,
+                        Some(&admission),
+                        &domain.accounting,
+                    )
+                }
             }
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
             install_geometry(&execution, record, &schema_fields, report)
@@ -292,28 +325,6 @@ fn validate_family_roster(
         }
     }
     Ok(())
-}
-
-fn require_invariant_schema(
-    typed: &TypedTrees,
-    records: &[PlanLaidRecord],
-    schema: symbols::SymbolHandle,
-) -> Result<(), String> {
-    // Pending applications are checked before any layout is installed, so this
-    // check cannot accidentally depend on the order of policy evaluation.
-    let pending = records
-        .iter()
-        .filter_map(|record| {
-            let policy = typed.realized_machine_named(&record.policy_machine)?;
-            if !policy.target_family_interface {
-                return None;
-            }
-            typed
-                .data_definition_by_name_str(&record.synthetic_name)
-                .map(|data| data.symbol)
-        })
-        .collect::<Vec<_>>();
-    super::super::schema_reflection::require_invariant_schema(typed, schema, &pending)
 }
 
 /// Version 1 records the complete active record argument; unsupported ABI axes

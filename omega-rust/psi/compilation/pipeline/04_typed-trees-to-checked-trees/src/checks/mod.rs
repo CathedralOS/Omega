@@ -37,7 +37,8 @@
 // Call obligations: contract requirements and guarantees, and borrows.
 mod borrows;
 pub(crate) use borrows::{
-    StorageSelectorFacts, captured_storage_paths_are_disjoint, storage_path_compatibility,
+    StorageSelectorFacts, captured_storage_index, captured_storage_paths_are_disjoint,
+    storage_path_compatibility,
 };
 pub(crate) mod atomic_fences;
 mod case_access;
@@ -60,10 +61,12 @@ pub(crate) mod ownership_occurrences;
 mod cleanup_admission;
 mod crashes;
 pub(crate) use cleanup_admission::validate_selected_cleanup_guarantees;
+pub(crate) use crashes::call_route_guard_covers;
 
 // Operator resolution, indexed access bounds, and machine termination.
 mod indexed_writes;
 mod operators;
+mod places;
 mod ranges;
 pub(crate) mod termination;
 
@@ -182,6 +185,12 @@ pub(crate) fn check_checked_facts_recording(
         Ok(decided) => {
             facts.qualifications.scalar_returns = decided.scalar_returns;
             facts.constant_predicate_obligations = decided.constant_obligations;
+            facts
+                .constant_recipe_obligations
+                .extend(decided.recipe_obligations);
+            facts
+                .integer_range_obligations
+                .extend(decided.integer_range_obligations);
             facts.decided_call_requires = decided.call_requires;
             facts.qualifications.value_formations = decided.value_qualifications;
         }

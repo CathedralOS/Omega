@@ -9,6 +9,6 @@ machine main() reaches crashes Trap {
     let value: u64 = read_mark();
     let inferred: u64 = inferred_empty();
     transition value == 7 && inferred == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -10,9 +10,10 @@ use crate::selection::scalar_call_abi::scalar_value_type;
 pub(super) fn validate_borrowed_argument(
     source: &LegalizedScalarFunction,
     call: &LegalizedScalarCall,
-    operation: semantic_vocabulary::OperationId,
+    site: semantic_vocabulary::InvocationSite,
     argument_index: usize,
 ) -> Option<()> {
+    super::input_site::use_cut(source, site)?;
     let signature = source.structural.as_ref()?;
     let LegalizedScalarArgument::Structural {
         semantic,
@@ -46,7 +47,7 @@ pub(super) fn validate_borrowed_argument(
         return validate_reference_argument(
             source,
             call,
-            operation,
+            site,
             argument_index,
             semantic,
             target,
@@ -198,8 +199,8 @@ pub(super) fn validate_borrowed_argument(
     // fixed array it has no projected carrier identity, so the field's own
     // record geometry supplies the offset and the callee's type supplies the
     // view identity.
-    let byte_field = crate::selection::byte_owner_input::view_argument(
-        source, operation, semantic, target, indices,
+    let byte_field = crate::selection::byte_owner_input::view_argument_at(
+        source, site, semantic, target, indices,
     );
     let byte_owner = signature
         .parameters
@@ -452,7 +453,7 @@ pub(super) fn validate_borrowed_argument(
                 .is_some_and(|(actual, _)| actual == producer);
             if (aggregate.is_none() && !home_view && !descriptor_home)
                 || *psi_operation != producer
-                || producer == operation
+                || super::input_site::producer_before_use(source, producer, site).is_none()
             {
                 return None;
             }
@@ -461,7 +462,9 @@ pub(super) fn validate_borrowed_argument(
             psi_operation,
         } => {
             let (producer, _, _, _) = local?;
-            if *psi_operation != producer || producer == operation {
+            if *psi_operation != producer
+                || super::input_site::producer_before_use(source, producer, site).is_none()
+            {
                 return None;
             }
         }
@@ -502,17 +505,15 @@ pub(super) fn validate_borrowed_argument(
             // A descriptor-rooted element loan loans mutable or shared —
             // exclusive is exactly the mutable view's own authority.
             if semantic.path.is_empty() {
-                crate::selection::established_view_input::accepts(source, operation, target)?;
+                crate::selection::established_view_input::accepts_at(source, site, target)?;
             } else {
-                crate::selection::established_view_input::accepts_view_loan(
-                    source, operation, target,
-                )?;
+                crate::selection::established_view_input::accepts_view_loan(source, site, target)?;
             }
         }
         target_operations::TargetStructuralArgumentSource::EstablishedByteView { .. }
         | target_operations::TargetStructuralArgumentSource::EstablishedElementView { .. }
         | target_operations::TargetStructuralArgumentSource::BlockParameter { .. } => {
-            crate::selection::established_view_input::accepts(source, operation, target)?;
+            crate::selection::established_view_input::accepts_at(source, site, target)?;
         }
     }
     Some(())
@@ -522,15 +523,16 @@ pub(super) fn validate_borrowed_argument(
 fn validate_reference_argument(
     source: &LegalizedScalarFunction,
     call: &LegalizedScalarCall,
-    operation: semantic_vocabulary::OperationId,
+    site: semantic_vocabulary::InvocationSite,
     argument_index: usize,
     semantic: &terminal_psi::StructuralArgument,
     target: &target_operations::TargetStructuralArgument,
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
 ) -> Option<()> {
-    if matches!(target.source, target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } if psi_operation == operation)
+    if let target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } =
+        target.source
     {
-        return None;
+        super::input_site::producer_before_use(source, psi_operation, site)?;
     }
     crate::selection::reference_input::borrowed_argument(source, semantic, target, indices)?;
     let shape = target.shape;

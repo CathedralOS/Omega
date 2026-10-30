@@ -3,20 +3,18 @@ module right;
 use omega_language_std::console;
 
 public boundary trait Reader { machine read() -> i32 reaches; }
-public data Provider {}
-machine Provider::read() -> i32 satisfies Reader::read { 37 }
+public ProviderReaderImplementation satisfies Reader {
+    machine read() -> i32 { 37 }
+}
 
-public data Runner { }
-public machine Runner::run(runner: &mut Runner) reaches Reader, Console
+// Both modules export the same leaf name. The description must retain the
+// exact selected declaration; choosing the sibling changes the exit oracle.
+public machine run() reaches Reader, Console
 invokes Reader;
 invokes Console;
 {
     let value: i32 = Reader::read();
-    transition value == 37 { true -> deliver(runner, value) _ -> wrong(runner, value) }
-    state deliver(runner: &mut Runner, observed: i32) { Console::exit_process(observed); }
-    state wrong(runner: &mut Runner, observed: i32) { Console::exit_process(65); }
-}
-
-public ProviderReaderImplementation satisfies Reader {
-    Reader::read = Provider::read;
+    transition value == 37 { true -> deliver(value) _ -> wrong(value) }
+    machine deliver(observed: i32) { Console::exit_process(observed); }
+    machine wrong(observed: i32) { Console::exit_process(65); }
 }

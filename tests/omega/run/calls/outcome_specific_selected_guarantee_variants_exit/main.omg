@@ -38,25 +38,25 @@ machine check() -> bool {
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> later(main) }
 
-    state later(main: &mut Main) {
+    machine later(main: &mut Main) {
         transition pick() {
             Outcome::Success { ; selected: proof } -> checked(main, check())
             _ -> bad(main)
         }
     }
 
-    state checked(main: &mut Main, valid: bool) {
+    machine checked(main: &mut Main, valid: bool) {
         transition valid {
             true -> ok(main)
             false -> bad(main)
         }
     }
 
-    state ok(main: &mut Main) {
+    machine ok(main: &mut Main) {
         Console::exit_process(0);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(1);
     }
 }

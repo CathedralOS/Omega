@@ -30,7 +30,7 @@ machine sized(prefix: u64, bytes: &[u8], suffix: u64) -> u64 {
         true -> window(bytes)
         _ -> (255)
     }
-    state window(bytes: &[u8]) -> u64 { bytes.len }
+    machine window(bytes: &[u8]) -> u64 { bytes.len }
 }
 machine prefix_of(sequence: &mut Sequence) -> u64 {
     sequence.digits = sequence.digits * 10 + 1;
@@ -84,6 +84,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -18,7 +18,7 @@ blocks;
     Request::clear(&mut request);
     transition { _ -> read(context, &mut request) }
 
-    state read(context: &mut Main, request: &mut Request) {
+    machine read(context: &mut Main, request: &mut Request) {
         let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Byte { value } -> stage(context, request, value)
@@ -26,12 +26,12 @@ blocks;
         }
     }
 
-    state stage(context: &mut Main, request: &mut Request, value: i32) {
+    machine stage(context: &mut Main, request: &mut Request, value: i32) {
         Request::stage(request, value as u8);
         transition { _ -> read(context, request) }
     }
 
-    state envelope(context: &mut Main, request: &Request) {
+    machine envelope(context: &mut Main, request: &Request) {
         let verdict: Verdict = Request::envelope(request);
         transition verdict.complete {
             true -> structure(context, request, verdict.sections)
@@ -39,12 +39,12 @@ blocks;
         }
     }
 
-    state structure(context: &mut Main, request: &Request, sections: Sections) {
+    machine structure(context: &mut Main, request: &Request, sections: Sections) {
         let outcome: Outcome = Request::structure(request, sections);
         transition { _ -> publish(context, outcome) }
     }
 
-    state publish(context: &mut Main, outcome: Outcome) {
+    machine publish(context: &mut Main, outcome: Outcome) {
         Main::write_frame(context, outcome);
         let tag: u8 = OutcomeTag::value(outcome.tag);
         Console::exit_process(tag as i32);
@@ -58,7 +58,7 @@ crashes Trap
 {
     transition { _ -> next(context, outcome, 0) }
 
-    state next(context: &mut Main, outcome: Outcome, index: u64 in Trapping) {
+    machine next(context: &mut Main, outcome: Outcome, index: u64 in Trapping) {
         let length: u64 in Trapping = Outcome::frame_length(outcome);
         transition index < length {
             true -> write(context, outcome, index)
@@ -66,13 +66,13 @@ crashes Trap
         }
     }
 
-    state write(context: &mut Main, outcome: Outcome, index: u64 in Trapping) {
+    machine write(context: &mut Main, outcome: Outcome, index: u64 in Trapping) {
         let value: u8 = Outcome::frame_byte(outcome, index);
         Console::write_byte(value as i32);
         transition { _ -> next(context, outcome, index + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // ProgramEntry selects code; ordinary local ownership supplies compiler state.

@@ -17,7 +17,8 @@ use facts::{
 };
 use normalization::normalize;
 pub(crate) use paths::{
-    EntryPaths, capture_entry_guard, conjunction, entry_path_condition, seed_entry_paths,
+    EntryPaths, capture_entry_expression, capture_entry_guard, conjunction, entry_path_condition,
+    entry_path_necessary_condition, seed_entry_paths,
 };
 pub(crate) use retention::retained;
 use symbols::SymbolHandle;
@@ -97,16 +98,32 @@ pub(crate) fn entry_expression(
     statement: usize,
     predicate: &BoundPredicate,
 ) -> Option<Boolean> {
+    entry_expression_with(program, machine, predicate, |place| {
+        super::crash_entry_values::entry_parameter_place(program, machine, state, statement, place)
+    })
+}
+
+/// One projection owner for a completed bound proposition. The caller supplies
+/// the authenticated observation cut; the shared entry scalar adapter retains
+/// exact authored structural positions and dense primitive positions.
+pub(crate) fn entry_expression_with(
+    program: &dyn ::validation::CheckingInput,
+    machine: SymbolHandle,
+    predicate: &BoundPredicate,
+    mut subject: impl FnMut(
+        &CanonicalPlace,
+    ) -> Option<(
+        u32,
+        Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+    )>,
+) -> Option<Boolean> {
+    if predicate.machine != machine {
+        return None;
+    }
     let mut expression = predicate.expression.clone();
     map_observations(&mut expression, &mut |operand| {
-        let binding = predicate.binding(&operand)?;
-        let (position, path) = super::crash_entry_values::entry_parameter_place(
-            program,
-            machine,
-            state,
-            statement,
-            &binding.place,
-        )?;
+        let binding = predicate.binding(operand)?;
+        let (position, path) = subject(&binding.place)?;
         *operand = entry_scalar(program, machine, position, path, operand.primitive_type()?)?;
         Some(())
     })?;
@@ -134,6 +151,7 @@ pub(crate) fn entry_scalar(
             return None;
         }
         return Some(Scalar::StructuralParameterField {
+            observation: Default::default(),
             parameter_position: position,
             path,
             primitive_type: primitive,
@@ -229,35 +247,9 @@ pub(crate) fn bind_parameters(
             }
             Scalar::StructuralParameterField { .. }
             | Scalar::StructuralParameterIndexedRead { .. } => {
-                let (parameter_position, path) = match operand {
-                    Scalar::StructuralParameterField {
-                        parameter_position,
-                        path,
-                        ..
-                    } => (*parameter_position, path.clone()),
-                    Scalar::StructuralParameterIndexedRead {
-                        root,
-                        path,
-                        index,
-                        element_path,
-                        ..
-                    } => {
-                        use checked_trees::CheckedScalarReadProjection;
-                        let mut projections = path
-                            .iter()
-                            .cloned()
-                            .map(CheckedScalarReadProjection::Static)
-                            .collect::<Vec<_>>();
-                        projections
-                            .push(CheckedScalarReadProjection::RuntimeIndex((**index).clone()));
-                        projections.extend_from_slice(element_path);
-                        (
-                            root.parameter()?,
-                            CheckedScalarReadProjection::static_path(&projections)?,
-                        )
-                    }
-                    _ => return None,
-                };
+                let selected = operand.parameter_observation_projection()?;
+                let parameter_position = selected.parameter_position;
+                let path = selected.path;
                 if usize::try_from(parameter_position).ok()? == parameters.len() {
                     let (place, reference) = result?;
                     let (segments, reference, _) =
@@ -316,23 +308,22 @@ pub(crate) fn bind_parameters(
     })
 }
 
-/// Capture a selected current guard using the ordinary checked scalar algebra.
-/// The leaf bindings name current storage, including named-state parameters
-/// and saved locals; they make no claim about invocation-entry identity.
-pub(crate) fn bind_current_guard(
+/// Lower current guard algebra without binding a storage or value epoch.
+/// Flow supplies fresh completed observations when the guard actually selects
+/// its branch; caching this syntax cannot retain a previous read's address.
+pub(crate) fn lower_current_guard(
     program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
-    value: bool,
-) -> Option<BoundPredicate> {
+) -> Option<Boolean> {
     let (machine, state) = validation::find_state(program, state_symbol)?;
     if !validation::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)
     {
         return None;
     }
-    let mut expression = crate::values::lower_unit_scalar_argument(
+    let expression = crate::values::lower_unit_scalar_argument(
         program,
         operators,
         state,
@@ -355,7 +346,68 @@ pub(crate) fn bind_current_guard(
         )
         .map(Box::new)
     })?;
-    let symbols = crate::values::unit_scalar_binding_symbols(program, state, statement_index)?;
+    Some(*expression)
+}
+
+/// The selected builtin equality used by a value pattern has the same checked
+/// observation bindings as an authored equality. It is not a comparison added
+/// to the immutable source tree and grants no meaning to selected operators.
+pub(crate) fn bind_current_match(
+    program: &dyn ::validation::CheckingInput,
+    operators: &checked_trees::CheckedOperatorFacts,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    subject: typed_trees::expression::ExpressionHandle,
+    pattern: typed_trees::expression::ExpressionHandle,
+    matched: bool,
+) -> Option<BoundPredicate> {
+    let (machine, state) = validation::find_state(program, state_symbol)?;
+    let reference = validation::expression_result_type_reference(program, machine, state, subject)?;
+    let primitive = program.primitive_type_reference(reference)?;
+    let left = crate::values::lower_unit_scalar_argument(
+        program,
+        operators,
+        state,
+        statement_index,
+        subject,
+        primitive,
+    )?;
+    let right = crate::values::lower_unit_scalar_argument(
+        program,
+        operators,
+        state,
+        statement_index,
+        pattern,
+        primitive,
+    )?;
+    let expression = if primitive == PrimitiveType::Bool {
+        let (Scalar::Boolean(left), Scalar::Boolean(right)) = (left, right) else {
+            return None;
+        };
+        Boolean::Equal { left, right }
+    } else {
+        // Floating equality and noninteger carriers retain their own selected
+        // semantics; they cannot acquire reflexive integer comparison meaning.
+        validation::carrier_integer_range(primitive)?;
+        Boolean::IntegerComparison {
+            kind: checked_trees::CheckedIntegerComparisonKind::Equal,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+    };
+    bind_current_expression(program, state_symbol, expression, matched, |operand| {
+        declared_observation(program, state_symbol, statement_index, operand)
+    })
+}
+
+pub(crate) fn bind_current_expression(
+    program: &dyn ::validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    mut expression: Boolean,
+    value: bool,
+    mut observe: impl FnMut(&Scalar) -> Option<(CanonicalPlace, TypeReferenceHandle)>,
+) -> Option<BoundPredicate> {
+    let (machine, state) = validation::find_state(program, state_symbol)?;
     let mut bindings = Vec::new();
     map_observations(&mut expression, &mut |operand| {
         if bindings
@@ -364,37 +416,12 @@ pub(crate) fn bind_current_guard(
         {
             return Some(());
         }
-        let place = match operand {
-            Scalar::Parameter { position, .. } | Scalar::Local { position, .. } => {
-                crate::flow::canonical_place_from_symbol(*symbols.get(*position)?)?
-            }
-            Scalar::StorageRead { symbol, .. } => {
-                crate::flow::canonical_place_from_symbol(*symbol)?
-            }
-            Scalar::StructuralParameterField {
-                parameter_position,
-                path,
-                ..
-            } => {
-                let (root, segments, _, _) = crate::values::resolve_structural_parameter_path(
-                    program,
-                    program.state_parameters(state),
-                    *parameter_position,
-                    path,
-                )?;
-                CanonicalPlace {
-                    root: facts::PlaceRoot::Symbol(root),
-                    segments,
-                }
-            }
-            _ => return None,
-        };
-        let type_reference = validation::canonical_place_type_reference(
-            program,
-            state_symbol,
-            statement_index,
-            &place,
-        )?;
+        let (place, type_reference) = observe(operand)?;
+        // The completed observation keeps its exact place and live storage cut.
+        // An empty structural path may read a primitive loan's referent, as
+        // parameter-contract binding does; write-only loans remain absent.
+        let type_reference =
+            validation::field_domains::readable_type_reference(program, type_reference)?;
         if program.primitive_type_reference(type_reference) != operand.primitive_type() {
             return None;
         }
@@ -409,21 +436,70 @@ pub(crate) fn bind_current_guard(
         machine: machine.symbol,
         entry_state: state.symbol,
         expression: if value {
-            *expression
+            expression
         } else {
-            Boolean::Not(expression)
+            Boolean::Not(Box::new(expression))
         },
         bindings,
     })
 }
 
-/// Install one assertion, never separately assert its subexpressions. Every
-/// observed projection belongs to the same invalidation context.
+/// Declaration-bound observations used when no completed evaluation is being
+/// consumed. Runtime indexed reads need their actual Flow observation instead;
+/// this conversion never invents a static path or re-evaluates a selector.
+pub(crate) fn declared_observation(
+    program: &dyn ::validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    operand: &Scalar,
+) -> Option<(CanonicalPlace, TypeReferenceHandle)> {
+    let (_, state) = validation::find_state(program, state_symbol)?;
+    let symbols = crate::values::unit_scalar_binding_symbols(program, state, statement_index)?;
+    let place = match operand {
+        Scalar::Parameter { position, .. } | Scalar::Local { position, .. } => {
+            crate::flow::canonical_place_from_symbol(*symbols.get(*position)?)?
+        }
+        Scalar::StorageRead { symbol, .. } => crate::flow::canonical_place_from_symbol(*symbol)?,
+        Scalar::StructuralParameterField {
+            parameter_position,
+            path,
+            ..
+        } => {
+            let (root, segments, _, _) = crate::values::resolve_structural_parameter_path(
+                program,
+                program.state_parameters(state),
+                *parameter_position,
+                path,
+            )?;
+            CanonicalPlace {
+                root: facts::PlaceRoot::Symbol(root),
+                segments,
+            }
+        }
+        _ => return None,
+    };
+    let type_reference =
+        validation::canonical_place_type_reference(program, state_symbol, statement_index, &place)?;
+    Some((place, type_reference))
+}
+
 pub(crate) fn seed(
     semantic: &mut FactPlan,
     predicate: &BoundPredicate,
     point: ProgramPoint,
     origin: FactOrigin,
+) -> FactContextHandle {
+    seed_with_dependencies(semantic, predicate, point, origin, &[])
+}
+
+/// Additional evaluated receivers share the proposition's ordinary storage
+/// lifetime; they assert no independent truth about those receiver contents.
+pub(crate) fn seed_with_dependencies(
+    semantic: &mut FactPlan,
+    predicate: &BoundPredicate,
+    point: ProgramPoint,
+    origin: FactOrigin,
+    dependencies: &[CanonicalPlace],
 ) -> FactContextHandle {
     let mut bindings = HandleSpan::empty();
     let mut places = Vec::new();
@@ -444,6 +520,11 @@ pub(crate) fn seed(
             },
         );
         places.push(place);
+    }
+    for dependency in dependencies {
+        let place =
+            crate::semantic::places::append_place(semantic, dependency.root, &dependency.segments);
+        crate::collections::push_unique(&mut places, place);
     }
     let predicate = semantic.boolean_predicates.append(facts::BooleanPredicate {
         role: facts::BooleanPredicateRole::CurrentObservation,
@@ -483,20 +564,27 @@ pub(crate) fn domain_predicates_for_subject(
     domain: &typed_trees::domain::DomainDefinition,
     subject: &CanonicalPlace,
 ) -> Option<Vec<BoundPredicate>> {
-    if !domain.type_parameters.is_empty()
-        || !domain.index_arguments.is_empty()
-        || domain.alias.is_some()
-    {
-        return None;
-    }
-    let parameters = [typed_trees::signature::StateParameter {
-        symbol: domain.subject_symbol,
-        name: domain.subject_name.clone(),
-        type_reference: domain.target_type,
-        ..Default::default()
-    }];
-    Some(
-        program
+    fn visit(
+        program: &dyn ::validation::CheckingInput,
+        operators: &checked_trees::CheckedOperatorFacts,
+        domain: &typed_trees::domain::DomainDefinition,
+        subject: &CanonicalPlace,
+        active: &mut Vec<(SymbolHandle, language_semantics::SemanticDomainId)>,
+    ) -> Option<Vec<BoundPredicate>> {
+        if !domain.type_parameters.is_empty()
+            || !domain.index_arguments.is_empty()
+            || active.contains(&(domain.symbol, domain.semantic_id))
+        {
+            return None;
+        }
+        active.push((domain.symbol, domain.semantic_id));
+        let parameters = [typed_trees::signature::StateParameter {
+            symbol: domain.subject_symbol,
+            name: domain.subject_name.clone(),
+            type_reference: domain.target_type,
+            ..Default::default()
+        }];
+        let mut predicates: Vec<BoundPredicate> = program
             .proof_facts(domain)
             .iter()
             .filter_map(|fact| {
@@ -514,6 +602,13 @@ pub(crate) fn domain_predicates_for_subject(
                         )?
                     }
                     typed_trees::domain::ProofFact::Membership(membership) => {
+                        if typed_trees::domain::domain_subject_reference(
+                            program,
+                            domain,
+                            membership.value,
+                        ) {
+                            return None;
+                        }
                         crate::values::scalar::result_contract::lower_callable_scalar_membership(
                             program,
                             operators,
@@ -543,8 +638,36 @@ pub(crate) fn domain_predicates_for_subject(
                 }
                 Some(predicate)
             })
-            .collect(),
-    )
+            .collect();
+        // Whole-subject membership retains the parent's complete supported
+        // predicate theory at this exact subject. Projecting a record membership
+        // through the scalar-only lowerer used to drop every inherited clause.
+        // Field memberships keep their separate subjects and ordinary projection.
+        for membership in typed_trees::domain::subject_membership_facts(program, domain) {
+            if let Some(parent) = program
+                .domain_definition_for_instance(
+                    membership.domain_symbol,
+                    membership.semantic_domain,
+                )
+                .or_else(|| program.domain_definition(membership.domain_symbol))
+                && let Some(inherited) = visit(program, operators, parent, subject, active)
+            {
+                predicates.extend(inherited);
+            }
+        }
+        if let Some(alias) = &domain.alias {
+            for constituent in &alias.constituents {
+                if let Some(parent) = program.domain_definition(constituent.domain_symbol)
+                    && let Some(inherited) = visit(program, operators, parent, subject, active)
+                {
+                    predicates.extend(inherited);
+                }
+            }
+        }
+        active.pop();
+        Some(predicates)
+    }
+    visit(program, operators, domain, subject, &mut Vec::new())
 }
 
 struct Values<'a, Resolve> {
@@ -568,24 +691,12 @@ impl<Resolve: FnMut(&CanonicalPlace) -> Option<ScalarValue>> crate::values::Scal
 
     fn structural_field(
         &mut self,
+        observation: typed_trees::expression::ExpressionHandle,
         parameter_position: u32,
         path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     ) -> Option<ScalarValue> {
-        let binding = self.predicate.bindings.iter().find(|binding| matches!(&binding.operand, Scalar::StructuralParameterField { parameter_position: candidate, path: candidate_path, .. } if *candidate == parameter_position && candidate_path == path))?;
+        let binding = self.predicate.bindings.iter().find(|binding| matches!(&binding.operand, Scalar::StructuralParameterField { observation: candidate_observation, parameter_position: candidate, path: candidate_path, .. } if *candidate_observation == observation && *candidate == parameter_position && candidate_path == path))?;
         (self.resolve)(&binding.place)
-    }
-}
-
-pub(crate) fn evaluate(
-    predicate: &BoundPredicate,
-    resolve: impl FnMut(&CanonicalPlace) -> Option<ScalarValue>,
-) -> Option<bool> {
-    match crate::values::evaluate_checked_scalar(
-        &Scalar::Boolean(Box::new(predicate.expression.clone())),
-        &mut Values { predicate, resolve },
-    )? {
-        ScalarValue::Boolean(value) => Some(value),
-        _ => None,
     }
 }
 
@@ -616,19 +727,36 @@ pub(crate) fn inferred_boolean_at_place(
     let position = observations
         .iter()
         .position(|(place, primitive)| *place == *actual && *primitive == PrimitiveType::Bool)?;
-    let truths = formula_closure(&expressions, &observations, ordinary)?;
+    let truths = formula_closure(&expressions, &[], &observations, ordinary).ok()?;
     truths.into_iter().find_map(|(expression, value)| {
         (expression == Boolean::Parameter { position }).then_some(value)
     })
 }
 
+/// The established truths ever disagreed: the premises cannot all hold. Kept
+/// distinct from "no answer" so a consumer that only needs feasibility can
+/// read a decided conflict instead of a closed door.
+struct Contradiction;
+
 type Observation = (CanonicalPlace, PrimitiveType);
+
+/// Whether no assignment satisfies `predicates`. Only a conflict between two
+/// truths this algebra has already established makes a premise set
+/// unsatisfiable, so the answer never rests on a leaf value a caller resolved:
+/// the refuted-arm rule must not conclude `false` from a stale read.
+pub(crate) fn unsatisfiable(predicates: &[BoundPredicate]) -> bool {
+    let Some((expressions, observations)) = normalize(predicates) else {
+        return false;
+    };
+    formula_closure(&expressions, &[], &observations, |_| None).is_err()
+}
 
 fn formula_closure(
     assertions: &[Boolean],
+    queries: &[Boolean],
     observations: &[Observation],
     mut ordinary: impl FnMut(&CanonicalPlace) -> Option<ScalarValue>,
-) -> Option<Vec<(Boolean, bool)>> {
+) -> Result<Vec<(Boolean, bool)>, Contradiction> {
     fn collect(expression: &Boolean, expressions: &mut Vec<Boolean>) {
         if expressions.contains(expression) {
             return;
@@ -643,12 +771,16 @@ fn formula_closure(
             _ => {}
         }
     }
-    fn put(truths: &mut Vec<(Boolean, bool)>, expression: &Boolean, value: bool) -> Option<()> {
+    fn put(
+        truths: &mut Vec<(Boolean, bool)>,
+        expression: &Boolean,
+        value: bool,
+    ) -> Result<(), Contradiction> {
         if let Some((_, prior)) = truths.iter().find(|(known, _)| known == expression) {
-            return (*prior == value).then_some(());
+            return (*prior == value).then_some(()).ok_or(Contradiction);
         }
         truths.push((expression.clone(), value));
-        Some(())
+        Ok(())
     }
     struct Inputs<'a> {
         values: &'a [Option<ScalarValue>],
@@ -667,6 +799,13 @@ fn formula_closure(
     for assertion in assertions {
         collect(assertion, &mut expressions);
         put(&mut truths, assertion, true)?;
+    }
+    // A required formula is a query, not an established premise. Evaluate its
+    // normalized observations through the same exact current-place values as
+    // retained assertions, including indexed reads. The source-shaped scalar
+    // evaluator cannot recover those bindings after normalization.
+    for query in queries {
+        collect(query, &mut expressions);
     }
     for expression in &expressions {
         if let Some(ScalarValue::Boolean(value)) = crate::values::evaluate_checked_scalar(
@@ -715,6 +854,26 @@ fn formula_closure(
                         }
                     }
                 }
+                // Checked integer equality denotes one proposition in either
+                // operand order. Preserve both true and false evidence; this
+                // grants no reflexivity rule to IEEE or selected equality.
+                Boolean::IntegerComparison {
+                    kind: checked_trees::CheckedIntegerComparisonKind::Equal,
+                    left,
+                    right,
+                } => {
+                    if let Some(value) = result {
+                        put(
+                            &mut additions,
+                            &Boolean::IntegerComparison {
+                                kind: checked_trees::CheckedIntegerComparisonKind::Equal,
+                                left: right.clone(),
+                                right: left.clone(),
+                            },
+                            value,
+                        )?;
+                    }
+                }
                 Boolean::Equal { left, right } => {
                     let a = truth(left);
                     let b = truth(right);
@@ -738,7 +897,7 @@ fn formula_closure(
             put(&mut truths, &expression, value)?;
         }
         if truths.len() == previous {
-            return Some(truths);
+            return Ok(truths);
         }
     }
 }
@@ -851,10 +1010,12 @@ pub(crate) fn map_observations(
             *expression = boolean_operand(scalar)?;
         }
         Boolean::StructuralParameterField {
+            observation,
             parameter_position,
             path,
         } => {
             let mut scalar = Scalar::StructuralParameterField {
+                observation: *observation,
                 parameter_position: *parameter_position,
                 path: path.clone(),
                 primitive_type: PrimitiveType::Bool,
@@ -907,10 +1068,12 @@ fn boolean_operand(operand: Scalar) -> Option<Boolean> {
             primitive_type: PrimitiveType::Bool,
         } => Some(Boolean::Parameter { position }),
         Scalar::StructuralParameterField {
+            observation,
             parameter_position,
             path,
             primitive_type: PrimitiveType::Bool,
         } => Some(Boolean::StructuralParameterField {
+            observation,
             parameter_position,
             path,
         }),
@@ -946,7 +1109,8 @@ pub(crate) fn map_scalar(
         | Scalar::IntegerWiden { operand, .. }
         | Scalar::IntegerExactCast { operand, .. }
         | Scalar::RepresentationView { operand, .. } => map_scalar(operand, map)?,
-        Scalar::IntegerLiteral { .. }
+        Scalar::ConstantApplication { .. }
+        | Scalar::IntegerLiteral { .. }
         | Scalar::IeeeFloatLiteral { .. }
         | Scalar::ImplementationSelection { .. } => {}
         Scalar::StructuralSequenceLength { .. } | Scalar::ErasedParameter { .. } => return None,
@@ -1023,9 +1187,13 @@ pub(crate) fn truth(
         return None;
     };
     let normalized_required = expressions.pop().expect("required formula");
-    let Some(truths) = formula_closure(&expressions, &observations, &mut ordinary) else {
-        return None;
-    };
+    let truths = formula_closure(
+        &expressions,
+        std::slice::from_ref(&normalized_required),
+        &observations,
+        &mut ordinary,
+    )
+    .ok()?;
     fn known(expression: &Boolean, truths: &[(Boolean, bool)]) -> Option<bool> {
         if let Some((_, value)) = truths.iter().find(|(known, _)| known == expression) {
             return Some(*value);
@@ -1055,5 +1223,64 @@ pub(crate) fn truth(
             _ => None,
         }
     }
-    known(&normalized_required, &truths).or_else(|| evaluate(required, &mut ordinary))
+    known(&normalized_required, &truths)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        Boolean, BoundObservation, BoundPredicate, CanonicalPlace, Scalar, truth, unsatisfiable,
+    };
+    use facts::PlaceRoot;
+    use symbols::SymbolHandle;
+    use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+
+    /// One Boolean observation of one place, asserted true (`value`) or
+    /// asserted false by its negation -- the shape `bind_current_expression`
+    /// publishes for a guard arm.
+    fn asserted(value: bool) -> BoundPredicate {
+        let observation = Boolean::Parameter { position: 0 };
+        BoundPredicate {
+            machine: SymbolHandle::from_parts(10, 1),
+            entry_state: SymbolHandle::from_parts(11, 1),
+            expression: if value {
+                observation
+            } else {
+                Boolean::Not(Box::new(observation))
+            },
+            bindings: vec![BoundObservation {
+                operand: Scalar::Parameter {
+                    position: 0,
+                    primitive_type: PrimitiveType::Bool,
+                },
+                place: CanonicalPlace {
+                    root: PlaceRoot::Symbol(SymbolHandle::from_parts(2, 1)),
+                    segments: Vec::new(),
+                },
+                type_reference: TypeReferenceHandle::from_parts(3, 1),
+            }],
+        }
+    }
+
+    #[test]
+    fn a_refuted_observation_is_unsatisfiable_and_agreement_is_not() {
+        assert!(unsatisfiable(&[asserted(true), asserted(false)]));
+        assert!(!unsatisfiable(&[asserted(true)]));
+        assert!(!unsatisfiable(&[asserted(true), asserted(true)]));
+        assert!(!unsatisfiable(&[]));
+    }
+
+    #[test]
+    fn a_conflict_never_becomes_a_positive_goal_answer() {
+        assert_eq!(
+            truth(&[asserted(true), asserted(false)], &asserted(true), |_| {
+                None
+            }),
+            None
+        );
+        assert_eq!(
+            truth(&[asserted(true)], &asserted(true), |_| None),
+            Some(true)
+        );
+    }
 }

@@ -7,6 +7,7 @@ use super::{
 };
 use std::collections::BTreeMap;
 
+use super::super::wire::strictly_increasing;
 use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, StructuralPlaceKind};
 use terminal_psi::TerminalModule;
@@ -15,6 +16,37 @@ use terminal_psi::{BoundaryMachineDeclaration, ProviderCandidateConformance, Ter
 /// Every structural domain names a known carrier type.
 pub(super) fn validate_domains(module: &TerminalModule) -> Result<(), CodecError> {
     for domain in &module.structural_domains {
+        if !domain.required_memberships_are_well_formed(&module.structural_domains) {
+            return malformed(
+                "structural domain has ambiguous, cyclic or wrong-carrier prerequisites",
+            );
+        }
+        if domain.complete_predicate_theory
+            && domain
+                .required_domain_closure(&module.structural_domains)
+                .is_none_or(|nodes| {
+                    nodes
+                        .into_iter()
+                        .any(|node| !node.complete_predicate_theory || node.predicate.is_none())
+                })
+        {
+            return malformed("complete structural domain lost part of its required theory");
+        }
+        if !strictly_increasing(domain.establishment_routes.iter()) {
+            return malformed("structural domain issuer routes must be canonical and unique");
+        }
+        for route in &domain.establishment_routes {
+            let declaration = route.declaration().identity();
+            let callable = route.identity();
+            if [declaration, callable]
+                .iter()
+                .any(|identity| module.identities.text(*identity).is_none_or(str::is_empty))
+            {
+                return malformed(
+                    "structural domain issuer declaration and callable identities must be present",
+                );
+            }
+        }
         if domain.predicate.as_ref().is_some_and(|predicate| {
             !terminal_semantics::domain_predicate_is_closed(
                 module.structural_types.iter(),
@@ -63,6 +95,8 @@ pub(super) fn validate_boundary_machine(
     module: &TerminalModule,
     boundary: &BoundaryMachineDeclaration,
 ) -> Result<(), CodecError> {
+    terminal_psi::validate_numeric_intrinsic_signature(boundary, &module.structural_types)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     terminal_semantics::closed_conformances::validate_boundary_callable(module, boundary)
         .map_err(CodecError::MalformedStructuralFoundation)?;
     if module
@@ -110,8 +144,33 @@ pub(super) fn validate_boundary_machine(
         let Some(domain) = module.structural_domain(requirement.domain) else {
             return malformed("boundary requirement references an unknown domain");
         };
-        if domain.carrier != parameter.structural_type {
-            return malformed("boundary requirement domain has the wrong carrier type");
+        if terminal_semantics::qualification_path_carrier(
+            module.structural_types.iter(),
+            parameter.structural_type,
+            &requirement.path,
+        ) != Some(domain.carrier)
+        {
+            return malformed("boundary requirement domain has the wrong path carrier");
+        }
+    }
+    for guarantee in &boundary.normal_qualifications {
+        let Some(parameter) = boundary
+            .structural_parameters
+            .get(guarantee.argument_index as usize)
+        else {
+            return malformed("boundary normal guarantee has unknown parameter");
+        };
+        let Some(domain) = module.structural_domain(guarantee.domain) else {
+            return malformed("boundary normal guarantee has unknown domain");
+        };
+        if parameter.access != terminal_psi::StructuralAccess::MutableBorrow
+            || terminal_semantics::qualification_path_carrier(
+                module.structural_types.iter(),
+                parameter.structural_type,
+                &guarantee.path,
+            ) != Some(domain.carrier)
+        {
+            return malformed("boundary normal guarantee has the wrong mutable path carrier");
         }
     }
     require_known_services(module, &boundary.published_service_ceiling)?;
@@ -273,10 +332,15 @@ fn validate_provider_scalar_contract(
     {
         return malformed("provider candidate scalar signature disagrees with its boundary");
     }
-    if !boundary
-        .result
-        .accepts_provider_result(&machine.result, boundary.identity, domains)
-    {
+    if !boundary.result.accepts_provider_result(
+        &machine.result,
+        boundary.identity,
+        boundary
+            .declaration
+            .as_ref()
+            .map(|callable| callable.source.semantic_declaration),
+        domains,
+    ) {
         return malformed("provider candidate result disagrees with its boundary");
     }
     if boundary.structural_parameters.len() != machine.structural_parameters.len()

@@ -18,17 +18,17 @@ machine transfer(input: &io::input::Input, pair: &mut Pair, position: u32) -> f6
 }
 machine trial(input: &io::input::Input, pair: &mut Pair) {
     transition { _ -> scan(input, pair, 0) }
-    state scan(input: &io::input::Input, pair: &mut Pair, position: u32) {
+    machine scan(input: &io::input::Input, pair: &mut Pair, position: u32) {
         transition position < input.stages && position < 8 {
             true -> stage(input, pair, position)
             false -> done()
         }
     }
-    state stage(input: &io::input::Input, pair: &mut Pair, position: u32) requires position < 8 {
+    machine stage(input: &io::input::Input, pair: &mut Pair, position: u32) requires position < 8 {
         _ = transfer(input, pair, position);
         transition { _ -> scan(input, pair, position + 1) }
     }
-    state done() { }
+    machine done() { }
 }
 public machine solve(input: &io::input::Input, solution: &mut Solution) -> bool {
     let mut base: Pair;
@@ -43,7 +43,7 @@ public machine solve(input: &io::input::Input, solution: &mut Solution) -> bool 
         true -> resolved(input, solution, base.cold, slope.cold)
         false -> bad()
     }
-    state resolved(input: &io::input::Input, solution: &mut Solution, base: f64, slope: f64) -> bool {
+    machine resolved(input: &io::input::Input, solution: &mut Solution, base: f64, slope: f64) -> bool {
         let mut pair: Pair;
         pair.hot = input.hot_in;
         pair.cold = (input.cold_in - base) / slope;
@@ -52,13 +52,13 @@ public machine solve(input: &io::input::Input, solution: &mut Solution) -> bool 
         solution.total = 0.0;
         transition { _ -> scan(input, solution, &mut pair, 0) }
     }
-    state scan(input: &io::input::Input, solution: &mut Solution, pair: &mut Pair, position: u32) -> bool {
+    machine scan(input: &io::input::Input, solution: &mut Solution, pair: &mut Pair, position: u32) -> bool {
         transition position < input.stages && position < 8 {
             true -> stage(input, solution, pair, position)
             false -> balances(input, solution, position)
         }
     }
-    state stage(input: &io::input::Input, solution: &mut Solution, pair: &mut Pair, position: u32) -> bool requires position < 8 {
+    machine stage(input: &io::input::Input, solution: &mut Solution, pair: &mut Pair, position: u32) -> bool requires position < 8 {
         let heat: f64 = transfer(input, pair, position);
         solution.heat[position] = heat;
         solution.total = solution.total + heat;
@@ -66,13 +66,13 @@ public machine solve(input: &io::input::Input, solution: &mut Solution) -> bool 
         solution.cold[position + 1] = pair.cold;
         transition { _ -> scan(input, solution, pair, position + 1) }
     }
-    state balances(input: &io::input::Input, solution: &mut Solution, position: u32) -> bool {
+    machine balances(input: &io::input::Input, solution: &mut Solution, position: u32) -> bool {
         transition position < 9 {
             true -> verify(input, solution, position)
             false -> bad()
         }
     }
-    state verify(input: &io::input::Input, solution: &mut Solution, position: u32) -> bool requires position < 9 {
+    machine verify(input: &io::input::Input, solution: &mut Solution, position: u32) -> bool requires position < 9 {
         let hot_balance: f64 = input.hot_capacity * (input.hot_in - solution.hot[position]) - solution.total;
         let cold_balance: f64 = input.cold_capacity * (solution.cold[0] - input.cold_in) - solution.total;
         let cold_boundary: f64 = solution.cold[position] - input.cold_in;
@@ -83,6 +83,6 @@ public machine solve(input: &io::input::Input, solution: &mut Solution) -> bool 
             false -> bad()
         }
     }
-    state good() -> bool { true }
-    state bad() -> bool { false }
+    machine good() -> bool { true }
+    machine bad() -> bool { false }
 }

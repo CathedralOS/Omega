@@ -1,0 +1,10 @@
+module choices;
+use omega::language::core::program_image;
+
+public Observations satisfies ProgramImage {
+    machine retained_suffix_start() -> addr { 64 }
+}
+
+public OtherObservations satisfies ProgramImage {
+    machine retained_suffix_start() -> addr { 128 }
+}

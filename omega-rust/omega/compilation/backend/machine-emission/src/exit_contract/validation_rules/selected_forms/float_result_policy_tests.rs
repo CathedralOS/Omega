@@ -1,5 +1,5 @@
 //! Inline policy control is not a function exit or an external relocation.
-use super::validate_non_return;
+use super::assert_non_return_refused;
 use selected_instructions::{
     FloatResultPolicyForm, MachineAlternativeFamily, MachineAlternativeKey,
     MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedTrapBehavior,
@@ -8,10 +8,7 @@ use selected_instructions::{
 
 #[test]
 fn float_result_policy_exit_admission_binds_control_trap_and_operand_footprint() {
-    let physical = register_model::validate_physical_register_model(
-        isa_aarch64::aarch64_physical_register_model(),
-    )
-    .unwrap();
+    let physical = super::aarch64_physical_register_model();
     let registers =
         ["x2", "x3", "x4", "x5"].map(|name| physical.model().view_named(name).unwrap().id);
     for form in FloatResultPolicyForm::ALL {
@@ -57,17 +54,13 @@ fn float_result_policy_exit_admission_binds_control_trap_and_operand_footprint()
                     }
                 }
             }
-            assert!(
-                validate_non_return(
-                    target::Architecture::Aarch64,
-                    instruction,
-                    kind,
-                    &encoding,
-                    &layout,
-                    &changed
-                )
-                .is_err(),
-                "{form:?}, mutation {mutation}"
+            assert_non_return_refused(
+                &format!("{form:?}, mutation {mutation}"),
+                instruction,
+                kind,
+                &encoding,
+                &layout,
+                &changed,
             );
         }
     }

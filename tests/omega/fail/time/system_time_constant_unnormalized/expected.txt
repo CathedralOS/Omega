@@ -1,1 +1,2 @@
-data constant `SystemTime` violates its default-domain predicate
+data `SystemTime` literal violates the default domain
+`where` fact evaluates FALSE

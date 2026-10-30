@@ -5,7 +5,15 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "described_runner_entry_left_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-    Build::select_provider<left::Reader, left::ProviderReaderImplementation>(builder);
+    Build::select_provider<left::Reader, left::ProviderReaderImplementation>(builder, linux_arm64);
+    Build::select_provider<left::Reader, left::ProviderReaderImplementation>(builder, linux_x86_64);
+    Build::select_provider<left::Reader, left::ProviderReaderImplementation>(builder, macos_arm64);
+    Build::select_provider<left::Reader, left::ProviderReaderImplementation>(builder, macos_x86_64);
+    Build::select_provider<left::Reader, left::ProviderReaderImplementation>(builder, windows_x86_64);
+    Build::select_provider<left::Reader, left::ProviderReaderImplementation>(builder, uefi_x86_64);
+    Build::select_provider<left::Reader, left::ProviderReaderImplementation>(builder, cross_platform_cli);
+    Build::select_provider<left::Reader, left::ProviderReaderImplementation>(builder, local_unchecked);
+    Build::select_provider<left::Reader, left::ProviderReaderImplementation>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, choose(builder, "macos_arm64::ProgramEntry"));
     Build::bind(builder, linux_arm64::ProgramEntry, choose(builder, "linux_arm64::ProgramEntry"));
     Build::bind(builder, linux_x86_64::ProgramEntry, choose(builder, "linux_x86_64::ProgramEntry"));
@@ -16,5 +24,5 @@ machine build(builder: &mut Build) {
 // opaque description back; `roots.bind` rejoins it to the exact machine the
 // query chose.
 machine choose(builder: &mut Build, slot: &[u8]) -> ProductEntryRef {
-    BuildProduct::entry(&builder.product, "left::Runner::run", slot)
+    BuildProduct::entry(&builder.product, "left::run", slot)
 }

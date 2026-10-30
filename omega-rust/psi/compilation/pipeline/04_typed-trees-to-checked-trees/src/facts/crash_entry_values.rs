@@ -871,13 +871,7 @@ fn entry_operand_name_at(
     depth: u32,
 ) -> Option<CrashPredicateExpression> {
     if depth >= MAX_ENTRY_PROVENANCE_DEPTH
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-        || !path.symbol.is_valid()
-        || path.head_symbol != path.symbol
+        || !program.expression_table.name_path_is_single_member(path)
     {
         return None;
     }
@@ -1301,117 +1295,18 @@ fn named_transition_arguments(
     incoming
 }
 
+/// Entry substitution under whole-operand provenance: a formal `Parameter`
+/// resolves to the caller's entire argument, whatever member spine the guard
+/// applies above it. Literals and owner-scope names need no operand, and
+/// `Opaque`/`ContentConservation`/`Invalid` refuse — the transport rules this
+/// shares with the projected resolver stay in one walk
+/// (`substitute_entry_projected`), so this is only the operand lookup.
 pub(super) fn substitute_entry(
     expression: &CrashPredicateExpression,
     operands: &[Option<CrashPredicateExpression>],
 ) -> Option<CrashPredicateExpression> {
-    Some(match expression {
-        CrashPredicateExpression::Parameter(ordinal) => operands.get(*ordinal as usize)?.clone()?,
-        // Literals and owner-scope names need no operand: a `Name` leaf only
-        // survives predicate extraction when its spelling matched no formal,
-        // so it already names a fixed path the caller side can spell the same
-        // way. `Opaque` and `ContentConservation` may hide formals inside a
-        // flattened display, so they keep refusing rather than leaking a
-        // callee spelling into caller coordinates.
-        CrashPredicateExpression::Boolean(_)
-        | CrashPredicateExpression::Integer(_)
-        | CrashPredicateExpression::Float(_)
-        | CrashPredicateExpression::Name(_) => expression.clone(),
-        CrashPredicateExpression::StructuralIdentity {
-            type_commitment,
-            left,
-            right,
-        } => {
-            let mut left = substitute_entry(left, operands)?;
-            let mut right = substitute_entry(right, operands)?;
-            if left > right {
-                std::mem::swap(&mut left, &mut right);
-            }
-            CrashPredicateExpression::StructuralIdentity {
-                type_commitment: *type_commitment,
-                left: Box::new(left),
-                right: Box::new(right),
-            }
-        }
-        CrashPredicateExpression::Binary {
-            operator,
-            left,
-            right,
-        } => CrashPredicateExpression::Binary {
-            operator: *operator,
-            left: Box::new(substitute_entry(left, operands)?),
-            right: Box::new(substitute_entry(right, operands)?),
-        },
-        CrashPredicateExpression::Unary { operator, operand } => CrashPredicateExpression::Unary {
-            operator: *operator,
-            operand: Box::new(substitute_entry(operand, operands)?),
-        },
-        CrashPredicateExpression::IntegerWiden {
-            source_type,
-            target_type,
-            domain,
-            operand,
-        } => CrashPredicateExpression::IntegerWiden {
-            source_type: *source_type,
-            target_type: *target_type,
-            domain: *domain,
-            operand: Box::new(substitute_entry(operand, operands)?),
-        },
-        CrashPredicateExpression::RepresentationView {
-            source_type,
-            target_type,
-            operand,
-        } => CrashPredicateExpression::RepresentationView {
-            source_type: *source_type,
-            target_type: *target_type,
-            operand: Box::new(substitute_entry(operand, operands)?),
-        },
-        CrashPredicateExpression::Member { receiver, member } => CrashPredicateExpression::Member {
-            receiver: Box::new(substitute_entry(receiver, operands)?),
-            member: member.clone(),
-        },
-        // An indexed read substitutes inside both children: `left[0]` keeps
-        // its exact route with `left`'s actual, and a range index's bounds
-        // substitute the same way. A flattened `Opaque` child still refuses
-        // because its display may hide formals.
-        CrashPredicateExpression::Indexed { collection, index } => {
-            CrashPredicateExpression::Indexed {
-                collection: Box::new(substitute_entry(collection, operands)?),
-                index: Box::new(substitute_entry(index, operands)?),
-            }
-        }
-        // A `start..end` operand substitutes inside both bounds: a bound
-        // carrying a formal binds that bound's actual, while the inclusivity
-        // flag transports verbatim.
-        CrashPredicateExpression::Range {
-            start,
-            end,
-            end_inclusive,
-        } => CrashPredicateExpression::Range {
-            start: Box::new(substitute_entry(start, operands)?),
-            end: Box::new(substitute_entry(end, operands)?),
-            end_inclusive: *end_inclusive,
-        },
-        // A call leaf transports its authored target and substitutes inside
-        // its receiver and arguments: `floor()` keeps its parameter-free
-        // shape while `offset(left)` still requires `left`'s actual. The
-        // `Invalid` receiver is the receiverless marker, not a broken guard.
-        CrashPredicateExpression::Call {
-            target,
-            receiver,
-            arguments,
-        } => CrashPredicateExpression::Call {
-            target: target.clone(),
-            receiver: Box::new(match receiver.as_ref() {
-                CrashPredicateExpression::Invalid => CrashPredicateExpression::Invalid,
-                receiver => substitute_entry(receiver, operands)?,
-            }),
-            arguments: arguments
-                .iter()
-                .map(|argument| substitute_entry(argument, operands))
-                .collect::<Option<Vec<_>>>()?,
-        },
-        _ => return None,
+    substitute_entry_projected(expression, &mut |ordinal: u32, _members: &[String]| {
+        operands.get(ordinal as usize)?.clone()
     })
 }
 

@@ -9,22 +9,22 @@ machine main() crashes Trap {
         Selection::First -> observe(&bytes)
         Selection::Second -> observe(&bytes)
     }
-    state observe(bytes: &[u8; 3]) {
+    machine observe(bytes: &[u8; 3]) {
         let first: u8 = bytes[0];
         transition first == 65 && bytes[2] == 67 {
             true -> forward(bytes)
             _ -> bad()
         }
     }
-    state forward(bytes: &[u8; 3]) {
+    machine forward(bytes: &[u8; 3]) {
         transition { _ -> verify(bytes) }
     }
-    state verify(bytes: &[u8; 3]) {
+    machine verify(bytes: &[u8; 3]) {
         transition bytes[1] == 66 {
             true -> done()
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

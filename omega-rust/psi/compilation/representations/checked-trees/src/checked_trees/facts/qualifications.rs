@@ -14,7 +14,7 @@ use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct QualificationFacts {
     /// Successful normal-result judgments, before any lowering. These retain
     /// every source exit, including forwarding versus fresh routed issuance.
@@ -37,7 +37,7 @@ pub struct QualificationFacts {
     pub content: crate::ContentProjectionFacts,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarReturnQualification {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -54,7 +54,7 @@ pub struct CheckedScalarReturnQualification {
     pub origin: CheckedScalarReturnOrigin,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarReturnOrigin {
     /// Existing membership on this exact completed returned value.
     Forwarded,
@@ -64,7 +64,7 @@ pub enum CheckedScalarReturnOrigin {
     Established(language_semantics::DomainEstablishmentRoute),
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedValueQualification {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -80,7 +80,7 @@ pub struct CheckedValueQualification {
     pub structural_value: crate::CheckedStructuralValueHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct VacuousQualificationUse {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -244,7 +244,7 @@ impl QualificationFacts {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct MachineQualifications {
     pub machine: SymbolHandle,
     /// The semantic domains this body's casts commit to (sorted, deduped --

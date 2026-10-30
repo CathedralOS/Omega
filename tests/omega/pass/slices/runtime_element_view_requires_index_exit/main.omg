@@ -17,12 +17,12 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> observe(view)
         false -> bad(context)
     }
-    state observe(values: &[u32]) {
+    machine observe(values: &[u32]) {
         let observed: u32 = read(values, 2);
         let code: i32 = match observed == 105 { true -> 70, false -> 71 };
         Console::exit_process(code);
     }
-    state bad(context: &mut Main) { Console::exit_process(71); }
+    machine bad(context: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

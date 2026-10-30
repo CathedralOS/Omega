@@ -2,25 +2,28 @@
 //!
 //! This is the producing half of the retained-Terminal contract. It owns
 //! canonical decode, entry settlement, provider demand, comparison custody,
-//! callback placement and boundary coverage. The compiler supplies retained
-//! callback entries in one program; this never calls back into compilation.
+//! callback placement and boundary coverage. Callback bodies are selected from
+//! the canonical program; this never calls back into source compilation.
 //! Checked selections remain transitional inputs, not native execution authority.
 
 use super::{
     TerminalNativeBodyProposal, TerminalNativeBoundaryApplications, TerminalNativeOccurrences,
     TerminalNativeProviders, TerminalNativeRealizationProposal,
 };
+use backend_plan::SelectedFamilyRealizationSource;
 use diagnostics::Diagnostic;
 
 /// Borrow this target's source-side selections while closing them against one
-/// canonical artifact. Completed callback bodies arrive in placement order;
-/// neither their cardinality nor their identity is trusted.
+/// canonical artifact. Callback placements identify exact portable applications;
+/// their bodies and formal ordering come from the artifact itself.
 pub struct TerminalNativeProposalRequest<'input> {
+    /// Complete namespace of evaluated via-binding receipt producer identities.
+    /// The original numeric coordinates cannot be recovered from a digest.
+    pub evaluated_binding_identities: &'input terminal_psi::TerminalIdentityTable,
     pub direct_boundary_leaves: Vec<&'input backend_plan::DirectBoundaryLeaf>,
-    pub provider_declarations:
-        Vec<crate::provider_admission::NativeProviderPlanDeclaration<'input>>,
+    pub provider_declarations: &'input [backend_plan::TerminalTargetProviderPlan],
     pub target_profile: Option<target::TargetProfile>,
-    pub family_realizations: Vec<SelectedFamilyRealizationSource>,
+    pub family_realizations: &'input [SelectedFamilyRealizationSource],
     pub boundaries: crate::BoundaryApplicationSettlement<'input>,
     pub native_target: Option<target::NativeTarget>,
     pub program_entry: Option<crate::NativeProgramEntrySettlement<'input>>,
@@ -30,20 +33,7 @@ pub struct TerminalNativeProposalRequest<'input> {
     pub behavior_exclusions: &'input [effects::AuthoredBehaviorExclusion],
     pub package_terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     pub package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
-    pub callback_placements: Vec<backend_plan::NativeCallbackPlacement>,
-    pub callback_thunks: Vec<crate::TerminalCallbackThunkArtifact>,
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
-}
-
-/// Source custody for one already selected provider row. Its physical member
-/// identity is deliberately absent: only the emitted artifact owns that identity.
-pub struct SelectedFamilyRealizationSource {
-    pub head_declaration_identity: String,
-    pub head_callable_identity: String,
-    pub target: String,
-    pub selected_requirement_identity: String,
-    pub provider_plan_report_identity: u64,
-    pub provider_plan_digest: effects::provider_plan::ProviderPlanDigest,
 }
 
 fn close_family_realizations(
@@ -123,7 +113,7 @@ fn close_family_realizations(
 /// Reconstruct the entry, provider and occurrence joins required by native
 /// re-entry. No compilation, publication or execution happens in this operation.
 pub fn project_terminal_native_realization_proposal(
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     checked_program_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
     request: TerminalNativeProposalRequest<'_>,
 ) -> Result<TerminalNativeRealizationProposal, Vec<Diagnostic>> {
@@ -178,20 +168,40 @@ pub fn project_terminal_native_realization_proposal(
 /// One provider projection for the complete canonical program. Main and
 /// callback entries subsequently borrow these same identity-qualified rows.
 fn project_terminal_native_body(
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     target_profile: target::TargetProfile,
     request: &TerminalNativeProposalRequest<'_>,
 ) -> Result<TerminalNativeBodyProposal, Vec<Diagnostic>> {
     let terminal_module = artifact.semantic_module();
+    let selected = backend_plan::close_checked_provider_specializations(
+        request.boundaries.selected_provider_plans.clone(),
+        request.provider_declarations,
+        terminal_module,
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])?;
     let selected = close_family_realizations(
         artifact,
         target_profile,
-        request.boundaries.selected_provider_plans,
-        &request.family_realizations,
+        &selected,
+        request.family_realizations,
+    )?;
+    // This closes static activation obligations, not executor installation.
+    // The proposal is process-local: loaded code takes this same join once.
+    task_plans::realize_task_activations(
+        &terminal_module.task_activation_demands,
+        &terminal_module.identities,
+        &selected,
+        target_profile,
     )?;
     let checked_adapters = crate::provider_admission::retain_selected_provider_adapters(
         &selected,
-        &request.provider_declarations,
+        request.provider_declarations,
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])?;
+    crate::provider_admission::validate_external_provider_owners(
+        &terminal_module.external_providers,
+        &terminal_module.identities,
+        request.provider_declarations,
     )
     .map_err(|message| vec![Diagnostic::error(message)])?;
     if selected.plans().len() != request.boundaries.selected_provider_provenance.len() {
@@ -199,35 +209,66 @@ fn project_terminal_native_body(
             "native proposal lost selected intrinsic plan custody",
         )]);
     }
-    let intrinsic_executions = selected
+    let (intrinsic_executions, numeric_realizations): (Vec<_>, Vec<_>) = selected
         .plans()
         .iter()
         .zip(&request.boundaries.selected_provider_provenance)
         .map(|(plan, retained)| {
-            if plan != retained.plan || plan.rows.len() != retained.row_executions.len() {
+            if plan != retained.plan
+                || plan.rows.len() != retained.row_executions.len()
+                || plan.rows.len() != retained.row_numeric_realizations.len()
+            {
                 return Err(vec![Diagnostic::error(
                     "native proposal has mismatched intrinsic row custody",
                 )]);
             }
-            Ok(retained.row_executions.to_vec())
+            let mut declarations = request
+                .provider_declarations
+                .iter()
+                .filter(|declaration| declaration.plan == *plan);
+            let (Some(declaration), None) = (declarations.next(), declarations.next()) else {
+                return Err(vec![Diagnostic::error(
+                    "native intrinsic provenance has no unique whole-plan declaration custody",
+                )]);
+            };
+            if declaration.row_numeric_realizations.as_slice() != retained.row_numeric_realizations
+            {
+                return Err(vec![Diagnostic::error(
+                    "native intrinsic provenance substituted its selected external declarations",
+                )]);
+            }
+            // Numeric meaning and external satisfaction travel in Terminal.
+            // Keep the exact selected declaration separately from independent
+            // host/placement authority; equal meaning cannot replace identity.
+            Ok((
+                retained
+                    .row_executions
+                    .iter()
+                    .map(|execution| execution.filter(|execution| !execution.is_numeric()))
+                    .collect::<Vec<_>>(),
+                retained.row_numeric_realizations.to_vec(),
+            ))
         })
-        .collect::<Result<Vec<_>, _>>()?;
-    let callback_occurrences = project_callback_occurrences(
-        &request.callback_placements,
-        artifact.view(),
-        &request.callback_thunks,
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .unzip();
+    let callback_placements = crate::callback_settlement::place_callbacks(
+        terminal_module,
         &selected,
-        &checked_adapters,
-    )?;
-    // Close source placements while their producer still owns them. Re-entry
-    // borrows these native rows; it never retains the checked-source records.
+        &request.boundaries.calling_applications,
+    )
+    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let callback_occurrences =
+        project_callback_occurrences(&callback_placements, artifact, &selected, &checked_adapters)?;
+    // Native placement is derived from canonical applications and target plans.
+    // The same route handles newly produced and reloaded Terminal artifacts.
     let callback_arguments = crate::provider_admission::project_native_callback_arguments(
-        &request.callback_placements,
+        &callback_placements,
         &callback_occurrences,
     )?;
     backend_plan::validate_callback_thunk_joins(artifact.view(), &callback_occurrences)
         .map_err(|message| vec![Diagnostic::error(message)])?;
-    let boundary_application_coverage = request.boundaries.settle(artifact)?;
+    let boundary_application_coverage = request.boundaries.settle(artifact, &selected)?;
     let comparisons = crate::comparison_settlement::settle_comparison_occurrences(
         terminal_module,
         &selected,
@@ -236,7 +277,7 @@ fn project_terminal_native_body(
     let external_binding_rows = crate::settle_callback_registrar_imports(
         terminal_module,
         &selected,
-        &request.callback_placements,
+        &callback_placements,
         callback_occurrences
             .iter()
             .map(|occurrence| crate::CallbackRegistrarOccurrence {
@@ -257,6 +298,7 @@ fn project_terminal_native_body(
             checked_adapters,
             external_bindings: external_binding_rows,
             intrinsic_executions,
+            numeric_realizations,
             x86_scalar_fma: request.x86_scalar_fma_provider,
         },
         occurrences: TerminalNativeOccurrences {
@@ -331,17 +373,12 @@ fn bind_direct_boundary_leaves(
 /// compile, so their native interfaces are not re-checked here.
 fn project_callback_occurrences(
     callback_placements: &[backend_plan::NativeCallbackPlacement],
-    caller: terminal_codec::TerminalArtifactView<'_>,
-    thunks: &[crate::TerminalCallbackThunkArtifact],
+    artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     selected: &effects::SelectedProviderPlanFacts,
     checked_adapters: &[crate::SelectedProviderAdapter],
 ) -> Result<Vec<crate::TerminalCallbackOccurrenceProposal>, Vec<Diagnostic>> {
+    let caller = artifact.view();
     let module = caller.module();
-    if callback_placements.len() != thunks.len() {
-        return Err(vec![Diagnostic::error(
-            "callback thunk roster differs from checked placement roster",
-        )]);
-    }
     // The source roster may include uses in other canonical bodies, but every
     // retained application in this artifact must still have exactly one use.
     // Filtering out foreign namespaces cannot silently drop a local demand.
@@ -387,13 +424,14 @@ fn project_callback_occurrences(
                     "callback registrar has no exact boundary identity",
                 )]
             })?;
-        let (plan, row) = selected
-            .selected_requirement_row(requirement)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "callback registrar has no exact selected provider row",
-                )]
-            })?;
+        let Some((plan, row)) = selected.selected_requirement_row(requirement) else {
+            if last != first {
+                return Err(vec![Diagnostic::error(
+                    "unselected callback registrar retained a native placement",
+                )]);
+            }
+            continue;
+        };
         if let effects::provider_plan::ProviderBinding::CheckedAdapter {
             machine_identity, ..
         } = &row.binding
@@ -436,11 +474,10 @@ fn project_callback_occurrences(
     }
     let occurrences = callback_placements
         .iter()
-        .zip(thunks)
         .enumerate()
-        .filter(|(_, (placement, _))| module.callback_applications.binary_search_by_key(
+        .filter(|(_, placement)| module.callback_applications.binary_search_by_key(
             &placement.application_index, |row| row.application_index).is_ok())
-        .map(|(placement_index, (placement, callback_thunk_artifact))| {
+        .map(|(placement_index, placement)| {
             let application = module.callback_applications.binary_search_by_key(
                 &placement.application_index, |row| row.application_index
             ).ok().map(|ordinal| &module.callback_applications[ordinal])
@@ -460,12 +497,15 @@ fn project_callback_occurrences(
                             "callback placement {placement_index} cannot derive one valid callback-thunk identity",
                         ))]
                     })?;
+            let callback_thunk_artifact = crate::TerminalCallbackThunkArtifact::for_application(
+                std::sync::Arc::clone(artifact), placement.application_index,
+            ).map_err(|reason| vec![Diagnostic::error(reason)])?;
             Ok(crate::TerminalCallbackOccurrenceProposal::new(
                 placement_index,
                 placement.application_index,
                 application.registrar,
                 callback_thunk_identity,
-                callback_thunk_artifact.clone(),
+                callback_thunk_artifact,
                 placement.boundary_entry_plan.clone(),
                 placement.entry_parameters.clone(),
             ))

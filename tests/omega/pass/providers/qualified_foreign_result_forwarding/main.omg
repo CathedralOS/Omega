@@ -7,7 +7,7 @@ data Status [copy] { code: u64; }
 data Table { read: addr; scalar: addr; }
 data Record { value: u64; }
 data Guid [copy] { value: u64; }
-domain Guid::Selected(value) requires value.value == 42;
+domain Guid::Selected requires self.value == 42;
 domain<const Axis: u64> u64::Coordinate<Axis>;
 
 boundary trait Reports {
@@ -83,7 +83,7 @@ machine state_forward(table: &Table, protocol: &Guid, output: &mut &Record) -> S
 requires protocol in Guid::Selected
 ensures result.code == 0; {
     transition { _ -> ready(protocol, output, table) }
-    state ready(selected: &Guid, destination: &mut &Record, firmware: &Table)
+    machine ready(selected: &Guid, destination: &mut &Record, firmware: &Table) -> Status
     requires selected in Guid::Selected
     {
         Table::read(firmware, selected, destination)

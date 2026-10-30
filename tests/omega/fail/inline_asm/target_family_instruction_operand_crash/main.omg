@@ -5,8 +5,8 @@ machine selector(fail: bool) -> u32 crashes Trap {
         true -> wrong()
         false -> ready()
     }
-    state wrong() { crash Trap; }
-    state ready() { 3221225600 }
+    machine wrong() -> u32 { crash Trap; }
+    machine ready() -> u32 { 3221225600 }
 }
 
 linux_x86_64 machine observe(fail: bool) -> u64 reaches MachineControl {

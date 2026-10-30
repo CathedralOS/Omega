@@ -16,7 +16,12 @@ impl Execution<'_, '_, '_> {
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) {
         self.evaluation = checked_trees::FlowPermissionEvaluation::TransitionTarget(target);
+        let operand_entry_constraints = *constraints;
+        let previous_copies = self.context.active_completed_copies;
+        self.context.active_completed_copies =
+            self.capture_dispatch_payloads(transition, target, contexts, constraints);
         let mut returned_value = arena::Handle::invalid();
+        let mut normal_outgoing = true;
         let mut operands = Vec::new();
         let mut captured_operands = Vec::new();
         let mut values = Vec::new();
@@ -38,6 +43,18 @@ impl Execution<'_, '_, '_> {
                         self.evaluated_operand_as(*argument, destination, contexts, constraints)
                             .capture,
                     );
+                    let captured = captured_operands
+                        .last()
+                        .expect("completed transition argument");
+                    let copied_values = if self.is_view_type(captured.type_reference)
+                        && !matches!(
+                            captured.completion,
+                            checked_trees::FlowOperandCompletion::Copied { .. }
+                        ) {
+                        HandleSpan::empty()
+                    } else {
+                        self.context.active_completed_copies
+                    };
                     captured_qualifications.extend(qualifications::capture_argument(
                         self.program,
                         self.semantic,
@@ -49,6 +66,7 @@ impl Execution<'_, '_, '_> {
                         ordinal,
                         *argument,
                         *contexts,
+                        copied_values,
                     ));
                     values.push(super::super::state_values::capture_argument(
                         self.program,
@@ -61,6 +79,7 @@ impl Execution<'_, '_, '_> {
                         ordinal,
                         *argument,
                         *contexts,
+                        copied_values,
                     ));
                 }
             }
@@ -71,7 +90,24 @@ impl Execution<'_, '_, '_> {
                     contexts,
                     constraints,
                 );
-                returned_value = self.context.control.operands.append(completed.capture);
+                normal_outgoing =
+                    validation::expression_normal_completion_possible(self.program, *expression)
+                        != Some(false);
+                if normal_outgoing {
+                    returned_value = self.context.control.operands.append(completed.capture);
+                }
+                // A completing machine call transfers this state's exit edge
+                // to its callee even when the callee never returns to the
+                // caller: custody, not a value, continues on that outgoing
+                // occurrence. External and unresolved targets still require
+                // the expression's own normal completion.
+                normal_outgoing = normal_outgoing
+                    || matches!(
+                        self.program.expression_table.expression(*expression),
+                        typed_trees::expression::ExpressionNode::Call(call)
+                            if validation::call_target_state(self.program, call.target_symbol)
+                                .is_some()
+                    );
             }
             TransitionTargetNode::Terminal => {}
         }
@@ -107,16 +143,20 @@ impl Execution<'_, '_, '_> {
             &values,
             argument_qualifications,
         );
-        super::super::exits::append_outgoing_state_fact(
-            self.context,
-            self.machine.symbol,
-            self.state.symbol,
-            self.statement_index,
-            target,
-            *constraints,
-            returned_value,
-        );
-        self.invoke(
+        if normal_outgoing {
+            super::super::exits::append_outgoing_state_fact(
+                self.context,
+                self.machine.symbol,
+                self.state.symbol,
+                self.statement_index,
+                target,
+                operand_entry_constraints,
+                *constraints,
+                returned_value,
+                self.context.active_completed_copies,
+            );
+        }
+        let completed = self.invoke(
             InvocationSite::Transition(target),
             super::InvocationInputs {
                 operands: &captured_operands,
@@ -125,5 +165,7 @@ impl Execution<'_, '_, '_> {
             contexts,
             constraints,
         );
+        self.install_call_stores(completed.stores);
+        self.context.active_completed_copies = previous_copies;
     }
 }

@@ -1,16 +1,29 @@
 // A saved observation of an unwritten array element stays equal to 7 across a write to a disjoint element.
 // Expected exit: 0
+machine capture<'source, View>(source: View, marker: &mut u64, event: u64) -> View where View == &'source u64 { marker = event; source }
+
 machine agree(observed: u64, current: u64) -> u64
 requires observed == current && observed == 7
 {
     observed
 }
 
-machine main() crashes Trap {
+machine probe(select: bool, marker: &mut u64) -> u64 {
     let mut items: [u64; 2] = [7, 1];
-    let saved: u64 = match true { true -> items[0], false -> items[0] };
+    let saved: u64 = match select {
+        true -> capture<&u64>(&items[0], marker, 11)
+        false -> capture<&u64>(&items[0], marker, 13)
+    };
     items[1] = 4;
-    transition agree(saved, items[0]) == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    let result: u64 = agree(saved, items[0]);
+    transition items[1] == 4 { true -> result false -> 777 }
+}
+machine main() crashes Trap {
+    let mut marker: u64 = 0;
+    let first: u64 = probe(true, &mut marker);
+    let first_trace: bool = marker == 11;
+    let second: u64 = probe(false, &mut marker);
+    transition first == 7 && second == 7 && first_trace && marker == 13 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
 }

@@ -18,14 +18,8 @@
 //! stays inside `i8`. Were that reasoning ever to fail, the encoders reject an
 //! out-of-range rel8 instead of emitting a truncated displacement.
 
-use isa_x86_64::{
-    encode_x86_64_selected_i64_less_than_branch_form,
-    encode_x86_64_selected_short_nonzero_branch_form,
-    encode_x86_64_selected_u64_less_than_branch_form,
-};
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions::{MachineAlternativeFamily, MachineAlternativeKey};
 
 use super::super::{
     X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
@@ -36,16 +30,27 @@ use super::super::{
 use super::{
     RelaxationTrace,
     branch_inspection::inspect_production_branch,
+    conditional_evidence, lane,
     reflow::reflow_production_functions,
     work::{charge, total_bytes},
 };
-use machine_code::{
-    ResolvedConditionalBranchPredicate, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
-};
+use machine_code::{ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout};
 
-/// Replacing one six-byte near form with its two-byte short form removes
-/// exactly four bytes, so a sweep removes four bytes per committed branch.
-const SHORT_FORM_SAVED_BYTES: u64 = 4;
+/// Charge one work axis against its budget: the axis names the counter it
+/// increments and the refusal it reports when the budget is spent.
+macro_rules! charge_axis {
+    ($usage:ident, $budget:ident, $axis:ident, $variant:ident) => {
+        charge(
+            &mut $usage.$axis,
+            $budget.$axis(),
+            X86BranchRelaxationWorkAxis::$variant,
+        )?
+    };
+}
+
+/// Replacing one near form with its short form removes exactly the width
+/// difference, so a sweep removes that many bytes per committed branch.
+const SHORT_FORM_SAVED_BYTES: u64 = (lane::NEAR_WIDTH - lane::SHORT_WIDTH) as u64;
 
 /// One branch a sweep selected, with the prospective short displacement the
 /// sweep measured on the sweep's own input layout. That measurement establishes
@@ -69,11 +74,7 @@ pub(super) fn compute_trace(
     let mut actions = Vec::new();
     let mut usage = OptimizationWorkUsage::default();
     loop {
-        charge(
-            &mut usage.iterations,
-            budget.iterations(),
-            X86BranchRelaxationWorkAxis::Iterations,
-        )?;
+        charge_axis!(usage, budget, iterations, Iterations);
         let iteration = usage.iterations;
         let input = revision_identity(roots, &functions);
         let previous_bytes = total_bytes(&functions)?;
@@ -88,11 +89,7 @@ pub(super) fn compute_trace(
                     else {
                         continue;
                     };
-                    charge(
-                        &mut usage.rule_evaluations,
-                        budget.rule_evaluations(),
-                        X86BranchRelaxationWorkAxis::RuleEvaluations,
-                    )?;
+                    charge_axis!(usage, budget, rule_evaluations, RuleEvaluations);
                     let (outcome, short_displacement) = inspect_production_branch(
                         &functions[function_index],
                         block_index,
@@ -110,19 +107,10 @@ pub(super) fn compute_trace(
                         outcome,
                     });
                     if outcome == X86BranchRelaxationAttemptOutcome::SelectedForRelaxation {
-                        charge(
-                            &mut usage.candidates,
-                            budget.candidates(),
-                            X86BranchRelaxationWorkAxis::Candidates,
-                        )?;
-                        charge(
-                            &mut usage.validation_steps,
-                            budget.validation_steps(),
-                            X86BranchRelaxationWorkAxis::ValidationSteps,
-                        )?;
-                        let displacement = short_displacement.ok_or(
-                            OptimizedX86BranchRelaxationError::MalformedBranch(row.instruction),
-                        )?;
+                        charge_axis!(usage, budget, candidates, Candidates);
+                        charge_axis!(usage, budget, validation_steps, ValidationSteps);
+                        let displacement =
+                            short_displacement.ok_or_else(|| super::malformed(row.instruction))?;
                         swept.push(SweptBranch {
                             function_index,
                             block_index,
@@ -138,11 +126,7 @@ pub(super) fn compute_trace(
         }
         let mut narrowed = Vec::with_capacity(swept.len());
         for branch in &swept {
-            charge(
-                &mut usage.commits,
-                budget.commits(),
-                X86BranchRelaxationWorkAxis::Commits,
-            )?;
+            charge_axis!(usage, budget, commits, Commits);
             narrowed.push(commit_short_form(&mut functions, branch, physical)?);
         }
         reflow_production_functions(&mut functions, physical)?;
@@ -182,41 +166,14 @@ fn commit_short_form(
         [branch.instruction_index];
     let old = row.clone();
     let predicate = conditional_evidence(&old)?.predicate;
-    let short_alternative = match predicate {
-        ResolvedConditionalBranchPredicate::NonZeroV1 => old.alternative,
-        ResolvedConditionalBranchPredicate::U64LessThanV1 => MachineAlternativeKey {
-            family: MachineAlternativeFamily::ConditionalBranchU64LessThan,
-            variant: 1,
-        },
-        ResolvedConditionalBranchPredicate::I64LessThanV1 => MachineAlternativeKey {
-            family: MachineAlternativeFamily::ConditionalBranchI64LessThan,
-            variant: 1,
-        },
-    };
-    let encoded = match predicate {
-        ResolvedConditionalBranchPredicate::NonZeroV1 => {
-            encode_x86_64_selected_short_nonzero_branch_form(
-                physical,
-                short_alternative,
-                branch.displacement,
-            )
-        }
-        ResolvedConditionalBranchPredicate::U64LessThanV1 => {
-            encode_x86_64_selected_u64_less_than_branch_form(
-                physical,
-                short_alternative,
-                branch.displacement,
-            )
-        }
-        ResolvedConditionalBranchPredicate::I64LessThanV1 => {
-            encode_x86_64_selected_i64_less_than_branch_form(
-                physical,
-                short_alternative,
-                branch.displacement,
-            )
-        }
-    }
-    .map_err(OptimizedX86BranchRelaxationError::X86_64)?;
+    let short_alternative = lane::selected_alternative(predicate, old.alternative, false);
+    let encoded = lane::encode(
+        predicate,
+        false,
+        physical,
+        short_alternative,
+        branch.displacement,
+    )?;
     row.alternative = short_alternative;
     row.bytes = encoded.bytes().to_vec();
     Ok(old)
@@ -246,15 +203,4 @@ fn relaxation_action(
         old_bytes: old.bytes,
         new_bytes: new.bytes.clone(),
     })
-}
-
-fn conditional_evidence(
-    row: &ResolvedSelectedFormRow,
-) -> Result<&machine_code::ResolvedConditionalBranchEvidence, OptimizedX86BranchRelaxationError> {
-    row.branch
-        .as_deref()
-        .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
-        .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
-            row.instruction,
-        ))
 }

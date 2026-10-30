@@ -26,10 +26,21 @@ pub(in crate::execution::terminal_unit) fn elements(
         .elements
         .into_iter()
         .enumerate()
-        .map(|(element_index, (expression, primitive_type))| {
+        .map(|(element_index, element)| {
             let role = CheckedScalarExpressionRole::ArrayElement {
                 source,
                 element_ordinal: u32::try_from(element_index).ok()?,
+            };
+            let (expression, primitive_type) = match element {
+                validation::ScalarArrayElement::Authored {
+                    expression,
+                    primitive_type,
+                }
+                | validation::ScalarArrayElement::Projected {
+                    row: expression,
+                    primitive_type,
+                    ..
+                } => (expression, primitive_type),
             };
             let computations = &facts.values.scalar_computations;
             let roots = computations

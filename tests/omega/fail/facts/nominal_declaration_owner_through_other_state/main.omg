@@ -2,9 +2,9 @@
 // Expected exit: 0
 use shared::copied::Token;
 use shared::library::read;
-machine transported() -> u8 { transition { _ -> receive(Token { value: 7 }) } state receive(token: Token) -> u8 { read(token) } }
+machine transported() -> u8 { transition { _ -> receive(Token { value: 7 }) } machine receive(token: Token) -> u8 { read(token) } }
 machine main() crashes Trap {
     transition transported() == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

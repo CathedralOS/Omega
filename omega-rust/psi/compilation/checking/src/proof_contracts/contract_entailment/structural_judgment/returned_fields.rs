@@ -27,6 +27,12 @@ use typed_trees::{
     types::{PrimitiveType, TypeReferenceHandle},
 };
 
+#[derive(Default)]
+pub(in crate::proof_contracts::contract_entailment::structural_judgment) struct ReturnedFieldTrace {
+    pub min_cycle_owner_index: usize,
+    pub visited_callees: Vec<symbols::SymbolHandle>,
+}
+
 impl StructuralJudge<'_> {
     pub(super) fn returned_field_equations(
         &self,
@@ -72,7 +78,22 @@ impl StructuralJudge<'_> {
         {
             return decline("selected operands do not bind this body's entry telescope");
         }
-        if self.returned_field_owners.contains(&callee.symbol) {
+        if let Some(trace) = &self.returned_field_trace
+            && let Ok(mut guard) = trace.lock()
+            && !guard.visited_callees.contains(&callee.symbol)
+        {
+            guard.visited_callees.push(callee.symbol);
+        }
+        if let Some(pos) = self
+            .returned_field_owners
+            .iter()
+            .position(|&sym| sym == callee.symbol)
+        {
+            if let Some(trace) = &self.returned_field_trace
+                && let Ok(mut guard) = trace.lock()
+            {
+                guard.min_cycle_owner_index = guard.min_cycle_owner_index.min(pos);
+            }
             return decline("recursive field correspondence");
         }
         // Scalar results have no construction fields. This is also the common
@@ -86,22 +107,97 @@ impl StructuralJudge<'_> {
         {
             return decline("no owned structural result");
         }
+        let substitution = parameters
+            .iter()
+            .zip(actuals)
+            .map(|(parameter, value)| (parameter.name.as_str().to_owned(), value.clone()))
+            .collect::<Vec<_>>();
+        let is_stored_machine = program
+            .machine(callee.symbol)
+            .is_some_and(|stored| std::ptr::eq(stored, callee));
+        if is_stored_machine
+            && let Some(memos) = crate::frozen_program::frozen_program_memos(program)
+            && let Ok(cached) = memos.returned_field_projections.lock()
+            && let Some(entry_memo) = cached.get(&callee.symbol).cloned()
+            && entry_memo
+                .1
+                .iter()
+                .all(|visited| !self.returned_field_owners.contains(visited))
+        {
+            drop(cached);
+            if let Some(trace) = &self.returned_field_trace
+                && let Ok(mut guard) = trace.lock()
+            {
+                for &visited in &entry_memo.1 {
+                    if !guard.visited_callees.contains(&visited) {
+                        guard.visited_callees.push(visited);
+                    }
+                }
+            }
+            return entry_memo
+                .0
+                .iter()
+                .filter_map(|(path, value)| {
+                    let subject =
+                        project_observed_value(program, entry.return_type, captured.clone(), path)?;
+                    Some((subject, Self::substitute_term(value, &substitution)))
+                })
+                .collect();
+        }
+        let outer_len = self.returned_field_owners.len();
+        let trace = std::sync::Arc::new(std::sync::Mutex::new(ReturnedFieldTrace {
+            min_cycle_owner_index: usize::MAX,
+            visited_callees: Vec::new(),
+        }));
+        let store_template = |template: Vec<(Vec<PlaceSegment>, StructuralTerm)>| {
+            let (min_cycle, visited) = trace.lock().map_or((0, Vec::new()), |mut guard| {
+                (
+                    guard.min_cycle_owner_index,
+                    std::mem::take(&mut guard.visited_callees),
+                )
+            });
+            if let Some(parent_trace) = &self.returned_field_trace
+                && let Ok(mut parent_guard) = parent_trace.lock()
+            {
+                if min_cycle < outer_len {
+                    parent_guard.min_cycle_owner_index =
+                        parent_guard.min_cycle_owner_index.min(min_cycle);
+                }
+                for &sym in &visited {
+                    if !parent_guard.visited_callees.contains(&sym) {
+                        parent_guard.visited_callees.push(sym);
+                    }
+                }
+            }
+            if is_stored_machine
+                && min_cycle >= outer_len
+                && let Some(memos) = crate::frozen_program::frozen_program_memos(program)
+                && let Ok(mut cached) = memos.returned_field_projections.lock()
+            {
+                cached.insert(callee.symbol, std::sync::Arc::new((template, visited)));
+            }
+        };
         let requires = machine_requires_facts(program, callee);
         let mut judge = Self::from_runtime_state_requires(program, callee, entry, &requires);
         judge.returned_field_owners = std::sync::Arc::clone(&self.returned_field_owners);
         std::sync::Arc::make_mut(&mut judge.returned_field_owners).push(callee.symbol);
+        judge.returned_field_trace = Some(std::sync::Arc::clone(&trace));
         let mut diagnostics = Vec::new();
-        let Some(leaves) = recognize_structural_case_arms(
-            program,
-            callee,
-            &judge,
-            &crate::proof_only_classification(program),
-            &mut diagnostics,
-            None,
-        ) else {
+        let Some(leaves) = phase_profile::scope("05.rf.recognize", || {
+            recognize_structural_case_arms(
+                program,
+                callee,
+                &judge,
+                &crate::proof_only_classification(program),
+                &mut diagnostics,
+                None,
+            )
+        }) else {
+            store_template(Vec::new());
             return decline("normal-return paths are incomplete or recurrent");
         };
         let Some(first) = leaves.first().filter(|_| diagnostics.is_empty()) else {
+            store_template(Vec::new());
             return decline("no independently checked normal-return leaves");
         };
         let first_value = first
@@ -136,12 +232,7 @@ impl StructuralJudge<'_> {
                 }
             }
         }
-        let substitution = parameters
-            .iter()
-            .zip(actuals)
-            .map(|(parameter, value)| (parameter.name.as_str().to_owned(), value.clone()))
-            .collect::<Vec<_>>();
-        projections
+        let template: Vec<(Vec<PlaceSegment>, StructuralTerm)> = projections
             .into_iter()
             .filter_map(|projection| {
                 if projection.path.is_empty() {
@@ -177,19 +268,23 @@ impl StructuralJudge<'_> {
                         declaration_input_value(&judge, parameters, &projected).then_some(projected)
                     })
                     .collect::<Option<Vec<_>>>()?;
-                let value = values.first()?;
-                if values.iter().any(|other| other != value) {
+                let value = values.first()?.clone();
+                if values.iter().any(|other| *other != value) {
                     return None;
                 }
-                let subject = project_observed_value(
-                    program,
-                    entry.return_type,
-                    captured.clone(),
-                    &projection.path,
-                )?;
+                Some((projection.path, value))
+            })
+            .collect();
+        let equations = template
+            .iter()
+            .filter_map(|(path, value)| {
+                let subject =
+                    project_observed_value(program, entry.return_type, captured.clone(), path)?;
                 Some((subject, Self::substitute_term(value, &substitution)))
             })
-            .collect()
+            .collect();
+        store_template(template);
+        equations
     }
 }
 

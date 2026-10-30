@@ -3,7 +3,7 @@
 /// The in-memory representation accepts only the vocabulary it was built with.
 /// The terminal codec rejects prior wire vocabularies before constructing this
 /// marker; it does not migrate artifacts.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct VocabularyMarker;
 
 impl VocabularyMarker {
@@ -18,7 +18,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // Activation establishments retain closed backing bounds and conditional grants.
-        130
+        // Scalar applications remain explicit until exact target admission.
+        131
     }
 }

@@ -15,9 +15,9 @@ use omega::language::core::process_exit;
 // register gives something else -> exit 1. Uses only NSObject (defined in
 // libobjc); Foundation/AppKit classes need their frameworks loaded (see D-objc).
 
-public domain [u8]::CString(bytes)
+public domain [u8]::CString
 requires
-    no_nul(bytes);
+    no_nul(self);
 use omega_language_std::console;
 
 public boundary trait ObjectiveC {
@@ -62,6 +62,6 @@ machine Main::main(main: &mut Main) reaches
     let mut sel_alloc: u64 = ObjectiveC::register_selector("alloc");
     let mut r: u64 = ObjectiveC::send_scalar(cls, sel_resp, sel_alloc);
     transition r == 1 { true -> good(main) _ -> bad(main) }
-    state good(main: &mut Main) { Console::exit_process(8); }
-    state bad(main: &mut Main)  { Console::exit_process(1); }
+    machine good(main: &mut Main) { Console::exit_process(8); }
+    machine bad(main: &mut Main)  { Console::exit_process(1); }
 }

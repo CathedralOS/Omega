@@ -13,7 +13,6 @@ use evaluation_accounting::{
     EvaluationMeasurementIdentity, EvaluationResource, TerminalStorageScheduleIdentity,
 };
 use semantic_vocabulary::{BlockId, ClaimId, ContractId, EdgeId, StructuralTypeId};
-use std::borrow::Cow;
 use std::sync::Arc;
 use terminal_psi::{
     Block, MachineContract, NominalAffineCleanup, RegisterTargetApplicability,
@@ -31,6 +30,7 @@ pub(crate) fn empty_program() -> Arc<AdmittedTerminalProgram<'static>> {
         declaration: None,
         nominal_cleanup_subject: None,
         parameters: Vec::new(),
+        parameter_order: Vec::new(),
         structural_parameters: Vec::new(),
         structural_places: Vec::new(),
         entry_claims: Vec::new(),
@@ -60,9 +60,12 @@ pub(crate) fn empty_program() -> Arc<AdmittedTerminalProgram<'static>> {
         contract: MachineContract::empty(ContractId::new(1).unwrap()),
     });
     Arc::new(AdmittedTerminalProgram {
-        identity: terminal_codec::terminal_psi_identity(&module).unwrap(),
-        catalogs: Arc::new(Cow::Owned(module)),
+        identity: terminal_codec::TerminalExecutionIdentity::portable(
+            terminal_codec::terminal_psi_identity(&module).unwrap(),
+        ),
+        catalogs: Arc::new(crate::program::ProgramStorage::Owned(module)),
         target_layouts: None,
+        scalar_geometry: None,
     })
 }
 

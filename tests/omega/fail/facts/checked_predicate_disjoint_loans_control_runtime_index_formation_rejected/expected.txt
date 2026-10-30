@@ -1,0 +1,2 @@
+cannot prove index `indices.first` is within length 2 in distinct::entry
+cannot prove index `indices.second` is within length 2 in distinct::entry

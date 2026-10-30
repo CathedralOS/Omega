@@ -11,6 +11,6 @@ machine main() crashes Trap {
     let case_ticket: Ticket = issue();
     let full: bool = pack(case_ticket) in Choice::Full;
     transition field == 73 && full { true -> done() _ -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

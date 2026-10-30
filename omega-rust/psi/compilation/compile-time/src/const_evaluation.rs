@@ -10,10 +10,12 @@ pub(crate) mod const_initializers;
 pub(crate) mod const_lengths;
 pub(crate) mod const_qualifications;
 pub(crate) mod constant_recipes;
+pub(crate) mod contract_expressions;
 pub(crate) mod data_layout_queries;
 mod initializer_probe;
 pub(crate) mod range_arguments;
 pub(crate) mod range_endpoints;
+pub(crate) mod selected_constants;
 
 use typed_trees::TypedTrees;
 
@@ -45,7 +47,8 @@ pub(crate) fn prepared_admission(
         domain,
     )?;
     let execution = prepared.typed();
-    let admission = crate::BuildTimeAdmissionPlan::infer(execution, selection_authority)
+    let admission = domain
+        .admission(execution, selection_authority)
         .with_selected_operators(execution, operators)
         .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
     Ok((prepared, admission))

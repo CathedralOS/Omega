@@ -7,12 +7,11 @@ use register_model::RegisterConstraintKey;
 use register_model::RegisterViewId;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
-    LocalStorageSlotId, MachineAlternative, MachineAlternativeApplicability,
-    MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
-    MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
-    MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
+    LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    SelectedInstructionKind,
 };
 use target::NativeTarget;
 
@@ -74,25 +73,16 @@ pub(crate) fn declaration(
     target: NativeTarget,
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
-        semantic: MachineSemanticKind::HostedReadByte,
+    MachineEffectDeclaration::single(
+        MachineSemanticKind::HostedReadByte,
         constraint,
-        memory: MachineMemoryEffect::HostedReadByteV1,
-        trap: MachineTrapBehavior::HostedReadFailureV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::HostedReadByte,
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: size(target),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(target),
-        }],
-    }
+        MachineMemoryEffect::HostedReadByteV1,
+        MachineTrapBehavior::HostedReadFailureV1,
+        MachineBarrier::ExternalEffect,
+        MachineAlternativeFamily::HostedReadByte,
+        size(target),
+        effects(target),
+    )
 }
 
 fn request(
@@ -188,14 +178,7 @@ pub fn validate_aarch64_selected_hosted_read_byte_form(
 
 /// Decode the complete target-specific read leaf, returning its structural home byte offset.
 pub fn decode_aarch64_selected_hosted_read_byte(target: NativeTarget, bytes: &[u8]) -> Option<u32> {
-    let (word_bytes, tail) = bytes.as_chunks::<4>();
-    if !tail.is_empty() {
-        return None;
-    }
-    let words = word_bytes
-        .iter()
-        .map(|word| u32::from_le_bytes(*word))
-        .collect::<Vec<_>>();
+    let words = super::word_stream(bytes)?;
     // The payload address in `x1`: one unshifted `add x1, sp, #imm`, or
     // shifted page steps followed by their nonzero unshifted remainder. The
     // prefix ends at the first word that is not an `add` into `x1`; the tag
@@ -267,6 +250,7 @@ mod tests {
         encode_aarch64_selected_hosted_read_byte_form,
         validate_aarch64_selected_hosted_read_byte_form,
     };
+    use crate::test_support::reject_every_bit_flip;
     use selected_instructions::{
         LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
         MachineEncodedStackEffect, MachineSemanticKind, MachineSizeKnowledge,
@@ -328,30 +312,23 @@ mod tests {
                     encoded.footprint().encoded.stack,
                     MachineEncodedStackEffect::UnchangedV1
                 );
-                for bit in 0..encoded.bytes().len() * 8 {
-                    let mut changed = encoded.bytes().to_vec();
-                    changed[bit / 8] ^= 1 << (bit % 8);
-                    assert!(
-                        validate_aarch64_selected_hosted_read_byte_form(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &[],
-                            i64::from(displacement),
-                            &changed
-                        )
-                        .is_err(),
-                        "bit {bit}"
-                    );
-                    // A changed address immediate can still spell another
-                    // well-formed home; it never spells this one.
+                reject_every_bit_flip(encoded.bytes(), "hosted read byte", |changed| {
                     assert_ne!(
                         decode_aarch64_selected_hosted_read_byte(target, &changed),
                         Some(displacement),
-                        "decoder bit {bit}"
+                        "decoder bit"
                     );
-                }
+                    validate_aarch64_selected_hosted_read_byte_form(
+                        target,
+                        &physical,
+                        kind,
+                        alternative,
+                        &[],
+                        i64::from(displacement),
+                        &changed,
+                    )
+                    .is_err()
+                });
                 for invalid_offset in [1, 3, u32::MAX - 3, u32::MAX] {
                     assert!(
                         encode_aarch64_selected_hosted_read_byte_form(

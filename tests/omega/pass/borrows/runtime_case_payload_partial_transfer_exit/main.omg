@@ -13,7 +13,7 @@ machine inspect(envelope: Envelope) -> bool {
         Choice::Present { stamp as _, pair, unused } -> observe(pair.first, stamp)
         _ -> (false)
     }
-    state observe(first: Token, stamp: i32) -> bool {
+    machine observe(first: Token, stamp: i32) -> bool {
         first.value == 42 && stamp == 44
     }
 }
@@ -29,6 +29,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

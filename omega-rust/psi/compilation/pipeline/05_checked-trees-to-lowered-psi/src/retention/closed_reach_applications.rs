@@ -594,22 +594,22 @@ pub(crate) fn retain_closed_reach_applications(
                 if matches.next().is_some() {
                     return unsupported("closed reach call has ambiguous emitted occurrences");
                 }
-                let Some(operation) = occurrence.terminal_site.operation() else {
-                    continue;
-                };
+                let site = occurrence.terminal_site;
                 let emitted = module
                     .machine(owner)
                     .and_then(|machine| {
-                        machine.operations().find(|emitted| emitted.id == operation)
+                        machine
+                            .module_invocations()
+                            .find(|invocation| invocation.site == site)
                     })
                     .ok_or(LoweringError::Unsupported(
-                        "closed reach call lost its emitted operation",
+                        "closed reach call lost its exact emitted invocation",
                     ))?;
-                if emitted.kind.direct_callee().is_none() {
-                    continue;
+                if emitted.inputs.callee.get() == 0 {
+                    return unsupported("closed reach call has no module callee");
                 }
                 calls.push(ClosedReachCall {
-                    operation,
+                    site,
                     binder: binder as u32,
                     application: match &telescope[binder] {
                         ClosedReachParameter::Machine(binding) if binding.schema.is_some() => {
@@ -625,7 +625,7 @@ pub(crate) fn retain_closed_reach_applications(
                 });
             }
         }
-        calls.sort_by_key(|call| call.operation);
+        calls.sort_by_key(|call| call.site);
         // Type/const specialization selects actual custody leaves. Retain
         // their contractual contribution beside the template dependency; it
         // cannot be recovered from authored calls alone or by subtracting a
@@ -668,18 +668,44 @@ pub(crate) fn retain_closed_reach_applications(
             let Some(ClosedReachParameter::Machine(_)) = telescope.get(call.binder as usize) else {
                 return unsupported("closed reach consumer does not select a machine binder");
             };
-            let operation = terminal_owner
-                .blocks
-                .iter_mut()
-                .flat_map(|block| &mut block.operations)
-                .find(|operation| operation.id == call.operation)
-                .ok_or(LoweringError::Unsupported(
-                    "closed reach consumer has no exact owner operation",
-                ))?;
-            if direct_call_parts(&operation.kind).is_none() {
-                return unsupported("closed reach consumer is not a direct machine call");
+            match call.site {
+                semantic_vocabulary::InvocationSite::Operation(identity) => {
+                    let operation = terminal_owner
+                        .blocks
+                        .iter_mut()
+                        .flat_map(|block| &mut block.operations)
+                        .find(|operation| operation.id == identity)
+                        .ok_or(LoweringError::Unsupported(
+                            "closed reach consumer has no exact owner operation",
+                        ))?;
+                    if direct_call_parts(&operation.kind).is_none() {
+                        return unsupported("closed reach consumer is not a direct machine call");
+                    }
+                    operation.static_reach_binding = Some(call.binder);
+                }
+                semantic_vocabulary::InvocationSite::InvokeNoNormal(identity) => {
+                    let binding = terminal_owner
+                        .blocks
+                        .iter_mut()
+                        .find_map(|block| match &mut block.terminator {
+                            terminal_psi::Terminator::InvokeNoNormal {
+                                edge,
+                                static_reach_binding,
+                                ..
+                            } if *edge == identity => Some(static_reach_binding),
+                            _ => None,
+                        })
+                        .ok_or(LoweringError::Unsupported(
+                            "closed reach consumer has no exact invocation edge",
+                        ))?;
+                    *binding = Some(call.binder);
+                }
+                semantic_vocabulary::InvocationSite::ExternalCompletion(_) => {
+                    return unsupported(
+                        "closed reach consumer is not an ordinary module invocation",
+                    );
+                }
             }
-            operation.static_reach_binding = Some(call.binder);
         }
         let capture = specialization
             .capture

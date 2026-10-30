@@ -26,7 +26,7 @@ pub(super) fn rejoin_component_call(
         || authority.review().terminal_artifact_identity()
             != *call.component().artifact().manifest().identity().as_bytes()
         || authority.review().target() != profile.native_target()
-        || selection.receiver() != receiver
+        || selection.receiver() != &terminal_codec::TerminalExecutionIdentity::portable(receiver)
         || selection.provider() != call.component().subject()
         || call.plan_digest() != &selected_plan.identity_digest()
         || application.requirement_identity != requirement

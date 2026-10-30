@@ -8,7 +8,7 @@ requires q >= 100 && q <= 100
     transition {
         _ -> step(q)
     }
-    state step(quotient: i64) -> i32
+    machine step(quotient: i64) -> i32
     requires quotient >= 100 && quotient <= 100
     {
         let verified: u64 = quotient as u64;
@@ -28,6 +28,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -18,6 +18,7 @@ pub struct BoundedProcessPrepared {
     command: Command,
     limits: BoundedProcessLimits,
     boundary: &'static str,
+    observe_resources: bool,
     stdin: Option<BoundedStandardStreamDisposition>,
     stdout: Option<BoundedStandardStreamDisposition>,
     stderr: Option<BoundedStandardStreamDisposition>,
@@ -31,6 +32,8 @@ pub struct BoundedProcessPrepared {
 enum BoundedStandardStreamDisposition {
     Null,
     Piped,
+    #[cfg(windows)]
+    CallerConfigured,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,6 +97,7 @@ impl BoundedProcessPrepared {
             command,
             limits,
             boundary,
+            observe_resources: false,
             stdin: None,
             stdout: None,
             stderr: None,
@@ -129,6 +133,42 @@ impl BoundedProcessPrepared {
         &self.retained_descriptors
     }
 
+    /// Transfer an explicitly owned private channel endpoint to this launch.
+    /// Its parent-assigned number survives exec; every other ambient descriptor
+    /// still closes. The command owns it until spawn has completed, so neither a
+    /// dropped caller nor a recycled descriptor number can replace this endpoint.
+    #[cfg(unix)]
+    pub fn retain_descriptor(
+        &mut self,
+        descriptor: std::os::fd::OwnedFd,
+    ) -> io::Result<std::os::fd::RawFd> {
+        use std::os::fd::AsRawFd;
+        use std::os::unix::process::CommandExt;
+        let raw = descriptor.as_raw_fd();
+        if raw < 3 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "retained private descriptors must be separate from standard streams",
+            ));
+        }
+        self.retained_descriptors.push(raw);
+        // Only borrow the captured owner after fork; its lifetime in Command
+        // keeps the same open file description alive through the exec setup.
+        unsafe {
+            self.command.pre_exec(move || {
+                let _keep_alive = &descriptor;
+                Ok(())
+            });
+        }
+        Ok(raw)
+    }
+
+    // The private observation API receives a command whose stdin the CLI already selected.
+    #[cfg(windows)]
+    pub(crate) fn preserve_configured_stdin(&mut self) {
+        self.stdin = Some(BoundedStandardStreamDisposition::CallerConfigured);
+    }
+
     pub fn get_program(&self) -> &OsStr {
         self.command.get_program()
     }
@@ -147,6 +187,16 @@ impl BoundedProcessPrepared {
 
     pub const fn limits(&self) -> BoundedProcessLimits {
         self.limits
+    }
+
+    /// Request kernel resource observations without changing execution limits.
+    pub fn observe_resources(&mut self) -> &mut Self {
+        self.observe_resources = true;
+        self
+    }
+
+    pub(crate) const fn should_observe_resources(&self) -> bool {
+        self.observe_resources
     }
 
     pub(crate) fn into_command(self) -> io::Result<(Command, BoundedProcessLimits)> {

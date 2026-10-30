@@ -13,7 +13,7 @@ machine interpolate(points: &[Knot], stimulus: i32 in Wrapping) -> i32 in Wrappi
         true -> interval(points, stimulus)
         false -> (-1)
     }
-    state interval(points: &[Knot], stimulus: i32 in Wrapping) -> i32 in Wrapping
+    machine interval(points: &[Knot], stimulus: i32 in Wrapping) -> i32 in Wrapping
     requires points.len >= 2 {
         let left: Knot = points[0];
         let right: Knot = points[1];
@@ -22,18 +22,18 @@ machine interpolate(points: &[Knot], stimulus: i32 in Wrapping) -> i32 in Wrappi
             false -> scan(points[1..], stimulus)
         }
     }
-    state width(left: Knot, right: Knot, stimulus: i32 in Wrapping) -> i32 in Wrapping {
+    machine width(left: Knot, right: Knot, stimulus: i32 in Wrapping) -> i32 in Wrapping {
         let denominator: i32 in Wrapping = right.stimulus - left.stimulus;
         transition denominator > 0 {
             true -> evaluate(left, right, stimulus, denominator)
             false -> (-1)
         }
     }
-    state evaluate(left: Knot, right: Knot, stimulus: i32 in Wrapping, denominator: i32 in Wrapping) -> i32 in Wrapping
+    machine evaluate(left: Knot, right: Knot, stimulus: i32 in Wrapping, denominator: i32 in Wrapping) -> i32 in Wrapping
     requires denominator > 0 {
         left.response + (stimulus - left.stimulus) * (right.response - left.response) / denominator
     }
-    state scan(points: &[Knot], stimulus: i32 in Wrapping) -> i32 in Wrapping {
+    machine scan(points: &[Knot], stimulus: i32 in Wrapping) -> i32 in Wrapping {
         transition points.len >= 2 {
             true -> interval(points, stimulus)
             false -> (-1)

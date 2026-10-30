@@ -22,8 +22,8 @@ use crate::expression_preparation::bindings::structural_fields::CasePayloadRead;
 use crate::expression_preparation::bindings::view_locals::{ViewCarrier, ViewLocalBinding};
 use crate::expression_preparation::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
-    CheckedScalarExpression, LoweringError, PlaceId, PrimitiveType, ScalarType,
-    StructuralParameterDeclaration, StructuralTypeId, unsupported,
+    CheckedScalarExpression, LoweringError, PlaceId, PrimitiveType, ScalarType, StructuralTypeId,
+    unsupported,
 };
 
 /// Lower one checked scalar expression against no prepared sources. A
@@ -54,6 +54,12 @@ pub(crate) fn selector_bound_is_decided(
     selector: &checked_trees::CheckedScalarSelector,
     proven_indexes: &[checked_trees::expression::ExpressionHandle],
 ) -> bool {
+    // Entry-coordinate formation was proved before source rank admission and
+    // retained on that exact selector/collection plan. It has no authored []
+    // occurrence to consult. Ordinary source reads retain occurrence custody.
+    if selector.entry_bound.is_some() {
+        return !selector.occurrence.is_valid();
+    }
     selector.occurrence.is_valid()
         && proven_indexes
             .binary_search_by_key(
@@ -86,6 +92,12 @@ pub(crate) struct PreparedExpressionContext<'a> {
     pub(crate) proven_indexes: &'a [checked_trees::expression::ExpressionHandle],
 }
 
+#[derive(Clone, Copy)]
+enum SequenceObservationPurpose {
+    Length,
+    Contents,
+}
+
 impl<'a> PreparedExpressionContext<'a> {
     /// Lower one checked scalar expression against these prepared sources.
     pub(crate) fn lower_scalar(
@@ -94,10 +106,17 @@ impl<'a> PreparedExpressionContext<'a> {
         expression: &CheckedScalarExpression,
     ) -> Result<LoweredDirectExpression, LoweringError> {
         match expression {
+            CheckedScalarExpression::ConstantApplication { .. } => Err(LoweringError::Unsupported(
+                "pending contract constant cannot be emitted as an executable value",
+            )),
             CheckedScalarExpression::StructuralSequenceLength { root, path } => self
-                .sequence_observation(identities, *root, path, |identities, selector| {
-                    self.lower_scalar(identities, selector)
-                })?
+                .sequence_observation(
+                    identities,
+                    *root,
+                    path,
+                    SequenceObservationPurpose::Length,
+                    |identities, selector| self.lower_scalar(identities, selector),
+                )?
                 .ok_or(LoweringError::Unsupported(
                     "length observation requires a live sequence descriptor",
                 )),
@@ -156,8 +175,19 @@ impl<'a> PreparedExpressionContext<'a> {
                 parameter_position,
                 path,
                 primitive_type,
+                ..
             } => {
                 let scalar_type = terminal_scalar_type(*primitive_type)?;
+                if let Some(bindings) = self.scalar_bindings
+                    && let Some(observation) = bindings.captured_field_observation(
+                        identities,
+                        *parameter_position,
+                        path,
+                        scalar_type,
+                    )?
+                {
+                    return Ok(observation);
+                }
                 // Carrier type does not choose the storage path. Case payloads,
                 // indexed elements and inline fields retain the same authority
                 // and geometry for every scalar format.
@@ -217,105 +247,16 @@ impl<'a> PreparedExpressionContext<'a> {
                 left,
                 right,
                 formation_decided,
+                ..
             } => {
                 let scalar_type = terminal_scalar_type(*primitive_type)?;
                 let left = self.lower_scalar(identities, left)?;
                 let right = self.lower_scalar(identities, right)?;
+                if *kind == CheckedIntegerBinaryKind::SaturatingShiftLeft {
+                    return super::saturating_shift::left(scalar_type, left, right);
+                }
                 Ok(LoweredDirectExpression::IntegerBinary {
-                    kind: match kind {
-                        CheckedIntegerBinaryKind::ExactAdd => LoweredIntegerBinaryKind::ExactAdd,
-                        CheckedIntegerBinaryKind::ExactSubtract => {
-                            LoweredIntegerBinaryKind::ExactSubtract
-                        }
-                        CheckedIntegerBinaryKind::ExactMultiply => {
-                            LoweredIntegerBinaryKind::ExactMultiply
-                        }
-                        CheckedIntegerBinaryKind::ExactDivide => {
-                            LoweredIntegerBinaryKind::ExactDivide
-                        }
-                        CheckedIntegerBinaryKind::ExactRemainder => {
-                            LoweredIntegerBinaryKind::ExactRemainder
-                        }
-                        CheckedIntegerBinaryKind::WrappingDivide => {
-                            LoweredIntegerBinaryKind::WrappingDivide
-                        }
-                        CheckedIntegerBinaryKind::WrappingRemainder => {
-                            LoweredIntegerBinaryKind::WrappingRemainder
-                        }
-                        CheckedIntegerBinaryKind::SaturatingDivide => {
-                            LoweredIntegerBinaryKind::SaturatingDivide
-                        }
-                        CheckedIntegerBinaryKind::SaturatingRemainder => {
-                            LoweredIntegerBinaryKind::SaturatingRemainder
-                        }
-                        CheckedIntegerBinaryKind::WrappingAdd => {
-                            LoweredIntegerBinaryKind::WrappingAdd
-                        }
-                        CheckedIntegerBinaryKind::SaturatingAdd => {
-                            LoweredIntegerBinaryKind::SaturatingAdd
-                        }
-                        CheckedIntegerBinaryKind::WrappingSubtract => {
-                            LoweredIntegerBinaryKind::WrappingSubtract
-                        }
-                        CheckedIntegerBinaryKind::SaturatingSubtract => {
-                            LoweredIntegerBinaryKind::SaturatingSubtract
-                        }
-                        CheckedIntegerBinaryKind::WrappingMultiply => {
-                            LoweredIntegerBinaryKind::WrappingMultiply
-                        }
-                        CheckedIntegerBinaryKind::SaturatingMultiply => {
-                            LoweredIntegerBinaryKind::SaturatingMultiply
-                        }
-                        CheckedIntegerBinaryKind::BitwiseAnd => {
-                            LoweredIntegerBinaryKind::BitwiseAnd
-                        }
-                        CheckedIntegerBinaryKind::BitwiseOr => LoweredIntegerBinaryKind::BitwiseOr,
-                        CheckedIntegerBinaryKind::BitwiseXor => {
-                            LoweredIntegerBinaryKind::BitwiseXor
-                        }
-                        CheckedIntegerBinaryKind::WrappingShiftLeft => {
-                            LoweredIntegerBinaryKind::WrappingShiftLeft
-                        }
-                        CheckedIntegerBinaryKind::WrappingShiftRight => {
-                            LoweredIntegerBinaryKind::WrappingShiftRight
-                        }
-                        CheckedIntegerBinaryKind::ExactShiftLeft => {
-                            LoweredIntegerBinaryKind::ExactShiftLeft
-                        }
-                        CheckedIntegerBinaryKind::ExactShiftRight => {
-                            LoweredIntegerBinaryKind::ExactShiftRight
-                        }
-                        CheckedIntegerBinaryKind::SaturatingShiftRight => {
-                            LoweredIntegerBinaryKind::ExactShiftRight
-                        }
-                        CheckedIntegerBinaryKind::SaturatingShiftLeft => {
-                            return super::saturating_shift::left(scalar_type, left, right);
-                        }
-                        // Each Trapping primitive keeps its own Terminal operation and
-                        // operation-level crash site; it is never weakened into the
-                        // Exact, Wrapping, or Saturating sibling.
-                        CheckedIntegerBinaryKind::TrappingShiftLeft => {
-                            LoweredIntegerBinaryKind::TrappingShiftLeft
-                        }
-                        CheckedIntegerBinaryKind::TrappingShiftRight => {
-                            LoweredIntegerBinaryKind::TrappingShiftRight
-                        }
-                        CheckedIntegerBinaryKind::TrappingAdd => {
-                            LoweredIntegerBinaryKind::TrappingAdd
-                        }
-                        CheckedIntegerBinaryKind::TrappingSubtract => {
-                            LoweredIntegerBinaryKind::TrappingSubtract
-                        }
-                        CheckedIntegerBinaryKind::TrappingMultiply => {
-                            LoweredIntegerBinaryKind::TrappingMultiply
-                        }
-                        CheckedIntegerBinaryKind::TrappingDivide => {
-                            LoweredIntegerBinaryKind::TrappingDivide
-                        }
-                        CheckedIntegerBinaryKind::TrappingRemainder => {
-                            LoweredIntegerBinaryKind::TrappingRemainder
-                        }
-                    },
+                    kind: identical_lowered_integer_binary_kind(*kind),
                     scalar_type,
                     left: Box::new(left),
                     right: Box::new(right),
@@ -342,6 +283,7 @@ impl<'a> PreparedExpressionContext<'a> {
                 index,
                 element_path,
                 primitive_type,
+                ..
             } => {
                 let bound_decided = selector_bound_is_decided(index, self.proven_indexes);
                 if let checked_trees::CheckedStorageRoot::ViewLocal { symbol } = *root
@@ -366,31 +308,38 @@ impl<'a> PreparedExpressionContext<'a> {
                             .and_then(exact_u64_index)
                     };
                 let index = Box::new(lower_selector(identities, &index.expression)?);
-                // Bounded bytes read their live length, never capacity. A projected
-                // byte field also retains its declaration and containing selectors.
+                // Select the byte-descriptor operation from the retained carrier,
+                // not from a u8 field spelling: inline arrays use the ordinary
+                // indexed-element path below. Bounded bytes read live length,
+                // never capacity, and retain their containing selectors.
                 if element_path.is_empty()
-                && *primitive_type == PrimitiveType::U8
-                && matches!(
-                    path.last(),
-                    Some(checked_trees::CheckedStructuralPredicatePathSegment::Field(
-                        _
-                    ))
-                )
-                && let crate::emission::operation_emission::boolean::LoweredByteSequenceOperand {
-                    source,
-                    path,
-                    field: Some(field),
-                } = self.byte_sequence_observation(identities, *root, path)?
-            {
-                return Ok(LoweredDirectExpression::ByteSequenceFieldRead {
-                    source,
-                    path,
-                    field,
-                    index,
-                    scalar_type: terminal_scalar_type(*primitive_type)?,
-                    bound_decided,
-                });
-            }
+                    && *primitive_type == PrimitiveType::U8
+                    && let Some(LoweredDirectExpression::ByteSequenceFieldLength {
+                        source,
+                        path,
+                        field,
+                        ..
+                    }) = self.sequence_observation(
+                        identities,
+                        *root,
+                        &path
+                            .iter()
+                            .cloned()
+                            .map(checked_trees::CheckedScalarReadProjection::Static)
+                            .collect::<Vec<_>>(),
+                        SequenceObservationPurpose::Contents,
+                        |_, _| unsupported("indexed byte observation has an unevaluated selector"),
+                    )?
+                {
+                    return Ok(LoweredDirectExpression::ByteSequenceFieldRead {
+                        source,
+                        path,
+                        field,
+                        index,
+                        scalar_type: terminal_scalar_type(*primitive_type)?,
+                        bound_decided,
+                    });
+                }
                 // Geometry needs selector positions, not their expressions or proof
                 // identities. Scratch markers associate each declaration walk step
                 // with the read's ordered, evaluated selector, never emitted authority.
@@ -579,7 +528,19 @@ impl<'a> PreparedExpressionContext<'a> {
             CheckedBooleanExpression::StructuralParameterField {
                 parameter_position,
                 path,
+                ..
             } => {
+                if let Some(bindings) = self.scalar_bindings
+                    && let Some(observation) = bindings.captured_field_observation(
+                        identities,
+                        *parameter_position,
+                        path,
+                        semantic_vocabulary::ScalarType::Boolean,
+                    )?
+                {
+                    return Ok(crate::expression_preparation::bindings::structural_fields::boolean_observation(observation));
+                }
+
                 if !self.structural_fields.is_empty()
                     && matches!(
                         path.first(),
@@ -626,7 +587,8 @@ impl<'a> PreparedExpressionContext<'a> {
                         checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
                             Ok(identity.spelling())
                         }
-                        checked_trees::CheckedStructuralPredicatePathSegment::Case(_)
+                        checked_trees::CheckedStructuralPredicatePathSegment::Referent
+                        | checked_trees::CheckedStructuralPredicatePathSegment::Case(_)
                         | checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_)
                         | checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(_) => {
                             unsupported("case-payload predicates are contract-only")
@@ -723,7 +685,7 @@ impl<'a> PreparedExpressionContext<'a> {
 
     /// Captured actuals and current locals retain the same complete storage home.
     /// An endpoint declaration never replaces the declaration of its physical root.
-    fn observation_home(
+    fn storage_home(
         &self,
         root: checked_trees::CheckedStorageRoot,
     ) -> Result<(terminal_psi::StructuralArgument, StructuralTypeId), LoweringError> {
@@ -734,12 +696,20 @@ impl<'a> PreparedExpressionContext<'a> {
             .flatten();
         let (home, structural_type) = match captured {
             Some(home) => home,
-            None => self.structural_fields.observation_home(
+            None => self.structural_fields.storage_home(
                 root,
                 self.structural_locals,
                 self.view_locals,
             )?,
         };
+        Ok((home, structural_type))
+    }
+
+    fn observation_home(
+        &self,
+        root: checked_trees::CheckedStorageRoot,
+    ) -> Result<(terminal_psi::StructuralArgument, StructuralTypeId), LoweringError> {
+        let (home, structural_type) = self.storage_home(root)?;
         if !matches!(
             home.access,
             terminal_psi::StructuralAccess::Owned | terminal_psi::reading_borrow_pair_pattern!()
@@ -771,6 +741,7 @@ impl<'a> PreparedExpressionContext<'a> {
                     .cloned()
                     .map(checked_trees::CheckedScalarReadProjection::Static)
                     .collect::<Vec<_>>(),
+                SequenceObservationPurpose::Contents,
                 |_, _| unsupported("byte observation has an unevaluated selector"),
             )?
             .ok_or(LoweringError::Unsupported(
@@ -803,6 +774,7 @@ impl<'a> PreparedExpressionContext<'a> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         root: checked_trees::CheckedStorageRoot,
         path: &[checked_trees::CheckedScalarReadProjection],
+        purpose: SequenceObservationPurpose,
         mut lower_selector: impl FnMut(
             &mut terminal_psi::TerminalIdentityTableBuilder,
             &CheckedScalarExpression,
@@ -810,15 +782,10 @@ impl<'a> PreparedExpressionContext<'a> {
     ) -> Result<Option<LoweredDirectExpression>, LoweringError> {
         use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment as Prepared;
         use checked_trees::{CheckedRuntimeIndex, CheckedScalarReadProjection as Projection};
-        let (home, structural_type) = self.observation_home(root)?;
-        if !matches!(
-            home.access,
-            terminal_psi::StructuralAccess::Owned
-                | terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::MutableBorrow
-        ) {
-            return unsupported("length observation requires readable storage");
-        }
+        let (home, structural_type) = match purpose {
+            SequenceObservationPurpose::Length => self.storage_home(root)?,
+            SequenceObservationPurpose::Contents => self.observation_home(root)?,
+        };
         let mut selectors = Vec::new();
         let geometry = path
             .iter()
@@ -843,6 +810,11 @@ impl<'a> PreparedExpressionContext<'a> {
     else {
         return Ok(None);
     };
+        let metadata_access = if home.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+            terminal_psi::StructuralAccess::WriteOnlyBorrow
+        } else {
+            terminal_psi::StructuralAccess::SharedBorrow
+        };
         let source = home.place;
         let mut path = home
             .path
@@ -923,14 +895,14 @@ impl<'a> PreparedExpressionContext<'a> {
                 LoweredDirectExpression::ByteSequenceLength {
                     source,
                     path,
-                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                    access: metadata_access,
                     scalar_type,
                 }
             }
             (ViewCarrier::Elements { .. }, None) => LoweredDirectExpression::ElementViewLength {
                 source,
                 path,
-                access: terminal_psi::StructuralAccess::SharedBorrow,
+                access: metadata_access,
                 scalar_type,
             },
             _ => return unsupported("length observation has an inconsistent sequence endpoint"),
@@ -1010,3 +982,61 @@ pub(crate) fn exact_u64_index(
         _ => unsupported("indexed reads require an integer index"),
     }
 }
+
+/// The checked and lowered integer binary vocabularies share these kind names
+/// one for one, so the identity translation is stated as the one row list it
+/// is: a name here translates, and a kind that lowers through its own composed
+/// form cannot join by accident. Trapping kinds translate to their own
+/// Terminal operation and operation-level crash site; none is weakened into
+/// its Exact, Wrapping, or Saturating sibling.
+macro_rules! identical_lowered_integer_binary_kinds {
+    ($($kind:ident),* $(,)?) => {
+        fn identical_lowered_integer_binary_kind(
+            kind: CheckedIntegerBinaryKind,
+        ) -> LoweredIntegerBinaryKind {
+            match kind {
+                $(CheckedIntegerBinaryKind::$kind => LoweredIntegerBinaryKind::$kind,)*
+                // A saturating right shift is the mathematical one: it can
+                // never overflow, so its counts remain the Exact shift's.
+                CheckedIntegerBinaryKind::SaturatingShiftRight => {
+                    LoweredIntegerBinaryKind::ExactShiftRight
+                }
+                CheckedIntegerBinaryKind::SaturatingShiftLeft => {
+                    unreachable!("saturating shift left lowers through its composed form")
+                }
+            }
+        }
+    };
+}
+
+identical_lowered_integer_binary_kinds!(
+    ExactAdd,
+    ExactSubtract,
+    ExactMultiply,
+    ExactDivide,
+    ExactRemainder,
+    WrappingDivide,
+    WrappingRemainder,
+    SaturatingDivide,
+    SaturatingRemainder,
+    WrappingAdd,
+    SaturatingAdd,
+    WrappingSubtract,
+    SaturatingSubtract,
+    WrappingMultiply,
+    SaturatingMultiply,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
+    WrappingShiftLeft,
+    WrappingShiftRight,
+    ExactShiftLeft,
+    ExactShiftRight,
+    TrappingShiftLeft,
+    TrappingShiftRight,
+    TrappingAdd,
+    TrappingSubtract,
+    TrappingMultiply,
+    TrappingDivide,
+    TrappingRemainder,
+);

@@ -1,0 +1,23 @@
+// Expected exit: 0
+// Preserve the library GCD body and its authored natural ranking clause.
+machine greatest_common_divisor(left: u64, right: u64) -> u64
+terminates by right -> Nat::Descending;
+{
+    transition right > 0 {
+        true -> greatest_common_divisor(right, left % right)
+        false -> left
+    }
+}
+
+machine main() crashes Trap {
+    let common: u64 = greatest_common_divisor(48, 18);
+    let coprime: u64 = greatest_common_divisor(17, 5);
+    let zero: u64 = greatest_common_divisor(37, 0);
+    let unit: u64 = greatest_common_divisor(18446744073709551615, 1);
+    transition common == 6 && coprime == 1 && zero == 37 && unit == 1 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

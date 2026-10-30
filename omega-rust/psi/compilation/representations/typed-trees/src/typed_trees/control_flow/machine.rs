@@ -16,11 +16,39 @@ impl crate::TypedTrees {
     ) -> Option<&'program str> {
         machine.authored_target.as_ref().map(Identifier::as_str)
     }
+
+    /// Source target context follows semantic lexical containment, including
+    /// retained specialization/capture correspondence. A nested body inherits
+    /// that context without becoming an authored member of the family roster.
+    pub fn source_target_context<'program>(
+        &'program self,
+        machine: &Machine,
+    ) -> Option<&'program str> {
+        let mut owner = machine.symbol;
+        let mut visited = Vec::new();
+        while owner.is_valid() {
+            owner = self.lifetime_declaration_owner(owner);
+            if !owner.is_valid() || visited.contains(&owner) {
+                return None;
+            }
+            if let Some(declaration) = self.machine_declaration_for_lexical_scope(owner) {
+                if let Some(target) = self.machine_authored_target(declaration) {
+                    return Some(target);
+                }
+            } else if self.symbols.get(owner).kind == symbols::SymbolKind::Machine {
+                // Conflicting or missing retained headers cannot lend context.
+                return None;
+            }
+            visited.push(owner);
+            owner = self.declaration_scope_parent(owner);
+        }
+        None
+    }
 }
 
 /// Whether this declaration's implementation has entered typed storage.
 /// Deferred states retain their real interfaces, not executable empty bodies.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum MachineBodyStatus {
     Deferred,
     #[default]
@@ -29,7 +57,7 @@ pub enum MachineBodyStatus {
 
 /// The consumer of this checked program. Declaration programs produce Build
 /// selections; their calls are not executable operations in the product.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum MachinePurpose {
     #[default]
     Runtime,
@@ -39,14 +67,14 @@ pub enum MachinePurpose {
 /// An extracted lexical region still belongs to one source activation. Its
 /// generated call retains the exact argument roster that captures that region;
 /// an ordinary authored invocation cannot supply this association.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct LexicalRegionOrigin {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     pub arguments: HandleSpan<ExpressionHandle>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct Machine {
     pub lexical_region_origin: Option<LexicalRegionOrigin>,
     /// Conjunctive catalog architecture demand retained after instruction normalization.
@@ -116,6 +144,8 @@ pub struct Machine {
     pub blocks_keyword_source_spans: Vec<source::SourceSpan>,
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
+    pub declared_type_equations: HandleSpan<DeclaredTypeEquation>,
+    pub declared_type_predicates: HandleSpan<crate::expression::ExpressionHandle>,
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
     pub conformance_bounds: Vec<GenericConformanceBound>,
@@ -124,6 +154,13 @@ pub struct Machine {
     pub blocks: bool,
     pub contracts: HandleSpan<SignatureContract>,
     pub states: HandleSpan<State>,
+}
+
+/// Declaration-local structural equality, independent of current consumers.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct DeclaredTypeEquation {
+    pub parameter: TypeReferenceHandle,
+    pub definition: TypeReferenceHandle,
 }
 
 impl Machine {
@@ -179,7 +216,7 @@ impl Machine {
 /// A canonical body is not a portable contract: direct portable references
 /// remain unsupported until checking carries that independent contract.
 /// Families also retain deployment tags unknown to the native target catalog.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TargetMachineFamily {
     /// The authored contract path every member implements
     /// (`StatLayout::plan`); equal to each member machine's `name`.
@@ -198,7 +235,7 @@ pub struct TargetMachineFamily {
 }
 
 /// One target's body within a [`TargetMachineFamily`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TargetMachineFamilyMember {
     /// The authored target name (`linux_x86_64`, `demo_target`, ...).
     pub target: Identifier,
@@ -210,7 +247,7 @@ impl Default for Machine {
     fn default() -> Self {
         Self {
             lexical_region_origin: None,
-                assembly_target_requirement:
+            assembly_target_requirement:
                 language_core::inline_assembly::AsmTargetApplicability::Any,
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
@@ -237,6 +274,8 @@ impl Default for Machine {
             blocks_keyword_source_spans: Vec::new(),
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
+            declared_type_equations: HandleSpan::empty(),
+            declared_type_predicates: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
             conformance_bounds: Vec::new(),
@@ -253,7 +292,7 @@ impl Default for Machine {
 /// an implementation parameter; its argument is one named conformance whose
 /// trait application equals this one after substitution. No parameter is a
 /// data subject.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct GenericConformanceBound {
     /// The binder's `ConformanceParameter` symbol.
     pub binder: SymbolHandle,
@@ -264,7 +303,7 @@ pub struct GenericConformanceBound {
     pub arguments: Vec<TypeReferenceHandle>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct OwnedData {
     pub symbol: SymbolHandle,
     pub name: Identifier,
@@ -272,7 +311,7 @@ pub struct OwnedData {
     pub initial_value: ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TraitConformance {
     pub symbol: SymbolHandle,
     pub name: Identifier,

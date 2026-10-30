@@ -418,6 +418,11 @@ fn termination(operation: &A) -> Option<Terminator> {
             cases: cases
                 .iter()
                 .map(|edge| terminal_psi::StructuralCaseSuccessorEdge {
+                    structural_arguments: edge
+                        .structural_bindings
+                        .iter()
+                        .map(|binding| binding.argument.clone())
+                        .collect(),
                     edge: edge.psi_edge,
                     target: edge.target,
                     case: edge.case,
@@ -465,6 +470,26 @@ fn termination(operation: &A) -> Option<Terminator> {
             cause: *cause,
             site_guard: site_guard.clone(),
             frontier_lower_bound: frontier_lower_bound.clone(),
+        },
+        A::InvokeNoNormal {
+            psi_edge,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => Terminator::InvokeNoNormal {
+            edge: *psi_edge,
+            static_reach_binding: None,
+            callee: *callee,
+            arguments: arguments.clone(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: structural_arguments.clone(),
+            claim_transfers: claim_transfers.clone(),
+            requirement_obligations: requirement_obligations.clone(),
+            crash_continuations: crash_continuations.clone(),
         },
         A::ExternalCompletion {
             psi_edge,

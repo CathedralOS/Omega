@@ -37,10 +37,10 @@ machine repair_later(choice: &mut Choice, enabled: bool) {
         true -> apply(choice)
         _ -> skip()
     }
-    state apply(choice: &mut Choice) {
+    machine apply(choice: &mut Choice) {
         choice = transform(choice);
     }
-    state skip() {}
+    machine skip() {}
 }
 
 // The borrow is forwarded from this machine's own parameter.
@@ -61,7 +61,7 @@ machine consume(choice: Choice) -> u64 {
         Choice::Success { token } -> read_and_drop(token)
         Choice::Failure { token } -> read_and_drop(token)
     }
-    state read_and_drop(token: Token) -> u64 {
+    machine read_and_drop(token: Token) -> u64 {
         let value: u64 = token.value;
         drop(token);
         value
@@ -92,6 +92,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

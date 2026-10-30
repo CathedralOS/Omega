@@ -1,0 +1,32 @@
+// The ordinary integer query preserves the exact u32 maximum through transport, permitting subtraction of that endpoint.
+// Place: target_body (ordinary named implementation selected by Build).
+// Expected exit: 0
+use omega::language::core::integer;
+
+machine consume(value: u32) -> u32
+requires value == 0xFFFF_FFFFu32
+ensures result == 0u32
+{ value - 0xFFFF_FFFFu32 }
+
+boundary trait EndpointProbe {
+    machine probe() -> u32 reaches ensures result == 0u32;
+}
+
+WindowsEndpointProbe satisfies EndpointProbe {
+    machine probe() -> u32 ensures result == 0u32 { consume(integer::max<u32>()) }
+}
+LinuxX86EndpointProbe satisfies EndpointProbe {
+    machine probe() -> u32 ensures result == 0u32 { consume(integer::max<u32>()) }
+}
+MacEndpointProbe satisfies EndpointProbe {
+    machine probe() -> u32 ensures result == 0u32 { consume(integer::max<u32>()) }
+}
+LinuxArmEndpointProbe satisfies EndpointProbe {
+    machine probe() -> u32 ensures result == 0u32 { consume(integer::max<u32>()) }
+}
+
+machine main() reaches EndpointProbe crashes Trap {
+    transition EndpointProbe::probe() == 0u32 && integer::width_bits<u32>() == 32u64 && !integer::is_signed<u32>() { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

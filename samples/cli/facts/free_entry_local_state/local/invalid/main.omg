@@ -12,8 +12,8 @@ machine start(unprovided: &mut Unprovided) crashes Trap {
     let mut tally: Tally = Tally { total: 0 };
     settle(&Mark { slot: &mut tally, code: code });
     transition tally.total == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // A hosted shape alone cannot establish this ordinary mutable argument.

@@ -54,11 +54,11 @@ machine receive(choice: &mut Choice, count: u64) -> i64
 
 machine other_contents(choice: &Choice) -> bool {
     transition choice { Choice::Other { packet } -> check(packet) _ -> (false) }
-    state check(packet: &Packet) -> bool { packet.value == 2625 && packet.neighbor == 88 }
+    machine check(packet: &Packet) -> bool { packet.value == 2625 && packet.neighbor == 88 }
 }
 machine full_contents(choice: &Choice) -> bool {
     transition choice { Choice::Full { packet } -> check(packet) _ -> (false) }
-    state check(packet: &Packet) -> bool { packet.value == 2625 && packet.neighbor == 167772259 }
+    machine check(packet: &Packet) -> bool { packet.value == 2625 && packet.neighbor == 167772259 }
 }
 
 machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
@@ -71,26 +71,26 @@ machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
         true -> check_other(main)
         false -> bad()
     }
-    state check_other(main: &mut Main) {
+    machine check_other(main: &mut Main) {
         transition other_contents(&main.holder.choice) {
             true -> empty(main)
             false -> bad()
         }
     }
-    state empty(main: &mut Main) {
+    machine empty(main: &mut Main) {
         let moved: i64 = block receive(&mut main.holder.choice, 4);
         transition moved == 4 {
             true -> check_empty(main)
             false -> bad()
         }
     }
-    state check_empty(main: &mut Main) {
+    machine check_empty(main: &mut Main) {
         transition main.holder.choice {
             Choice::Empty -> refill(main)
             _ -> bad()
         }
     }
-    state refill(main: &mut Main) {
+    machine refill(main: &mut Main) {
         let moved: i64 = block receive(&mut main.holder.choice, 12);
         let eof: i64 = block receive(&mut main.holder.choice, 12);
         transition moved == 12 && eof == 0 {
@@ -98,19 +98,19 @@ machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
             false -> bad()
         }
     }
-    state check_full(main: &mut Main) {
+    machine check_full(main: &mut Main) {
         transition full_contents(&main.holder.choice)
             && main.holder.prefix == 17 && main.holder.suffix == 29 {
             true -> output(main)
             false -> bad()
         }
     }
-    state output(main: &mut Main) {
+    machine output(main: &mut Main) {
         let written: i64 = DescriptorIo::write(1, &main.holder.choice, 6);
         transition written == 6 { true -> done() false -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

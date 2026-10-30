@@ -9,7 +9,7 @@ public machine Expected::power(selection: i32, sample: i32) -> f64 {
         4 -> case4(sample)
         _ -> invalid()
     }
-    state case0(sample: i32) -> f64 {
+    machine case0(sample: i32) -> f64 {
         let result: f64 = match sample {
             0 -> 5.99903913064742824e-32
             1 -> 1.17157287525380993e+00
@@ -24,7 +24,7 @@ public machine Expected::power(selection: i32, sample: i32) -> f64 {
         };
         transition { _ -> (result) }
     }
-    state case1(sample: i32) -> f64 {
+    machine case1(sample: i32) -> f64 {
         let result: f64 = match sample {
             0 -> 2.19205134141603831e-31
             1 -> 1.17157287525380904e+00
@@ -39,7 +39,7 @@ public machine Expected::power(selection: i32, sample: i32) -> f64 {
         };
         transition { _ -> (result) }
     }
-    state case2(sample: i32) -> f64 {
+    machine case2(sample: i32) -> f64 {
         let result: f64 = match sample {
             0 -> 0.00000000000000000e+00
             1 -> 0.00000000000000000e+00
@@ -54,7 +54,7 @@ public machine Expected::power(selection: i32, sample: i32) -> f64 {
         };
         transition { _ -> (result) }
     }
-    state case3(sample: i32) -> f64 {
+    machine case3(sample: i32) -> f64 {
         let result: f64 = match sample {
             0 -> 5.99903913064743043e-32
             1 -> 2.34314575050761986e+00
@@ -69,7 +69,7 @@ public machine Expected::power(selection: i32, sample: i32) -> f64 {
         };
         transition { _ -> (result) }
     }
-    state case4(sample: i32) -> f64 {
+    machine case4(sample: i32) -> f64 {
         let result: f64 = match sample {
             0 -> 1.49975978266185706e-32
             1 -> 1.00505063388334578e-01
@@ -84,7 +84,7 @@ public machine Expected::power(selection: i32, sample: i32) -> f64 {
         };
         transition { _ -> (result) }
     }
-    state invalid() -> f64 { 0.0 }
+    machine invalid() -> f64 { 0.0 }
 }
 public machine Expected::normalized(selection: i32, sample: i32) -> f64 {
     transition selection {
@@ -95,7 +95,7 @@ public machine Expected::normalized(selection: i32, sample: i32) -> f64 {
         4 -> case4(sample)
         _ -> invalid()
     }
-    state case0(sample: i32) -> f64 {
+    machine case0(sample: i32) -> f64 {
         let result: f64 = match sample {
             0 -> 3.74939945665464265e-33
             1 -> 7.32233047033631207e-02
@@ -110,7 +110,7 @@ public machine Expected::normalized(selection: i32, sample: i32) -> f64 {
         };
         transition { _ -> (result) }
     }
-    state case1(sample: i32) -> f64 {
+    machine case1(sample: i32) -> f64 {
         let result: f64 = match sample {
             0 -> 1.37003208838502395e-32
             1 -> 7.32233047033630652e-02
@@ -125,7 +125,7 @@ public machine Expected::normalized(selection: i32, sample: i32) -> f64 {
         };
         transition { _ -> (result) }
     }
-    state case2(sample: i32) -> f64 {
+    machine case2(sample: i32) -> f64 {
         let result: f64 = match sample {
             0 -> 0.00000000000000000e+00
             1 -> 0.00000000000000000e+00
@@ -140,7 +140,7 @@ public machine Expected::normalized(selection: i32, sample: i32) -> f64 {
         };
         transition { _ -> (result) }
     }
-    state case3(sample: i32) -> f64 {
+    machine case3(sample: i32) -> f64 {
         let result: f64 = match sample {
             0 -> 3.74939945665464402e-33
             1 -> 1.46446609406726241e-01
@@ -155,7 +155,7 @@ public machine Expected::normalized(selection: i32, sample: i32) -> f64 {
         };
         transition { _ -> (result) }
     }
-    state case4(sample: i32) -> f64 {
+    machine case4(sample: i32) -> f64 {
         let result: f64 = match sample {
             0 -> 4.16599939628293666e-34
             1 -> 2.79180731634262732e-03
@@ -170,5 +170,5 @@ public machine Expected::normalized(selection: i32, sample: i32) -> f64 {
         };
         transition { _ -> (result) }
     }
-    state invalid() -> f64 { 0.0 }
+    machine invalid() -> f64 { 0.0 }
 }

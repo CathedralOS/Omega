@@ -2,12 +2,11 @@
 
 use super::SourceStorage;
 
-/// Source and scoped aliases to append together before name resolution.
-/// The bindings name the next source id in the supplied storage; the caller
-/// must append this prelude before appending any other source.
+/// Source and the Build occurrence needing a scoped alias. The binding target
+/// comes from the admitted prelude, never a prediction of parser order.
 pub(crate) struct BuildPrelude {
     pub source: String,
-    pub bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    pub alias_for: Option<source::SourceId>,
 }
 
 /// Supply the prelude only for the selected build entry when that source has
@@ -48,16 +47,8 @@ pub(crate) fn prepare_build_prelude(
         return None;
     }
 
-    let bindings = match (program_declares_build_data, build_source_id) {
-        (true, Some(build_source_id)) => vec![symbols::SourceScopedTopLevelBinding::new(
-            build_source_id,
-            source::SourceId(source_storage.next_source_id()),
-            "Build",
-        )],
-        _ => Vec::new(),
-    };
     Some(BuildPrelude {
         source: build_declarations::build_prelude_source(),
-        bindings,
+        alias_for: build_source_id.filter(|_| program_declares_build_data),
     })
 }

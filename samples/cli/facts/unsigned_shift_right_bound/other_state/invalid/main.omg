@@ -8,7 +8,7 @@ machine main() crashes Trap {
         _ -> bad()
     }
 
-    state compute(val: u64, shift: u64)
+    machine compute(val: u64, shift: u64)
     requires val >= 399 && val <= 399 && shift >= 2 && shift <= 2
     {
         let shifted: u64 = val >> shift;
@@ -19,6 +19,6 @@ machine main() crashes Trap {
         }
     }
 
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

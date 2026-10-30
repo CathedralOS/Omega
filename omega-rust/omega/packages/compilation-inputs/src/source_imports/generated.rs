@@ -46,6 +46,7 @@ pub fn admit_generated_extension(
     package_root: &Path,
     package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     generated_sources: &[build_output::PackageGeneratedSource],
+    catalogue: &mut source::SourceCatalogue,
 ) -> Result<GeneratedSourceExtension, Vec<Diagnostic>> {
     let mut sources = (**base_sources).clone();
     let mut retained = Vec::with_capacity(generated_sources.len());
@@ -68,7 +69,7 @@ pub fn admit_generated_extension(
         [] => Vec::new(),
         [logical_path] => vec![
             base_sources
-                .files()
+                .selected_files()
                 .any(|existing| existing.path == *logical_path),
         ],
         _ => {
@@ -87,7 +88,7 @@ pub fn admit_generated_extension(
                     }
                 }
             }
-            for existing in base_sources.files() {
+            for existing in base_sources.selected_files() {
                 if let Some(&position) = generated_positions.get(existing.path.as_path()) {
                     collisions[position] = true;
                 }
@@ -111,21 +112,22 @@ pub fn admit_generated_extension(
             ))]);
         }
 
-        let source_id = source::SourceId(sources.len());
         // Generated extension sources are the producing activation's
         // product-context handoff; they keep the base compilation's product
         // instance semantics rather than growing a second checked instance.
-        let added = sources.add_checked_instance(
-            logical_path.clone(),
-            source,
-            package_root.to_path_buf(),
-            package_identity,
-            source::SourceOrigin::User,
-            source::SourceResolutionStratum::CurrentActivationExtension,
-            source::DependencyScope::Product,
-        );
-        debug_assert_eq!(added.source_id, source_id);
-        retained.push((source_id, generated.clone()));
+        let added = catalogue
+            .admit_checked_instance(
+                &mut sources,
+                logical_path.clone(),
+                source,
+                package_root.to_path_buf(),
+                package_identity,
+                source::SourceOrigin::User,
+                source::SourceResolutionStratum::CurrentActivationExtension,
+                source::DependencyScope::Product,
+            )
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+        retained.push((added.source_id, generated.clone()));
     }
     Ok(GeneratedSourceExtension {
         sources: Arc::new(sources),
@@ -181,19 +183,23 @@ impl<'source> DependencyGeneratedSource<'source> {
 
 /// Admit the dependency bundle's ordered, scope-qualified paths before loading
 /// any generated unit. Physical collisions and same-scope duplicates reject.
-pub(crate) fn admit_dependency_generated_sources(
+pub(crate) fn admit_dependency_build_handoffs(
     package_inputs: &crate::PackageCompilationInputs,
+    source_scope: source::DependencyScope,
 ) -> Result<Vec<DependencyGeneratedSource<'_>>, Vec<Diagnostic>> {
     let filesystem = package_inputs.source_filesystem();
     // A virtual path can name different bytes in the two checked scopes.
     // Route from the source graph to its exact activation bundle, not from a
     // package-wide 'build-only' classification. The acquisition remains shared.
     let mut entries = Vec::new();
-    for (purpose, bundle) in package_inputs.dependency_generated_source_instances() {
+    for (purpose, bundle) in package_inputs.dependency_build_handoff_instances() {
         let scope = match purpose {
             build_declarations::DependencyPurpose::Product => source::DependencyScope::Product,
             build_declarations::DependencyPurpose::Build => source::DependencyScope::Build,
         };
+        if source_scope == source::DependencyScope::Build && scope != source_scope {
+            continue;
+        }
         let package_root = package_inputs
             .package_root(bundle.package())
             .expect("validated generated-source bundle retains its package root");

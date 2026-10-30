@@ -221,6 +221,22 @@ pub(super) fn exact_owner_environments(
                 reached.contains(&expression).then_some(environment)
             }),
     );
+    for declaration in program.const_declarations() {
+        if [
+            declaration.authored_initializer,
+            declaration.materialized_initializer,
+        ]
+        .into_iter()
+        .any(|root| {
+            program.expression_table.expression_is_valid(root)
+                && super::expression_contains(program, root, expression)
+        }) {
+            environments.push(TypeEnvironment {
+                owner: declaration.symbol,
+                ..Default::default()
+            });
+        }
+    }
     collect_ranking_environments(program, expression, &mut environments);
     collect_executable_environments(program, expression, &mut environments)?;
     (!environments.is_empty()).then_some(environments)
@@ -470,6 +486,15 @@ pub(super) fn data_type_environments(
         // case adds only its active payload; no sibling's names or types enter
         // the owner of a nested projection or compiler-owned measure.
         let mut common = bindings;
+        if definition.predicate_subject_symbol.is_valid()
+            && definition.predicate_subject_type.is_valid()
+        {
+            common.push(Binding {
+                name: "self".to_owned(),
+                symbol: definition.predicate_subject_symbol,
+                type_reference: definition.predicate_subject_type,
+            });
+        }
         common.extend(
             program
                 .data_members(definition)

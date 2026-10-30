@@ -3,10 +3,10 @@
 pub(crate) mod audit;
 pub(crate) mod source;
 
-use omega_build::execute_package_command;
+use omega_build::{BuildSession, execute_package_command};
 use package_manager::{
-    PackageBuildSession, PackageCommand, PackageCommandError, PackageCommandKind,
-    PackageCommandOptions, PackageCommandOutcome, PackageCommandStatus, discard_package_review,
+    PackageCommand, PackageCommandError, PackageCommandKind, PackageCommandOptions,
+    PackageCommandOutcome, PackageCommandStatus, discard_package_review,
 };
 use std::path::Path;
 
@@ -23,7 +23,7 @@ pub(crate) fn run(command: PackageCommand, mut options: PackageCommandOptions, a
                 PackageCommand::Resume { kind } => *kind,
                 _ => PackageCommandKind::Update,
             };
-            let mut session = match PackageBuildSession::create(
+            let mut session = match BuildSession::create_retained(
                 &options.project_root.join("build/package-manager"),
             ) {
                 Ok(session) => session,
@@ -65,6 +65,9 @@ pub(crate) fn run(command: PackageCommand, mut options: PackageCommandOptions, a
             session.dispose(result)
         }
     };
+    if phase_profile::enabled() {
+        eprint!("{}", phase_profile::render());
+    }
     let outcome = match result {
         Ok(outcome) => outcome,
         Err(error) => {

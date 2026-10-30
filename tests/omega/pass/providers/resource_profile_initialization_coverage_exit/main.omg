@@ -31,7 +31,7 @@ requires required_index <= 32 && available_index <= 32 &&
         _ -> (false)
     }
 
-    state compare(
+    machine compare(
         available: &BoundaryReach,
         required: &BoundaryReach,
         required_index: u64,
@@ -65,7 +65,7 @@ machine has_exclusive_stable_write(region: &ResourceRegion) -> bool {
         PeerWritability::Exclusive -> supply(region)
         _ -> (false)
     }
-    state supply(region: &ResourceRegion) -> bool {
+    machine supply(region: &ResourceRegion) -> bool {
         transition region.stable {
             StableCapability::Write -> (true)
             StableCapability::ReadWrite -> (true)
@@ -96,7 +96,7 @@ requires covered <= byte_length && region_index <= 32 &&
         _ -> (false)
     }
 
-    state inspect(
+    machine inspect(
         profile: &ResourceProfile,
         byte_length: u64,
         reach: &BoundaryReach,
@@ -117,7 +117,7 @@ requires covered <= byte_length && region_index <= 32 &&
         }
     }
 
-    state extend(
+    machine extend(
         profile: &ResourceProfile,
         byte_length: u64,
         reach: &BoundaryReach,
@@ -198,7 +198,7 @@ requires region_index <= 32 && fuel >= 1 && fuel <= 65
         region_index < 32 && fuel > 1 -> write(profile, region_index, fuel - 1)
         _ -> (profile)
     }
-    state write(
+    machine write(
         profile: ResourceProfile,
         region_index: u64,
         fuel: u64
@@ -261,7 +261,7 @@ reaches ProcessExit
         true -> finish(0)
         _ -> finish(1)
     }
-    state finish(status: i32) {
+    machine finish(status: i32) {
         ProcessExit::exit_process(status);
     }
 }

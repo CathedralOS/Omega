@@ -14,5 +14,5 @@ machine main() crashes Trap {
  let mut counter:Counter=Counter{trace:0,calls:0};
  let observed:u32 in Wrapping=relay(&mut counter);
  transition observed==44 && counter.trace==4 && counter.calls==1 {true->done() _->bad()}
- state done(){} state bad(){crash Trap;}
+ machine done(){} machine bad(){crash Trap;}
 }

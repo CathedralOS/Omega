@@ -34,11 +34,41 @@ impl<T: Default> OrderedRootArena<T> {
         self.iter().next()
     }
 
+    /// Read an exact identity returned by `push`. Root selection never moves
+    /// its declaration storage or reuses an identity for another declaration.
+    pub fn get(&self, handle: Handle<T>) -> &T {
+        self.storage.get(handle)
+    }
+
+    pub fn get_mut(&mut self, handle: Handle<T>) -> &mut T {
+        self.storage.get_mut(handle)
+    }
+
+    pub fn contains(&self, handle: Handle<T>) -> bool {
+        self.handles.span_or_empty(self.roots).contains(&handle)
+    }
+
     pub fn iter(&self) -> OrderedRootArenaIter<'_, T> {
         OrderedRootArenaIter {
             storage: &self.storage,
             handles: self.handles.span_or_empty(self.roots).iter(),
             marker: PhantomData,
+        }
+    }
+
+    /// Select existing roots without moving or retiring their backing rows.
+    /// Handles already published by the producer keep their exact payloads;
+    /// only this view's ordered roster changes.
+    pub fn retain(&mut self, mut keep: impl FnMut(&T) -> bool) {
+        let retained = self
+            .handles
+            .span_or_empty(self.roots)
+            .iter()
+            .copied()
+            .filter(|handle| keep(self.storage.get(*handle)))
+            .collect::<Vec<_>>();
+        if retained.len() != self.roots.len() {
+            self.roots = self.handles.insert_many(retained);
         }
     }
 
@@ -64,15 +94,14 @@ impl<T: Default> OrderedRootArena<T> {
         None
     }
 
-    /// The owned freshness counter of the storage arena, bumped by every
-    /// mutation-capable call — `push`, `for_each_mut`, `find_mut`, and
-    /// `IndexMut` all route through the storage arena's own revision. A
-    /// consumer comparing revisions across borrows sees any change to the
-    /// arena's contents, including in-place rewrites that keep the length
-    /// fixed.
+    /// Combined freshness of backing payloads and the selected root roster.
+    /// Same-length rewrites and membership changes invalidate consumers while
+    /// retained declaration handles continue to name the same storage.
     #[inline]
     pub fn revision(&self) -> u64 {
-        self.storage.revision()
+        self.storage
+            .revision()
+            .wrapping_add(self.handles.revision())
     }
 }
 
@@ -134,6 +163,21 @@ mod tests {
     use super::OrderedRootArena;
 
     #[test]
+    fn selecting_roots_preserves_retained_identity_and_changes_revision() {
+        let mut roots = OrderedRootArena::<u64>::new();
+        let first = roots.push(10);
+        let removed = roots.push(20);
+        let last = roots.push(30);
+        let revision = roots.revision();
+        roots.retain(|value| *value != 20);
+        assert_eq!(roots.get(first), &10);
+        assert_eq!(roots.get(last), &30);
+        assert_eq!(roots[1], 30);
+        assert!(!roots.contains(removed));
+        assert!(roots.revision() > revision);
+    }
+
+    #[test]
     fn preserves_insertion_order_over_stable_handles() {
         let mut arena = OrderedRootArena::<String>::new();
 
@@ -161,5 +205,63 @@ mod tests {
         *arena.find_mut(|value| *value == 20).expect("root exists") = 25;
 
         assert_eq!(arena.iter().copied().collect::<Vec<_>>(), [10, 25]);
+    }
+
+    #[test]
+    fn selecting_roots_preserves_backing_handles_and_moves_freshness() {
+        let mut arena = OrderedRootArena::<usize>::new();
+        let first = arena.push(1);
+        let second = arena.push(2);
+        let before = arena.revision();
+        arena.retain(|value| *value == 2);
+        assert_eq!(arena.iter().copied().collect::<Vec<_>>(), [2]);
+        assert_eq!(*arena.storage.get(first), 1);
+        assert_eq!(*arena.storage.get(second), 2);
+        assert_ne!(before, arena.revision());
+        let selected = arena.revision();
+        arena.retain(|_| true);
+        assert_eq!(selected, arena.revision());
+        arena.push(3);
+        assert_eq!(arena.iter().copied().collect::<Vec<_>>(), [2, 3]);
+        assert_eq!(*arena.storage.get(second), 2);
+    }
+}
+
+impl<T: Default + compiler_storage::Record + 'static> compiler_storage::Record
+    for OrderedRootArena<T>
+{
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        output.record(|output| {
+            self.handles.write(output)?;
+            self.roots.write(output)?;
+            self.storage.write(output)
+        })
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        input.record(|input| {
+            let result = Self {
+                handles: Arena::read(input)?,
+                roots: HandleSpan::read(input)?,
+                storage: Arena::read(input)?,
+            };
+            let roots = result
+                .handles
+                .span(result.roots)
+                .ok_or_else(|| input.error("ordered roots have no live roster"))?;
+            if roots.iter().any(|handle| !result.storage.is_valid(*handle)) {
+                return Err(input.error("ordered root does not name live declaration storage"));
+            }
+            let mut identities = roots.to_vec();
+            identities.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
+            if identities.windows(2).any(|pair| pair[0] == pair[1]) {
+                return Err(input.error("ordered roots repeat a declaration"));
+            }
+            Ok(result)
+        })
     }
 }

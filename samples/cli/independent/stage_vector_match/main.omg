@@ -26,22 +26,22 @@ machine sum(values: [f64; 3]) -> f64 { values[0] + values[1] + values[2] }
 machine Main::main(main: &mut Main) reaches Console {
     let chosen: [f64; 3] = choose(1);
     transition { _ -> carry(main, chosen) }
-    state carry(main: &mut Main, values: [f64; 3]) {
+    machine carry(main: &mut Main, values: [f64; 3]) {
         main.stage.values = values;
         transition { _ -> report(main, main.stage.values) }
     }
-    state report(main: &mut Main, values: [f64; 3]) {
+    machine report(main: &mut Main, values: [f64; 3]) {
         let total: f64 = sum(values);
         transition total == 9.0 {
             true -> pass()
             _ -> fail()
         }
     }
-    state pass() {
+    machine pass() {
         Console::write_line("stage vector 9");
         Console::exit_process(0);
     }
-    state fail() {
+    machine fail() {
         Console::write_line("stage vector mismatch");
         Console::exit_process(1);
     }

@@ -45,8 +45,8 @@ reaches Reading + UnsignedReading + BooleanReading crashes Trap {
     transition first == 37 && second == 53 && nested == 37 && unsigned == 19 && boolean == 29 {
         true -> done() _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {

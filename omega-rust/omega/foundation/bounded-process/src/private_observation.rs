@@ -23,6 +23,9 @@ pub struct PrivateObservationCapture {
 }
 
 impl PrivateObservationCapture {
+    // Unix exec already binds the inherited descriptor to this child.
+    pub fn bind_child(&self, _process_id: u32) {}
+
     pub fn finish(mut self) -> io::Result<Vec<u8>> {
         self.completed.store(true, Ordering::Release);
         self.captured

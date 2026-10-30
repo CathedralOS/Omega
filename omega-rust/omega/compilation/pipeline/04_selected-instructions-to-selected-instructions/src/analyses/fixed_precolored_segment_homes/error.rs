@@ -45,5 +45,3 @@ failed_display!(
     FixedPrecoloredSegmentHomeError,
     "fixed/precolored segment-home assignment failed"
 );
-
-impl std::error::Error for FixedPrecoloredSegmentHomeError {}

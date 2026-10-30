@@ -203,10 +203,9 @@ pub(crate) fn collect_machine_proposals_for_callee(
             if type_index >= candidate.template.type_parameters.len() {
                 return Err(StaticArgumentOverflow);
             }
-            if let Some((handle, _, _)) = program
+            if let Some(handle) = program
                 .type_reference_table
-                .named_references()
-                .find(|(_, symbol, _)| *symbol == selected.symbol)
+                .find_named_type_reference(selected.symbol)
             {
                 proposals
                     .types
@@ -305,16 +304,21 @@ pub(crate) fn collect_machine_proposals_for_callee(
 /// Specialization consumes resolved declaration identity; it never resolves
 /// names. An unresolved qualified call may denote an intrinsic or an invalid
 /// member, not a same-spelled generic machine from another owner.
-pub(crate) fn resolve_callee(
-    callee_states: &[CalleeState],
+/// Source calls may select a declaration or its entry. Resolve that identity
+/// before tuple inference; a declaration spelling is not an unresolved generic.
+pub(crate) fn resolve_callee<'callee>(
+    program: &dyn ::validation::CheckingInput,
+    callee_states: &'callee [CalleeState],
     target_symbol: SymbolHandle,
-) -> Option<&CalleeState> {
+) -> Option<&'callee CalleeState> {
     if !target_symbol.is_valid() {
         return None;
     }
-    callee_states
-        .iter()
-        .find(|callee| callee.symbol == target_symbol)
+    let entry = program
+        .machine_by_symbol(target_symbol)
+        .and_then(|machine| program.machine_states(machine).first())
+        .map_or(target_symbol, |state| state.symbol);
+    callee_states.iter().find(|callee| callee.symbol == entry)
 }
 
 pub(crate) fn state_by_symbol(
@@ -324,19 +328,83 @@ pub(crate) fn state_by_symbol(
     program.state_by_symbol(symbol)
 }
 
-/// Every expression occurrence owned by a retained proof schema, independent
-/// of which declaration or prepared signature carries it. Applied signatures
-/// keep open captured binders just like authored contracts; neither creates a
-/// concrete runtime demand merely by storing calls in the expression arena.
-///
-/// Proof-position lowering and cloning keep these occurrences distinct from
-/// executable guards and initializers. Activating a recipe must copy its graph
-/// into an executable occurrence. This excludes runtime specialization only:
-/// source admission, contract formation and independent const checking remain.
+/// One exact source contract telescope. A contract has declaration parameters,
+/// not the body locals of an executable statement. Repeated nodes in different
+/// telescopes remain separate occurrences for binding agreement.
+pub(crate) struct ContractExpressionScope<'program> {
+    pub machine: &'program typed_trees::machine::Machine,
+    pub state: Option<&'program typed_trees::state::State>,
+    pub expression: ExpressionHandle,
+}
+
+pub(crate) fn contract_expression_scopes(
+    program: &dyn ::validation::CheckingInput,
+) -> Vec<ContractExpressionScope<'_>> {
+    let mut scopes = Vec::new();
+    for machine in program.machines() {
+        let entry = program.machine_states(machine).first();
+        let mut expressions = Vec::new();
+        for contract in program.machine_contracts(machine) {
+            collect_contract_facts(program, contract.facts, &mut expressions);
+        }
+        scopes.extend(
+            expressions
+                .into_iter()
+                .map(|expression| ContractExpressionScope {
+                    machine,
+                    state: entry,
+                    expression,
+                }),
+        );
+        for state in program.machine_states(machine) {
+            let mut expressions = Vec::new();
+            for contract in program.state_contracts(state) {
+                collect_contract_facts(program, contract.facts, &mut expressions);
+            }
+            scopes.extend(
+                expressions
+                    .into_iter()
+                    .map(|expression| ContractExpressionScope {
+                        machine,
+                        state: Some(state),
+                        expression,
+                    }),
+            );
+        }
+    }
+    scopes.sort_unstable_by_key(|scope| {
+        (
+            scope.expression.arena_index(),
+            scope.expression.generation(),
+            scope.machine.symbol.arena_index(),
+            scope.machine.symbol.generation(),
+            scope
+                .state
+                .map(|state| (state.symbol.arena_index(), state.symbol.generation())),
+        )
+    });
+    scopes.dedup_by_key(|scope| {
+        (
+            scope.expression,
+            scope.machine.symbol,
+            scope.state.map(|state| state.symbol),
+        )
+    });
+    scopes
+}
+
+/// The same source scope inventory owns executable exclusion and logical
+/// application retention. These calls instantiate proof schemas without
+/// demanding runtime monomorphization or cloning a selected callable body.
 pub(crate) fn contract_expression_handles(
     program: &dyn ::validation::CheckingInput,
 ) -> Vec<ExpressionHandle> {
-    let mut handles = Vec::new();
+    let mut handles = contract_expression_scopes(program)
+        .into_iter()
+        .map(|scope| scope.expression)
+        .collect::<Vec<_>>();
+    // Prepared and imported proof schemas also contain non-executable
+    // occurrences, even when no source declaration supplies their telescope.
     for (fact, _) in program.proof_facts.iter() {
         collect_contract_facts(
             program,
@@ -344,6 +412,8 @@ pub(crate) fn contract_expression_handles(
             &mut handles,
         );
     }
+    handles.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
+    handles.dedup();
     handles
 }
 

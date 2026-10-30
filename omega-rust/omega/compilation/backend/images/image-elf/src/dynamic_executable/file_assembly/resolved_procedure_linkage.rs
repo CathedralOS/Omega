@@ -60,24 +60,11 @@ const ELF64_GOT_WORD_SIZE: u64 = 8;
 pub(crate) fn apply_elf_procedure_linkage_fixups(
     envelope: ValidatedElfDynamicFileEnvelope,
 ) -> Result<ValidatedElfResolvedProcedureLinkage, Box<ElfProcedureLinkageApplicationError>> {
-    checked::plan_candidate(
-        envelope,
-        derive_contents,
-        |envelope, contents| {
-            non_authoritative_resolved_linkage_compatibility_fingerprint(&envelope, &contents)
-        },
-        |envelope, contents, fingerprint| Candidate {
-            envelope: envelope,
-            contents: contents,
-            non_authoritative_resolved_linkage_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.envelope,
-        |envelope, diagnostic| {
-            Box::new(ElfProcedureLinkageApplicationError {
-                envelope: envelope,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: envelope,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_resolved_linkage_compatibility_fingerprint,
+        error: ElfProcedureLinkageApplicationError,
     )
 }

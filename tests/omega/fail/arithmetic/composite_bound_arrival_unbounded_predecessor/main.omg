@@ -4,13 +4,13 @@ machine advance(cursor: &mut Cursor, length: u64, bounded: bool) {
         true -> inspect(cursor, length)
         false -> commit(cursor, 18446744073709551615, 1)
     }
-    state inspect(cursor: &mut Cursor, length: u64) {
+    machine inspect(cursor: &mut Cursor, length: u64) {
         transition cursor.offset <= cursor.available && cursor.available <= 64 {
             true -> available(cursor, length)
             false -> done()
         }
     }
-    state available(cursor: &mut Cursor, length: u64) {
+    machine available(cursor: &mut Cursor, length: u64) {
         let start: u64 = cursor.offset;
         let limit: u64 = cursor.available;
         transition length <= limit - start {
@@ -18,8 +18,8 @@ machine advance(cursor: &mut Cursor, length: u64, bounded: bool) {
             false -> done()
         }
     }
-    state commit(destination: &mut Cursor, start: u64, length: u64) {
+    machine commit(destination: &mut Cursor, start: u64, length: u64) {
         destination.offset = start + length;
     }
-    state done() {}
+    machine done() {}
 }

@@ -14,8 +14,8 @@ they illustrate intended semantics rather than every current implementation path
 
 ```omega
 data Optional<T> {
-    case #0 None;
-    case #1 Some(value: T);
+    #0 case None;
+    #1 case Some(value: T);
 }
 
 data Pair<A, B> {
@@ -33,6 +33,29 @@ Concrete runtime instances need valid concrete layouts. Their fields obey
 ordinary ownership, borrowing, and cleanup; a generic wrapper does not erase
 an active payload's substituted linear obligation. Proof-only instances do not
 acquire runtime layout merely by being closed.
+
+## Transparent Aliases
+
+An alias supplies arguments to an existing type expression without declaring
+another nominal carrier:
+
+```omega
+public data CLayout<T> = LayoutStorage<T, CAbiPolicy<T>>;
+data ByteBuffer<const Capacity: u64> = Buffer<u8, Capacity>;
+data SmallBytes = ByteBuffer<64>;
+```
+
+This is partial application: fix some arguments and expose the remaining ones.
+An alias may forward or reorder arguments and use admitted compile-time
+expressions for static values. Selected machines and implementations retain
+their exact code identities. The underlying constructor's constraints still
+apply; an alias cannot attenuate them or hide an incompatible representation.
+
+Aliases add no wrapper, storage, conversion or independent type identity.
+Their generic arguments expand before ordinary matching, layout and ABI
+selection. Domain aliases are a separate existing facility, and this general
+type-alias surface is ratified implementation work, not a claim that the current
+parser already accepts it. See [transparent type aliases](../spec/language/generics.md#transparent-type-aliases).
 
 ## Generic Machines
 
@@ -91,7 +114,7 @@ generic indices also connect dependent types and results:
 
 ```omega
 data Index<Limit: u32>
-where value < Limit,
+requires value < Limit,
 {
     value: u32;
 }
@@ -118,7 +141,7 @@ An explicit OR constraint can describe the family once:
 ```omega
 trait ByteScanner<Scanner> {
     machine scan<Width: u32>(scanner: &Scanner, bytes: &[u8]) -> u64
-    where
+    requires
         Width == 16 || Width == 32 || Width == 64;
 }
 ```
@@ -151,7 +174,7 @@ roster tuple of closed static values; runtime width selection is not yet covered
 Exact type comparisons use ordinary Boolean connectives:
 
 ```omega
-where
+requires
     T == u16 || T == u32 || T == u64
 ```
 
@@ -167,7 +190,7 @@ domain<const Capacity: u64> u64::AtMost<Capacity>
     requires self <= Capacity;
 
 data TinyBytes<Length, const Capacity: u64>
-where
+requires
     Length == u64::AtMost<Capacity>
 {
     storage: [u8; Capacity];
@@ -296,7 +319,7 @@ A static parameter can select a machine declaration:
 
 ```omega
 machine Deck::score<machine Key>(card: &Card) -> u64
-where machine Key(card: &Card) -> u64
+requires machine Key(card: &Card) -> u64;
 {
     Key(card)
 }
@@ -306,12 +329,16 @@ Calling `Deck::score<Card::power_key>(&card)` substitutes the selected symbol
 and produces a direct call in that specialization. The binder is not a hidden
 runtime function argument or inferred capture.
 
+The semicolon ends `Key`'s callable contract before the enclosing machine body.
+Its own `requires` or `ensures`, when present, belong before that terminator;
+clauses following it belong to the enclosing machine.
+
 There are three distinct binder categories:
 
 | Binder | What the declaration provides |
 | --- | --- |
-| Structural callable | An authored `where machine Key(...)` contract. |
-| Nominal callable | One exact `where machine Handler satisfies HookProcedure::call` requirement. |
+| Structural callable | An authored `requires machine Key(...)` contract. |
+| Nominal callable | One exact `requires machine Handler satisfies HookProcedure::call` requirement. |
 | Declaration identity | A trait's noncallable machine binder, used only to relate declaration identities. |
 
 Every callable binder needs its contract at declaration. Uses in the body and
@@ -383,7 +410,7 @@ still require declaration supply under their complete operational contracts.
 
 Requirements can constrain static values or the behavior of selected operations.
 A required member belongs to a named trait and is supplied through an explicit
-conformance binder, not an anonymous `where machine T::member(...)` declaration.
+conformance binder, not an anonymous `requires machine T::member(...)` declaration.
 
 For example, assuming `Ranked` declares the required ordering operations:
 
@@ -406,7 +433,7 @@ when borrow constraints determine one unique mapping. Resolved regions remain
 in semantic identity even though they create no runtime generic arguments.
 See [named conformance selection](../spec/language/conformances.md#declaration-and-selection).
 
-Static `where` obligations are checked at instantiation. Data `where` facts over
+Static `requires` obligations are checked at instantiation. Data `requires` facts over
 runtime fields instead define a default domain maintained at consumption points.
 Runtime value-binder requirements are proved for the exact subjects at each
 application; a runtime guard may establish them. These are different binding
@@ -459,7 +486,7 @@ copy-eligible parameter, independently of proving a nonempty buffer:
 
 ```omega
 machine Buffer::first<T [copy], const N: u64>(buffer: &FixedBuffer<T, N>) -> T
-where
+requires
     N > 0
 {
     buffer.items[0]

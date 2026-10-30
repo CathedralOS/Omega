@@ -1,30 +1,33 @@
 // Expected exit: 0
 // Explicit capacity and live length; ordinary qualified array loans and prefix view.
-domain [u8; 32]::Ascii(bytes) requires ascii_only(bytes);
-domain [u8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 32]::Ascii requires ascii_only(self);
+domain [u8]::Ascii requires ascii_only(self);
 data TextBuffer where used <= 32 { storage: [u8; 32] in Ascii; used: u64; }
 machine live(buffer: &TextBuffer) -> &[u8] in Ascii { &buffer.storage[..buffer.used] }
 machine copy(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64)
 requires start <= 32; bytes.len <= 32 - start
+ensures buffer in Ascii
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
-    state copying(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine copying(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 32; index <= 32
+    ensures buffer in Ascii
     {
         transition index < bytes.len && start + index < 32 {
             true -> writing(buffer, bytes, start, index)
             _ -> done()
         }
     }
-    state writing(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine writing(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 32; index < 32; index < bytes.len; start + index < 32
+    ensures buffer in Ascii
     {
         buffer[start + index] = bytes[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
     }
-    state done() {}
+    machine done() {}
 }
-domain [u8; 3]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 3]::Ascii requires ascii_only(self);
 data Name { bytes: [u8; 3] in Ascii; }
 machine main() crashes Trap {
     let mut name: Name;
@@ -42,6 +45,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

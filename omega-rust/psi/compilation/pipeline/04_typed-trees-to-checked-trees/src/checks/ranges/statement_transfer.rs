@@ -58,6 +58,10 @@ pub(super) trait StatementTransferSink<'program> {
     /// the checking pass has no call-edge work of its own.
     fn visit_call(&mut self, _facts: &mut RangeFacts<'_>, _call: &'program TableCall) {}
 
+    fn needs_transition_target(&self, _target: TransitionTargetHandle) -> bool {
+        true
+    }
+
     /// A transition target under the facts narrowed for its edge —
     /// guarded edges see the arm guard's positive seeds, continuations
     /// see the refuted seeds.
@@ -278,21 +282,27 @@ pub(super) fn transfer_statement_facts<'program>(
             // guard's positive form constrains the branch that is actually
             // taken (`transition.target`), so narrow a working copy of the
             // facts with it before deriving the target's argument facts.
+            let needs_target =
+                transition.target.is_valid() && sink.needs_transition_target(transition.target);
+            let needs_continuation = transition.continuation.is_valid()
+                && sink.needs_transition_target(transition.continuation);
+            let needs_fallthrough_refutation =
+                transition.target.is_valid() && !transition.continuation.is_valid();
             let readonly_guard = match transition.guard {
                 TransitionGuardNode::When(guard) => {
                     sink.visit_expression(facts, guard);
-                    call_frames
-                        .is_some_and(|frames| {
+                    ((needs_target || needs_continuation || needs_fallthrough_refutation)
+                        && call_frames.is_some_and(|frames| {
                             frames
                                 .expression_write_frame(machine, guard)
                                 .into_complete_paths()
                                 .is_some_and(|paths| paths.is_empty())
-                        })
-                        .then_some(guard)
+                        }))
+                    .then_some(guard)
                 }
                 TransitionGuardNode::Always => None,
             };
-            if transition.target.is_valid() {
+            if needs_target {
                 let mut target_facts = facts.clone();
                 if let Some(guard) = readonly_guard {
                     seed_guard_facts(program, machine, state, &mut target_facts, guard);
@@ -306,7 +316,7 @@ pub(super) fn transfer_statement_facts<'program>(
                 }
                 sink.visit_transition_target(&mut target_facts, transition.target);
             }
-            if transition.continuation.is_valid() {
+            if needs_continuation {
                 // The continuation branch is taken when the guard does not
                 // hold, so it is analysed with the refuted guard's facts.
                 let mut continuation_facts = facts.clone();
@@ -327,10 +337,7 @@ pub(super) fn transfer_statement_facts<'program>(
             // Target effects belong to the selected exit, not fall-through.
             // An absent continuation already owns `facts`; cloning it only to
             // replace the original would copy every name and dependency twice.
-            if transition.target.is_valid()
-                && !transition.continuation.is_valid()
-                && let Some(guard) = readonly_guard
-            {
+            if needs_fallthrough_refutation && let Some(guard) = readonly_guard {
                 seed_negated_guard_facts(program, machine, state, facts, guard);
             }
         }

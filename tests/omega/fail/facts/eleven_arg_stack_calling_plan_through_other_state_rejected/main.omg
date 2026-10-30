@@ -27,7 +27,7 @@ machine main() crashes Trap {
         true -> step(res)
         _ -> bad()
     }
-    state step(forwarded: u64) {
+    machine step(forwarded: u64) {
         let headroom: u64 = 80 - forwarded;
         let margin: u64 = forwarded - 40;
         let total: u64 = headroom + margin;
@@ -37,6 +37,6 @@ machine main() crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

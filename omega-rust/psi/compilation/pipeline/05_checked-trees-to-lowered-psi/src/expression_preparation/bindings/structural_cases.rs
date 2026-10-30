@@ -171,7 +171,7 @@ pub(crate) fn resolve(
     if matching.next().is_some() {
         return unsupported("case observation has ambiguous source bindings");
     }
-    let (sum, path) = walk(
+    let (sum, path) = prepare_observation_path(
         identities,
         &binding.declarations,
         binding.structural_type,
@@ -212,7 +212,8 @@ pub(crate) fn resolve_runtime_element(
     ),
     LoweringError,
 > {
-    let (array, prefix) = walk(identities, declarations, structural_type, prefix)?;
+    let (array, prefix) =
+        prepare_observation_path(identities, declarations, structural_type, prefix)?;
     let (element, observes_element_view_length) = match &unique_declaration(
         declarations,
         array,
@@ -227,7 +228,8 @@ pub(crate) fn resolve_runtime_element(
             return unsupported("runtime case observation requires an array or whole element view");
         }
     };
-    let (sum, element_path) = walk(identities, declarations, element, element_path)?;
+    let (sum, element_path) =
+        prepare_observation_path(identities, declarations, element, element_path)?;
     let case = selected_case(identities, declarations, sum, identity)?;
     Ok((
         source,
@@ -238,92 +240,38 @@ pub(crate) fn resolve_runtime_element(
     ))
 }
 
-/// Walk a proof predicate's owned-place coordinates. Reference crossings and
-/// evaluated selectors belong to executable address preparation, not this walk.
-fn walk(
+/// An executable tag observation resolves the same declared geometry as a
+/// scalar read. Checked predicates retain each exact reference crossing; the
+/// shared observation preparation consumes them without inferring or erasing
+/// pointer loads. This path establishes no case authority.
+fn prepare_observation_path(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     declarations: &[StructuralTypeDeclaration],
-    mut structural_type: StructuralTypeId,
+    structural_type: StructuralTypeId,
     steps: &[checked_trees::CheckedStructuralPredicatePathSegment],
 ) -> Result<(StructuralTypeId, Vec<terminal_psi::StructuralPathSegment>), LoweringError> {
-    let mut path = Vec::with_capacity(steps.len());
-    // A `Case` step selects the namespace of the payload field that follows;
-    // otherwise a field is a record's or a mixed carrier's common field.
-    let mut case_fields: Option<&[terminal_psi::StructuralFieldDeclaration]> = None;
-    for segment in steps {
-        let shape = &unique_declaration(
-            declarations,
-            structural_type,
-            "case observation lost its exact carrier type",
-            "case observation has ambiguous carrier declarations",
-        )?
-        .shape;
-        match segment {
-            checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
-                let fields = case_fields.take().or_else(|| shape.direct_fields()).ok_or(
-                    LoweringError::Unsupported("case observation field left its record namespace"),
-                )?;
-                let mut selected = fields
-                    .iter()
-                    .filter(|field| field.identity == identities.intern(&identity.spelling()));
-                let field = selected.next().ok_or(LoweringError::Unsupported(
-                    "case observation lost its carrier field",
-                ))?;
-                if selected.next().is_some() || field.relevance.is_erased() {
-                    return unsupported(
-                        "case observation has an erased or ambiguous carrier field",
-                    );
-                }
-                let Some(child) = field.field_type.as_structural() else {
-                    return unsupported("case observation requires a structural carrier field");
-                };
-                structural_type = child;
-                path.push(terminal_psi::StructuralPathSegment::Field(
-                    identities.intern(&identity.spelling()),
-                ));
-            }
-            checked_trees::CheckedStructuralPredicatePathSegment::Case(identity)
-                if case_fields.is_none() =>
-            {
-                let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
-                    shape
-                else {
-                    return unsupported("case observation case step left its sum namespace");
-                };
-                let mut selected = cases
-                    .iter()
-                    .filter(|case| case.identity == identities.intern(&identity.spelling()));
-                let (Some(case), None) = (selected.next(), selected.next()) else {
-                    return unsupported("case observation case step names no single case");
-                };
-                case_fields = Some(case.fields.as_slice());
-                path.push(terminal_psi::StructuralPathSegment::Case(case.id));
-            }
-            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index)
-                if case_fields.is_none() =>
-            {
-                let StructuralTypeShape::FixedArray { element, length } = shape else {
-                    return unsupported("case observation index left its array namespace");
-                };
-                if element_index >= length {
-                    return unsupported("case observation index is outside its array");
-                }
-                structural_type = *element;
-                path.push(terminal_psi::StructuralPathSegment::FixedIndex(
-                    *element_index,
-                ));
-            }
-            _ => {
-                return unsupported(
-                    "case observation requires fields, case payload fields and fixed indices",
-                );
-            }
-        }
-    }
-    if case_fields.is_some() {
-        return unsupported("case observation ends on a case step without its payload field");
-    }
-    Ok((structural_type, path))
+    let observation = crate::emission::structural_observations::explicit_path(
+        identities,
+        structural_type,
+        steps,
+        declarations,
+    )?;
+    let selected = observation.declaration.ok_or(LoweringError::Unsupported(
+        "case observation requires a structural carrier endpoint",
+    ))?;
+    let prepared = super::structural_paths::prepare_argument_path(
+        identities,
+        &observation.segments,
+        structural_type,
+        declarations,
+    )?;
+    let path = super::structural_paths::emit_argument_path(
+        &prepared,
+        None,
+        &mut std::iter::empty(),
+        None,
+    )?;
+    Ok((selected.id, path))
 }
 
 fn selected_case(

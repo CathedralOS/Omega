@@ -72,7 +72,7 @@ pub(super) fn extend_symbol_table(
     }
     for index in roots.machines..program.machines.len() {
         let machine = program.machines[index].clone();
-        if machine.lexical_parent.is_some() {
+        if machine.lexical_parent.is_valid() {
             continue;
         }
         let symbol = extension.insert_top_level([machine_symbol_seed(&machine, has_sources)])[0];
@@ -153,11 +153,7 @@ pub(super) fn extend_symbol_table(
         )])[0];
         program.wire_schemas[index].symbol = symbol;
     }
-    for (offset, declaration) in const_declarations
-        .iter()
-        .enumerate()
-        .skip(roots.const_declarations)
-    {
+    for declaration in const_declarations {
         let symbol = extension.insert_top_level([(
             SymbolKind::Const,
             SymbolNameRef::OwnedSource {
@@ -165,14 +161,17 @@ pub(super) fn extend_symbol_table(
                 source_span: declaration.source_span,
             },
         )])[0];
-        program.const_declarations[offset].symbol = symbol;
+        program
+            .const_declarations
+            .get_mut(declaration.declaration)
+            .symbol = symbol;
     }
 
     program.symbols = extension.finish();
 }
 
 pub(super) fn build_symbol_table(
-    program: &SymbolResolvedTrees,
+    program: &mut SymbolResolvedTrees,
     sources: Option<Arc<SourceMap>>,
     source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     const_declarations: &[crate::resolution::lowerer::PendingConstDeclaration],
@@ -222,7 +221,7 @@ pub(super) fn build_symbol_table(
                 program
                     .machines
                     .iter()
-                    .filter(|machine| machine.lexical_parent.is_none())
+                    .filter(|machine| !machine.lexical_parent.is_valid())
                     .map(|machine| machine_symbol_seed(machine, has_sources)),
             )
             .chain(program.propositions.iter().map(|proposition| {
@@ -285,7 +284,10 @@ pub(super) fn build_symbol_table(
     for _ in 0..FixedCoreDeclaration::COUNT {
         let _ = root_children.next();
     }
-    for domain in &program.domain_definitions {
+    // Bind identities at their allocation owner. The current declaration roster
+    // may later select or reorder roots independently of this backing table.
+    for ordinal in 0..program.domain_definitions.len() {
+        let domain = &program.domain_definitions[ordinal];
         if let Some(domain_symbol) = root_children.next() {
             insert_domain_symbol_children(
                 &mut builder,
@@ -294,9 +296,11 @@ pub(super) fn build_symbol_table(
                 domain,
                 has_sources,
             );
+            program.domain_definitions[ordinal].symbol = domain_symbol;
         }
     }
-    for data_definition in &program.data_definitions {
+    for ordinal in 0..program.data_definitions.len() {
+        let data_definition = &program.data_definitions[ordinal];
         if let Some(data_symbol) = root_children.next() {
             insert_data_symbol_children(
                 &mut builder,
@@ -305,9 +309,11 @@ pub(super) fn build_symbol_table(
                 data_definition,
                 has_sources,
             );
+            program.data_definitions[ordinal].symbol = data_symbol;
         }
     }
-    for conformance in &program.conformances {
+    for ordinal in 0..program.conformances.len() {
+        let conformance = &program.conformances[ordinal];
         if conformance.alias.is_some()
             && let Some(conformance_symbol) = root_children.next()
         {
@@ -318,18 +324,18 @@ pub(super) fn build_symbol_table(
                 conformance,
                 has_sources,
             );
+            program.conformances[ordinal].symbol = conformance_symbol;
         }
     }
     // Machine children require namespace-aware attachment selection. Their root
     // headers already exist; publish children after the namespace is installed.
-    for _ in program
-        .machines
-        .iter()
-        .filter(|machine| machine.lexical_parent.is_none())
-    {
-        let _ = root_children.next();
+    for index in 0..program.machines.len() {
+        if !program.machines[index].lexical_parent.is_valid() {
+            program.machines[index].symbol = root_children.next().unwrap_or_default();
+        }
     }
-    for proposition in &program.propositions {
+    for ordinal in 0..program.propositions.len() {
+        let proposition = &program.propositions[ordinal];
         if let Some(proposition_symbol) = root_children.next() {
             insert_proposition_symbol_children(
                 &mut builder,
@@ -338,9 +344,11 @@ pub(super) fn build_symbol_table(
                 proposition,
                 has_sources,
             );
+            program.propositions[ordinal].symbol = proposition_symbol;
         }
     }
-    for definition in &program.mathematical_definitions {
+    for ordinal in 0..program.mathematical_definitions.len() {
+        let definition = &program.mathematical_definitions[ordinal];
         if let Some(definition_symbol) = root_children.next() {
             insert_mathematical_symbol_children(
                 &mut builder,
@@ -349,9 +357,11 @@ pub(super) fn build_symbol_table(
                 definition,
                 has_sources,
             );
+            program.mathematical_definitions[ordinal].symbol = definition_symbol;
         }
     }
-    for operator in &program.operators {
+    for ordinal in 0..program.operators.len() {
+        let operator = &program.operators[ordinal];
         if let Some(operator_symbol) = root_children.next() {
             insert_operator_symbol_children(
                 &mut builder,
@@ -360,14 +370,18 @@ pub(super) fn build_symbol_table(
                 operator,
                 has_sources,
             );
+            program.operators[ordinal].symbol = operator_symbol;
         }
     }
-    for measure in &program.measures {
+    for ordinal in 0..program.measures.len() {
+        let measure = &program.measures[ordinal];
         if let Some(measure_symbol) = root_children.next() {
             insert_measure_symbol_children(&mut builder, measure_symbol, measure, has_sources);
+            program.measures[ordinal].symbol = measure_symbol;
         }
     }
-    for trait_definition in &program.traits {
+    for ordinal in 0..program.traits.len() {
+        let trait_definition = &program.traits[ordinal];
         if let Some(trait_symbol) = root_children.next() {
             insert_trait_symbol_children(
                 &mut builder,
@@ -376,7 +390,17 @@ pub(super) fn build_symbol_table(
                 trait_definition,
                 has_sources,
             );
+            program.traits[ordinal].symbol = trait_symbol;
         }
+    }
+    program.wire_schemas.for_each_mut(|schema| {
+        schema.symbol = root_children.next().unwrap_or_default();
+    });
+    for declaration in const_declarations {
+        program
+            .const_declarations
+            .get_mut(declaration.declaration)
+            .symbol = root_children.next().unwrap_or_default();
     }
 
     builder.finish()
@@ -385,34 +409,32 @@ pub(super) fn build_symbol_table(
 /// Add the selected declaration cohort's own children after root identities
 /// exist. Carrier qualification supplies neither field aliases nor storage.
 pub(super) fn insert_selected_machine_children(
-    program: &SymbolResolvedTrees,
+    program: &mut SymbolResolvedTrees,
     table: SymbolTable,
     sources: Option<Arc<SourceMap>>,
     first_machine: usize,
     has_sources: bool,
 ) -> SymbolTable {
-    let selections = table
-        .child_handles(table.root())
-        .into_iter()
-        .flatten()
-        .filter(|handle| table.get(*handle).kind == SymbolKind::Machine)
-        .zip(
-            program
-                .machines
-                .iter()
-                .enumerate()
-                .filter(|(_, machine)| machine.lexical_parent.is_none()),
-        )
-        .filter(|(_, (ordinal, _))| *ordinal >= first_machine)
-        .collect::<Vec<_>>();
     let mut extension = table.begin_extension(sources.clone(), Vec::new());
-    for (symbol, (ordinal, machine)) in selections {
+    // Lowering appends a parent before its descendants. Mint each lexical head
+    // under that exact parent, preserving existing child handles on reentry.
+    // All heads exist before any body resolution, including forward siblings.
+    for index in first_machine..program.machines.len() {
+        let machine = program.machines[index].clone();
+        let symbol = if machine.lexical_parent.is_valid() {
+            let parent = program.machines.get(machine.lexical_parent).symbol;
+            let children =
+                extension.append_children(parent, [machine_symbol_seed(&machine, has_sources)]);
+            program.machines[index].symbol = children.start();
+            children.start()
+        } else {
+            machine.symbol
+        };
         insert_machine_symbol_children(
             &mut extension,
             program,
             symbol,
-            machine,
-            ordinal,
+            &machine,
             has_sources,
             sources.as_deref(),
         );

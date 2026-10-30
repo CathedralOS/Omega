@@ -1,6 +1,6 @@
 use omega_language_std::console;
 
-domain [u8; 2]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 2]::Utf8 requires valid_utf8(self);
 data Text { stamp: u64; bytes: [u8; 2] in Utf8; }
 data Message { stamp: u64; body: &Text; }
 data Envelope { stamp: u64; message: &Message; }
@@ -16,7 +16,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

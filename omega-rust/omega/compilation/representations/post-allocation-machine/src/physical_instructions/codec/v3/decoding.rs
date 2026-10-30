@@ -29,9 +29,6 @@ use super::super::{
 pub(in crate::physical_instructions::codec) fn decode_content(
     cursor: &mut effect_codec::Cursor<'_>,
     identity: PostAllocationMachineIdentity,
-    allow_i64_less_than: bool,
-    allow_scalar_call: bool,
-    allow_jump: bool,
 ) -> Result<PostAllocationMachinePlan, PostAllocationMachineDecodeError> {
     let selected = SelectedInstructionPlanIdentity::from_bytes(array(cursor)?);
     let effects = PreAllocationMachineEffectIdentity::from_bytes(array(cursor)?);
@@ -68,12 +65,11 @@ pub(in crate::physical_instructions::codec) fn decode_content(
         for _ in 0..slot_count {
             outgoing_arguments.push(selected_instructions::SelectedOutgoingArgumentSlot {
                 id: selected_instructions::OutgoingArgumentSlotId {
-                    invocation_site:
-                        semantic_vocabulary::BoundaryInvocationSite::from_tagged_identity(
-                            byte(cursor)?,
-                            u64_field(cursor)?,
-                        )
-                        .ok_or(PostAllocationMachineDecodeError::InvalidField)?,
+                    invocation_site: semantic_vocabulary::InvocationSite::from_tagged_identity(
+                        byte(cursor)?,
+                        u64_field(cursor)?,
+                    )
+                    .ok_or(PostAllocationMachineDecodeError::InvalidField)?,
                     argument_index: u32_field(cursor)?,
                     role: match byte(cursor)? {
                         0 => selected_instructions::OutgoingArgumentSlotRole::Argument,
@@ -93,12 +89,7 @@ pub(in crate::physical_instructions::codec) fn decode_content(
             let instruction_count = length(cursor)?;
             let mut instructions = Vec::with_capacity(instruction_count.min(cursor.remaining()));
             for _ in 0..instruction_count {
-                instructions.push(decode_instruction(
-                    cursor,
-                    allow_i64_less_than,
-                    allow_scalar_call,
-                    allow_jump,
-                )?);
+                instructions.push(decode_instruction(cursor)?);
             }
             blocks.push(PostAllocationMachineBlock {
                 block,

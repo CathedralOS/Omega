@@ -39,8 +39,8 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> accepted()
         _ -> rejected()
     }
-    state accepted() { Console::exit_process(70); }
-    state rejected() { Console::exit_process(71); }
+    machine accepted() { Console::exit_process(70); }
+    machine rejected() { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

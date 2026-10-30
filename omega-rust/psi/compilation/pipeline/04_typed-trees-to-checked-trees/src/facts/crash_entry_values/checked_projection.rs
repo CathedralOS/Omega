@@ -87,7 +87,7 @@ pub(in crate::facts) fn entry_value(
                     program,
                     parameters,
                     symbols: &symbols,
-                    value_at_place: |place: &validation::CanonicalPlace| {
+                    value_at_place: |place: &validation::CanonicalPlace, _observation| {
                         if super::statement_may_overwrite_place(
                             program,
                             machine.symbol,

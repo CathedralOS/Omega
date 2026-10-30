@@ -34,7 +34,7 @@ use crate::{
 };
 use checked_trees::{CheckedOperatorFacts, CheckedTrees};
 use language_semantics::declaration_selection::{
-    DescribedProductEntry, DescribedProductProvider, DescribedProductSchema, ExecutedRootBinding,
+    DescribedProductEntry, DescribedProductProvider, DescribedProductSchema,
 };
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::bignum::BigInt;
@@ -42,6 +42,7 @@ use numerics::float_semantics::{
     FloatClass as SemanticFloatClass, FloatFormat as SemanticFloatFormat, FloatMeaning,
     FloatPolicyTrap, FloatSemantics,
 };
+use semantic_vocabulary::ProgramEntrySourceCatalog;
 use std::collections::{BTreeMap, HashSet};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -50,7 +51,6 @@ use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath, UnaryOperator,
 };
 use typed_trees::machine::Machine;
-use typed_trees::product_operand::ProductEntryCompatibility;
 use typed_trees::state::State;
 use typed_trees::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
@@ -92,11 +92,13 @@ use filesystem::preparation::{
 };
 pub(crate) use halts::Halt;
 use halts::{EvalResult, filesystem_sponsor_halt, trap, unsupported};
+use numerics::float_representation::{
+    binary32_from_bits as interpreter_f32_from_bits, binary32_to_bits as interpreter_f32_to_bits,
+};
 use scalar_numerics::{
     apply_arithmetic_domain, big_integer_runtime_value, float_to_integer_trap_message,
-    integer_bounds, integer_primitive_byte_width, interpreter_f32_from_bits,
-    interpreter_f32_to_bits, is_unsigned_integer_primitive, primitive_bit_width,
-    primitive_is_unsigned64, semantic_integer_format, wrap_to_width,
+    integer_bounds, integer_primitive_byte_width, is_unsigned_integer_primitive,
+    primitive_bit_width, primitive_is_unsigned64, semantic_integer_format, wrap_to_width,
 };
 
 pub(super) const STEP_BUDGET: u64 = 10_000_000;
@@ -242,6 +244,10 @@ pub(crate) struct Evaluator<'program> {
     pub(super) selected_build_time_operators: &'program [crate::SelectedBuildTimeBinaryOperator],
     pub(super) selected_build_time_machine_bodies:
         &'program [crate::SelectedBuildTimeMachineBody],
+    /// The realization owner's supplied x86 processor flags environment.
+    /// `pushfq` observes it and `popfq` restores its arithmetic bits; both
+    /// decline without it rather than fabricate instruction semantics.
+    pub(super) x86_flags: Option<language_core::inline_assembly::X86FlagsEnvironment>,
     /// Semantic evaluation cannot choose observable bits for computed NaN.
     semantic_float_evaluation: bool,
     pub(super) stdout: Vec<u8>,
@@ -252,9 +258,10 @@ pub(crate) struct Evaluator<'program> {
     pub(super) build_log: Vec<u8>,
     /// The activation's original Build cell, never an authored copy.
     root_build: Option<Cell>,
-    pub(super) executed_root_bindings: Vec<ExecutedRootBinding>,
-    pub(super) pending_root_bindings:
-        Vec<arena::Handle<language_semantics::declaration_selection::RootBindingRequest>>,
+    pub(super) executed_source_selections:
+        Vec<language_semantics::declaration_selection::ExecutedBuildSelection>,
+    pub(super) pending_build_selections:
+        Vec<arena::Handle<typed_trees::expression::BuildSelectionRequest>>,
     /// Executed `exclude_crash`/`exclude_service` selections on the root
     /// Build, in evaluation order.
     pub(super) executed_behavior_exclusions: Vec<crate::ExecutedBehaviorExclusion>,
@@ -265,7 +272,7 @@ pub(crate) struct Evaluator<'program> {
     /// evaluated code can copy the marker but cannot read or fabricate the
     /// selection payload.
     product_entry_descriptions: Vec<DescribedProductEntry>,
-    pub(super) product_entry_compatibility: Option<&'program dyn ProductEntryCompatibility>,
+    pub(super) product_entry_slots: Option<&'program dyn ProgramEntrySourceCatalog>,
     /// Compiler-issued product-type-schema descriptions handed to evaluated
     /// code as opaque `ProductTypeSchema` markers. Same marker discipline as
     /// the entry table: the marker indexes this table and evaluated code
@@ -387,12 +394,6 @@ pub(crate) struct Evaluator<'program> {
     /// value-call fallback). The build-time evaluation entry rejects runs that
     /// touched the host: a dynamic backstop behind decision 12's static gate.
     host_boundary_touched: bool,
-    /// Like `host_boundary_touched` but EXCLUDING the filesystem family: the
-    /// GRANTED build entry (`evaluate_granted_build_machine_arguments`) allows
-    /// fs ops (the grant is the audit surface, open-work #3's settled design)
-    /// while still rejecting every OTHER host boundary (console, clock, gui)
-    /// as its dynamic backstop.
-    non_fs_host_boundary_touched: bool,
     /// Ordered filesystem outcomes, rooted authorization and output coordinates,
     /// and logical handle lifetimes. Payload buffers are not retained.
     pub(super) filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,

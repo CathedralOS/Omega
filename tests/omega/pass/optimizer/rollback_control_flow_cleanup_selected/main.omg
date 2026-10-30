@@ -14,6 +14,6 @@ machine main() {
         _ -> untaken()
     }
 
-    state taken() { }
-    state untaken() { }
+    machine taken() { }
+    machine untaken() { }
 }

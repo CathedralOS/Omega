@@ -56,6 +56,23 @@ use typed_trees::data::{DataDefinition, DataField, DataMember};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+/// Recursion belongs to the exact retained application, not merely its
+/// generic declaration. Wrapper<Wrapper<u64>> owns two different finite homes.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct StorageDefinitionIdentity {
+    symbol: SymbolHandle,
+    application: Option<TypeReferenceHandle>,
+}
+
+impl StorageDefinitionIdentity {
+    fn of(definition: &DataDefinition) -> Self {
+        Self {
+            symbol: definition.symbol,
+            application: definition.generic_instance,
+        }
+    }
+}
+
 /// One Terminal-carried consequence of a declared `where` fact standing on
 /// storage one parameter reaches.
 #[derive(Debug, Clone, PartialEq)]
@@ -106,13 +123,14 @@ pub fn state_declaration_predicates(
             operators,
             parameter_position,
             restored_on_return,
+            case_guards: Vec::new(),
             rows: &mut rows,
         };
         match parameter_data_definition(program, referee) {
             // A lifetime-only application names the declaration itself and
             // owns its storage exactly as its plain name does.
             Some(definition) => {
-                let mut visited = vec![definition.symbol];
+                let mut visited = vec![StorageDefinitionIdentity::of(definition)];
                 emitter.definition_storage(&mut Vec::new(), definition, &mut visited);
             }
             None => emitter.descend(&mut Vec::new(), referee, &mut Vec::new()),
@@ -170,9 +188,69 @@ pub fn machine_declaration_predicates(
         .unwrap_or_default()
 }
 
-/// Whether every `where` fact of `definition` is carried by roster rows that
-/// imply it, so Terminal re-proves its complete default domain.
+/// Whether every own and reachable owned `where` fact has complete roster
+/// evidence. A store of an unrelated common field cannot skip this recursive
+/// fence merely because its destination path never enters a case payload.
 pub fn declaration_facts_carried(
+    program: &dyn crate::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    definition: &DataDefinition,
+) -> bool {
+    complete_definition_storage(program, operators, definition, &mut Vec::new())
+}
+
+fn complete_definition_storage(
+    program: &dyn crate::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    definition: &DataDefinition,
+    visited: &mut Vec<StorageDefinitionIdentity>,
+) -> bool {
+    // Emission cannot revisit an inline recursive owner. Borrowed referents
+    // and empty arrays are excluded by the same storage traversal below.
+    if visited.contains(&StorageDefinitionIdentity::of(definition))
+        || !definition_own_facts_carried(program, operators, definition)
+    {
+        return false;
+    }
+    visited.push(StorageDefinitionIdentity::of(definition));
+    let complete = owned_storage_fields(program, definition).all(|(_, field)| {
+        complete_owned_storage(program, operators, field.type_reference, visited)
+    });
+    visited.pop();
+    complete
+}
+
+fn complete_owned_storage(
+    program: &dyn crate::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    reference: TypeReferenceHandle,
+    visited: &mut Vec<StorageDefinitionIdentity>,
+) -> bool {
+    let carrier = program
+        .type_reference_table
+        .unconstrained_type_reference(reference);
+    match program.type_reference_table.type_reference(carrier) {
+        TypeReferenceNode::FixedArray {
+            length: FixedArrayLength::Literal(0),
+            ..
+        } => true,
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(_),
+        } => complete_owned_storage(program, operators, *element_type, visited),
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            // The roster can enumerate only an exact retained literal extent.
+            // Never publish a partial element predicate list for another form.
+            !storage_carries_rows(program, *element_type, &mut Vec::new())
+        }
+        TypeReferenceNode::Reference { .. } => true,
+        _ => owned_data_definition(program, carrier).is_none_or(|definition| {
+            complete_definition_storage(program, operators, definition, visited)
+        }),
+    }
+}
+
+fn definition_own_facts_carried(
     program: &dyn crate::CheckingInput,
     operators: &CheckedOperatorFacts,
     definition: &DataDefinition,
@@ -212,6 +290,7 @@ struct RowEmitter<'a, 'program> {
     operators: &'program CheckedOperatorFacts,
     parameter_position: u32,
     restored_on_return: bool,
+    case_guards: Vec<CheckedBooleanExpression>,
     rows: &'a mut Vec<DeclarationPredicateRow>,
 }
 
@@ -224,7 +303,7 @@ impl RowEmitter<'_, '_> {
         &mut self,
         prefix: &mut Vec<CheckedStructuralPredicatePathSegment>,
         type_reference: TypeReferenceHandle,
-        visited: &mut Vec<SymbolHandle>,
+        visited: &mut Vec<StorageDefinitionIdentity>,
     ) {
         let carrier = self
             .program
@@ -237,9 +316,7 @@ impl RowEmitter<'_, '_> {
             } => {
                 // Visiting every element of an array whose elements reach
                 // no row-emitting definition emits nothing; skip it whole.
-                if owned_data_definition(self.program, *element_type).is_none()
-                    || !storage_carries_rows(self.program, *element_type, visited)
-                {
+                if !storage_carries_rows(self.program, *element_type, visited) {
                     return;
                 }
                 for index in 0..*length {
@@ -255,10 +332,10 @@ impl RowEmitter<'_, '_> {
                 let Some(definition) = owned_data_definition(self.program, carrier) else {
                     return;
                 };
-                if visited.contains(&definition.symbol) {
+                if visited.contains(&StorageDefinitionIdentity::of(definition)) {
                     return;
                 }
-                visited.push(definition.symbol);
+                visited.push(StorageDefinitionIdentity::of(definition));
                 self.definition_storage(prefix, definition, visited);
                 visited.pop();
             }
@@ -272,15 +349,36 @@ impl RowEmitter<'_, '_> {
         &mut self,
         prefix: &mut Vec<CheckedStructuralPredicatePathSegment>,
         definition: &DataDefinition,
-        visited: &mut Vec<SymbolHandle>,
+        visited: &mut Vec<StorageDefinitionIdentity>,
     ) {
         self.definition_rows(prefix, definition);
-        for field in owned_storage_fields(self.program, definition) {
+        for (case, field) in owned_storage_fields(self.program, definition) {
+            if let Some(case) = case {
+                let identity = checked_trees::CheckedMemberIdentity::of_member(
+                    case.identity,
+                    case.name.clone(),
+                );
+                self.case_guards
+                    .push(CheckedBooleanExpression::StructuralCaseMembership {
+                        subject: checked_trees::CheckedStructuralCaseSubject {
+                            root: checked_trees::CheckedStructuralCaseRoot::Parameter {
+                                position: self.parameter_position,
+                            },
+                            path: prefix.clone(),
+                        },
+                        case: identity.clone(),
+                    });
+                prefix.push(CheckedStructuralPredicatePathSegment::Case(identity));
+            }
             prefix.push(CheckedStructuralPredicatePathSegment::Field(
                 checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
             ));
             self.descend(prefix, field.type_reference, visited);
             prefix.pop();
+            if case.is_some() {
+                prefix.pop();
+                self.case_guards.pop();
+            }
         }
     }
 
@@ -368,6 +466,7 @@ impl RowEmitter<'_, '_> {
     ) -> Option<CheckedBooleanExpression> {
         let (carrier_minimum, carrier_maximum) = carrier_bounds(primitive)?;
         let leaf = || CheckedScalarExpression::StructuralParameterField {
+            observation: Default::default(),
             parameter_position: self.parameter_position,
             path: path.clone(),
             primitive_type: primitive,
@@ -401,6 +500,16 @@ impl RowEmitter<'_, '_> {
     }
 
     fn push(&mut self, predicate: CheckedBooleanExpression) {
+        // Outer tag guards must form before any inner tag or payload path.
+        // Inactive alternatives contribute true without observing a payload.
+        let predicate = self
+            .case_guards
+            .iter()
+            .rev()
+            .fold(predicate, |predicate, guard| CheckedBooleanExpression::Or {
+                left: Box::new(CheckedBooleanExpression::Not(Box::new(guard.clone()))),
+                right: Box::new(predicate),
+            });
         self.rows.push(DeclarationPredicateRow {
             parameter_position: self.parameter_position,
             restored_on_return: self.restored_on_return,
@@ -453,15 +562,23 @@ fn definition_emits_rows(program: &dyn crate::CheckingInput, definition: &DataDe
 fn owned_storage_fields<'program>(
     program: &'program dyn crate::CheckingInput,
     definition: &'program DataDefinition,
-) -> impl Iterator<Item = &'program DataField> {
+) -> impl Iterator<
+    Item = (
+        Option<&'program typed_trees::data::DataVariant>,
+        &'program DataField,
+    ),
+> {
     program
         .data_members(definition)
         .iter()
-        .filter_map(|member| match member {
-            DataMember::Field(field) => Some(field),
-            _ => None,
+        .flat_map(move |member| {
+            let (case, fields) = match member {
+                DataMember::Field(field) => (None, std::slice::from_ref(field)),
+                DataMember::Variant(case) => (Some(case), program.data_payload_fields(case)),
+            };
+            fields.iter().map(move |field| (case, field))
         })
-        .filter(move |field| {
+        .filter(move |(_, field)| {
             field.symbol.is_valid()
                 && !field.relevance.is_erased()
                 && !matches!(
@@ -481,33 +598,35 @@ fn owned_storage_fields<'program>(
 fn storage_carries_rows(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
-    visited: &mut Vec<SymbolHandle>,
+    visited: &mut Vec<StorageDefinitionIdentity>,
 ) -> bool {
     let carrier = program
         .type_reference_table
         .unconstrained_type_reference(type_reference);
     match program.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::FixedArray {
-            element_type,
-            length: FixedArrayLength::Literal(length),
-        } => {
-            *length > 0
-                && owned_data_definition(program, *element_type).is_some()
-                && storage_carries_rows(program, *element_type, visited)
+            length: FixedArrayLength::Literal(0),
+            ..
+        } => false,
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            // An unresolved extent may still own elements. Detection must
+            // retain their requirements even though emission cannot enumerate
+            // them yet; recursive eligibility then refuses that partial roster.
+            storage_carries_rows(program, *element_type, visited)
         }
         _ => {
             let Some(definition) = owned_data_definition(program, carrier) else {
                 return false;
             };
-            if visited.contains(&definition.symbol) {
+            if visited.contains(&StorageDefinitionIdentity::of(definition)) {
                 return false;
             }
             if definition_emits_rows(program, definition) {
                 return true;
             }
-            visited.push(definition.symbol);
+            visited.push(StorageDefinitionIdentity::of(definition));
             let carries = owned_storage_fields(program, definition)
-                .any(|field| storage_carries_rows(program, field.type_reference, visited));
+                .any(|(_, field)| storage_carries_rows(program, field.type_reference, visited));
             visited.pop();
             carries
         }
@@ -557,9 +676,11 @@ fn find_data_field<'program>(
     })
 }
 
-/// Spell one authored fact of `definition` over the leaves at `prefix` below
-/// one parameter. Operator-overloaded spellings, arithmetic, case paths,
-/// indexed reads and borrowed fields are outside the vocabulary.
+/// Spell one complete authored fact over exact parameter storage paths.
+/// Tag tests and payload paths retain their selected case identity. An ordinary
+/// predicate relation uses the shared independent equivalence judgment; its
+/// necessary consequence alone is insufficient. Unsupported arithmetic,
+/// indexed reads and borrowed fields remain outside this vocabulary.
 struct FactSpelling<'a> {
     program: &'a dyn crate::CheckingInput,
     operators: &'a CheckedOperatorFacts,
@@ -583,12 +704,51 @@ impl FactSpelling<'_> {
         if self.selects_declared_operator(expression) {
             return None;
         }
+        // The shared checked predicate owner proves BOTH directions over the
+        // full formal carriers. A necessary consequence cannot replace a row.
+        if let Some(consequence) = collection_predicates::exact_predicate_ordering(
+            self.program,
+            self.definition.symbol,
+            expression,
+        ) {
+            return self.exact_ordering(consequence);
+        }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => Some(
                 CheckedBooleanExpression::Not(Box::new(self.boolean(unary.operand)?)),
             ),
             ExpressionNode::Binary(binary) => match binary.operator {
+                BinaryOperator::CaseMembership | BinaryOperator::Equal
+                    if crate::has_exact_data_case_membership_meaning(
+                        self.program,
+                        self.definition,
+                        expression,
+                        binary,
+                    ) =>
+                {
+                    let (path, reference) = self.field_path(binary.left)?;
+                    let selected = self
+                        .program
+                        .expression_table
+                        .name_path_node(binary.right)?
+                        .symbol;
+                    let case = self
+                        .program
+                        .closed_data_constructor_case(reference, selected)?;
+                    Some(CheckedBooleanExpression::StructuralCaseMembership {
+                        subject: checked_trees::CheckedStructuralCaseSubject {
+                            root: checked_trees::CheckedStructuralCaseRoot::Parameter {
+                                position: self.parameter_position,
+                            },
+                            path,
+                        },
+                        case: checked_trees::CheckedMemberIdentity::of_member(
+                            case.identity,
+                            case.name.clone(),
+                        ),
+                    })
+                }
                 BinaryOperator::And => Some(CheckedBooleanExpression::And {
                     left: Box::new(self.boolean(binary.left)?),
                     right: Box::new(self.boolean(binary.right)?),
@@ -637,11 +797,72 @@ impl FactSpelling<'_> {
                 let (path, leaf_type) = self.field_path(expression)?;
                 (self.program.primitive_type_reference(leaf_type) == Some(PrimitiveType::Bool))
                     .then_some(CheckedBooleanExpression::StructuralParameterField {
+                        observation: Default::default(),
                         parameter_position: self.parameter_position,
                         path,
                     })
             }
         }
+    }
+
+    fn exact_ordering(
+        &self,
+        consequence: collection_predicates::PredicateOrderingConsequence,
+    ) -> Option<CheckedBooleanExpression> {
+        let operand = |operand| match operand {
+            collection_predicates::PredicateIntegerOperand::Argument(subject)
+                if subject.projection.is_empty() =>
+            {
+                self.scalar(subject.expression)
+            }
+            collection_predicates::PredicateIntegerOperand::Integer(value) => {
+                let literal = numerics::literals::IntegerLiteral::from_parts(
+                    value < 0,
+                    numerics::literals::IntegerRadix::Decimal,
+                    &value.unsigned_abs().to_string(),
+                )
+                .ok()?;
+                Some((CheckedScalarExpression::IntegerLiteral { literal }, None))
+            }
+            _ => None,
+        };
+        let (left, left_type) = operand(consequence.left)?;
+        let (right, right_type) = operand(consequence.right)?;
+        let primitive = match (left_type, right_type) {
+            (Some(left), Some(right)) if left == right => left,
+            (Some(primitive), None) | (None, Some(primitive)) => primitive,
+            _ => return None,
+        };
+        carrier_bounds(primitive)?;
+        let (left, right, kind, negated) = match consequence.operator {
+            BinaryOperator::Equal => (left, right, CheckedIntegerComparisonKind::Equal, false),
+            BinaryOperator::NotEqual => (left, right, CheckedIntegerComparisonKind::Equal, true),
+            BinaryOperator::Less => (left, right, CheckedIntegerComparisonKind::LessThan, false),
+            BinaryOperator::LessOrEqual => (
+                left,
+                right,
+                CheckedIntegerComparisonKind::LessOrEqual,
+                false,
+            ),
+            BinaryOperator::Greater => (right, left, CheckedIntegerComparisonKind::LessThan, false),
+            BinaryOperator::GreaterOrEqual => (
+                right,
+                left,
+                CheckedIntegerComparisonKind::LessOrEqual,
+                false,
+            ),
+            _ => return None,
+        };
+        let comparison = CheckedBooleanExpression::IntegerComparison {
+            kind,
+            left: Box::new(land_integer_operand(left, primitive)?),
+            right: Box::new(land_integer_operand(right, primitive)?),
+        };
+        Some(if negated {
+            CheckedBooleanExpression::Not(Box::new(comparison))
+        } else {
+            comparison
+        })
     }
 
     /// One ordered comparison: both operands share an integer carrier, or
@@ -831,6 +1052,7 @@ impl FactSpelling<'_> {
                 }
                 Some((
                     CheckedScalarExpression::StructuralParameterField {
+                        observation: Default::default(),
                         parameter_position: self.parameter_position,
                         path,
                         primitive_type: primitive,
@@ -853,6 +1075,17 @@ impl FactSpelling<'_> {
     )> {
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Name(name) => {
+                if self.definition.predicate_subject_symbol.is_valid()
+                    && name.symbol == self.definition.predicate_subject_symbol
+                    && name.head_symbol == name.symbol
+                    && self
+                        .program
+                        .expression_table
+                        .name_path_member_symbols(name.member_symbols)
+                        == [name.symbol]
+                {
+                    return Some((self.prefix.to_vec(), self.definition.predicate_subject_type));
+                }
                 let members = self
                     .program
                     .expression_table
@@ -885,17 +1118,37 @@ impl FactSpelling<'_> {
                 Some((path, leaf?))
             }
             ExpressionNode::Member(member) => {
-                if member.case_variant.is_some() {
-                    return None;
-                }
                 let (mut path, receiver_type) = self.field_path(member.receiver)?;
                 let owner = owned_data_definition(self.program, receiver_type)?;
-                let field = find_data_field(
+                let field = crate::value_custody::places::exact_data_member_field(
                     self.program,
                     owner,
                     member.member_symbol,
                     member.member.as_str(),
+                    member.case_variant.as_ref().map(|case| case.as_str()),
                 )?;
+                if !field.symbol.is_valid() {
+                    return None;
+                }
+                if let Some(case) = self
+                    .program
+                    .data_members(owner)
+                    .iter()
+                    .filter_map(|row| row.as_variant())
+                    .find(|case| {
+                        self.program
+                            .data_payload_fields(case)
+                            .iter()
+                            .any(|row| row.symbol == field.symbol)
+                    })
+                {
+                    path.push(CheckedStructuralPredicatePathSegment::Case(
+                        checked_trees::CheckedMemberIdentity::of_member(
+                            case.identity,
+                            case.name.clone(),
+                        ),
+                    ));
+                }
                 path.push(CheckedStructuralPredicatePathSegment::Field(
                     checked_trees::CheckedMemberIdentity::of_member(
                         field.identity,
@@ -940,3 +1193,6 @@ fn land_integer_operand(
         other => Some(other),
     }
 }
+
+#[cfg(test)]
+mod tests;

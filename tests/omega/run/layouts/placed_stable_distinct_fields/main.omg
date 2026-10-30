@@ -28,8 +28,8 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine exchange(view: &mut Placed<StablePlacement, Values>, index: u64) -> bool
 requires index < 3

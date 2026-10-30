@@ -1,16 +1,17 @@
 //! Optimizer module role: proposal leaf. Certificate-keyed placement construction.
 
 use super::{
-    BlockId, CountdownInvariantConstantConsumer, CountdownInvariantConstantDestination,
-    CountdownInvariantConstantPlacement, CountdownInvariantConstantPlacementAnalysisError,
-    CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantConstantRole,
-    CountdownInvariantIntegerConstant, MachineId, NodeLocation, O, OperationId, OptimizationNode,
+    AnalysisRoot, BlockId, CountdownInvariantConstantConsumer,
+    CountdownInvariantConstantDestination, CountdownInvariantConstantPlacement,
+    CountdownInvariantConstantPlacementAnalysisError,
+    CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantIntegerConstant,
+    MachineId, NodeLocation, O, OperationId, OptimizationNode,
     OptimizerUnsignedCountdownRankingCertificate, PsiOptimizationFunction, PsiOptimizationUnit,
     UnsignedCountdownInvariantConstantPlacements, UnsignedCountdownLoopSummary,
     ValidatedCountdownInvariantConstantAnalysis, ValidatedCountedLoopAnalysis,
-    ValidatedOptimizerCycleComponents, ValueId, recompute_psi_optimization_unit_identity,
+    ValidatedOptimizerCycleComponents, consumer_matches, consumer_operation,
+    validate_analysis_root,
 };
-use abstract_operations::{IntegerArithmeticOperator, IntegerOverflowPolicy};
 pub(super) fn propose(
     unit: &PsiOptimizationUnit,
     custody: &ValidatedOptimizerCycleComponents,
@@ -51,8 +52,7 @@ pub(super) fn propose(
         });
     }
     Ok(CountdownInvariantConstantPlacementAnalysisSnapshot {
-        revision: unit.identity,
-        terminal_psi: unit.psi,
+        root: AnalysisRoot::of(unit),
         loops,
     })
 }
@@ -63,45 +63,33 @@ fn destination(
     counted: &UnsignedCountdownLoopSummary,
 ) -> Result<CountdownInvariantConstantDestination, CountdownInvariantConstantPlacementAnalysisError>
 {
+    // Every refusal below names the same certificate coordinate pair.
+    let rejected = || unsupported(function.machine, counted.certificate.guard.zero_operation);
     if component.members.contains(&counted.preheader_edge.source) {
-        return Err(unsupported(
-            function.machine,
-            counted.certificate.guard.zero_operation,
-        ));
+        return Err(rejected());
     }
     let block = function
         .block(counted.preheader_edge.source)
-        .ok_or_else(|| unsupported(function.machine, counted.certificate.guard.zero_operation))?;
-    let node = block
-        .nodes
-        .last()
-        .ok_or_else(|| unsupported(function.machine, counted.certificate.guard.zero_operation))?;
+        .ok_or_else(rejected)?;
+    let node = block.nodes.last().ok_or_else(rejected)?;
     let O::Jump {
         psi_edge, target, ..
     } = node.operation
     else {
-        return Err(unsupported(
-            function.machine,
-            counted.certificate.guard.zero_operation,
-        ));
+        return Err(rejected());
     };
     if psi_edge != counted.preheader_edge.edge
         || target != counted.certificate.header
         || counted.preheader_edge.target != counted.certificate.header
         || component.entries.as_slice() != [counted.preheader_edge]
     {
-        return Err(unsupported(
-            function.machine,
-            counted.certificate.guard.zero_operation,
-        ));
+        return Err(rejected());
     }
     Ok(CountdownInvariantConstantDestination {
         before: NodeLocation {
             machine: function.machine,
             block: block.id,
-            node: u32::try_from(block.nodes.len() - 1).map_err(|_| {
-                unsupported(function.machine, counted.certificate.guard.zero_operation)
-            })?,
+            node: u32::try_from(block.nodes.len() - 1).map_err(|_| rejected())?,
         },
         entry_edge: counted.preheader_edge,
     })
@@ -113,7 +101,7 @@ fn consumer(
     certificate: &OptimizerUnsignedCountdownRankingCertificate,
     constant: &CountdownInvariantIntegerConstant,
 ) -> Result<CountdownInvariantConstantConsumer, CountdownInvariantConstantPlacementAnalysisError> {
-    let operation = expected_consumer(certificate, constant.role);
+    let operation = consumer_operation(certificate, constant.role);
     let uses = function
         .node_uses()
         .filter(|value_use| value_use.value == constant.result)
@@ -127,7 +115,9 @@ fn consumer(
     }
     let node = node_at(function, value_use.block, value_use.node)
         .ok_or_else(|| unsupported(function.machine, constant.psi_operation))?;
-    check_consumer(node, certificate, constant.role, operation, constant.result)?;
+    if !consumer_matches(node, certificate, constant.role, operation, constant.result) {
+        return Err(unsupported(certificate.component.machine, operation));
+    }
     Ok(CountdownInvariantConstantConsumer {
         location: NodeLocation {
             machine: function.machine,
@@ -137,71 +127,6 @@ fn consumer(
         psi_operation: operation,
         value_use: *value_use,
     })
-}
-
-fn check_consumer(
-    node: &OptimizationNode,
-    certificate: &OptimizerUnsignedCountdownRankingCertificate,
-    role: CountdownInvariantConstantRole,
-    operation: OperationId,
-    constant: ValueId,
-) -> Result<(), CountdownInvariantConstantPlacementAnalysisError> {
-    let matches = match (role, &node.operation) {
-        (
-            CountdownInvariantConstantRole::PositiveGuardZero,
-            O::IntegerLessThan {
-                psi_operation,
-                result,
-                left,
-                right,
-            },
-        ) => {
-            (*psi_operation, *result, *left, *right)
-                == (
-                    operation,
-                    certificate.guard.condition,
-                    constant,
-                    certificate.rank_parameter,
-                )
-        }
-        (
-            CountdownInvariantConstantRole::BackedgeDecrementOne,
-            O::IntegerArithmetic {
-                psi_operation,
-                result,
-                scalar_type,
-                arithmetic,
-                left,
-                right,
-            },
-        ) if (arithmetic.policy(), arithmetic.operator())
-            == (
-                IntegerOverflowPolicy::Exact,
-                IntegerArithmeticOperator::Subtract,
-            ) =>
-        {
-            (
-                *psi_operation,
-                arithmetic.obligation(),
-                *result,
-                *scalar_type,
-                *left,
-                *right,
-            ) == (
-                operation,
-                Some(certificate.descent.subtract_obligation),
-                certificate.descent.argument,
-                certificate.rank_type,
-                certificate.descent.source_parameter,
-                constant,
-            )
-        }
-        _ => false,
-    };
-    if !matches {
-        return Err(unsupported(certificate.component.machine, operation));
-    }
-    Ok(())
 }
 
 fn node_at(
@@ -215,45 +140,18 @@ fn node_at(
         .get(usize::try_from(node).ok()?)
 }
 
-fn expected_consumer(
-    certificate: &OptimizerUnsignedCountdownRankingCertificate,
-    role: CountdownInvariantConstantRole,
-) -> OperationId {
-    match role {
-        CountdownInvariantConstantRole::PositiveGuardZero => certificate.guard.comparison_operation,
-        CountdownInvariantConstantRole::BackedgeDecrementOne => {
-            certificate.descent.subtract_operation
-        }
-    }
-}
-
 fn validate_roots(
     unit: &PsiOptimizationUnit,
     custody: &ValidatedOptimizerCycleComponents,
     counted: &ValidatedCountedLoopAnalysis,
     invariants: &ValidatedCountdownInvariantConstantAnalysis,
 ) -> Result<(), CountdownInvariantConstantPlacementAnalysisError> {
-    let recomputed = recompute_psi_optimization_unit_identity(unit);
-    if recomputed != unit.identity {
-        return Err(
-            CountdownInvariantConstantPlacementAnalysisError::StaleUnitIdentity {
-                stored: unit.identity,
-                recomputed,
-            },
-        );
-    }
-    if unit.psi != custody.terminal_psi()
-        || unit.psi != custody.ranking_certificates().snapshot().terminal_psi
-        || unit.psi != counted.snapshot().terminal_psi
-        || unit.psi != invariants.snapshot().terminal_psi
-    {
-        return Err(CountdownInvariantConstantPlacementAnalysisError::TerminalIdentityMismatch);
-    }
-    if counted.snapshot().revision != unit.identity
-        || invariants.snapshot().revision != unit.identity
-    {
-        return Err(CountdownInvariantConstantPlacementAnalysisError::AnalysisRevisionMismatch);
-    }
+    validate_analysis_root(
+        unit,
+        custody,
+        &[counted.snapshot().root, invariants.snapshot().root],
+    )
+    .map_err(CountdownInvariantConstantPlacementAnalysisError::Root)?;
     // The countdown chain covers the certified subset of the validated SCC
     // roster: one counted loop and one invariant row per ranking certificate.
     // Uncertified components carry no countdown custody.

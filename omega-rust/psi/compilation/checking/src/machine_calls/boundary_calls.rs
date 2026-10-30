@@ -26,11 +26,7 @@ pub fn validate_boundary_calls(
             ))
         })
         .collect();
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
 /// Approval is exact to the authored boundary declaration, never its service

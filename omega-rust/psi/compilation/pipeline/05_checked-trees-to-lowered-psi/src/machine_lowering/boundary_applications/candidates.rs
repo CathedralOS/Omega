@@ -8,15 +8,15 @@ use terminal_psi::{
     CheckedMachineDeclaration, CheckedMachineSpecialization, NominalDeclarationIdentity,
 };
 
-pub(super) fn retain(
+pub(super) fn retain<'a>(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    checked: &CheckedTrees,
+    checked: &'a CheckedTrees,
     sources: &[(source::SourceId, [u8; 32])],
     demand: &CheckedBoundaryOperatorApplicationDemand,
     requirement: &BoundaryOperatorRequirement,
     application: &BoundaryApplication,
     output: &mut Vec<BoundaryApplicationCandidate>,
-) -> Result<(), &'static str> {
+) -> Result<(), &'a str> {
     let nominal = |identities: &mut terminal_psi::TerminalIdentityTableBuilder, symbol| {
         checked
             .exact_owner_nominal_identity(symbol, sources)
@@ -37,9 +37,17 @@ pub(super) fn retain(
         let specialization = candidate
             .specialization
             .map(|(template, commitment)| {
-                Ok::<_, &'static str>(CheckedMachineSpecialization {
-                    capture: super::super::declarations::capture_identity(identities, checked, candidate.machine)?,
+                Ok::<_, &str>(CheckedMachineSpecialization {
+                    capture: super::super::declarations::capture_identity(
+                        identities,
+                        checked,
+                        candidate.machine,
+                    )?,
                     template: nominal(identities, template)?,
+                    template_semantic_declaration: super::super::declarations::semantic_identity(
+                        identities, checked, template,
+                    )
+                    .map_err(|_| "boundary specialization lost its template declaration owner")?,
                     template_callable: identities.intern(
                         &checked
                             .machine(template)

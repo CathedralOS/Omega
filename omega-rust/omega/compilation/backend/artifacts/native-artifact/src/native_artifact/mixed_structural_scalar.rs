@@ -114,6 +114,10 @@ mod tests {
             attachment: None,
             declaration: None,
             nominal_cleanup_subject: None,
+            parameter_order: vec![
+                terminal_psi::BoundaryParameterKind::Structural,
+                terminal_psi::BoundaryParameterKind::Scalar,
+            ],
             parameters: vec![ValueDeclaration {
                 qualifications: Default::default(),
                 id: scalar_parameter,

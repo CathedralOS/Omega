@@ -6,7 +6,7 @@ omega run --both samples/cli/arithmetic/dot_product/main.omg
 
 The complete program computes `[1,2,3] · [4,5,6] = 32`, prints its three
 messages and exits 32 after Enter or EOF. Both arrays remain local caller-owned
-storage borrowed across the reduction's state cycle.
+storage borrowed across the reduction's nested-machine cycle.
 
 On a fresh checkout, the public command first needs the package review for
 the selected host. Inspect and decide the generated review before resuming
@@ -23,3 +23,6 @@ exit 32 with exact stdout. This is compiler execution evidence using fixture
 admission, not evidence that the public sample's package review was accepted.
 The public command on that revision exited 200 with pending package-review
 decisions; no decisions were accepted for this measurement.
+
+The nested-machine migration also executes the byte-identical body through
+Terminal Psi and Windows x86-64 native execution: exit 32 and exact stdout.

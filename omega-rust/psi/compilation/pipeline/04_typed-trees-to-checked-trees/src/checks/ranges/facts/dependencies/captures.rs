@@ -3,7 +3,6 @@ use super::{
 };
 use crate::checks::ranges::RangeFacts;
 use crate::checks::ranges::facts::dependencies::ExpressionDependencies;
-use crate::checks::ranges::facts::dependencies::collect_reads;
 use crate::checks::ranges::facts::dependencies::reads;
 use crate::checks::ranges::facts::dependencies::same_reads;
 
@@ -23,19 +22,15 @@ impl<'field> RangeFacts<'field> {
             return;
         }
         let mut reads = Vec::new();
-        let bound_lookup = self.bound_lookup();
-        if collect_reads(
+        let complete = self.walk_reads(
             program,
             machine,
             state,
             self.statement_index,
             expression,
-            self.checked_calls,
-            self.checked_operators,
             &mut reads,
-            0,
-            bound_lookup,
-        ) {
+        );
+        if complete {
             self.alias_index(&program.expression_table.display_name(expression), name);
             self.alias_captured_selector(program, machine, state, expression, symbol);
         }
@@ -50,23 +45,19 @@ impl<'field> RangeFacts<'field> {
         captured: ExpressionHandle,
         symbol: SymbolHandle,
     ) {
-        if !symbol.is_valid() {
+        if !symbol.is_valid() || self.expression_dependencies.is_empty() {
             return;
         }
         let mut captured_reads = Vec::new();
-        let bound_lookup = self.bound_lookup();
-        if !collect_reads(
+        let complete = self.walk_reads(
             program,
             machine,
             state,
             self.statement_index,
             captured,
-            self.checked_calls,
-            self.checked_operators,
             &mut captured_reads,
-            0,
-            bound_lookup,
-        ) {
+        );
+        if !complete {
             return;
         }
         let transferable = self.preserved_expression_labels(program, machine, state, Some(&[]));
@@ -184,18 +175,16 @@ impl<'field> RangeFacts<'field> {
                         continue;
                     }
                     let mut selector_reads = Vec::new();
-                    if !collect_reads(
+                    let complete = self.walk_reads(
                         program,
                         machine,
                         state,
                         self.statement_index,
                         *source_index,
-                        self.checked_calls,
-                        self.checked_operators,
                         &mut selector_reads,
-                        0,
-                        bound_lookup,
-                    ) || !same_reads(program, Some(&captured_reads), Some(&selector_reads))
+                    );
+                    if !complete
+                        || !same_reads(program, Some(&captured_reads), Some(&selector_reads))
                     {
                         continue;
                     }
@@ -218,14 +207,13 @@ impl<'field> RangeFacts<'field> {
                     continue;
                 }
                 let mut reads = Vec::new();
-                let bound_lookup = self.bound_lookup();
                 // The current binding now exists. Later immutable copies may
                 // already have typed uses but do not introduce a new value.
                 // Read those uses through the shared captured-value identity,
                 // then require every resulting dependency to exist now. This
                 // does not evaluate a future initializer or admit a new read.
                 let prefix = self.statement_index.saturating_add(1);
-                let complete = collect_reads(
+                let complete = self.walk_reads(
                     program,
                     machine,
                     state,
@@ -238,11 +226,7 @@ impl<'field> RangeFacts<'field> {
                         prefix
                     },
                     expression,
-                    self.checked_calls,
-                    self.checked_operators,
                     &mut reads,
-                    0,
-                    bound_lookup,
                 );
                 if !complete
                     || !reads.iter().all(|read| {

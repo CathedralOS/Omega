@@ -8,6 +8,7 @@ use super::{
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::control;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use legalized_operations::LegalizedScalarComparison;
 
 pub(super) fn emit(
@@ -242,12 +243,7 @@ pub(super) fn emit_branch_comparison(
         SelectedInstructionKind::CompareI64,
         builder.constraints.keys.compare_i64,
         &operands,
-        SelectedInstructionProvenance {
-            operations: vec![operation.operation],
-            values: vec![*left, *right, result.value],
-            fuel: operation.fuel.clone(),
-            ..Default::default()
-        },
+        operation_provenance(operation, vec![*left, *right, result.value]),
     )?;
     Ok(())
 }
@@ -285,12 +281,7 @@ fn mixed_integer(
         state,
         value: result.value,
         site: result.definition_site,
-        provenance: SelectedInstructionProvenance {
-            operations: vec![operation.operation],
-            values: vec![left, right, result.value],
-            fuel: operation.fuel.clone(),
-            ..Default::default()
-        },
+        provenance: operation_provenance(operation, vec![left, right, result.value]),
     };
     let left = sequence.normalize(left_register, left_type)?;
     let right = sequence.normalize(right_register, right_type)?;

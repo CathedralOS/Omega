@@ -17,53 +17,53 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("IND22 offline laboratory protocol; deadline=5; capacity=64");
     transition { _ -> read(main) }
-    state read(main: &mut Main) {
+    machine read(main: &mut Main) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Byte { value } -> character(main, value)
             ByteRead::Eof -> end(main)
         }
     }
-    state character(main: &mut Main, character: i32) {
+    machine character(main: &mut Main, character: i32) {
         transition character == 10 {
             true -> commit(main, false)
             false -> collect(main, character)
         }
     }
-    state collect(main: &mut Main, character: i32) {
+    machine collect(main: &mut Main, character: i32) {
         transition main.length {
             0 -> first(main, character)
             1 -> second(main, character)
             _ -> overflow(main)
         }
     }
-    state first(main: &mut Main, character: i32) {
+    machine first(main: &mut Main, character: i32) {
         main.first = character;
         main.length = 1;
         transition { _ -> read(main) }
     }
-    state second(main: &mut Main, character: i32) {
+    machine second(main: &mut Main, character: i32) {
         main.second = character;
         main.length = 2;
         transition { _ -> read(main) }
     }
-    state overflow(main: &mut Main) {
+    machine overflow(main: &mut Main) {
         main.length = 3;
         transition { _ -> read(main) }
     }
-    state end(main: &mut Main) {
+    machine end(main: &mut Main) {
         transition main.length > 0 {
             true -> commit(main, true)
             false -> done(main)
         }
     }
-    state commit(main: &mut Main, final: bool) {
+    machine commit(main: &mut Main, final: bool) {
         transition main.commands < 64 {
             true -> grammar(main, final)
             false -> exhausted(main)
         }
     }
-    state grammar(main: &mut Main, final: bool) {
+    machine grammar(main: &mut Main, final: bool) {
         main.commands = main.commands + 1;
         main.decision = 12;
         transition main.length == 2 && main.second >= 48 && main.second <= 57 {
@@ -71,12 +71,12 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> report(main, final)
         }
     }
-    state interpret(main: &mut Main, final: bool) {
+    machine interpret(main: &mut Main, final: bool) {
         let argument: i32 in Saturating = (main.second - 48) as i32 in Saturating;
         main.decision = protocol::model::Laboratory::apply(&mut main.laboratory, main.first, argument);
         transition { _ -> report(main, final) }
     }
-    state report(main: &mut Main, final: bool) {
+    machine report(main: &mut Main, final: bool) {
         protocol::report::Report::row(&main.laboratory, main.decision);
         main.length = 0;
         transition final {
@@ -84,11 +84,11 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> read(main)
         }
     }
-    state exhausted(main: &mut Main) {
+    machine exhausted(main: &mut Main) {
         Console::write_line("BUDGET_EXHAUSTED");
         Console::exit_process(65);
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::write_line("END");
         Console::exit_process(0);
     }

@@ -95,6 +95,26 @@ pub struct Operation {
     pub kind: OperationKind,
 }
 
+impl Operation {
+    /// The plain form: no static reach binding and no suspension crossing.
+    /// Every non-call operation and every call that never suspends carries
+    /// neither provenance slot, so a producer names this form instead of
+    /// re-spelling both absent fields.
+    pub const fn unsuspended(
+        id: OperationId,
+        result: OperationResult,
+        kind: OperationKind,
+    ) -> Self {
+        Self {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id,
+            result,
+            kind,
+        }
+    }
+}
+
 /// Runtime result of one operation. Unit creates no `ValueId` or structural
 /// place. A structural result establishes its declared place only after the
 /// operation succeeds.
@@ -265,6 +285,12 @@ pub struct ReferenceStorageView {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
+    /// Read an exact application result from this artifact's admitted target
+    /// closure. This is neither a runtime call nor permission to evaluate an
+    /// unavailable application. The result carrier must match its catalog row.
+    ReadScalarApplication {
+        application: semantic_vocabulary::ScalarApplicationId,
+    },
     /// Establish the ordinary runtime descriptor of one exact executable
     /// application. Native layout supplies relocations and instruction spans;
     /// neither Psi evaluation nor an interpreter may fabricate this value.
@@ -1414,6 +1440,7 @@ impl OperationKind {
             | Self::PortWrite { .. }
             | Self::AtomicFence { .. }
             | Self::IntegerConstant { .. }
+            | Self::ReadScalarApplication { .. }
             | Self::BooleanConstant { .. }
             | Self::IeeeFloatConstant { .. }
             | Self::EstablishStructuralArray { .. }
@@ -1430,6 +1457,30 @@ impl OperationKind {
             crate::static_call_structural_argument_variants!(structural_arguments) => {
                 structural_arguments
             }
+            _ => &[],
+        }
+    }
+
+    /// Exact owned-claim transfers of any call shape. This is a custody roster,
+    /// not target resolution or disposition authority; those are checked by
+    /// the consuming call operation.
+    pub fn claim_transfers(&self) -> &[ClaimTransfer] {
+        match self {
+            Self::CallUnit {
+                claim_transfers, ..
+            }
+            | Self::CallStructuralScalar {
+                claim_transfers, ..
+            }
+            | Self::CallStructural {
+                claim_transfers, ..
+            }
+            | Self::CallStructuralWithScalarArguments {
+                claim_transfers, ..
+            }
+            | Self::CallDynamic {
+                claim_transfers, ..
+            } => claim_transfers,
             _ => &[],
         }
     }

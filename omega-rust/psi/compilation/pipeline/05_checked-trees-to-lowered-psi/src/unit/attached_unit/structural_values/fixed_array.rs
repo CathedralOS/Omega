@@ -6,12 +6,14 @@
 //! Element memberships move with those completed values under FixedIndex paths,
 //! never from the array's receiving annotation or a record-like field identity.
 use super::super::{
-    LoweringError, Operation, OperationKind, PlaceId, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeShape, allocate_dense, place_id, unsupported,
+    LoweringError, Operation, OperationKind, PlaceId, StructuralTypeShape, allocate_dense,
+    place_id, unsupported,
 };
 use super::completed_aggregate::{self, CompletedAggregate};
 use super::emission;
 use crate::emission::operation_emission::buffer::structural_result_declaration;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
+use crate::unit::attached_unit::structural_values::ValueOutcome;
 use checked_trees::CheckedStructuralValueHandle;
 
 impl emission::Emission<'_, '_, '_> {
@@ -20,7 +22,7 @@ impl emission::Emission<'_, '_, '_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         elements: &[CheckedStructuralValueHandle],
         type_reference: checked_trees::types::TypeReferenceHandle,
-    ) -> Result<PlaceId, LoweringError> {
+    ) -> Result<ValueOutcome<PlaceId>, LoweringError> {
         let declaration =
             terminal_psi::find_structural_type(&self.structural_types[..], self.structural_type)
                 .ok_or(LoweringError::Unsupported("fixed array carrier is missing"))?;
@@ -45,15 +47,11 @@ impl emission::Emission<'_, '_, '_> {
         for (element_position, value) in elements.iter().enumerate() {
             let element_index = u64::try_from(element_position)
                 .map_err(|_| LoweringError::Unsupported("array element identity overflow"))?;
-            let operand = self.child_constructor_operand(
-                identities,
-                element,
-                *value,
-                element_reference,
-                &[terminal_psi::StructuralPathSegment::FixedIndex(
-                    element_index,
-                )],
-            )?;
+            let ValueOutcome::Normal(operand) =
+                self.child_constructor_operand(identities, element, *value, element_reference)?
+            else {
+                return Ok(ValueOutcome::NoNormal);
+            };
             for claim in operand.claims {
                 let mut path = vec![terminal_psi::StructuralPathSegment::FixedIndex(
                     element_index,
@@ -68,23 +66,25 @@ impl emission::Emission<'_, '_, '_> {
         }
         claims.sort();
         let place = place_id(allocate_dense(self.environment.next_place)?);
-        self.environment
-            .private_places
-            .push(completed_aggregate::emit_completed(
-                place,
-                parent_type,
-                parent_multiplicity,
-                CompletedAggregate::Array { elements: operands },
-                self.evaluation
-                    .structural_parameters
-                    .iter()
-                    .map(|(_, parameter)| parameter),
-                self.operations,
-            )?);
+        let declaration = completed_aggregate::emit_completed(
+            place,
+            parent_type,
+            parent_multiplicity,
+            CompletedAggregate::Array { elements: operands },
+            self.evaluation.structural_root_parameters(),
+            self.operations,
+        )?;
+        if let semantic_vocabulary::StructuralPlaceKind::OperationResult { producer, .. } =
+            declaration.kind
+        {
+            self.evaluation
+                .retire_structural_operation_operands(producer, self.operations)?;
+        }
+        self.environment.private_places.push(declaration);
         self.operations
             .set_structural_result_claims(place, claims)?;
         self.values.truncate(source_count);
-        Ok(place)
+        Ok(ValueOutcome::Normal(place))
     }
 
     /// Establish the current carrier's whole zero as a fresh owned place. The
@@ -93,26 +93,20 @@ impl emission::Emission<'_, '_, '_> {
     pub(super) fn establish_zeroed(&mut self) -> Result<PlaceId, LoweringError> {
         let place = place_id(allocate_dense(self.environment.next_place)?);
         let operation = self.operations.allocate();
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: operation,
-            result: structural_result_declaration(
+        self.operations.push(Operation::unsuspended(
+            operation,
+            structural_result_declaration(
                 place,
                 self.structural_type,
                 crate::emission::borrowed_window::zeroed_image(self.multiplicity),
             ),
-            kind: OperationKind::EstablishZeroedStructural {},
-        });
-        self.environment
-            .private_places
-            .push(StructuralPlaceDeclaration {
-                id: place,
-                kind: StructuralPlaceKind::OperationResult {
-                    producer: operation,
-                    structural_type: self.structural_type,
-                },
-            });
+            OperationKind::EstablishZeroedStructural {},
+        ));
+        self.environment.private_places.push(operation_result_place(
+            place,
+            operation,
+            self.structural_type,
+        ));
         Ok(place)
     }
 }

@@ -21,12 +21,28 @@ pub(super) struct ContentSource {
     pub(super) path: Vec<SourceSegment>,
 }
 
+/// Known declaration sources and the independent completeness of their frontier.
+/// Existing source checks can inspect the known paths of an open generic carrier;
+/// absence of those paths must never prove that its owned content is empty.
+pub(super) struct ContentSourceExpansion {
+    pub(super) sources: Vec<ContentSource>,
+    pub(super) complete: bool,
+    has_open_owned_carrier: bool,
+}
+
+impl ContentSourceExpansion {
+    pub(super) fn frontier_is_closed(&self) -> bool {
+        self.complete && !self.has_open_owned_carrier
+    }
+}
+
 /// Array coverage stays symbolic: source discovery visits an element type once,
 /// even when its declared extent is much larger than the authored proof.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum SourceSegment {
     Field(SymbolHandle),
     Case(SymbolHandle),
+    FixedIndex(u64),
     Elements(Option<usize>),
 }
 
@@ -34,8 +50,12 @@ pub(super) fn parameter_sources(
     program: &dyn ::validation::CheckingInput,
     parameter: &StateParameter,
     contracts: &[&SignatureContract],
-) -> (Vec<ContentSource>, bool) {
-    let (mut sources, complete) = domain_sources(program, parameter.type_reference);
+) -> ContentSourceExpansion {
+    let ContentSourceExpansion {
+        mut sources,
+        complete,
+        mut has_open_owned_carrier,
+    } = domain_sources(program, parameter.type_reference);
     for contract in contracts
         .iter()
         .filter(|contract| contract.kind == SignatureContractKind::Requires)
@@ -44,26 +64,65 @@ pub(super) fn parameter_sources(
             if let Some(membership) = fact.as_membership()
                 && membership.domain_symbol.is_valid()
                 && membership.semantic_domain.is_valid()
-                && program
-                    .expression_table
-                    .names_parameter(membership.value, parameter)
+                && let Some(place) =
+                    validation::canonical_place_from_expression(program, membership.value)
+                && place.root == facts::PlaceRoot::Symbol(parameter.symbol)
             {
+                // A requires membership is the same input obligation as a
+                // qualified parameter or field. Keep its exact subject; omitting
+                // a nested requirement would mistake transferred content for an
+                // empty entry frontier. Runtime selectors cannot stand for a
+                // universally qualified array and remain incomplete here.
+                let path = place
+                    .segments
+                    .iter()
+                    .map(|segment| match segment {
+                        facts::PlaceSegment::Field { symbol } => {
+                            Some(SourceSegment::Field(*symbol))
+                        }
+                        facts::PlaceSegment::Case { variant } => {
+                            Some(SourceSegment::Case(*variant))
+                        }
+                        facts::PlaceSegment::FixedIndex { index } => {
+                            u64::try_from(*index).ok().map(SourceSegment::FixedIndex)
+                        }
+                        _ => None,
+                    })
+                    .collect::<Option<Vec<_>>>();
+                let Some(path) = path else {
+                    // This extra contract cannot prove an empty frontier, but
+                    // does not erase sources already known from the type.
+                    // Ordinary borrowed-source/law checks keep their previous
+                    // completeness; only the new emptiness inference closes.
+                    has_open_owned_carrier = true;
+                    continue;
+                };
+                let selected = validation::owned_projection_type_reference(
+                    program,
+                    parameter.type_reference,
+                    &place.segments,
+                );
                 let source = ContentSource {
                     domain: DomainApplication {
                         symbol: membership.domain_symbol,
                         semantic_domain: membership.semantic_domain,
                     },
-                    borrowed: super::direct_reference(program, parameter.type_reference).is_some(),
-                    nested: false,
-                    path: Vec::new(),
+                    borrowed: super::direct_reference(program, parameter.type_reference).is_some()
+                        // The final owned slot may itself hold a borrowed
+                        // descriptor. Its referent never joins owned custody.
+                        || selected.is_none_or(|selected| reference_shell(program, selected, &[])),
+                    nested: !path.is_empty(),
+                    path,
                 };
-                if !sources.contains(&source) {
-                    sources.push(source);
-                }
+                crate::collections::push_unique(&mut sources, source);
             }
         }
     }
-    (sources, complete)
+    ContentSourceExpansion {
+        sources,
+        complete,
+        has_open_owned_carrier,
+    }
 }
 
 // Each actual retains the lexical environment in which it was supplied. A
@@ -78,8 +137,9 @@ struct TypeBinding {
 pub(super) fn domain_sources(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
-) -> (Vec<ContentSource>, bool) {
+) -> ContentSourceExpansion {
     let mut sources = Vec::new();
+    let mut has_open_owned_carrier = false;
     let complete = append_sources(
         program,
         reference,
@@ -89,8 +149,13 @@ pub(super) fn domain_sources(
         &[],
         &mut Vec::new(),
         &mut sources,
+        &mut has_open_owned_carrier,
     );
-    (sources, complete)
+    ContentSourceExpansion {
+        sources,
+        complete,
+        has_open_owned_carrier,
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -103,6 +168,7 @@ fn append_sources(
     path: &[SourceSegment],
     visiting: &mut Vec<(SymbolHandle, usize)>,
     sources: &mut Vec<ContentSource>,
+    has_open_owned_carrier: &mut bool,
 ) -> bool {
     let (reference, substitutions) = substituted_head(program, reference, substitutions);
     if !reference.is_valid() {
@@ -139,6 +205,7 @@ fn append_sources(
                 path,
                 visiting,
                 sources,
+                has_open_owned_carrier,
             );
         }
         TypeReferenceNode::Reference { referee, .. } => {
@@ -151,6 +218,7 @@ fn append_sources(
                 path,
                 visiting,
                 sources,
+                has_open_owned_carrier,
             );
         }
         TypeReferenceNode::FixedArray {
@@ -180,6 +248,7 @@ fn append_sources(
                 &element_path,
                 visiting,
                 sources,
+                has_open_owned_carrier,
             );
         }
         TypeReferenceNode::FixedArray { .. } => return false,
@@ -188,6 +257,12 @@ fn append_sources(
         _ => return true,
     };
     let Some(definition) = program.data_definition_by_symbol(definition_symbol) else {
+        if !borrowed
+            && definition_symbol.is_valid()
+            && program.symbols.get(definition_symbol).kind == symbols::SymbolKind::TypeParameter
+        {
+            *has_open_owned_carrier = true;
+        }
         return true;
     };
     // Finite Wrapper<Wrapper<T>> consumes type-argument structure. Recursive
@@ -238,6 +313,7 @@ fn append_sources(
                     &field_path,
                     visiting,
                     sources,
+                    has_open_owned_carrier,
                 );
             }
             DataMember::Variant(variant) => {
@@ -254,6 +330,7 @@ fn append_sources(
                         &field_path,
                         visiting,
                         sources,
+                        has_open_owned_carrier,
                     );
                 }
             }

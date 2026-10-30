@@ -1,0 +1,31 @@
+// Expected exit: 0.
+data Value { size: u64; }
+data Field { case Value(value: Value); case Empty; }
+data Pool { before: u64; fields: [Field; 2]; after: u64; }
+machine size<'backing>(value: &'backing Value) -> &'backing Value { value }
+machine measure(pool: &mut Pool, index: u64) -> u64
+    requires index < 2u64
+{
+    let field: &Field = &pool.fields[index];
+    transition field {
+        Field::Value { value } -> finish(pool, size(&value))
+        _ -> (0u64)
+    }
+    machine finish(pool: &mut Pool, length: &Value) -> u64 {
+        pool.after = 93u64;
+        (length.size)
+    }
+}
+machine main() crashes Trap {
+    let mut pool: Pool = Pool { before: 71u64 };
+    pool.fields[0] = Field::Value { value: Value { size: 17u64 } };
+    pool.fields[1] = Field::Empty {};
+    let value: u64 = measure(&mut pool, 0u64);
+    let empty: u64 = measure(&mut pool, 1u64);
+    transition value == 17u64 && empty == 0u64 && pool.before == 71u64 && pool.after == 93u64 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

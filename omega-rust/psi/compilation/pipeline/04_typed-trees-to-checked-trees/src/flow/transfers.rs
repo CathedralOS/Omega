@@ -40,6 +40,7 @@ mod declared_domains;
 mod owned_qualifications;
 pub(super) use owned_qualifications::append_owned_qualification_transfer;
 mod projected;
+pub(super) use projected::append_completed_copy_predicates;
 mod replacement;
 mod scalar_values;
 mod write_target;
@@ -218,11 +219,21 @@ pub(super) fn propagate_statement_transfers(
             .stored_destination = target_place;
     }
 
+    let completed_source = build.control.statements.get(statement_fact).stored_value;
+    let completed_source_type = build
+        .control
+        .operands
+        .is_valid(completed_source)
+        .then(|| build.control.operands.get(completed_source))
+        .filter(|operand| operand.expression == source_expression)
+        .map(|operand| operand.type_reference)
+        .filter(|reference| reference.is_valid());
     context_transport::transport(
         program,
         semantic,
         build,
         &write,
+        completed_source_type,
         stable_value_target,
         machine_symbol,
         state_symbol,
@@ -412,7 +423,7 @@ pub(super) fn propagate_statement_transfers(
 /// Publish one statement's transferred facts as new active contexts, one per
 /// exact place and observation kind. A tag survives a payload write even
 /// when the full value at that same place no longer has its old contents.
-fn publish_statement_contexts(
+pub(super) fn publish_statement_contexts(
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     machine_symbol: SymbolHandle,
@@ -434,44 +445,50 @@ fn publish_statement_contexts(
         state_symbol,
         statement_index,
     };
-    let mut groups: Vec<(
-        FactPlace,
-        bool,
-        Option<(SymbolHandle, language_semantics::SemanticDomainId)>,
-        Vec<facts::FactRef>,
-    )> = Vec::new();
-    for reference in semantic.refs.span_or_empty(refs) {
-        let fact = semantic.facts.get(reference.fact);
-        let place = fact.place;
-        let observes_tag = matches!(fact.payload, FactPayload::AssignedCase { .. });
-        let domain = fact
-            .payload
-            .domain_membership()
-            .map(|(_, _, symbol, identity)| (symbol, identity));
-        if let Some((_, _, _, group)) =
-            groups
-                .iter_mut()
-                .find(|(candidate, candidate_observes_tag, candidate_domain, _)| {
-                    *candidate_domain == domain
-                        && *candidate_observes_tag == observes_tag
-                        && match (*candidate, place) {
-                            (FactPlace::Place(left), FactPlace::Place(right)) => {
-                                semantic.places_equal(left, right)
-                            }
-                            _ => *candidate == place,
-                        }
-                })
-        {
-            group.push(*reference);
-        } else {
-            groups.push((place, observes_tag, domain, vec![*reference]));
-        }
+    let references = semantic.refs.span_or_empty(refs);
+    let subjects: Vec<_> = references
+        .iter()
+        .map(|reference| {
+            let fact = semantic.facts.get(reference.fact);
+            (
+                fact.place,
+                matches!(fact.payload, FactPayload::CaseValue { .. }),
+                fact.payload
+                    .domain_membership()
+                    .map(|(_, _, symbol, identity)| (symbol, identity)),
+            )
+        })
+        .collect();
+    // Only compare subjects in the same scratch bucket. Full equality below
+    // retains independent place/domain/tag epochs even when hashes collide.
+    let buckets = facts::places::PlaceBucketIndex::new(subjects.iter().map(
+        |(place, observes_tag, domain)| {
+            use std::hash::{Hash, Hasher};
+            let mut hash = std::collections::hash_map::DefaultHasher::new();
+            semantic.fact_place_bucket_hash(*place).hash(&mut hash);
+            observes_tag.hash(&mut hash);
+            domain.hash(&mut hash);
+            hash.finish()
+        },
+    ));
+    let first = buckets.group_equal_positions(|left, right| {
+        let (left_place, left_tag, left_domain) = subjects[left];
+        let (right_place, right_tag, right_domain) = subjects[right];
+        left_tag == right_tag
+            && left_domain == right_domain
+            && semantic.fact_places_equal(left_place, right_place)
+    });
+    // Publish in first-encounter order, preserving reference order and
+    // multiplicity within each context exactly as the sequential scan did.
+    let mut groups: Vec<Vec<facts::FactRef>> = (0..references.len()).map(|_| Vec::new()).collect();
+    for (position, reference) in references.iter().enumerate() {
+        groups[first[position]].push(*reference);
     }
     let mut next_contexts =
         retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
     let mut next_constraints =
         retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
-    for (_, _, _, group) in groups {
+    for group in groups.into_iter().filter(|group| !group.is_empty()) {
         let mut group_refs = HandleSpan::empty();
         for reference in group {
             semantic.refs.append_to_span(&mut group_refs, reference);
@@ -804,16 +821,27 @@ fn completed_value_carriers_agree(
     statement_index: usize,
     source: &CanonicalPlace,
     target: &CanonicalPlace,
+    completed_source: Option<typed_trees::types::TypeReferenceHandle>,
 ) -> bool {
-    let type_at = |place, position| {
-        let reference =
-            validation::canonical_place_type_reference(program, state, position, place)?;
+    let carrier_identity = |reference| {
         let reference = validation::reference_shell(program, reference)
             .map_or(reference, |shell| shell.referee);
-        Some(program.normalized_type_identity(reference))
+        program.normalized_type_identity(reference)
     };
     // Only the installed destination's current declaration becomes visible.
-    type_at(source, statement_index)
-        .zip(type_at(target, statement_index.saturating_add(1)))
+    // A produced value already retained its actual type at completion. Its
+    // expression place need not have a declaration from which to rediscover
+    // that type (for example a Match); projected storage keeps its own query.
+    completed_source
+        .or_else(|| {
+            validation::canonical_place_type_reference(program, state, statement_index, source)
+        })
+        .zip(validation::canonical_place_type_reference(
+            program,
+            state,
+            statement_index.saturating_add(1),
+            target,
+        ))
+        .map(|(source, target)| (carrier_identity(source), carrier_identity(target)))
         .is_some_and(|(source, target)| source == target)
 }

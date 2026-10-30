@@ -6,11 +6,13 @@
 //! layout. An owner's claims, linearity or domains do not turn an admitted
 //! scalar read into a whole-owner copy. Keep those records on the owner; do not
 //! impose the retired claim-free carrier restriction during physical selection.
+use crate::selection::place_declaration::{declares_block_parameter, declares_operation_result};
+
 use calling_conventions::ValueShape;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstructionKind as Instruction,
 };
-use semantic_vocabulary::{OperationId, PlaceId, ScalarType, StructuralPlaceKind};
+use semantic_vocabulary::{OperationId, PlaceId, ScalarType};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralOperationResult, StructuralTypeShape,
 };
@@ -37,17 +39,10 @@ pub(crate) fn local(
     if candidates.next().is_some()
         || row.result.is_some()
         || result.multiplicity != StructuralMultiplicity::Unrestricted
-        || !result.qualifications.is_empty()
+        || !result.qualification_establishments.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
-        || !signature.structural_places.iter().any(|declaration| {
-            declaration.id == place
-                && declaration.kind
-                    == StructuralPlaceKind::OperationResult {
-                        producer: row.operation,
-                        structural_type: result.structural_type,
-                    }
-        })
+        || !declares_operation_result(signature, place, row.operation, result.structural_type)
         || !signature.structural_types.iter().any(|declaration| {
             declaration.id == result.structural_type
                 && declaration.shape == StructuralTypeShape::PrimitiveScalar(value.scalar_type)
@@ -92,15 +87,19 @@ fn block_arrival(
     let (block, parameter) = matching.next()?;
     (matching.next().is_none()
         && block != source.entry_block
-        && signature.structural_places.iter().any(|declaration| {
-            declaration.id == place
-                && declaration.kind
-                    == (StructuralPlaceKind::BlockParameter {
-                        block,
-                        position: parameter.position,
-                    })
-        }))
+        && declares_block_parameter(signature, place, block, parameter.position))
     .then_some(parameter)
+}
+
+/// The projected read's root declaration: the exact producer result, else the
+/// parameter's declared referent type. Projection resolves the endpoint leaf.
+fn projected_read_root(
+    source: &LegalizedScalarFunction,
+    place: PlaceId,
+) -> Option<semantic_vocabulary::StructuralTypeId> {
+    super::aggregate_result_input::operation_result(source, place)
+        .map(|(_, result)| result.structural_type)
+        .or_else(|| read_parameter(source, place).map(|parameter| parameter.structural_type))
 }
 
 /// Exact field geometry is independent of whether its home came from an owned
@@ -120,11 +119,7 @@ pub(super) fn read_storage_codec(
             if local(source, *place).is_some() {
                 return runtime_abi::ScalarStorageCodec::from_scalar(scalar);
             }
-            let root = super::aggregate_result_input::operation_result(source, *place)
-                .map(|(_, result)| result.structural_type)
-                .or_else(|| {
-                    read_parameter(source, *place).map(|parameter| parameter.structural_type)
-                })?;
+            let root = projected_read_root(source, *place)?;
             crate::structural_inputs::structural_reference_input::projected_scalar_codec(
                 root,
                 path,
@@ -136,12 +131,7 @@ pub(super) fn read_storage_codec(
             field,
             case: None,
         } => {
-            let root = super::aggregate_result_input::operation_result(source, argument.place)
-                .map(|(_, result)| result.structural_type)
-                .or_else(|| {
-                    read_parameter(source, argument.place)
-                        .map(|parameter| parameter.structural_type)
-                })?;
+            let root = projected_read_root(source, argument.place)?;
             crate::structural_inputs::structural_reference_input::scalar_field_codec(
                 root,
                 &argument.path,
@@ -166,11 +156,7 @@ pub(super) fn read_storage_fragments<'source>(
             path,
             ..
         } => {
-            let root = super::aggregate_result_input::operation_result(source, *place)
-                .map(|(_, result)| result.structural_type)
-                .or_else(|| {
-                    read_parameter(source, *place).map(|parameter| parameter.structural_type)
-                })?;
+            let root = projected_read_root(source, *place)?;
             crate::structural_inputs::structural_reference_input::projected_scalar_fragments(
                 root,
                 path,
@@ -182,12 +168,7 @@ pub(super) fn read_storage_fragments<'source>(
             field,
             case: None,
         } => {
-            let root = super::aggregate_result_input::operation_result(source, argument.place)
-                .map(|(_, result)| result.structural_type)
-                .or_else(|| {
-                    read_parameter(source, argument.place)
-                        .map(|parameter| parameter.structural_type)
-                })?;
+            let root = projected_read_root(source, argument.place)?;
             crate::structural_inputs::structural_reference_input::scalar_field_fragments(
                 root,
                 &argument.path,
@@ -197,6 +178,24 @@ pub(super) fn read_storage_fragments<'source>(
         }
         _ => None,
     }
+}
+
+/// A length read observes an unsigned 64-bit count, and its row traversals must
+/// be exactly the projection's runtime elements.
+fn length_count_matches(
+    scalar: ScalarType,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+    elements: &[crate::structural_inputs::structural_reference_input::RuntimeElement],
+) -> Option<()> {
+    let count = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .ok()?,
+    );
+    (scalar == count
+        && crate::structural_inputs::structural_reference_input::runtime_indices_match(
+            indices, elements,
+        ))
+    .then_some(())
 }
 
 pub(super) fn read_geometry(
@@ -222,11 +221,9 @@ pub(super) fn read_geometry(
                     &argument.path,
                     &signature.structural_types,
                 )?;
-            let terminal_psi::StructuralTypeShape::ByteSequence(carrier) = signature
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == geometry.selected)?
-                .shape
+            let terminal_psi::StructuralTypeShape::ByteSequence(carrier) =
+                terminal_psi::find_structural_type(&signature.structural_types, geometry.selected)?
+                    .shape
             else {
                 return None;
             };
@@ -264,23 +261,8 @@ pub(super) fn read_geometry(
                     &argument.path,
                     &signature.structural_types,
                 )?;
-            let count = ScalarType::Integer(
-                semantic_vocabulary::IntegerType::new(
-                    semantic_vocabulary::IntegerSign::Unsigned,
-                    64,
-                )
-                .ok()?,
-            );
-            (scalar == count
-                && crate::structural_inputs::structural_reference_input::runtime_indices_match(
-                    indices,
-                    &geometry.elements,
-                ))
-            .then_some((
-                argument.place,
-                geometry.byte_offset,
-                geometry.pointer_slots,
-            ))
+            length_count_matches(scalar, indices, &geometry.elements)?;
+            Some((argument.place, geometry.byte_offset, geometry.pointer_slots))
         }
         Instruction::StructuralByteSequenceFieldLength {
             source: argument,
@@ -296,19 +278,8 @@ pub(super) fn read_geometry(
                     *field,
                     &signature.structural_types,
                 )?;
-            let count = ScalarType::Integer(
-                semantic_vocabulary::IntegerType::new(
-                    semantic_vocabulary::IntegerSign::Unsigned,
-                    64,
-                )
-                .ok()?,
-            );
-            (scalar == count
-                && crate::structural_inputs::structural_reference_input::runtime_indices_match(
-                    indices,
-                    &geometry.elements,
-                ))
-            .then_some((
+            length_count_matches(scalar, indices, &geometry.elements)?;
+            Some((
                 argument.place,
                 geometry.length_offset,
                 geometry.pointer_slots,
@@ -329,7 +300,7 @@ pub(super) fn read_geometry(
             let signature = source.structural.as_ref()?;
             let root = super::reference_input::root_type(source, *place)?;
             let geometry =
-                crate::structural_inputs::structural_reference_input::reference_source_geometry(
+                crate::structural_inputs::structural_reference_input::storage_address_geometry(
                     root,
                     path,
                     &signature.structural_types,
@@ -356,9 +327,9 @@ pub(super) fn read_geometry(
             let signature = source.structural.as_ref()?;
             let structural_type =
                 if let Some((_, result)) = super::aggregate_result_input::home(source, *place) {
-                    if path.is_empty() {
-                        return None;
-                    }
+                    // Whole primitive results and projected leaves share the
+                    // producer's existing home. Exact endpoint geometry below
+                    // admits scalar storage, never a whole aggregate or pointer.
                     result.structural_type
                 } else {
                     let parameter = read_parameter(source, *place)?;

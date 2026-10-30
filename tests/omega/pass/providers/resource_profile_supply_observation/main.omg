@@ -64,7 +64,7 @@ reaches ExtentRootProvider + ResourceProfileSupply + ProcessExit
         _ -> finish(owner, 1)
     }
     // Ending the process retains the grant; no invented drop discharges it.
-    state finish(owner: Owner, status: i32) {
+    machine finish(owner: Owner, status: i32) {
         ProcessExit::exit_process(status);
     }
 }

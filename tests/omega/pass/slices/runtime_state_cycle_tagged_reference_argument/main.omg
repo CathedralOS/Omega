@@ -10,7 +10,7 @@ requires remaining <= bytes.len {
         true -> next(bytes, noise, remaining)
         false -> Optional::None
     }
-    state next(bytes: &'input [u8], noise: &[u8], remaining: u64)
+    machine next(bytes: &'input [u8], noise: &[u8], remaining: u64)
         -> Optional<Held<'input>>
     requires remaining > 0 && remaining <= bytes.len {
         transition remaining > 1 {
@@ -24,13 +24,13 @@ machine observed(found: Optional<Held>) -> bool {
         Optional::Some { value } -> inspect(value)
         Optional::None -> false
     }
-    state inspect(held: Held) -> bool {
+    machine inspect(held: Held) -> bool {
         transition held.bytes.len == 3 {
             true -> contents(held)
             false -> false
         }
     }
-    state contents(held: Held) -> bool requires held.bytes.len == 3 {
+    machine contents(held: Held) -> bool requires held.bytes.len == 3 {
         held.bytes[0] == 41 && held.bytes[2] == 43
     }
 }
@@ -43,6 +43,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

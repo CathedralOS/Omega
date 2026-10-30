@@ -253,7 +253,10 @@ pub(super) fn validate_git_path(
             limit: limits.max_depth,
         });
     }
-    git_path_from_bytes(path)
+    // Git identity keeps slash-separated bytes. The acquired entry's PathBuf
+    // instead uses host separators, as required by the captured namespace.
+    // Normalize only after rejecting ambiguous and traversal components above.
+    Ok(git_path_from_bytes(path)?.components().collect())
 }
 
 fn validate_portable_git_component(
@@ -300,7 +303,7 @@ fn validate_portable_git_component(
 }
 
 #[cfg(unix)]
-pub(super) fn git_path_from_bytes(path: &[u8]) -> Result<PathBuf, SourceResolveError> {
+pub(crate) fn git_path_from_bytes(path: &[u8]) -> Result<PathBuf, SourceResolveError> {
     use std::ffi::OsString;
     use std::os::unix::ffi::OsStringExt;
 
@@ -308,7 +311,7 @@ pub(super) fn git_path_from_bytes(path: &[u8]) -> Result<PathBuf, SourceResolveE
 }
 
 #[cfg(not(unix))]
-pub(super) fn git_path_from_bytes(path: &[u8]) -> Result<PathBuf, SourceResolveError> {
+pub(crate) fn git_path_from_bytes(path: &[u8]) -> Result<PathBuf, SourceResolveError> {
     let text = std::str::from_utf8(path)
         .map_err(|_| git_tree_invalid(path, "path cannot be represented on this host"))?;
     Ok(PathBuf::from(text))

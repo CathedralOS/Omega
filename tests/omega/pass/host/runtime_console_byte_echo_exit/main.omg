@@ -20,7 +20,7 @@ reaches Console
     main.sum = 70 as i32 in Wrapping;
     transition { _ -> rd(main) }
 
-    state rd(main: &mut Main) {
+    machine rd(main: &mut Main) {
         let r: ByteRead = block Console::read_byte();
         transition r {
             ByteRead::Byte { value } -> acc(main, value)
@@ -28,14 +28,14 @@ reaches Console
         }
     }
 
-    state acc(main: &mut Main, value: i32) {
+    machine acc(main: &mut Main, value: i32) {
         let b: i32 in Wrapping = value as i32 in Wrapping;
         main.sum = main.sum + b;
         Console::write_byte(value);
         transition { _ -> rd(main) }
     }
 
-    state fin(main: &mut Main) {
+    machine fin(main: &mut Main) {
         Console::exit_process(main.sum as i32);
     }
 }

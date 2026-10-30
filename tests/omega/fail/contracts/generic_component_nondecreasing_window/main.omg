@@ -4,10 +4,10 @@ terminates;
 terminates by items -> Slice::Length;
 {
     transition items.len > 0 { true -> head(items) _ -> done() }
-    state head(items: &mut [u64]) requires items.len > 0 {
+    machine head(items: &mut [u64]) requires items.len > 0 {
         items[0] = 1;
         transition { _ -> walk(items) }
     }
-    state done() {}
+    machine done() {}
 }
 machine Main::main(main: &mut Main) { walk(&mut main.items[..]); }

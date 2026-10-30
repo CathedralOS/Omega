@@ -1,49 +1,80 @@
 // Fact: a 16-bit unsigned u16 logical right shift of a bounded input (val >= 480u16 && val <= 480u16) by 2u16 bits establishes shifted >= 120u16 && shifted <= 120u16 so exact 16-bit subtraction shifted - 120u16 is proved underflow-free across all nine places.
 
-linux_x86_64 machine target_probe(val: u16) -> u16
-    requires val >= 400u16 && val <= 480u16
-{
-    let shifted: u16 = val >> 2u16;
-    let check: u16 = shifted - 120u16;
-    check
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine target_probe(val: u16) -> u16
-    requires val >= 400u16 && val <= 480u16
-{
-    let shifted: u16 = val >> 2u16;
-    let check: u16 = shifted - 120u16;
-    check
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine target_probe(val: u16) -> u16
-    requires val >= 400u16 && val <= 480u16
-{
-    let shifted: u16 = val >> 2u16;
-    let check: u16 = shifted - 120u16;
-    check
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine target_probe(val: u16) -> u16
-    requires val >= 400u16 && val <= 480u16
-{
-    let shifted: u16 = val >> 2u16;
-    let check: u16 = shifted - 120u16;
-    check
+boundary trait SelectedProbe {
+    machine target_probe(val: u16) -> u16
+        reaches SelectedBodyCheck crashes Trap
+        requires val >= 400u16 && val <= 480u16;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine target_probe(val: u16) -> u16
+        reaches SelectedBodyCheck crashes Trap
+        requires val >= 400u16 && val <= 480u16
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let shifted: u16 = val >> 2u16;
+        let check: u16 = shifted - 120u16;
+        check
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine target_probe(val: u16) -> u16
+        reaches SelectedBodyCheck crashes Trap
+        requires val >= 400u16 && val <= 480u16
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let shifted: u16 = val >> 2u16;
+        let check: u16 = shifted - 120u16;
+        check
+    }
 }
 
 machine probe(val: u16) -> u16
+    reaches SelectedProbe, SelectedBodyCheck crashes Trap
     requires val >= 400u16 && val <= 480u16
 {
-    target_probe(val)
+    SelectedProbe::target_probe(val)
 }
 
-machine main() crashes Trap {
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
     let check: u16 = probe(480u16);
     transition check == 0u16 {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

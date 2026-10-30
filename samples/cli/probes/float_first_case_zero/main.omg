@@ -12,20 +12,20 @@ machine Main::main(main: &mut Main) {
         Sample::Reading { value } -> ready(main, main.holder.ready)
         _ -> bad(main)
     }
-    state ready(main: &mut Main, was_ready: bool) {
+    machine ready(main: &mut Main, was_ready: bool) {
         main.holder.sample = Sample::Missing;
         transition main.holder.sample {
             Sample::Missing -> absent(main, was_ready)
             _ -> bad(main)
         }
     }
-    state absent(main: &mut Main, kept: bool) {
+    machine absent(main: &mut Main, kept: bool) {
         let value: i32 = match kept {
             (true) -> 70
             _ -> 71
         };
     }
-    state bad(main: &mut Main) { let value: i32 = 0; }
+    machine bad(main: &mut Main) { let value: i32 = 0; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

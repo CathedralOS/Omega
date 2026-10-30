@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "readiness_diamond_left");
+    Build::depend_as(builder, "leaf", Source::Path { location: "../leaf" });
+}

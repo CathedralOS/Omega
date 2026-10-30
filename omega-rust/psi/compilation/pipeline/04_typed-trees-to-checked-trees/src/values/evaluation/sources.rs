@@ -11,6 +11,7 @@ pub(crate) trait ScalarValueSource {
     /// Current storage below an authored parameter, not a dense scalar binding.
     fn structural_field(
         &mut self,
+        _observation: typed_trees::expression::ExpressionHandle,
         _parameter_position: u32,
         _path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     ) -> Option<ScalarValue> {

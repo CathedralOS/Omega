@@ -1,0 +1,351 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "8b519ca647cd3fb6c8d4259ff422cb8f6fefb978",
+  "dirty": true,
+  "leg": "both",
+  "target": "macos_arm64",
+  "golden": "tests/omega/corpus_both_macos_arm64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 5658
+  },
+  "subset": true,
+  "filter": "facts/size_align_layout_geometry,layouts/runtime_layout_arithmetic_value_flow_exit,layouts/nested_reference_carrier_geometry_exit,layouts/runtime_constant_layout_contract_exit,layouts/layout_query_private_arrival_,layouts/layout_query_captured_result_join_unknown,calls/converted_call_value_private_arrival,arithmetic/runtime_composite_bound_arrivals_exit,core/scoped_integer_call_abstract_trait_operator_requires_formation,generics/runtime_value_recipe_prior_write_overflow,generics/runtime_value_recipe_unused_overflow,generics/runtime_value_recipe_typed_narrow_overflow",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 16,
+    "by_status": {
+      "built": 16
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/arithmetic/runtime_composite_bound_arrivals_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1554,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/calls/converted_call_value_private_arrival_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1448,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_private_arrival_calls_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1988,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_terminal_returns_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1983,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1941,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1997,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2029,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1970,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2319,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2131,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1983,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2001,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1957,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/layouts/nested_reference_carrier_geometry_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1527,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/layouts/runtime_constant_layout_contract_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1441,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/layouts/runtime_layout_arithmetic_value_flow_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2009,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    }
+  ],
+  "fixtures": []
+}

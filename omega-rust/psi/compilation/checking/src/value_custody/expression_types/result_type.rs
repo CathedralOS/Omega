@@ -51,7 +51,10 @@ pub fn parameter_expression_result_type_reference(
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     if !owner_symbol.is_valid() {
-        return None;
+        // A declaration-field constant has no callable lifetime telescope.
+        // Its constructor still names an exact produced carrier; recovering
+        // that identity does not admit its fields or use the receiving formal.
+        return constructor_result_type_reference(program, expression);
     }
     declaration_expression_result_type_reference(
         program,
@@ -88,6 +91,37 @@ pub fn parameter_expression_result_type_reference(
         },
         expression,
     )
+}
+
+/// Constructors retain their own carrier independently of a callable scope.
+/// This is a type query only: ordinary formation and field admission still
+/// check the value against this identity and the receiving declaration.
+fn constructor_result_type_reference(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    let node = program.expression_table.expression(expression);
+    if !matches!(
+        node,
+        ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
+    ) {
+        return None;
+    }
+    let reference = program
+        .expression_table
+        .constructed_value_type_reference(expression);
+    reference
+        .is_valid()
+        .then_some(reference)
+        .or_else(|| match node {
+            ExpressionNode::StructLiteral(literal) if literal.type_symbol.is_valid() => program
+                .type_reference_table
+                .find_named_type_reference(literal.type_symbol),
+            ExpressionNode::ArrayLiteral(_) => {
+                crate::declared_constant_array_type(program, expression)
+            }
+            _ => None,
+        })
 }
 
 /// A declaration supplies its exact place types; the shared result walk owns
@@ -188,9 +222,10 @@ fn result_type(
     if let Some(declaration) = program.expression_const_declaration(expression) {
         return Some(declaration.declared_type);
     }
-    // Immutable compiler-owned members are values, not parameter/local places.
-    // Preserve their declared type before operator selection; an absent type
-    // would let an unrelated numeric overload treat the operand as a wildcard.
+    // Immutable compiler-owned members have no runtime place or telescope
+    // parameter. Preserve their declaration type before operator selection;
+    // other names retain their exact scoped owner below, without foreign-binder
+    // recovery or wildcard treatment of an absent type.
     if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
         && let Some(reference) = super::builtin_member_type_reference(program, path.symbol)
     {
@@ -252,6 +287,28 @@ fn result_type(
                 return crate::proof_contracts::proof_embeddings::expression_type_reference(
                     program, expression,
                 );
+            }
+            if let Some(reference) =
+                crate::proof_contracts::proof_embeddings::embedding_result_type_reference(
+                    program, call,
+                )
+            {
+                return Some(reference);
+            }
+            if typed_trees::byte_predicates::byte_predicate_call(program, expression).is_some() {
+                return crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                    program,
+                    BuiltinTypeAtom::Bool,
+                );
+            }
+            if let Some(reference) =
+                crate::value_custody::content_conservation::intrinsic_result_type_reference(
+                    program,
+                    call,
+                    |argument| result_type(program, owner, argument, active),
+                )
+            {
+                return Some(reference);
             }
             if let Some(reference) =
                 crate::mathematical_applications::result_type_reference(program, call)
@@ -356,24 +413,8 @@ fn result_type(
                     )
                 })
         })(),
-        ExpressionNode::StructLiteral(literal) => {
-            let reference = program
-                .expression_table
-                .constructed_value_type_reference(expression);
-            reference.is_valid().then_some(reference).or_else(|| {
-                program
-                    .type_reference_table
-                    .find_named_type_reference(literal.type_symbol)
-            })
-        }
-        ExpressionNode::ArrayLiteral(_) => {
-            let reference = program
-                .expression_table
-                .constructed_value_type_reference(expression);
-            reference
-                .is_valid()
-                .then_some(reference)
-                .or_else(|| crate::declared_constant_array_type(program, expression))
+        ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_) => {
+            constructor_result_type_reference(program, expression)
         }
         ExpressionNode::Cast(cast) if cast.form.is_recast() => {
             // The target and qualification judgment describe the referent;
@@ -475,8 +516,20 @@ fn result_type(
                         BuiltinTypeAtom::U64,
                     );
                 }
-                crate::value_custody::places::applied_data_member_field(program, receiver, member)
-                    .map(|field| field.type_reference)
+                let field = crate::value_custody::places::applied_data_member_field(
+                    program, receiver, member,
+                )?;
+                // The exact field identifies its declaration; its raw type can
+                // still contain the receiver's generic binders before closed
+                // storage preparation. The shared projection owner applies
+                // those arguments while retaining the selected field identity.
+                crate::project_type_reference_from_segments(
+                    program,
+                    receiver,
+                    &[facts::PlaceSegment::Field {
+                        symbol: field.symbol,
+                    }],
+                )
             }),
         ExpressionNode::Indexed(indexed) => (|| {
             let operands = [indexed.collection, indexed.index]
@@ -581,9 +634,16 @@ fn result_type(
             )
         }),
         ExpressionNode::Binary(binary) => {
-            let operands = [binary.left, binary.right]
-                .map(|operand| result_type(program, owner, operand, active));
-            binary_result(program, owner, expression, binary, operands)
+            if program.static_type_predicate_operands(expression).is_some() {
+                crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                    program,
+                    BuiltinTypeAtom::Bool,
+                )
+            } else {
+                let operands = [binary.left, binary.right]
+                    .map(|operand| result_type(program, owner, operand, active));
+                binary_result(program, owner, expression, binary, operands, active)
+            }
         }
         ExpressionNode::Unary(unary) => {
             let operand = result_type(program, owner, unary.operand, active);
@@ -627,6 +687,8 @@ fn result_type(
             }
         },
     };
+    let result =
+        result.map(|reference| program.statically_refined_type_reference(expression, reference));
     active.pop();
     let result = result.filter(|reference| {
         program
@@ -879,18 +941,27 @@ fn binary_result(
     expression: ExpressionHandle,
     binary: &TableBinaryExpression,
     operands: [Option<TypeReferenceHandle>; 2],
+    active: &mut Vec<ExpressionHandle>,
 ) -> Option<TypeReferenceHandle> {
     use BinaryOperator::*;
     // Lowered source membership can retain Equal plus its exact case-selection
     // roster. Rejoin the tag operation before ordinary equality selection, as
     // the meaning checker does, preserving the actual subject's state scope.
-    if let ExpressionOwner::State { machine, state } = owner
-        && crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
+    let scoped_membership = matches!(owner, ExpressionOwner::State { machine, state }
+        if crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
             program,
             machine,
             Some(state),
             expression,
             binary,
+        )
+    );
+    if scoped_membership
+        || crate::proof_contracts::bound_expression_meaning::has_exact_typed_case_membership_meaning(
+            program,
+            expression,
+            binary,
+            operands[0],
         )
     {
         return crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
@@ -977,9 +1048,109 @@ fn binary_result(
             );
         }
     }
+    builtin_binary_result_type_reference(program, binary, operands, &mut |operand| {
+        result_type(program, owner, operand, active)
+    })
+}
+
+/// A builtin result's semantic carrier does not depend on whether an existing
+/// type reference for that result was needed elsewhere in the source program.
+/// Selection and result typing consume this same classification; only the
+/// latter needs to find a reusable representation handle.
+pub(crate) enum BuiltinBinaryResult {
+    Boolean,
+    ProofInteger,
+    AddressDistance,
+    Arithmetic {
+        symbol: symbols::SymbolHandle,
+        policy: ArithmeticDomain,
+    },
+}
+
+pub(crate) fn builtin_binary_result_type_reference(
+    program: &dyn crate::CheckingInput,
+    binary: &TableBinaryExpression,
+    operands: [Option<TypeReferenceHandle>; 2],
+    expression_type: &mut dyn FnMut(ExpressionHandle) -> Option<TypeReferenceHandle>,
+) -> Option<TypeReferenceHandle> {
+    match builtin_binary_result(program, binary, operands, expression_type)? {
+        BuiltinBinaryResult::Boolean => {
+            crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                program,
+                BuiltinTypeAtom::Bool,
+            )
+        }
+        BuiltinBinaryResult::ProofInteger => {
+            crate::proof_contracts::proof_embeddings::proof_int_type_reference(program)
+        }
+        BuiltinBinaryResult::AddressDistance => {
+            crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                program,
+                BuiltinTypeAtom::U64,
+            )
+        }
+        BuiltinBinaryResult::Arithmetic { symbol, policy } => program
+            .type_reference_table
+            .find_arithmetic_result_type_reference(symbol, policy),
+    }
+}
+
+fn selected_arithmetic_result(
+    program: &dyn crate::CheckingInput,
+    operands: [Option<TypeReferenceHandle>; 2],
+    carrier: TypeReferenceHandle,
+) -> Option<BuiltinBinaryResult> {
+    let (symbol, _) = arithmetic_carrier(program, carrier)?;
+    let policy = operand_arithmetic_domain(program, &operands)?;
+    Some(BuiltinBinaryResult::Arithmetic { symbol, policy })
+}
+
+/// Result typing for an already selected builtin operation. This owns carrier
+/// eligibility only: callers separately establish occurrence custody, selected
+/// meaning and operation formation. Nominal carriers do not acquire arithmetic
+/// merely because no visible declaration matches the spelling.
+pub(crate) fn builtin_binary_result(
+    program: &dyn crate::CheckingInput,
+    binary: &TableBinaryExpression,
+    operands: [Option<TypeReferenceHandle>; 2],
+    expression_type: &mut dyn FnMut(ExpressionHandle) -> Option<TypeReferenceHandle>,
+) -> Option<BuiltinBinaryResult> {
+    use BinaryOperator::*;
+    let declared_operands = operands;
+    let operands = operands.map(|reference| {
+        reference.and_then(|reference| {
+            super::scalar_observations::readable_observation_type_reference(program, reference)
+        })
+    });
+    let mathematical = std::array::from_fn::<_, 2, _>(|position| {
+        let expression = [binary.left, binary.right][position];
+        operands[position].is_some_and(|reference| {
+            matches!(program.type_reference_table.type_reference(reference),
+                TypeReferenceNode::Named { symbol, .. }
+                    if program.symbols.builtin_type_symbol(symbols::BuiltinType::Int) == Some(*symbol))
+        }) || crate::proof_contracts::contract_entailment::proof_integer_expression(program, expression)
+    });
+    if mathematical.into_iter().any(|value| value)
+        && [binary.left, binary.right]
+            .into_iter()
+            .zip(mathematical)
+            .all(|(expression, mathematical)| {
+                mathematical
+                    || crate::proof_contracts::contract_entailment::anonymous_integer_value(
+                        program, expression,
+                    )
+                    .is_some()
+            })
+    {
+        return match binary.operator {
+            Equal | NotEqual | Less | LessOrEqual | Greater | GreaterOrEqual => {
+                Some(BuiltinBinaryResult::Boolean)
+            }
+            Add | Subtract | Multiply | Divide | Modulo => Some(BuiltinBinaryResult::ProofInteger),
+            _ => None,
+        };
+    }
     match binary.operator {
-        // Exact membership was handled above; an unjoined tag reference
-        // cannot acquire a Bool carrier from its operator spelling alone.
         CaseMembership => None,
         And | Or => operands
             .into_iter()
@@ -987,13 +1158,7 @@ fn binary_result(
                 reference.and_then(|reference| primitive(program, reference))
                     == Some(PrimitiveType::Bool)
             })
-            .then(|| {
-                crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
-                    program,
-                    BuiltinTypeAtom::Bool,
-                )
-            })
-            .flatten(),
+            .then_some(BuiltinBinaryResult::Boolean),
         Equal | NotEqual | Less | LessOrEqual | Greater | GreaterOrEqual => {
             // A selected builtin equality returns Bool for structural values
             // as well as scalars. This supplies only the comparison's type;
@@ -1006,7 +1171,43 @@ fn binary_result(
                     program,
                     [binary.left, binary.right],
                 );
-            let compatible = if equality || mathematical {
+            let integer_comparison = [binary.left, binary.right]
+                .into_iter()
+                .zip(operands)
+                .all(|(expression, reference)| {
+                    super::scalar_observations::completed_observations_satisfy(
+                        program, expression, reference, expression_type, &|expression, reference| {
+                            let Some(reference) = reference else {
+                                return crate::proof_contracts::contract_entailment::anonymous_integer_value(program, expression).map(|_| ());
+                            };
+                            let observed = super::scalar_observations::readable_observation_type_reference(program, reference)?;
+                            let bare = program.type_reference_table.unconstrained_type_reference(observed);
+                            integer(program, bare).then_some(())
+                        },
+                    )
+                });
+            let byte_equality = matches!(binary.operator, Equal | NotEqual)
+                && [binary.left, binary.right]
+                    .into_iter()
+                    .zip(declared_operands)
+                    .all(|(expression, reference)| {
+                        super::scalar_observations::completed_observations_satisfy(
+                            program,
+                            expression,
+                            reference,
+                            expression_type,
+                            &|expression, reference| {
+                                if let Some(reference) = reference {
+                                    crate::comparable_byte_carrier_type(program, reference)
+                                        .map(|_| ())
+                                } else {
+                                    typed_trees::byte_predicates::literal_bytes(program, expression)
+                                        .map(|_| ())
+                                }
+                            },
+                        )
+                    });
+            let compatible = if equality || mathematical || integer_comparison || byte_equality {
                 true
             } else if let Some(carrier) = operands.into_iter().flatten().next() {
                 // Builtin selection above consumed the original declarations.
@@ -1017,7 +1218,10 @@ fn binary_result(
                     super::scalar_observations::scalar_observation_meaning(program, carrier)?;
                 let primitive = meaning.0;
                 let supported = primitive.is_integer()
-                    || matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+                    || matches!(
+                        primitive,
+                        PrimitiveType::Addr | PrimitiveType::F32 | PrimitiveType::F64
+                    )
                     || (matches!(binary.operator, Equal | NotEqual)
                         && primitive == PrimitiveType::Bool);
                 supported
@@ -1046,19 +1250,10 @@ fn binary_result(
                     crate::value_custody::literals::has_anonymous_numeric_results(program, operand)
                 })
             };
-            compatible
-                .then(|| {
-                    crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
-                        program,
-                        BuiltinTypeAtom::Bool,
-                    )
-                })
-                .flatten()
+            compatible.then_some(BuiltinBinaryResult::Boolean)
         }
         ShiftLeft | ShiftRight => {
-            let left = operands[0]
-                .and_then(|reference| arithmetic_result_type_reference(program, reference))
-                .filter(|reference| integer(program, *reference))?;
+            let left = operands[0].filter(|reference| integer(program, *reference))?;
             let count = operands[1].map_or_else(
                 || {
                     crate::value_custody::literals::has_anonymous_numeric_results(
@@ -1068,7 +1263,10 @@ fn binary_result(
                 },
                 |reference| integer(program, reference),
             );
-            count.then_some(left)
+            count
+                .then(|| arithmetic_carrier(program, left))
+                .flatten()
+                .map(|(symbol, policy)| BuiltinBinaryResult::Arithmetic { symbol, policy })
         }
         Add | Subtract | Multiply | Divide => {
             // Address arithmetic selects by operand roles, never by whichever
@@ -1108,29 +1306,29 @@ fn binary_result(
                     binary.operator,
                     [carriers[0]?, carriers[1]?],
                 )?;
-                return crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
-                    program,
-                    if result == PrimitiveType::Addr {
-                        BuiltinTypeAtom::Address
-                    } else {
-                        BuiltinTypeAtom::U64
-                    },
-                );
+                if result == PrimitiveType::Addr {
+                    let carrier = operands.into_iter().flatten().find(|reference| {
+                        primitive(program, *reference) == Some(PrimitiveType::Addr)
+                    })?;
+                    return selected_arithmetic_result(program, operands, carrier);
+                }
+                return Some(BuiltinBinaryResult::AddressDistance);
             }
-            let carrier =
-                arithmetic_result_type_reference(program, operands.into_iter().flatten().next()?)?;
+            let carrier = operands.into_iter().flatten().next()?;
             let numeric = integer(program, carrier)
                 || matches!(
                     primitive(program, carrier),
                     Some(PrimitiveType::F32 | PrimitiveType::F64)
                 );
-            (numeric && compatible_operands(program, binary, operands, carrier)).then_some(carrier)
+            (numeric && compatible_operands(program, binary, operands, carrier))
+                .then(|| selected_arithmetic_result(program, operands, carrier))
+                .flatten()
         }
         Modulo | BitwiseAnd | BitwiseOr | BitwiseXor => {
-            let carrier =
-                arithmetic_result_type_reference(program, operands.into_iter().flatten().next()?)?;
+            let carrier = operands.into_iter().flatten().next()?;
             (integer(program, carrier) && compatible_operands(program, binary, operands, carrier))
-                .then_some(carrier)
+                .then(|| selected_arithmetic_result(program, operands, carrier))
+                .flatten()
         }
     }
 }
@@ -1272,7 +1470,8 @@ fn compatible_operands(
                     )
                 },
                 |reference| {
-                    arithmetic_carrier(program, reference) == arithmetic_carrier(program, carrier)
+                    arithmetic_carrier(program, reference).map(|(symbol, _)| symbol)
+                        == arithmetic_carrier(program, carrier).map(|(symbol, _)| symbol)
                 },
             )
         })

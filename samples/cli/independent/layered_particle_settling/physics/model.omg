@@ -13,9 +13,9 @@ public machine layer_at(depth: f64) -> i32 {
         depth < 2.0 -> middle()
         _ -> bottom()
     }
-    state top() -> i32 { 0 }
-    state middle() -> i32 { 1 }
-    state bottom() -> i32 { 2 }
+    machine top() -> i32 { 0 }
+    machine middle() -> i32 { 1 }
+    machine bottom() -> i32 { 2 }
 }
 
 public machine layer(index: i32) -> Layer {
@@ -24,15 +24,15 @@ public machine layer(index: i32) -> Layer {
         1 -> middle()
         _ -> bottom()
     }
-    state top() -> Layer { Layer { density: 2.0, drag: 2.0, quadratic: false } }
-    state middle() -> Layer { Layer { density: 3.0, drag: 1.0, quadratic: true } }
-    state bottom() -> Layer { Layer { density: 4.0, drag: 4.0, quadratic: false } }
+    machine top() -> Layer { Layer { density: 2.0, drag: 2.0, quadratic: false } }
+    machine middle() -> Layer { Layer { density: 3.0, drag: 1.0, quadratic: true } }
+    machine bottom() -> Layer { Layer { density: 4.0, drag: 4.0, quadratic: false } }
 }
 
 public machine absolute(value: f64) -> f64 {
     transition value < 0.0 { true -> negative(value) false -> positive(value) }
-    state negative(value: f64) -> f64 { 0.0 - value }
-    state positive(value: f64) -> f64 { value }
+    machine negative(value: f64) -> f64 { 0.0 - value }
+    machine positive(value: f64) -> f64 { value }
 }
 
 public machine force(particle_density: f64, fluid: Layer, velocity: f64) -> f64 {
@@ -40,10 +40,10 @@ public machine force(particle_density: f64, fluid: Layer, velocity: f64) -> f64 
         true -> quadratic(particle_density, fluid, velocity)
         false -> linear(particle_density, fluid, velocity)
     }
-    state quadratic(particle_density: f64, fluid: Layer, velocity: f64) -> f64 {
+    machine quadratic(particle_density: f64, fluid: Layer, velocity: f64) -> f64 {
         particle_density - fluid.density - fluid.drag * velocity * absolute(velocity)
     }
-    state linear(particle_density: f64, fluid: Layer, velocity: f64) -> f64 {
+    machine linear(particle_density: f64, fluid: Layer, velocity: f64) -> f64 {
         particle_density - fluid.density - fluid.drag * velocity
     }
 }
@@ -57,8 +57,8 @@ public machine terminal_velocity(density: f64, fluid: Layer) -> f64 {
         true -> bisect(drive, fluid.drag, 0.0, 8.0, 40)
         false -> linear(drive, fluid.drag)
     }
-    state linear(drive: f64, drag: f64) -> f64 { drive / drag }
-    state bisect(drive: f64, drag: f64, lower: f64, upper: f64, remaining: u64) -> f64 {
+    machine linear(drive: f64, drag: f64) -> f64 { drive / drag }
+    machine bisect(drive: f64, drag: f64, lower: f64, upper: f64, remaining: u64) -> f64 {
         let midpoint: f64 = (lower + upper) * 0.5;
         transition {
             remaining == 0 -> sign(drive, midpoint)
@@ -66,11 +66,11 @@ public machine terminal_velocity(density: f64, fluid: Layer) -> f64 {
             _ -> bisect(drive, drag, lower, midpoint, remaining - 1)
         }
     }
-    state sign(drive: f64, value: f64) -> f64 {
+    machine sign(drive: f64, value: f64) -> f64 {
         transition drive < 0.0 { true -> negative(value) false -> positive(value) }
     }
-    state negative(value: f64) -> f64 { 0.0 - value }
-    state positive(value: f64) -> f64 { value }
+    machine negative(value: f64) -> f64 { 0.0 - value }
+    machine positive(value: f64) -> f64 { value }
 }
 
 public machine advance(particle: &mut Particle, fluid: Layer, timestep: f64) -> Step {

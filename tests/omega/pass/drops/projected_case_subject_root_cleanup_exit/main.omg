@@ -137,12 +137,12 @@ machine route(kind: Kind, byte: i32) reaches Console {
         Kind::Pass -> take(item)
         _ -> skip()
     }
-    state take(item: Item)
+    machine take(item: Item)
     requires item.ready
     {
         Console::write_byte(80);
     }
-    state skip() { Console::write_byte(83); }
+    machine skip() { Console::write_byte(83); }
 }
 
 machine pick(kind: Kind, byte: i32) -> i32 reaches Console {
@@ -151,7 +151,7 @@ machine pick(kind: Kind, byte: i32) -> i32 reaches Console {
         Kind::Pass -> take(item)
         Kind::Keep -> (71)
     }
-    state take(item: Item) -> i32
+    machine take(item: Item) -> i32
     requires item.ready
     {
         Console::write_byte(80);

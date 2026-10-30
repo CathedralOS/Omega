@@ -17,7 +17,7 @@ use symbols::SymbolHandle;
 use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::PrimitiveType;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedComposedUnitControlMachinePlan {
     pub machine: SymbolHandle,
     pub result: CheckedControlResultPlan,
@@ -49,6 +49,26 @@ impl CheckedComposedUnitControlMachinePlan {
     pub fn state_position(&self, state: SymbolHandle) -> Option<usize> {
         state_position(&self.states, state)
     }
+
+    pub fn successor_position(
+        &self,
+        successor: &CheckedStructuralControlSuccessorPlan,
+    ) -> Option<usize> {
+        successor_position(&self.states, successor)
+    }
+}
+
+fn successor_position(
+    states: &[CheckedComposedUnitControlStatePlan],
+    successor: &CheckedStructuralControlSuccessorPlan,
+) -> Option<usize> {
+    match successor.target_occurrence {
+        Some(index) => states
+            .get(index as usize)
+            .filter(|state| state.state == successor.target_state)
+            .map(|_| index as usize),
+        None => state_position(states, successor.target_state),
+    }
 }
 
 /// The roster position of the state keyed `state`, if present.
@@ -59,7 +79,7 @@ pub fn state_position(
     states.iter().position(|candidate| candidate.state == state)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedControlResultPlan {
     Unit,
     Structural(CheckedStructuralResultPlan),
@@ -79,7 +99,7 @@ impl CheckedControlResultPlan {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarCaseFieldPlan {
     /// Authored evaluation order, independent of declaration field order.
     pub field_ordinal: u32,
@@ -90,7 +110,7 @@ pub struct CheckedScalarCaseFieldPlan {
 
 /// One authored successor edge of a ranked graph: the transition at
 /// `statement_ordinal` of `source_state` into `target_state`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRankEdgeCoordinate {
     pub source_state: SymbolHandle,
     pub target_state: SymbolHandle,
@@ -102,12 +122,13 @@ pub struct CheckedRankEdgeCoordinate {
 /// arguments, on every arriving successor edge; the verifier substitutes one
 /// into the other and proves each edge's comparison. `parameter` is the
 /// measured subject — for a distance, its climbing lower subject.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStateNaturalRank {
     pub state: SymbolHandle,
     pub parameter: SymbolHandle,
     pub parameter_position: u32,
     pub measure: CheckedNaturalRankMeasure,
+    pub function: CheckedNaturalRankFunction,
     /// Executable observation in this state's exact formal namespace. The
     /// selected view and its proof metadata do not select another evaluator.
     pub observation: crate::CheckedScalarComputationHandle,
@@ -122,9 +143,32 @@ impl Default for CheckedStateNaturalRank {
             parameter: SymbolHandle::invalid(),
             parameter_position: 0,
             measure: CheckedNaturalRankMeasure::SequenceLength {
-                subject: typed_trees::expression::ExpressionHandle::invalid(),
+                coordinate: crate::CheckedRankCoordinateHandle::invalid(),
             },
+            function: CheckedNaturalRankFunction::Identity,
             observation: crate::CheckedScalarComputationHandle::invalid(),
+        }
+    }
+}
+
+/// Total normalization of an admitted integer observation into the component's
+/// natural order. The source judgment separately retains view formation and
+/// bound conservation; this function grants neither premise.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedNaturalRankFunction {
+    #[default]
+    Identity,
+    Complement,
+}
+
+impl CheckedNaturalRankFunction {
+    pub fn complement_ceiling(self, primitive: PrimitiveType) -> Option<u64> {
+        match (self, primitive) {
+            (Self::Complement, PrimitiveType::U8) => Some(u64::from(u8::MAX)),
+            (Self::Complement, PrimitiveType::U16) => Some(u64::from(u16::MAX)),
+            (Self::Complement, PrimitiveType::U32) => Some(u64::from(u32::MAX)),
+            (Self::Complement, PrimitiveType::U64) => Some(u64::MAX),
+            _ => None,
         }
     }
 }
@@ -132,7 +176,7 @@ impl Default for CheckedStateNaturalRank {
 /// The measures the termination checker proves, each a total function of
 /// one state's parameters. A new order the checker learns belongs here as
 /// one more measure, not as another producer route.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedNaturalRankMeasure {
     /// Exact declared view identity; executable arithmetic and projections
     /// reside in the common scalar computation graph.
@@ -140,14 +184,19 @@ pub enum CheckedNaturalRankMeasure {
         measure: SymbolHandle,
         primitive_type: PrimitiveType,
     },
-    /// `Slice::Length`: exact source subject identity; its element or byte
-    /// count and arrival projection live in the shared computation root.
+    /// `Slice::Length`: exact admitted arrival coordinate. Private participants
+    /// need no fabricated source occurrence to read their descriptor extent.
     SequenceLength {
-        subject: typed_trees::expression::ExpressionHandle,
+        coordinate: crate::CheckedRankCoordinateHandle,
     },
-    /// `Nat::Descending`: the fixed-width integer subject itself, signed or
-    /// unsigned. The checker proves it descends on every cyclic edge.
-    IntegerParameter { primitive_type: PrimitiveType },
+    /// `Nat::Descending`: the exact formal-relative integer coordinate,
+    /// including a projected field. Admission owns formation and edge proofs;
+    /// executable observation must consume this coordinate, never a guessed
+    /// whole-formal slot.
+    IntegerValue {
+        coordinate: crate::CheckedRankCoordinateHandle,
+        primitive_type: PrimitiveType,
+    },
     /// `Nat::BoundedDistance` and `Nat::IncreasingTo(limit)`: the natural
     /// distance from the climbing lower subject (`parameter`) up to `upper`.
     /// The cursor uses `primitive_type`; the bound is an admitted expression
@@ -164,13 +213,16 @@ pub enum CheckedNaturalRankMeasure {
 /// projection and an authored source obligation with no such projection.
 /// The latter grants no proposition: emission needs the exact checked
 /// arrival decision for every incoming edge before consuming it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedStateContractRequirement {
     Closed(ClosedScalarContractValue),
     SourceExpression(typed_trees::expression::ExpressionHandle),
+    /// Exact declared Requires fact, authenticated by its state proof owner.
+    /// Every actual arrival must retain the complete source checking decision.
+    SourceFact(arena::Handle<typed_trees::domain::ProofFact>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedComposedUnitControlStatePlan {
     pub state: SymbolHandle,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
@@ -208,11 +260,25 @@ pub struct CheckedComposedUnitControlStatePlan {
     /// completion captures its records through it, and a structural return
     /// completes at its last statement.
     pub statement_count: u32,
-    pub normal_exit_cleanups: arena::HandleSpan<super::CheckedNormalExitCleanupPlan>,
+    /// Exact source exit selected before destination planning by a closed static
+    /// dispatch. Canonical flow and cleanup evidence retain every source arm;
+    /// executable cleanup and result custody consume only this coordinate.
+    /// None preserves the ordinary runtime control alternatives.
+    pub selected_exit: Option<crate::FlowClaimJoinExit>,
+    pub normal_exit_cleanups: super::CheckedNormalExitCleanups,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedComposedUnitControlTerminatorPlan {
+    /// The operation at this exact coordinate transfers control into a module
+    /// invocation without normal completion; its caller activation stays live.
+    InvokeNoNormal {
+        coordinate: super::CheckedUnitCallCoordinate,
+    },
+    /// The retained evaluation prefix ends every path before a result.
+    /// Its effects own the exact invocation outcomes and authority, including
+    /// selected value branches and declaration-owned external completion.
+    EvaluateNoNormal,
     ReturnUnit,
     /// Complete a scalar-result machine with the same completion an ordinary
     /// single-state body retains; see `CheckedScalarReturnPlan`.
@@ -307,6 +373,86 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
 }
 
 impl CheckedComposedUnitControlTerminatorPlan {
+    /// Whether this control has a potential normal ownership continuation.
+    /// Internal graph successors remain live; no-normal invocations retain
+    /// their suspended caller rather than discharging its owners or loans.
+    pub fn has_normal_continuation(
+        &self,
+        operations: &[CheckedUnitEffectOperationPlan],
+        guarded_exits: &crate::CheckedGuardedExitPlans,
+    ) -> Option<bool> {
+        if operations
+            .iter()
+            .any(|operation| !operation.has_normal_continuation())
+        {
+            return Some(false);
+        }
+        Some(match self {
+            Self::InvokeNoNormal { .. } | Self::EvaluateNoNormal | Self::Crash { .. } => false,
+            Self::Guarded {
+                arms,
+                fallback,
+                return_values,
+            } => {
+                let normal = |destination: &CheckedScalarBranchDestination| match destination {
+                    CheckedScalarBranchDestination::Crash { .. }
+                    | CheckedScalarBranchDestination::InvokeNoNormal { .. } => false,
+                    CheckedScalarBranchDestination::Return {
+                        statement_ordinal, ..
+                    } => return_values
+                        .iter()
+                        .find(|operation| {
+                            operation.source_statement_index() == Some(*statement_ordinal)
+                        })
+                        .is_none_or(CheckedUnitEffectOperationPlan::has_normal_continuation),
+                    CheckedScalarBranchDestination::Jump(_) => true,
+                };
+                guarded_exits
+                    .exits
+                    .span(*arms)?
+                    .iter()
+                    .any(|arm| normal(&arm.destination))
+                    || fallback.as_ref().is_some_and(normal)
+            }
+            Self::ConditionalCompletion {
+                when_true,
+                when_false,
+                ..
+            } => when_true.has_normal_continuation() || when_false.has_normal_continuation(),
+            Self::GuardedJumps { arms, fallback } => {
+                arms.iter().any(|arm| match arm {
+                    CheckedGuardedJumpArmPlan::Return(plan) => {
+                        plan.return_arm.has_normal_continuation()
+                    }
+                    CheckedGuardedJumpArmPlan::Jump(plan) => {
+                        plan.successor.has_normal_continuation()
+                    }
+                }) || match fallback {
+                    CheckedGuardedJumpFallbackPlan::Return(arm) => arm.has_normal_continuation(),
+                    CheckedGuardedJumpFallbackPlan::Successor(successor) => {
+                        successor.has_normal_continuation()
+                    }
+                }
+            }
+            Self::ClosedSum { cases, .. } => cases.iter().any(|case| match &case.outcome {
+                CheckedClosedSumCaseOutcomePlan::Return(arm) => arm.has_normal_continuation(),
+                CheckedClosedSumCaseOutcomePlan::Successor(successor) => {
+                    successor.has_normal_continuation()
+                }
+            }),
+            Self::Jump { successor } => successor.has_normal_continuation(),
+            Self::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => when_true.has_normal_continuation() || when_false.has_normal_continuation(),
+            Self::ConditionalReturn {
+                jump, return_arm, ..
+            } => jump.has_normal_continuation() || return_arm.has_normal_continuation(),
+            _ => true,
+        })
+    }
+
     /// Whether every selected path abandons custody without a successor or
     /// normal completion. The checked guard roster supplies coverage; a
     /// missing or stale roster cannot authorize abandonment. Result accounting
@@ -359,7 +505,9 @@ impl CheckedComposedUnitControlTerminatorPlan {
                     )
                 })
             }
-            Self::ReturnUnit
+            Self::InvokeNoNormal { .. }
+            | Self::EvaluateNoNormal
+            | Self::ReturnUnit
             | Self::ReturnScalar { .. }
             | Self::ReturnStructural { .. }
             | Self::Jump { .. }
@@ -393,7 +541,9 @@ impl CheckedComposedUnitControlTerminatorPlan {
     /// Return, crash, and value exits contribute no edges.
     pub fn successors(&self) -> Vec<&CheckedStructuralControlSuccessorPlan> {
         match self {
-            Self::ReturnUnit
+            Self::InvokeNoNormal { .. }
+            | Self::EvaluateNoNormal
+            | Self::ReturnUnit
             | Self::ReturnScalar { .. }
             | Self::Guarded { .. }
             | Self::Crash { .. }
@@ -421,6 +571,45 @@ impl CheckedComposedUnitControlTerminatorPlan {
                     CheckedClosedSumCaseOutcomePlan::Return(_) => None,
                 })
                 .collect(),
+        }
+    }
+
+    /// Mutable executable edges in the same order as `successors`.
+    pub fn successors_mut(&mut self) -> Vec<&mut CheckedStructuralControlSuccessorPlan> {
+        match self {
+            Self::Jump { successor } => vec![successor],
+            Self::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![when_true, when_false],
+            Self::ConditionalReturn { jump, .. } => vec![jump],
+            Self::GuardedJumps { arms, fallback } => arms
+                .iter_mut()
+                .filter_map(|arm| match arm {
+                    CheckedGuardedJumpArmPlan::Jump(plan) => Some(&mut plan.successor),
+                    CheckedGuardedJumpArmPlan::Return(_) => None,
+                })
+                .chain(match fallback {
+                    CheckedGuardedJumpFallbackPlan::Successor(successor) => Some(successor),
+                    CheckedGuardedJumpFallbackPlan::Return(_) => None,
+                })
+                .collect(),
+            Self::ClosedSum { cases, .. } => cases
+                .iter_mut()
+                .filter_map(|case| match &mut case.outcome {
+                    CheckedClosedSumCaseOutcomePlan::Successor(successor) => Some(successor),
+                    CheckedClosedSumCaseOutcomePlan::Return(_) => None,
+                })
+                .collect(),
+            Self::InvokeNoNormal { .. }
+            | Self::EvaluateNoNormal
+            | Self::ReturnUnit
+            | Self::ReturnScalar { .. }
+            | Self::Guarded { .. }
+            | Self::Crash { .. }
+            | Self::ReturnStructural { .. }
+            | Self::ConditionalCompletion { .. } => Vec::new(),
         }
     }
 
@@ -465,7 +654,7 @@ impl CheckedComposedUnitControlTerminatorPlan {
 /// How a returning state of a scalar-result graph completes its value. These
 /// are the two completions an ordinary single-state body retains
 /// (`CheckedUnitEffectMachinePlan::scalar_result` and `scalar_control`).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarReturnPlan {
     /// The state's final expression: its last operation binds the returned
     /// value (a pure or computed `Return`-role expression, or a returned call
@@ -525,7 +714,7 @@ impl CheckedComposedUnitControlStatePlan {
         while let Some(source) = ready.get(next).copied() {
             next += 1;
             for successor in states[source].successors() {
-                let target = state_position(states, successor.target_state)?;
+                let target = successor_position(states, successor)?;
                 if !visited[target] {
                     visited[target] = true;
                     ready.push(target);
@@ -537,8 +726,14 @@ impl CheckedComposedUnitControlStatePlan {
 }
 
 /// The completion arm of a `ConditionalReturn`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedConditionalReturnArm {
+    /// A required operand stops before this arm's enclosing invocation enters.
+    /// The exact evaluated prefix owns its calls; no parent call is published.
+    EvaluateNoNormal {
+        statement_ordinal: u32,
+        operations: crate::CheckedOperandSequence,
+    },
     /// Selected abnormal completion. The exact authored crash site owns its
     /// cause and frontier; it supplies neither a result nor normal cleanup.
     Crash { statement_ordinal: u32 },
@@ -573,6 +768,13 @@ pub enum CheckedConditionalReturnArm {
 }
 
 impl CheckedConditionalReturnArm {
+    pub fn has_normal_continuation(&self) -> bool {
+        !matches!(self, Self::Crash { .. } | Self::EvaluateNoNormal { .. })
+            && self
+                .operation_dependencies()
+                .all(CheckedUnitEffectOperationPlan::has_normal_continuation)
+    }
+
     /// This selected arm has no normal custody successor. A boundary call
     /// carries its admitted completion even though its source result is Unit;
     /// reach alone and ordinary returning Unit calls do not authorize this.
@@ -585,7 +787,10 @@ impl CheckedConditionalReturnArm {
     pub fn operation(&self) -> Option<&CheckedUnitEffectOperationPlan> {
         match self {
             Self::Structural(operation) | Self::Call { operation, .. } => Some(operation),
-            Self::Crash { .. } | Self::Unit { .. } | Self::Scalar { .. } => None,
+            Self::Crash { .. }
+            | Self::Unit { .. }
+            | Self::Scalar { .. }
+            | Self::EvaluateNoNormal { .. } => None,
         }
     }
 
@@ -594,6 +799,7 @@ impl CheckedConditionalReturnArm {
     pub fn operation_dependencies(&self) -> impl Iterator<Item = &CheckedUnitEffectOperationPlan> {
         let operands = match self {
             Self::Call { operands, .. } => Some(operands),
+            Self::EvaluateNoNormal { operations, .. } => Some(operations),
             _ => None,
         };
         operands
@@ -616,6 +822,9 @@ impl CheckedConditionalReturnArm {
         match self {
             Self::Crash { statement_ordinal }
             | Self::Unit { statement_ordinal }
+            | Self::EvaluateNoNormal {
+                statement_ordinal, ..
+            }
             | Self::Scalar {
                 statement_ordinal, ..
             } => Some(*statement_ordinal),
@@ -631,7 +840,7 @@ impl CheckedConditionalReturnArm {
             // coordinate, whether it completes as the arm's invocation
             // (`Call`) or establishes the arm's returned value (`Structural`).
             Self::Structural(operation) | Self::Call { operation, .. } => {
-                operation.call().map(|call| call.coordinate.statement_index)
+                operation.source_statement_index()
             }
         }
     }
@@ -655,7 +864,7 @@ fn has_external_completion<'operation>(
 
 /// One guarded arm of an ordered transition chain: the exact checked scalar
 /// expression the authored guard selected and the selected edge's custody plan.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedGuardedJumpPlan {
     /// Exact checked Boolean value at `successor.statement_ordinal` under the
     /// `Guard` role: the retained pure expression or that coordinate's unique
@@ -667,7 +876,7 @@ pub struct CheckedGuardedJumpPlan {
 /// One arm of an ordered `GuardedJumps` chain — selected by its guard, the
 /// arm either transfers to its named state or returns its authored
 /// `(expression)` value exactly like the chain's fallback does.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedGuardedJumpArmPlan {
     /// A guarded transfer to the arm's selected named state.
     Jump(CheckedGuardedJumpPlan),
@@ -680,7 +889,7 @@ pub enum CheckedGuardedJumpArmPlan {
 /// A guarded chain arm that returns its authored `(expression)` value: the
 /// Boolean value observed at `statement_ordinal` under the `Guard` role and
 /// the arm's returned-value plan share the one coordinate.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedGuardedJumpReturnPlan {
     /// Exact checked Boolean value at `statement_ordinal` under the `Guard`
     /// role: the retained pure expression or that coordinate's unique
@@ -726,7 +935,7 @@ impl CheckedGuardedJumpArmPlan {
 /// `(expression)` arm that returns its value exactly like a
 /// `ConditionalReturn` arm. The shared scalar tail roster already proved the
 /// arm's coverage, so a value fallback needs no guard of its own.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedGuardedJumpFallbackPlan {
     Successor(CheckedStructuralControlSuccessorPlan),
     Return(CheckedConditionalReturnArm),
@@ -745,7 +954,7 @@ impl CheckedGuardedJumpFallbackPlan {
 }
 
 /// How a closed-case dispatch holds the sum it inspects.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedClosedSumSubjectKind {
     /// A whole parameter or an earlier immutable local that every arm names.
     #[default]
@@ -759,7 +968,7 @@ pub enum CheckedClosedSumSubjectKind {
     Computed,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedClosedSumCasePlan {
     pub case_identity: CheckedMemberIdentity,
     /// One case edge's checked outcome: an ordinary transfer to the case's
@@ -770,7 +979,7 @@ pub struct CheckedClosedSumCasePlan {
     pub payloads: Vec<CheckedClosedSumPayloadTransferPlan>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedClosedSumCaseOutcomePlan {
     Successor(CheckedStructuralControlSuccessorPlan),
     /// The arm's value or terminal call, completing the enclosing machine.
@@ -791,7 +1000,7 @@ impl CheckedClosedSumCasePlan {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedClosedSumPayloadTransferPlan {
     pub field_identity: CheckedMemberIdentity,
     pub primitive_type: PrimitiveType,

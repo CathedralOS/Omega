@@ -17,7 +17,7 @@ machine receive(line: &mut [u8; 64]) -> ReadOutcome {
 machine main() -> u64 in Wrapping {
     let mut application: Application;
     transition { _ -> read(&mut application) }
-    state read(application: &mut Application) -> u64 in Wrapping {
+    machine read(application: &mut Application) -> u64 in Wrapping {
         let mut line: [u8; 64];
         let result: ReadOutcome = receive(&mut line);
         transition result {
@@ -27,7 +27,7 @@ machine main() -> u64 in Wrapping {
             ReadOutcome::Invalid -> (0)
         }
     }
-    state observe(application: &mut Application, line: &[u8; 64], count: u64) -> u64 in Wrapping {
+    machine observe(application: &mut Application, line: &[u8; 64], count: u64) -> u64 in Wrapping {
         application.ledger.count = count as u64 in Wrapping;
         (line[0] as u64 in Wrapping + application.ledger.count)
     }

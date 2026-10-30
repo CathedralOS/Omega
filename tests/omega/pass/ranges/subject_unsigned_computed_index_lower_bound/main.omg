@@ -22,6 +22,6 @@ machine Main::main(main: &mut Main) {
     main.wn = 3;
     transition main.wh + main.wn < 5 { true -> store(main) _ -> done(main) }
 
-    state store(main: &mut Main) { main.arr[main.wh + main.wn] = 11; }
-    state done(main: &mut Main) {}
+    machine store(main: &mut Main) { main.arr[main.wh + main.wn] = 11; }
+    machine done(main: &mut Main) {}
 }

@@ -291,15 +291,12 @@ pub fn compute_boundary_calling_plans(
         .target_machine_families
         .iter()
         .filter_map(|family| {
-            crate::target_machines::family_member_for_target(
-                typed,
-                family.canonical,
-                target_profile.target_name(),
-            )
-            .map(|body| build_time_evaluation::SelectedBuildTimeMachineBody {
-                family: family.canonical,
-                body: body.symbol,
-            })
+            typed
+                .target_family_member(family.canonical, target_profile.target_name())
+                .map(|body| build_time_evaluation::SelectedBuildTimeMachineBody {
+                    family: family.canonical,
+                    body: body.symbol,
+                })
         })
         .collect::<Vec<_>>();
     let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(
@@ -354,15 +351,6 @@ pub fn compute_boundary_calling_plans(
             boundary_entry_plan: validated.plan().clone(),
             validated_boundary_entry_plan: validated,
             callback_binders: signature.callback_binders.clone(),
-            synchronous_callback_binders: super::callback_bindings::synchronous_callback_binders(
-                typed,
-                boundary_trait,
-                requirement_machine,
-                &signature.callback_binders,
-            )
-            .map_err(|reason| {
-                vec![Diagnostic::error(reason).with_source_span(relationship_span)]
-            })?,
             callback_demands: signature.callback_demands.clone(),
             callback_context_closed: false,
             native_parameters: signature.native_parameters.clone(),

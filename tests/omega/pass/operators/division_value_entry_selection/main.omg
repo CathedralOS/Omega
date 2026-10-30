@@ -18,16 +18,16 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, (0i32 - 17) / 5i32 + (0i32 - 17) % 5i32)
         false -> wrong(main)
     }
-    state finish(main: &mut Main, value: i32) {
+    machine finish(main: &mut Main, value: i32) {
         transition value == (0i32 - 5) {
             true -> good(main)
             false -> wrong(main)
         }
     }
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
-    state wrong(main: &mut Main) {
+    machine wrong(main: &mut Main) {
         Console::exit_process(71);
     }
 }

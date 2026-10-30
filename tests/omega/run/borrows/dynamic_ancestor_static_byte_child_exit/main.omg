@@ -12,22 +12,22 @@ machine select(rows: &[Cell; 2], index: u64, dynamic: bool) -> u64 in Wrapping {
         true -> choose(rows, index, dynamic)
         _ -> (0)
     }
-    state choose(rows: &[Cell; 2], index: u64, dynamic: bool) -> u64 in Wrapping {
+    machine choose(rows: &[Cell; 2], index: u64, dynamic: bool) -> u64 in Wrapping {
         transition dynamic {
             true -> cell(&rows[index])
             _ -> cell(&rows[1])
         }
     }
-    state cell(value: &Cell) -> u64 in Wrapping {
+    machine cell(value: &Cell) -> u64 in Wrapping {
         transition { _ -> bytes(&value.bytes, 1) }
     }
-    state bytes(value: &[u8; 4], index: u64) -> u64 in Wrapping {
+    machine bytes(value: &[u8; 4], index: u64) -> u64 in Wrapping {
         transition index < 4 {
             true -> scalar(&value[index])
             _ -> (0)
         }
     }
-    state scalar(value: &u8) -> u64 in Wrapping { value as u64 in Wrapping }
+    machine scalar(value: &u8) -> u64 in Wrapping { value as u64 in Wrapping }
 }
 
 machine calculate() -> u64 in Wrapping {
@@ -47,7 +47,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> exit(main, 42)
         _ -> exit(main, 43)
     }
-    state exit(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine exit(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

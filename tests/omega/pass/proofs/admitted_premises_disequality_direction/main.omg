@@ -1,0 +1,13 @@
+// Both premise intake orders prove the same positive integer obligation.
+machine positive(value: i64) -> i64
+requires value > 0i64
+ensures result == value { value }
+machine disequality_first(value: i64) -> i64
+requires value != 0i64
+requires value >= 0i64
+{ positive(value) }
+machine direction_first(value: i64) -> i64
+requires value >= 0i64
+requires value != 0i64
+{ positive(value) }
+machine main() {}

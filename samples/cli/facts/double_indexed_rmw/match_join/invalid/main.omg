@@ -9,7 +9,7 @@ machine main() crashes Trap {
         true -> left_arm(&mut grid, &mut rows, 1, 2, 2, 1)
         _ -> right_arm(&mut grid, &mut rows, 1, 2, 2, 1)
     }
-    state left_arm(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 3], i: u64, j: u64, ri: u64, rj: u64)
+    machine left_arm(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 3], i: u64, j: u64, ri: u64, rj: u64)
     requires i <= 2
     requires j <= 3
     requires ri <= 2
@@ -23,7 +23,7 @@ machine main() crashes Trap {
         let rows_got: i32 in Wrapping = rows[2].data[1] + rows[2].tag;
         transition { _ -> observe(grid, rows) }
     }
-    state right_arm(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 3], i: u64, j: u64, ri: u64, rj: u64)
+    machine right_arm(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 3], i: u64, j: u64, ri: u64, rj: u64)
     requires i <= 2
     requires j <= 3
     requires ri <= 2
@@ -37,11 +37,11 @@ machine main() crashes Trap {
         let rows_got: i32 in Wrapping = rows[2].data[1] + rows[2].tag;
         transition { _ -> observe(grid, rows) }
     }
-    state observe(grid: &[[i32 in Wrapping; 4]; 3], rows: &[Row; 3]) {
+    machine observe(grid: &[[i32 in Wrapping; 4]; 3], rows: &[Row; 3]) {
         let grid_got: i32 in Wrapping = grid[1][2];
         let rows_got: i32 in Wrapping = rows[2].data[1] + rows[2].tag;
         transition grid_got == 42 && rows_got == 49 { true -> done() _ -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -1,7 +1,8 @@
 //! Admission of one externally reported boundary crash against evaluated arguments.
 
+use super::boundary_predicates::closed_guard;
 use proof_admission::{ClosedIntegerEvaluationError, ClosedIntegerEvaluator};
-use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType};
+use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
 use terminal_psi::{BoundaryMachineDeclaration, CrashCause, CrashRouteGuard};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -143,87 +144,4 @@ fn validate_boundary_crash_routes(
         }
     }
     Ok(())
-}
-
-fn closed_guard(
-    proposition: &Proposition,
-    integers: &mut ClosedIntegerEvaluator,
-) -> Result<Option<bool>, ClosedIntegerEvaluationError> {
-    Ok(match proposition {
-        Proposition::Truth => Some(true),
-        Proposition::Falsehood => Some(false),
-        Proposition::ScalarIeeeFloatComparison {
-            kind, left, right, ..
-        } => {
-            let (ScalarTerm::IeeeFloatLiteral(left), ScalarTerm::IeeeFloatLiteral(right)) =
-                (left, right)
-            else {
-                return Ok(None);
-            };
-            use semantic_vocabulary::{
-                IeeeFloatComparisonKind as Kind, IeeeFloatComparisonOperation as Operation,
-            };
-            let (operation, negate) = match kind {
-                Kind::Equal => (Operation::Equal, false),
-                Kind::NotEqual => (Operation::NotEqual, false),
-                Kind::LessThan => (Operation::Less, false),
-                Kind::LessOrEqual => (Operation::LessOrEqual, false),
-                Kind::NotLessThan => (Operation::Less, true),
-                Kind::NotLessOrEqual => (Operation::LessOrEqual, true),
-            };
-            Some(crate::scalar_operations::ieee_float_compare(operation, *left, *right) != negate)
-        }
-        Proposition::Equal(left, right) if left.scalar_type() == ScalarType::Boolean => left
-            .boolean_value()
-            .zip(right.boolean_value())
-            .map(|(left, right)| left == right),
-        semantic_vocabulary::ordered_comparison_operands!(left, right) => {
-            let Some(((left_type, left), (right_type, right))) =
-                left.integer_value().zip(right.integer_value())
-            else {
-                return Ok(None);
-            };
-            if left_type != right_type {
-                return Ok(None);
-            }
-            left_type
-                .compare(left, right)
-                .map(|ordering| match proposition {
-                    Proposition::Equal(..) => ordering.is_eq(),
-                    Proposition::LessThan(..) => ordering.is_lt(),
-                    _ => !ordering.is_gt(),
-                })
-        }
-        semantic_vocabulary::integer_math_comparison_operands!(left, right) => integers
-            .compare(left, right)?
-            .map(|ordering| match proposition {
-                Proposition::IntegerMathEqual(..) => ordering.is_eq(),
-                Proposition::IntegerMathLessThan(..) => ordering.is_lt(),
-                _ => !ordering.is_gt(),
-            }),
-        Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
-            let conjunction = matches!(proposition, Proposition::Conjunction(_));
-            let mut value = conjunction;
-            for child in children {
-                let Some(child) = closed_guard(child, integers)? else {
-                    return Ok(None);
-                };
-                value = if conjunction {
-                    value && child
-                } else {
-                    value || child
-                };
-            }
-            Some(value)
-        }
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => match closed_guard(premise, integers)? {
-            Some(false) => Some(true),
-            Some(true) => closed_guard(conclusion, integers)?,
-            None => None,
-        },
-        _ => None,
-    })
 }

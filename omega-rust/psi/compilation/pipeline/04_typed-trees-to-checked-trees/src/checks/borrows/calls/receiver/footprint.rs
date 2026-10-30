@@ -45,10 +45,11 @@ pub(in crate::checks::borrows) fn check_receiver_footprint_against_argument_loan
         })
         .map(|(_, argument)| argument)
         .collect();
-    let entry_constraints = super::super::call_borrow_constraints(call, state_flow, facts);
+    let entry_constraints = super::super::call_borrow_constraints(program, call, state_flow, facts);
     for argument in retained_arguments {
         let operand = CapturedPlace {
             incoming_reference: Default::default(),
+            incoming_owner_path: Default::default(),
             root: argument.root,
             segments: facts.borrow.access_segments(argument).to_vec(),
         };
@@ -168,7 +169,11 @@ fn retained_subject_access(
     machine: &typed_trees::machine::Machine,
 ) -> Option<usize> {
     let target = program.state_by_symbol(call.target_symbol)?;
-    program.data_binding_parameter(machine, program.state_parameters(target))?;
+    crate::flow::family_data_binding_parameter(
+        program,
+        machine.symbol,
+        program.state_parameters(target),
+    )?;
     let site = validation::find_call_site(
         program,
         state_flow.machine_symbol,
@@ -210,7 +215,11 @@ fn whole_mutable_jump_machine<'p>(
     super::local_jump(program, state_flow, call)?;
     let machine = program.machine_by_symbol(state_flow.machine_symbol)?;
     let target = program.state_by_symbol(call.target_symbol)?;
-    let parameter = program.data_binding_parameter(machine, program.state_parameters(target))?;
+    let parameter = crate::flow::family_data_binding_parameter(
+        program,
+        machine.symbol,
+        program.state_parameters(target),
+    )?;
     if !matches!(
         program
             .type_reference_table
@@ -256,6 +265,7 @@ fn captured_places(places: Vec<CanonicalPlace>) -> Vec<CapturedPlace> {
         .filter_map(|place| {
             place.root.is_valid().then_some(CapturedPlace {
                 incoming_reference: Default::default(),
+                incoming_owner_path: Default::default(),
                 root: place.root,
                 segments: place.segments,
             })

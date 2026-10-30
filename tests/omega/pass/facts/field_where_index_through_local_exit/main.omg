@@ -20,7 +20,7 @@ machine Main::main(main: &mut Main) crashes Trap {
     main.k = 2;
     let first: i32 in Wrapping = read(main);
     transition { _ -> successor(main, first) }
-    state successor(main: &mut Main, first: i32 in Wrapping) {
+    machine successor(main: &mut Main, first: i32 in Wrapping) {
         main.k = 3;
         let second: i32 in Wrapping = read(main);
         transition first == 40 && second == 50 {
@@ -28,8 +28,8 @@ machine Main::main(main: &mut Main) crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() {
+    machine done() {}
+    machine bad() {
         crash Trap;
     }
 }

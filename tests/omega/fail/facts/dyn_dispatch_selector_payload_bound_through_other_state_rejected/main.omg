@@ -16,7 +16,7 @@ ActualEvaluator satisfies PayloadEvaluator {
 machine main() crashes Trap {
     let selector: dyn PayloadEvaluator = ActualEvaluator as dyn PayloadEvaluator;
     transition { _ -> evaluate(selector, 10u64) }
-    state evaluate(sel: dyn PayloadEvaluator, val: u64) {
+    machine evaluate(sel: dyn PayloadEvaluator, val: u64) {
         let result: u64 = PayloadEvaluator::compute(sel, val);
         let diff: u64 = 88u64 - result;
         transition diff == 0u64 {
@@ -24,6 +24,6 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

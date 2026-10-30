@@ -12,7 +12,7 @@ use crate::typed_trees::declarations::operator::type_matching::type_reference_ma
 /// One declaration-ordered, closed operator telescope argument inferred from
 /// the exact operand tuple. Const identity deliberately excludes display text;
 /// the independently retained declared carrier is rechecked by validation.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum ClosedOperatorApplicationArgument {
     Type {
         binder_symbol: SymbolHandle,
@@ -41,7 +41,7 @@ pub struct SymbolicOperatorTypeApplicationArgument {
 /// retains declaration ordinal, while each argument retains the exact binder
 /// symbol/category and structural type or canonical const custody needed for
 /// independent replay after generic specialization.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ClosedOperatorRealizationApplication {
     pub requirement_symbol: SymbolHandle,
     pub arguments: Vec<ClosedOperatorApplicationArgument>,
@@ -62,6 +62,23 @@ pub fn closed_operator_application_from_bindings(
     if !operator.lifetime_parameters.is_empty() || parameters.len() != bindings.len() {
         return None;
     }
+    let types = parameters
+        .iter()
+        .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+        .map(|parameter| {
+            let mut selected = bindings
+                .iter()
+                .filter(|binding| binding.parameter == parameter.symbol);
+            let binding = selected.next()?;
+            if selected.next().is_some() {
+                return None;
+            }
+            let StaticMachineBindingValue::Type(actual) = binding.value else {
+                return None;
+            };
+            closed_boundary_application_type(program, actual).then_some((parameter.symbol, actual))
+        })
+        .collect::<Option<Vec<_>>>()?;
     parameters
         .iter()
         .map(|parameter| {
@@ -84,15 +101,20 @@ pub fn closed_operator_application_from_bindings(
                 (
                     TypeParameterKind::Const { type_reference },
                     StaticMachineBindingValue::Const(actual),
-                ) => Some(ClosedOperatorApplicationArgument::Const {
-                    binder_symbol: parameter.symbol,
-                    declared_carrier: *type_reference,
-                    value: super::type_matching::closed_const_identity_from_type_reference(
+                ) => {
+                    let carrier = crate::static_applications::project_type_operand(
                         program,
-                        *actual,
                         *type_reference,
-                    )?,
-                }),
+                        &types,
+                    );
+                    Some(ClosedOperatorApplicationArgument::Const {
+                        binder_symbol: parameter.symbol,
+                        declared_carrier: carrier,
+                        value: super::type_matching::closed_const_identity_from_type_reference(
+                            program, *actual, carrier,
+                        )?,
+                    })
+                }
                 _ => None,
             }
         })

@@ -10,9 +10,9 @@ data Main where i <= 5 {
 
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> read(main) }
-    state read(main: &mut Main) {
+    machine read(main: &mut Main) {
         let v: i32 = main.arr[main.i];
         transition v == 0 { true -> m(main) false -> m(main) }
     }
-    state m(main: &mut Main) { Console::exit_process(1); }
+    machine m(main: &mut Main) { Console::exit_process(1); }
 }

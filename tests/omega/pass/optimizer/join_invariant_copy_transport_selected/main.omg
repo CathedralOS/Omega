@@ -19,7 +19,7 @@ machine choose(index: u64, other: u64) -> i32 requires index <= 7 {
         _ -> joined(index, 99)
     }
 
-    state joined(probe: u64, choice: i32) requires probe <= 7 {
+    machine joined(probe: u64, choice: i32) -> i32 requires probe <= 7 {
         transition choice < 50 {
             true -> (choice)
             _ -> (choice)
@@ -34,6 +34,6 @@ machine main() crashes Trap {
         _ -> bad()
     }
 
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

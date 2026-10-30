@@ -10,5 +10,5 @@ machine drain(remaining: u64) terminates by remaining; -> u64 {
 machine main() crashes Trap {
     let result: u64 = drain(5);
     transition result == 0 { true -> {} false -> bad() }
-    state bad() { crash Trap; }
+    machine bad() { crash Trap; }
 }

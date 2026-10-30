@@ -123,12 +123,12 @@ fn internal_call_relocations(
                 function_symbol_handle: emitted.symbol,
                 operation_identity: operation.get(),
             },
-            CallSiteOwner::ExternalCompletion(edge) | CallSiteOwner::CleanupAction { edge, .. } => {
-                RelocationOrigin::SemanticEdge {
-                    function_symbol_handle: emitted.symbol,
-                    edge_identity: edge.get(),
-                }
-            }
+            CallSiteOwner::InvokeNoNormal(edge)
+            | CallSiteOwner::ExternalCompletion(edge)
+            | CallSiteOwner::CleanupAction { edge, .. } => RelocationOrigin::SemanticEdge {
+                function_symbol_handle: emitted.symbol,
+                edge_identity: edge.get(),
+            },
         };
         relocations.push_record(RelocationRecord {
             origin,
@@ -160,6 +160,12 @@ fn foreign_call_relocations(
                 function_symbol_handle: emitted.symbol,
                 operation_identity: operation.get(),
             },
+            CallSiteOwner::InvokeNoNormal(_) => {
+                return Err(ObjectError::ForeignCallOwnerNotInProvenance {
+                    caller: function.machine,
+                    owner: call.owner,
+                });
+            }
             CallSiteOwner::ExternalCompletion(edge) => RelocationOrigin::SemanticEdge {
                 function_symbol_handle: emitted.symbol,
                 edge_identity: edge.get(),

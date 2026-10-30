@@ -15,8 +15,8 @@ machine discard(choice: Choice) {
         Choice::Empty {} -> done()
         Choice::Value { token } -> remove(token)
     }
-    state done() {}
-    state remove(token: Token) { drop(token); }
+    machine done() {}
+    machine remove(token: Token) { drop(token); }
 }
 
 machine erase(choice: &mut Choice) {
@@ -59,6 +59,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

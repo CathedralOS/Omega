@@ -43,7 +43,7 @@ machine coordinate_domain() {
 
     // A different axis is a different type: Coordinate<3> values only
     // compose with Coordinate<3> machines.
-    state judge_wrong_axis {
+    machine judge_wrong_axis {
         let c: i64 in Coordinate<3> = 20 as i64 in Coordinate<3>;
         let d: i64 in Coordinate<3> = 1 as i64 in Coordinate<3>;
         transition ((c + d) as i64) == 21 {
@@ -52,5 +52,5 @@ machine coordinate_domain() {
         }
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

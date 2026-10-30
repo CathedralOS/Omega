@@ -4,7 +4,7 @@
 //! Formation remains the separate pre-operation bounds judgment. Declared
 //! range machines do not acquire builtin geometry from their result type.
 
-use super::{ExpressionHandle, StructuralJudge, StructuralTerm, ValueScope};
+use super::{ExpressionHandle, NormalOperandResult, StructuralJudge, StructuralTerm, ValueScope};
 use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::expression::BinaryOperator;
 
@@ -12,7 +12,7 @@ impl StructuralJudge<'_> {
     pub(super) fn observe_completed_window(
         &mut self,
         expression: ExpressionHandle,
-        inputs: &[(ExpressionHandle, StructuralTerm)],
+        inputs: &[(ExpressionHandle, NormalOperandResult)],
         scope: ValueScope<'_>,
         value: &StructuralTerm,
     ) -> Option<()> {
@@ -32,11 +32,11 @@ impl StructuralJudge<'_> {
         let mut inputs = inputs.iter();
         let mut input = |source| {
             let (captured, value) = inputs.next()?;
-            (*captured == source).then(|| value.clone())
+            (*captured == source).then(|| value.observed_value().cloned())
         };
         let collection = input(indexed.collection)?;
         let mut endpoint = |source| {
-            let value = input(source)?;
+            let value = input(source)??;
             if matches!(value.semantic_value(), StructuralTerm::Integer(_)) {
                 return Some(value);
             }
@@ -66,7 +66,7 @@ impl StructuralJudge<'_> {
                 program,
                 reference,
                 CollectionMeasure::Length,
-                || Some(collection),
+                || collection,
             )?
         };
         if inputs.next().is_some() {

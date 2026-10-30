@@ -27,6 +27,6 @@ machine inspect() -> bool {
 }
 machine main() crashes Trap {
  transition (inspect()) && failure_arm() { true -> done() _ -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }

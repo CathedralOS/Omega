@@ -6,6 +6,7 @@ use super::expressions::{
 };
 use super::integer::LoweredIntegerComparisonKind;
 use crate::emission::operation_emission::buffer::scalar_result_declaration;
+use crate::terminal_identities::mint;
 use crate::terminal_identities::obligation_id;
 use crate::terminal_identities::value_id;
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralFieldId, ValueId};
@@ -124,10 +125,7 @@ pub(crate) fn emit_boolean_expression(
             emit_direct_expression(operand, parameters, next_value_identity, operations)
         }
         LoweredBooleanReturnExpression::Constant { value } => {
-            let id = value_id(*next_value_identity);
-            *next_value_identity = next_value_identity
-                .checked_add(1)
-                .expect("generated value identity advances after a Boolean literal");
+            let id = mint(next_value_identity, value_id);
             operations.push_leaf(
                 scalar_result_declaration(id, ScalarType::Boolean),
                 OperationKind::BooleanConstant { value: *value },
@@ -137,10 +135,7 @@ pub(crate) fn emit_boolean_expression(
         LoweredBooleanReturnExpression::IntegerComparison { kind, left, right } => {
             let left = emit_direct_expression(left, parameters, next_value_identity, operations);
             let right = emit_direct_expression(right, parameters, next_value_identity, operations);
-            let id = value_id(*next_value_identity);
-            *next_value_identity = next_value_identity
-                .checked_add(1)
-                .expect("generated value identity advances after integer comparison");
+            let id = mint(next_value_identity, value_id);
             operations.push_leaf(
                 scalar_result_declaration(id, ScalarType::Boolean),
                 kind.operation(left, right),
@@ -290,10 +285,7 @@ pub(crate) fn emit_boolean_expression(
         LoweredBooleanReturnExpression::Not { operand } => {
             let operand =
                 emit_boolean_expression(operand, parameters, next_value_identity, operations);
-            let id = value_id(*next_value_identity);
-            *next_value_identity = next_value_identity
-                .checked_add(1)
-                .expect("generated value identity advances after Boolean negation");
+            let id = mint(next_value_identity, value_id);
             operations.push_leaf(
                 scalar_result_declaration(id, ScalarType::Boolean),
                 OperationKind::BooleanNot { operand },
@@ -303,10 +295,7 @@ pub(crate) fn emit_boolean_expression(
         LoweredBooleanReturnExpression::Equal { left, right } => {
             let left = emit_boolean_expression(left, parameters, next_value_identity, operations);
             let right = emit_boolean_expression(right, parameters, next_value_identity, operations);
-            let id = value_id(*next_value_identity);
-            *next_value_identity = next_value_identity
-                .checked_add(1)
-                .expect("generated value identity advances after Boolean equality");
+            let id = mint(next_value_identity, value_id);
             operations.push_leaf(
                 scalar_result_declaration(id, ScalarType::Boolean),
                 OperationKind::BooleanEqual { left, right },
@@ -359,7 +348,7 @@ fn byte_sequence_operand(
                 operations,
             );
             operations
-                .length_observations
+                .storage_observations
                 .field_bytes
                 .push((source, path.clone(), field, length));
             terminal_psi::control_flow::ByteSequenceOperand::Field {

@@ -21,7 +21,7 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
     let access: AccessPlan = AccessPlan::inaccessible(&schema);
     transition { _ -> place_status(schema, access, entries) }
 
-    state place_status(
+    machine place_status(
         schema: Schema,
         access: AccessPlan,
         entries: [FieldEntry; 64]
@@ -42,7 +42,7 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
         ) }
     }
 
-    state place_transmit(
+    machine place_transmit(
         schema: Schema,
         access: AccessPlan,
         entries: [FieldEntry; 64]
@@ -61,7 +61,7 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
         ) }
     }
 
-    state finish(
+    machine finish(
         access: AccessPlan,
         entries: [FieldEntry; 64]
     ) -> PlacementPlan {
@@ -87,7 +87,7 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
 
 machine mutate(view: &mut Placed<RegPlacement, Registers>) -> u32 {
     transition { _ -> access(view) }
-    state access(view: &mut Placed<RegPlacement, Registers>) -> u32 {
+    machine access(view: &mut Placed<RegPlacement, Registers>) -> u32 {
         view.transmit.write(&mut view.transmit, 9);
         view.status.read(&view.status)
     }
@@ -112,11 +112,11 @@ machine exercise(first: bool) crashes Trap {
         true -> check(observed == 41 && left.transmit == 9 && right.transmit == 5)
         _ -> check(observed == 73 && left.transmit == 3 && right.transmit == 9)
     }
-    state check(correct: bool) {
+    machine check(correct: bool) {
         transition correct { true -> done() _ -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -129,6 +129,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

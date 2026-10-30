@@ -7,7 +7,7 @@ Owning requirement: the domain-family instance a scalar initializer must
 establish. A **scoped** domain is a const-generic family:
 
 ```omega
-domain<const Bound: u64> u64::BelowIndex<Bound>(value) requires value < Bound;
+domain<const Bound: u64> u64::BelowIndex<Bound> requires self < Bound;
 ```
 
 One declaration whose predicates mention an index binder, so membership is a
@@ -123,3 +123,20 @@ Full 8-layer specification and lowering evidence:
 
 - Direct field projection passing where a scoped-domain field is passed as a qualified call argument without an intermediate local binding (`Holder.scoped` directly into `exercise(scoped: u64 in BelowIndex<4>)`).
 - Arithmetic operations on indexed domain bounds and dependent type equations over non-literal const-generic parameters.
+## Build-owned target-body migration
+
+`BUILD-OWNED-TARGET-SELECTION` replaces this existing target-prefixed family
+with ordinary named implementations and explicit target-keyed Build provider
+rows. The original operation, inputs, contracts and exit oracle are retained,
+including any different invalid body in an unselected implementation. The
+other eight transport places retain their authored source and Build rows.
+A separate provider check distinguishes X86 tag 17 from ARM tag 29; entry
+wrappers and provider bodies both check it, exposing a wrong provider row.
+
+This migration requires the existing nine positive places and their specific
+reject twins to pass. It adds five-profile installations of the same Terminal
+artifact and actual macOS ARM/X86 native execution for the migrated target body.
+It does not establish a new numeric-width, argument-count or ownership mechanism,
+renew unrelated historical row claims, or close the target/native migration
+parent tasks. Windows/Linux native execution and native trap controls remain
+unverified here; wrong-selection controls execute in Terminal Psi.

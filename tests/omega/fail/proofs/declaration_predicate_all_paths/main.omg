@@ -1,5 +1,5 @@
 data Bounded [copy] { amount: u64; }
-domain Bounded::Small(value) requires embed(value.amount) <= 100;
+domain Bounded::Small requires embed(self.amount) <= 100;
 machine choose(choice: bool) -> Bounded in Small {
     transition choice {
         true -> Bounded { amount: 73 }

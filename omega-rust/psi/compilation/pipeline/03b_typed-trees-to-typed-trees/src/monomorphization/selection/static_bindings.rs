@@ -77,6 +77,7 @@ pub(crate) fn infer_static_bindings(
                         || (!parameter_symbol.is_valid()
                             && !symbol.is_valid()
                             && parameter_name == name.as_str())
+                        || parameter_name == name.as_str()
                 })
     {
         proposals
@@ -95,6 +96,7 @@ pub(crate) fn infer_static_bindings(
                         || (!parameter_symbol.is_valid()
                             && !symbol.is_valid()
                             && parameter_name == name.as_str())
+                        || parameter_name == name.as_str()
                 })
     {
         proposals
@@ -115,6 +117,10 @@ pub(crate) fn infer_static_bindings(
             if let Some(application) = program
                 .data_definition_by_symbol(*symbol)
                 .and_then(|definition| definition.generic_instance)
+                .map(|application| {
+                    validation::unwrapped_type_reference(program, application)
+                        .unwrap_or(application)
+                })
                 .filter(|application| {
                     matches!(
                         program.type_reference_table.type_reference(*application),
@@ -165,6 +171,12 @@ pub(crate) fn infer_static_bindings(
             validation::unwrapped_type_reference(program, actual).unwrap_or(actual),
             proposals,
         ),
+        (_, TypeReferenceNode::Constrained { base_type, .. }) => infer_static_bindings(
+            context,
+            validation::unwrapped_type_reference(program, required).unwrap_or(required),
+            *base_type,
+            proposals,
+        ),
         // A borrowed fixed array supplies a slice formal's element carrier.
         // This proposes the static argument only; ordinary call admission
         // separately checks the borrowed conversion, access and bounds.
@@ -196,16 +208,20 @@ pub(crate) fn infer_static_bindings(
         (
             TypeReferenceNode::Generic {
                 base_symbol: required_base,
+                base_name: required_name,
                 arguments: required_arguments,
                 ..
             },
             TypeReferenceNode::Generic {
                 base_symbol: actual_base,
+                base_name: actual_name,
                 arguments: actual_arguments,
                 ..
             },
-        ) if required_base.is_valid()
-            && required_base == actual_base
+        ) if ((required_base.is_valid()
+            && actual_base.is_valid()
+            && required_base == actual_base)
+            || required_name == actual_name)
             && program
                 .type_reference_table
                 .type_reference_handles(*required_arguments)

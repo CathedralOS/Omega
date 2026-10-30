@@ -19,6 +19,6 @@ machine main() crashes Trap {
     payload.length = 3;
     let result: CountResult = inspect(payload);
     transition result { CountResult::Ok -> done() CountResult::Error -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

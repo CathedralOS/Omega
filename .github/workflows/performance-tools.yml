@@ -1,0 +1,39 @@
+name: Performance tooling instruments
+
+on:
+  pull_request:
+    paths:
+      - tools/benchmark/**
+      - omega-rust/omega/foundation/bounded-process/**
+      - omega-rust/omega/application/cli/Cargo.toml
+      - omega-rust/omega/application/cli/src/main.rs
+      - Cargo.toml
+      - Cargo.lock
+      - .config/nextest.toml
+      - .github/workflows/performance-tools.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  instruments:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, windows-2025, macos-14]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    env:
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Check native measurement instruments
+        # Hosted runners have Cargo and do not have mbx/nextest installed.
+        run: python tools/build_slot.py -- cargo test --locked -p omega-bench -p allocation-observation -p bounded-process --features omega-bench/fixtures,omega-bench/allocation-observation -- --test-threads=1
+      - name: Check tooling lint
+        run: python tools/build_slot.py -- cargo clippy --locked -p omega-bench -p allocation-observation --all-targets --features omega-bench/fixtures,omega-bench/allocation-observation --no-deps -- -D warnings
+      - name: Check formatting
+        run: cargo fmt -p omega-bench -p allocation-observation -p bounded-process -- --check

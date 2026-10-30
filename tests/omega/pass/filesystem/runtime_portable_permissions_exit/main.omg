@@ -9,80 +9,80 @@ data Main { filesystem: Filesystem; file: File; }
 machine Main::main(main: &mut Main) reaches Console {
     let result: OpenResult = block Filesystem::create_new(&mut main.filesystem, "omega_permission_modes.txt");
     transition result { OpenResult::Ok { file } -> opened(main, file) _ -> bad(10) }
-    state opened(main: &mut Main, file: File) {
+    machine opened(main: &mut Main, file: File) {
         main.file = file;
         // 0o1750: sticky plus executable owner/group bits, not merely rw data.
         let result: UnitResult = block Filesystem::set_file_permissions(&mut main.filesystem, file, Permissions::Posix { mode: 1000 });
         transition result { UnitResult::Ok -> readonly(main) _ -> bad(11) }
     }
-    state readonly(main: &mut Main) {
+    machine readonly(main: &mut Main) {
         let result: UnitResult = block Filesystem::set_permissions(&mut main.filesystem, "omega_permission_modes.txt", Permissions::Readonly { value: true });
         transition result { UnitResult::Ok -> inspect_readonly(main) _ -> bad(12) }
     }
-    state inspect_readonly(main: &mut Main) {
+    machine inspect_readonly(main: &mut Main) {
         let result: MetadataResult = block Filesystem::metadata(&mut main.filesystem, main.file);
         transition result { MetadataResult::Ok { meta } -> readonly_mode(main, meta.posix) _ -> bad(13) }
     }
-    state readonly_mode(main: &mut Main, result: PosixMetadataResult) {
+    machine readonly_mode(main: &mut Main, result: PosixMetadataResult) {
         transition result { PosixMetadataResult::Ok { details } -> preserved(main, details.mode) _ -> bad(14) }
     }
-    state preserved(main: &mut Main, mode: u32) {
+    machine preserved(main: &mut Main, mode: u32) {
         transition (mode & 4095) == 872 { true -> writable(main) false -> bad(15) }
     }
-    state writable(main: &mut Main) {
+    machine writable(main: &mut Main) {
         let result: UnitResult = block Filesystem::set_file_permissions(&mut main.filesystem, main.file, Permissions::Readonly { value: false });
         transition result { UnitResult::Ok -> inspect_writable(main) _ -> bad(16) }
     }
-    state inspect_writable(main: &mut Main) {
+    machine inspect_writable(main: &mut Main) {
         let result: MetadataResult = block Filesystem::metadata_path(&mut main.filesystem, "omega_permission_modes.txt");
         transition result { MetadataResult::Ok { meta } -> writable_mode(main, meta.posix) _ -> bad(17) }
     }
-    state writable_mode(main: &mut Main, result: PosixMetadataResult) {
+    machine writable_mode(main: &mut Main, result: PosixMetadataResult) {
         transition result { PosixMetadataResult::Ok { details } -> enabled(main, details.mode) _ -> bad(18) }
     }
-    state enabled(main: &mut Main, mode: u32) {
+    machine enabled(main: &mut Main, mode: u32) {
         transition (mode & 4095) == 1018 { true -> defaults(main) false -> bad(19) }
     }
-    state defaults(main: &mut Main) {
+    machine defaults(main: &mut Main) {
         let permissions: Permissions;
         let result: UnitResult = block Filesystem::set_file_permissions(&mut main.filesystem, main.file, permissions);
         transition result { UnitResult::Ok -> inspect_default(main) _ -> bad(20) }
     }
-    state inspect_default(main: &mut Main) {
+    machine inspect_default(main: &mut Main) {
         let result: MetadataResult = block Filesystem::metadata(&mut main.filesystem, main.file);
         transition result { MetadataResult::Ok { meta } -> default_mode(main, meta.posix) _ -> bad(21) }
     }
-    state default_mode(main: &mut Main, result: PosixMetadataResult) {
+    machine default_mode(main: &mut Main, result: PosixMetadataResult) {
         transition result { PosixMetadataResult::Ok { details } -> defaulted(main, details.mode) _ -> bad(22) }
     }
-    state defaulted(main: &mut Main, mode: u32) {
+    machine defaulted(main: &mut Main, mode: u32) {
         transition (mode & 4095) == 438 { true -> close(main) false -> bad(23) }
     }
-    state close(main: &mut Main) {
+    machine close(main: &mut Main) {
         let result: UnitResult = block Filesystem::close(&mut main.filesystem, main.file);
         transition result { UnitResult::Ok -> remove(main) _ -> bad(24) }
     }
-    state remove(main: &mut Main) {
+    machine remove(main: &mut Main) {
         let result: UnitResult = block Filesystem::remove(&mut main.filesystem, "omega_permission_modes.txt");
         transition result { UnitResult::Ok -> missing(main) _ -> bad(25) }
     }
-    state missing(main: &mut Main) {
+    machine missing(main: &mut Main) {
         let result: UnitResult = block Filesystem::set_permissions(&mut main.filesystem, "omega_permission_modes.txt", Permissions::Readonly { value: true });
         transition result { UnitResult::Error { kind } -> missing_kind(main, kind) _ -> bad(26) }
     }
-    state missing_kind(main: &mut Main, kind: ErrorKind) {
+    machine missing_kind(main: &mut Main, kind: ErrorKind) {
         transition kind { ErrorKind::NotFound -> absent(main) _ -> bad(27) }
     }
-    state absent(main: &mut Main) {
+    machine absent(main: &mut Main) {
         let file: File;
         let result: UnitResult = block Filesystem::set_file_permissions(&mut main.filesystem, file, Permissions::Readonly { value: true });
         transition result { UnitResult::Error { kind } -> absent_kind(kind) _ -> bad(28) }
     }
-    state absent_kind(kind: ErrorKind) {
+    machine absent_kind(kind: ErrorKind) {
         transition kind { ErrorKind::BadDescriptor -> good() _ -> bad(29) }
     }
-    state good() { Console::exit_process(0); }
-    state bad(code: i32) { Console::exit_process(code); }
+    machine good() { Console::exit_process(0); }
+    machine bad(code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

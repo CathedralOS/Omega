@@ -1,7 +1,7 @@
 //! Close authored selections into source-free target proposals.
 //!
-//! Reuse ordinary plan derivation and whole-provider selection; this is not
-//! another defaults engine. Normalized Build declaration identities join the
+//! Consume retained authored inventories and ordinary whole-provider selection;
+//! publication never derives candidates or settles defaults. Build identities join the
 //! canonical candidate catalog, including independently owned named maps.
 //! Canonical candidates retain their original selected-row coordinates beside
 //! closed instances. One shared projection enumerates complete rosters both at
@@ -13,6 +13,9 @@
 use crate::{ProviderPlanningContext, ProviderSelection, ProviderSelectionSubject};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
+
+pub use provider_selection::PreparedTargetProviderPublication;
+use provider_selection::{PreparedProviderCandidate, PreparedTargetChoices};
 
 /// Complete interface roster for selections, including inherited methods.
 /// Retaining only called coordinates would turn a whole-provider selection
@@ -65,124 +68,186 @@ pub fn provider_selection_roots<'selection>(
     Ok(roots)
 }
 
-/// Immutable checked input and its exact produced artifact. Derivation never
-/// reruns Build, checking, specialization or foreign-binding evaluation.
-pub struct TargetProviderPublicationRequest<'program> {
+/// Prepare source relationships before Terminal production. Artifact demand
+/// remains unknown here; no candidate is selected or installed by preparation.
+pub struct TargetProviderPreparationRequest<'program> {
     pub context: ProviderPlanningContext<'program>,
-    pub artifact: terminal_codec::TerminalArtifactView<'program>,
     pub exact_toolchain_sources: &'program [(source::SourceId, [u8; 32])],
-    pub defaults: &'program [crate::TargetProviderDefaults],
     pub overrides: &'program [ProviderSelection],
     pub assumed_bindings: &'program [effects::AssumedBindingContractSelection],
-    pub settlement: &'program crate::ProviderSettlement,
-    pub targets: &'program [String],
-    pub optimization_selection: optimization_core::OptimizationSelectionIdentity,
+    pub independent_components:
+        &'program [std::sync::Arc<component_description::VerifiedComponent>],
+    pub targets: &'program [(
+        String,
+        Result<std::sync::Arc<super::AuthoredTargetProviders>, Vec<Diagnostic>>,
+    )],
 }
 
-impl TargetProviderPublicationRequest<'_> {
-    /// Produce every requested target row, preserving a named failure for an
-    /// unavailable realization. No row authorizes native or host execution.
-    pub fn publish(&self) -> Vec<backend_plan::TerminalTargetProviderProposal> {
-        self.targets
+impl TargetProviderPreparationRequest<'_> {
+    /// Preserve preparation failures per target, including unavailable sibling
+    /// targets. Neither a failure nor an unused candidate invalidates production.
+    pub fn prepare(&self) -> PreparedTargetProviderPublication {
+        let targets = self
+            .targets
             .iter()
-            .map(|target| backend_plan::TerminalTargetProviderProposal {
-                target: target.clone(),
-                terminal_psi: self.artifact.identity(),
-                optimization_selection: self.optimization_selection,
-                selection: self.publish_target(target).map_err(|diagnostics| {
-                    diagnostics
-                        .into_iter()
-                        .map(|diagnostic| diagnostic.message)
-                        .collect()
-                }),
+            .map(|(target, inventory)| {
+                let prepared = inventory
+                    .as_ref()
+                    .map_err(Clone::clone)
+                    .and_then(|inventory| self.prepare_target(target, inventory));
+                (target.clone(), prepared)
             })
-            .collect()
+            .collect();
+        PreparedTargetProviderPublication::new(targets, self.assumed_bindings.to_vec())
     }
 
-    fn publish_target(
+    fn prepare_target(
         &self,
         target: &str,
-    ) -> Result<backend_plan::TerminalTargetProviderSelection, Vec<Diagnostic>> {
-        let profile = target::TargetProfile::from_canonical_target_name(target).map_err(|_| {
-            vec![Diagnostic::error(format!(
-                "provider proposal has no receiving target catalog for `{target}`"
-            ))]
+        inventory: &super::AuthoredTargetProviders,
+    ) -> Result<PreparedTargetChoices, Vec<Diagnostic>> {
+        let profile = inventory.target().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "provider publication requires a target inventory",
+            )]
         })?;
-        // A recognized profile realized outside this compiler, such as the
-        // Alpha bootstrap target, publishes a named unavailable row like any
-        // other unavailable realization; it is never asked for a native target.
-        let native_target = profile.native_realization().ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "target `{target}` has no provider realization in this compiler"
-            ))]
-        })?;
-        let declarations = super::settle_provider_defaults(self.context, self.defaults, profile);
-        let candidates = crate::derive_satisfies_plans(crate::ProviderPlanDerivation::evaluated(
-            self.context,
-            &self.settlement.boundary_calling_plan_realizations,
-            Some(target),
-            &self.settlement.evaluated_via_bindings,
-            &declarations.origins,
-        ))?;
-        // Select within the retained demand domain, never by intersecting a
-        // plan's rows. An unrelated unique provider is not an installation
-        // obligation. Explicit declarations retain their complete schema even
-        // when no runtime body calls it; every demanded schema remains whole.
-        let module = self.artifact.module();
-        let mut demanded = Vec::with_capacity(candidates.len());
+        if target::TargetProfile::from_canonical_target_name(target).ok() != Some(profile) {
+            return Err(vec![Diagnostic::error(
+                "provider publication target differs from its authored inventory",
+            )]);
+        }
+        let candidates = inventory.candidates();
+        let mut prepared = Vec::with_capacity(candidates.len());
         for candidate in candidates {
             let schema = candidate.provenance.schema.symbol();
-            let owner = self.declaration_identity(schema)?;
-            if module.boundary_machines.iter().any(|boundary| {
-                boundary.role == terminal_psi::BoundaryDeclarationRole::Callable
-                    && module.identities.text(boundary.owner.identity()) == Some(owner.as_str())
-            }) || declarations
-                .provider_defaults
-                .iter()
-                .chain(self.overrides)
-                .any(|selection| {
-                    candidate.plan.rows.iter().any(|row| {
-                        selection.subject.selects_schema(
-                            schema,
-                            candidate.plan.identity_text(row.requirement_identity),
-                        )
-                    })
-                })
-            {
-                demanded.push(candidate);
-            }
+            let schema_owner = self.declaration_identity(schema)?;
+            let explicitly_selected =
+                inventory
+                    .defaults()
+                    .iter()
+                    .chain(self.overrides)
+                    .any(|selection| {
+                        candidate.plan.rows.iter().any(|row| {
+                            selection.subject.selects_schema(
+                                schema,
+                                candidate.plan.identity_text(row.requirement_identity),
+                                candidate.plan.schema.root_application_identity(),
+                            )
+                        })
+                    });
+            // Close nominal and numeric realization declarations while source
+            // custody exists. Retain failure until selection and provenance
+            // admission demand this candidate, preserving the prior boundary.
+            let closed_declarations = crate::native_provider_sources::close_provider_declarations(
+                self.context,
+                self.exact_toolchain_sources,
+                &candidate.plan,
+                &candidate.provenance,
+            );
+            prepared.push(PreparedProviderCandidate {
+                choice: provider_selection::ProviderCandidate {
+                    plan: candidate.plan.clone(),
+                    declarations: provider_selection::CandidateDeclarations {
+                        schema: self.canonical_declaration(schema),
+                        provider: candidate
+                            .provenance
+                            .provider_type
+                            .map(|symbol| self.canonical_declaration(symbol)),
+                    },
+                    native_build: candidate
+                        .provenance
+                        .row_realizations
+                        .iter()
+                        .all(|row| row.native().is_some()),
+                    owner: closed_declarations.map(|closed| {
+                        provider_selection::PreparedProviderRealizations {
+                            provider_declaration: closed.provider_declaration,
+                            row_numeric_realizations: closed.row_numeric_realizations,
+                        }
+                    }),
+                },
+                schema_owner,
+                explicitly_selected,
+            });
         }
-        let selected = crate::select_derived_provider_plans(
-            &demanded,
-            native_target,
-            &declarations.provider_defaults,
-            self.overrides,
-        )?;
-        // This ordinary owner checks authored provenance, operator-family
-        // completeness and independent composition. Its returned provenance
-        // keeps each whole plan with its selecting symbol; independently sorted
-        // plan/owner vectors must never be positionally zipped.
-        let (_, provenance) = crate::selected_provider_plan_facts(self.context, selected)?;
-        let plans = provenance
-            .into_iter()
-            .map(|selected| {
-                let provider_declaration = selected
-                    .provider
-                    .provider_type
-                    .map(|provider| self.declaration_identity(provider))
-                    .transpose()?;
-                Ok(backend_plan::TerminalTargetProviderPlan {
-                    plan: selected.plan,
-                    provider_declaration,
+        Ok(PreparedTargetChoices {
+            profile,
+            independent_components: self.independent_components.to_vec(),
+            candidates: prepared,
+            defaults: inventory
+                .defaults()
+                .iter()
+                .map(|choice| self.canonical_choice(choice))
+                .collect(),
+            overrides: self
+                .overrides
+                .iter()
+                .map(|choice| self.canonical_choice(choice))
+                .collect(),
+        })
+    }
+
+    fn canonical_choice(
+        &self,
+        source: &ProviderSelection,
+    ) -> provider_selection::ProviderDeclaration<provider_selection::CanonicalProviderDeclaration>
+    {
+        let mut choice = crate::provider_planning::selection_declarations::project_declaration(
+            source,
+            &|symbol| self.canonical_declaration(symbol),
+            (),
+        );
+        crate::provider_planning::selection_declarations::retain_family_replay(
+            self.context,
+            source,
+            &mut choice,
+        );
+        choice
+    }
+
+    fn canonical_declaration(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Result<provider_selection::CanonicalProviderDeclaration, String> {
+        use provider_selection::CanonicalProviderDeclaration as Declaration;
+        let typed = self.context.typed;
+        let owner = self.declaration_identity(symbol).map_err(|diagnostics| {
+            diagnostics
+                .into_iter()
+                .map(|diagnostic| diagnostic.message)
+                .collect::<Vec<_>>()
+                .join("; ")
+        })?;
+        match typed.symbols.get(symbol).kind {
+            symbols::SymbolKind::Trait => Ok(Declaration::Trait(owner)),
+            symbols::SymbolKind::Conformance => Ok(Declaration::Implementation(owner)),
+            symbols::SymbolKind::Data => Ok(Declaration::Data(owner)),
+            symbols::SymbolKind::Domain => Ok(Declaration::Domain(owner)),
+            symbols::SymbolKind::BuiltinType => Ok(Declaration::Builtin(owner)),
+            symbols::SymbolKind::Machine => {
+                let machine = typed
+                    .machine_by_symbol(symbol)
+                    .ok_or("provider declaration has no exact machine")?;
+                let callable = typed
+                    .machine_callable_identity_text(machine)
+                    .ok_or("provider declaration has no exact machine overload")?;
+                Ok(Declaration::Machine { owner, callable })
+            }
+            symbols::SymbolKind::Operator => {
+                let operator =
+                    checked_trees::typed_trees::operator::declaration_by_symbol(typed, symbol)
+                        .ok_or("provider declaration has no exact operator")?;
+                let identity = typed.boundary_operator_requirement_callable_identity(operator);
+                if !identity.is_valid() {
+                    return Err("provider declaration has no exact operator overload".into());
+                }
+                Ok(Declaration::Operator {
+                    owner,
+                    callable: typed.callable_identity_text(identity),
                 })
-            })
-            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        backend_plan::TerminalTargetProviderSelection::from_plans(plans, self.artifact)
-            .map(|mut selection| {
-                selection.assumed_bindings = self.assumed_bindings.to_vec();
-                selection
-            })
-            .map_err(|reason| vec![Diagnostic::error(reason)])
+            }
+            _ => Err("provider declaration has an unsupported nominal role".into()),
+        }
     }
 
     fn declaration_identity(&self, symbol: SymbolHandle) -> Result<String, Vec<Diagnostic>> {

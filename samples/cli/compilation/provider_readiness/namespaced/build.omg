@@ -1,0 +1,22 @@
+use omega::language::core::program_image;
+
+machine build(builder: &mut Build) suspends;
+requires addr::Bound == 18446744073709551616 {
+    Build::application(builder, "provider_readiness_namespaced");
+    Build::build_depend_as(builder, "chosen", Source::Path { location: "backing" });
+    suspend Build::await_provider<ProgramImage, chosen::choices::Observations>(builder);
+    let observed: addr = ProgramImage::retained_suffix_start();
+    transition observed == 64 {
+        true -> finish(builder)
+        _ -> wrong_backing(builder)
+    }
+    machine finish(builder: &mut Build) {
+        Build::bind(builder, windows_x86_64::ProgramEntry, main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, main);
+        Build::bind(builder, macos_arm64::ProgramEntry, main);
+        Build::bind(builder, linux_arm64::ProgramEntry, main);
+    }
+    machine wrong_backing(builder: &mut Build) {
+        Build::application(builder, "wrong_backing");
+    }
+}

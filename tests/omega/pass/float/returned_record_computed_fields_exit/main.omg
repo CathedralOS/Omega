@@ -14,8 +14,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good()
         false -> bad()
     }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(71); }
+    machine good() { Console::exit_process(70); }
+    machine bad() { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

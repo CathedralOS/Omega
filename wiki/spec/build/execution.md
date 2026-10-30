@@ -1,28 +1,31 @@
 # Build execution and generated source
 
 [Build declarations](declarations.md) define project description and the
-activation-scoped build facets. Build execution uses the benign confined
-snapshot/staging baseline by default; effects outside that baseline require
+activation-scoped Build operations. Build execution uses explicitly delegated
+filesystem backing, with a confined snapshot/staging profile by default; effects outside that baseline require
 explicit opt-in. It is not the hermetic evaluator used for constants and proofs.
 
 ## Admission before execution
 
 The order is:
 
-1. Check package-local Build source against `omega::core` and every pre-known
-  requirement used by `Build::await_provider<R>`; surface and admit its own
-  restricted requests, then produce one prepared Terminal entry.
-2. Interpret that entry once. Each dependency declaration mutates the same
-  `Build` and submits an immutable purpose-qualified request without suspending
-  the Build continuation.
+1. Parse Build syntax and establish lexical structure, then check the initial
+  executable prefix against core, local declarations and available exact
+  dependencies. Surface and admit that stage's restricted requests before
+  producing its prepared Terminal continuation.
+2. Interpret the checked stage once. Atomic dependency registration fixes each
+  source, purpose, alias and delegated context before coordination may schedule
+  acquisition and preparation. An import alone performs none of those actions.
 3. For each request, the application coordinator asks package management to
-  resolve and review source, recursively activates the dependency Build, and
-  asks Psi to compile and admit any implementation requested through
-  `Build::await_provider<R>`.
-4. When provider readiness encounters an implementation that is not yet
-  installed, the Terminal interpreter suspends that exact continuation. After
-  package coordination installs the admitted implementation into the exact
-  Build-scoped static slot, the interpreter resumes without replaying prior work.
+  resolve and review source, recursively activates the dependency Build,
+  prepares its exact declarations and selected implementations in that context,
+  and asks Psi to check and admit the dependent executable closure. No satisfier
+  search, ambient import or default chooses a service implementation.
+4. At explicit dependency preparation, suspend the same activation if necessary.
+  Resolve the dependent imports, types, contracts and exact provider bindings,
+  check and admit the selected continuation, then resume without replaying
+  earlier work. Repeat stage preparation as ordinary control flow discovers
+  dependencies; do not execute unchecked source or rerun the Build as a scan.
 5. When the Build entry returns, join every outstanding dependency job, reject
   any failed, cyclic, unresolved, or unadmitted edge, resolve inert product
   selections, and freeze the normalized Build output.
@@ -51,14 +54,15 @@ authorize a build-time query of that unfinished product or change the build
 entry's own admission. Physical exclusions additionally require complete selected
 mechanism classification before realized-product admission.
 
-Before step 2, root Build symbol/type resolution, semantic prechecks, and its
-known operational/reach plans are complete. Before any dependency provider slot
-is installed in step 4, that selected implementation's source resolution, review,
-checking, restricted-request admission, and exact dynamic-call binding are
-complete. The root checkpoint binds its base typed program, prepared Terminal
-entry, source snapshot, and authority verdict; each installed slot carries
-the corresponding admitted dependency checkpoint. Execution uses those exact
-entries, not later name lookup, and the root Build runs once.
+Before each stage executes, its exact name/type resolution, semantic prechecks,
+operational/reach plans and effect admission are complete. Before a provider is
+installed, its selected implementation's review, checking, restricted-request
+admission and exact binding are complete. Checkpoints retain stage code,
+declaration/environment identities, source and filesystem observations, live
+loans/resources and authority verdicts. Execution uses those exact entries,
+not later lookup that can retarget an earlier alias. This does not claim that
+all deferred branches of the whole Build were checked before its first effect;
+[checked stages](scoped_execution.md#checked-build-stages) define that boundary.
 
 Reach, authority roots, retained storage, resource bounds, failure, and
 termination must fit the executor's policy. A blocking operation must expose
@@ -71,8 +75,8 @@ containment, expansion limits, and immutable destination bytes. It does not
 attest the ambient transport or executor. Dependency code receives neither
 resolver credentials nor the root's filesystem, process, secret, or acceptance
 authority. Each dependency build gets its own admitted package scope. Runtime
-provider selection is not a route around the compiler-owned build facets;
-additional host effects require explicit protocol operations and policy.
+provider selection is not a route around delegated backing and stage admission;
+additional host effects require actual supplied capabilities and accepted policy.
 
 ## Restricted build requests
 
@@ -99,11 +103,13 @@ package, build purpose, operation, logical resource scope, bounds, and applicabl
 profile/target context. Delegation uses explicitly supplied capabilities and
 cannot widen their authority.
 
-The root selects the filesystem implementation. Descendants receive scoped views
-of that selection, not independent backend choices. Importing a real-filesystem
-API cannot bypass a root-supplied virtual filesystem; an unsupported operation
-rejects instead of opening a host route. Lock agreement and actual capability
-checks govern execution, not replay or a reproducibility classification.
+The parent supplies each child's filesystem backing and selected implementation
+under ordinary service contracts. It may compose a restricted or virtual provider
+without the child knowing its physical representation. Alternative providers
+are legal only with explicitly supplied backing within the parent's grant;
+importing a real-filesystem API cannot create such a grant or bypass a virtual
+view. Unsupported operations do not open a host route. Lock agreement and
+actual capability checks remain separate obligations.
 
 [Install/update review](../packages/acceptance.md#restricted-build-acceptance)
 surfaces those requests before restricted execution. Explicit project decisions
@@ -112,8 +118,8 @@ resources. Neither lock acceptance nor a callee's own lock manufactures a host
 grant. A root's grant is not automatically available to dependency builds.
 
 Checking and audit cannot run an unaccepted restricted action merely to learn
-what it requests. Check each authored Build or requested binding implementation
-before its first execution; if further checking needs such an action, retain a
+what it requests. Check each reached Build stage or requested implementation
+before its effects; if further checking needs such an action, retain a
 pending review/incomplete audit until acceptance and actual grants permit
 continuation. Generated source is then checked and audited normally, not trusted
 because its generator was accepted. Benign work needs no approval ceremony;
@@ -132,11 +138,15 @@ backing. Runtime permissions and a child package's lock are not build-test grant
 
 ## Generated-source boundary
 
-Path resolution, staged output writing, and source publication are distinct
-operations. `BuildOutput::include_source` publishes exact retained UTF-8 bytes
-only after matching sponsored staged-tree custody. Source consumption binds
-those bytes under compiler-owned `.omega/generated/...` logical paths; it does
-not reread a mutable output path.
+Path lookup, filesystem writing and compiler publication are distinct
+operations. `Build::include_source` accepts an authorized logical generated name
+and exact retained UTF-8 bytes under the current activation's resources; it does
+not reopen a mutable host pathname or execute those bytes. Filesystem helpers
+produce the bytes through their ordinary capability contracts. The compiler
+captures the published snapshot and exact generating context; subsequent writes
+to a file or overlay cannot change it. Source consumption retains the matching
+compiler-owned generated-source namespace and product purpose. This replaces
+the BuildOutput filesystem-specific source-publication route.
 
 Own generated source is a later resolution stratum:
 

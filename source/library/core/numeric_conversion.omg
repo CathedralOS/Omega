@@ -57,7 +57,7 @@ requires
 
 public machine narrow_u16_to_u8_wrapping(value: u16) -> u8 {
     let bits: u64 = value as u64;
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     narrowed
 }
 
@@ -76,7 +76,7 @@ crashes Trap
         _ -> (value as u8)
     }
 
-    state invalid() -> u8 { crash Trap; }
+    machine invalid() -> u8 { crash Trap; }
 }
 
 public machine widen_u8_to_u16(value: u8) -> u16
@@ -108,7 +108,7 @@ requires
 
 public machine narrow_u32_to_u8_wrapping(value: u32) -> u8 {
     let bits: u64 = value as u64;
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     narrowed
 }
 
@@ -127,7 +127,7 @@ crashes Trap
         _ -> (value as u8)
     }
 
-    state invalid() -> u8 { crash Trap; }
+    machine invalid() -> u8 { crash Trap; }
 }
 
 public machine narrow_u32_to_u16_exact(value: u32) -> u16
@@ -139,7 +139,7 @@ requires
 
 public machine narrow_u32_to_u16_wrapping(value: u32) -> u16 {
     let bits: u64 = value as u64;
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     narrowed
 }
 
@@ -158,7 +158,7 @@ crashes Trap
         _ -> (value as u16)
     }
 
-    state invalid() -> u16 { crash Trap; }
+    machine invalid() -> u16 { crash Trap; }
 }
 
 public machine widen_u16_to_u32(value: u16) -> u32
@@ -184,7 +184,7 @@ requires
 
 public machine narrow_u64_to_u8_wrapping(value: u64) -> u8 {
     let bits: u64 = value as u64;
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     narrowed
 }
 
@@ -203,7 +203,7 @@ crashes Trap
         _ -> (value as u8)
     }
 
-    state invalid() -> u8 { crash Trap; }
+    machine invalid() -> u8 { crash Trap; }
 }
 
 public machine narrow_u64_to_u16_exact(value: u64) -> u16
@@ -215,7 +215,7 @@ requires
 
 public machine narrow_u64_to_u16_wrapping(value: u64) -> u16 {
     let bits: u64 = value as u64;
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     narrowed
 }
 
@@ -234,7 +234,7 @@ crashes Trap
         _ -> (value as u16)
     }
 
-    state invalid() -> u16 { crash Trap; }
+    machine invalid() -> u16 { crash Trap; }
 }
 
 public machine narrow_u64_to_u32_exact(value: u64) -> u32
@@ -246,7 +246,7 @@ requires
 
 public machine narrow_u64_to_u32_wrapping(value: u64) -> u32 {
     let bits: u64 = value as u64;
-    let narrowed: u32 = (bits & 4294967295) as u32;
+    let narrowed: u32 = (bits & 0xFFFF_FFFF) as u32;
     narrowed
 }
 
@@ -265,7 +265,7 @@ crashes Trap
         _ -> (value as u32)
     }
 
-    state invalid() -> u32 { crash Trap; }
+    machine invalid() -> u32 { crash Trap; }
 }
 
 public machine widen_u32_to_u64(value: u32) -> u64
@@ -286,7 +286,7 @@ requires
 
 public machine narrow_i16_to_i8_wrapping(value: i16) -> i8 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     numeric_conversion_signed_8(narrowed)
 }
 
@@ -307,7 +307,7 @@ crashes Trap
         _ -> (value as i8)
     }
 
-    state invalid() -> i8 { crash Trap; }
+    machine invalid() -> i8 { crash Trap; }
 }
 
 public machine widen_i8_to_i16(value: i8) -> i16 {
@@ -333,7 +333,7 @@ requires
 
 public machine narrow_i32_to_i8_wrapping(value: i32) -> i8 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     numeric_conversion_signed_8(narrowed)
 }
 
@@ -354,7 +354,7 @@ crashes Trap
         _ -> (value as i8)
     }
 
-    state invalid() -> i8 { crash Trap; }
+    machine invalid() -> i8 { crash Trap; }
 }
 
 public machine narrow_i32_to_i16_exact(value: i32) -> i16
@@ -366,7 +366,7 @@ requires
 
 public machine narrow_i32_to_i16_wrapping(value: i32) -> i16 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     numeric_conversion_signed_16(narrowed)
 }
 
@@ -387,7 +387,7 @@ crashes Trap
         _ -> (value as i16)
     }
 
-    state invalid() -> i16 { crash Trap; }
+    machine invalid() -> i16 { crash Trap; }
 }
 
 public machine widen_i16_to_i32(value: i16) -> i32 {
@@ -409,7 +409,7 @@ requires
 
 public machine narrow_i64_to_i8_wrapping(value: i64) -> i8 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     numeric_conversion_signed_8(narrowed)
 }
 
@@ -430,7 +430,7 @@ crashes Trap
         _ -> (value as i8)
     }
 
-    state invalid() -> i8 { crash Trap; }
+    machine invalid() -> i8 { crash Trap; }
 }
 
 public machine narrow_i64_to_i16_exact(value: i64) -> i16
@@ -442,7 +442,7 @@ requires
 
 public machine narrow_i64_to_i16_wrapping(value: i64) -> i16 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     numeric_conversion_signed_16(narrowed)
 }
 
@@ -463,7 +463,7 @@ crashes Trap
         _ -> (value as i16)
     }
 
-    state invalid() -> i16 { crash Trap; }
+    machine invalid() -> i16 { crash Trap; }
 }
 
 public machine narrow_i64_to_i32_exact(value: i64) -> i32
@@ -475,7 +475,7 @@ requires
 
 public machine narrow_i64_to_i32_wrapping(value: i64) -> i32 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u32 = (bits & 4294967295) as u32;
+    let narrowed: u32 = (bits & 0xFFFF_FFFF) as u32;
     numeric_conversion_signed_32(narrowed)
 }
 
@@ -496,7 +496,7 @@ crashes Trap
         _ -> (value as i32)
     }
 
-    state invalid() -> i32 { crash Trap; }
+    machine invalid() -> i32 { crash Trap; }
 }
 
 public machine widen_i32_to_i64(value: i32) -> i64 {
@@ -521,7 +521,7 @@ requires
 
 public machine narrow_u8_to_i8_wrapping(value: u8) -> i8 {
     let bits: u64 = value as u64;
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     numeric_conversion_signed_8(narrowed)
 }
 
@@ -540,7 +540,7 @@ crashes Trap
         _ -> (value as i8)
     }
 
-    state invalid() -> i8 { crash Trap; }
+    machine invalid() -> i8 { crash Trap; }
 }
 
 public machine widen_u8_to_i16(value: u8) -> i16
@@ -570,7 +570,7 @@ requires
 
 public machine narrow_u16_to_i8_wrapping(value: u16) -> i8 {
     let bits: u64 = value as u64;
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     numeric_conversion_signed_8(narrowed)
 }
 
@@ -589,7 +589,7 @@ crashes Trap
         _ -> (value as i8)
     }
 
-    state invalid() -> i8 { crash Trap; }
+    machine invalid() -> i8 { crash Trap; }
 }
 
 public machine narrow_u16_to_i16_exact(value: u16) -> i16
@@ -601,7 +601,7 @@ requires
 
 public machine narrow_u16_to_i16_wrapping(value: u16) -> i16 {
     let bits: u64 = value as u64;
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     numeric_conversion_signed_16(narrowed)
 }
 
@@ -620,7 +620,7 @@ crashes Trap
         _ -> (value as i16)
     }
 
-    state invalid() -> i16 { crash Trap; }
+    machine invalid() -> i16 { crash Trap; }
 }
 
 public machine widen_u16_to_i32(value: u16) -> i32
@@ -644,7 +644,7 @@ requires
 
 public machine narrow_u32_to_i8_wrapping(value: u32) -> i8 {
     let bits: u64 = value as u64;
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     numeric_conversion_signed_8(narrowed)
 }
 
@@ -663,7 +663,7 @@ crashes Trap
         _ -> (value as i8)
     }
 
-    state invalid() -> i8 { crash Trap; }
+    machine invalid() -> i8 { crash Trap; }
 }
 
 public machine narrow_u32_to_i16_exact(value: u32) -> i16
@@ -675,7 +675,7 @@ requires
 
 public machine narrow_u32_to_i16_wrapping(value: u32) -> i16 {
     let bits: u64 = value as u64;
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     numeric_conversion_signed_16(narrowed)
 }
 
@@ -694,7 +694,7 @@ crashes Trap
         _ -> (value as i16)
     }
 
-    state invalid() -> i16 { crash Trap; }
+    machine invalid() -> i16 { crash Trap; }
 }
 
 public machine narrow_u32_to_i32_exact(value: u32) -> i32
@@ -706,7 +706,7 @@ requires
 
 public machine narrow_u32_to_i32_wrapping(value: u32) -> i32 {
     let bits: u64 = value as u64;
-    let narrowed: u32 = (bits & 4294967295) as u32;
+    let narrowed: u32 = (bits & 0xFFFF_FFFF) as u32;
     numeric_conversion_signed_32(narrowed)
 }
 
@@ -725,7 +725,7 @@ crashes Trap
         _ -> (value as i32)
     }
 
-    state invalid() -> i32 { crash Trap; }
+    machine invalid() -> i32 { crash Trap; }
 }
 
 public machine widen_u32_to_i64(value: u32) -> i64
@@ -743,7 +743,7 @@ requires
 
 public machine narrow_u64_to_i8_wrapping(value: u64) -> i8 {
     let bits: u64 = value as u64;
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     numeric_conversion_signed_8(narrowed)
 }
 
@@ -762,7 +762,7 @@ crashes Trap
         _ -> (value as i8)
     }
 
-    state invalid() -> i8 { crash Trap; }
+    machine invalid() -> i8 { crash Trap; }
 }
 
 public machine narrow_u64_to_i16_exact(value: u64) -> i16
@@ -774,7 +774,7 @@ requires
 
 public machine narrow_u64_to_i16_wrapping(value: u64) -> i16 {
     let bits: u64 = value as u64;
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     numeric_conversion_signed_16(narrowed)
 }
 
@@ -793,7 +793,7 @@ crashes Trap
         _ -> (value as i16)
     }
 
-    state invalid() -> i16 { crash Trap; }
+    machine invalid() -> i16 { crash Trap; }
 }
 
 public machine narrow_u64_to_i32_exact(value: u64) -> i32
@@ -805,7 +805,7 @@ requires
 
 public machine narrow_u64_to_i32_wrapping(value: u64) -> i32 {
     let bits: u64 = value as u64;
-    let narrowed: u32 = (bits & 4294967295) as u32;
+    let narrowed: u32 = (bits & 0xFFFF_FFFF) as u32;
     numeric_conversion_signed_32(narrowed)
 }
 
@@ -824,7 +824,7 @@ crashes Trap
         _ -> (value as i32)
     }
 
-    state invalid() -> i32 { crash Trap; }
+    machine invalid() -> i32 { crash Trap; }
 }
 
 public machine narrow_u64_to_i64_exact(value: u64) -> i64
@@ -854,7 +854,7 @@ crashes Trap
         _ -> (value as i64)
     }
 
-    state invalid() -> i64 { crash Trap; }
+    machine invalid() -> i64 { crash Trap; }
 }
 
 // --- Signed -> unsigned ---------------------------------------------------
@@ -868,7 +868,7 @@ requires
 
 public machine narrow_i8_to_u8_wrapping(value: i8) -> u8 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     narrowed
 }
 
@@ -887,7 +887,7 @@ crashes Trap
         _ -> (value as u8)
     }
 
-    state invalid() -> u8 { crash Trap; }
+    machine invalid() -> u8 { crash Trap; }
 }
 
 public machine narrow_i8_to_u16_exact(value: i8) -> u16
@@ -899,7 +899,7 @@ requires
 
 public machine narrow_i8_to_u16_wrapping(value: i8) -> u16 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     narrowed
 }
 
@@ -918,7 +918,7 @@ crashes Trap
         _ -> (value as u16)
     }
 
-    state invalid() -> u16 { crash Trap; }
+    machine invalid() -> u16 { crash Trap; }
 }
 
 public machine narrow_i8_to_u32_exact(value: i8) -> u32
@@ -930,7 +930,7 @@ requires
 
 public machine narrow_i8_to_u32_wrapping(value: i8) -> u32 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u32 = (bits & 4294967295) as u32;
+    let narrowed: u32 = (bits & 0xFFFF_FFFF) as u32;
     narrowed
 }
 
@@ -949,7 +949,7 @@ crashes Trap
         _ -> (value as u32)
     }
 
-    state invalid() -> u32 { crash Trap; }
+    machine invalid() -> u32 { crash Trap; }
 }
 
 public machine narrow_i8_to_u64_exact(value: i8) -> u64
@@ -979,7 +979,7 @@ crashes Trap
         _ -> (value as u64)
     }
 
-    state invalid() -> u64 { crash Trap; }
+    machine invalid() -> u64 { crash Trap; }
 }
 
 public machine narrow_i16_to_u8_exact(value: i16) -> u8
@@ -991,7 +991,7 @@ requires
 
 public machine narrow_i16_to_u8_wrapping(value: i16) -> u8 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     narrowed
 }
 
@@ -1012,7 +1012,7 @@ crashes Trap
         _ -> (value as u8)
     }
 
-    state invalid() -> u8 { crash Trap; }
+    machine invalid() -> u8 { crash Trap; }
 }
 
 public machine narrow_i16_to_u16_exact(value: i16) -> u16
@@ -1024,7 +1024,7 @@ requires
 
 public machine narrow_i16_to_u16_wrapping(value: i16) -> u16 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     narrowed
 }
 
@@ -1043,7 +1043,7 @@ crashes Trap
         _ -> (value as u16)
     }
 
-    state invalid() -> u16 { crash Trap; }
+    machine invalid() -> u16 { crash Trap; }
 }
 
 public machine narrow_i16_to_u32_exact(value: i16) -> u32
@@ -1055,7 +1055,7 @@ requires
 
 public machine narrow_i16_to_u32_wrapping(value: i16) -> u32 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u32 = (bits & 4294967295) as u32;
+    let narrowed: u32 = (bits & 0xFFFF_FFFF) as u32;
     narrowed
 }
 
@@ -1074,7 +1074,7 @@ crashes Trap
         _ -> (value as u32)
     }
 
-    state invalid() -> u32 { crash Trap; }
+    machine invalid() -> u32 { crash Trap; }
 }
 
 public machine narrow_i16_to_u64_exact(value: i16) -> u64
@@ -1104,7 +1104,7 @@ crashes Trap
         _ -> (value as u64)
     }
 
-    state invalid() -> u64 { crash Trap; }
+    machine invalid() -> u64 { crash Trap; }
 }
 
 public machine narrow_i32_to_u8_exact(value: i32) -> u8
@@ -1116,7 +1116,7 @@ requires
 
 public machine narrow_i32_to_u8_wrapping(value: i32) -> u8 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     narrowed
 }
 
@@ -1137,7 +1137,7 @@ crashes Trap
         _ -> (value as u8)
     }
 
-    state invalid() -> u8 { crash Trap; }
+    machine invalid() -> u8 { crash Trap; }
 }
 
 public machine narrow_i32_to_u16_exact(value: i32) -> u16
@@ -1149,7 +1149,7 @@ requires
 
 public machine narrow_i32_to_u16_wrapping(value: i32) -> u16 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     narrowed
 }
 
@@ -1170,7 +1170,7 @@ crashes Trap
         _ -> (value as u16)
     }
 
-    state invalid() -> u16 { crash Trap; }
+    machine invalid() -> u16 { crash Trap; }
 }
 
 public machine narrow_i32_to_u32_exact(value: i32) -> u32
@@ -1182,7 +1182,7 @@ requires
 
 public machine narrow_i32_to_u32_wrapping(value: i32) -> u32 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u32 = (bits & 4294967295) as u32;
+    let narrowed: u32 = (bits & 0xFFFF_FFFF) as u32;
     narrowed
 }
 
@@ -1201,7 +1201,7 @@ crashes Trap
         _ -> (value as u32)
     }
 
-    state invalid() -> u32 { crash Trap; }
+    machine invalid() -> u32 { crash Trap; }
 }
 
 public machine narrow_i32_to_u64_exact(value: i32) -> u64
@@ -1231,7 +1231,7 @@ crashes Trap
         _ -> (value as u64)
     }
 
-    state invalid() -> u64 { crash Trap; }
+    machine invalid() -> u64 { crash Trap; }
 }
 
 public machine narrow_i64_to_u8_exact(value: i64) -> u8
@@ -1243,7 +1243,7 @@ requires
 
 public machine narrow_i64_to_u8_wrapping(value: i64) -> u8 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     narrowed
 }
 
@@ -1264,7 +1264,7 @@ crashes Trap
         _ -> (value as u8)
     }
 
-    state invalid() -> u8 { crash Trap; }
+    machine invalid() -> u8 { crash Trap; }
 }
 
 public machine narrow_i64_to_u16_exact(value: i64) -> u16
@@ -1276,7 +1276,7 @@ requires
 
 public machine narrow_i64_to_u16_wrapping(value: i64) -> u16 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     narrowed
 }
 
@@ -1297,7 +1297,7 @@ crashes Trap
         _ -> (value as u16)
     }
 
-    state invalid() -> u16 { crash Trap; }
+    machine invalid() -> u16 { crash Trap; }
 }
 
 public machine narrow_i64_to_u32_exact(value: i64) -> u32
@@ -1309,7 +1309,7 @@ requires
 
 public machine narrow_i64_to_u32_wrapping(value: i64) -> u32 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u32 = (bits & 4294967295) as u32;
+    let narrowed: u32 = (bits & 0xFFFF_FFFF) as u32;
     narrowed
 }
 
@@ -1330,7 +1330,7 @@ crashes Trap
         _ -> (value as u32)
     }
 
-    state invalid() -> u32 { crash Trap; }
+    machine invalid() -> u32 { crash Trap; }
 }
 
 public machine narrow_i64_to_u64_exact(value: i64) -> u64
@@ -1360,5 +1360,5 @@ crashes Trap
         _ -> (value as u64)
     }
 
-    state invalid() -> u64 { crash Trap; }
+    machine invalid() -> u64 { crash Trap; }
 }

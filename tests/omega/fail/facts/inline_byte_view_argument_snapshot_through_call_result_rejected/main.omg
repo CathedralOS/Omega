@@ -30,6 +30,6 @@ machine main() crashes Trap {
     transition difference == 0 && original.bytes.len == 9 && original.sibling.len == 4 {
         true -> done() false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

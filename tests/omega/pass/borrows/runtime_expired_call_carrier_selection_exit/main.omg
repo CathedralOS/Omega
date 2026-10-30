@@ -8,8 +8,8 @@ machine park<'storage>(holder: &mut Holder<'storage>, source: &'storage Token) -
 }
 machine main() crashes Trap {
     transition exercise() { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine exercise() -> bool {
     let left: Token = Token { value: 17 };

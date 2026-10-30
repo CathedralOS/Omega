@@ -1,0 +1,2 @@
+cannot form specification operator `==` in data `Counter` default-domain predicate
+no exact selected meaning

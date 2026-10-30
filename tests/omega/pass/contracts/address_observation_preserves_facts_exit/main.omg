@@ -6,6 +6,6 @@ machine main() crashes Trap {
     let view: &u64 = &counter.value;
     let observed: addr = address_of(view);
     transition consume(&counter) && observed == address_of(&counter.value) { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

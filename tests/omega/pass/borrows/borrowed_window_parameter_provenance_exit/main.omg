@@ -40,7 +40,7 @@ machine replace_via_borrowed_carrier_block_parameter<'a>(
         _ -> apply(&mut slot, incoming)
     }
 
-    state apply(borrowed_slot: &mut PlainSlot<'a>, incoming: Item) -> bool {
+    machine apply(borrowed_slot: &mut PlainSlot<'a>, incoming: Item) -> bool {
         borrowed_slot.value = incoming;
         let observed: i64 = borrowed_slot.value.tag;
         observed == 79
@@ -58,7 +58,7 @@ machine replace_via_state_incoming<'a>(
         _ -> apply(held, seed, fallback)
     }
 
-    state apply(mut arrived: Held<'a>, mut incoming: Held<'a>, fallback: &'a Cell) -> bool {
+    machine apply(mut arrived: Held<'a>, mut incoming: Held<'a>, fallback: &'a Cell) -> bool {
         let slot: &mut Held<'a> = &mut arrived;
         slot = incoming;
         incoming = Held { target: fallback, stamp: 31 };
@@ -147,6 +147,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

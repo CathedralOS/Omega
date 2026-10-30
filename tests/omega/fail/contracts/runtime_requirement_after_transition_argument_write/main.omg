@@ -3,7 +3,7 @@ machine reset_value(cell: &mut Cell) -> i32 { cell.value = 0; 0 }
 machine needs_one(value: i32) -> i32 requires value == 1 { value }
 machine outer(cell: &mut Cell) -> i32 requires cell.value == 1 {
     transition { _ -> next(reset_value(cell), needs_one(cell.value)) }
-    state next(first: i32, second: i32) -> i32 { second }
+    machine next(first: i32, second: i32) -> i32 { second }
 }
 
 machine discard(first: i32, second: i32) {}

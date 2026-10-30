@@ -13,21 +13,21 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> pick(main, s, 1)
         false -> no(main)
     }
-    state pick(main: &mut Main, s: &[i32], i: u64) requires i <= 3 {
+    machine pick(main: &mut Main, s: &[i32], i: u64) requires i <= 3 {
         transition i < s.len {
             true -> go(main, s, i)
             false -> no(main)
         }
     }
-    state go(main: &mut Main, s: &[i32], i: u64) requires i <= 3 {
+    machine go(main: &mut Main, s: &[i32], i: u64) requires i <= 3 {
         main.got = s[i];
         transition main.got == 11 {
             true -> yes(main)
             false -> no(main)
         }
     }
-    state yes(main: &mut Main) { Console::exit_process(1); }
-    state no(main: &mut Main) { Console::exit_process(2); }
+    machine yes(main: &mut Main) { Console::exit_process(1); }
+    machine no(main: &mut Main) { Console::exit_process(2); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

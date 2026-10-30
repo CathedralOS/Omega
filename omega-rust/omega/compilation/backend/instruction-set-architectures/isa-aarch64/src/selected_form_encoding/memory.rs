@@ -1,9 +1,9 @@
 //! Unsigned-offset LDR with independently decoded pointer-read evidence.
 use super::{
     Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-    ValidatedAarch64SelectedFormEncoding,
+    ValidatedAarch64SelectedFormEncoding, word_stream,
 };
-use crate::selected_form_encoding::selected_forms::resolve_registers;
+use crate::selected_form_encoding::selected_forms::{request_registers, resolve_registers};
 use register_model::RegisterViewId;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::MachineAlternativeFamily;
@@ -37,33 +37,7 @@ pub fn encode_aarch64_selected_memory_form(
     operands: &[RegisterViewId],
     displacement: i64,
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-    if let SelectedInstructionKind::PlacedScalarAccess {
-        form, byte_offset, ..
-    } = kind
-    {
-        if alternative.family != MachineAlternativeFamily::PlacedScalarAccess(form)
-            || alternative.variant != 0
-        {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        let ordinary = form
-            .ordinary_kind(byte_offset)
-            .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-        let semantic = form
-            .ordinary_semantic()
-            .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-        let alternative = MachineAlternativeKey {
-            family: semantic.into(),
-            variant: 0,
-        };
-        return encode_aarch64_selected_memory_form(
-            physical,
-            ordinary,
-            alternative,
-            operands,
-            displacement,
-        );
-    }
+    let (kind, alternative) = placed_scalar_ordinary(kind, alternative)?;
     if matches!(
         kind,
         SelectedInstructionKind::SaveFloatingControl { .. }
@@ -131,34 +105,7 @@ pub fn validate_aarch64_selected_memory_form(
     displacement: i64,
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-    if let SelectedInstructionKind::PlacedScalarAccess {
-        form, byte_offset, ..
-    } = kind
-    {
-        if alternative.family != MachineAlternativeFamily::PlacedScalarAccess(form)
-            || alternative.variant != 0
-        {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        let ordinary = form
-            .ordinary_kind(byte_offset)
-            .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-        let semantic = form
-            .ordinary_semantic()
-            .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-        let alternative = MachineAlternativeKey {
-            family: semantic.into(),
-            variant: 0,
-        };
-        return validate_aarch64_selected_memory_form(
-            physical,
-            ordinary,
-            alternative,
-            operands,
-            displacement,
-            bytes,
-        );
-    }
+    let (kind, alternative) = placed_scalar_ordinary(kind, alternative)?;
     if matches!(
         kind,
         SelectedInstructionKind::SaveFloatingControl { .. }
@@ -248,6 +195,37 @@ pub fn validate_aarch64_selected_memory_form(
             },
         },
     })
+}
+
+/// Rewrites a placed-scalar access into the ordinary memory form it encodes as.
+fn placed_scalar_ordinary(
+    kind: SelectedInstructionKind,
+    alternative: MachineAlternativeKey,
+) -> Result<(SelectedInstructionKind, MachineAlternativeKey), Aarch64SelectedFormEncodingError> {
+    let SelectedInstructionKind::PlacedScalarAccess {
+        form, byte_offset, ..
+    } = kind
+    else {
+        return Ok((kind, alternative));
+    };
+    if alternative.family != MachineAlternativeFamily::PlacedScalarAccess(form)
+        || alternative.variant != 0
+    {
+        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    let ordinary = form
+        .ordinary_kind(byte_offset)
+        .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
+    let semantic = form
+        .ordinary_semantic()
+        .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
+    Ok((
+        ordinary,
+        MachineAlternativeKey {
+            family: semantic.into(),
+            variant: 0,
+        },
+    ))
 }
 
 fn request(

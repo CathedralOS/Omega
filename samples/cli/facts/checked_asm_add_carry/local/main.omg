@@ -14,6 +14,6 @@ machine main() crashes Trap {
  let local_snapshot: u64 = snapshot;
  asm { observed requires (local_snapshot & 2261u64) == 85u64: nop }
  transition (local_snapshot & 2261u64) == 85u64 { true -> done() false -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }

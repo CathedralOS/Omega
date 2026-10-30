@@ -7,7 +7,7 @@ crashes Trap reading.value != reading.peer {
         true -> reading.value
         false -> invalid()
     }
-    state invalid() -> f64 { crash Trap; }
+    machine invalid() -> f64 { crash Trap; }
 }
 machine forward(envelope: &Envelope) -> f64
 crashes Trap envelope.reading.value != envelope.reading.peer {
@@ -19,7 +19,7 @@ crashes Trap !(reading.value < limit) {
         true -> reading.value
         false -> invalid()
     }
-    state invalid() -> f64 { crash Trap; }
+    machine invalid() -> f64 { crash Trap; }
 }
 machine main() crashes Trap {
     let envelope: Envelope = Envelope { reading: Reading { value: -0.0, peer: 0.0 } };
@@ -29,6 +29,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

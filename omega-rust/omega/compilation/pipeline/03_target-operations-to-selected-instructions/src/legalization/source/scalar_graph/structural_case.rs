@@ -11,6 +11,7 @@ pub(super) fn project(
     node: &optimization_unit::OptimizationNode,
     function: &optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
+    unit: &optimization_unit::PsiOptimizationUnit,
 ) -> Result<LegalizedScalarTerminator, LegalizationError> {
     let AbstractOperation::StructuralCase {
         source,
@@ -74,6 +75,8 @@ pub(super) fn project(
             case: case.case,
             case_tag: i32::try_from(case_position).map_err(|_| Error::custody())?,
             payloads,
+            structural_bindings: super::terminator::successor(edge, function, plan, unit)?
+                .structural_bindings,
             cleanup_actions: case.cleanup_actions.clone(),
             cleanup_calls: Vec::new(),
             fuel: edge.fuel.clone(),

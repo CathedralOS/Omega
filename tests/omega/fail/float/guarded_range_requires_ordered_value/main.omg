@@ -5,7 +5,7 @@ machine negated_bounds(unordered: f64) -> f64 {
         true -> bounded(unordered)
         _ -> 0.0
     }
-    state bounded(negated: f64) -> f64
+    machine bounded(negated: f64) -> f64
         requires negated >= 0.0 && negated <= 1.0
     { negated }
 }
@@ -15,8 +15,8 @@ machine false_exit_bounds(unordered: f64) -> f64 {
         unordered > 1.0 -> outside()
         _ -> bounded(unordered)
     }
-    state outside() -> f64 { 0.0 }
-    state bounded(prior: f64) -> f64
+    machine outside() -> f64 { 0.0 }
+    machine bounded(prior: f64) -> f64
         requires prior >= 0.0 && prior <= 1.0
     { prior }
 }
@@ -25,7 +25,7 @@ machine inequality_is_not_ordered(unordered: f64) -> f64 {
         true -> bounded(unordered)
         _ -> 0.0
     }
-    state bounded(inequality: f64) -> f64
+    machine bounded(inequality: f64) -> f64
         requires inequality >= 0.0 && inequality <= 1.0
     { inequality }
 }
@@ -34,7 +34,7 @@ machine nan_only(unordered: f64) -> f64 {
         true -> bounded(unordered)
         _ -> 0.0
     }
-    state bounded(empty_ordered: f64) -> f64
+    machine bounded(empty_ordered: f64) -> f64
         requires empty_ordered >= 0.0 && empty_ordered <= 1.0
     { empty_ordered }
 }
@@ -43,7 +43,7 @@ machine narrow_negation(unordered: f32) -> f32 {
         true -> bounded(unordered)
         _ -> 0.0f32
     }
-    state bounded(narrow: f32) -> f32
+    machine bounded(narrow: f32) -> f32
         requires narrow >= 0.0f32 && narrow <= 1.0f32
     { narrow }
 }
@@ -52,7 +52,7 @@ machine wrong_subject(ordered: f64, unordered: f64) -> f64 {
         true -> bounded(unordered)
         _ -> 0.0
     }
-    state bounded(other: f64) -> f64
+    machine bounded(other: f64) -> f64
         requires other >= 0.0 && other <= 1.0
     { other }
 }
@@ -62,7 +62,7 @@ machine integer_view(unordered: f64) -> f64 {
         true -> bounded(unordered)
         _ -> 0.0
     }
-    state bounded(recast: f64) -> f64
+    machine bounded(recast: f64) -> f64
         requires recast >= 0.0 && recast <= 1.0
     { recast }
 }

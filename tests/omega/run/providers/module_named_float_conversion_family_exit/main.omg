@@ -14,7 +14,7 @@ crashes Trap
         ByteRead::Byte { value } -> convert(application, value)
         _ -> missing(application)
     }
-    state convert(application: &mut Main, value: i32) {
+    machine convert(application: &mut Main, value: i32) {
         let floating: f64 = F64::from_i32(value) + 0.75;
         let converted: i32 in Saturating = I32::from_f64(floating);
         transition converted == 65 {
@@ -22,10 +22,10 @@ crashes Trap
             false -> wrong(application)
         }
     }
-    state done(application: &mut Main) {
+    machine done(application: &mut Main) {
         Console::write_line("converted=65");
         Console::exit_process(0);
     }
-    state missing(application: &mut Main) { Console::exit_process(2); }
-    state wrong(application: &mut Main) { Console::exit_process(3); }
+    machine missing(application: &mut Main) { Console::exit_process(2); }
+    machine wrong(application: &mut Main) { Console::exit_process(3); }
 }

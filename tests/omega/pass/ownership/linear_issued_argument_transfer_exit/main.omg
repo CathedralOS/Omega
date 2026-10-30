@@ -34,7 +34,7 @@ Consumer satisfies TokenConsumer {
 
 machine forward(first: Token in Issued, second: Token in Issued) -> u64 {
     transition { _ -> next(first, second) }
-    state next(first: Token in Issued, second: Token in Issued) -> u64 {
+    machine next(first: Token in Issued, second: Token in Issued) -> u64 {
         total_tokens(first, second)
     }
 }
@@ -70,8 +70,8 @@ machine Main::run(context: &mut Main) reaches TokenRoot + TokenConsumer + Consol
         true -> good()
         _ -> bad()
     }
-    state good() { Console::exit_process(37); }
-    state bad() { Console::exit_process(99); }
+    machine good() { Console::exit_process(37); }
+    machine bad() { Console::exit_process(99); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

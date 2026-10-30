@@ -15,7 +15,6 @@ pub(super) fn inspect(
     report: &compilation_products::CompileReport,
     fixture: &Path,
     build_dir: &Path,
-    capture: Option<&super::artifact_capture::Capture>,
 ) -> Result<(), String> {
     let oracle = fixture.join("expected_native_component_descriptions.txt");
     if !oracle.exists() {
@@ -37,16 +36,6 @@ pub(super) fn inspect(
         ));
     }
     for (ordinal, product) in products.iter().enumerate() {
-        if let Some(capture) = capture {
-            capture.observe(
-                &format!("component-{ordinal}.image"),
-                product.image().image().contents(),
-            )?;
-            capture.observe(
-                &format!("component-{ordinal}.description"),
-                product.description(),
-            )?;
-        }
         let request = ComponentVerificationRequest {
             expected_subject: product.selection().provider(),
             accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V3]),
@@ -98,6 +87,8 @@ pub(super) fn inspect(
         )?;
         let decoded = decode_component_description(product.description())
             .map_err(|error| format!("decode native description: {error:?}"))?;
+        reject_unrequired_provider(&decoded, &request)?;
+        reject_malformed_provider_claims(&decoded, &request)?;
         let mut missing_identity = decoded.clone();
         missing_identity.realization_identity = None;
         let mut missing_stack = decoded;
@@ -131,4 +122,133 @@ pub(super) fn inspect(
         std::fs::remove_dir_all(directory).map_err(|error| error.to_string())?;
     }
     Ok(())
+}
+
+// Exercise the independent consumer against real compiled component inventories,
+// not a hand-built approximation of its private derived/sealed tables.
+fn reject_malformed_provider_claims(
+    description: &component_description::component_description::ComponentDescription,
+    request: &ComponentVerificationRequest,
+) -> Result<(), String> {
+    use component_description::ComponentVerificationRejection;
+    for (index, provider) in description.providers.iter().enumerate() {
+        let first = provider
+            .requirement_identities
+            .first()
+            .ok_or("source-produced provider has no component claims")?;
+        let mut missing = description.clone();
+        missing.providers[index].requirement_identities.clear();
+        match verify_component(&encode_component_description(&missing), request) {
+            // A called requirement is checked before the retained-plan roster.
+            Err(ComponentVerificationRejection::UnsealedProvider(identity))
+                if provider.requirement_identities.contains(&identity) => {}
+            Err(ComponentVerificationRejection::InconsistentProviderClosure(
+                "a retained provider seals no requirement",
+            )) => {}
+            result => return Err(format!("missing component provider claims: {result:?}")),
+        }
+        for extra in [first.clone(), String::new()] {
+            let duplicate = !extra.is_empty();
+            let mut changed = description.clone();
+            // Retain every real claim so this reaches roster validation rather
+            // than failing an unrelated missing-call check first.
+            let claims = &mut changed.providers[index].requirement_identities;
+            claims.push(extra);
+            claims.sort();
+            match verify_component(&encode_component_description(&changed), request) {
+                Err(ComponentVerificationRejection::Corrupt(
+                    component_description::component_description::DescriptionDecodeRejection::NonCanonicalOrder("provider requirement"),
+                )) if duplicate => {}
+                Err(ComponentVerificationRejection::InconsistentProviderClosure(
+                    "retained requirement claims are not a canonical subset of the complete committed plan",
+                )) if !duplicate => {}
+                result => return Err(format!("malformed component provider claims: {result:?}")),
+            }
+        }
+        let mut changed = description.clone();
+        // Even an unclaimed plan row remains committed by the complete input.
+        changed.providers[index].plan_input.push(0);
+        match verify_component(&encode_component_description(&changed), request) {
+            Err(ComponentVerificationRejection::InconsistentProviderClosure(_)) => {}
+            result => return Err(format!("altered complete provider input: {result:?}")),
+        }
+        let plan = effects::provider_plan::ProviderPlanInput::read(
+            &provider.plan_input,
+            &provider.plan_digest,
+        )
+        .map_err(|error| format!("source-produced provider plan: {error}"))?;
+        for unclaimed in plan.rows.iter().filter(|row| {
+            !provider
+                .requirement_identities
+                .iter()
+                .any(|claim| claim == row.requirement)
+        }) {
+            let mut changed = description.clone();
+            let claims = &mut changed.providers[index].requirement_identities;
+            claims.push(unclaimed.requirement.to_owned());
+            claims.sort();
+            match verify_component(&encode_component_description(&changed), request) {
+                Err(ComponentVerificationRejection::SmuggledProviderRequirement(identity))
+                    if identity == unclaimed.requirement => {}
+                result => {
+                    return Err(format!(
+                        "unused sibling promoted to component claim: {result:?}"
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+// An unused native plan has a valid digest and complete row roster, but no
+// consumer or checked export in the artifact. Publication must omit it; a
+// forged carrier that adds it back must still fail independent verification.
+fn reject_unrequired_provider(
+    description: &component_description::component_description::ComponentDescription,
+    request: &ComponentVerificationRequest,
+) -> Result<(), String> {
+    use component_description::component_description::RetainedProvider;
+    use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod};
+
+    let requirement = "unused_native_probe()->named(name(u64))";
+    let mut plan = ProviderPlan {
+        name: "unused-native-probe".into(),
+        provider_type: "UnusedNativeProvider".into(),
+        ..ProviderPlan::default()
+    };
+    let requirement_identity = plan.identities.intern(requirement);
+    plan.schema.trait_name = plan.schema.identities.intern("UnusedNativeProbe");
+    let schema_requirement = plan.schema.identities.intern(requirement);
+    let result_type = plan.schema.identities.intern("named(name(u64))");
+    plan.schema.methods.push(ServiceMethod {
+        name: "unused_native_probe".into(),
+        requirement_owner: "UnusedNativeProbe".into(),
+        requirement_identity: schema_requirement,
+        has_result: true,
+        result_type_identity: result_type,
+        ..ServiceMethod::default()
+    });
+    plan.rows.push(ProviderPlanRow {
+        method: "unused_native_probe".into(),
+        requirement_identity,
+        requirement_lifetime_partition: Vec::new(),
+        admitted_same_stack_bytes: 0,
+        binding: ProviderBinding::Syscall { number: 0 },
+    });
+    let mut altered = description.clone();
+    altered.providers.push(RetainedProvider {
+        report_identity: plan.report_fingerprint(),
+        plan_digest: *plan.identity_digest().as_bytes(),
+        plan_input: plan.identity_preimage(),
+        requirement_identities: vec![requirement.into()],
+    });
+    match verify_component(&encode_component_description(&altered), request) {
+        Err(
+            component_description::ComponentVerificationRejection::SmuggledProviderRequirement(
+                identity,
+            ),
+        ) if identity == requirement => Ok(()),
+        outcome => Err(format!("unrequired native provider control: {outcome:?}")),
+    }
 }

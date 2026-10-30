@@ -37,7 +37,7 @@ machine Main::main(context: &mut Main) reaches Console {
     Main::bump(context);
     transition { _ -> finish(context, first) }
 
-    state finish(context: &mut Main, first: i32 in Wrapping) {
+    machine finish(context: &mut Main, first: i32 in Wrapping) {
         let second: i32 in Wrapping = Main::add(context, 5);
         Main::bump(context);
         let code: i32 in Wrapping = context.count - second + first + 15;

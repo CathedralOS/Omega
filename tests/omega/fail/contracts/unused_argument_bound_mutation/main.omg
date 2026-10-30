@@ -8,5 +8,5 @@ machine main() {
         true -> bounded(overwrite(&mut count), count)
         false -> done()
     }
-    state done() {}
+    machine done() {}
 }

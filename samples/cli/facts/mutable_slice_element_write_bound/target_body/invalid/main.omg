@@ -54,6 +54,6 @@ machine main() crashes Trap {
         true -> pass()
         _ -> fail()
     }
-    state pass() {}
-    state fail() { crash Trap; }
+    machine pass() {}
+    machine fail() { crash Trap; }
 }

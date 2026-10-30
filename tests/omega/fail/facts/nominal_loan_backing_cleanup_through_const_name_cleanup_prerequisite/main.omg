@@ -80,12 +80,12 @@ const COUNT: u32 in Wrapping = 11;
 machine scope() reaches Console crashes Trap {
  let room: Room = Room { count: COUNT };
  transition { _ -> observe(&mut room) }
- state observe(room: &mut Room) {
+ machine observe(room: &mut Room) {
   Console::write_byte(79);
   transition room.count == 11 { true -> seen() false -> bad() }
  }
- state seen() {}
- state bad() { crash Trap; }
+ machine seen() {}
+ machine bad() { crash Trap; }
 
 }
 data Main {}

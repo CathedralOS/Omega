@@ -8,32 +8,32 @@ use crate::SemanticDomainId;
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum ContentAlgebraIdentity {
     IntervalSet { coordinate_space: String },
     CountedQuantity { unit: String },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentFieldSegment {
     pub symbol: SymbolHandle,
     pub name: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentCaseSegment {
     pub symbol: SymbolHandle,
     pub name: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum ContentArithmeticOperator {
     Add,
     Subtract,
     Multiply,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum ContentScalarExpression {
     SubjectField(Vec<ContentFieldSegment>),
     RuntimeScalarEmbedding(Vec<ContentFieldSegment>),
@@ -46,7 +46,7 @@ pub enum ContentScalarExpression {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum ContentProjectionExpression {
     IntervalSet {
         members: Vec<ContentIntervalExpression>,
@@ -56,7 +56,7 @@ pub enum ContentProjectionExpression {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentIntervalExpression {
     start: ContentScalarExpression,
     end: ContentScalarExpression,
@@ -221,7 +221,7 @@ pub enum IntervalSetError {
     NotContained,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentProjectionPlan {
     pub domain: SymbolHandle,
     pub semantic_domain: SemanticDomainId,
@@ -237,7 +237,7 @@ pub struct ContentProjectionPlan {
 /// Which declared callable owns an authored content-conservation equation.
 /// The symbols are retained separately on [`ContentConservationPlan`]; this
 /// closed tag keeps artifacts and later terminal-Psi lowering explicit.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum ContentConservationOwnerKind {
     Machine,
     TraitRequirement,
@@ -246,13 +246,13 @@ pub enum ContentConservationOwnerKind {
 /// The version of a structural place observed by a content projection.
 /// `Entry` is available only through proof-only `old(place)`; there is no
 /// general historical-expression modality.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum ContentPlaceVersion {
     Entry,
     Current,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum ContentPlaceRoot {
     Parameter {
         position: u32,
@@ -262,7 +262,7 @@ pub enum ContentPlaceRoot {
     Result,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum ContentPlaceSegment {
     Case(ContentCaseSegment),
     Field(ContentFieldSegment),
@@ -270,7 +270,7 @@ pub enum ContentPlaceSegment {
 }
 
 /// A parameter, `self`, or result structural place in a callable contract.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentStructuralPlace {
     pub version: ContentPlaceVersion,
     pub root: ContentPlaceRoot,
@@ -282,7 +282,7 @@ pub struct ContentStructuralPlace {
 /// is only a cache/report coordinate beside that owner definition. `Separate`
 /// children are flattened and canonically sorted, so package spelling order
 /// cannot perturb semantics.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum ContentConservationTerm {
     Projection {
         domain: SymbolHandle,
@@ -308,7 +308,7 @@ impl ContentConservationTerm {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentConservationEquation {
     left: ContentConservationTerm,
     right: ContentConservationTerm,
@@ -337,7 +337,7 @@ impl ContentConservationEquation {
 
 /// One normalized authored equation for one callable outcome and one closed
 /// content algebra. Proof derivations do not enter this semantic carrier.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentConservationPlan {
     pub owner_kind: ContentConservationOwnerKind,
     pub owner: SymbolHandle,

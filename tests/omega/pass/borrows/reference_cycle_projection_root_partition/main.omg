@@ -7,13 +7,13 @@ data Chain { nodes: [Node; 4]; sentinel: Node }
 
 machine find<'c>(chain: &'c Chain, cursor: &'c Node, position: u64) -> &'c [u8] {
     transition { _ -> step(chain, cursor, position) }
-    state step(chain: &'c Chain, cursor: &'c Node, position: u64) -> &'c [u8] {
+    machine step(chain: &'c Chain, cursor: &'c Node, position: u64) -> &'c [u8] {
         transition position < 4 {
             true -> check(chain, cursor, &chain.nodes[position], position)
             _ -> (&cursor.bytes[0..0])
         }
     }
-    state check(chain: &'c Chain, cursor: &'c Node, node: &'c Node, position: u64) -> &'c [u8]
+    machine check(chain: &'c Chain, cursor: &'c Node, node: &'c Node, position: u64) -> &'c [u8]
         requires position < 4
     {
         transition node.used <= 8 {

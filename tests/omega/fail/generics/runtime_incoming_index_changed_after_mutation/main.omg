@@ -6,5 +6,5 @@ machine main() crashes Trap {
     let item: Indexed<7> = Indexed { value: 1 };
     let selected: u32 = forward(7, item);
     transition selected == 7 { true -> done() false -> wrong() }
-    state done() {} state wrong() { crash Trap; }
+    machine done() {} machine wrong() { crash Trap; }
 }

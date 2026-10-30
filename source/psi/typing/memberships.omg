@@ -22,21 +22,21 @@ crashes Trap
         _ -> rejected(typer, syntax, expression, TypeDiagnosticCode::NotAValue)
     }
 
-    state classified(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, row: TypeRow, binding: ValueBinding) {
+    machine classified(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, row: TypeRow, binding: ValueBinding) {
         transition binding {
             ValueBinding::DataCase { item, data_case } -> case(typer, syntax, expression, row, item)
             _ -> domain(typer, syntax, resolution, expression, row)
         }
     }
 
-    state case(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, row: TypeRow, item: u64 in Trapping) {
+    machine case(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, row: TypeRow, item: u64 in Trapping) {
         transition row.kind == TypeKind::Data && row.item == item {
             true -> done()
             _ -> rejected(typer, syntax, expression, TypeDiagnosticCode::CaseOfOtherData)
         }
     }
 
-    state domain(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, row: TypeRow) {
+    machine domain(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, row: TypeRow) {
         let path: PathBinding = NameResolution::path_binding_at(resolution, expression.first);
         transition path {
             PathBinding::Domain { item } -> declared(typer, syntax, expression, row, item)
@@ -44,7 +44,7 @@ crashes Trap
         }
     }
 
-    state declared(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, row: TypeRow, item: u64 in Trapping) {
+    machine declared(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, row: TypeRow, item: u64 in Trapping) {
         let declaration: DomainItem = SyntaxTrees::domain_item(syntax, item);
         let carrier: u64 in Trapping = Typing::reference_type(&typer.output, declaration.carrier);
         let carrier_row: TypeRow = TypeTable::row(&typer.output.types, carrier);
@@ -55,10 +55,10 @@ crashes Trap
         }
     }
 
-    state rejected(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, code: TypeDiagnosticCode) {
+    machine rejected(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, code: TypeDiagnosticCode) {
         let value: Expression = SyntaxTrees::expression(syntax, expression.left);
         Typing::reject(&mut typer.output, code, value.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }

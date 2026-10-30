@@ -114,17 +114,17 @@ fn validate_type(
             for (index, field) in fields.iter().enumerate() {
                 if !field.identity.is_valid()
                     || field.relevance.is_erased()
-                    || !is_partial_affine_field_type(&field.field_type)
+                    || (!is_partial_affine_field_type(&field.field_type)
+                        && !field.cleanup_type_identity().is_valid())
                     || fields[..index]
                         .iter()
                         .any(|earlier| earlier.identity == field.identity)
                 {
                     return None;
                 }
-                if let CheckedUnitStructuralFieldType::Structural { type_identity } =
-                    &field.field_type
-                {
-                    validate_type(types, *type_identity, active, complete)?;
+                let type_identity = field.cleanup_type_identity();
+                if type_identity.is_valid() {
+                    validate_type(types, type_identity, active, complete)?;
                 }
             }
         }
@@ -149,6 +149,12 @@ fn validate_type(
             access,
         } if *access != checked_trees::CheckedStructuralAccess::Owned
             && referent_identity.is_valid() => {}
+        CheckedUnitStructuralTypeShape::ByteSequence(carrier)
+            if carrier.is_borrowed()
+                && declaration.descriptor_cleanup
+                && !declaration.owns_linear_claim => {}
+        CheckedUnitStructuralTypeShape::BorrowedSliceView { .. }
+            if declaration.descriptor_cleanup && !declaration.owns_linear_claim => {}
         CheckedUnitStructuralTypeShape::Sum { cases } => {
             validate_inline_alternatives(&[], cases)?;
         }
@@ -529,7 +535,8 @@ fn visit_fields(
     if fields.iter().enumerate().any(|(position, field)| {
         !field.identity.is_valid()
             || field.relevance.is_erased()
-            || !is_partial_affine_field_type(&field.field_type)
+            || (!is_partial_affine_field_type(&field.field_type)
+                && !field.cleanup_type_identity().is_valid())
             || fields[..position]
                 .iter()
                 .any(|earlier| earlier.identity == field.identity)
@@ -552,19 +559,20 @@ fn visit_fields(
         }).collect::<Vec<_>>();
         matched = matched.checked_add(matching.len())?;
         matched_boundaries = matched_boundaries.checked_add(child_boundaries.len())?;
-        let CheckedUnitStructuralFieldType::Structural { type_identity } = &field.field_type else {
+        let type_identity = field.cleanup_type_identity();
+        if !type_identity.is_valid() {
             if !matching.is_empty() || !child_boundaries.is_empty() {
                 return None;
             }
             continue;
-        };
+        }
         prefix.push(CheckedUnitStructuralPathSegment::Field(
             field.identity.clone(),
         ));
         count = count.checked_add(visit(
             types,
             source,
-            *type_identity,
+            type_identity,
             &matching,
             &child_boundaries,
             prefix,

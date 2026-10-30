@@ -14,8 +14,8 @@ machine write(decoder: dyn Payload, packet: &mut [u8], value: u8)
  requires packet.len >= 4 crashes Trap {
  let bytes: &mut [u8] = forwarded(decoder, packet);
  transition bytes.len == 2 { true -> store(bytes, value) false -> bad() }
- state store(bytes: &mut [u8], value: u8) requires bytes.len == 2 { bytes[0] = value; }
- state bad() { crash Trap; }
+ machine store(bytes: &mut [u8], value: u8) requires bytes.len == 2 { bytes[0] = value; }
+ machine bad() { crash Trap; }
 }
 data Main { packet: [u8; 6]; }
 machine Main::main(main: &mut Main) crashes Trap {
@@ -28,7 +28,7 @@ machine Main::main(main: &mut Main) crashes Trap {
   && main.packet[3] == 29 && main.packet[4] == 19 && main.packet[5] == 31 {
   true -> done() false -> bad()
  }
- state done() {} state bad() { crash Trap; }
+ machine done() {} machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

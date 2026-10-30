@@ -13,72 +13,34 @@ pub(super) struct RootNameIndex {
     pub(super) by_leaf: crate::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
 }
 
-/// The table's root children bucketed by full name and by leaf, built on the
-/// first top-level lookup. Every mutation that can change the root roster
-/// clears it, so it always describes this table; equality ignores it.
-#[derive(Clone, Default)]
-pub(super) struct RootNameIndexCache(pub(super) std::sync::OnceLock<RootNameIndex>);
-
-impl RootNameIndexCache {
-    pub(super) fn clear(&mut self) {
-        self.0.take();
-    }
-}
-
-impl PartialEq for RootNameIndexCache {
-    fn eq(&self, _: &Self) -> bool {
-        true
-    }
-}
-
-impl Eq for RootNameIndexCache {}
-
-impl std::fmt::Debug for RootNameIndexCache {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("RootNameIndexCache")
-    }
-}
-
+/// Selected bindings and their derived namespace environment belong to one
+/// immutable table frontier. Queries borrow these rows without rebuilding paths.
 #[derive(Clone, Default)]
 pub(super) struct BindingSourceIndex {
-    pub(super) by_source: crate::SymbolKeyMap<SourceId, Vec<SourceScopedTopLevelBinding>>,
+    pub(super) by_source: crate::SymbolKeyMap<SourceId, SourceLookupScope>,
+    pub(super) has_selected_module: bool,
 }
 
-/// `source_scoped_top_level_bindings` bucketed by `reference_source`, built on
-/// the first scoped lookup. A finished table still gains bindings when an
-/// extension begins or a syntax-only import is registered, and both clear
-/// the index; equality ignores it.
 #[derive(Clone, Default)]
-pub(super) struct BindingSourceIndexCache(pub(super) std::sync::OnceLock<BindingSourceIndex>);
+pub(super) struct SourceLookupScope {
+    pub(super) bindings: Vec<SourceScopedTopLevelBinding>,
+    pub(super) imports: Vec<PreparedModuleImport>,
+    pub(super) has_exact_import: bool,
+}
 
-impl BindingSourceIndexCache {
-    pub(super) fn clear(&mut self) {
-        self.0.take();
-    }
+/// `binding_position` addresses this scope's ordered binding batch. Derived
+/// spellings describe lookup only; visibility and package authority remain queries.
+#[derive(Clone)]
+pub(super) struct PreparedModuleImport {
+    pub(super) binding_position: usize,
+    pub(super) logical: String,
+    pub(super) package_prefix: String,
+    pub(super) module_leaf: Option<String>,
 }
 
 #[derive(Clone, Default)]
 pub(super) struct ModulePathIndex {
     pub(super) paths: crate::SymbolKeyMap<SymbolHandle, Arc<str>>,
-}
-
-/// `display_path("::")` per root child and module symbol, snapshotted on the
-/// first module-qualified or imported-path lookup. Handles minted after the
-/// snapshot miss the map and fall back to a walk. Every roster mutation
-/// clears it alongside `root_names`; equality ignores it.
-#[derive(Clone, Default)]
-pub(super) struct ModulePathIndexCache(pub(super) std::sync::OnceLock<ModulePathIndex>);
-
-impl ModulePathIndexCache {
-    pub(super) fn clear(&mut self) {
-        self.0.take();
-    }
-}
-
-impl PartialEq for ModulePathIndexCache {
-    fn eq(&self, _: &Self) -> bool {
-        true
-    }
 }
 
 /// Candidates for a module-qualified lookup, keyed by how the match arms
@@ -97,50 +59,83 @@ pub(super) struct ModuleScopeIndex {
     pub(super) domain_leaves: crate::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
 }
 
-/// The module-qualified roster index is built on the first
-/// `find_module_qualified_reference` and cleared wherever `module_path_index`
-/// or `root_names` clears; equality ignores it.
-#[derive(Clone, Default)]
-pub(super) struct ModuleScopeIndexCache(pub(super) std::sync::OnceLock<ModuleScopeIndex>);
+/// Clones share one immutable lookup frontier, including its deferred work.
+/// A mutation detaches a shared cell; clearing a unique cell needs no new
+/// allocation. The cache is invisible to semantic equality and debug output.
+macro_rules! index_cache {
+    ($(#[$cache_meta:meta])* $cache:ident, $index:ty, $label:literal) => {
+        $(#[$cache_meta])*
+        #[derive(Clone, Default)]
+        pub(super) struct $cache(pub(super) Arc<std::sync::OnceLock<$index>>);
 
-impl ModuleScopeIndexCache {
-    pub(super) fn clear(&mut self) {
-        self.0.take();
-    }
+        // Lookup is derived from the owning symbol/source tables, including
+        // inactive selection. A restored graph starts with a cold local index.
+        impl compiler_storage::Record for $cache {
+            fn write(&self, _: &mut compiler_storage::RecordWriter) -> Result<(), compiler_storage::RecordError> { Ok(()) }
+            fn read<Context>(_: &mut compiler_storage::RecordReader<'_, Context>) -> Result<Self, compiler_storage::RecordError> { Ok(Self::default()) }
+        }
+
+
+        impl $cache {
+            pub(super) fn clear(&mut self) {
+                if let Some(cell) = Arc::get_mut(&mut self.0) {
+                    cell.take();
+                } else {
+                    self.0 = Arc::default();
+                }
+            }
+        }
+
+        impl PartialEq for $cache {
+            fn eq(&self, _: &Self) -> bool {
+                true
+            }
+        }
+
+        impl Eq for $cache {}
+
+        impl std::fmt::Debug for $cache {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str($label)
+            }
+        }
+    };
 }
 
-impl PartialEq for ModuleScopeIndexCache {
-    fn eq(&self, _: &Self) -> bool {
-        true
-    }
-}
+index_cache!(
+    /// The table's root children bucketed by full name and by leaf, built on the
+    /// first top-level lookup. Every mutation that can change the root roster
+    /// clears it, so it always describes this table; equality ignores it.
+    RootNameIndexCache,
+    RootNameIndex,
+    "RootNameIndexCache"
+);
 
-impl Eq for ModuleScopeIndexCache {}
+index_cache!(
+    /// `source_scoped_top_level_bindings` bucketed by `reference_source`, built on
+    /// the first scoped lookup. A finished table still gains bindings when an
+    /// extension begins or a syntax-only import is registered, and both clear
+    /// the index; equality ignores it.
+    BindingSourceIndexCache,
+    BindingSourceIndex,
+    "BindingSourceIndexCache"
+);
 
-impl std::fmt::Debug for ModuleScopeIndexCache {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("ModuleScopeIndexCache")
-    }
-}
+index_cache!(
+    /// `display_path("::")` per root child and module symbol, snapshotted on the
+    /// first module-qualified or imported-path lookup. Handles minted after the
+    /// snapshot miss the map and fall back to a walk. Every roster mutation
+    /// clears it alongside `root_names`; equality ignores it.
+    ModulePathIndexCache,
+    ModulePathIndex,
+    "ModulePathIndexCache"
+);
 
-impl Eq for ModulePathIndexCache {}
-
-impl std::fmt::Debug for ModulePathIndexCache {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("ModulePathIndexCache")
-    }
-}
-
-impl PartialEq for BindingSourceIndexCache {
-    fn eq(&self, _: &Self) -> bool {
-        true
-    }
-}
-
-impl Eq for BindingSourceIndexCache {}
-
-impl std::fmt::Debug for BindingSourceIndexCache {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("BindingSourceIndexCache")
-    }
-}
+index_cache!(
+    /// The module-qualified roster index is built on the first
+    /// `find_module_qualified_reference` and cleared wherever `module_path_index`
+    /// or `root_names` clears; equality ignores it.
+    ModuleScopeIndexCache,
+    ModuleScopeIndex,
+    "ModuleScopeIndexCache"
+);

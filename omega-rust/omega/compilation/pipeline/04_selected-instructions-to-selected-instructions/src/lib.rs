@@ -58,6 +58,68 @@ macro_rules! receipt_accessor_rows {
     ($name:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
         $( $(#[$meta])* pub const fn $field(self) -> $ty { self.$field } )*
     };
+    (nested $name:ident, $row:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
+        $( $(#[$meta])* pub const fn $field(self) -> $ty { self.$row.$field() } )*
+    };
+}
+
+/// The producer rows a staged shell re-serves unchanged: one internal rule per
+/// accessor, so a shell names its producer field and the rows it re-serves
+/// instead of restating each delegation body and its doc. `$producer` is the
+/// field holding the retained producer stage, and every row delegates to that
+/// producer's own method of the same name.
+macro_rules! staged_producer_accessors {
+    ($producer:ident; $($row:ident),* $(,)?) => {
+        $( staged_producer_accessors!(@row $producer, $row); )*
+    };
+    (@row $producer:ident, selected) => {
+        /// The current selected program this stage describes.
+        pub const fn selected(&self) -> &ValidatedSelectedInstructions {
+            self.$producer.selected()
+        }
+    };
+    (@row $producer:ident, liveness) => {
+        /// The liveness facts over the current program.
+        pub const fn liveness(&self) -> &ValidatedLiveness {
+            self.$producer.liveness()
+        }
+    };
+    (@row $producer:ident, ranges) => {
+        /// The live ranges over the current program.
+        pub const fn ranges(&self) -> &ValidatedLiveRanges {
+            self.$producer.ranges()
+        }
+    };
+    (@row $producer:ident, register_environment) => {
+        /// The target register environment admitted with the current program.
+        pub const fn register_environment(&self) -> &ValidatedTargetRegisterEnvironment {
+            self.$producer.register_environment()
+        }
+    };
+    (@row $producer:ident, allocator_availability) => {
+        /// The environment-derived allocator availability governing the program.
+        pub const fn allocator_availability(&self) -> &ValidatedAllocatorAvailability {
+            self.$producer.allocator_availability()
+        }
+    };
+    (@row $producer:ident, source_legality_stage) => {
+        /// The source legality stage this stage's program was derived from.
+        pub const fn source_legality_stage(&self) -> &StagedOptimizedAllocationLegality {
+            self.$producer.source_legality_stage()
+        }
+    };
+    (@row $producer:ident, selections) => {
+        /// The governing optimizer selections for this admission.
+        pub fn selections(&self) -> &OptimizationSelections {
+            self.$producer.selections()
+        }
+    };
+    (@row $producer:ident, budget_per_pass) => {
+        /// The per-pass work budget admitted beside the same evidence.
+        pub fn budget_per_pass(&self) -> OptimizationWorkBudget {
+            self.$producer.budget_per_pass()
+        }
+    };
 }
 
 /// The validated analyses a staged optimization keeps: liveness, live
@@ -89,7 +151,58 @@ macro_rules! work_defect_conversion {
     )+};
 }
 
-/// `Display` for the crate's `<context> failed: {self:?}` error convention.
+/// One owner row for a validated analysis carrier: the admitted plan, its
+/// receipt, and the two projections every consumer reads — `plan()` and the
+/// receipt's own accessor rows. Each analysis names its carrier, plan and
+/// receipt types instead of restating the shell.
+macro_rules! validated_plan_carrier {
+    ($carrier:ident : $plan:ty, $receipt:ty) => {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct $carrier {
+            pub(crate) plan: $plan,
+            pub(crate) receipt: $receipt,
+        }
+
+        impl $carrier {
+            pub const fn plan(&self) -> &$plan {
+                &self.plan
+            }
+
+            receipt_accessor_rows!(ref $carrier {
+                receipt: $receipt,
+            });
+        }
+    };
+}
+
+/// The whole seal of a freshly produced plan: every receipt row is copied from
+/// the plan root the producer just built, and that plan becomes the validated
+/// carrier. A bounded pass names its plan, carrier, receipt, identity function
+/// and the plan fields its receipt records instead of restating the body.
+macro_rules! seal_plan {
+    (
+        $seal:ident($plan:ty) -> $carrier:ident : $receipt:ident
+            = $identity:path, $error:ty
+        { $($field:ident),* $(,)? }
+    ) => {
+        /// Admit a freshly produced plan with its receipt; the producer calls
+        /// this instead of replaying its own output.
+        pub(crate) fn $seal(candidate: $plan) -> Result<$carrier, $error> {
+            let receipt = $receipt {
+                identity: $identity(&candidate),
+                $($field: candidate.$field,)*
+            };
+            Ok($carrier {
+                plan: candidate,
+                receipt,
+            })
+        }
+    };
+}
+
+/// `Display` for the crate's `<context>: {self:?}` refusal convention. The
+/// caller passes the whole context, so both the `invalid <rewrite>` and the
+/// `<analysis> failed` spellings render from one owner.
 macro_rules! failed_display {
     ($type:ty, $message:literal) => {
         impl std::fmt::Display for $type {
@@ -98,6 +211,16 @@ macro_rules! failed_display {
             }
         }
     };
+}
+
+/// `std::error::Error` for the crate's refusal types: each one already
+/// carries its own `Display`, so the marker impl is a declarative row rather
+/// than a per-type block. The refusal a private module keeps unexported stays
+/// beside its declaration, where only that module can name it.
+macro_rules! std_error {
+    ($($error:ty),+ $(,)?) => {$(
+        impl std::error::Error for $error {}
+    )+};
 }
 
 mod analyses;
@@ -139,10 +262,9 @@ pub use analyses::{
 };
 pub(crate) use analyses::{
     AllocationLegalityValidationReceipt, AllocatorAvailabilityError,
-    AllocatorAvailabilityValidationReceipt, FixedPrecoloredIntervalValidationReceipt,
-    FixedPrecoloredSegmentHomeValidationReceipt, FixedPrecoloredSplitRequirementValidationReceipt,
-    LiveRangeValidationReceipt, LivenessValidationReceipt, RecoveryClassificationValidationReceipt,
-    SpillChoiceValidationReceipt, StagedOptimizedLiveRangeCustodyReceipt,
+    FixedPrecoloredIntervalValidationReceipt, FixedPrecoloredSegmentHomeValidationReceipt,
+    FixedPrecoloredSplitRequirementValidationReceipt, LiveRangeValidationReceipt,
+    LivenessValidationReceipt, StagedOptimizedLiveRangeCustodyReceipt,
     StagedOptimizedLivenessCustodyReceipt,
 };
 pub(crate) use analyses::{
@@ -168,12 +290,11 @@ pub use rewrites::unexecuted;
 pub(crate) use rewrites::{
     AddressFoldError, ConstantBooleanError, ConstantBranchError, CopiedCallOperandError,
     CopyRemovalError, DeadCompareError, EquivalentCompareError, FixedViewCopyError,
-    LiteralFoldPolicy, PairOperandShape, PairResultDisposition, PairUnitDefRelation,
-    PreAllocationPolicy, PreAllocationTransformationIdentity, RedundantCompareError,
-    RedundantExtensionError, SELECTED_STAGE_RULE_CATALOG, SelectedInstructionPairRule,
-    SelectedLoweringRuleCatalogError, SelectedStageRuleRows,
-    StagedOptimizedFixedPrecoloredSegmentHomes, StagedOptimizedFixedViewCopies,
-    resolve_pre_allocation_rules, resolve_selected_lowering_rules,
+    LiteralFoldPolicy, PairResultDisposition, PairUnitDefRelation, PreAllocationPolicy,
+    PreAllocationTransformationIdentity, RedundantCompareError, RedundantExtensionError,
+    SELECTED_STAGE_RULE_CATALOG, SelectedInstructionPairRule, SelectedLoweringRuleCatalogError,
+    SelectedStageRuleRows, StagedOptimizedFixedPrecoloredSegmentHomes,
+    StagedOptimizedFixedViewCopies, resolve_pre_allocation_rules, resolve_selected_lowering_rules,
     run_pre_allocation_optimizations, run_selected_lowering_optimizations,
     validate_pre_allocation_optimization_custody, validate_selected_lowering_optimization_custody,
 };
@@ -231,3 +352,46 @@ pub(crate) use rewrites::{
 pub use rewrites::{
     FixedOccurrencesError, ValidatedFixedOccurrences, materialize_selected_fixed_occurrences,
 };
+
+// The refusal types this root re-exports carry the shared error marker; the
+// decode refusals a private module keeps stay beside their own declarations.
+std_error!(
+    AddressFoldError,
+    AllocationLegalityError,
+    AllocatorAvailabilityError,
+    ConstantBooleanError,
+    ConstantBranchError,
+    CopiedCallOperandError,
+    CopyRemovalError,
+    DeadCompareError,
+    EquivalentCompareError,
+    FixedOccurrencesError,
+    FixedPrecoloredIntervalError,
+    FixedPrecoloredSegmentHomeError,
+    FixedPrecoloredSplitRequirementError,
+    FixedViewCopyError,
+    LiteralFoldError,
+    LiveRangeError,
+    LivenessError,
+    MachineEffectError,
+    MachineEffectStageError,
+    OptimizedAllocationLegalityCustodyError,
+    OptimizedFixedPrecoloredSegmentHomeCustodyError,
+    OptimizedFixedViewCopyCustodyError,
+    OptimizedLiteralFoldCustodyError,
+    OptimizedLiveRangeCustodyError,
+    OptimizedLivenessCustodyError,
+    OptimizedPreAllocationCustodyError,
+    OptimizedSelectedReanalysisError,
+    PressureRematerializationError,
+    RecoveryClassificationError,
+    RedundantCompareError,
+    RedundantExtensionError,
+    RuntimeRematerializationError,
+    RuntimeSpillError,
+    RuntimeSplitError,
+    SelectedInstructionOptimizationError,
+    SpillChoiceError,
+    StoredLoadForwardingError,
+    WorkDefect,
+);

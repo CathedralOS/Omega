@@ -22,6 +22,10 @@ retires `Self`, data-subject conformances and data-attached dynamic objects.
 The examples below specify the destination model; compiler migration is tracked
 on the [execution board](../../TASKS.md), not provided as a compatibility dialect.
 
+Carrier endpoints below use the ratified ordinary core
+[integer API](../spec/language/numeric_values.md#core-integer-and-float-apis);
+`CORE-INTEGER-FLOAT-APIS` retains its library/compiler implementation work.
+
 ```omega
 trait Incrementable<T> {
     machine increment(counter: &mut T);
@@ -39,13 +43,13 @@ data Counter {
 SaturatingIncrement satisfies Incrementable<Counter>
 {
     machine increment(counter: &mut Counter) {
-        transition counter.value < i32::Maximum {
+        transition counter.value < integer::max<i32>() {
             true -> bump(&mut counter)
             _ -> saturated()
         }
 
         machine bump(counter: &mut Counter)
-        requires counter.value < i32::Maximum;
+        requires counter.value < integer::max<i32>();
         {
             counter.value = counter.value + 1;
         }
@@ -295,17 +299,21 @@ The mapping substitutes through the inherited signature and contracts. See
 from the public conformance telescope.
 
 The `satisfies` clause follows the signature and precedes termination, contracts,
-and the checked body. An irreducible external implementation instead uses
-`via <Binding>;` and inherits the requirement's contract; the binding payload is
-not evidence that foreign code honors it. Neither form creates a whole
-conformance.
+and the checked body. Irreducible native backing instead uses a package-local
+`Build::bind<Requirement>(builder, target, locator)` row; no per-symbol bodyless
+realization or source `via` clause is declared. The locator's byte lengths are
+inferred from its ordinary values. Native supply retains the requirement's full
+contract and needs foreign admission; the binding payload proves no behavior.
+Neither exact satisfaction nor native binding creates a whole conformance.
+See [Build-owned native binding](../spec/build/foreign_bindings.md#build-owned-native-binding)
+for the accepted form and its remaining implementation work.
 
 ## Individual Machine Requirements
 
 A local generic requirement may need only one exact machine signature rather
 than a reusable trait name. A static machine binder states that structural
-contract, for example `where machine Key(card: &Card) -> u64`. This is distinct
-from an anonymous member requirement such as `where machine T::member(...)`,
+contract, for example `requires machine Key(card: &Card) -> u64`. This is distinct
+from an anonymous member requirement such as `requires machine T::member(...)`,
 which is not a supported source form. See
 [static machine binders](../spec/language/generics.md#static-machine-binder-categories).
 
@@ -752,7 +760,7 @@ declared laws, exact substitutions, validity scopes, and admitted assumptions.
 Implementation-private proofs cannot introduce undeclared public guarantees.
 
 Value-wide facts belong to the carrier's default domain: field constraints and
-the data signature's `where` facts. Algebraic laws remain resultless theorem
+the data signature's `requires` facts. Algebraic laws remain resultless theorem
 requirements with `ensures`. Invariant windows remain compiler-derived proof
 debt opened by writes and closed at consumption points; they do not imply an
 authored `invariant` keyword.

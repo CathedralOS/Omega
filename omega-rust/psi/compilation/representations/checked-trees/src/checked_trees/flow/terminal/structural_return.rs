@@ -6,7 +6,7 @@ use super::{CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralResult
 use language_semantics::Multiplicity;
 use typed_trees::type_identity::TypeIdentityId;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitStructuralReturnPlan {
     pub source: CheckedUnitStructuralArgumentSourcePlan,
     pub completion: CheckedStructuralReturnCompletion,
@@ -18,7 +18,7 @@ pub struct CheckedUnitStructuralReturnPlan {
 /// Completion is an occurrence, distinct from the source storage's birth.
 /// A selected value arm retains its evaluation lane; an immediately forwarded
 /// terminal call retains its concrete result, not the callee's origin template.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedStructuralReturnCompletion {
     Value {
         statement_index: u32,
@@ -39,15 +39,19 @@ pub struct CheckedReferenceResultSourcePlan {
 /// A function's returned provenance is a relation to ingress, not a recipe
 /// for forming a loan. Runtime element choices have no caller-side selector;
 /// their actual address and permission remain in the captured returned value.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedReturnedReferencePlan {
     pub path: Vec<super::CheckedUnitStructuralPathSegment>,
     pub source: CheckedReferenceOriginSourcePlan,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedReferenceOriginSourcePlan {
     pub root: CheckedReferenceOriginRoot,
+    /// Exact entry-shell steps emitted by this source producer, before its
+    /// storage-relative path. Borrowed formal ingress erases these steps;
+    /// invocation storage and every nested reference crossing retain theirs.
+    pub entry_reference_hops: u32,
     pub path: Vec<CheckedReferenceOriginProjection>,
     pub extent: semantic_vocabulary::ReferenceOriginExtent,
     /// Type of the selected source endpoint. For a region relation this need
@@ -59,13 +63,13 @@ pub struct CheckedReferenceOriginSourcePlan {
 /// A normal result either retains a formal's permission or publishes a
 /// permission established by the performed invocation. Executable body replay
 /// still authenticates its actual supplier; this declaration forms no pointer.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedReferenceOriginRoot {
     Parameter { index: u32 },
     Invocation { carrier_type: TypeIdentityId },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedReferenceOriginProjection {
     Exact(super::CheckedUnitStructuralPathSegment),
     Element,

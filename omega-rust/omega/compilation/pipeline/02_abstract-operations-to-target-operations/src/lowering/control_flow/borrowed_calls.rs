@@ -13,6 +13,37 @@ use target_operations::{
 };
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralPathSegment};
 
+/// Present a referent whole: no projection, byte offset or runtime selector,
+/// so primitive storage and descriptor sources share one guard and one literal.
+fn direct_referent(
+    argument: &terminal_psi::StructuralArgument,
+    declaration: &terminal_psi::StructuralParameterDeclaration,
+    destination: &TargetStructuralParameter,
+    identity: semantic_vocabulary::StructuralTypeId,
+    source: TargetStructuralArgumentSource,
+    types: &StructuralTypeLookup<'_>,
+) -> Option<TargetStructuralArgument> {
+    terminal_semantics::borrowed_referent_matches(
+        types.values().copied(),
+        identity,
+        declaration.structural_type,
+    )
+    .then(|| TargetStructuralArgument {
+        place: argument.place,
+        access: argument.access,
+        path: Vec::new(),
+        root_structural_type: identity,
+        structural_type: declaration.structural_type,
+        shape: destination.shape,
+        source_byte_offset: 0,
+        fixed_array_length: None,
+        element_stride: None,
+        indices: Vec::new(),
+        source,
+        destination: destination.placement.clone(),
+    })
+}
+
 /// Resolve borrowed storage or an explicit reference crossing independently
 /// of the call result.
 pub(super) fn argument(
@@ -206,27 +237,8 @@ pub(super) fn argument(
         }
         (source.structural_type, source.placement.clone().into())
     };
-    if !terminal_semantics::borrowed_referent_matches(
-        types.values().copied(),
-        identity,
-        declaration.structural_type,
-    ) {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
-    Ok(TargetStructuralArgument {
-        place: argument.place,
-        access: argument.access,
-        path: Vec::new(),
-        root_structural_type: identity,
-        structural_type: declaration.structural_type,
-        shape: destination.shape,
-        source_byte_offset: 0,
-        fixed_array_length: None,
-        element_stride: None,
-        indices: Vec::new(),
-        source,
-        destination: destination.placement.clone(),
-    })
+    direct_referent(argument, declaration, destination, identity, source, types)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))
 }
 
 /// Invocation and joined storage lend from their existing address, not a copy.
@@ -367,117 +379,93 @@ pub(super) fn address_join_window_argument(
     // A record field can already be the element-view or byte-view descriptor.
     // The address join owns the record; the call lends that field at its
     // offset. This is not a fixed-array window and not a new descriptor.
-    stored_descriptor_field(argument, declaration, destination, &root, function, types)
+    stored_descriptor_argument(
+        argument,
+        declaration,
+        destination,
+        &root,
+        function,
+        live,
+        types,
+    )
 }
 
-/// A stored descriptor may be lent at its own access, or read shared when
-/// the stored ceiling is mutable. Canonical whole descriptors omit the
-/// ceiling (`None`) and follow the argument access.
-fn view_access_lends(
-    stored: Option<StructuralAccess>,
-    presented: Option<StructuralAccess>,
-    argument: StructuralAccess,
-) -> bool {
-    let stored_allows = match stored {
-        None => true,
-        Some(StructuralAccess::MutableBorrow) => {
-            matches!(
-                argument,
-                StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
-            )
-        }
-        Some(access) => access == argument,
-    };
-    let presented_allows = match presented {
-        None => true,
-        Some(access) => access == argument,
-    };
-    stored_allows && presented_allows
-}
-
-/// Lend a descriptor stored in a field of an address-joined record.
-///
-/// The field's structural type is the callee's view. Shared access may read
-/// a mutable descriptor; the loan does not retarget or resize it.
-fn stored_descriptor_field(
+/// Lend the current descriptor selected from borrowed storage. Whole slots
+/// and nested projections use the same path, access and representation owners;
+/// the source keeps the descriptor home and the callee receives its existing
+/// pointer/extent presentation. Qualification rows add no ABI words.
+fn stored_descriptor_argument(
     argument: &terminal_psi::StructuralArgument,
     declaration: &terminal_psi::StructuralParameterDeclaration,
     destination: &TargetStructuralParameter,
     root: &crate::lowering::unit::argument_roots::StructuralArgumentRoot,
     function: &AbstractFunction,
+    live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
-    let unsupported = || LoweringError::unsupported_control_flow(function.machine);
-    if argument.path.is_empty()
-        || !argument
-            .path
-            .iter()
-            .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
-        || argument.access != declaration.access
-        || declaration.multiplicity != StructuralMultiplicity::Unrestricted
-        || !declaration.qualifications.is_empty()
-        || !declaration.projected_qualifications.is_empty()
+    let unsupported = || {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "descriptor call storage refusal machine={:?} argument={argument:?} formal={declaration:?} source={:?}",
+                function.machine, root.declaration,
+            );
+        }
+        LoweringError::unsupported_control_flow(function.machine)
+    };
+    if argument.access != declaration.access
+        || declaration.access == StructuralAccess::Owned
+        || !matches!(
+            declaration.multiplicity,
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
+        )
+        || !terminal_semantics::descriptor_source_projection_accessible(
+            types.values().copied(),
+            root.declaration.structural_type,
+            root.declaration.multiplicity,
+            root.declaration.access,
+            &argument.path,
+            argument.access,
+        )
     {
         return Err(unsupported());
     }
+    let regions = crate::lowering::structural_layout::reference_projection_regions(
+        root.declaration.structural_type,
+        &argument.path,
+        types,
+    )
+    .ok_or_else(unsupported)?;
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
     let (selected, shape, offset, runs) =
         crate::lowering::structural_layout::runtime_storage_projection(
-            root.declaration.structural_type,
-            &argument.path,
+            regions.root,
+            regions.path,
             types,
             &mut shape_cache,
             &mut active,
         )?;
-    if !runs.is_empty() {
-        return Err(unsupported());
-    }
-    let field_type = selected.declaration(
-        root.declaration.structural_type,
-        types,
-        terminal_psi::StructuralFieldType::canonical_leaf_type,
-    )?;
-    let same_view = match (
-        types.get(&field_type).map(|row| &row.shape),
-        types
-            .get(&declaration.structural_type)
-            .map(|row| &row.shape),
-    ) {
-        (
-            Some(terminal_psi::StructuralTypeShape::ElementView {
-                element: stored,
-                access: stored_access,
-            }),
-            Some(terminal_psi::StructuralTypeShape::ElementView {
-                element: presented,
-                access: presented_access,
-            }),
-        ) => {
-            stored == presented
-                && view_access_lends(*stored_access, *presented_access, argument.access)
-        }
-        (
-            Some(terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView {
-                    access: stored_access,
-                },
-            )),
-            Some(terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView {
-                    access: presented_access,
-                },
-            )),
-        ) => view_access_lends(*stored_access, *presented_access, argument.access),
-        _ => false,
-    };
+    // Inline field contracts need no coincidentally equal global type entry.
+    // Access was authenticated against the original full coordinate above;
+    // this common comparison answers only unchanged descriptor geometry.
+    let selected_shape = selected.shape(types).ok_or_else(unsupported)?;
+    let destination_type = types
+        .get(&declaration.structural_type)
+        .ok_or_else(unsupported)?;
     let end = u64::from(offset).checked_add(u64::from(shape.byte_size));
-    if !same_view
+    if !terminal_semantics::descriptor_geometry_matches(&selected_shape, &destination_type.shape)
         || destination.shape != ValueShape::borrowed_reference(shape.byte_size, shape.alignment)
-        || end.is_none_or(|end| end > u64::from(root.backing_shape.byte_size))
+        || regions.pointer_slots.is_empty()
+            && end.is_none_or(|end| end > u64::from(root.backing_shape.byte_size))
     {
         return Err(unsupported());
     }
+    let runs = regions.selector_runs(runs);
+    let indices = super::scalar_sources::runtime_indices(
+        runs,
+        function,
+        &super::scalar_sources::ScalarSources::from(live),
+    )?;
     Ok(TargetStructuralArgument {
         place: argument.place,
         access: argument.access,
@@ -488,7 +476,7 @@ fn stored_descriptor_field(
         source_byte_offset: offset,
         fixed_array_length: None,
         element_stride: None,
-        indices: Vec::new(),
+        indices,
         source: root.source.clone(),
         destination: destination.placement.clone(),
     })
@@ -737,25 +725,6 @@ pub(super) fn byte_argument(
         }
         (source.structural_type, source.placement.clone().into())
     };
-    if !terminal_semantics::borrowed_referent_matches(
-        types.values().copied(),
-        identity,
-        declaration.structural_type,
-    ) {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
-    Ok(TargetStructuralArgument {
-        place: argument.place,
-        access: argument.access,
-        path: Vec::new(),
-        root_structural_type: identity,
-        structural_type: declaration.structural_type,
-        shape: destination.shape,
-        source_byte_offset: 0,
-        fixed_array_length: None,
-        element_stride: None,
-        indices: Vec::new(),
-        source,
-        destination: destination.placement.clone(),
-    })
+    direct_referent(argument, declaration, destination, identity, source, types)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))
 }

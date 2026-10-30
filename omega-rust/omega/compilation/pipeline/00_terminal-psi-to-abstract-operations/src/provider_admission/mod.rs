@@ -15,7 +15,6 @@
 
 mod adapters;
 mod callable_authority;
-pub use adapters::NativeProviderPlanDeclaration;
 pub(crate) use adapters::retain_selected_provider_adapters;
 pub use callable_authority::AdmittedNativeCallableAuthority;
 mod callback_arguments;
@@ -39,6 +38,7 @@ pub use compiler_builtins::{
 };
 pub(crate) use compiler_builtins::{
     derive_selected_intrinsic_settlement_proposals, prepare_retained_compiler_builtins,
+    validate_external_provider_owners,
 };
 pub use diagnostics::realization_error;
 
@@ -128,9 +128,19 @@ pub(crate) fn admit_native_providers<'request>(
     settlements.extend(builtin_settlements);
     mechanisms.extend(builtin_mechanisms);
     for settlement in &settlements {
+        // A sealed component call executes the selected checked export, which
+        // can forward an existing qualification. Its installation already joined
+        // the result theories; raw native providers still need their own issuer.
+        let checked_component = matches!(
+            &settlement.realization,
+            target_operations::BoundarySettlementRealization::NormalizedForeignCall(binding)
+                if matches!(&binding.mechanism,
+                    target_operations::NormalizedForeignCallMechanism::Component { .. })
+        );
         let module = input.context().module();
         if let Some(boundary) = module.boundary_machine(settlement.boundary)
             && boundary.requires_checked_result(&module.structural_domains)
+            && !checked_component
         {
             return Err(vec![Diagnostic::error(format!(
                 "native provider for `{}` cannot establish result provenance owned by another issuer; a checked provider must return the qualified value",

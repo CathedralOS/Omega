@@ -9,17 +9,19 @@
 //! compiles that root through its own product request, stops after joining the
 //! dependencies' generated source into the root request.
 
+pub(crate) mod source_resolution;
+
 use build_declarations::DependencyPurpose;
 use compiler::{CheckedCompileRequest, CompileFailure, PackageBuild};
-use compiler::{CompilationSession, PackageCompileFailure};
+use compiler::{CompilationSession, PackageCompileFailure, PackageSourceRequest};
 use diagnostics::Diagnostic;
-use package_compilation::{IndependentComponentDescription, PackageGeneratedSourceBundle};
+use package_compilation::{IndependentComponentDescription, PackageBuildHandoff};
 use semantic_vocabulary::PackageKeyIdentity;
 
 struct OccurrenceProduct {
     package: PackageKeyIdentity,
     purpose: DependencyPurpose,
-    generated: PackageGeneratedSourceBundle,
+    generated: PackageBuildHandoff,
     prepared: Option<PackageBuild>,
     description: Option<IndependentComponentDescription>,
 }
@@ -27,12 +29,12 @@ struct OccurrenceProduct {
 struct PackageFrontier<Owner> {
     position: usize,
     owner: Owner,
-    remaining: std::vec::IntoIter<CheckedCompileRequest>,
+    remaining: std::vec::IntoIter<PackageSourceRequest>,
     products: Vec<OccurrenceProduct>,
     /// The Product root a joining frontier receives its dependencies'
     /// generated source into instead of preparing; `None` prepares the last
     /// remaining occurrence as the root.
-    joined_root: Option<CheckedCompileRequest>,
+    joined_root: Option<PackageSourceRequest>,
 }
 
 /// How one package plan finished: its root's prepared Build, or the root
@@ -44,9 +46,36 @@ pub(super) enum PreparedPackageRoot {
 
 /// One dependency-ordered plan and what to do with its Product root.
 pub(super) struct PackagePlan {
-    pub occurrences: Vec<CheckedCompileRequest>,
+    pub occurrences: Vec<PackageSourceRequest>,
     /// Join generated source into the root instead of preparing its Build.
     pub join_root: bool,
+}
+
+fn prepare_package_source(
+    request: PackageSourceRequest,
+    compiler: &mut CompilationSession,
+    completed: &mut [compiler::CompletedBuild],
+) -> Result<PackageBuild, CompileFailure> {
+    match request {
+        PackageSourceRequest::Execute(request) => execute_package_build(compiler, request),
+        PackageSourceRequest::Product(request) => {
+            let source = completed
+                .iter_mut()
+                .find(|source| source.package_inputs().root() == request.inputs.root())
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "Product request has no settled source Build",
+                    )]
+                })?;
+            source.require_execution_contract(&request.execution)?;
+            compiler.prepare_package_product(
+                source,
+                request.target,
+                request.inputs,
+                request.options,
+            )
+        }
+    }
 }
 
 struct PendingOccurrence<Owner> {
@@ -56,9 +85,97 @@ struct PendingOccurrence<Owner> {
     failure: Option<CompileFailure>,
 }
 
+/// Run the admitted occurrence while keeping the compiler available for work
+/// requested between steps. Completion validates the entire retained request
+/// ledger; an ignored step cannot erase an outstanding dependency.
+pub(crate) fn execute_package_build(
+    compiler: &mut CompilationSession,
+    request: CheckedCompileRequest,
+) -> Result<PackageBuild, CompileFailure> {
+    execute_returned_build(compiler, request)?.complete(compiler)
+}
+
+/// Application work retained between normal return and the final source join.
+/// Keeping the invocation beside its return prevents the scheduler from
+/// discarding the source continuation and replaying Build after acquisition.
+pub(crate) struct ReturnedPackageBuild {
+    pub(crate) invocation: compiler::PackageBuildInvocation,
+    pub(crate) returned: Option<build_evaluation::ReturnedBuild>,
+}
+
+impl ReturnedPackageBuild {
+    pub(crate) fn complete(
+        self,
+        compiler: &mut CompilationSession,
+    ) -> Result<PackageBuild, CompileFailure> {
+        let Self {
+            invocation,
+            returned,
+        } = self;
+        compiler.complete_package_build(invocation, returned)
+    }
+}
+
+pub(crate) fn execute_returned_build(
+    compiler: &mut CompilationSession,
+    request: CheckedCompileRequest,
+) -> Result<ReturnedPackageBuild, CompileFailure> {
+    let mut invocation = compiler.begin_package_build(request)?;
+    let mut queries = invocation.product_queries();
+    let returned = execute_build(invocation.execution(), Some(&mut queries))?;
+    Ok(ReturnedPackageBuild {
+        invocation,
+        returned,
+    })
+}
+
+/// Run one admitted activation to return. This is the shared one-shot policy for
+/// source and package consumers; its retained ledger still requires final join.
+pub(crate) fn execute_build(
+    execution: Option<&mut build_evaluation::PreparedBuildExecution>,
+    mut queries: Option<&mut compiler::ProductQueries>,
+) -> Result<Option<build_evaluation::ReturnedBuild>, CompileFailure> {
+    let returned = if let Some(execution) = execution {
+        let host = execution.host()?;
+        let refuse = |reason| {
+            vec![Diagnostic::error(format!(
+                "Terminal Build failed: {reason}"
+            ))]
+        };
+        let mut activation = host.start().map_err(refuse)?;
+        loop {
+            let step = activation.advance(1024).map_err(refuse)?;
+            if let Some(query) = step.awaiting_query {
+                let queries = queries
+                    .as_mut()
+                    .ok_or_else(|| refuse("Build query has no retained source context".into()))?;
+                let description = queries.describe(&query, Vec::new())?;
+                activation
+                    .answer_query(&query, description, &[])
+                    .map_err(refuse)?;
+                continue;
+            }
+            if step.awaiting_provider.is_some() {
+                return Err(refuse(
+                    "Build provider readiness requires dependency scheduling".into(),
+                )
+                .into());
+            }
+            if step.returned {
+                break;
+            }
+        }
+        Some(activation.complete().map_err(refuse)?)
+    } else {
+        None
+    };
+    Ok(returned)
+}
+
 pub(super) fn prepare_packages<Owner>(
     compiler: &mut CompilationSession,
     plans: Vec<(Owner, PackagePlan)>,
+    completed: &mut [compiler::CompletedBuild],
 ) -> Vec<(Owner, Result<PreparedPackageRoot, PackageCompileFailure>)> {
     let mut outcomes = Vec::with_capacity(plans.len());
     let mut frontiers = Vec::new();
@@ -99,7 +216,7 @@ pub(super) fn prepare_packages<Owner>(
                     )]
                 })?;
                 let occurrence = join_generated_sources(occurrence, &frontier.products)?;
-                let build = compiler.prepare_package_build(occurrence)?;
+                let build = prepare_package_source(occurrence, compiler, completed)?;
                 let components = required_components(&build, &frontier.products)?;
                 Ok::<_, CompileFailure>((build, components))
             })();
@@ -179,7 +296,7 @@ pub(super) fn prepare_packages<Owner>(
                     frontier.products.push(OccurrenceProduct {
                         package: build.package_inputs().root(),
                         purpose: build.package_inputs().compilation_purpose(),
-                        generated: build.generated_source_bundle().clone(),
+                        generated: build.build_handoff().clone(),
                         prepared: Some(build),
                         description: None,
                     });
@@ -265,21 +382,43 @@ impl<Owner> PackageFrontier<Owner> {
         let root = self.joined_root.take().ok_or_else(|| {
             refuse(vec![Diagnostic::error("package frontier lost its joined root")].into())
         })?;
-        join_generated_sources(root, &self.products)
-            .map(PreparedPackageRoot::Joined)
-            .map_err(refuse)
+        match join_generated_sources(root, &self.products).map_err(refuse)? {
+            PackageSourceRequest::Execute(request) => Ok(PreparedPackageRoot::Joined(request)),
+            PackageSourceRequest::Product(_) => Err(refuse(
+                vec![Diagnostic::error(
+                    "Product preparation cannot be returned as a new Build execution request",
+                )]
+                .into(),
+            )),
+        }
     }
 }
 
 fn join_generated_sources(
-    mut occurrence: CheckedCompileRequest,
+    occurrence: PackageSourceRequest,
     products: &[OccurrenceProduct],
-) -> Result<CheckedCompileRequest, CompileFailure> {
-    let inputs = occurrence.package_inputs.take().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "package compilation requires source custody",
-        )]
-    })?;
+) -> Result<PackageSourceRequest, CompileFailure> {
+    match occurrence {
+        PackageSourceRequest::Execute(mut request) => {
+            let inputs = request.package_inputs.take().ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "package compilation requires source custody",
+                )]
+            })?;
+            request.package_inputs = Some(join_generated_inputs(inputs, products)?);
+            Ok(PackageSourceRequest::Execute(request))
+        }
+        PackageSourceRequest::Product(mut request) => {
+            request.inputs = join_generated_inputs(request.inputs, products)?;
+            Ok(PackageSourceRequest::Product(request))
+        }
+    }
+}
+
+fn join_generated_inputs(
+    inputs: package_compilation::PackageCompilationInputs,
+    products: &[OccurrenceProduct],
+) -> Result<package_compilation::PackageCompilationInputs, CompileFailure> {
     let required = inputs.required_dependency_source_instances();
     let mut generated = Vec::with_capacity(required.len());
     for (dependency, dependency_purpose) in required {
@@ -293,12 +432,9 @@ fn join_generated_sources(
             })?;
         generated.push(product.generated.clone());
     }
-    occurrence.package_inputs = Some(
-        inputs
-            .with_complete_dependency_generated_sources(generated)
-            .map_err(input_diagnostics)?,
-    );
-    Ok(occurrence)
+    inputs
+        .with_complete_dependency_build_handoffs(generated)
+        .map_err(|errors| input_diagnostics(errors).into())
 }
 
 fn required_components(
@@ -330,7 +466,7 @@ fn required_components(
 
 /// Refuse malformed plans before any Build effect. Order is supplied by the
 /// package resolver; checking it is request admission, not graph reconstruction.
-fn validate_order(request: &[CheckedCompileRequest]) -> Result<(), PackageCompileFailure> {
+fn validate_order(request: &[PackageSourceRequest]) -> Result<(), PackageCompileFailure> {
     if request.is_empty() {
         return Err(PackageCompileFailure {
             occurrence: 0,
@@ -343,13 +479,12 @@ fn validate_order(request: &[CheckedCompileRequest]) -> Result<(), PackageCompil
             failure: vec![Diagnostic::error(message)].into(),
         };
         let inputs = occurrence
-            .package_inputs
-            .as_ref()
+            .package_inputs()
             .ok_or_else(|| refuse("package compilation requires source custody"))?;
         let previous = &request[..position];
         if previous
             .iter()
-            .filter_map(|request| request.package_inputs.as_ref())
+            .filter_map(PackageSourceRequest::package_inputs)
             .any(|prior| {
                 prior.root() == inputs.root()
                     && prior.compilation_purpose() == inputs.compilation_purpose()
@@ -360,7 +495,7 @@ fn validate_order(request: &[CheckedCompileRequest]) -> Result<(), PackageCompil
         for (package, purpose) in inputs.required_dependency_source_instances() {
             if !previous
                 .iter()
-                .filter_map(|request| request.package_inputs.as_ref())
+                .filter_map(PackageSourceRequest::package_inputs)
                 .any(|prior| prior.root() == package && prior.compilation_purpose() == purpose)
             {
                 return Err(refuse(

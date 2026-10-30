@@ -19,16 +19,16 @@ crashes Trap
         ByteRead::Byte { value } -> compare(application, value)
         _ -> bad(application)
     }
-    state compare(application: &mut Main, value: i32) {
+    machine compare(application: &mut Main, value: i32) {
         let floating: f64 = F64::from_i32(value);
         transition same(floating, 65.0) && !same(floating, 66.0) {
             true -> done(application)
             false -> bad(application)
         }
     }
-    state done(application: &mut Main) {
+    machine done(application: &mut Main) {
         Console::write_line("float equality: equal and unequal");
         Console::exit_process(0);
     }
-    state bad(application: &mut Main) { Console::exit_process(3); }
+    machine bad(application: &mut Main) { Console::exit_process(3); }
 }

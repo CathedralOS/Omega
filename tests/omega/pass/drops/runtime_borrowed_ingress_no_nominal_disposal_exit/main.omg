@@ -81,7 +81,7 @@ machine borrow(room: &mut Room)
 requires room.count == 10
 reaches Console {
  transition { _ -> observe(room) }
- state observe(room: &mut Room) { Console::write_byte(79); }
+ machine observe(room: &mut Room) { Console::write_byte(79); }
 }
 data Main {} machine Main::main(main: &mut Main) reaches Console {
  let room: Room = Room { count: 10 };

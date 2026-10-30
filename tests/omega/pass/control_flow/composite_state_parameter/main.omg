@@ -59,7 +59,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.total = 0;
     transition { _ -> take_literal(main, Pair { a: 1, b: 2 }, 3) }
 
-    state take_literal(main: &mut Main, pair: Pair, extra: i32 in Wrapping) {
+    machine take_literal(main: &mut Main, pair: Pair, extra: i32 in Wrapping) {
         main.total = main.total + pair.a + pair.b + extra;
         transition main.total == 6 {
             true -> take_field(main, main.pair)
@@ -67,7 +67,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state take_field(main: &mut Main, pair: Pair) {
+    machine take_field(main: &mut Main, pair: Pair) {
         main.total = main.total + pair.a + pair.b;
         transition main.total == 36 {
             true -> take_call(make(&mut main.counter, 5), 6, main)
@@ -75,7 +75,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state take_call(pair: Pair, extra: i32 in Wrapping, main: &mut Main) {
+    machine take_call(pair: Pair, extra: i32 in Wrapping, main: &mut Main) {
         main.total = main.total + pair.a + pair.b + extra;
         let local: Pair = Pair { a: 7, b: 8 };
         transition main.counter.made == 1 && main.total == 97 {
@@ -84,7 +84,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state take_local(main: &mut Main, pair: Pair) {
+    machine take_local(main: &mut Main, pair: Pair) {
         main.total = main.total + pair.a + pair.b - 15;
         transition main.total == 97 {
             true -> take_owned(main, settle(3))
@@ -92,7 +92,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state take_owned(main: &mut Main, owned: Owned) {
+    machine take_owned(main: &mut Main, owned: Owned) {
         main.total = main.total + owned.value - 3;
         transition main.total == 97 {
             true -> take_view(main, &main.pair)
@@ -100,15 +100,15 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state take_view(main: &mut Main, pair: &Pair) {
+    machine take_view(main: &mut Main, pair: &Pair) {
         transition main.total - pair.a - pair.b + main.counter.made * 3 == 70 {
             true -> good(main)
             false -> bad(main, 74)
         }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -16,29 +16,21 @@
 //! checked boundary without ending a loan needed by the final expression.
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
-    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralResultBindingPlan, LocalConstructionTrace, Multiplicity,
-    ScalarCalleeClosure, ShapeCollector, StatementNode, StatementSequence, SymbolHandle,
-    append_exit_reference_releases, append_reference_releases, structural_operands,
+    CheckedUnitStructuralResultBindingPlan, Construction, Multiplicity, StatementNode,
+    StatementSequence, SymbolHandle, append_exit_reference_releases, append_reference_releases,
+    structural_operands,
 };
 use checked_trees::{CheckedUnitCallPlan, CheckedUnitStructuralReturnPlan};
 
 /// A planned body's final state, with the inputs completion reads.
 pub(super) struct Completion<'a, 'program, 'shapes> {
-    pub(super) program: &'program dyn ::validation::CheckingInput,
-    pub(super) facts: &'program CheckFacts,
-    pub(super) scalar_callees: ScalarCalleeClosure,
-    pub(super) shapes: &'a mut ShapeCollector<'shapes>,
-    pub(super) machine: &'program typed_trees::machine::Machine,
-    pub(super) state: &'program typed_trees::state::State,
-    pub(super) structural_parameters: &'a mut [CheckedUnitStructuralParameterPlan],
-    pub(super) entry_claims: &'a [CheckedUnitEntryClaimPlan],
+    pub(super) construction: Construction<'a, 'program, 'shapes>,
+    pub(super) owner_candidates: super::reference_retirement::OwnerCandidates,
+    pub(super) prepared_calls:
+        &'a mut crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
     pub(super) calls: &'a [&'a checked_trees::FlowCallFact],
-    pub(super) trivial_affine_locals:
-        &'a [(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
-    pub(super) trace: &'a LocalConstructionTrace,
     pub(super) binders: &'a [(SymbolHandle, String)],
     pub(super) scalar_control: Option<checked_trees::CheckedUnitScalarControlPlan>,
     pub(super) operations: Vec<CheckedUnitEffectOperationPlan>,
@@ -55,17 +47,22 @@ pub(super) struct Completion<'a, 'program, 'shapes> {
 
 pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSequence> {
     let Completion {
-        program,
-        facts,
-        scalar_callees,
-        shapes,
-        machine,
-        state,
-        structural_parameters,
-        entry_claims,
+        construction:
+            Construction {
+                program,
+                facts,
+                scalar_callees,
+                shapes,
+                machine,
+                state,
+                structural_parameters,
+                entry_claims,
+                trivial_affine_locals,
+                trace,
+            },
+        owner_candidates,
+        prepared_calls,
         calls,
-        trivial_affine_locals,
-        trace,
         binders,
         scalar_control,
         mut operations,
@@ -79,6 +76,25 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         mut structural_results,
         call_count,
     } = completion;
+    if operations
+        .last()
+        .is_some_and(|operation| !operation.has_normal_continuation())
+    {
+        // The planned prefix ends at the exact nonreturning invocation. Source
+        // admission still checks the dead suffix, but it supplies no execution,
+        // receiving value, exit weakening or normal loan transaction here.
+        return Some(StatementSequence {
+            scalar_result: None,
+            scalar_control: None,
+            structural_result: None,
+            operations,
+            windows,
+            place_loans,
+            structural_local_symbols,
+            structural_results,
+            next_scalar_binding: scalar_count,
+        });
+    }
     let statements = typed_trees::statement::reachable_state_statements(
         program.statement_table.statements(state.statement_nodes),
     );
@@ -175,7 +191,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         ) {
             Some(result)
         } else {
-            let calls = super::prepare_value_operands(
+            let (calls, completion) = super::prepare_value_operands(
                 program,
                 facts,
                 scalar_callees,
@@ -193,6 +209,25 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 trace,
                 &mut windows,
             )?;
+            if completion == checked_trees::CheckedValueCompletion::NoNormal {
+                operations.push(CheckedUnitEffectOperationPlan::EvaluateStructuralValue {
+                    statement_index: root.statement_ordinal,
+                    value: root.root,
+                    calls,
+                    operand_source: None,
+                });
+                return Some(StatementSequence {
+                    scalar_result: None,
+                    scalar_control: None,
+                    structural_result: None,
+                    operations,
+                    windows,
+                    place_loans,
+                    structural_local_symbols,
+                    structural_results,
+                    next_scalar_binding: scalar_count,
+                });
+            }
             // Completion owns the same stored result carrier as an ordinary
             // returning call, including reference shells and views. Argument
             // presentation (`add_type`) may name its referent and cannot
@@ -351,9 +386,23 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         .or_else(|| statements.len().checked_sub(1));
     if let Some(statement_index) = completion_entry {
         trace.phase("statement sequence: statement-entry descriptor retirement");
-        append_reference_releases(
+        prepared_calls.prepare_before(
             program,
             facts,
+            shapes,
+            machine,
+            state,
+            structural_parameters,
+            trivial_affine_locals,
+            entry_claims,
+            &operations,
+            statement_index,
+        );
+        append_reference_releases(
+            &owner_candidates,
+            program,
+            facts,
+            prepared_calls,
             shapes,
             structural_parameters,
             machine.symbol,
@@ -425,10 +474,27 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             returned_scalar_call = Some(result);
         }
     }
-    trace.phase("statement sequence: completion descriptor retirement");
-    append_exit_reference_releases(
+    prepared_calls.prepare_before(
         program,
         facts,
+        shapes,
+        machine,
+        state,
+        structural_parameters,
+        trivial_affine_locals,
+        entry_claims,
+        &operations,
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .len(),
+    );
+    trace.phase("statement sequence: completion descriptor retirement");
+    append_exit_reference_releases(
+        &owner_candidates,
+        program,
+        facts,
+        prepared_calls,
         shapes,
         structural_parameters,
         machine.symbol,

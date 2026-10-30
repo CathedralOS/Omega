@@ -31,14 +31,14 @@ machine Main::main(main: &mut Main) {
     main.ranged = 2.0;
     main.ranged = 0.5;
     transition { _ -> accepts(main, main.ranged) }
-    state accepts(main: &mut Main, value: f32 in Finite) {
+    machine accepts(main: &mut Main, value: f32 in Finite) {
         transition value == 0.5 && main.direct == 2.5 {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

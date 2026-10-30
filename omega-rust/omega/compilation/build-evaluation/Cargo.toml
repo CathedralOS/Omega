@@ -6,11 +6,15 @@ version.workspace = true
 
 
 [dependencies]
+backend-plan = { path = "../backend/plans/backend-plan" }
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
+terminal-installation = { path = "../../../psi/compilation/checking/terminal-installation" }
+terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
 psi-compiler = { path = "../../../psi/compilation/driver" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
+filesystem-authority = { path = "../../../psi/foundation/filesystem-authority" }
 artifacts = { path = "../../foundation/artifacts" }
 compilation-products = { path = "../products" }
 arena = { path = "../../../psi/foundation/arena" }
@@ -24,9 +28,9 @@ provider-planning = { path = "../realization/provider-planning" }
 selected-dispatch = { path = "../realization/selected-dispatch" }
 representation-planning = { path = "../../../psi/compilation/checking/representation-planning" }
 target = { path = "../backend/target" }
+runtime-abi = { path = "../backend/runtime/runtime-abi" }
 trust-model = { path = "../realization/trust-model" }
 build-time-evaluation = { path = "../../../psi/compilation/compile-time" }
-checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }

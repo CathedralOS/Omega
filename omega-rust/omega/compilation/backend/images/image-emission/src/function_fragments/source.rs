@@ -7,7 +7,7 @@ use abstract_operations::{
 };
 use machine_code::{FunctionFragmentEmissionPlan, FunctionTargetFrameLayout};
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
-use semantic_vocabulary::MachineId;
+use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
 mod aggregate_results;
 mod control_flow;
 pub(super) mod placed_reference;
@@ -50,6 +50,7 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
         matches!(
             operation,
             AbstractOperation::SelectImplementation { .. }
+                | AbstractOperation::InvokeNoNormal { .. }
                 | AbstractOperation::ExternalCompletion { .. }
                 | AbstractOperation::CallStructural {
                     callee: abstract_operations::AbstractCallTarget::Dynamic { .. },
@@ -525,15 +526,43 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     callee,
                     ..
                 } => selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && call_target_matches(*callee,row.call.target) && row.call.result_placement.is_none() && row.call.crash_continuations == *crash_continuations),
-                AbstractOperation::BoundaryCall { psi_operation, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.invocation_site() == (*psi_operation).into())
-                    || program_image_retained(operation, targeted, selected)
-                    || ieee_float_builtin_retained(operation, targeted, selected)
+                AbstractOperation::BoundaryCall { psi_operation, boundary, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.invocation_site() == (*psi_operation).into())
+                    || program_image_retained(psi_operation, boundary, targeted, selected)
+                    || ieee_float_builtin_retained(psi_operation, boundary, targeted, selected)
                     || placed_scalar_retained(operation, targeted, selected)
                     || selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::TargetFamily { .. } | legalized_operations::NativeCallOrigin::ProgramEntry { .. }))
-                    || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::BoundaryInvocationSite::Operation(*psi_operation)),
+                    || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::InvocationSite::Operation(*psi_operation)),
                 AbstractOperation::Crash { .. } => control_flow::retained(operation, targeted),
+                AbstractOperation::InvokeNoNormal {
+                    psi_edge, callee, arguments, structural_arguments, claim_transfers,
+                    requirement_obligations, crash_continuations,
+                } => {
+                    // A no-normal callee may have no emitted return records.
+                    // Its entry graph still owns its full declared calling plan.
+                    let (_, target) = function(source, *callee)?;
+                    let call_plan = &target.graph.call_plan;
+                    selected.calls.iter().filter(|row| {
+                        row.owner == target_operations::CallSiteOwner::InvokeNoNormal(*psi_edge)
+                            && row.call.target == target_operations::NativeCallTarget::Machine(*callee)
+                            && row.call.call_plan == *call_plan
+                            && row.call.result_placement == call_plan.result
+                            && row.call.structural_result.is_none()
+                            && row.call.descriptor_origins.is_empty()
+                            && row.call.claim_transfers == *claim_transfers
+                            && row.call.requirement_obligations == *requirement_obligations
+                            && row.call.crash_continuations == *crash_continuations
+                            && row.call.arguments.iter().filter_map(|argument| match argument {
+                                legalized_operations::LegalizedScalarArgument::Scalar { source, .. } => Some(*source),
+                                _ => None,
+                            }).eq(arguments.iter().copied())
+                            && row.call.arguments.iter().filter_map(|argument| match argument {
+                                legalized_operations::LegalizedScalarArgument::Structural { semantic, .. } => Some(semantic),
+                                _ => None,
+                            }).eq(structural_arguments)
+                    }).count() == 1 && control_flow::retained(operation, targeted)
+                }
                 AbstractOperation::ExternalCompletion { psi_edge, boundary, .. } => {
-                    let site = semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*psi_edge);
+                    let site = semantic_vocabulary::InvocationSite::ExternalCompletion(*psi_edge);
                     (selected.boundary_settlements.iter().filter(|row| row.settlement.invocation_site() == site).count()
                         + selected.normalized_foreign_calls.iter().filter(|row| row.invocation_site == site && row.call.boundary == *boundary).count()
                         + selected.calls.iter().filter(|row| row.owner == target_operations::CallSiteOwner::ExternalCompletion(*psi_edge)
@@ -652,18 +681,11 @@ fn byte_concatenation_retained<'operation>(
 /// operands and result homes; publication joins that operation and boundary to
 /// the single selected form attributed to it alone.
 fn ieee_float_builtin_retained(
-    operation: &AbstractOperation,
+    psi_operation: &OperationId,
+    boundary: &BoundaryMachineId,
     targeted: &target_operations::TargetFunction,
     selected: &selected_instructions::SelectedFunction,
 ) -> bool {
-    let AbstractOperation::BoundaryCall {
-        psi_operation,
-        boundary,
-        ..
-    } = operation
-    else {
-        return false;
-    };
     let mut rows = targeted.graph.operations().filter_map(|row| match row {
         target_operations::TargetUnitOperation::NearestIeeeFloatArithmetic {
             psi_operation: retained,
@@ -701,18 +723,11 @@ fn ieee_float_builtin_retained(
 }
 
 fn program_image_retained(
-    operation: &AbstractOperation,
+    psi_operation: &OperationId,
+    boundary: &BoundaryMachineId,
     targeted: &target_operations::TargetFunction,
     selected: &selected_instructions::SelectedFunction,
 ) -> bool {
-    let AbstractOperation::BoundaryCall {
-        psi_operation,
-        boundary,
-        ..
-    } = operation
-    else {
-        return false;
-    };
     targeted.graph.operations().filter(|row| matches!(row,
         target_operations::TargetUnitOperation::ProgramImageAddress {
             psi_operation: actual, boundary: actual_boundary, ..
@@ -1031,22 +1046,18 @@ pub(super) fn fragment_metadata(
 /// bodies and storage effects have already been independently decoded. This
 /// joins exact current emission, rather than guessing from authored spelling
 /// or adding scratch bytes to the live prefix of every unrelated call.
-pub(super) fn temporary_stack_bytes(
+pub(super) fn temporary_stack_bytes_by_function(
     source: &StagedOptimizedRelocationFreeObjectContainer,
-    machine: MachineId,
-) -> Result<u32, Error> {
-    fragments(source).function(machine).ok_or(Error::Mismatch(
-        "missing current fragment for temporary stack replay",
-    ))?;
+) -> Result<std::collections::BTreeMap<MachineId, u32>, Error> {
     let current = source.source().source().source().source();
-    temporary_stack_bytes_for_function(
-        machine,
+    temporary_stack_bytes_for_selected_functions(
         &current.selected_plan().functions,
         current.encoding().rows(),
         current.encoding().encoded(),
     )
 }
 
+#[cfg(test)]
 fn temporary_stack_bytes_for_function(
     machine: MachineId,
     selected: &selected_instructions::SelectedFunctions,
@@ -1056,15 +1067,30 @@ fn temporary_stack_bytes_for_function(
     selected.function(machine).ok_or(Error::Mismatch(
         "missing selected function for temporary stack replay",
     ))?;
+    temporary_stack_bytes_for_selected_functions(selected, rows, encoded)?
+        .remove(&machine)
+        .ok_or(Error::Mismatch(
+            "missing selected function for temporary stack replay",
+        ))
+}
+
+fn temporary_stack_bytes_for_selected_functions(
+    selected: &selected_instructions::SelectedFunctions,
+    rows: &[machine_code::SelectedFormEncodingRow],
+    encoded: &machine_code::SelectedFormEncodedRowStore,
+) -> Result<std::collections::BTreeMap<MachineId, u32>, Error> {
     // Encoding rows are global and ordered like the selected function/block
     // roster, including each block's terminator. Instruction IDs restart in
     // every function: a bare-ID lookup imports other functions' PUSHFQ or
     // directed-FP storage. Retain the machine alongside each ID before taking
     // this function's peak, exactly as selected-form admission does.
     let mut encoded_rows = rows.iter();
+    let mut peaks = std::collections::BTreeMap::new();
     let mut identities = std::collections::BTreeSet::new();
     let mut effects = Vec::new();
     for function in selected {
+        identities.clear();
+        effects.clear();
         for block in &function.blocks {
             for instruction in block.instructions.iter().chain(std::iter::once(
                 selected_instructions::terminator_instruction(&block.terminator),
@@ -1072,18 +1098,29 @@ fn temporary_stack_bytes_for_function(
                 let row = encoded_rows.next().ok_or(Error::Mismatch(
                     "missing encoding row for temporary stack replay",
                 ))?;
-                let identity = (function.machine, row.instruction);
-                if row.instruction != instruction.id || !identities.insert(identity) {
+                if row.instruction != instruction.id || !identities.insert(row.instruction) {
                     return Err(Error::Mismatch(
                         "encoding instruction roster changed for temporary stack replay",
                     ));
                 }
-                if identity.0 == machine
-                    && let Some(footprint) = encoded.footprint(row.footprint)
-                {
+                if let Some(footprint) = encoded.footprint(row.footprint) {
                     effects.push(&footprint.encoded);
                 }
             }
+        }
+        // Sequential and mutually exclusive balanced envelopes compose by maximum;
+        // none stays live across another instruction or call. Whole-function and
+        // selected-form admission already establish these exact typed footprints.
+        if peaks
+            .insert(
+                function.machine,
+                temporary_stack_peak(effects.iter().copied()),
+            )
+            .is_some()
+        {
+            return Err(Error::Mismatch(
+                "encoding instruction roster changed for temporary stack replay",
+            ));
         }
     }
     if encoded_rows.next().is_some() {
@@ -1091,10 +1128,7 @@ fn temporary_stack_bytes_for_function(
             "extra encoding row for temporary stack replay",
         ));
     }
-    // Sequential and mutually exclusive balanced envelopes compose by maximum;
-    // none stays live across another instruction or call. Whole-function and
-    // selected-form admission already establish these exact typed footprints.
-    Ok(temporary_stack_peak(effects.into_iter()))
+    Ok(peaks)
 }
 
 fn temporary_stack_peak<'effects>(

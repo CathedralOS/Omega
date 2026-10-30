@@ -34,7 +34,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.unit_result = block Filesystem::write_all(&mut main.fs, "omega_wrapper_probe.txt", "hello");
     transition main.unit_result { UnitResult::Ok -> exists_check(main) _ -> bad(main, 71) }
 
-    state exists_check(main: &mut Main) {
+    machine exists_check(main: &mut Main) {
         // AlreadyExists via mkdir (flag-FREE, so fully portable): create_new's
         // O_CREAT|O_EXCL carries DARWIN flag values, which mean different bits
         // to msvcrt (0x200 = darwin O_CREAT = windows O_TRUNC!) -- the flag
@@ -42,60 +42,60 @@ machine Main::main(main: &mut Main) reaches Console {
         main.unit_result = block Filesystem::create_dir(&mut main.fs, "omega_wrapper_probe_dir");
         transition main.unit_result { UnitResult::Ok -> exists_again(main) _ -> bad(main, 72) }
     }
-    state exists_again(main: &mut Main) {
+    machine exists_again(main: &mut Main) {
         let result: UnitResult = block Filesystem::create_dir(&mut main.fs, "omega_wrapper_probe_dir");
         transition result {
             UnitResult::Error { kind } -> exists_kind(main, kind)
             _ -> bad(main, 81)
         }
     }
-    state exists_kind(main: &mut Main, kind: ErrorKind) {
+    machine exists_kind(main: &mut Main, kind: ErrorKind) {
         main.unit_result = block Filesystem::remove_dir(&mut main.fs, "omega_wrapper_probe_dir");
         transition kind { ErrorKind::AlreadyExists -> open_it(main) _ -> bad(main, 73) }
     }
 
-    state open_it(main: &mut Main) {
+    machine open_it(main: &mut Main) {
         main.open_result = block Filesystem::open(&mut main.fs, "omega_wrapper_probe.txt");
         transition main.open_result {
             OpenResult::Ok { file } -> read_it(main, file)
             _ -> bad(main, 74)
         }
     }
-    state read_it(main: &mut Main, file: File) {
+    machine read_it(main: &mut Main, file: File) {
         main.io_result = block Filesystem::read(&mut main.fs, file, &mut main.buffer, 32);
         main.close_result = block Filesystem::close(&mut main.fs, file);
         transition main.close_result { UnitResult::Ok -> read_checked(main) _ -> bad(main, 82) }
     }
-    state read_checked(main: &mut Main) {
+    machine read_checked(main: &mut Main) {
         transition main.io_result {
             IoResult::Ok { count } -> check_count(main, count)
             _ -> bad(main, 75)
         }
     }
-    state check_count(main: &mut Main, count: u64) {
+    machine check_count(main: &mut Main, count: u64) {
         transition count == 5 { true -> check_byte(main) _ -> bad(main, 76) }
     }
-    state check_byte(main: &mut Main) {
+    machine check_byte(main: &mut Main) {
         transition main.buffer[0] == 104 { true -> remove_it(main) _ -> bad(main, 77) }
     }
 
-    state remove_it(main: &mut Main) {
+    machine remove_it(main: &mut Main) {
         main.unit_result = block Filesystem::remove(&mut main.fs, "omega_wrapper_probe.txt");
         transition main.unit_result { UnitResult::Ok -> remove_missing(main) _ -> bad(main, 78) }
     }
-    state remove_missing(main: &mut Main) {
+    machine remove_missing(main: &mut Main) {
         let result: UnitResult = block Filesystem::remove(&mut main.fs, "omega_wrapper_probe.txt");
         transition result {
             UnitResult::Error { kind } -> missing_kind(main, kind)
             _ -> bad(main, 79)
         }
     }
-    state missing_kind(main: &mut Main, kind: ErrorKind) {
+    machine missing_kind(main: &mut Main, kind: ErrorKind) {
         transition kind { ErrorKind::NotFound -> good(main) _ -> bad(main, 80) }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

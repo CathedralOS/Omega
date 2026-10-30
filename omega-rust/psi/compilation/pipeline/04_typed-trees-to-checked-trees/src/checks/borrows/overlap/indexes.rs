@@ -21,6 +21,9 @@ pub(super) enum BorrowCompatibilitySelectorPosition {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum NormalizedBound {
     Integer(i64),
+    /// Typed builtin runtime element value under one immutable formal frame.
+    /// This is neither a structural place key nor evidence of an index bound.
+    EntryRead(validation::ImmutableEntryReadIdentity),
     Symbol {
         symbol: SymbolHandle,
         offset: i64,
@@ -79,6 +82,7 @@ pub(super) enum NormalizedBound {
 /// evidence.
 fn bound_terms_equal(left: NormalizedBound, right: NormalizedBound) -> bool {
     match (left, right) {
+        (NormalizedBound::EntryRead(left), NormalizedBound::EntryRead(right)) => left == right,
         (NormalizedBound::Integer(_), NormalizedBound::Integer(_)) => true,
         (
             NormalizedBound::Symbol {
@@ -130,6 +134,7 @@ fn bound_terms_equal(left: NormalizedBound, right: NormalizedBound) -> bool {
 fn bound_offset(bound: NormalizedBound) -> Option<i64> {
     match bound {
         NormalizedBound::Integer(value) => Some(value),
+        NormalizedBound::EntryRead(_) => Some(0),
         NormalizedBound::Symbol { offset, .. } => Some(offset),
         NormalizedBound::Storage { .. } => Some(0),
         NormalizedBound::Projected { .. } | NormalizedBound::StorageProjected { .. } => Some(0),
@@ -177,19 +182,95 @@ impl<'a> SelectorEvaluation<'a> {
         }
     }
 
-    /// Ask only the current scope's established integer relations.
+    /// Ask only the current scope's established integer relations. Exact
+    /// equations may transport a query through completed results and joins;
+    /// they never rewrite ambient premises or manufacture a storage version.
     fn prove_ordering(
         &mut self,
         left: NormalizedBound,
         relation: BorrowCompatibilityPremiseRelation,
         right: NormalizedBound,
     ) -> bool {
-        if self
+        // Reserve the whole former single/two-premise search unchanged, then
+        // bound only the additional equality exploration. Exhaustion proves
+        // nothing; it cannot turn a failed compatibility query into authority.
+        const EQUALITY_CONSULTATIONS: usize = 4096;
+        let mut remaining = self
+            .premises
+            .len()
+            .saturating_mul(self.premises.len())
+            .saturating_add(EQUALITY_CONSULTATIONS);
+        if self.prove_from_premises(left.clone(), relation, right.clone(), &mut remaining) {
+            return true;
+        }
+        let mut candidates = Vec::new();
+        for candidate in self
             .premises
             .iter()
-            .any(|premise| premise_proves(premise, left.clone(), relation, right.clone()))
+            .filter_map(StatedOrderingPremise::equality_candidates)
+            .flatten()
         {
-            return true;
+            crate::collections::push_unique(&mut candidates, candidate);
+        }
+        let mut pending = vec![(left, right)];
+        let mut visited = Vec::new();
+        while let Some((left, right)) = pending.pop() {
+            if visited.contains(&(left.clone(), right.clone())) {
+                continue;
+            }
+            visited.push((left.clone(), right.clone()));
+            for candidate in &candidates {
+                for (subject, next) in [
+                    (&left, (candidate.clone(), right.clone())),
+                    (&right, (left.clone(), candidate.clone())),
+                ] {
+                    if subject == candidate || visited.contains(&next) || pending.contains(&next) {
+                        continue;
+                    }
+                    if !self.prove_from_premises(
+                        subject.clone(),
+                        BorrowCompatibilityPremiseRelation::Equal,
+                        candidate.clone(),
+                        &mut remaining,
+                    ) {
+                        if remaining == 0 {
+                            return false;
+                        }
+                        continue;
+                    }
+                    if self.prove_from_premises(
+                        next.0.clone(),
+                        relation,
+                        next.1.clone(),
+                        &mut remaining,
+                    ) {
+                        return true;
+                    }
+                    if remaining == 0 {
+                        return false;
+                    }
+                    pending.push(next);
+                }
+            }
+        }
+        false
+    }
+
+    fn prove_from_premises(
+        &self,
+        left: NormalizedBound,
+        relation: BorrowCompatibilityPremiseRelation,
+        right: NormalizedBound,
+        remaining: &mut usize,
+    ) -> bool {
+        for premise in self.premises {
+            if *remaining == 0 {
+                return false;
+            }
+            *remaining -= 1;
+            if premise_proves(premise, left.clone(), relation, right.clone()) {
+                return true;
+            }
         }
         // No single premise names both bounds; a two-premise chain through
         // one shared middle bound may still derive the relation.
@@ -198,16 +279,19 @@ impl<'a> SelectorEvaluation<'a> {
                 if first_index == second_index {
                     continue;
                 }
-                if !premise_chain_proves(
+                if *remaining == 0 {
+                    return false;
+                }
+                *remaining -= 1;
+                if premise_chain_proves(
                     &self.premises[first_index],
                     &self.premises[second_index],
                     left.clone(),
                     relation,
                     right.clone(),
                 ) {
-                    continue;
+                    return true;
                 }
-                return true;
             }
         }
         false
@@ -547,7 +631,7 @@ fn exclusive_end_bound(
                     .map(|offset| NormalizedBound::Symbol { symbol, offset }),
                 // `call result + 1` is outside the result vocabulary, so
                 // an inclusive call end reports unknown.
-                NormalizedBound::CallResult { .. } => None,
+                NormalizedBound::CallResult { .. } | NormalizedBound::EntryRead(_) => None,
                 // `storage + 1` is outside the storage vocabulary, so an
                 // inclusive mutable end reports unknown.
                 NormalizedBound::Storage { .. } => None,
@@ -601,8 +685,30 @@ pub(super) fn projected_bound(
     lookup: &validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
-    let (symbol, field, is_mutable) =
-        validation::projected_integer_bound_root(program, lookup, expression)?;
+    let Some((symbol, field, is_mutable)) =
+        validation::projected_integer_bound_root(program, lookup, expression)
+    else {
+        // A nested owned record path is one complete observation. A final
+        // field symbol alone would conflate siblings or different roots.
+        let place = validation::canonical_place_from_expression(program, expression)?;
+        let symbol = place.root.as_symbol()?;
+        if place.segments.is_empty()
+            || !place.segments.iter().all(|segment| {
+                matches!(
+                    segment,
+                    facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+                )
+            })
+        {
+            return None;
+        }
+        return append_immutable_projection(
+            program,
+            lookup,
+            NormalizedBound::Symbol { symbol, offset: 0 },
+            &place.segments,
+        );
+    };
     // The bound names the canonical attached-field identity the write frame
     // carries; the authored member spelling can disagree for `self` members.
     let field = match program.expression_table.expression(expression) {
@@ -613,6 +719,64 @@ pub(super) fn projected_bound(
     };
     let segments = vec![facts::PlaceSegment::Field { symbol: field }];
     Some(if is_mutable {
+        NormalizedBound::StorageProjected { symbol, segments }
+    } else {
+        NormalizedBound::Projected { symbol, segments }
+    })
+}
+
+/// Read an exact immutable owned path in the same namespace for premise
+/// subjects and compatibility queries. A shared root lends readable storage;
+/// another reference inside the path begins a different epoch and refuses.
+pub(super) fn append_immutable_projection(
+    program: &dyn ::validation::CheckingInput,
+    lookup: &validation::ImmutableBoundLookup<'_>,
+    bound: NormalizedBound,
+    projection: &[facts::PlaceSegment],
+) -> Option<NormalizedBound> {
+    let (symbol, mut segments, storage) = match bound {
+        NormalizedBound::Symbol { symbol, offset: 0 } => (symbol, Vec::new(), false),
+        NormalizedBound::Projected { symbol, segments } => (symbol, segments, false),
+        NormalizedBound::Storage { symbol } => (symbol, Vec::new(), true),
+        NormalizedBound::StorageProjected { symbol, segments } => (symbol, segments, true),
+        _ => return None,
+    };
+    let mut reference = lookup.immutable_binding_type(symbol)?;
+    if let Some(shell) = validation::reference_shell(program, reference) {
+        if shell.access != language_core::ReferenceAccess::Shared {
+            return None;
+        }
+        reference = shell.referee;
+    }
+    segments.extend_from_slice(projection);
+    for (position, segment) in segments.iter().enumerate() {
+        match segment {
+            facts::PlaceSegment::Field { .. } => {}
+            facts::PlaceSegment::FixedIndex { index } => {
+                // Type/path replay alone does not establish array bounds.
+                // Each index belongs to the type at its own prefix; an outer
+                // array's extent cannot authorize a nested element selection.
+                let container = validation::owned_projection_type_reference(
+                    program,
+                    reference,
+                    &segments[..position],
+                )?;
+                let extent = validation::fixed_array_type_length(program, container)?;
+                if *index >= extent {
+                    return None;
+                }
+            }
+            _ => return None,
+        }
+    }
+    let leaf = validation::owned_projection_type_reference(program, reference, &segments)?;
+    if !program.primitive_type_reference(leaf)?.is_fixed_integer()
+        || program.arithmetic_domain_for_type_reference(leaf)
+            != numerics::arithmetic::ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    Some(if storage {
         NormalizedBound::StorageProjected { symbol, segments }
     } else {
         NormalizedBound::Projected { symbol, segments }
@@ -642,6 +806,20 @@ pub(super) fn normalized_bound(
     lookup: &validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
+    if program
+        .expression_table
+        .indexed_node(expression)
+        .is_some_and(|indexed| {
+            program
+                .expression_table
+                .constant_integer_value(indexed.index)
+                .is_none()
+        })
+        && let Some(identity) =
+            validation::immutable_entry_indexed_read_identity(program, expression)
+    {
+        return Some(NormalizedBound::EntryRead(identity));
+    }
     // A call result has no place identity: the occurrence's own expression
     // handle is its bound, so a nested call's `ensures` minted in the same
     // statement names this exact production — and any resolved projection
@@ -690,14 +868,13 @@ pub(super) fn normalized_bound(
     };
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(value) => value.value_i64().map(NormalizedBound::Integer),
-        ExpressionNode::Name(path) => {
-            let members = program.expression_table.name_path_members(path.members);
-            (members.len() == 1 && path.symbol.is_valid() && path.head_symbol == path.symbol)
-                .then_some(NormalizedBound::Symbol {
-                    symbol: path.symbol,
-                    offset: 0,
-                })
-        }
+        ExpressionNode::Name(path) => program
+            .expression_table
+            .name_path_is_single_member(path)
+            .then_some(NormalizedBound::Symbol {
+                symbol: path.symbol,
+                offset: 0,
+            }),
         _ => None,
     }
 }

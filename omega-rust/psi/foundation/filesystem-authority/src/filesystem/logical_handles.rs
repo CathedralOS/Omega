@@ -41,38 +41,16 @@ pub enum FilesystemLogicalHandleInputResolution {
     Unknown,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FilesystemLogicalHandleInput {
-    pub(crate) operand_ordinal: u8,
-    pub(crate) kind: FilesystemLogicalHandleKind,
-    pub(crate) resolution: FilesystemLogicalHandleInputResolution,
-}
+filesystem_record!(
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct FilesystemLogicalHandleInput {
+        pub(crate) operand_ordinal: u8,
+        pub(crate) kind: FilesystemLogicalHandleKind,
+        pub(crate) resolution: FilesystemLogicalHandleInputResolution,
+    }
+);
 
 impl FilesystemLogicalHandleInput {
-    pub const fn new(
-        operand_ordinal: u8,
-        kind: FilesystemLogicalHandleKind,
-        resolution: FilesystemLogicalHandleInputResolution,
-    ) -> Self {
-        Self {
-            operand_ordinal,
-            kind,
-            resolution,
-        }
-    }
-
-    pub const fn operand_ordinal(self) -> u8 {
-        self.operand_ordinal
-    }
-
-    pub const fn kind(self) -> FilesystemLogicalHandleKind {
-        self.kind
-    }
-
-    pub const fn resolution(self) -> FilesystemLogicalHandleInputResolution {
-        self.resolution
-    }
-
     pub const fn is_unknown_native(self) -> bool {
         matches!(
             (self.kind, self.resolution),
@@ -95,35 +73,11 @@ pub enum FilesystemLogicalHandleOutputSource {
     Borrowed(FilesystemLogicalHandleIdentity),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FilesystemLogicalHandleOutput {
-    pub(crate) kind: FilesystemLogicalHandleKind,
-    pub(crate) identity: FilesystemLogicalHandleIdentity,
-    pub(crate) source: FilesystemLogicalHandleOutputSource,
-}
-
-impl FilesystemLogicalHandleOutput {
-    pub const fn new(
-        kind: FilesystemLogicalHandleKind,
-        identity: FilesystemLogicalHandleIdentity,
-        source: FilesystemLogicalHandleOutputSource,
-    ) -> Self {
-        Self {
-            kind,
-            identity,
-            source,
-        }
+filesystem_record!(
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct FilesystemLogicalHandleOutput {
+        pub(crate) kind: FilesystemLogicalHandleKind,
+        pub(crate) identity: FilesystemLogicalHandleIdentity,
+        pub(crate) source: FilesystemLogicalHandleOutputSource,
     }
-
-    pub const fn kind(self) -> FilesystemLogicalHandleKind {
-        self.kind
-    }
-
-    pub const fn identity(self) -> FilesystemLogicalHandleIdentity {
-        self.identity
-    }
-
-    pub const fn source(self) -> FilesystemLogicalHandleOutputSource {
-        self.source
-    }
-}
+);

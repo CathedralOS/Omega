@@ -1,9 +1,6 @@
 //! Optimizer module role: stage group. Independent keyed requirement replay.
 
-mod ordinary;
 mod state;
-mod work;
-mod writes;
 
 use std::collections::BTreeSet;
 
@@ -14,7 +11,7 @@ use register_environment::{FrameAbiPreservationConvention, selected_abi_preserva
 
 use super::{
     AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementPolicy,
-    FunctionAllocatedCalleeSavedRequirements,
+    FunctionAllocatedCalleeSavedRequirements, compute::work,
 };
 use state::{ReplayTraversal, keyed_homes};
 
@@ -54,7 +51,7 @@ pub(super) fn reconstruct(
         let homes = ordinary_homes
             .get(&function.machine)
             .ok_or(AllocatedCalleeSavedRequirementError::FunctionRosterMismatch)?;
-        ordinary::reconstruct(&mut traversal, function, homes)?;
+        traversal.walk_function(function, homes)?;
     }
     let usage = work::usage(&traversal)?;
     // One linear traversal of the program: its ceilings grow with the program

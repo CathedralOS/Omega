@@ -1,7 +1,7 @@
 data Token [linear] { value: u32; }
 machine leak(output: &mut u32, token: Token) {
  transition { _ -> tail(output, token) }
- state tail(output: &mut u32, token: Token) {
+ machine tail(output: &mut u32, token: Token) {
   output = 7;
   transition { _ -> {} }
  }

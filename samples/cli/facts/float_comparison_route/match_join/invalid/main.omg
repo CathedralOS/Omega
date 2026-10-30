@@ -9,12 +9,12 @@ machine main() crashes Trap {
         true -> bad()
         _ -> second()
     }
-    state second() {
+    machine second() {
         transition equal_operands(212.0, 212.0, false) {
             true -> bad()
             _ -> done()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

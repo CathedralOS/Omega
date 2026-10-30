@@ -389,7 +389,7 @@ fn generic_reference_identity<'program>(
     // well as data applications. A const in a nested implementation must use
     // the same index grammar before and after caller-side substitution.
     let parameters = if context.invalid_application.is_some() || context.storage_value_indices {
-        application_parameters(program, symbol)
+        program.declaration_type_parameters(symbol)
     } else {
         &[]
     };
@@ -413,6 +413,27 @@ fn generic_reference_identity<'program>(
                     // application equality always keeps the actual subject.
                     return "unit".to_owned();
                 }
+                // Callable operands retain an overload and a source region
+                // telescope even when transported as a generic type payload.
+                // Use the same source operand projection as a direct static
+                // selection; neither representation may erase the other lane.
+                if context.invalid_application.is_some()
+                    && parameters.get(ordinal).is_some_and(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            crate::data::TypeParameterKind::Machine { .. }
+                        )
+                    })
+                {
+                    return match program.static_operand_from_type_reference(*argument) {
+                        Ok(selected) => substitution::index_argument(
+                            program,
+                            super::IndexIdentityArgument::StaticArgument(&selected),
+                            context,
+                        ),
+                        Err(_) => substitution::rejected(context),
+                    };
+                }
                 let is_index = context.invalid_application.is_some()
                     && parameters
                         .get(ordinal)
@@ -431,32 +452,6 @@ fn generic_reference_identity<'program>(
     )
 }
 
-fn application_parameters(
-    program: &TypedTrees,
-    symbol: SymbolHandle,
-) -> &[crate::data::TypeParameter] {
-    use symbols::SymbolKind;
-    match program.symbols.get(symbol).kind {
-        SymbolKind::Data => program
-            .data_definition_by_symbol(symbol)
-            .map(|declaration| program.data_type_parameters(declaration)),
-        SymbolKind::Domain => crate::domain::domain_by_symbol(program, symbol)
-            .map(|declaration| program.domain_type_parameters(declaration)),
-        SymbolKind::Trait => program
-            .trait_definition_by_symbol(symbol)
-            .map(|declaration| program.trait_type_parameters(declaration)),
-        SymbolKind::Conformance => program
-            .conformance_by_symbol(symbol)
-            .map(|declaration| program.conformance_type_parameters(declaration)),
-        SymbolKind::Machine | SymbolKind::State => program
-            .machine_by_symbol(symbol)
-            .or_else(|| program.machine_holding_state(symbol))
-            .map(|declaration| program.machine_type_parameters(declaration)),
-        _ => None,
-    }
-    .unwrap_or_default()
-}
-
 /// A source static type application and a type-reference application denote
 /// the same carrier. Read both through one grammar without allocating a type
 /// node merely to compare a retained source operand.
@@ -465,6 +460,13 @@ pub(super) fn static_nominal_argument_identity(
     argument: &crate::expression::StaticMachineArgument,
     context: &TypeIdentityContext<'_>,
 ) -> Option<String> {
+    if argument
+        .application
+        .as_ref()
+        .is_some_and(|application| application.member.is_valid())
+    {
+        return None;
+    }
     if context.invalid_application.is_none()
         || !argument.symbol.is_valid()
         || !matches!(
@@ -955,6 +957,10 @@ pub(crate) fn normalize_index_expression(
                         )
                     }),
             ),
+        ),
+        ExpressionNode::TypeExpression(type_reference) => compound(
+            "type-expression",
+            [normalize_type_reference(program, *type_reference, context)],
         ),
         ExpressionNode::ZeroValue(type_reference) => compound(
             "zero-value",

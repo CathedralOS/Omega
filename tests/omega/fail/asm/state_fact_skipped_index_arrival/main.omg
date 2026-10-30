@@ -9,7 +9,7 @@ machine probe(values: &[u64; 10]) -> u64 {
         nop
     }
     transition { _ -> read(values, position) }
-    state read(values: &[u64; 10], position: u64) -> u64 {
+    machine read(values: &[u64; 10], position: u64) -> u64 {
         values[position]
     }
 }

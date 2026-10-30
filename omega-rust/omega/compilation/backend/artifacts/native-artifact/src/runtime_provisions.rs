@@ -9,6 +9,37 @@
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_psi::TerminalPsiIdentity;
 
+mod native_adapters;
+
+/// Runtime capture joins the emitted input, not an independently replaceable
+/// scalar receipt. The native installation may omit compile-only suppliers,
+/// but every installed row must preserve the selection used for evaluation.
+fn capture_scalar_applications(
+    input: &terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
+    identity: TerminalPsiIdentity,
+    target: target::TargetProfile,
+    installation: Option<&terminal_installation::AdmittedProviderSelections>,
+) -> Result<Option<terminal_installation::AdmittedScalarApplications>, &'static str> {
+    if input.plan().psi != identity
+        || input.target_machine_selections().is_none_or(|selected| {
+            selected.terminal_psi() != identity || selected.target() != target.target_name()
+        })
+    {
+        return Err("runtime capture names another native artifact or target");
+    }
+    let Some(completed) = input.scalar_applications() else {
+        return Ok(None);
+    };
+    if completed.terminal() != identity
+        || completed.primary().targets().target() != target.target_name()
+        || installation
+            .is_some_and(|installed| !installed.is_subset_of(completed.primary().providers()))
+    {
+        return Err("runtime scalar capture differs from the emitted provider installation");
+    }
+    Ok(Some(completed.clone()))
+}
+
 /// An exact host operation admitted for the native product. Reference execution
 /// may implement its semantic contract, but cannot substitute another slot or
 /// manufacture authority merely because a realization was selected.
@@ -28,6 +59,11 @@ struct RuntimeHostRequirement {
     selected_requirement_identity: String,
     provider_plan_report_identity: u64,
     calling_application: Option<calling_conventions::BoundaryCallingApplication>,
+    /// Produced once from this admitted row. An unavailable physical route
+    /// stays an explicit runtime limitation; it does not invalidate an otherwise
+    /// valid native program or cause the interpreter to compile a replacement.
+    native_adapter:
+        Option<Result<std::sync::Arc<image_emission::NativeForeignAdapterImage>, String>>,
 }
 
 /// Exact callable host and selected-provider companions. These are shared
@@ -49,7 +85,7 @@ impl TerminalRuntimeHostProvisions {
         boundaries: &[terminal_psi::BoundaryMachineDeclaration],
         selected: &effects::SelectedProviderPlanFacts,
         identities: &terminal_psi::TerminalIdentityTable,
-        calling_applications: &[calling_conventions::BoundaryCallingApplication],
+        external_bindings: &[calling_conventions::ExternalBindingRow],
     ) -> Result<Self, &'static str> {
         let mut host_requirements = Vec::new();
         for provision in &host {
@@ -78,21 +114,49 @@ impl TerminalRuntimeHostProvisions {
             let requirement = binding
                 .requirement_identity(selected.identities())
                 .ok_or("runtime foreign calling application lost its selected requirement")?;
-            // The same producer has already settled these applications. Retain
-            // its exact shape and strong selected commitment, not a reconstructed
-            // shape inferred from a placement's byte extent or report coordinate.
-            let mut applications = calling_applications.iter().filter(|application| {
+            // Admission has already joined these exact receiving rows to their
+            // foreign settlements. Direct leaves project the receiving identity,
+            // while the application retains its original requirement-owned
+            // nominal parameters and commitment. Looking up the application's
+            // original owner in the receiving selection would lose that relation.
+            let mut rows = external_bindings.iter().filter(|row| {
                 selected.selected_row_matches_requirement(
-                    &application.requirement_identity,
+                    &row.requirement_identity,
                     requirement,
                     binding.provider_plan_report_identity(),
-                ) && Some(application.target) == binding.native_target()
-                    && application.plan.plan() == &binding.boundary_entry_plan
+                )
             });
-            let calling_application = applications.next().cloned();
-            if applications.next().is_some() {
+            let row = rows.next();
+            if rows.next().is_some() {
                 return Err("runtime foreign calling application is ambiguous");
             }
+            let calling_application = row
+                .and_then(|row| row.calling_application.as_ref())
+                .map(|application| {
+                    if Some(application.target) != binding.native_target()
+                        || application.plan.plan() != &binding.boundary_entry_plan
+                        || application.commitment == [0; 32]
+                        || application.recomputed_commitment() != Ok(application.commitment)
+                    {
+                        return Err(
+                            "runtime foreign calling application differs from its admitted row",
+                        );
+                    }
+                    Ok(application.clone())
+                })
+                .transpose()?;
+            if calling_application.is_none() && binding.import().is_some() {
+                return Err(
+                    "runtime foreign import lost its complete admitted calling application",
+                );
+            }
+            let native_adapter = binding.import().map(|(locator, _)| {
+                let application = calling_application.as_ref().ok_or_else(|| {
+                    "foreign runtime adapter has no retained complete calling application"
+                        .to_owned()
+                })?;
+                native_adapters::emit(boundary, application, locator)
+            });
             host_requirements.push(RuntimeHostRequirement {
                 boundary: boundary.id,
                 boundary_identity: identities
@@ -105,6 +169,7 @@ impl TerminalRuntimeHostProvisions {
                     .to_owned(),
                 provider_plan_report_identity: binding.provider_plan_report_identity(),
                 calling_application,
+                native_adapter,
             });
         }
         Ok(Self {
@@ -151,6 +216,26 @@ impl TerminalRuntimeHostProvisions {
             .as_ref()
     }
 
+    /// Physical fixed-frame product of the same admitted provider/calling row.
+    /// A receiving runtime must still establish the actual provider instance,
+    /// native homes, leases and exact semantic completion before using it.
+    pub fn host_native_foreign_adapter(
+        &self,
+        boundary: BoundaryMachineId,
+    ) -> Option<Result<&image_emission::NativeForeignAdapterImage, &str>> {
+        self.host_requirements
+            .iter()
+            .find(|row| row.boundary == boundary)?
+            .native_adapter
+            .as_ref()
+            .map(|adapter| {
+                adapter
+                    .as_ref()
+                    .map(std::sync::Arc::as_ref)
+                    .map_err(String::as_str)
+            })
+    }
+
     pub const fn installation(&self) -> Option<&terminal_installation::AdmittedProviderSelections> {
         self.installation.as_ref()
     }
@@ -180,27 +265,33 @@ pub struct TerminalCallableRuntimeProvisions {
     entry: MachineId,
     target: target::TargetProfile,
     host: TerminalRuntimeHostProvisions,
+    scalar_applications: Option<terminal_installation::AdmittedScalarApplications>,
 }
 
 impl TerminalCallableRuntimeProvisions {
     pub fn capture_native_admission(
         artifact: terminal_codec::TerminalArtifactView<'_>,
+        input: &terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
         entry: MachineId,
         target: target::TargetProfile,
         host: TerminalRuntimeHostProvisions,
     ) -> Result<Self, &'static str> {
         if artifact.module().machine(entry).is_none()
+            || input.plan().entry != entry
             || host
                 .installation()
                 .is_some_and(|selection| selection.terminal_psi() != artifact.identity())
         {
             return Err("callable runtime provisions name another artifact or absent entry");
         }
+        let scalar_applications =
+            capture_scalar_applications(input, artifact.identity(), target, host.installation())?;
         Ok(Self {
             identity: artifact.identity(),
             entry,
             target,
             host,
+            scalar_applications,
         })
     }
     pub const fn identity(&self) -> TerminalPsiIdentity {
@@ -215,6 +306,20 @@ impl TerminalCallableRuntimeProvisions {
     pub const fn host_provisions(&self) -> &TerminalRuntimeHostProvisions {
         &self.host
     }
+
+    pub fn with_borrowed_storage_layouts(
+        mut self,
+        layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
+    ) -> Self {
+        self.host = self.host.with_borrowed_storage_layouts(layouts);
+        self
+    }
+
+    pub fn scalar_applications(
+        &self,
+    ) -> Option<&terminal_installation::AdmittedScalarApplications> {
+        self.scalar_applications.as_ref()
+    }
 }
 
 /// Entry and provider facts for the exact produced Terminal program. Source
@@ -225,22 +330,22 @@ pub struct TerminalRuntimeProvisions {
     entry: MachineId,
     source_signature_identity: [u8; 32],
     target_slot: target::ProgramEntrySlotDeclaration,
-    fused_services: Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
-    /// The ProgramEntry signature's plan-local identity table — establishment
-    /// rows index it, never the module's table.
-    plan_identities: terminal_psi::TerminalIdentityTable,
-    /// Parallel to `fused_services`: exact retained requirement slots of the
-    /// same admitted schema/plan, not a provider-name or trait-prefix lookup.
-    fused_service_boundary_slots: Vec<Vec<BoundaryMachineId>>,
     target_provider_proposals:
         Vec<terminal_psi_to_abstract_operations::TerminalTargetProviderProposal>,
     host_provisions: TerminalRuntimeHostProvisions,
     private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
     components: Vec<std::sync::Arc<crate::NativeComponentProduct>>,
     component_publications: Vec<crate::NativeComponentPublicationReceipt>,
+    scalar_applications: Option<terminal_installation::AdmittedScalarApplications>,
 }
 
 impl TerminalRuntimeProvisions {
+    pub fn scalar_applications(
+        &self,
+    ) -> Option<&terminal_installation::AdmittedScalarApplications> {
+        self.scalar_applications.as_ref()
+    }
+
     pub fn record_component_publications(
         &mut self,
         receipts: Vec<crate::NativeComponentPublicationReceipt>,
@@ -407,7 +512,8 @@ impl TerminalRuntimeProvisions {
             };
             expected += 1;
             let mut matches = components.iter().filter(|component| {
-                component.selection().receiver() == self.identity
+                component.selection().receiver()
+                    == &terminal_codec::TerminalExecutionIdentity::portable(self.identity)
                     && component.selection().receiving_boundary() == provision.boundary
                     && component.selection().provider() == *provider
                     && component.selection().candidate() == *candidate
@@ -444,90 +550,53 @@ impl TerminalRuntimeProvisions {
     /// Capture already admitted facts while they still accompany the image
     /// request. This is not another admission or a runtime authority grant.
     pub fn capture_native_admission(
-        checked: &terminal_psi::CheckedProgramEntryTerminalReceipt,
-        fused_services: &[program_entry_plan::ProgramEntryFusedServiceEstablishment],
+        program_entry: terminal_psi_to_abstract_operations::NativeProgramEntrySettlement<'_>,
+        input: &terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
         installation: Option<&terminal_installation::AdmittedProviderSelections>,
         host: Vec<TerminalRuntimeHostProvision>,
         boundaries: &[terminal_psi::BoundaryMachineDeclaration],
-        candidates: &[terminal_psi::ProviderCandidateConformance],
         selected: &effects::SelectedProviderPlanFacts,
         identities: &terminal_psi::TerminalIdentityTable,
-        plan_identities: &terminal_psi::TerminalIdentityTable,
-        target_slot: target::ProgramEntrySlotDeclaration,
-        calling_applications: &[calling_conventions::BoundaryCallingApplication],
+        external_bindings: &[calling_conventions::ExternalBindingRow],
     ) -> Result<Self, &'static str> {
+        let checked = program_entry
+            .checked_entry
+            .ok_or("runtime provisions have no checked semantic entry")?;
+        let target_slot = program_entry.source().target_slot();
+        let native_entry = program_entry
+            .physical_adapter()
+            .map_or(checked.terminal_entry(), |adapter| adapter.machine());
+        if input.plan().entry != native_entry
+            || checked.source_signature_identity() != program_entry.source().identity().bytes()
+            || program_entry
+                .physical_adapter()
+                .is_some_and(|adapter| adapter.terminal() != checked.terminal_psi_identity())
+        {
+            return Err("runtime provisions name another admitted entry");
+        }
+        let scalar_applications = capture_scalar_applications(
+            input,
+            checked.terminal_psi_identity(),
+            target_slot.owner,
+            installation,
+        )?;
         let host_provisions = TerminalRuntimeHostProvisions::capture_native_admission(
             installation,
             host,
             boundaries,
             selected,
             identities,
-            calling_applications,
+            external_bindings,
         )?;
-        let mut fused_service_boundary_slots = Vec::with_capacity(fused_services.len());
-        for establishment in fused_services {
-            let mut matching_plans = selected.plans().iter().filter(|plan| {
-                plan.identity_digest() == establishment.selected_provider_plan_digest()
-            });
-            let plan = matching_plans
-                .next()
-                .ok_or("runtime Fused establishment lost its exact admitted plan/schema")?;
-            if matching_plans.next().is_some() {
-                return Err("runtime Fused establishment repeats its exact admitted plan/schema");
-            }
-            let receiver = plan
-                .schema
-                .receiver_applications
-                .get(establishment.receiver_application_index())
-                .ok_or("runtime Fused establishment lost its admitted receiver view")?;
-            if !establishment.receiving_requirements().is_empty() {
-                let installation = installation
-                    .filter(|installation| {
-                        installation.terminal_psi() == checked.terminal_psi_identity()
-                    })
-                    .ok_or("runtime Fused receiving roster has no same-artifact installation")?;
-                fused_service_boundary_slots.push(capture_receiving_slots(
-                    establishment,
-                    plan,
-                    receiver,
-                    candidates,
-                    selected,
-                    identities,
-                    plan_identities,
-                    installation,
-                )?);
-                continue;
-            }
-            // The native admission already authenticated these identities and
-            // contracts. Capture the existing coordinate relation before that
-            // admission is consumed; do not reconstruct semantics or authority.
-            let mut slots = Vec::new();
-            for boundary in boundaries {
-                if receiver.requirement_identities.iter().any(|requirement| {
-                    selected.selected_row_matches_requirement(
-                        identities.text(boundary.identity).unwrap_or_default(),
-                        plan.schema.identity_text(*requirement),
-                        plan.report_fingerprint(),
-                    )
-                }) {
-                    slots.push(boundary.id);
-                }
-            }
-            slots.sort_unstable();
-            slots.dedup();
-            fused_service_boundary_slots.push(slots);
-        }
         Ok(Self {
             private_entry_ram: Vec::new(),
             components: Vec::new(),
             component_publications: Vec::new(),
+            scalar_applications,
             identity: checked.terminal_psi_identity(),
             entry: checked.terminal_entry(),
             source_signature_identity: checked.source_signature_identity(),
             target_slot,
-            fused_services: fused_services.to_vec(),
-            plan_identities: plan_identities.clone(),
-            fused_service_boundary_slots,
             target_provider_proposals: Vec::new(),
             host_provisions,
         })
@@ -607,37 +676,10 @@ impl TerminalRuntimeProvisions {
         self.target_slot
     }
 
-    /// The signature table the establishment rows' identity indices resolve
-    /// against — rows were minted before the module's table existed.
-    pub const fn plan_identities(&self) -> &terminal_psi::TerminalIdentityTable {
-        &self.plan_identities
-    }
-
     /// The selection facts table admitted same-stack requirement indices
     /// resolve against.
     pub const fn selection_identities(&self) -> &terminal_psi::TerminalIdentityTable {
         self.host_provisions.selection_identities()
-    }
-
-    pub fn fused_services(&self) -> &[program_entry_plan::ProgramEntryFusedServiceEstablishment] {
-        &self.fused_services
-    }
-
-    /// Each actual root establishment's exact retained requirement slots.
-    /// This association identifies what the host must establish; it supplies
-    /// neither runtime Binding custody nor containing-process-domain authority.
-    pub fn fused_service_slots(
-        &self,
-    ) -> impl Iterator<
-        Item = (
-            &program_entry_plan::ProgramEntryFusedServiceEstablishment,
-            &[BoundaryMachineId],
-        ),
-    > {
-        self.fused_services
-            .iter()
-            .zip(&self.fused_service_boundary_slots)
-            .map(|(establishment, slots)| (establishment, slots.as_slice()))
     }
 
     pub const fn installation(&self) -> Option<&terminal_installation::AdmittedProviderSelections> {
@@ -647,93 +689,4 @@ impl TerminalRuntimeProvisions {
     pub fn host(&self) -> &[TerminalRuntimeHostProvision] {
         self.host_provisions.host()
     }
-}
-
-/// Capture the complete canonical roster for the checked field application.
-/// Each ancestor owns its own application key; each finite tuple owns a separate
-/// closed coordinate. A supplied subset cannot replace the artifact's roster.
-fn capture_receiving_slots(
-    establishment: &program_entry_plan::ProgramEntryFusedServiceEstablishment,
-    plan: &effects::provider_plan::ProviderPlan,
-    receiver: &effects::provider_plan::ServiceReceiverApplication,
-    candidates: &[terminal_psi::ProviderCandidateConformance],
-    selected: &effects::SelectedProviderPlanFacts,
-    identities: &terminal_psi::TerminalIdentityTable,
-    plan_identities: &terminal_psi::TerminalIdentityTable,
-    installation: &terminal_installation::AdmittedProviderSelections,
-) -> Result<Vec<BoundaryMachineId>, &'static str> {
-    let rows = establishment.receiving_requirements();
-    let first = rows.first().ok_or("runtime receiving roster is empty")?;
-    let text = |identity| plan_identities.text(identity).unwrap_or_default();
-    let regions_match =
-        |candidate: &terminal_psi::ProviderCandidateConformance,
-         row: &program_entry_plan::ProgramEntryReceivingRequirement| {
-            candidate.receiving_region_arguments.len() == row.receiving_regions.len()
-                && candidate
-                    .receiving_region_arguments
-                    .iter()
-                    .zip(&row.receiving_regions)
-                    .all(|(candidate, row)| identities.text(*candidate) == Some(text(*row)))
-        };
-    for requirement in &receiver.requirement_identities {
-        if !rows
-            .iter()
-            .any(|row| text(row.source_requirement) == plan.schema.identity_text(*requirement))
-        {
-            return Err("runtime receiving roster omitted an original requirement");
-        }
-    }
-    if rows.iter().any(|row| {
-        row.provider_declaration != first.provider_declaration
-            || row.receiving_regions != first.receiving_regions
-            || !receiver.requirement_identities.iter().any(|requirement| {
-                text(row.source_requirement) == plan.schema.identity_text(*requirement)
-            })
-    }) {
-        return Err("runtime receiving roster mixes selecting owners or provider applications");
-    }
-    let expected = candidates
-        .iter()
-        .filter(|candidate| {
-            identities.text(candidate.provider_identity) == Some(plan.provider_type.as_str())
-                && identities.text(candidate.provider_declaration.identity())
-                    == Some(text(first.provider_declaration))
-                && regions_match(candidate, first)
-                // The original declaration roster and complete map tuple,
-                // not supplied application keys, determine the expected set.
-                // Type/Const-generic provider maps are not admitted: their
-                // independent applications would need additional coordinates.
-                && receiver.requirement_identities.iter().any(|requirement| {
-                    identities.text(candidate.source_requirement_identity)
-                        == Some(plan.schema.identity_text(*requirement))
-                })
-        })
-        .collect::<Vec<_>>();
-    if expected.len() != rows.len() {
-        return Err("runtime receiving roster differs from complete canonical applications");
-    }
-    let mut slots = Vec::with_capacity(rows.len());
-    for row in rows {
-        let mut matching = expected
-            .iter()
-            .copied()
-            .filter(|candidate| row.matches_candidate(candidate, identities, plan_identities));
-        let candidate = matching
-            .next()
-            .ok_or("runtime receiving requirement has no canonical candidate")?;
-        if matching.next().is_some()
-            || slots.contains(&candidate.boundary)
-            || !installation.contains_candidate(candidate)
-            || !selected.selected_row_matches_requirement(
-                text(row.requirement),
-                text(row.source_requirement),
-                plan.report_fingerprint(),
-            )
-        {
-            return Err("runtime receiving requirement does not join one exact installed plan row");
-        }
-        slots.push(candidate.boundary);
-    }
-    slots.sort_unstable();
-    Ok(slots)
 }

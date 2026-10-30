@@ -19,7 +19,7 @@ crashes Trap
         _ -> done()
     }
 
-    state member(parser: &mut Parser, input: &TokenStream, first_member: u64 in Trapping, start: u64 in Trapping) {
+    machine member(parser: &mut Parser, input: &TokenStream, first_member: u64 in Trapping, start: u64 in Trapping) {
         let name_start: u64 in Trapping = parser.name_start;
         let name_end: u64 in Trapping = parser.name_end;
         Parser::append_member(parser, input, name_start, name_end);
@@ -29,7 +29,7 @@ crashes Trap
         }
     }
 
-    state separator(parser: &mut Parser, input: &TokenStream, first_member: u64 in Trapping, start: u64 in Trapping) {
+    machine separator(parser: &mut Parser, input: &TokenStream, first_member: u64 in Trapping, start: u64 in Trapping) {
         let more: bool = Parser::at_punctuation(parser, input, PunctuationKind::ColonColon);
         transition more {
             true -> next_member(parser, input, first_member, start)
@@ -37,7 +37,7 @@ crashes Trap
         }
     }
 
-    state next_member(parser: &mut Parser, input: &TokenStream, first_member: u64 in Trapping, start: u64 in Trapping) {
+    machine next_member(parser: &mut Parser, input: &TokenStream, first_member: u64 in Trapping, start: u64 in Trapping) {
         Parser::take_current(parser, input);
         Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedPathMember);
         transition parser.output.accepted {
@@ -46,14 +46,14 @@ crashes Trap
         }
     }
 
-    state retain_capacity(parser: &mut Parser, input: &TokenStream, first_member: u64 in Trapping, start: u64 in Trapping) {
+    machine retain_capacity(parser: &mut Parser, input: &TokenStream, first_member: u64 in Trapping, start: u64 in Trapping) {
         transition parser.output.name_path_count < 2048 {
             true -> retain(parser, first_member, start)
             _ -> full(parser, input)
         }
     }
 
-    state retain(parser: &mut Parser, first_member: u64 in Trapping, start: u64 in Trapping) {
+    machine retain(parser: &mut Parser, first_member: u64 in Trapping, start: u64 in Trapping) {
         parser.name_path_result = parser.output.name_path_count as u64 in Trapping;
         parser.output.name_paths[parser.output.name_path_count] = NamePath {
             first_member: first_member,
@@ -63,11 +63,11 @@ crashes Trap
         parser.output.name_path_count = parser.output.name_path_count + 1;
     }
 
-    state full(parser: &mut Parser, input: &TokenStream) {
+    machine full(parser: &mut Parser, input: &TokenStream) {
         Parser::reject_current(parser, input, ParseDiagnosticCode::NamePathCapacityExceeded);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Where a retained name path starts.

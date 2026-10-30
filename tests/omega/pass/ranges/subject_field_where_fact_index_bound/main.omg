@@ -25,7 +25,7 @@ machine Main::main(main: &mut Main) {
     main.r = main.arr[main.k + 1];
     transition { _ -> successor(main) }
 
-    state successor(main: &mut Main) {
+    machine successor(main: &mut Main) {
         main.r = main.arr[main.k + 1];
     }
 }

@@ -14,7 +14,7 @@ requires remaining <= 5
         true -> first(payload, remaining - 1, spare, spare)
         false -> second(remaining + 0, payload)
     }
-    state first(carried: Payload, pending: u32, first_spare: u32, second_spare: u32)
+    machine first(carried: Payload, pending: u32, first_spare: u32, second_spare: u32) -> u32
     requires pending <= 5
     {
         transition pending > 0 {
@@ -22,7 +22,7 @@ requires remaining <= 5
             false -> pending
         }
     }
-    state second(left: u32, saved: Payload)
+    machine second(left: u32, saved: Payload) -> u32
     requires left <= 5
     {
         transition left > 0 {

@@ -25,14 +25,14 @@ machine Application::main(application: &mut Application) reaches Console crashes
         true -> options(application, sampling.value, gain.value, offset.value, size.value, overlap.value, window.value, length.value)
         _ -> invalid(application)
     }
-    state invalid(application: &mut Application) { Console::write_line("ERROR input or options"); Console::exit_process(10); }
-    state options(application: &mut Application, sampling: f64, gain: f64, offset: f64, size: f64, overlap: f64, window: f64, length: f64) {
+    machine invalid(application: &mut Application) { Console::write_line("ERROR input or options"); Console::exit_process(10); }
+    machine options(application: &mut Application, sampling: f64, gain: f64, offset: f64, size: f64, overlap: f64, window: f64, length: f64) {
         transition sampling > 0.0 && gain > 0.0 && gain <= 10000.0 && (size == 8.0 || size == 16.0 || size == 32.0 || size == 64.0) && overlap >= 0.0 && overlap < size && (window == 0.0 || window == 1.0) && length >= size && length <= 64.0 {
             true -> configure(application, sampling, gain, offset, size, overlap, window, length)
             _ -> invalid(application)
         }
     }
-    state configure(application: &mut Application, sampling: f64, gain: f64, offset: f64, size: f64, overlap: f64, window: f64, length: f64) {
+    machine configure(application: &mut Application, sampling: f64, gain: f64, offset: f64, size: f64, overlap: f64, window: f64, length: f64) {
         application.sampling = sampling; application.gain = gain * 0.001; application.offset = offset * 0.001;
         // The preceding options state rejects every value outside these ranges.
         // Explicit conversion domains also make this state's standalone contract clear.
@@ -47,46 +47,46 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.index = 0;
         transition { _ -> read(application) }
     }
-    state read(application: &mut Application) {
+    machine read(application: &mut Application) {
         transition application.index < application.length && application.index >= 0 && application.index < 64 { true -> sample(application) _ -> finish(application) }
     }
-    state sample(application: &mut Application) {
+    machine sample(application: &mut Application) {
         let value: Number = block number(&mut application.reader);
         transition value.valid { true -> store(application, value.value) _ -> invalid(application) }
     }
-    state store(application: &mut Application, value: f64) {
+    machine store(application: &mut Application, value: f64) {
         application.samples[application.index] = value * 0.001 * application.gain + application.offset;
         application.index = application.index + 1;
         transition { _ -> read(application) }
     }
-    state finish(application: &mut Application) {
+    machine finish(application: &mut Application) {
         let complete: bool = block ended(&mut application.reader);
         transition complete { true -> initialize(application) _ -> invalid(application) }
     }
-    state initialize(application: &mut Application) {
+    machine initialize(application: &mut Application) {
         application.index = 0; application.start = 0; application.segments = 0;
         transition { _ -> clear(application) }
     }
-    state clear(application: &mut Application) {
+    machine clear(application: &mut Application) {
         transition application.index >= 0 && application.index < 64 { true -> zero(application) _ -> segment(application) }
     }
-    state zero(application: &mut Application) {
+    machine zero(application: &mut Application) {
         application.density[application.index] = 0.0;
         application.index = application.index + 1;
         transition { _ -> clear(application) }
     }
-    state segment(application: &mut Application) {
+    machine segment(application: &mut Application) {
         application.index = 0; application.energy = 0.0;
         transition application.start + application.size <= application.length { true -> window(application) _ -> report(application) }
     }
-    state window(application: &mut Application) {
+    machine window(application: &mut Application) {
         transition application.index >= 0 && application.index < application.size && application.index < 64 { true -> weight(application) _ -> transform(application) }
     }
-    state weight(application: &mut Application) {
+    machine weight(application: &mut Application) {
         let source: i32 in Wrapping = application.start + application.index;
         transition source >= 0 && source < 64 { true -> weighted(application, source) _ -> invalid(application) }
     }
-    state weighted(application: &mut Application, source: i32 in Wrapping)
+    machine weighted(application: &mut Application, source: i32 in Wrapping)
     requires source >= 0 && source < 64
     {
         let position: f64 = F64::from_i32(application.index as i32);
@@ -98,18 +98,18 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.index = application.index + 1;
         transition { _ -> window(application) }
     }
-    state transform(application: &mut Application) {
+    machine transform(application: &mut Application) {
         application.index = 0;
         transition { _ -> reverse(application) }
     }
-    state reverse(application: &mut Application) {
+    machine reverse(application: &mut Application) {
         transition application.index >= 0 && application.index < application.size && application.index < 64 { true -> permutation(application) _ -> stages(application) }
     }
-    state permutation(application: &mut Application) {
+    machine permutation(application: &mut Application) {
         let reversed: i32 in Wrapping = reverse_bits(application.index, application.size);
         transition reversed >= 0 && reversed > application.index && reversed < 64 { true -> swap(application, reversed) _ -> next_reverse(application) }
     }
-    state swap(application: &mut Application, reversed: i32 in Wrapping)
+    machine swap(application: &mut Application, reversed: i32 in Wrapping)
     requires reversed >= 0 && reversed < 64
     {
         // Real-valued input resets every imaginary entry to zero each segment.
@@ -118,20 +118,20 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.real[application.index] = application.real[reversed]; application.real[reversed] = temporary;
         transition { _ -> next_reverse(application) }
     }
-    state next_reverse(application: &mut Application) { application.index = application.index + 1; transition { _ -> reverse(application) } }
-    state stages(application: &mut Application) { application.width = 2; transition { _ -> stage(application) } }
-    state stage(application: &mut Application) {
+    machine next_reverse(application: &mut Application) { application.index = application.index + 1; transition { _ -> reverse(application) } }
+    machine stages(application: &mut Application) { application.width = 2; transition { _ -> stage(application) } }
+    machine stage(application: &mut Application) {
         application.group = 0;
         transition application.width <= application.size { true -> group(application) _ -> accumulate_start(application) }
     }
-    state group(application: &mut Application) {
+    machine group(application: &mut Application) {
         application.butterfly = 0;
         transition application.group < application.size { true -> butterfly(application) _ -> next_stage(application) }
     }
-    state butterfly(application: &mut Application) {
+    machine butterfly(application: &mut Application) {
         transition application.butterfly < application.width / 2 { true -> calculate(application) _ -> next_group(application) }
     }
-    state calculate(application: &mut Application) {
+    machine calculate(application: &mut Application) {
         let first: i32 in Wrapping = application.group + application.butterfly;
         let second: i32 in Wrapping = first + application.width / 2;
         transition first >= 0 && first < 64 && second >= 0 && second < 64 {
@@ -139,7 +139,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
             _ -> invalid(application)
         }
     }
-    state combine(application: &mut Application, first: i32 in Wrapping, second: i32 in Wrapping)
+    machine combine(application: &mut Application, first: i32 in Wrapping, second: i32 in Wrapping)
     requires first >= 0 && first < 64 && second >= 0 && second < 64
     {
         let angle: f64 = -6.283185307179586 * F64::from_i32(application.butterfly as i32) / F64::from_i32(application.width as i32);
@@ -152,43 +152,43 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.butterfly = application.butterfly + 1;
         transition { _ -> butterfly(application) }
     }
-    state next_group(application: &mut Application) { application.group = application.group + application.width; transition { _ -> group(application) } }
-    state next_stage(application: &mut Application) { application.width = application.width * 2; transition { _ -> stage(application) } }
-    state accumulate_start(application: &mut Application) { application.index = 0; transition { _ -> accumulate(application) } }
-    state accumulate(application: &mut Application) {
+    machine next_group(application: &mut Application) { application.group = application.group + application.width; transition { _ -> group(application) } }
+    machine next_stage(application: &mut Application) { application.width = application.width * 2; transition { _ -> stage(application) } }
+    machine accumulate_start(application: &mut Application) { application.index = 0; transition { _ -> accumulate(application) } }
+    machine accumulate(application: &mut Application) {
         transition application.index >= 0 && application.index <= application.size / 2 && application.index < 64 { true -> power(application) _ -> next_segment(application) }
     }
-    state power(application: &mut Application) {
+    machine power(application: &mut Application) {
         let multiplier: f64 = match application.index == 0 || application.index == application.size / 2 { true -> 1.0 _ -> 2.0 };
         let real: f64 = application.real[application.index]; let imaginary: f64 = application.imaginary[application.index];
         application.density[application.index] = application.density[application.index] + multiplier * (real * real + imaginary * imaginary) / (application.sampling * application.energy);
         application.index = application.index + 1;
         transition { _ -> accumulate(application) }
     }
-    state next_segment(application: &mut Application) {
+    machine next_segment(application: &mut Application) {
         application.segments = application.segments + 1;
         application.start = application.start + application.size - application.overlap;
         transition { _ -> segment(application) }
     }
-    state report(application: &mut Application) {
+    machine report(application: &mut Application) {
         field(&mut application.reader, "segments=", F64::from_i32(application.segments as i32));
         application.index = 0;
         transition { _ -> bin(application) }
     }
-    state bin(application: &mut Application) {
+    machine bin(application: &mut Application) {
         transition application.index >= 0 && application.index <= application.size / 2 && application.index < 64 { true -> output(application) _ -> done(application) }
     }
-    state output(application: &mut Application) {
+    machine output(application: &mut Application) {
         field(&mut application.reader, "frequency_microhz=", 1000000.0 * application.sampling * F64::from_i32(application.index as i32) / F64::from_i32(application.size as i32));
         field(&mut application.reader, "density_nano=", 1000000000.0 * application.density[application.index] / F64::from_i32(application.segments as i32));
         application.index = application.index + 1;
         transition { _ -> bin(application) }
     }
-    state done(application: &mut Application) { Console::exit_process(0); }
+    machine done(application: &mut Application) { Console::exit_process(0); }
 }
 machine reverse_bits(value: i32 in Wrapping, size: i32 in Wrapping) -> i32 in Wrapping {
     transition { _ -> bits(value, size, 0) }
-    state bits(value: i32 in Wrapping, size: i32 in Wrapping, result: i32 in Wrapping) -> i32 in Wrapping {
+    machine bits(value: i32 in Wrapping, size: i32 in Wrapping, result: i32 in Wrapping) -> i32 in Wrapping {
         transition size > 1 { true -> bits(value / 2, size / 2, result * 2 + value % 2) _ -> result }
     }
 }

@@ -4,9 +4,9 @@ data Container { inner: Context; }
 machine set(context: &mut Context) -> bool { context.count = 5; true }
 machine main(container: &mut Container) crashes Trap {
     transition set(&mut container.inner) && container.inner.count < 6 { true -> bounded(&container.inner) false -> bad() }
-    state bounded(value: &Context) requires value.count < 6 { transition value.count == 5 { true -> done() false -> bad() } }
-    state done() { }
-    state bad() { crash Trap; }
+    machine bounded(value: &Context) requires value.count < 6 { transition value.count == 5 { true -> done() false -> bad() } }
+    machine done() { }
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

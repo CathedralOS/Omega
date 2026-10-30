@@ -27,6 +27,7 @@ mod float_bits;
 pub(crate) mod float_result_policy;
 pub(crate) mod floating_control;
 pub(crate) mod ieee_float_arithmetic;
+pub(crate) mod memory_fence;
 pub(crate) mod port_write;
 pub(crate) mod register_access;
 mod scan_byte_sequence;
@@ -84,14 +85,11 @@ pub use scalar_call::{
     encode_x86_64_selected_scalar_call_template, validate_x86_64_selected_scalar_call_template,
 };
 
-use register_model::{RegisterConstraintKey, RegisterViewId, ValidatedPhysicalRegisterModel};
+use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
-    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
-    MachineTrapBehavior, SelectedInstructionKind, is_float_bit_transfer,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
+    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+    MachineEncodedTrapBehavior, SelectedInstructionKind, is_float_bit_transfer,
 };
 
 use crate::selected_form_encoding::decoding::{decode_all, footprint, validate_decoded};
@@ -103,35 +101,6 @@ use crate::selected_form_encoding::request_validation::{
 use crate::selected_form_encoding::request_validation::{
     validate_alias_partition, validate_request,
 };
-
-/// Shared single-alternative hosted declaration shell: the semantic/memory/
-/// trap/family identity plus caller-supplied size knowledge and encoding.
-pub(super) fn hosted_alternative_declaration(
-    constraint: RegisterConstraintKey,
-    semantic: MachineSemanticKind,
-    memory: MachineMemoryEffect,
-    trap: MachineTrapBehavior,
-    family: MachineAlternativeFamily,
-    size: MachineSizeKnowledge,
-    encoded: MachineEncodedEffects,
-) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
-        semantic,
-        constraint,
-        memory,
-        trap,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey { family, variant: 0 },
-            applicability: MachineAlternativeApplicability::Always,
-            size,
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded,
-        }],
-    }
-}
 
 /// The canonical rflags-clobbering footprint for memory-form encoders whose
 /// operands split contiguously: the first `read_count` operands are the
@@ -327,4 +296,16 @@ pub(super) fn assert_byte_fragility(encoded: &[u8], rejects: impl Fn(&[u8]) -> b
     let mut trailing = encoded.to_vec();
     trailing.push(0);
     assert!(rejects(&trailing));
+}
+
+/// Every bit of a selected form's encoding is load-bearing: flipping any one
+/// of them is an encoding its validator must refuse. The per-form tests
+/// assert that against their own `validate`.
+#[cfg(test)]
+pub(crate) fn assert_every_bit_flip_rejected(encoded: &[u8], rejects: impl Fn(&[u8]) -> bool) {
+    for bit in 0..encoded.len() * 8 {
+        let mut changed = encoded.to_vec();
+        changed[bit / 8] ^= 1 << (bit % 8);
+        assert!(rejects(&changed), "changed encoding bit {bit}");
+    }
 }

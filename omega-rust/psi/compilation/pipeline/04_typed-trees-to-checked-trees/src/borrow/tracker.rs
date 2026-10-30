@@ -6,7 +6,7 @@ use super::accesses::BorrowAccessPlace;
 
 pub(crate) use checked_trees::BorrowLoanOwnerSegment as BorrowOwnerSegment;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(super) struct StateLoanTracker {
     pub(super) handle: Handle<checked_trees::BorrowLoanFact>,
     pub(super) owner_symbol: SymbolHandle,
@@ -23,5 +23,6 @@ pub(super) struct StateLoanTracker {
     /// still conservatively matches every ordinal.
     pub(super) owner_path: Vec<BorrowOwnerSegment>,
     pub(super) place: BorrowAccessPlace,
+    pub(super) representation_address: Option<BorrowAccessPlace>,
     pub(super) retained_operand: Option<checked_trees::BorrowRetainedOperand>,
 }

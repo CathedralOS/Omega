@@ -1,0 +1,12 @@
+// Expected exit: 0
+machine sparse(value: u64) -> bool { value == 0 || value == 2 }
+trait Accept {
+    machine accept(value: u64) requires value <= 2;
+}
+Selected satisfies Accept {
+    machine accept(value: u64) requires sparse(value) == true { }
+}
+machine main() {
+    let selected: dyn Accept = Selected as dyn Accept;
+    Accept::accept(selected, 1);
+}

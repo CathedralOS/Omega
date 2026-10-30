@@ -9,7 +9,7 @@ machine eval(outcome: Outcome) -> u64
     ensures result <= 60
 {
     transition { _ -> inspect(outcome) }
-    state inspect(target: Outcome) {
+    machine inspect(target: Outcome) -> u64 {
         transition target {
             Outcome::Ready { value } -> (value + 10)
             Outcome::Empty {} -> 0
@@ -24,6 +24,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

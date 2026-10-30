@@ -1,0 +1,6 @@
+{
+  "role": "intended-invalid",
+  "rejection_contains": [
+    "returns a view borrowing the local `backing`, which does not outlive the call"
+  ]
+}

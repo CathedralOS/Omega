@@ -5,7 +5,7 @@ ensures result == value { value }
 machine forwarded(value: bool) -> bool
 ensures result == value {
     transition { _ -> finish(value) }
-    state finish(observed: bool) -> bool {
+    machine finish(observed: bool) -> bool {
         let unused: bool = identity(false) || identity(false);
         observed
     }
@@ -14,6 +14,6 @@ ensures result == value {
 machine main() crashes Trap {
     let observed: bool = forwarded(true);
     transition observed { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

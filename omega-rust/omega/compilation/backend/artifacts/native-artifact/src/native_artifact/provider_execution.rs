@@ -12,6 +12,7 @@ use image_emission::{ObjectBoundarySettlement, ObjectForeignCall};
 use installation_evidence::ProviderExecutionEvidence;
 
 use super::{NativeProviderExecution, NativeSelectedProviderPlan};
+use crate::physical::sole_terminal_operation;
 
 pub(super) fn replay_provider_executions(
     module: &terminal_psi::TerminalModule,
@@ -36,35 +37,14 @@ pub(super) fn replay_provider_executions(
             .identities
             .text(boundary.identity)
             .unwrap_or_default();
-        let selected_plan = selected_provider_plans
-            .iter()
-            .find(|plan| plan.report_identity() == execution.provider_plan_report_identity)
-            .ok_or(ProviderExecutionReplayError::Shared(
-                "native execution names an unselected provider plan",
-            ))?;
-        required_executions.insert((
-            selected_plan
-                .selected_requirement_identity(requirement)
-                .to_owned(),
-            execution.provider_plan_report_identity,
-            execution.provider_execution_report_identity,
-            execution.provider_execution_report_fingerprint,
-            execution.normalized_root_report_identity,
-            execution.boundary_contract_report_fingerprint,
-        ));
+        let key = required_report_key(requirement, execution, selected_provider_plans)?;
+        required_executions.insert(key);
     }
     for foreign in foreign_calls {
         let (boundary_id, completion) = match foreign.owner {
             target_operations::CallSiteOwner::Operation(owner) => {
-                let mut operations = module
-                    .machines
-                    .iter()
-                    .filter(|machine| machine.id == foreign.machine)
-                    .flat_map(|machine| machine.operations())
-                    .filter(|operation| operation.id == owner);
-                let (Some(operation), None) = (operations.next(), operations.next()) else {
-                    return Err(ProviderExecutionReplayError::NonUniqueForeignOperation);
-                };
+                let operation = sole_terminal_operation(module, foreign.machine, owner)
+                    .ok_or(ProviderExecutionReplayError::NonUniqueForeignOperation)?;
                 let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &operation.kind
                 else {
                     return Err(ProviderExecutionReplayError::ForeignOperationIsNotBoundaryCall);
@@ -107,7 +87,8 @@ pub(super) fn replay_provider_executions(
                     semantic_vocabulary::BoundaryCompletion::External(kind),
                 )
             }
-            target_operations::CallSiteOwner::CleanupAction { .. } => {
+            target_operations::CallSiteOwner::InvokeNoNormal(_)
+            | target_operations::CallSiteOwner::CleanupAction { .. } => {
                 return Err(ProviderExecutionReplayError::MissingForeignOperationOwner);
             }
         };
@@ -119,36 +100,19 @@ pub(super) fn replay_provider_executions(
             ));
         }
         let execution = foreign.provider_execution;
+        let requirement = module
+            .identities
+            .text(boundary.identity)
+            .unwrap_or_default();
         validate_foreign_provider_binding(
-            module
-                .identities
-                .text(boundary.identity)
-                .unwrap_or_default(),
+            requirement,
             foreign,
             selected_provider_plans,
             &module.identities,
         )
         .map_err(ProviderExecutionReplayError::Shared)?;
-        let requirement = module
-            .identities
-            .text(boundary.identity)
-            .unwrap_or_default();
-        let selected_plan = selected_provider_plans
-            .iter()
-            .find(|plan| plan.report_identity() == execution.provider_plan_report_identity)
-            .ok_or(ProviderExecutionReplayError::Shared(
-                "native execution names an unselected provider plan",
-            ))?;
-        required_executions.insert((
-            selected_plan
-                .selected_requirement_identity(requirement)
-                .to_owned(),
-            execution.provider_plan_report_identity,
-            execution.provider_execution_report_identity,
-            execution.provider_execution_report_fingerprint,
-            execution.normalized_root_report_identity,
-            execution.boundary_contract_report_fingerprint,
-        ));
+        let key = required_report_key(requirement, execution, selected_provider_plans)?;
+        required_executions.insert(key);
     }
     validate_provider_execution_reports(
         selected_provider_plans,
@@ -270,6 +234,30 @@ impl ProviderExecutionReplayError {
 }
 
 type ProviderExecutionReportKey = (String, u64, u64, u64, u64, u64);
+
+/// Rejoin one replayed execution to its exact selected plan and required key.
+fn required_report_key(
+    requirement: &str,
+    execution: machine_code::ProviderExecutionRecord,
+    selected_provider_plans: &[NativeSelectedProviderPlan],
+) -> Result<ProviderExecutionReportKey, ProviderExecutionReplayError> {
+    let selected_plan = selected_provider_plans
+        .iter()
+        .find(|plan| plan.report_identity() == execution.provider_plan_report_identity)
+        .ok_or(ProviderExecutionReplayError::Shared(
+            "native execution names an unselected provider plan",
+        ))?;
+    Ok((
+        selected_plan
+            .selected_requirement_identity(requirement)
+            .to_owned(),
+        execution.provider_plan_report_identity,
+        execution.provider_execution_report_identity,
+        execution.provider_execution_report_fingerprint,
+        execution.normalized_root_report_identity,
+        execution.boundary_contract_report_fingerprint,
+    ))
+}
 
 pub(super) fn validate_provider_execution_reports(
     selected_provider_plans: &[NativeSelectedProviderPlan],

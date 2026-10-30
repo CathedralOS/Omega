@@ -58,9 +58,7 @@ pub(super) fn collect(
                             place,
                             call_frames,
                         )? {
-                            if !sources.contains(&source) {
-                                sources.push(source);
-                            }
+                            crate::collections::push_unique(&mut sources, source);
                         }
                     }
                     (!sources.is_empty()).then_some(sources)

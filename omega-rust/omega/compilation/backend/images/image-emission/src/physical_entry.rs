@@ -16,7 +16,7 @@ use object_file::{
 use semantic_vocabulary::MachineId;
 
 use crate::ObjectArtifact;
-use crate::hosted_unit_entry::{EntryShim, PreparedEntry};
+use crate::hosted_unit_entry::{EntrySurface, PreparedEntry};
 
 mod stack_switch;
 use stack_switch::{Destination, StackSwitch};
@@ -246,7 +246,7 @@ pub(crate) fn prepare(artifact: &ObjectArtifact) -> Result<PreparedEntry, Diagno
         object,
         text,
         relocations,
-        shim: EntryShim::Physical { symbol, offset },
+        shim: EntrySurface::Physical.shim(symbol, offset),
     })
 }
 

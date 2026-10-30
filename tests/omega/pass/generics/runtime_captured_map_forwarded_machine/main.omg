@@ -12,5 +12,5 @@ blocks;
 machine main() blocks; crashes Trap {
  let observed: i32 = block forward<read>();
  transition observed == 83 { true -> done() _ -> bad() }
- state done() {} state bad() { crash Trap; }
+ machine done() {} machine bad() { crash Trap; }
 }

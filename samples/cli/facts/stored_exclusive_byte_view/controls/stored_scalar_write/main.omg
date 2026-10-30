@@ -8,6 +8,6 @@ machine main() crashes Trap {
     let slot: Slot = Slot { value: &mut backing };
     write(slot);
     transition backing == 23 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

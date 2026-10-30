@@ -1,7 +1,10 @@
-//! Prepare source, run the typed and Build stages, then seal checked execution.
+//! Prepare source and Build, join its actual return, then seal checked execution.
 
 pub(crate) mod build_continuation;
 pub(crate) mod compile_thread;
+mod product_queries;
+mod product_selections;
+pub use product_queries::ProductQueries;
 mod source_checking;
 pub(crate) use source_checking::check_product_source;
 
@@ -13,9 +16,7 @@ pub use compilation_products::{
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 
 use crate::execution_settlement::SelectedCompileOutcome;
-use artifacts::compile_timings::{
-    BUILD_AND_CHECKED_CONTINUATION, CompileTimings, StageMeta, counters,
-};
+use artifacts::compile_timings::{CompileTimings, StageMeta, counters};
 use compilation_products::{
     CheckedExecutionRequest, CompileFailure, PreparedBuild, PreparedProductSource,
     PreparedSourceFrontier, TypedCompilationFrontier,
@@ -29,7 +30,9 @@ use std::path::Path;
 pub(crate) fn prepare_checked_source(
     root_path: &Path,
     package_sources: Option<std::sync::Arc<package_compilation::PackageCompilationSourceInputs>>,
+    source_capture: Option<&package_compilation::CapturedLocalSource>,
     collect_timings: bool,
+    preparation: compilation_products::SourcePreparation,
 ) -> Result<PreparedCheckedSource, Vec<Diagnostic>> {
     let mut timings = if collect_timings {
         CompileTimings::enabled()
@@ -39,19 +42,27 @@ pub(crate) fn prepare_checked_source(
     let sources = ImmutableSourceParseCheckpoint::prepare_from_sources(
         root_path,
         package_sources,
+        source_capture,
         &mut timings,
+        &mut *preparation.catalogue()?,
     )?;
-    Ok(PreparedCheckedSource::from_parsed(sources, timings))
+    Ok(PreparedCheckedSource::from_parsed(
+        sources,
+        timings,
+        preparation,
+    ))
 }
 
 /// Consume retained frontend work or run assembly and Psi 02-03 explicitly.
 /// The product owner revalidates custody on reuse and retains only completed work.
 fn prepare_typed_frontier(
     source: PreparedCheckedSource,
-    child: &CheckedExecutionRequest<'_>,
+    package_inputs: Option<&PackageCompilationInputs>,
+    build_execution_profile: Option<target::TargetProfile>,
 ) -> Result<(TypedCompilationFrontier, CompileTimings), Vec<Diagnostic>> {
+    let preparation = source.preparation();
     let (sources, mut timings, retention) =
-        match source.into_frontier(child.package_inputs, child.build_execution_profile)? {
+        match source.into_frontier(package_inputs, build_execution_profile)? {
             PreparedSourceFrontier::Retained(frontier, timings) => {
                 counters::record_typed_frontier_reuse();
                 return Ok((frontier, timings));
@@ -64,7 +75,8 @@ fn prepare_typed_frontier(
         };
     counters::record_source_assembly();
     let assembly_started = std::time::Instant::now();
-    let (source_file_count, syntax) = sources.assemble(child.package_inputs, &mut timings)?;
+    let (source_file_count, syntax) =
+        sources.assemble(package_inputs, &mut timings, &mut *preparation.catalogue()?)?;
     timings.add_completed(
         artifacts::compile_timings::SOURCE_ASSEMBLY,
         assembly_started.elapsed().as_micros(),
@@ -72,14 +84,15 @@ fn prepare_typed_frontier(
     let base_sources = syntax.sources.clone();
     let frontend_started = std::time::Instant::now();
     let frontier = build_continuation::lower_typed_frontier(
+        preparation,
         source_file_count,
         syntax,
-        child.build_execution_profile,
-        child.package_inputs,
+        build_execution_profile,
+        package_inputs,
         &mut timings,
     )
     .map_err(|mut diagnostics| {
-        attribute_diagnostics(&mut diagnostics, &base_sources, child.package_inputs);
+        attribute_diagnostics(&mut diagnostics, &base_sources, package_inputs);
         diagnostics
     })?;
     // Preserve the report's inclusive Build ladder after separating preparation.
@@ -93,49 +106,130 @@ fn prepare_typed_frontier(
     Ok((frontier, timings))
 }
 
-pub(super) fn prepare_package_build_worker(
-    request: CheckedCompileRequest,
-    source: PreparedCheckedSource,
-    reuse: SettledCheckReuse,
-    owner: &build_evaluation::PureBuildCompilation,
+pub(super) struct PreparedPackageInvocation {
+    capture: Option<package_compilation::CapturedLocalSource>,
+    root: std::path::PathBuf,
+    target: target::TargetProfile,
+    inputs: Option<PackageCompilationInputs>,
+    rollback: optimization_core::OptimizationRollback,
+    source: build_continuation::BuildSourceInvocation,
+}
+
+impl PreparedPackageInvocation {
+    pub(super) fn product_queries(&self) -> ProductQueries {
+        self.source.product_queries()
+    }
+    pub(super) fn settle_catalog(
+        self,
+        returned: build_evaluation::ReturnedBuild,
+    ) -> Result<super::package_compilation::SourceBuildDeclaration, CompileFailure> {
+        let capture = self.capture.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "workspace settlement requires acquired unbound source custody",
+            )]
+        })?;
+        let settled = self
+            .source
+            .settle(Some(returned), None, Some(self.target))?;
+        let declaration = settled
+            .evaluated
+            .configuration
+            .project_declaration
+            .clone()
+            .ok_or_else(|| vec![Diagnostic::error("workspace Build returned no declaration")])?;
+        if !matches!(
+            declaration,
+            build_declarations::BuildDeclaration::Workspace(_)
+        ) {
+            return Err(vec![Diagnostic::error(
+                "source catalog requires a workspace declaration",
+            )]
+            .into());
+        }
+        Ok(super::package_compilation::SourceBuildDeclaration::settled(
+            capture,
+            declaration,
+        ))
+    }
+    pub(super) fn observe_declaration(
+        &self,
+        returned: &build_evaluation::ReturnedBuild,
+    ) -> Result<super::package_compilation::SourceBuildDeclaration, CompileFailure> {
+        self.source.validate_return(returned)?;
+        let capture = self.capture.as_ref().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "source declaration observation requires acquired unbound source custody",
+            )]
+        })?;
+        Ok(super::package_compilation::SourceBuildDeclaration::new(
+            capture.clone(),
+            returned.declaration().clone(),
+        ))
+    }
+    pub(super) fn join_product_context(
+        &mut self,
+        target: target::TargetProfile,
+        inputs: PackageCompilationInputs,
+    ) -> Result<(), CompileFailure> {
+        if let Some(original) = &self.inputs
+            && original != &inputs
+        {
+            return Err(vec![Diagnostic::error(
+                "Build invocation cannot replace supplied package inputs",
+            )]
+            .into());
+        }
+        if self.inputs.is_some() && self.target != target {
+            return Err(vec![Diagnostic::error(
+                "Build invocation cannot replace its admitted Product target",
+            )]
+            .into());
+        }
+        self.target = target;
+        self.inputs = Some(inputs);
+        Ok(())
+    }
+
+    pub(super) fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
+        self.source.execution()
+    }
+
+    pub(super) fn settle(
+        self,
+        returned: Option<build_evaluation::ReturnedBuild>,
+    ) -> Result<compilation_products::SettledPackageBuild, CompileFailure> {
+        let inputs = self.inputs.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "Build completion requires joined package source custody",
+            )]
+        })?;
+        let source = self
+            .source
+            .settle(returned, Some(&inputs), Some(self.target))?;
+        Ok(compilation_products::SettledPackageBuild {
+            root: self.root,
+            target: self.target,
+            inputs,
+            rollback: self.rollback,
+            source,
+        })
+    }
+}
+
+pub(super) fn prepare_settled_package_product(
+    settled: compilation_products::SettledPackageBuild,
+    target: target::TargetProfile,
+    inputs: PackageCompilationInputs,
 ) -> Result<PreparedPackageBuild, CompileFailure> {
-    let selected_target =
-        target::TargetProfile::from_omega_target_name(request.target_name.as_deref())
-            .map_err(|diagnostic| vec![diagnostic])?;
-    let inputs = request.package_inputs.ok_or_else(|| {
-        vec![Diagnostic::error(
-            "dependency Build preparation requires package source custody",
-        )]
-    })?;
-    let child = CheckedExecutionRequest {
-        selected_target_profile: Some(selected_target),
-        build_execution_profile: request
-            .build_execution_profile
-            .or_else(target::TargetProfile::host_if_supported),
-        package_inputs: Some(&inputs),
-        build_dir: request.build_dir.as_deref(),
-        filesystem_sponsor: request.filesystem_sponsor,
-        evaluation_sponsor: request.evaluation_sponsor,
-        // Explicit custody always wins; otherwise the root package's own
-        // canonical Source metadata selects its sealed inventory, the same
-        // way the product route derives it.
-        build_snapshot: request.build_snapshot.or_else(|| {
-            package_compilation::BuildSnapshotRequest::automatic_package_inventory(Some(&inputs))
-        }),
-        optimization_rollback: request.optimization_rollback.clone(),
-        restricted_build_grants: request.restricted_build_grants,
-        permit_unsettled_fused_service_fields: false,
-        settled_check_reuse: reuse,
-    };
-    let prepared = prepare_build_source(&request.root_path, source, child, Some(owner))?;
+    inputs.validate_execution_context(Some(target), settled.source.build_execution_profile)?;
+    let prepared = build_continuation::prepare_settled_product(settled.source, Some(&inputs))?;
     let base_sources = prepared.built.base_sources.clone();
     PreparedPackageBuild::seal(
-        request.root_path,
-        selected_target,
+        settled.root,
+        target,
         inputs.clone(),
-        request.optimization_rollback,
+        settled.rollback,
         prepared,
-        request.permit_unsettled_fused_service_fields,
     )
     .map_err(|mut diagnostics| {
         attribute_diagnostics(&mut diagnostics, &base_sources, Some(&inputs));
@@ -143,122 +237,155 @@ pub(super) fn prepare_package_build_worker(
     })
 }
 
-/// The checked request's feed-forward route. Settlement and source-sealing
-/// failures retain completed Build observations beside the rejected outcome.
-pub(super) fn select_checked_worker(
+pub(super) fn begin_package_build_worker(
     request: CheckedCompileRequest,
-    prepared: PreparedCheckedSource,
+    source: PreparedCheckedSource,
     reuse: SettledCheckReuse,
-    pure_build_compilation: &build_evaluation::PureBuildCompilation,
-    selections: &mut psi_compiler::ProductSelections,
-) -> Result<SelectedCompileOutcome, CompileFailure> {
-    // Target admission precedes source loading, including for fresh requests.
-    let selected_target_profile = request
-        .target_name
-        .as_deref()
-        .map(|target_name| target::TargetProfile::from_omega_target_name(Some(target_name)))
-        .transpose()
-        .map_err(|diagnostic| vec![diagnostic])?;
-    let package_inputs = request.package_inputs.as_ref();
+    owner: &build_evaluation::PureBuildCompilation,
+) -> Result<PreparedPackageInvocation, CompileFailure> {
+    let selected_target =
+        target::TargetProfile::from_omega_target_name(request.target_name.as_deref())
+            .map_err(|diagnostic| vec![diagnostic])?;
+    let inputs = request.package_inputs;
     let child = CheckedExecutionRequest {
-        selected_target_profile,
-        build_execution_profile: request
-            .build_execution_profile
-            .or_else(target::TargetProfile::host_if_supported),
-        package_inputs,
-        build_dir: request.build_dir.as_deref(),
-        filesystem_sponsor: request.filesystem_sponsor,
-        evaluation_sponsor: request.evaluation_sponsor,
-        // Explicit custody always wins; otherwise the root package's own
-        // canonical Source metadata selects its sealed inventory, the same
-        // way the product route derives it.
-        build_snapshot: request.build_snapshot.or_else(|| {
-            package_compilation::BuildSnapshotRequest::automatic_package_inventory(package_inputs)
-        }),
+        selected_target_profile: Some(selected_target),
+        package_inputs: inputs.as_ref(),
+        build: request.build.resolve_compilation_defaults(inputs.as_ref()),
         optimization_rollback: request.optimization_rollback.clone(),
-        restricted_build_grants: request.restricted_build_grants,
-        permit_unsettled_fused_service_fields: request.permit_unsettled_fused_service_fields,
         settled_check_reuse: reuse,
     };
-    select_prepared_source(
-        &request.root_path,
-        prepared,
-        child,
-        Some(pure_build_compilation),
-        selections,
-    )
+    let source = prepare_build_source_invocation(&request.root_path, source, child, Some(owner))?;
+    Ok(PreparedPackageInvocation {
+        capture: request.source_capture,
+        root: request.root_path,
+        target: selected_target,
+        inputs,
+        rollback: request.optimization_rollback,
+        source,
+    })
 }
 
-/// One source-to-checked route for product compilation and package review.
-/// A product batch shares its completed source prefix. Sponsored review
-/// activations admit fresh and may consume an exactly matched completed Pure Build. Failures
-/// after Build retain discovery observations, never output or execution authority.
-pub(crate) fn select_prepared_source(
-    root_path: &Path,
+/// One admitted source request, held across application-owned Build execution.
+/// Its continuation and selection policy remain opaque; completion consumes the
+/// exact returned activation before any Product checking or realization.
+pub struct SourceCompilation {
+    root: std::path::PathBuf,
+    target: Option<target::TargetProfile>,
+    inputs: Option<PackageCompilationInputs>,
+    rollback: crate::OptimizationRollback,
+    reuse: SettledCheckReuse,
+    source: build_continuation::BuildSourceInvocation,
+}
+
+impl SourceCompilation {
+    pub fn product_queries(&self) -> ProductQueries {
+        self.source.product_queries()
+    }
+    pub fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
+        self.source.execution()
+    }
+
+    pub(crate) fn root(&self) -> &Path {
+        &self.root
+    }
+
+    pub(super) fn require_product_policy(
+        &self,
+        product: &crate::CompilationProduct,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if self.rollback != product.optimization_rollback() {
+            return Err(vec![Diagnostic::error(
+                "source product cannot replace its admitted optimization rollback",
+            )]);
+        }
+        Ok(())
+    }
+
+    pub(super) fn select(
+        self,
+        returned: Result<Option<build_evaluation::ReturnedBuild>, CompileFailure>,
+        selections: &mut psi_compiler::ProductSelections,
+    ) -> Result<SelectedCompileOutcome, CompileFailure> {
+        let prepared = self.source.complete(returned?, None, None)?;
+        Ok(select_completed_build(
+            prepared,
+            self.target,
+            self.inputs.as_ref(),
+            &self.rollback,
+            self.reuse,
+            selections,
+        ))
+    }
+
+    pub(super) fn check(
+        self,
+        returned: Result<Option<build_evaluation::ReturnedBuild>, CompileFailure>,
+        selections: &mut psi_compiler::ProductSelections,
+    ) -> Result<compilation_products::CheckedProductSource, Vec<Diagnostic>> {
+        let prepared = self
+            .source
+            .complete(
+                returned.map_err(CompileFailure::into_diagnostics)?,
+                None,
+                None,
+            )
+            .map_err(CompileFailure::into_diagnostics)?;
+        let source = complete_prepared_build(prepared, self.inputs.as_ref())?;
+        check_product_source(
+            source,
+            self.inputs.as_ref(),
+            &self.rollback,
+            self.reuse,
+            selections,
+        )
+    }
+}
+
+pub(super) fn prepare_source_compilation(
+    root: &Path,
     source: PreparedCheckedSource,
     child: CheckedExecutionRequest<'_>,
-    pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
-    selections: &mut psi_compiler::ProductSelections,
-) -> Result<SelectedCompileOutcome, CompileFailure> {
-    let selected_target_profile = child.selected_target_profile;
-    let package_inputs = child.package_inputs;
+    pure_build_compilation: &build_evaluation::PureBuildCompilation,
+) -> Result<SourceCompilation, CompileFailure> {
+    let target = child.selected_target_profile;
+    let inputs = child.package_inputs.cloned();
     let rollback = child.optimization_rollback.clone();
-    let permit_unsettled_fused_service_fields = child.permit_unsettled_fused_service_fields;
-    let settled_check_reuse = child.settled_check_reuse.clone();
-
-    let prepared = prepare_build_source(root_path, source, child, pure_build_compilation)?;
-    Ok(select_completed_build(
-        prepared,
-        selected_target_profile,
-        package_inputs,
-        &rollback,
-        permit_unsettled_fused_service_fields,
-        settled_check_reuse,
-        selections,
-    ))
+    let reuse = child.settled_check_reuse.clone();
+    let source =
+        prepare_build_source_invocation(root, source, child, Some(pure_build_compilation))?;
+    Ok(SourceCompilation {
+        root: root.to_path_buf(),
+        target,
+        inputs,
+        rollback,
+        reuse,
+        source,
+    })
 }
 
-/// Shared admission and Build lifecycle. Both product compilation and a
-/// dependency handoff consume the same completed typed continuation.
-fn prepare_build_source(
+fn prepare_build_source_invocation(
     root_path: &Path,
-    source: PreparedCheckedSource,
+    mut source: PreparedCheckedSource,
     child: CheckedExecutionRequest<'_>,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
-) -> Result<PreparedBuild, CompileFailure> {
+) -> Result<build_continuation::BuildSourceInvocation, CompileFailure> {
     source.admit_root(root_path)?;
     child.admit_package_inputs()?;
 
-    let (frontier, mut timings) = prepare_typed_frontier(source, &child)?;
+    let parsed = source.fork();
+    let (frontier, timings) =
+        prepare_typed_frontier(source, child.package_inputs, child.build.profile)?;
     let base_sources = frontier.base_sources.clone();
     let package_inputs = child.package_inputs;
-    let (built, build_sources) = timed(&mut timings, BUILD_AND_CHECKED_CONTINUATION, |timings| {
-        build_continuation::evaluate_build_and_continue(
-            root_path,
-            child,
-            frontier,
-            timings,
-            pure_build_compilation,
-        )
-    })
-    .map_err(|failure| attribute_failure(failure, &base_sources, package_inputs))?;
-    Ok(PreparedBuild {
-        built,
-        build_sources,
+    build_continuation::prepare_build_invocation(
+        root_path,
+        child,
+        parsed,
+        frontier,
         timings,
-    })
-}
-
-/// Complete the invocation's source prefix before iterating realizations.
-pub(crate) fn prepare_product_source(
-    root_path: &Path,
-    source: PreparedCheckedSource,
-    child: CheckedExecutionRequest<'_>,
-    pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
-) -> Result<PreparedProductSource, CompileFailure> {
-    let package_inputs = child.package_inputs;
-    let prepared = prepare_build_source(root_path, source, child, pure_build_compilation)?;
-    complete_prepared_build(prepared, package_inputs).map_err(CompileFailure::from)
+        pure_build_compilation,
+    )
+    .map_err(|failure| attribute_failure(failure, &base_sources, package_inputs))
 }
 
 pub(super) fn complete_prepared_build(
@@ -272,7 +399,7 @@ pub(super) fn complete_prepared_build(
     } = prepared;
     let retained_build_check = built.retained_build_check.take();
     let base_sources = built.base_sources.clone();
-    let (typed, pending_pre_checks, computed_build_config, admission) =
+    let (typed, source_completion_accounting, computed_build_config, admission) =
         build_continuation::complete_product_frontend(
             built,
             &mut build_sources,
@@ -284,8 +411,8 @@ pub(super) fn complete_prepared_build(
             diagnostics
         })?;
     Ok(PreparedProductSource {
+        source_completion_accounting,
         typed,
-        pending_pre_checks,
         computed_build_config,
         admission,
         build_sources,
@@ -299,7 +426,6 @@ pub(super) fn select_completed_build(
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     rollback: &crate::OptimizationRollback,
-    permit_unsettled_fused_service_fields: bool,
     settled_check_reuse: SettledCheckReuse,
     selections: &mut psi_compiler::ProductSelections,
 ) -> SelectedCompileOutcome {
@@ -320,7 +446,6 @@ pub(super) fn select_completed_build(
             &source,
             selected_target_profile,
             package_inputs,
-            permit_unsettled_fused_service_fields,
         ),
         Err(diagnostics) => SelectedCompileOutcome {
             result: Err(CompileFailure::from(diagnostics)),

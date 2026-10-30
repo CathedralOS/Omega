@@ -23,8 +23,8 @@ machine read() -> u64 reaches Reading {
 machine Main::main(main: &mut Main) reaches Reading crashes Trap {
     let value: u64 = read();
     transition value == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

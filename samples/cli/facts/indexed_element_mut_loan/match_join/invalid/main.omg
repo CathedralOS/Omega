@@ -19,6 +19,6 @@ requires from_index < 2 && alternate == from_index
 machine main() crashes Trap {
     transition exercise(0, 0, true) && exercise(1, 1, true)
         && exercise(0, 0, false) && exercise(1, 1, false) { true -> done() false -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

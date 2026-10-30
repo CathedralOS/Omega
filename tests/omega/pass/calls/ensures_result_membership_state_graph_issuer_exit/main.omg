@@ -13,8 +13,8 @@ ensures result in Ticket::Issued {
         true -> exact()
         false -> other(marker)
     }
-    state exact() -> Ticket { Ticket { amount: 41, marker: 9 } }
-    state other(marker: i32) -> Ticket { Ticket { amount: 41, marker: marker } }
+    machine exact() -> Ticket { Ticket { amount: 41, marker: 9 } }
+    machine other(marker: i32) -> Ticket { Ticket { amount: 41, marker: marker } }
 }
 
 data Envelope [copy] { ticket: Ticket; replaced: bool; }
@@ -32,8 +32,8 @@ crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine Main::main(main: &mut Main) crashes Trap {
@@ -43,8 +43,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

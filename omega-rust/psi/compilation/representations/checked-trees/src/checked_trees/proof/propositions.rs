@@ -1,13 +1,13 @@
 use symbols::SymbolHandle;
 use typed_trees::type_identity::TypeIdentityId;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedPropositionVocabulary {
     pub declarations: Vec<CheckedPropositionDeclaration>,
     pub applications: Vec<CheckedPropositionApplication>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedPropositionDeclaration {
     pub symbol: SymbolHandle,
     pub name: String,
@@ -17,26 +17,26 @@ pub struct CheckedPropositionDeclaration {
     pub evidence: CheckedPropositionEvidence,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedPropositionBinder {
     pub name: String,
     pub kind: CheckedPropositionBinderKind,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedPropositionBinderKind {
     Type,
     Const { type_identity: TypeIdentityId },
     Machine,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedPropositionEvidence {
     FactOnly,
     Witness { evidence_type: String },
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedPropositionApplication {
     pub declaration: SymbolHandle,
     pub binder_arguments: Vec<CheckedPropositionBinderArgument>,
@@ -46,21 +46,21 @@ pub struct CheckedPropositionApplication {
     pub evidence_interface: Option<CheckedEvidenceInterfaceIdentity>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedEvidenceInterfaceIdentity {
     pub trait_symbol: SymbolHandle,
     pub arguments: Vec<typed_trees::type_identity::TypeIdentityId>,
     pub requirements: Vec<CheckedEvidenceRequirementIdentity>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedEvidenceRequirementIdentity {
     pub declaring_trait: SymbolHandle,
     pub declaring_trait_arguments: Vec<String>,
     pub requirement: SymbolHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedPropositionBinderArgument {
     pub kind: CheckedPropositionBinderArgumentKind,
     /// Diagnostic rendering for ordinary static arguments. Projection
@@ -70,7 +70,7 @@ pub struct CheckedPropositionBinderArgument {
     pub evidence_projection: Option<CheckedEvidenceProjection>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedEvidenceProjection {
     pub term: arena::Handle<crate::CheckedEvidenceTerm>,
     pub declaring_trait: SymbolHandle,
@@ -78,9 +78,70 @@ pub struct CheckedEvidenceProjection {
     pub requirement: SymbolHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedPropositionBinderArgumentKind {
     Type,
     Const,
     Machine,
+}
+
+// Source production and exact source-requirement replay share one pure
+// normalized-to-checked conversion. These constructors make no proof decision.
+impl CheckedPropositionApplication {
+    pub fn from_normalized(
+        normalized: typed_trees::proposition::NormalizedPropositionApplicationIdentity,
+    ) -> Self {
+        let evidence_interface = match &normalized.classification {
+            typed_trees::proposition::PropositionEvidenceClassification::FactOnly => None,
+            typed_trees::proposition::PropositionEvidenceClassification::Witness {
+                interface,
+                ..
+            } => interface
+                .as_ref()
+                .map(CheckedEvidenceInterfaceIdentity::from_normalized),
+        };
+        CheckedPropositionApplication {
+            declaration: normalized.declaration,
+            binder_arguments: normalized
+                .binder_arguments
+                .into_iter()
+                .map(|argument| CheckedPropositionBinderArgument {
+                    kind: match argument.kind {
+                        typed_trees::proposition::PropositionBinderArgumentKind::Type => {
+                            CheckedPropositionBinderArgumentKind::Type
+                        }
+                        typed_trees::proposition::PropositionBinderArgumentKind::Const => {
+                            CheckedPropositionBinderArgumentKind::Const
+                        }
+                        typed_trees::proposition::PropositionBinderArgumentKind::Machine => {
+                            CheckedPropositionBinderArgumentKind::Machine
+                        }
+                    },
+                    diagnostic_label: argument.identity,
+                    evidence_projection: None,
+                })
+                .collect(),
+            arguments: normalized.arguments,
+            evidence_interface,
+        }
+    }
+}
+impl CheckedEvidenceInterfaceIdentity {
+    pub fn from_normalized(
+        interface: &typed_trees::proposition::NormalizedEvidenceInterfaceIdentity,
+    ) -> Self {
+        CheckedEvidenceInterfaceIdentity {
+            trait_symbol: interface.trait_symbol,
+            arguments: interface.arguments.clone(),
+            requirements: interface
+                .requirements
+                .iter()
+                .map(|requirement| CheckedEvidenceRequirementIdentity {
+                    declaring_trait: requirement.declaring_trait,
+                    declaring_trait_arguments: requirement.declaring_trait_arguments.clone(),
+                    requirement: requirement.requirement,
+                })
+                .collect(),
+        }
+    }
 }

@@ -8,7 +8,7 @@ use symbols::SymbolHandle;
 /// replacement its index.
 pub type OperationalMachineIndex = OwnedIndex<symbols::SymbolKeyMap<SymbolHandle, usize>>;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct OperationalPlan {
     pub root_machines: HandleSpan<MachineOperational>,
     pub machines: Arena<MachineOperational>,
@@ -27,7 +27,7 @@ pub struct OperationalPlan {
 /// Exact static arguments on an ordinary generic call. Nested applications
 /// retain their own substitution spans; names and type/const arguments do not
 /// become nominal service-row variables.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StaticMachineCallBinding {
     pub parameter: SymbolHandle,
     pub selected: SymbolHandle,
@@ -70,7 +70,7 @@ impl OperationalPlan {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct MachineOperational {
     pub symbol: SymbolHandle,
     /// Authored ceilings. For checked bodies these gate admission; for
@@ -86,7 +86,7 @@ pub struct MachineOperational {
     pub states: HandleSpan<StateOperational>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StateOperational {
     pub symbol: SymbolHandle,
     pub direct_may_suspend: bool,
@@ -96,7 +96,7 @@ pub struct StateOperational {
     pub calls: HandleSpan<CallOperational>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CallOperational {
     pub statement_index: usize,
     pub call_ordinal: usize,
@@ -120,7 +120,7 @@ pub struct CallOperational {
 /// An executable hook selected for a surviving cleanup subject. This is the
 /// effect graph projection of the ownership plan, not an authored call site or
 /// a runtime action roster: repeated actions may share one dependency edge.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CleanupDependency {
     pub caller_machine: SymbolHandle,
     pub caller_state: SymbolHandle,
@@ -130,13 +130,13 @@ pub struct CleanupDependency {
 
 /// Captured selector inputs retain ordinary value flow without selecting one row
 /// for an unknown parameter. Unknown alternatives have no origin roster.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CapturedSelectorCalls {
     pub calls: Arena<CapturedSelectorCall>,
     pub arguments: Arena<CapturedSelectorArgument>,
     pub origins: Arena<CapturedSelectorOrigin>,
 }
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CapturedSelectorCall {
     pub caller_state: SymbolHandle,
     pub statement_index: usize,
@@ -144,12 +144,12 @@ pub struct CapturedSelectorCall {
     pub target: SymbolHandle,
     pub arguments: HandleSpan<CapturedSelectorArgument>,
 }
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CapturedSelectorArgument {
     pub source_position: usize,
     pub origins: HandleSpan<CapturedSelectorOrigin>,
 }
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum CapturedSelectorOrigin {
     #[default]
     Unresolved,

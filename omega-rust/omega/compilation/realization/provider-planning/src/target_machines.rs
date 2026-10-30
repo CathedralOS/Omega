@@ -12,12 +12,14 @@ use checked_trees::typed_trees::typed_trees::inspection::callees::ExplicitStateC
 use diagnostics::Diagnostic;
 use target::TargetProfile;
 
+mod authored_providers;
 mod direct_body_absences;
-mod proof_applications;
+pub use authored_providers::{AuthoredTargetProviders, TargetProviderInventoryRequest};
 mod provider_publication;
 pub(crate) use direct_body_absences::DirectTargetBodyAbsences;
-pub use proof_applications::{proof_application_machines, target_has_proof_demand};
-pub use provider_publication::{TargetProviderPublicationRequest, provider_selection_roots};
+pub use provider_publication::{
+    PreparedTargetProviderPublication, TargetProviderPreparationRequest, provider_selection_roots,
+};
 
 /// Project retained declarations onto one realization using their exact handles.
 pub fn settle_provider_defaults(
@@ -96,14 +98,15 @@ pub fn reject_reached_inert_sibling_calls(
                 .row_requirements
                 .iter()
                 .copied()
-                .zip(selected.provider.row_realizations.iter().copied())
+                .zip(selected.provider.row_realizations.iter())
+                .filter_map(|(required, owner)| owner.authored().map(|machine| (required, machine)))
         })
         .collect();
     // Roster positions index the reach marks; the roster is fixed here.
     let mut reached = vec![false; machines.len()];
     let mut frontier: Vec<usize> = entry
         .and_then(|entry| called_machine(typed, entry))
-        .and_then(|entry| realized_machine(typed, entry, target))
+        .and_then(|entry| typed.machine_for_target(entry, target.target_name()))
         .and_then(|entry| typed.machine_position_by_symbol(entry.symbol))
         .into_iter()
         .collect();
@@ -130,7 +133,8 @@ pub fn reject_reached_inert_sibling_calls(
                     })
                     .filter_map(|(_, realization)| called_machine(typed, *realization));
                 for callee in direct.into_iter().chain(realizations) {
-                    let Some(callee) = realized_machine(typed, callee, target) else {
+                    let Some(callee) = typed.machine_for_target(callee, target.target_name())
+                    else {
                         refusals.push((
                             position,
                             Diagnostic::error(unrealized_call_message(
@@ -171,44 +175,45 @@ fn called_machine(
         .or_else(|| typed.machine_holding_state(called_symbol))
 }
 
-/// Resolve an explicit execution edge against the complete retained family.
-/// A head has no authored target or states; visiting it would hide both a
-/// missing member and calls inside the selected member. Exact member references
-/// instead keep their own target and never redirect into another sibling.
-pub(crate) fn realized_machine<'program>(
-    typed: &'program TypedTrees,
-    machine: &'program checked_trees::typed_trees::machine::Machine,
+/// The same exact family selection supplies closed source evaluation. These
+/// rows name checked bodies; they supply no invocation or access permission.
+pub fn selected_constant_target_bodies(
+    context: crate::ProviderPlanningContext<'_>,
     target: TargetProfile,
-) -> Option<&'program checked_trees::typed_trees::machine::Machine> {
-    if machine.target_family_interface {
-        return family_member_for_target(typed, machine.symbol, target.target_name());
+) -> Result<Vec<build_time_evaluation::SelectedBuildTimeTargetBody>, Vec<Diagnostic>> {
+    if context.scope != source::DependencyScope::Product {
+        return Ok(Vec::new());
     }
-    typed
-        .machine_authored_target(machine)
-        .is_none_or(|declared| {
-            TargetProfile::from_canonical_target_name(declared)
-                .is_ok_and(|resolved| resolved == target)
-        })
-        .then_some(machine)
-}
-
-/// The retained member body a family head stands for on one target, from
-/// Psi's explicit family catalog. `None` when the family has no body for
-/// that target: the head itself is never a realization.
-pub(crate) fn family_member_for_target<'program>(
-    typed: &'program TypedTrees,
-    head: symbols::SymbolHandle,
-    target: &str,
-) -> Option<&'program checked_trees::typed_trees::machine::Machine> {
-    let family = typed
-        .target_machine_families
-        .iter()
-        .find(|family| family.canonical == head)?;
-    let member = family
-        .members
-        .iter()
-        .find(|member| member.target.as_str() == target)?;
-    typed.machine_by_symbol(member.machine)
+    let mut selected = Vec::new();
+    for family in &context.typed.target_machine_families {
+        if !context.contains(family.canonical) {
+            continue;
+        }
+        let Some(member) = context
+            .typed
+            .target_family_member(family.canonical, target.target_name())
+        else {
+            continue;
+        };
+        // This roster transports ordinary checked bodies only. An imported
+        // intrinsic or foreign family keeps its own execution owner; merely
+        // being realized for this target cannot turn it into checked source.
+        if !member.supplies_checked_body()
+            || !realizes_machine(context, member, Some(target.target_name()))
+        {
+            continue;
+        }
+        selected.push(
+            build_time_evaluation::SelectedBuildTimeTargetBody::prepare(
+                context.typed,
+                family.canonical,
+                member.symbol,
+                target.target_name(),
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?,
+        );
+    }
+    Ok(selected)
 }
 
 /// The machine a provider row realizes on the selected target. A row names
@@ -231,7 +236,7 @@ pub(crate) fn realized_row_machine<'program>(
         let target = selected_target
             .filter(|target| !target.is_empty())
             .unwrap_or_else(|| TargetProfile::host().target_name());
-        family_member_for_target(typed, named, target)?
+        typed.target_family_member(named, target)?
     } else {
         machine
     };
@@ -261,7 +266,7 @@ pub(crate) fn realizes_machine(
         .unwrap_or_else(|| TargetProfile::host().target_name());
     context
         .typed
-        .machine_authored_target(machine)
+        .source_target_context(machine)
         .is_none_or(|authored| authored == target)
 }
 

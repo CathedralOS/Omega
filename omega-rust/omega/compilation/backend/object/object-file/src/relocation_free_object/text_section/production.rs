@@ -28,13 +28,8 @@ pub(crate) fn construct_relocation_free_object_from_text(
     let mut symbols = Vec::with_capacity(text.functions.len());
     let mut semantic_entry_symbol = None;
     for (index, function) in text.functions.iter().enumerate() {
-        let symbol = ObjectLocalSymbolId::new(
-            u64::try_from(index)
-                .map_err(|_| RelocationFreeObjectFromTextError::LengthOverflow)?
-                .checked_add(1)
-                .ok_or(RelocationFreeObjectFromTextError::LengthOverflow)?,
-        )
-        .ok_or(RelocationFreeObjectFromTextError::LengthOverflow)?;
+        let symbol = ObjectLocalSymbolId::at(0, index)
+            .ok_or(RelocationFreeObjectFromTextError::LengthOverflow)?;
         let role = if function.machine == text.semantic_entry {
             semantic_entry_symbol = Some(symbol);
             RelocationFreeObjectSymbolRole::SemanticEntryV1
@@ -81,17 +76,8 @@ fn assemble_object(
         .map(|call| (call.boundary, call.ordinal))
         .collect::<std::collections::BTreeSet<_>>()
     {
-        let symbol = ObjectLocalSymbolId::new(
-            u64::try_from(symbols.len())
-                .map_err(|_| RelocationFreeObjectFromTextError::LengthOverflow)?
-                .checked_add(
-                    u64::try_from(normalized_imports.len())
-                        .map_err(|_| RelocationFreeObjectFromTextError::LengthOverflow)?,
-                )
-                .and_then(|base| base.checked_add(1))
-                .ok_or(RelocationFreeObjectFromTextError::LengthOverflow)?,
-        )
-        .ok_or(RelocationFreeObjectFromTextError::LengthOverflow)?;
+        let symbol = ObjectLocalSymbolId::at(symbols.len(), normalized_imports.len())
+            .ok_or(RelocationFreeObjectFromTextError::LengthOverflow)?;
         import_symbols.insert((boundary, ordinal), symbol);
         normalized_imports.push(RelocationFreeObjectNormalizedImport {
             symbol,
@@ -242,7 +228,7 @@ mod tests {
                 caller: machine,
                 block: selected_instructions::SelectedBlockId(0),
                 instruction: selected_instructions::SelectedInstructionId(0),
-                invocation_site: semantic_vocabulary::BoundaryInvocationSite::Operation(
+                invocation_site: semantic_vocabulary::InvocationSite::Operation(
                     semantic_vocabulary::OperationId::new(11).unwrap(),
                 ),
                 boundary,
@@ -266,7 +252,7 @@ mod tests {
                 caller: machine,
                 block: selected_instructions::SelectedBlockId(0),
                 instruction: selected_instructions::SelectedInstructionId(1),
-                invocation_site: semantic_vocabulary::BoundaryInvocationSite::Operation(
+                invocation_site: semantic_vocabulary::InvocationSite::Operation(
                     semantic_vocabulary::OperationId::new(12).unwrap(),
                 ),
                 boundary,

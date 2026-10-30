@@ -15,7 +15,7 @@ receiver admission, not as a mandatory gate on ordinary artifact production.
 
 The selected target package supplies ordinary named default provider implementations. The build,
 test harness, or component manager owning a service slot may override them with
-an admitted provider. Conformances and exact bodyless bindings declare candidates;
+an admitted provider. Conformances and exact Build-owned native bindings declare candidate intent;
 the compiler derives ProviderPlan; configuration selects it. Requirements do not
 select their own providers. A boundary operator has no provider clause, and there
 is no parallel top-level primitive-provider registry.
@@ -77,22 +77,66 @@ Build::select_provider<Console, CapturedConsole>(builder);
 Build::select_provider<Console, CapturedConsole>(builder, CompositionMode::Independent);
 ```
 
-Runtime-variable descriptors are ordinary capability values. Static target
-handles and descriptors belong inside selected target realizations, not value
-arguments to provider selection. Distinct authored configurations use distinct
+Runtime-variable descriptors are ordinary capability values, not provider
+selectors. An explicit compile-time target-catalog reference keys a Build row;
+it is not a runtime routing descriptor or an observation of the realized target.
+Physical handles and runtime descriptors stay inside selected implementations.
+Distinct authored configurations use distinct
 nominal/static identities. A facade may compose checked target-specific leaves.
 An exact call to a realization machine delegates directly; spelling its operator
 inside the provider redispatches and can recurse.
 
+### Build-owned target selection
+
+Target-prefixed machine declarations are retired. Different operating-system
+implementations are ordinary named implementations, and the evaluated Build
+records which implementation backs an exact requirement application for each
+target. The target key belongs to the Build row, not to the source machine's
+declaration, name, or body. There is no implicit same-path target-body family,
+target-sensitive source overload, or additional body-selection pass.
+
+For example, one portable `AudioPlayback` requirement may have Build rows selecting
+`WindowsAudioPlayback` for `windows_x86_64`, `LinuxAudioPlayback` for both Linux
+profiles, and `MacosAudioPlayback` for `macos_arm64`. Applications still call the
+same requirement. Shared implementation code and binding-value producers are
+ordinary machines; naming a Windows import does not require a Windows prefix.
+Raw per-OS requirements and Build-owned native bindings remain explicit beneath
+the selected provider closure.
+
+Psi checks every supplied implementation independently of target selection.
+Omega validates each selected closure against the row's target, including ABI,
+imports, layout, ISA, contracts, and authority. An unselected implementation's
+foreign locator need not be realizable on the selected target, but its source
+must still be checked. Missing, duplicate, incompatible, or unadmitted selected
+supply rejects rather than choosing a body by spelling or source order.
+
+The reference compiler and existing sources still contain the retired family
+model. `BUILD-OWNED-TARGET-SELECTION` in [the task board](../../../TASKS.md)
+tracks the end-to-end migration; the existing prefix is not an alternate API.
+
 [Foreign binding](foreign_bindings.md) identities are normalized evaluated values;
 the requirement owns its
 [calling-policy application](calling_plans.md#identity-and-selection).
-A bodyless leaf uses `via`
-only for payload its declaration and target cannot derive. Compiler intrinsics
-are selected from exact declaration, signature, and target. The complete binding
-producer closure and result enter final admission. Changing a typed foreign
+The owning package records `Build::bind<Requirement>(builder, target, locator)`
+for irreducible native supply. The requirement operand is an exact designated
+product reference; target is an ordinary validated catalog reference, and the
+locator is ordinary compile-time data with literal byte lengths inferred.
+Source-level `via` clauses and one-to-one bodyless realization declarations are
+retired. The package's native rows travel with its selected provider closure;
+application Build need not repeat dependency symbols or name private raw slots.
+Native rows supply exact boundary backing, not whole-trait conformance evidence,
+and complete schema coverage remains mandatory. Build-host readiness stays
+separate from these product rows.
+
+Compiler intrinsics are selected from exact declaration, signature, and target.
+The complete binding producer closure and result enter final admission.
+Changing a typed foreign
 locator, evaluated plan, or sealed catalog entry changes artifact identity and
-requires fresh admission; Build cannot rewrite them during selection.
+requires fresh admission; Build records binding intent, not mutable trusted
+plans. Stable native-provider identity retains exact requirement, target,
+supplying package, locator, calling policy, and authored provenance even without
+a forwarding machine. `BUILD-OWNED-NATIVE-BINDINGS` in
+[the task board](../../../TASKS.md) owns implementation of this accepted form.
 
 Overrides outrank target defaults and retain authored selection identity/order.
 Missing, private, ambiguous, foreign, and duplicate candidates reject. A selected
@@ -116,6 +160,55 @@ check, not a rewritten requirement or hidden service invocation. A remaining
 forbidden behavior or insufficient evidence rejects the product. Dynamic
 replacement must preserve the exclusions through its installation envelope;
 selecting one benign provider now does not certify every later binding.
+
+## Build provider readiness
+
+The owner-ratified `explicit-build-provider-backing` decision (2026-10-26)
+requires the caller to name both the exact boundary requirement
+application and its exact named implementation:
+
+```omega
+suspend Build::await_provider<
+    topology_api::TopologyBuild,
+    topology_impl::DiagnosticTopology
+>(builder);
+```
+
+Under `staged-build-capability-attenuation` (2026-10-28),
+`topology_api::TopologyBuild` must be available when its invoking continuation
+is checked, not necessarily before the first Build stage. Explicit dependency
+preparation admits ordinary shared non-core interfaces before that continuation
+executes; unresolved names cannot execute or be substituted structurally.
+`topology_impl` names the caller's explicitly registered build dependency;
+the rest of the qualified path names its implementation. Both operands support
+ordinary namespace qualification and retain exact declaration ownership. The
+dependency qualifier supplies the edge identity, so there is no redundant alias
+value argument and no fallback to the product-dependency namespace.
+
+The backing operand is an inert designated selection reference until dependency
+preparation resolves it against that exact immutable package instance. This uses
+Build's designated-selection mechanism, not execution through an unresolved
+import. Provider installation itself grants no general nameability, host
+authority or new source-level conformance evidence; ordinary imports follow
+the separately admitted dependency scope. The invoking continuation is checked
+against the exact requirement; preparation checks the implementation's visibility, exact
+satisfaction of that requirement, and admission for the Build execution profile
+before installing it. Matching names or signatures cannot replace nominal
+identity. Missing, inaccessible, mismatched, or unadmitted supply rejects rather
+than selecting another implementation.
+
+Readiness never searches for a satisfier, chooses the sole visible candidate,
+or consumes a dependency-selected default. Multiple exported implementations
+are unambiguous because the caller names one. An already-installed different
+backing does not satisfy this request or get silently replaced; distinct static
+roles require distinct exact requirement applications.
+
+After installation, calls use the exact static `R::operation(arguments)` slot.
+Readiness returns no routing value and resumes the same Terminal continuation
+without replay. Ordinary product `Build::select_provider` rows do not select or
+authorize this Build-host slot. See [Build execution](execution.md#admission-before-execution)
+for preparation and admission order. This is the accepted contract; provider
+readiness and deferred backing resolution remain implementation work.
 
 ## Toolchain-selected checked implementations
 
@@ -223,7 +316,7 @@ reordering is permitted; collapsing independent binders or strengthening an
 unrestricted input to `[copy]` is not.
 
 The quantifier ranges over source applications satisfying the telescope and
-`where` requirements, excluding target layout limits. Target-dependent routing
+`requires` requirements, excluding target layout limits. Target-dependent routing
 or admissions may qualify the row, but symbolic coverage proves only routing
 and dispatch, not calling policy, byte layout, register classes, or stack
 placement. Bodyless, external, opaque, intrinsic, and separately supplied

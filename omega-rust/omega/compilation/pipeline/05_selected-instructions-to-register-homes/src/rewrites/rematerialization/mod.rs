@@ -25,49 +25,13 @@ use selected_instructions_to_selected_instructions::{
     PressureRematerializationPolicy, RecoveryClassificationError, SpillChoiceError,
     StagedOptimizedAllocationLegality, StagedOptimizedAllocationLegalityCustodyReceipt,
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
-    ValidatedPressureRematerialization, ValidatedRecoveryClassifications, ValidatedSpillChoices,
+    ValidatedPressureRematerialization,
 };
 
-/// Stage the proven rematerialization sweep without attempting terminal
-/// homes assignment: the result is custody for the route's own decision —
-/// complete the sweep when assignment succeeds, or hand the same proven
-/// prefix to runtime-spill recovery when residual `NoCompatibleHome`
-/// pressure remains.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn stage_optimized_active_resident_rematerialization_pressure(
-    source: StagedOptimizedAllocationLegality,
-    choice_policy: SpillChoicePolicy,
-    classification_policy: RecoveryClassificationPolicy,
-    rematerialization_policy: PressureRematerializationPolicy,
-    budget: OptimizationWorkBudget,
-) -> Result<
-    StagedOptimizedActiveResidentRematerializationPressure,
-    OptimizedActiveResidentRematerializationError,
-> {
-    let staged = compute::compute_active_resident_rematerialization_pressure(
-        source,
-        choice_policy,
-        classification_policy,
-        rematerialization_policy,
-        budget,
-    )?;
-    Ok(staged)
-}
-
-/// Terminal completion of a proven sweep: the caller supplies the homes a
-/// successful assignment over the rebuilt facts produced. Custody is granted
-/// only after independent replay reconstructs the complete chain, exactly as
-/// the one-shot entrance requires.
-pub(crate) fn complete_optimized_active_resident_rematerialization(
-    pressure: StagedOptimizedActiveResidentRematerializationPressure,
-    homes: crate::ValidatedRegisterHomes,
-) -> Result<
-    StagedOptimizedActiveResidentRematerialization,
-    OptimizedActiveResidentRematerializationError,
-> {
-    let staged = compute::complete_active_resident_rematerialization(pressure, homes)?;
-    Ok(staged)
-}
+pub(crate) use compute::{
+    complete_optimized_active_resident_rematerialization,
+    stage_optimized_active_resident_rematerialization_pressure,
+};
 
 /// One bounded active-resident rematerialization sweep followed by analyses,
 /// homes, and a typed post-allocation manifest rebuilt from the transformed
@@ -115,124 +79,48 @@ impl StagedOptimizedActiveResidentRematerialization {
             .selected_stage()
             .optimized_target_owner()
     }
-    pub const fn rematerialization(&self) -> &ValidatedPressureRematerialization {
-        &self.rematerialization
-    }
-    pub const fn liveness(&self) -> &ValidatedLiveness {
-        &self.liveness
-    }
-    pub const fn ranges(&self) -> &ValidatedLiveRanges {
-        &self.ranges
-    }
-    pub const fn legality(&self) -> &ValidatedAllocationLegality {
-        &self.legality
-    }
-    pub const fn homes(&self) -> &ValidatedRegisterHomes {
-        &self.homes
-    }
+    receipt_accessor_rows!(borrow StagedOptimizedActiveResidentRematerialization {
+        rematerialization: &ValidatedPressureRematerialization,
+        liveness: &ValidatedLiveness,
+        ranges: &ValidatedLiveRanges,
+        legality: &ValidatedAllocationLegality,
+        homes: &ValidatedRegisterHomes,
+    });
     pub const fn post_allocation_manifest(&self) -> &ValidatedPostAllocationOptimizationManifest {
         &self.manifest
     }
-    pub const fn custody(&self) -> StagedOptimizedActiveResidentRematerializationCustodyReceipt {
-        self.custody
-    }
+    receipt_accessor_rows!(ref StagedOptimizedActiveResidentRematerialization {
+        custody: StagedOptimizedActiveResidentRematerializationCustodyReceipt,
+    });
 }
 
+/// Custody receipt for the completed sweep: the proven rematerialization
+/// prefix the pressure stage already minted, plus the terminal homes
+/// assignment and the typed manifest that assignment rebuilt. The prefix
+/// receipt is carried whole, so no stage identity is projected twice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedOptimizedActiveResidentRematerializationCustodyReceipt {
-    source: StagedOptimizedAllocationLegalityCustodyReceipt,
-    choices: SpillChoiceIdentity,
-    choice_policy: SpillChoicePolicy,
-    choice_usage: optimization_core::OptimizationWorkUsage,
-    classifications: RecoveryClassificationIdentity,
-    classification_policy: RecoveryClassificationPolicy,
-    classification_usage: optimization_core::OptimizationWorkUsage,
-    rematerialization: PressureRematerializationIdentity,
-    rematerialization_policy: PressureRematerializationPolicy,
-    rematerialization_usage: optimization_core::OptimizationWorkUsage,
-    budget: OptimizationWorkBudget,
-    transformed_selected: selected_instructions::SelectedInstructionPlanIdentity,
-    liveness: LivenessIdentity,
-    ranges: LiveRangeIdentity,
-    legality: AllocationLegalityIdentity,
+    prefix: StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt,
     homes: crate::RegisterHomeIdentity,
     manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
-    function_count: usize,
-    virtual_register_count: usize,
-    applied_count: usize,
-    rewritten_use_count: usize,
     assignment_count: usize,
 }
 
 impl StagedOptimizedActiveResidentRematerializationCustodyReceipt {
-    pub const fn source(self) -> StagedOptimizedAllocationLegalityCustodyReceipt {
-        self.source
+    /// The sweep's recorded identity, which the emission stage projects into
+    /// its manifest prefix. The prefix receipt is carried whole, so every other
+    /// row is read from it directly instead of a per-row delegation table here.
+    pub const fn rematerialization(&self) -> PressureRematerializationIdentity {
+        self.prefix.rematerialization
     }
-    pub const fn choices(self) -> SpillChoiceIdentity {
-        self.choices
-    }
-    pub const fn choice_policy(self) -> SpillChoicePolicy {
-        self.choice_policy
-    }
-    pub const fn choice_usage(self) -> optimization_core::OptimizationWorkUsage {
-        self.choice_usage
-    }
-    pub const fn classifications(self) -> RecoveryClassificationIdentity {
-        self.classifications
-    }
-    pub const fn classification_policy(self) -> RecoveryClassificationPolicy {
-        self.classification_policy
-    }
-    pub const fn classification_usage(self) -> optimization_core::OptimizationWorkUsage {
-        self.classification_usage
-    }
-    pub const fn rematerialization(self) -> PressureRematerializationIdentity {
-        self.rematerialization
-    }
-    pub const fn rematerialization_policy(self) -> PressureRematerializationPolicy {
-        self.rematerialization_policy
-    }
-    pub const fn rematerialization_usage(self) -> optimization_core::OptimizationWorkUsage {
-        self.rematerialization_usage
-    }
-    pub const fn budget(self) -> OptimizationWorkBudget {
-        self.budget
-    }
-    pub const fn transformed_selected(
-        self,
-    ) -> selected_instructions::SelectedInstructionPlanIdentity {
-        self.transformed_selected
-    }
-    pub const fn liveness(self) -> LivenessIdentity {
-        self.liveness
-    }
-    pub const fn ranges(self) -> LiveRangeIdentity {
-        self.ranges
-    }
-    pub const fn legality(self) -> AllocationLegalityIdentity {
-        self.legality
-    }
-    pub const fn homes(self) -> crate::RegisterHomeIdentity {
-        self.homes
-    }
-    pub const fn manifest(self) -> optimization_core::PostAllocationOptimizationManifestIdentity {
-        self.manifest
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn virtual_register_count(self) -> usize {
-        self.virtual_register_count
-    }
-    pub const fn applied_count(self) -> usize {
-        self.applied_count
-    }
-    pub const fn rewritten_use_count(self) -> usize {
-        self.rewritten_use_count
-    }
-    pub const fn assignment_count(self) -> usize {
-        self.assignment_count
-    }
+
+    receipt_accessor_rows!(
+        StagedOptimizedActiveResidentRematerializationCustodyReceipt {
+            homes: crate::RegisterHomeIdentity,
+            manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
+            assignment_count: usize,
+        }
+    );
 }
 
 /// The recorded sweep once its applied rewrite and rebuilt facts are proven
@@ -243,8 +131,6 @@ impl StagedOptimizedActiveResidentRematerializationCustodyReceipt {
 #[derive(Debug)]
 pub(crate) struct StagedOptimizedActiveResidentRematerializationPressure {
     source: StagedOptimizedAllocationLegality,
-    choices: ValidatedSpillChoices,
-    classifications: ValidatedRecoveryClassifications,
     rematerialization: ValidatedPressureRematerialization,
     liveness: ValidatedLiveness,
     ranges: ValidatedLiveRanges,
@@ -253,26 +139,16 @@ pub(crate) struct StagedOptimizedActiveResidentRematerializationPressure {
 }
 
 impl StagedOptimizedActiveResidentRematerializationPressure {
-    pub const fn source(&self) -> &StagedOptimizedAllocationLegality {
-        &self.source
-    }
-    pub const fn rematerialization(&self) -> &ValidatedPressureRematerialization {
-        &self.rematerialization
-    }
-    pub const fn liveness(&self) -> &ValidatedLiveness {
-        &self.liveness
-    }
-    pub const fn ranges(&self) -> &ValidatedLiveRanges {
-        &self.ranges
-    }
-    pub const fn legality(&self) -> &ValidatedAllocationLegality {
-        &self.legality
-    }
-    pub const fn custody(
-        &self,
-    ) -> StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
-        self.custody
-    }
+    receipt_accessor_rows!(borrow StagedOptimizedActiveResidentRematerializationPressure {
+        source: &StagedOptimizedAllocationLegality,
+        rematerialization: &ValidatedPressureRematerialization,
+        liveness: &ValidatedLiveness,
+        ranges: &ValidatedLiveRanges,
+        legality: &ValidatedAllocationLegality,
+    });
+    receipt_accessor_rows!(ref StagedOptimizedActiveResidentRematerializationPressure {
+        custody: StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt,
+    });
 }
 
 /// Custody receipt for the proven rematerialization prefix: every identity
@@ -302,12 +178,12 @@ pub(crate) struct StagedOptimizedActiveResidentRematerializationPressureCustodyR
 }
 
 impl StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
-    pub const fn source(self) -> StagedOptimizedAllocationLegalityCustodyReceipt {
-        self.source
-    }
-    pub const fn rematerialization(self) -> PressureRematerializationIdentity {
-        self.rematerialization
-    }
+    receipt_accessor_rows!(
+        StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
+            source: StagedOptimizedAllocationLegalityCustodyReceipt,
+            rematerialization: PressureRematerializationIdentity,
+        }
+    );
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -326,13 +202,7 @@ pub enum OptimizedActiveResidentRematerializationError {
     ReceiptMismatch,
 }
 
-impl std::fmt::Display for OptimizedActiveResidentRematerializationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized active-resident rematerialization failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for OptimizedActiveResidentRematerializationError {}
+stage_error_display!(
+    OptimizedActiveResidentRematerializationError,
+    "optimized active-resident rematerialization failed"
+);

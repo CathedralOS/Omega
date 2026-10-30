@@ -26,17 +26,17 @@ machine result_code(context: &mut Main) -> i32 reaches Console {
         _ -> invalid(context)
     }
 
-    state look(context: &mut Main) -> i32 {
+    machine look(context: &mut Main) -> i32 {
         Console::write_line("look");
         0
     }
 
-    state quit(context: &mut Main) -> i32 {
+    machine quit(context: &mut Main) -> i32 {
         Console::write_line("quit");
         0
     }
 
-    state invalid(context: &mut Main) -> i32 {
+    machine invalid(context: &mut Main) -> i32 {
         Console::write_line("invalid");
         1
     }

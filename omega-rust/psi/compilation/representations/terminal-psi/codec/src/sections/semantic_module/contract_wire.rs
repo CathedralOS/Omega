@@ -31,17 +31,15 @@ pub(crate) fn encode_successor_edge(
 ) -> Result<(), CodecError> {
     writer.id(successor.edge);
     writer.id(successor.target);
-    writer.len("conditional successor arguments", successor.arguments.len())?;
-    for argument in &successor.arguments {
-        writer.id(*argument);
-    }
+    writer.ids("conditional successor arguments", &successor.arguments)?;
     encode_scalar_terms(writer, &successor.erased_arguments)?;
     encode_proof_terms(writer, &successor.erased_proof_arguments)?;
     encode_structural_arguments(writer, &successor.structural_arguments)?;
-    writer.len("successor cleanup actions", successor.cleanup_actions.len())?;
-    for action in &successor.cleanup_actions {
-        encode_affine_cleanup_action(writer, action)?;
-    }
+    writer.counted(
+        "successor cleanup actions",
+        &successor.cleanup_actions,
+        encode_affine_cleanup_action,
+    )?;
     Ok(())
 }
 
@@ -113,10 +111,11 @@ pub(crate) fn encode_crash_routes(
     writer: &mut Writer,
     crash_routes: &[CrashRouteBucket],
 ) -> Result<(), CodecError> {
-    writer.len("crash route buckets", crash_routes.len())?;
-    for bucket in crash_routes {
-        encode_crash_route_bucket(writer, bucket)?;
-    }
+    writer.counted(
+        "crash route buckets",
+        crash_routes,
+        encode_crash_route_bucket,
+    )?;
     Ok(())
 }
 

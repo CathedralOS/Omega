@@ -13,9 +13,9 @@
 use super::initialization::{InitializationRejection, PreparedProviderImage};
 use super::{ProviderStorageSlot, ResidentStorageSlot};
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::TerminalExecution;
+use crate::execution::{TerminalExecution, operation_kind};
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
-use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
+use crate::values::StructuralRuntimePlace;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     BoundaryMachineDeclaration, Operation, OperationKind, StructuralAccess,
@@ -36,14 +36,9 @@ impl TerminalExecution<'_> {
             .storage
             .owned_content()
             .map_err(TerminalInterpretError::ContentTransformationMismatch)?;
-        let OperationKind::BoundaryCall {
-            structural_arguments,
-            completion_receipts,
-            ..
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => BoundaryCall {
+            structural_arguments, completion_receipts, ..
+        });
         let [extent, original, _profile] = structural_arguments.as_slice() else {
             return Err(malformed());
         };
@@ -143,12 +138,7 @@ impl TerminalExecution<'_> {
                 return Err(TerminalInterpretError::ClaimTransferMismatch);
             }
         }
-        let mut value = TerminalStructuralValue::minted(
-            self.local_structural_identities
-                .allocate_staged(&mut identity_cursor)?,
-            result.structural_type,
-            Vec::new(),
-        );
+        let mut value = self.mint_staged(&mut identity_cursor, result.structural_type)?;
         let destination_path = vec![
             StructuralPathSegment::Case(ready.id),
             StructuralPathSegment::Field(field.identity),
@@ -248,7 +238,7 @@ impl TerminalExecution<'_> {
                 _lease: lease,
             });
         descriptor.resident = resident;
-        retirement.commit(self);
+        retirement.commit(self)?;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
         Ok(())
@@ -261,14 +251,9 @@ impl TerminalExecution<'_> {
         plan: &TerminalPlacementLifecyclePlan,
         rejection: InitializationRejection,
     ) -> Result<(), TerminalInterpretError> {
-        let OperationKind::BoundaryCall {
-            structural_arguments,
-            completion_receipts,
-            ..
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => BoundaryCall {
+            structural_arguments, completion_receipts, ..
+        });
         let [extent, original, _profile] = structural_arguments.as_slice() else {
             return Err(malformed());
         };
@@ -310,12 +295,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         let mut identity_cursor = self.local_structural_identities.cursor();
-        let mut value = TerminalStructuralValue::minted(
-            self.local_structural_identities
-                .allocate_staged(&mut identity_cursor)?,
-            result.structural_type,
-            Vec::new(),
-        );
+        let mut value = self.mint_staged(&mut identity_cursor, result.structural_type)?;
         let root = StructuralRuntimePlace::from(&value);
         let mut storage = ConstructorStorage::new(self.account.as_ref());
         storage.stage_case(root.clone(), result.structural_type, rejected.id)?;
@@ -455,7 +435,7 @@ impl TerminalExecution<'_> {
         let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
         storage.publish(self)?;
         self.structural_values.insert(result.place, value)?;
-        retirement.commit(self);
+        retirement.commit(self)?;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
         Ok(())

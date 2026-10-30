@@ -15,6 +15,7 @@ use diagnostics::Diagnostic;
 use crate::constants::{
     ELF64_DYNAMIC_ROW_SIZE, ELF64_DYNAMIC_VALUE_OFFSET, ELF64_SECTION_HEADER_SIZE,
 };
+use target::compatibility_fingerprint::Fnv1a;
 
 pub(super) fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
     condition
@@ -127,6 +128,17 @@ pub(super) fn field_mut<'a>(
     bytes
         .get_mut(offset..end)
         .ok_or_else(|| Diagnostic::error(format!("{context} exceeds its storage")))
+}
+
+/// Start one stage's non-authoritative compatibility fingerprint: the stage's
+/// own domain tag, then the exact digest of the carrier it consumed. Every
+/// staged fingerprint in this lane begins that way, so the seed rule is stated
+/// once instead of in each stage's own encoder.
+pub(super) fn stage_fingerprint(tag: &[u8], upstream: u64) -> Fnv1a {
+    let mut hash = Fnv1a::new();
+    hash.bytes(tag);
+    hash.bytes(&upstream.to_le_bytes());
+    hash
 }
 
 pub(super) fn checked_sum_u64(
@@ -286,6 +298,99 @@ pub(crate) struct CandidateValidationError<C> {
     pub(crate) diagnostic: Diagnostic,
 }
 
+/// Emit one stage's candidate seal: run that stage's own independent contents
+/// validator, replay the non-authoritative compatibility fingerprint the
+/// carrier publishes (when it publishes one), and assemble the validated
+/// carrier from the consumed candidate. Every dynamic-lane stage seals its
+/// candidate this way, so the envelope is stated once here and each stage
+/// supplies only its own field names and fingerprint rule.
+///
+/// `$field` is the field holding the upstream carrier the stage consumed;
+/// `$contents` is the field holding the contents it derived. A stage whose
+/// carrier publishes a fingerprint that must also be non-zero adds `nonzero`.
+macro_rules! seal_stage {
+    (
+        field: $field:ident,
+        contents: $contents:ident,
+        validated: $validated:ident,
+        validate: $validate:ident,
+        fingerprint: $fingerprint:ident,
+        message: $message:literal
+        $(, vis: $vis:vis)? $(,)?
+    ) => {
+        $( $vis )? fn validate_candidate(
+            candidate: Candidate,
+        ) -> Result<$validated, CandidateValidationError<Candidate>> {
+            checked::validate_candidate(
+                candidate,
+                |candidate| $validate(&candidate.$field, &candidate.$contents),
+                |candidate| {
+                    candidate.$fingerprint == $fingerprint(&candidate.$field, &candidate.$contents)
+                },
+                $message,
+                |candidate| $validated {
+                    $field: candidate.$field,
+                    $contents: candidate.$contents,
+                    $fingerprint: candidate.$fingerprint,
+                },
+            )
+        }
+    };
+    (
+        field: $field:ident,
+        contents: $contents:ident,
+        validated: $validated:ident,
+        validate: $validate:ident,
+        fingerprint: $fingerprint:ident,
+        nonzero,
+        message: $message:literal
+        $(, vis: $vis:vis)? $(,)?
+    ) => {
+        $( $vis )? fn validate_candidate(
+            candidate: Candidate,
+        ) -> Result<$validated, CandidateValidationError<Candidate>> {
+            checked::validate_candidate(
+                candidate,
+                |candidate| $validate(&candidate.$field, &candidate.$contents),
+                |candidate| {
+                    candidate.$fingerprint != 0
+                        && candidate.$fingerprint
+                            == $fingerprint(&candidate.$field, &candidate.$contents)
+                },
+                $message,
+                |candidate| $validated {
+                    $field: candidate.$field,
+                    $contents: candidate.$contents,
+                    $fingerprint: candidate.$fingerprint,
+                },
+            )
+        }
+    };
+    (
+        field: $field:ident,
+        contents: $contents:ident,
+        validated: $validated:ident,
+        validate: $validate:ident
+        $(, vis: $vis:vis)? $(,)?
+    ) => {
+        $( $vis )? fn validate_candidate(
+            candidate: Candidate,
+        ) -> Result<$validated, CandidateValidationError<Candidate>> {
+            checked::validate_candidate(
+                candidate,
+                |candidate| $validate(&candidate.$field, &candidate.$contents),
+                |_| true,
+                "",
+                |candidate| $validated {
+                    $field: candidate.$field,
+                    $contents: candidate.$contents,
+                },
+            )
+        }
+    };
+}
+pub(crate) use seal_stage;
+
 /// Shared validation envelope: run the contents validator, replay the
 /// non-authoritative compatibility fingerprint, and on success assemble the
 /// validated record from the consumed candidate.
@@ -310,6 +415,58 @@ pub(crate) fn validate_candidate<C, T>(
     }
     Ok(validated(candidate))
 }
+
+/// State one stage's planning envelope once: derive the stage's retained
+/// contents, stamp the candidate's non-authoritative compatibility
+/// fingerprint, validate that stamp, and wrap any refusal in the stage's own
+/// planning error with the consumed carrier still in custody.
+///
+/// `$plan` is the upstream carrier the stage consumed and names the `Candidate`
+/// field that carries it; `$contents` names the field holding what the stage
+/// derived; `$fingerprint` names both the candidate's fingerprint field and the
+/// stage's own fingerprint rule; `$error` is the planning error that retains the
+/// consumed carrier beside the diagnostic. A stage whose candidate publishes no
+/// fingerprint omits `fingerprint:`.
+macro_rules! plan_stage {
+    (
+        plan: $plan:ident,
+        derive: $derive:expr,
+        contents: $contents:ident,
+        fingerprint: $fingerprint:ident,
+        error: $error:ident $(,)?
+    ) => {
+        checked::plan_candidate(
+            $plan,
+            $derive,
+            |$plan, $contents| $fingerprint(&$plan, &$contents),
+            |$plan, $contents, fingerprint| Candidate {
+                $plan,
+                $contents,
+                $fingerprint: fingerprint,
+            },
+            validate_candidate,
+            |candidate| candidate.$plan,
+            |$plan, diagnostic| Box::new($error { $plan, diagnostic }),
+        )
+    };
+    (
+        plan: $plan:ident,
+        derive: $derive:expr,
+        contents: $contents:ident,
+        error: $error:ident $(,)?
+    ) => {
+        checked::plan_candidate(
+            $plan,
+            $derive,
+            |_, _| 0,
+            |$plan, $contents, _fingerprint| Candidate { $plan, $contents },
+            validate_candidate,
+            |candidate| candidate.$plan,
+            |$plan, diagnostic| Box::new($error { $plan, diagnostic }),
+        )
+    };
+}
+pub(crate) use plan_stage;
 
 /// Shared planning scaffold: derive contents (wrapping a derive failure into
 /// the caller's planning error), compute the compatibility fingerprint, build

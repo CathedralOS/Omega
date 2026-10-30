@@ -1,0 +1,42 @@
+stack32 warmup A: 3163.4 ms; native exit 0
+stack32 warmup B: 2868.1 ms; native exit 0
+stack32 measured A: 2756.4 ms; native exit 0
+stack32 measured B: 3112.6 ms; native exit 0
+stack32 measured B: 2923.9 ms; native exit 0
+stack32 measured A: 3798.6 ms; native exit 0
+stack32 measured A: 2897.6 ms; native exit 0
+stack32 measured B: 3245.1 ms; native exit 0
+stack32 measured B: 3664.6 ms; native exit 0
+stack32 measured A: 3178.2 ms; native exit 0
+stack32 profile A: 3240.9 ms; native exit 0
+stack32 profile B: 3919.0 ms; native exit 0
+length warmup A: 2409.3 ms; native exit 0
+length warmup B: 3019.1 ms; native exit 0
+length measured A: 4787.9 ms; native exit 0
+length measured B: 2951.7 ms; native exit 0
+length measured B: 3702.8 ms; native exit 0
+length measured A: 3633.4 ms; native exit 0
+length measured A: 3157.6 ms; native exit 0
+length measured B: 2824.5 ms; native exit 0
+length measured B: 2766.3 ms; native exit 0
+length measured A: 2303.8 ms; native exit 0
+length profile A: 3626.7 ms; native exit 0
+length profile B: 4830.5 ms; native exit 0
+dispatch warmup A: 2158.4 ms; native exit 0
+dispatch warmup B: 2225.4 ms; native exit 0
+dispatch measured A: 3625.6 ms; native exit 0
+Traceback (most recent call last):
+  File "C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\wiki\drafts\measurements\checking_simplification_2026_10_28\compare.py", line 96, in <module>
+    main()
+    ~~~~^^
+  File "C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\wiki\drafts\measurements\checking_simplification_2026_10_28\compare.py", line 80, in main
+    execution = subprocess.run([str(artifact)], cwd=REPOSITORY, capture_output=True, timeout=30)
+  File "C:\Users\User\AppData\Roaming\uv\python\cpython-3.15-windows-x86_64-none\Lib\subprocess.py", line 671, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\AppData\Roaming\uv\python\cpython-3.15-windows-x86_64-none\Lib\subprocess.py", line 1395, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\AppData\Roaming\uv\python\cpython-3.15-windows-x86_64-none\Lib\subprocess.py", line 1830, in _communicate
+    raise TimeoutExpired(self.args, orig_timeout)
+subprocess.TimeoutExpired: Command '['\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\flow-evaluation\\comparison\\dispatch-03-B-measured\\build\\omega-program.exe']' timed out after 30 seconds

@@ -16,6 +16,6 @@ machine main() crashes Trap {
     let window: Window = Window { base: 10, length: 80 };
     let selected: addr = projected(window, 20, 100);
     transition selected == 30 { true -> done() false -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

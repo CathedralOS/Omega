@@ -24,8 +24,8 @@ machine main() {
         true -> observe(&mut held)
         false -> done()
     }
-    state observe(held: &mut Held) requires held.cells.len == 2 {
+    machine observe(held: &mut Held) requires held.cells.len == 2 {
         let _past: Cell = held.cells[2];
     }
-    state done() {}
+    machine done() {}
 }

@@ -8,24 +8,24 @@ public machine reconcile(model: &Chronology, result: &mut Reconciliation) {
     result.lower = [9,9,9];
     result.upper = [0,0,0];
     transition { _ -> candidate(model, result, 0) }
-    state candidate(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping) {
+    machine candidate(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping) {
         transition code < 1000 {
             true -> decode(model, result, code)
             false -> done()
         }
     }
-    state decode(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping) {
+    machine decode(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping) {
         let times: Candidate = Candidate { ticks: [(code / 100) as i32, (code / 10 % 10) as i32, (code % 10) as i32] };
         transition { _ -> interval(model, result, code, &times, 0) }
     }
-    state interval(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
+    machine interval(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
                    times: &Candidate, event: i32 in Wrapping) {
         transition event >= 0 && event < 3 {
             true -> inspect_interval(model, result, code, times, event)
             false -> edge(model, result, code, times, 0)
         }
     }
-    state inspect_interval(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
+    machine inspect_interval(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
                            times: &Candidate, event: i32 in Wrapping)
     requires event >= 0
     requires event < 3
@@ -36,14 +36,14 @@ public machine reconcile(model: &Chronology, result: &mut Reconciliation) {
             false -> candidate(model, result, code + 1)
         }
     }
-    state edge(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
+    machine edge(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
                times: &Candidate, index: i32 in Wrapping) {
         transition index >= 0 && index < 4 {
             true -> active(model, result, code, times, index)
             false -> accept(model, result, code, times)
         }
     }
-    state active(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
+    machine active(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
                  times: &Candidate, index: i32 in Wrapping)
     requires index >= 0
     requires index < 4
@@ -53,7 +53,7 @@ public machine reconcile(model: &Chronology, result: &mut Reconciliation) {
             false -> edge(model, result, code, times, index + 1)
         }
     }
-    state endpoints(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
+    machine endpoints(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
                     times: &Candidate, index: i32 in Wrapping)
     requires index >= 0
     requires index < 4
@@ -65,7 +65,7 @@ public machine reconcile(model: &Chronology, result: &mut Reconciliation) {
             false -> done()
         }
     }
-    state constraint(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
+    machine constraint(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
                      times: &Candidate, index: i32 in Wrapping,
                      source: i32 in Wrapping, destination: i32 in Wrapping)
     requires index >= 0
@@ -83,19 +83,19 @@ public machine reconcile(model: &Chronology, result: &mut Reconciliation) {
             false -> candidate(model, result, code + 1)
         }
     }
-    state accept(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
+    machine accept(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
                  times: &Candidate) {
         result.count = result.count + 1;
         transition { _ -> range(model, result, code, times, 0) }
     }
-    state range(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
+    machine range(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
                 times: &Candidate, event: i32 in Wrapping) {
         transition event >= 0 && event < 3 {
             true -> lower(model, result, code, times, event)
             false -> candidate(model, result, code + 1)
         }
     }
-    state lower(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
+    machine lower(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
                 times: &Candidate, event: i32 in Wrapping)
     requires event >= 0
     requires event < 3
@@ -105,7 +105,7 @@ public machine reconcile(model: &Chronology, result: &mut Reconciliation) {
             false -> upper(model, result, code, times, event)
         }
     }
-    state store_lower(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
+    machine store_lower(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
                       times: &Candidate, event: i32 in Wrapping)
     requires event >= 0
     requires event < 3
@@ -113,7 +113,7 @@ public machine reconcile(model: &Chronology, result: &mut Reconciliation) {
         result.lower[event] = times.ticks[event];
         transition { _ -> upper(model, result, code, times, event) }
     }
-    state upper(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
+    machine upper(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
                 times: &Candidate, event: i32 in Wrapping)
     requires event >= 0
     requires event < 3
@@ -123,7 +123,7 @@ public machine reconcile(model: &Chronology, result: &mut Reconciliation) {
             false -> range(model, result, code, times, event + 1)
         }
     }
-    state store_upper(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
+    machine store_upper(model: &Chronology, result: &mut Reconciliation, code: i32 in Wrapping,
                       times: &Candidate, event: i32 in Wrapping)
     requires event >= 0
     requires event < 3
@@ -131,20 +131,20 @@ public machine reconcile(model: &Chronology, result: &mut Reconciliation) {
         result.upper[event] = times.ticks[event];
         transition { _ -> range(model, result, code, times, event + 1) }
     }
-    state done() { }
+    machine done() { }
 }
 
 // Deletion is monotone: if removing an edge admits a solution now, removing
 // more edges cannot make that edge redundant later. One pass is irreducible.
 public machine contradiction(model: &mut Chronology, result: &mut Reconciliation) {
     transition { _ -> edge(model, result, 0) }
-    state edge(model: &mut Chronology, result: &mut Reconciliation, index: i32 in Wrapping) {
+    machine edge(model: &mut Chronology, result: &mut Reconciliation, index: i32 in Wrapping) {
         transition index >= 0 && index < 4 {
             true -> active(model, result, index)
             false -> finish(model, result)
         }
     }
-    state active(model: &mut Chronology, result: &mut Reconciliation, index: i32 in Wrapping)
+    machine active(model: &mut Chronology, result: &mut Reconciliation, index: i32 in Wrapping)
     requires index >= 0
     requires index < 4
     {
@@ -153,7 +153,7 @@ public machine contradiction(model: &mut Chronology, result: &mut Reconciliation
             false -> edge(model, result, index + 1)
         }
     }
-    state remove(model: &mut Chronology, result: &mut Reconciliation, index: i32 in Wrapping)
+    machine remove(model: &mut Chronology, result: &mut Reconciliation, index: i32 in Wrapping)
     requires index >= 0
     requires index < 4
     {
@@ -164,12 +164,12 @@ public machine contradiction(model: &mut Chronology, result: &mut Reconciliation
             false -> restore(model, result, index)
         }
     }
-    state restore(model: &mut Chronology, result: &mut Reconciliation, index: i32 in Wrapping)
+    machine restore(model: &mut Chronology, result: &mut Reconciliation, index: i32 in Wrapping)
     requires index >= 0
     requires index < 4
     {
         model.enabled[index] = 1;
         transition { _ -> edge(model, result, index + 1) }
     }
-    state finish(model: &mut Chronology, result: &mut Reconciliation) { reconcile(model, result); }
+    machine finish(model: &mut Chronology, result: &mut Reconciliation) { reconcile(model, result); }
 }

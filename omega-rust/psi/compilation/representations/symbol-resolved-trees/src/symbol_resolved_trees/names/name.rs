@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -9,17 +10,17 @@ use source::SourceSpan;
 /// This is deliberately owned text. Source-backed identifiers must not survive
 /// past frontend lowering; symbol-resolved identity should move to symbol
 /// handles instead of carrying this type further down the pipeline.
-#[derive(Clone, Default, Eq)]
+#[derive(Clone, Default, Eq, compiler_storage::Record)]
 pub struct DiagnosticName {
     text: DiagnosticNameText,
     source_span: SourceSpan,
 }
 
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 enum DiagnosticNameText {
     #[default]
     Missing,
-    Static(&'static str),
+    Static(Cow<'static, str>),
     Generated(Arc<str>),
 }
 
@@ -42,7 +43,7 @@ impl DiagnosticName {
 
     pub fn generated_static(text: &'static str) -> Self {
         Self {
-            text: DiagnosticNameText::Static(text),
+            text: DiagnosticNameText::Static(Cow::Borrowed(text)),
             source_span: SourceSpan::default(),
         }
     }

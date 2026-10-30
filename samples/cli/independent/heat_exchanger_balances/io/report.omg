@@ -14,36 +14,36 @@ machine number(value: f64) reaches Console {
     let rounded: i32 in Saturating = I32::from_f64(value * 1000.0 + 0.5001);
     let integer: u32 = narrow_i32_to_u32_trapping(rounded as i32);
     transition { _ -> digit(integer, 1000000000, false) }
-    state digit(value: u32, place: u32, started: bool) requires place >= 1 {
+    machine digit(value: u32, place: u32, started: bool) requires place >= 1 {
         let character: u32 = value / place;
         transition character != 0 || started || place == 1 {
             true -> write(value, place, character)
             false -> advance(value, place, false)
         }
     }
-    state write(value: u32, place: u32, character: u32) requires place >= 1 {
+    machine write(value: u32, place: u32, character: u32) requires place >= 1 {
         let character_code: u32 in Saturating = (character as u32 in Saturating) + 48;
         Console::write_byte(narrow_u32_to_i32_trapping(character_code as u32));
         transition { _ -> advance(value, place, true) }
     }
-    state advance(value: u32, place: u32, started: bool) requires place >= 1 {
+    machine advance(value: u32, place: u32, started: bool) requires place >= 1 {
         transition place >= 10 {
             true -> digit(value % place, place / 10, started)
             false -> done()
         }
     }
-    state done() { }
+    machine done() { }
 }
 public machine emit(input: &io::input::Input, solution: &model::stages::Solution) reaches Console invokes Console; crashes Trap {
     Console::write_line("heat_exchanger_balances midpoint counterflow; temperature=mdegC heat=mW");
     transition { _ -> node(input, solution, 0) }
-    state node(input: &io::input::Input, solution: &model::stages::Solution, position: u32) {
+    machine node(input: &io::input::Input, solution: &model::stages::Solution, position: u32) {
         transition position <= input.stages && position < 9 {
             true -> row(input, solution, position)
             false -> total(solution)
         }
     }
-    state row(input: &io::input::Input, solution: &model::stages::Solution, position: u32) requires position < 9 {
+    machine row(input: &io::input::Input, solution: &model::stages::Solution, position: u32) requires position < 9 {
         Console::write("node hot cold: ");
         number(solution.hot[position]);
         Console::write(" ");
@@ -54,13 +54,13 @@ public machine emit(input: &io::input::Input, solution: &model::stages::Solution
             false -> total(solution)
         }
     }
-    state heat(input: &io::input::Input, solution: &model::stages::Solution, position: u32) requires position < 8 {
+    machine heat(input: &io::input::Input, solution: &model::stages::Solution, position: u32) requires position < 8 {
         Console::write("stage heat: ");
         number(solution.heat[position]);
         Console::write_line("");
         transition { _ -> node(input, solution, position + 1) }
     }
-    state total(solution: &model::stages::Solution) {
+    machine total(solution: &model::stages::Solution) {
         Console::write("total heat: ");
         number(solution.total);
         Console::write_line("");

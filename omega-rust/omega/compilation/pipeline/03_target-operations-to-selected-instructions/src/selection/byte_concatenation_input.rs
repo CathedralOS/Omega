@@ -1,8 +1,10 @@
 //! Reconstruct owned byte storage and readable operands from exact declarations.
+use crate::selection::place_declaration::declares_operation_result;
+
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
-use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
+use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::control_flow::ByteSequenceOperand;
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralTypeShape,
@@ -86,14 +88,12 @@ pub(super) fn capacity(
         || !result.claims.is_empty()
         || !result.qualification_establishments.is_empty()
         || !result.projected_qualifications.is_empty()
-        || !signature.structural_places.iter().any(|place| {
-            place.id == result.place
-                && place.kind
-                    == (StructuralPlaceKind::OperationResult {
-                        producer: row.operation,
-                        structural_type: result.structural_type,
-                    })
-        })
+        || !declares_operation_result(
+            signature,
+            result.place,
+            row.operation,
+            result.structural_type,
+        )
     {
         return None;
     }

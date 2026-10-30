@@ -19,10 +19,12 @@ pub(crate) struct CallerSiteCaches {
     pub tracked_origin_machines: Mutex<HashMap<SymbolHandle, bool>>,
     /// (machine symbol, site kind, site identity) -> (state symbol, index)
     /// for the unique statement a caller write site resolves to.
-    pub site_statements: Mutex<HashMap<(SymbolHandle, u8, usize), Option<(SymbolHandle, usize)>>>,
+    pub site_statements:
+        Mutex<HashMap<(SymbolHandle, u8, usize, usize), Option<(SymbolHandle, usize)>>>,
     /// (machine symbol, site kind, site identity) -> the resolved prefix
     /// site outcome; None in the map encodes "no unique statement".
-    pub prefix_site_entries: Mutex<HashMap<(SymbolHandle, u8, usize), Option<PrefixSiteEntry>>>,
+    pub prefix_site_entries:
+        Mutex<HashMap<(SymbolHandle, u8, usize, usize), Option<PrefixSiteEntry>>>,
     /// Complete, context-independent state effects shared by resolver and
     /// nested origin queries. Never holds contextual prefixes or failures.
     complete_state_summaries: Mutex<HashMap<SymbolHandle, Vec<String>>>,
@@ -170,13 +172,13 @@ impl<'program> TopLevelSymbols<'program> {
                 })
                 .unwrap_or_default();
             let identity = program.machine_callable_identity(machine);
-            let is_result_overload_family = !same_named.is_empty()
+            let is_named_overload_family = !same_named.is_empty()
                 && identity.is_valid()
                 && same_named.iter().all(|previous| {
-                    program.callable_identities_share_family(
-                        program.machine_callable_identity(previous),
-                        identity,
-                    )
+                    let previous_identity = program.machine_callable_identity(previous);
+                    program.callable_identities_share_path(previous_identity, identity)
+                        && (program.callable_identities_share_family(previous_identity, identity)
+                            || (machine.spelling.is_none() && previous.spelling.is_none()))
                 });
             let is_boundary_token_overload_family = machine.spelling.is_some()
                 && machine.supply_mode
@@ -191,7 +193,7 @@ impl<'program> TopLevelSymbols<'program> {
                         && !program.callable_identities_share_family(previous_identity, identity)
                 });
             if !same_named.is_empty()
-                && !is_result_overload_family
+                && !is_named_overload_family
                 && !is_boundary_token_overload_family
             {
                 diagnostics.push(Diagnostic::error(format!(

@@ -21,7 +21,7 @@ machine replace<'storage>(mut bundle: Bundle<'storage>, intermediate: &'storage 
 
 machine relay<'storage>(bundle: Bundle<'storage>) -> Bundle<'storage> {
     transition { _ -> finish(bundle) }
-    state finish(bundle: Bundle<'storage>) -> Bundle<'storage> {
+    machine finish(bundle: Bundle<'storage>) -> Bundle<'storage> {
         let local: Cell = Cell { value: 7 };
         Bundle { entries: [Views { first: &local, second: bundle.entries[0].second }] }
     }
@@ -39,6 +39,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

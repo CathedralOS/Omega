@@ -12,15 +12,21 @@ mod integer_membership;
 pub(crate) use closed_instances::closed_integer_index_bindings;
 pub use integer_membership::integer_domain_membership;
 
+mod executable_tests;
 mod runtime_predicates;
+pub use executable_tests::validate_executable_domain_test_carriers;
 pub use runtime_predicates::{
-    scalar_domain_predicate, scalar_domain_value_predicate, scalar_field_domain_predicate,
-    scalar_field_restriction, scalar_membership_carrier, scalar_membership_predicates,
-    scalar_membership_value_carrier, scalar_membership_value_predicates,
+    scalar_domain_definition_predicate, scalar_domain_local_predicate, scalar_domain_predicate,
+    scalar_domain_value_predicate, scalar_field_domain_predicate, scalar_field_restriction,
+    scalar_membership_carrier, scalar_membership_predicates, scalar_membership_value_carrier,
+    scalar_membership_value_predicates,
 };
 mod scalar_tags;
 pub(crate) use scalar_tags::scalar_tag_constraint;
-pub use scalar_tags::{scalar_predicate_domains, scalar_type_routed_domains, scalar_type_tags};
+pub use scalar_tags::{
+    scalar_membership_is_tag, scalar_predicate_domains, scalar_type_routed_domains,
+    scalar_type_tags,
+};
 
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::proof_contracts::proof_facts::{ProofFactOwner, validate_domain_fact_payloads};
@@ -40,6 +46,7 @@ pub(crate) fn validate_domain_definitions(
     symbols: &TopLevelSymbols<'_>,
     fact_plan: &FactPlan,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     validate_domain_aliases(program, diagnostics);
     validate_progress_profile_domains(program, diagnostics);
@@ -62,6 +69,7 @@ pub(crate) fn validate_domain_definitions(
                 type_parameters: program.domain_type_parameters(domain),
                 lifetime_parameters: &[],
             },
+            formation_obligations,
         );
         validate_domain_fact_payloads(
             program,
@@ -89,7 +97,7 @@ fn validate_progress_profile_domains(
                 domain.name
             )));
         }
-        if domain.predicate_body.is_present() || !program.proof_facts(domain).is_empty() {
+        if domain.predicate_presence.is_present() || !program.proof_facts(domain).is_empty() {
             diagnostics.push(Diagnostic::error(format!(
                 "progress profile `{}` must be predicate-free; remove its `requires` facts",
                 domain.name
@@ -149,7 +157,7 @@ fn validate_domain_aliases(program: &dyn crate::CheckingInput, diagnostics: &mut
                 domain.name
             )));
         }
-        if domain.predicate_body.is_present()
+        if domain.predicate_presence.is_present()
             || !program.proof_facts(domain).is_empty()
             || !program.domain_operators(domain).is_empty()
         {
@@ -347,7 +355,7 @@ fn validate_repeated_normalized_domain_identities(
             .filter(|peer| same_normalized_domain_owner(program, peer, domain));
         if peers.any(|peer| {
             peer.semantic_id != domain.semantic_id
-                || peer.predicate_body != domain.predicate_body
+                || peer.predicate_presence != domain.predicate_presence
                 || peer.classification != domain.classification
                 || peer.semantic_roles != domain.semantic_roles
                 || peer.establishment_routes != domain.establishment_routes

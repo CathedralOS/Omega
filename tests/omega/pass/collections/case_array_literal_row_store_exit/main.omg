@@ -24,13 +24,13 @@ machine Main::main(main: &mut Main) reaches Console {
         Cell::Door -> check_row(main)
         _ -> finish(main, 1)
     }
-    state check_row(main: &mut Main) {
+    machine check_row(main: &mut Main) {
         transition main.rows[0][1] {
             Cell::Wall -> finish(main, 3)
             _ -> finish(main, 2)
         }
     }
-    state finish(main: &mut Main, code: i32) {
+    machine finish(main: &mut Main, code: i32) {
         Console::exit_process(code);
     }
 }

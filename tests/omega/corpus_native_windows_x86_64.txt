@@ -232,8 +232,7 @@ pass/borrows/borrowed_array_loop checked 2285ms @5f668826adf3+wt
 pass/borrows/borrowed_case_leaf_copy_exit built 8733ms exit:70 @5f668826adf3+wt
 pass/borrows/borrowed_record_stack_parameter_writeback_exit built 9442ms exit:70 @5f668826adf3+wt
 pass/borrows/borrowed_sum_dispatch checked 2779ms @5f668826adf3+wt
-pass/borrows/borrowed_window_parameter_provenance_exit rejected 2871ms regressed-from:built+exit:0 @5f668826adf3+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "replace_via_borrowed_carrier_block_parameter", reason: "Unit graph state loan chain lender lends from two homes", gap: None })
+pass/borrows/borrowed_window_parameter_provenance_exit built 2871ms exit:0 @beacd47121d
 pass/borrows/boundary_scalar_slice_write_exit built 3049ms exit:0 @5f668826adf3+wt
 pass/borrows/branch_selected_record_composed_receiver_exit built 8015ms exit:70 @5f668826adf3+wt
 pass/borrows/branch_selected_record_receiver_exit built 8436ms exit:70 @5f668826adf3+wt
@@ -771,8 +770,7 @@ pass/calls/runtime_authored_numeric_names_exit built 3067ms exit:0 @5f668826adf3
 pass/calls/runtime_boolean_result_across_console_exit built 7798ms exit:70 stdout:match @5f668826adf3+wt
 pass/calls/runtime_borrowed_binding_field_state_loan_exit built 8193ms exit:70 stdout:match @5f668826adf3+wt
 pass/calls/runtime_borrowed_float_formal_exchange_exit built 12538ms exit:70 @5f668826adf3+wt
-pass/calls/runtime_borrowed_parameter_ensures_issuer_exit rejected 4353ms @5f668826adf3+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "owned membership transport cannot establish routed authority", gap: None })
+pass/calls/runtime_borrowed_parameter_ensures_issuer_exit built 4353ms exit:0 @daf1a576211
 pass/calls/runtime_boundary_computed_selector_order_exit rejected 12844ms @91bbf3e29aa9
 pass/calls/runtime_boundary_loop_projected_subslice_exit built 18080ms exit:70 @5f668826adf3+wt
 pass/calls/runtime_boundary_projected_mutable_subslice_exit built 17884ms exit:70 @5f668826adf3+wt
@@ -876,8 +874,6 @@ pass/calls/runtime_qualified_owned_result_argument_exit built 2671ms exit:0 @5f6
 pass/calls/runtime_qualified_record_call_results_reused_exit built 2693ms exit:0 @5f668826adf3+wt
 pass/calls/runtime_qualified_tail_recursion_exit built 7072ms exit:70 @5f668826adf3+wt
 pass/calls/runtime_qualified_terminal_result_exit built 2596ms exit:0 @5f668826adf3+wt
-pass/calls/runtime_recursive_unit_borrowed_continuation_exit built 7391ms exit:70 stdout:match stderr:match @5f668826adf3+wt
-pass/calls/runtime_recursive_unit_continuation_exit built 7589ms exit:70 stdout:match stderr:match @5f668826adf3+wt
 pass/calls/runtime_reference_returned_slice_element_write_exit built 8139ms exit:181 @5f668826adf3+wt
 pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit built 7497ms exit:70 @5f668826adf3+wt
 pass/calls/runtime_same_type_second_receiver_mutation_exit built 7363ms exit:70 @5f668826adf3+wt
@@ -1231,8 +1227,7 @@ pass/contracts/normal_return_contextual_call_arguments_exit built 3897ms exit:0 
 pass/contracts/opaque_call_preserves_model rejected 1797ms @5f668826adf3+wt
 	cannot prove requires contract for call exact_seven from after_call: saved == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/contracts/policy_field_ensures checked 2568ms @5f668826adf3+wt
-pass/contracts/proof_fact_indexed_domain_application rejected 1329ms regressed-from:checked @5f668826adf3+wt
-	cannot establish call-result qualification `Extent::Vacant` in `exercise_placed`, state `entry` (statement 2, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+pass/contracts/proof_fact_indexed_domain_application checked 1419ms @ad7c6890a897+wt
 pass/contracts/range_requires_discharge checked 3084ms @5f668826adf3+wt
 pass/contracts/recurrent_call_prefix_preserves_model built 3524ms exit:0 @5f668826adf3+wt
 pass/contracts/requires_narrow_ceiling_unproven built 8538ms exit:70 @5f668826adf3+wt
@@ -1339,7 +1334,7 @@ pass/control_flow/owned_array_state_transfer_exit built 8373ms exit:70 @5f668826
 pass/control_flow/projected_case_subject_root_forwarding_exit built 9707ms exit:70 @5f668826adf3+wt
 pass/control_flow/projected_field_exhaustive_case_dispatch_exit built 8302ms exit:70 @5f668826adf3+wt
 pass/control_flow/projected_loan_state_argument_exit built 8478ms exit:11 @5f668826adf3+wt
-pass/control_flow/qualified_case_payload_copy_exit built 3560ms exit:0 @5f668826adf3+wt
+pass/control_flow/qualified_case_payload_copy_exit built 2356ms exit:0 @f68e855c45d4+wt
 pass/control_flow/qualified_param_subject_compile checked 2236ms @5f668826adf3+wt
 pass/control_flow/record_pattern_arm_rename_guard_exit built 8235ms exit:70 @5f668826adf3+wt
 pass/control_flow/record_result_dispatch_compile checked 1786ms @5f668826adf3+wt
@@ -1632,12 +1627,14 @@ pass/dependent/zero_gated_record_field_store_exit built 8582ms exit:70 @5f668826
 pass/dependent/zero_valid_qualified_storage checked 5303ms @5f668826adf3+wt
 pass/dependent/zeroed_record_member_sum_elision built 8944ms exit:70 @5f668826adf3+wt
 pass/domains/bitwise_live_membership_exit built 4539ms exit:0 @5f668826adf3+wt
-pass/domains/bodyless_owner_establishment rejected 2273ms regressed-from:checked @5f668826adf3+wt
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/bodyless_owner_establishment checked 1680ms @0cea3356c5b0+wt
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 2059ms @5f668826adf3+wt
 pass/domains/call_requires_domain_intersection_preserved checked 1922ms @5f668826adf3+wt
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 2372ms @5f668826adf3+wt
 pass/domains/captured_predicate_readonly_call_exit built 3243ms exit:0 @5f668826adf3+wt
+pass/domains/carried_indexed_payload_qualification built 2417ms exit:0 @f68e855c45d4+wt
+pass/domains/carried_nested_payload_qualification built 1961ms exit:0 @4f49785bc6c0+wt
+pass/domains/carried_runtime_index_payload_qualification built 2549ms exit:0 @f68e855c45d4+wt
 pass/domains/case_payload_call_restore_exit built 8383ms exit:70 @5f668826adf3+wt
 pass/domains/case_payload_guarded_domain_exit built 3086ms exit:0 @5f668826adf3+wt
 pass/domains/case_payload_predicate_domain_member_exit built 8698ms exit:70 @5f668826adf3+wt
@@ -1646,8 +1643,7 @@ pass/domains/copied_array_domain_survives_original_mutation_exit built 3102ms ex
 pass/domains/dependent_coordinate_sum_rational_bound checked 1764ms @5f668826adf3+wt
 pass/domains/dependent_coordinate_sum_upper_bound checked 1739ms @5f668826adf3+wt
 pass/domains/domain_axis_cast checked 2380ms @5f668826adf3+wt
-pass/domains/domain_established_by rejected 2929ms regressed-from:checked @5f668826adf3+wt
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/domain_established_by checked 2048ms @0cea3356c5b0+wt
 pass/domains/domain_family_result checked 3859ms @5f668826adf3+wt
 pass/domains/domain_intersection checked 2984ms @5f668826adf3+wt
 pass/domains/domain_operator_add checked 2576ms @5f668826adf3+wt
@@ -1661,12 +1657,11 @@ pass/domains/established_by_domain checked 3331ms @5f668826adf3+wt
 pass/domains/executable_domain_membership_expression_exit incomplete 17573ms regressed-from:built+exit:81 @5f668826adf3+wt
 	`Main::main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `Main::main::main`, statement 2
 pass/domains/executable_domain_membership_union_guard_exit built 16935ms exit:241 @5f668826adf3+wt
-pass/domains/explicit_domain_erasure rejected 2290ms regressed-from:checked @5f668826adf3+wt
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/explicit_domain_erasure checked 1690ms @0cea3356c5b0+wt
 pass/domains/guard_predicate_establishes_domain checked 2779ms @5f668826adf3+wt
 pass/domains/inactive_impossible_payload_exit built 3502ms exit:0 @5f668826adf3+wt
-pass/domains/indexed_domain_fact rejected 2349ms regressed-from:checked @5f668826adf3+wt
-	cannot establish call-result qualification `Extent::Vacant` in `exercise_placed`, state `entry` (statement 2, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+pass/domains/indexed_domain_fact checked 1921ms @ad7c6890a897+wt
+pass/domains/indexed_domain_known_disjoint_call_exit built 1930ms exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @f1058703209f+wt
 pass/domains/indexed_membership_follows_completed_values built 3700ms exit:0 @5f668826adf3+wt
 pass/domains/intersected_qualifiers checked 2758ms @5f668826adf3+wt
 pass/domains/issued_indexed_subject_predicate checked 1792ms @5f668826adf3+wt
@@ -1678,13 +1673,7 @@ pass/domains/match_domain_results checked 3012ms @5f668826adf3+wt
 pass/domains/match_join_alias_domain_transfer checked 1729ms @5f668826adf3+wt
 pass/domains/module_domain_narrow_import_spelling checked 1694ms @5f668826adf3+wt
 pass/domains/moved_payload_uses_current_membership_exit built 4338ms exit:0 @5f668826adf3+wt
-pass/domains/named_const_subject_binding rejected 6092ms regressed-from:built+exit:3 @5f668826adf3+wt
-	cannot prove scalar result domain for return from @const-qualification-SCALAR-0 at statement 0: u64::Nested
-	cannot prove scalar result domain for return from @const-qualification-INHERITED-1 at statement 0: u64::Small::Inherited
-	cannot prove scalar result domain for return from @const-qualification-QUALIFIED-2 at statement 0: u64::Small::Inherited
-	cannot prove scalar result domain for return from @const-qualification-EXPLICIT-3 at statement 0: u64::Small::Explicit
-	cannot prove default-domain field requirement for return from @const-qualification-ARRAY-5, state @const-qualification-ARRAY-5, at statement 0: [99, 3] requires SmallAt
-	construction value is not proven in domain `SmallAt` in @const-qualification-ARRAY-5 state `@const-qualification-ARRAY-5` at statement 0; a construction value must establish the domain's predicates and any required provenance
+pass/domains/named_const_subject_binding built 10194ms exit:3 @9947836a76ba
 pass/domains/named_subject_capacity_identity_exit built 12921ms exit:70 @5f668826adf3+wt
 pass/domains/policy_plan_shapes checked 5179ms @5f668826adf3+wt
 pass/domains/predicate_domain_param checked 4035ms @5f668826adf3+wt
@@ -1708,8 +1697,7 @@ pass/domains/record_literal_view_member_store_exit incomplete 13530ms regressed-
 pass/domains/record_predicate_domain_member_exit built 13144ms exit:70 @5f668826adf3+wt
 pass/domains/referent_field_byte_store_keeps_fixed_array_domain checked 2066ms @5f668826adf3+wt
 pass/domains/refinement_chain_predicates checked 1637ms @5f668826adf3+wt
-pass/domains/refinement_chain_routed_provenance rejected 2453ms regressed-from:checked @5f668826adf3+wt
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/refinement_chain_routed_provenance checked 1697ms @0cea3356c5b0+wt
 pass/domains/retained_routed_qualification_cast checked 3458ms @5f668826adf3+wt
 pass/domains/routed_record_capture_before_sibling_mutation checked 3734ms @5f668826adf3+wt
 pass/domains/routed_selected_copy_exit built 5671ms exit:0 @5f668826adf3+wt
@@ -4453,8 +4441,7 @@ pass/facts/opaque_independent_closed_carrier_through_call_result_exit rejected 5
 	no provider is selected for boundary requirement `AddressParts::make`, which the program entry reaches on target `windows_x86_64`
 pass/facts/opaque_independent_closed_carrier_through_const_name_exit rejected 5501ms @5f668826adf3+wt
 	no provider is selected for boundary requirement `AddressParts::make`, which the program entry reaches on target `windows_x86_64`
-pass/facts/opaque_independent_closed_carrier_through_field_exit rejected 5643ms @5f668826adf3+wt
-	no provider is selected for boundary requirement `AddressParts::make`, which the program entry reaches on target `windows_x86_64`
+pass/facts/opaque_independent_closed_carrier_through_field_exit built 13199ms exit:0 @f0ec7942edca+wt
 pass/facts/opaque_independent_closed_carrier_through_local_exit rejected 6313ms @5f668826adf3+wt
 	no provider is selected for boundary requirement `AddressParts::make`, which the program entry reaches on target `windows_x86_64`
 pass/facts/opaque_independent_closed_carrier_through_match_join_exit rejected 4781ms @5f668826adf3+wt
@@ -4654,15 +4641,6 @@ pass/facts/replaced_field_loan_through_other_machine_exit built 3006ms exit:0 @5
 pass/facts/replaced_field_loan_through_other_state_exit built 8787ms exit:0 @5f668826adf3+wt
 pass/facts/replaced_field_loan_through_parameter_exit built 7849ms exit:0 @5f668826adf3+wt
 pass/facts/replaced_field_loan_through_target_body_exit built 8283ms exit:0 @5f668826adf3+wt
-pass/facts/repro_through_call_result_exit built 8268ms exit:0 @5f668826adf3+wt
-pass/facts/repro_through_const_name_exit built 7763ms exit:0 @5f668826adf3+wt
-pass/facts/repro_through_field_exit built 10240ms exit:0 @5f668826adf3+wt
-pass/facts/repro_through_local_exit built 10326ms exit:0 @5f668826adf3+wt
-pass/facts/repro_through_match_join_exit built 10298ms exit:0 @5f668826adf3+wt
-pass/facts/repro_through_other_machine_exit built 10556ms exit:0 @5f668826adf3+wt
-pass/facts/repro_through_other_state_exit built 10587ms exit:0 @5f668826adf3+wt
-pass/facts/repro_through_parameter_exit built 10266ms exit:0 @5f668826adf3+wt
-pass/facts/repro_through_target_body_exit built 10521ms exit:0 @5f668826adf3+wt
 pass/facts/result_cleanup_guarantee_through_call_result_exit built 6436ms exit:0 @5f668826adf3+wt
 pass/facts/result_cleanup_guarantee_through_const_name_exit built 3755ms exit:0 @5f668826adf3+wt
 pass/facts/result_cleanup_guarantee_through_field_exit built 4786ms exit:0 @5f668826adf3+wt
@@ -7165,7 +7143,6 @@ pass/layouts/placed_reference_results/nested built 10228ms exit:0 @5f668826adf3+
 pass/layouts/placed_reference_results/returned built 9862ms exit:0 @5f668826adf3+wt
 pass/layouts/placed_reference_results/two_live built 14819ms exit:0 @5f668826adf3+wt
 pass/layouts/placed_view_call_custody checked 69232ms terminal-inspections:match @5f668826adf3+wt
-pass/layouts/placed_view_source_access_compile checked 9701ms @5f668826adf3+wt
 pass/layouts/portable_data_layout_queries built 3406ms exit:0 @5f668826adf3+wt
 pass/layouts/private_callback_slot_demand_compile checked 2672ms @5f668826adf3+wt
 pass/layouts/private_callback_slot_untaken_compile checked 5568ms @5f668826adf3+wt
@@ -7260,7 +7237,6 @@ pass/layouts/runtime_target_layout_queries_exit built 3540ms exit:0 @5f668826adf
 pass/layouts/runtime_transition_scalar_reference_codec_exit rejected 1914ms @5f668826adf3+wt
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/schema_field_at_declared_size checked 1796ms @5f668826adf3+wt
 pass/layouts/schema_identity_payload_within_predicate checked 1763ms @5f668826adf3+wt
 pass/layouts/single_bool_array_layout_compile checked 1487ms @5f668826adf3+wt
 pass/layouts/single_byte_member_layout_compile checked 1584ms @5f668826adf3+wt
@@ -7876,6 +7852,7 @@ pass/providers/generic_boundary_multiple_arguments_compile checked 3326ms @5f668
 pass/providers/generic_owned_outcome_exit built 6855ms exit:0 @5f668826adf3+wt
 pass/providers/generic_provider_structural_result_composition_exit built 3797ms exit:0 @5f668826adf3+wt
 pass/providers/generic_result_recursive_reference_issuer checked 2878ms @5f668826adf3+wt
+pass/providers/independent_imported_data_exit built 13232ms exit:0 @f0ec7942edca+wt
 pass/providers/inline_member_generic_requirement_exit built 3257ms exit:0 @5f668826adf3+wt
 pass/providers/inline_member_provider_selection_exit built 3144ms exit:0 @5f668826adf3+wt
 pass/providers/kernel_import_result_chain_exit built 3068ms @5f668826adf3+wt

@@ -6,13 +6,13 @@
 use super::{FlowOperandFact, FlowOperandReferent};
 use arena::{Handle, HandleSpan};
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowStorageSnapshot {
     pub previous: Handle<FlowStorageSnapshot>,
     pub operation: FlowStorageOperation,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum FlowStorageOperation {
     #[default]
     Unknown,
@@ -26,6 +26,13 @@ pub enum FlowStorageOperation {
         destination: FlowOperandReferent,
         value: Handle<FlowOperandFact>,
         projection: HandleSpan<facts::PlaceSegment>,
+    },
+    /// A complete call relation preserved this exact descriptor binding.
+    /// Rejoin its actual entry cut, including unavailable/unchanged incoming;
+    /// no value, pointer, pointee contents or access is manufactured.
+    PreserveBinding {
+        destination: FlowOperandReferent,
+        source: Handle<FlowStorageSnapshot>,
     },
     Join {
         predecessors: HandleSpan<Handle<FlowStorageSnapshot>>,

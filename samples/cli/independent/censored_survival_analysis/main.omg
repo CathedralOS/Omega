@@ -16,17 +16,17 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         true -> configure(main, integer as i32 in Wrapping)
         false -> invalid(main)
     }
-    state configure(main: &mut Main, count: i32 in Wrapping) {
+    machine configure(main: &mut Main, count: i32 in Wrapping) {
         main.records.count = count;
         transition { _ -> read(main, 0) }
     }
-    state read(main: &mut Main, index: i32 in Wrapping) {
+    machine read(main: &mut Main, index: i32 in Wrapping) {
         transition index >= 0 && index < 32 && index < main.records.count {
             true -> record(main, index)
             false -> end(main)
         }
     }
-    state record(main: &mut Main, index: i32 in Wrapping)
+    machine record(main: &mut Main, index: i32 in Wrapping)
     requires index >= 0 && index < 32
     {
         let time: Number = block number(&mut main.reader);
@@ -37,7 +37,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
             false -> invalid(main)
         }
     }
-    state store(main: &mut Main, index: i32 in Wrapping, time: f64, event: f64, group: f64)
+    machine store(main: &mut Main, index: i32 in Wrapping, time: f64, event: f64, group: f64)
     requires index >= 0 && index < 32
     {
         main.records.time[index] = time;
@@ -47,20 +47,20 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         main.records.group[index] = group_integer as i32;
         transition { _ -> read(main, index + 1) }
     }
-    state end(main: &mut Main) {
+    machine end(main: &mut Main) {
         let complete: bool = block ended(&mut main.reader);
         transition complete { true -> calculate(main, -1) false -> invalid(main) }
     }
-    state calculate(main: &mut Main, group: i32 in Wrapping) {
+    machine calculate(main: &mut Main, group: i32 in Wrapping) {
         analyze(&main.records, group, &mut main.table, &mut main.logrank);
         report(&mut main.reader, group, &main.table);
         transition group < 1 { true -> calculate(main, group + 1) false -> done(main) }
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         logrank_report(&mut main.reader, &main.logrank);
         Console::exit_process(0);
     }
-    state invalid(main: &mut Main) { Console::write_line("ERROR invalid input"); Console::exit_process(2); }
+    machine invalid(main: &mut Main) { Console::write_line("ERROR invalid input"); Console::exit_process(2); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

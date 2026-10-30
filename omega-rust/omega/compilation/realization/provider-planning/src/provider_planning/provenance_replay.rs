@@ -11,17 +11,15 @@
 //! requirement's service and invocation ceilings is Psi conformance checking.
 
 mod adapter_conformance;
+mod named_provider_plans;
 mod plan_derivation;
 mod requirement_identities;
 mod specialization_rows;
 
-pub(crate) use adapter_conformance::{
-    exact_authored_invocations, exact_checked_adapter_invocations, exact_row_for_schema_method,
-};
+pub(crate) use adapter_conformance::exact_checked_adapter_invocations;
 pub use adapter_conformance::{exact_checked_adapter, selected_requirement_checked_adapter};
-pub(crate) use requirement_identities::exact_satisfied_requirement_identity;
 pub use requirement_identities::{same_semantic_name, satisfies_plan_name};
-pub(crate) use specialization_rows::derive_selected_requirement_specializations;
+pub use specialization_rows::project_checked_provider_instances;
 
 use super::ProviderPlan;
 use crate::ProviderPlanningContext;
@@ -46,12 +44,37 @@ impl ProviderSchemaDeclaration {
     }
 }
 
+/// A row's supplying owner. Native Build rows own an evaluated intent, never
+/// an invented bodyless machine; toolchain settlement likewise has no source body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProviderRowRealization {
+    Authored(symbols::SymbolHandle),
+    BuildNative(std::sync::Arc<crate::native_bindings::NativeBuildRowOrigin>),
+    Toolchain,
+}
+impl ProviderRowRealization {
+    pub const fn authored(&self) -> Option<symbols::SymbolHandle> {
+        match self {
+            Self::Authored(symbol) => Some(*symbol),
+            _ => None,
+        }
+    }
+    pub fn native(&self) -> Option<&crate::native_bindings::NativeBuildRowOrigin> {
+        match self {
+            Self::BuildNative(origin) => Some(origin),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderPlanProvenance {
     pub schema: ProviderSchemaDeclaration,
     pub provider_type: Option<symbols::SymbolHandle>,
+    /// Original named application, before selected rows lose their source scope.
+    pub named_application: Option<checked_trees::provider_declarations::NamedProviderApplication>,
     pub row_requirements: Vec<symbols::SymbolHandle>,
-    pub row_realizations: Vec<symbols::SymbolHandle>,
+    pub row_realizations: Vec<ProviderRowRealization>,
     /// Exact pre-resolution target-scoped declaration custody for catalog-
     /// inferred rows. `None` is mandatory for ordinary checked, legacy
     /// external, and evaluated-payload rows.

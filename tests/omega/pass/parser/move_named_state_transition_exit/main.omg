@@ -13,14 +13,14 @@ machine Main::main(main: &mut Main) reaches Console {
     let payload: Payload = Payload { value: 68 };
     let count: i32 = take(move payload);
     transition { _ -> move(count) }
-    state move(count: i32) {
+    machine move(count: i32) {
         transition count == 68 {
             true -> good()
             false -> bad()
         }
     }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(72); }
+    machine good() { Console::exit_process(70); }
+    machine bad() { Console::exit_process(72); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

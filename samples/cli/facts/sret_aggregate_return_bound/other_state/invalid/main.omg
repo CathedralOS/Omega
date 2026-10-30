@@ -27,7 +27,7 @@ machine probe() -> u64
     transition {
         _ -> step(make_triple())
     }
-    state step(t: Triple) -> u64 {
+    machine step(t: Triple) -> u64 {
         let remaining: u64 = 90u64 - t.c;
         let sum_ab: u64 = t.a + t.b;
         remaining - sum_ab
@@ -39,6 +39,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

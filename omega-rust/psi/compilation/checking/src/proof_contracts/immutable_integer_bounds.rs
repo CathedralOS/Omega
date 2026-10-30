@@ -18,7 +18,7 @@ pub struct ImmutableBoundLookup<'program> {
     /// Shared through clones: a cloned lookup reads the same maps, built at
     /// most once across the whole clone family, and once per frozen program
     /// across every lookup its checks construct.
-    maps: std::rc::Rc<std::cell::OnceCell<std::sync::Arc<BoundMaps>>>,
+    maps: std::sync::OnceLock<std::sync::Arc<BoundMaps>>,
 }
 
 /// The index owns statement handles and parameter positions rather than
@@ -115,7 +115,7 @@ impl<'program> ImmutableBoundLookup<'program> {
     pub fn new(program: &'program dyn crate::CheckingInput) -> Self {
         ImmutableBoundLookup {
             program,
-            maps: std::rc::Rc::new(std::cell::OnceCell::new()),
+            maps: std::sync::OnceLock::new(),
         }
     }
 
@@ -127,6 +127,23 @@ impl<'program> ImmutableBoundLookup<'program> {
                 || BoundMaps::build(self.program),
             )
         })
+    }
+
+    /// A frozen binding may supply an owned record observation. Reference
+    /// access and every crossed projection remain separate consumer checks.
+    pub fn immutable_binding_type(&self, symbol: SymbolHandle) -> Option<TypeReferenceHandle> {
+        match self.local_entry(symbol) {
+            Some(Some(local)) if !local.is_mutable => Some(local.type_reference),
+            Some(_) => None,
+            None => match self.parameter_entry(symbol) {
+                Some(Some(parameter)) if !parameter.is_mutable => Some(parameter.type_reference),
+                Some(_) => None,
+                None if self.program.symbols.get(symbol).kind == symbols::SymbolKind::Const => {
+                    crate::declaration_type_reference(self.program, symbol)
+                }
+                None => None,
+            },
+        }
     }
 
     fn local_at(&self, handle: StatementHandle) -> &'program TableLocalData {

@@ -12,6 +12,10 @@ use terminal_psi::CrashCause;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalInterpretError {
+    UnsuppliedErasedEntryInputs {
+        machine: MachineId,
+        reason: &'static str,
+    },
     ZeroInitializedArgumentInvalid {
         argument_index: u32,
     },
@@ -24,14 +28,41 @@ pub enum TerminalInterpretError {
         boundary: BoundaryMachineId,
         edge: semantic_vocabulary::EdgeId,
     },
+    /// A module call authenticated as having no normal continuation returned.
+    /// This is malformed execution, not a guest crash or normal completion.
+    NoNormalInvocationReturned {
+        callee: MachineId,
+        edge: semantic_vocabulary::EdgeId,
+    },
     ScalarEntryQualificationUnsupported,
     UnsupportedCapability(crate::capabilities::TerminalUnsupportedCapability),
     /// A well-formed semantic case this implementation cannot yet execute.
     /// Invalid operation contracts must retain their malformed-error variants.
     UnsupportedSemanticVariant(&'static str),
+    /// An established original storage home failed; no detached local value
+    /// may substitute for a faulted or retired resident.
+    ResidentStorage(TerminalEffectRejection),
     /// The artifact's exact affine cleanup transaction does not match the
     /// interpreter's live ownership paths.
     AffineFrontierMismatch,
+    /// A cleanup receiver still has captured loans. Retain the descriptor
+    /// carriers so a dead home is distinguishable from a live outgoing loan.
+    NominalCleanupHasLiveLoans {
+        cleanup: terminal_psi::NominalAffineCleanup,
+        backing_identity: u64,
+        backing_path: Vec<terminal_psi::StructuralPathSegment>,
+        loan_carriers: Vec<(u64, Vec<terminal_psi::StructuralPathSegment>)>,
+        loan_carrier_homes: Vec<(PlaceId, crate::values::TerminalStructuralValue)>,
+    },
+    StructuralReturnAffineFrontierMismatch {
+        source: PlaceId,
+        expected: Vec<terminal_psi::StructuralAffineDiscard>,
+        actual: Vec<terminal_psi::StructuralAffineDiscard>,
+    },
+    UnsettledReturnFrontier {
+        affine: Vec<terminal_psi::StructuralAffineDiscard>,
+        claims: Vec<semantic_vocabulary::ClaimId>,
+    },
     /// A structural return must carry exactly its active claims and leave no
     /// other owned claim live. Retain both rosters so missing consumption is
     /// distinguishable from a malformed result binding at the execution site.
@@ -98,6 +129,10 @@ pub enum TerminalInterpretError {
         stage: &'static str,
         detail: String,
     },
+    ReferenceFormation {
+        stage: &'static str,
+        detail: String,
+    },
     StructuralQualificationMissing(PlaceId),
     StructuralArgumentAliasing(u64),
     StructuralPrimitiveValueCount {
@@ -145,6 +180,10 @@ pub enum TerminalInterpretError {
     CompletionReceiptMismatch,
     ProviderInstallationIdentityMismatch,
     FoldedConstantClosure(&'static str),
+    EntryResultObservation(&'static str),
+    UnclosedScalarApplication(semantic_vocabulary::ScalarApplicationId),
+    ScalarApplicationEvaluation(String),
+    UnclosedArrayExtent(semantic_vocabulary::StructuralTypeId),
     TargetMachineSelectionIdentityMismatch,
     TargetLayoutSelectionIdentityMismatch,
     TargetLayoutSelectionMissing(terminal_psi::LayoutApplicationId),
@@ -217,6 +256,13 @@ pub(crate) fn malformed() -> TerminalInterpretError {
 }
 
 impl TerminalInterpretError {
+    pub(crate) fn in_reference_formation(self, stage: &'static str) -> Self {
+        Self::ReferenceFormation {
+            stage,
+            detail: format!("{self:?}"),
+        }
+    }
+
     /// Retain the admission stage without discarding the underlying refusal.
     pub(crate) fn in_argument_preparation(self, stage: &'static str) -> Self {
         let detail = match self {
@@ -235,7 +281,35 @@ impl From<FuelMeterError> for TerminalInterpretError {
 
 impl std::fmt::Display for TerminalInterpretError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
+        match self {
+            Self::ExecutionSite {
+                machine,
+                block,
+                operation,
+                cause,
+            } => {
+                write!(
+                    formatter,
+                    "{cause} in {machine:?}/{block:?} at {operation:?}"
+                )
+            }
+            Self::StructuralReplacement {
+                operation,
+                phase,
+                cause,
+            } => {
+                write!(formatter, "{cause} during {phase} at {operation:?}")
+            }
+            Self::EffectRejected {
+                operation,
+                rejection,
+            } => {
+                write!(formatter, "{} at {operation:?}", rejection.reason)
+            }
+            Self::Fuel(reason) => reason.fmt(formatter),
+            Self::Storage(reason) => reason.fmt(formatter),
+            other => write!(formatter, "{other:?}"),
+        }
     }
 }
 

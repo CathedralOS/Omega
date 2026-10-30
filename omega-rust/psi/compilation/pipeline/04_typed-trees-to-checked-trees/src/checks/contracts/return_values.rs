@@ -1,6 +1,6 @@
 //! Exact normal-return occurrences shared by exit proof consumers.
 
-use checked_trees::{CheckFacts, FlowCallFact, FlowExitFact};
+use checked_trees::{CheckFacts, FlowCallFact, FlowExitFact, FlowStateFact};
 use typed_trees::{
     expression::ExpressionHandle,
     machine::Machine,
@@ -14,6 +14,7 @@ use typed_trees::{
 pub(super) fn check_activation_return(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    state_flow: &FlowStateFact,
     exit: &FlowExitFact,
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
 ) {
@@ -27,7 +28,7 @@ pub(super) fn check_activation_return(
     let reference = if returned.is_valid() {
         validation::expression_result_type_reference(program, machine, state, returned)
     } else {
-        exit_return_call(program, facts, exit)
+        exit_return_call_in_state(program, facts, state_flow, exit)
             .and_then(|call| validation::call_target_state(program, call.target_symbol))
             .map(|target| target.return_type)
     };
@@ -96,7 +97,7 @@ pub(super) fn exit_return_call<'facts>(
     exit: &FlowExitFact,
 ) -> Option<&'facts FlowCallFact> {
     let returned = exit_return_expression(program, exit);
-    let mut matching = facts
+    let calls = facts
         .flow
         .control
         .states
@@ -104,7 +105,33 @@ pub(super) fn exit_return_call<'facts>(
         .filter(|(_, state)| {
             state.machine_symbol == exit.machine_symbol && state.state_symbol == exit.state_symbol
         })
-        .flat_map(|(_, state)| facts.flow.control.calls.span_or_empty(state.calls))
+        .flat_map(|(_, state)| facts.flow.control.calls.span_or_empty(state.calls));
+    matching_exit_return_call(program, exit, returned, calls)
+}
+
+pub(super) fn exit_return_call_in_state<'facts>(
+    program: &dyn ::validation::CheckingInput,
+    facts: &'facts CheckFacts,
+    state_flow: &FlowStateFact,
+    exit: &FlowExitFact,
+) -> Option<&'facts FlowCallFact> {
+    let returned = exit_return_expression(program, exit);
+    matching_exit_return_call(
+        program,
+        exit,
+        returned,
+        facts.flow.control.calls.span_or_empty(state_flow.calls),
+    )
+}
+
+fn matching_exit_return_call<'facts>(
+    program: &dyn ::validation::CheckingInput,
+    exit: &FlowExitFact,
+    returned: ExpressionHandle,
+    calls: impl IntoIterator<Item = &'facts FlowCallFact>,
+) -> Option<&'facts FlowCallFact> {
+    let mut matching = calls
+        .into_iter()
         .filter(|call| call.statement_index == exit.statement_index)
         .filter(|call| {
             let Some(site) = validation::find_call_site(
@@ -121,10 +148,17 @@ pub(super) fn exit_return_call<'facts>(
                     expression,
                     call: selected,
                 } => {
+                    // Source retains the invocation's machine identity; the
+                    // flow call enters that exact machine's entry state.
+                    // Rejoin those coordinates without replacing the authored
+                    // occurrence or resolving another callable by spelling.
+                    let selected_target = validation::call_target_symbol(program, selected);
                     returned.is_valid()
                         && expression == returned
                         && call.authored_expression == returned
-                        && call.target_symbol == selected.target_symbol
+                        && call.target_symbol
+                            == validation::call_target_state(program, selected_target)
+                                .map_or(selected_target, |state| state.symbol)
                 }
                 validation::CallSite::TransitionNamed { path: selected, .. }
                     if exit.transition_target.is_valid() =>
@@ -142,7 +176,8 @@ pub(super) fn exit_return_call<'facts>(
                             == validation::call_target_state(program, path.symbol)
                                 .map_or(path.symbol, |state| state.symbol)
                         && crate::proof::contract_target_from_state_symbol(program, path.symbol)
-                            .is_some_and(|(owner, _)| owner != exit.machine_symbol)
+                            .is_some()
+                        && !site.is_internal_state_transfer(program, exit.machine_symbol)
                 }
                 _ => false,
             }

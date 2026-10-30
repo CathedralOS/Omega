@@ -2,7 +2,7 @@
 //! roster, earlier call results, dominating local homes and established views.
 
 use super::super::structural_layout::{
-    checked_align_up_u32, resolve_structural_field_path, structural_parameter_shape,
+    checked_align_up_u32, resolve_structural_projection_path, structural_parameter_shape,
     structural_shape,
 };
 use crate::LoweringError;
@@ -233,7 +233,22 @@ pub(in crate::lowering) fn lower_structural_argument(
     };
     // Exact typed projections retain their offset and captured index terms.
     // Extent/stride ABI metadata belongs to the array-to-view presentation
-    // above, not to an index spelling.
+    // above, not to an index spelling. Both admitted projections present the
+    // same argument, so they share one construction.
+    let projected_argument = move || TargetStructuralArgument {
+        place: argument.place,
+        access: argument.access,
+        path: argument.path.clone(),
+        root_structural_type: source_structural_type,
+        structural_type: callee_parameter.structural_type,
+        shape,
+        source_byte_offset,
+        fixed_array_length: None,
+        element_stride: None,
+        indices,
+        source: source_placement.clone().into(),
+        destination: destination.clone(),
+    };
     // A bounded inline byte field lends its live bytes through a fresh
     // borrowed-view descriptor. `source_byte_offset` names the field itself:
     // the descriptor's length is the live length word stored there and the
@@ -301,20 +316,7 @@ pub(in crate::lowering) fn lower_structural_argument(
         {
             return Err(argument_type_mismatch(callee, argument.place));
         }
-        return Ok(TargetStructuralArgument {
-            place: argument.place,
-            access: argument.access,
-            path: argument.path.clone(),
-            root_structural_type: source_structural_type,
-            structural_type: callee_parameter.structural_type,
-            shape,
-            source_byte_offset,
-            fixed_array_length: None,
-            element_stride: None,
-            indices,
-            source: source_placement.clone().into(),
-            destination: destination.clone(),
-        });
+        return Ok(projected_argument());
     }
     let projected_parameter_shape = crate::lowering::structural_layout::internal_parameter_shape(
         projected_type,
@@ -348,20 +350,7 @@ pub(in crate::lowering) fn lower_structural_argument(
     {
         return Err(argument_type_mismatch(callee, argument.place));
     }
-    Ok(TargetStructuralArgument {
-        place: argument.place,
-        access: argument.access,
-        path: argument.path.clone(),
-        root_structural_type: source_structural_type,
-        structural_type: callee_parameter.structural_type,
-        shape,
-        source_byte_offset,
-        fixed_array_length: None,
-        element_stride: None,
-        indices,
-        source: source_placement.clone().into(),
-        destination: destination.clone(),
-    })
+    Ok(projected_argument())
 }
 
 /// The producer of a whole owned bounded byte local (an owned concatenation
@@ -502,7 +491,7 @@ pub(in crate::lowering) fn fixed_array_view_argument(
         let backing_offset = if window.backing_path.is_empty() {
             0
         } else {
-            resolve_structural_field_path(
+            resolve_structural_projection_path(
                 root.structural_type,
                 window.backing_path,
                 structural_types,
@@ -542,7 +531,7 @@ pub(in crate::lowering) fn fixed_array_view_argument(
         let (array_type, backing_offset) = if argument.path.is_empty() {
             (root.structural_type, 0)
         } else {
-            let (array_type, _, backing_offset) = resolve_structural_field_path(
+            let (array_type, _, backing_offset) = resolve_structural_projection_path(
                 root.structural_type,
                 &argument.path,
                 structural_types,

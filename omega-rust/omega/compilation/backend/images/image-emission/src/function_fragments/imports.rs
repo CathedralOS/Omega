@@ -48,7 +48,7 @@ use machine_code::{CallbackAddressEncoding, NormalizedForeignCallResolutionKind}
 use object_file::{
     ObjectPlan, RelocationKind, RelocationPlan, RelocationRecord, SectionKind,
     StagedOptimizedRelocationFreeObjectContainer, SymbolKind, SymbolPlan, SymbolSection,
-    boundary_relocation_origin, normalized_import_symbol_name, object_function_reference,
+    invocation_relocation_origin, normalized_import_symbol_name, object_function_reference,
     object_symbol_handle_by_import_locator,
 };
 
@@ -87,7 +87,7 @@ pub(super) fn publish(
         let (call, locator) = call_for_import_field(&import_calls, field)?;
         let function = crate::object_artifact::find_object_function(functions, field.caller)
             .ok_or(Error::Mismatch("fragment import caller is absent"))?;
-        let origin = boundary_relocation_origin(function.symbol, field.invocation_site);
+        let origin = invocation_relocation_origin(function.symbol, field.invocation_site);
         // A callback argument's address is a compiler-private relocation: it
         // binds the private thunk's symbol, not the import tail.
         for callback in &call.callback_addresses {
@@ -277,7 +277,7 @@ pub(super) fn validate(
         let function = artifact
             .function_on_machine(field.caller)
             .ok_or(Error::Mismatch("fragment import caller is absent"))?;
-        let origin = boundary_relocation_origin(function.symbol, field.invocation_site);
+        let origin = invocation_relocation_origin(function.symbol, field.invocation_site);
         for callback in &call.callback_addresses {
             let Some((callback_symbol, callback_plan)) =
                 object_function_reference(&artifact.object, callback.target.callback_function)

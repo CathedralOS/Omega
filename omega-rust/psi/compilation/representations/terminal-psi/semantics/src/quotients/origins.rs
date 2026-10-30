@@ -1,43 +1,20 @@
 //! Exact whole-value origins through ordinary copies and unanimous CFG joins.
 use super::*;
 use semantic_vocabulary::{BlockId, ValueId};
-use terminal_psi::{StructuralArgument, Terminator};
+use terminal_psi::StructuralArgument;
 
+/// Every edge into `target`, distinguishing fresh case scalar captures from
+/// forwarded scalar operands while retaining all structural argument identities.
 fn incoming(
     machine: &TerminalMachine,
     target: BlockId,
-) -> Option<Vec<(&[ValueId], &[StructuralArgument])>> {
+) -> Option<Vec<(Option<&[ValueId]>, &[StructuralArgument])>> {
     let mut rows = Vec::new();
     for block in &machine.blocks {
-        match &block.terminator {
-            Terminator::Jump {
-                target: selected,
-                arguments,
-                structural_arguments,
-                ..
-            } if *selected == target => {
-                rows.push((arguments.as_slice(), structural_arguments.as_slice()));
+        for binding in crate::control_graph::forwarded_bindings(block) {
+            if binding.target == target {
+                rows.push((binding.arguments, binding.structural_arguments));
             }
-            Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => {
-                for edge in [when_true, when_false] {
-                    if edge.target == target {
-                        rows.push((
-                            edge.arguments.as_slice(),
-                            edge.structural_arguments.as_slice(),
-                        ));
-                    }
-                }
-            }
-            Terminator::StructuralCase { cases, .. }
-                if cases.iter().any(|edge| edge.target == target) =>
-            {
-                return None;
-            }
-            _ => {}
         }
     }
     (!rows.is_empty()).then_some(rows)
@@ -113,7 +90,7 @@ fn scalar(machine: &TerminalMachine, value: ValueId, active: &mut Vec<ValueId>) 
         }) {
             let mut origin = None;
             for (arguments, _) in incoming(machine, block.id)? {
-                let candidate = scalar(machine, *arguments.get(position)?, active)?;
+                let candidate = scalar(machine, *arguments?.get(position)?, active)?;
                 if origin.is_some_and(|prior| prior != candidate) {
                     return None;
                 }

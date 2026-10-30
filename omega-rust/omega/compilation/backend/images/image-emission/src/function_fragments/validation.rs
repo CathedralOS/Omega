@@ -77,7 +77,9 @@ fn validate(
             .iter()
             .try_fold(false, |required, placed| -> Result<bool, Error> {
                 let (abstracted, _) = source::function(source, placed.machine)?;
-                Ok(required || source::requires_graph_storage_replay(&abstracted.operations))
+                Ok(required
+                    || source::requires_graph_storage_replay(&abstracted.operations)
+                    || super::structural::requires_call_graph_replay(source, placed.machine)?)
             })?;
     if artifact.requires_graph_storage_replay != requires_graph_storage_replay
         || artifact.psi != text.psi
@@ -119,6 +121,11 @@ fn validate(
         return Err(Error::Mismatch("shared object text geometry changed"));
     }
     let fragments = source::fragments(source);
+    let temporary_stack_bytes = if text.functions.is_empty() {
+        std::collections::BTreeMap::new()
+    } else {
+        source::temporary_stack_bytes_by_function(source)?
+    };
     let mut attribution_cursor = 0usize;
     for ((placed, function), (symbol_handle, symbol)) in text
         .functions
@@ -207,7 +214,11 @@ fn validate(
                     frame.is_some_and(|frame| frame.contains_call),
                 ),
                 text.target.architecture,
-                source::temporary_stack_bytes(source, placed.machine)?,
+                *temporary_stack_bytes
+                    .get(&placed.machine)
+                    .ok_or(Error::Mismatch(
+                        "missing selected function for temporary stack replay",
+                    ))?,
                 &calls,
                 function.unit_stack,
                 function.scalar_stack,

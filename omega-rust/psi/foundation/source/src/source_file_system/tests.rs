@@ -30,6 +30,48 @@ fn captured_file(text: &str) -> CapturedSourceNode {
     }
 }
 
+#[test]
+fn joining_captures_keeps_shared_snapshots_and_refuses_conflicts_atomically() {
+    let directory = temporary_directory();
+    let source = |text| {
+        Arc::new(
+            CapturedSourceTree::new([(PathBuf::from("main.omg"), captured_file(text))]).unwrap(),
+        )
+    };
+    let first = directory.0.join("first");
+    let second = directory.0.join("second");
+    let mut destination = SourceFileSystem::new();
+    destination
+        .add_capture(first.clone(), source("first snapshot"))
+        .unwrap();
+    let mut supplied = SourceFileSystem::new();
+    supplied
+        .add_capture(first.clone(), source("first snapshot"))
+        .unwrap();
+    supplied
+        .add_capture(second.clone(), source("second snapshot"))
+        .unwrap();
+    destination.join_captures(&supplied).unwrap();
+    assert_eq!(
+        destination
+            .read_to_string(&second.join("main.omg"))
+            .unwrap()
+            .as_ref(),
+        "second snapshot"
+    );
+    let saved = destination.clone();
+    let mut conflict = SourceFileSystem::new();
+    conflict
+        .add_capture(directory.0.join("additional"), source("must not leak"))
+        .unwrap();
+    conflict
+        .add_capture(second, source("changed snapshot"))
+        .unwrap();
+    assert!(destination.join_captures(&conflict).is_err());
+    assert_eq!(destination, saved);
+    assert!(!destination.exists(&first.join("not captured.omg")));
+}
+
 #[cfg(unix)]
 #[test]
 fn host_links_into_a_capture_read_captured_bytes_on_every_repeated_route() {

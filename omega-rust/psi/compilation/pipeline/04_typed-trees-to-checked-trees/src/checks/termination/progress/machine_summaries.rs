@@ -90,9 +90,7 @@ pub(crate) fn derive_machine_summary(
                         if !entry_parameter_roots.contains(&instance.subject.root) {
                             return Some(no_guarantee(machine.symbol));
                         }
-                        if !premises.contains(&instance) {
-                            premises.push(instance);
-                        }
+                        crate::collections::push_unique(&mut premises, instance);
                     }
                 }
             }
@@ -151,9 +149,15 @@ fn family_summary(
         else {
             return Some(no_guarantee(head.symbol));
         };
-        let checked = summaries
-            .iter()
-            .find(|summary| summary.machine == machine.symbol)?;
+        let checked = program
+            .machine_position_by_symbol(machine.symbol)
+            .and_then(|index| summaries.get(index))
+            .filter(|summary| summary.machine == machine.symbol)
+            .or_else(|| {
+                summaries
+                    .iter()
+                    .find(|summary| summary.machine == machine.symbol)
+            })?;
         if !checked.guarantee.promises_termination() {
             return Some(no_guarantee(head.symbol));
         }
@@ -168,9 +172,7 @@ fn family_summary(
                 .position(|parameter| parameter.symbol == premise.subject.root)?;
             let mut premise = premise.clone();
             premise.subject.root = parameters[position].symbol;
-            if !premises.contains(&premise) {
-                premises.push(premise);
-            }
+            crate::collections::push_unique(&mut premises, premise);
         }
     }
     Some(CheckedProgressSummary {
@@ -250,13 +252,21 @@ pub(crate) fn selected_call_summary<'a>(
         let satisfiers = validation::requirement_satisfiers(program, target_machine.symbol);
         if !satisfiers.is_empty()
             && satisfiers.iter().all(|satisfier| {
-                summaries.iter().any(|summary| {
-                    summary.machine == *satisfier
-                        && matches!(
+                program
+                    .machine_position_by_symbol(*satisfier)
+                    .and_then(|index| summaries.get(index))
+                    .filter(|summary| summary.machine == *satisfier)
+                    .or_else(|| {
+                        summaries
+                            .iter()
+                            .find(|summary| summary.machine == *satisfier)
+                    })
+                    .is_some_and(|summary| {
+                        matches!(
                             &summary.guarantee,
                             TerminationGuarantee::Terminates { premises } if premises.is_empty()
                         )
-                })
+                    })
             })
         {
             return Some(SelectedCallProgress {
@@ -445,9 +455,7 @@ pub(super) fn resolve_call_place_premises(
             ProgressPremise { profile, subject },
             call_frames,
         )? {
-            if !premises.contains(&premise) {
-                premises.push(premise);
-            }
+            crate::collections::push_unique(&mut premises, premise);
         }
     }
     Some(premises)

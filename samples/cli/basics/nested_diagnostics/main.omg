@@ -59,19 +59,19 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> fault(main)
     }
 
-    state check_battery(main: &mut Main, batt: i32) {
+    machine check_battery(main: &mut Main, batt: i32) {
         transition batt == 85 {
             true -> nominal(main)
             false -> fault(main)
         }
     }
 
-    state nominal(main: &mut Main) {
+    machine nominal(main: &mut Main) {
         Console::write_line("engine 3000rpm, battery 85% -> nominal (exit = battery level)");
         Console::exit_process(85);
     }
 
-    state fault(main: &mut Main) {
+    machine fault(main: &mut Main) {
         Console::write_line("reading mismatch -> fault (exit 1)");
         Console::exit_process(1);
     }

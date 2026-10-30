@@ -31,7 +31,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     transition { _ -> emit(main) }
 
-    state emit(main: &mut Main) {
+    machine emit(main: &mut Main) {
         Console::write_line("result: the final mode bits r-- +s, 12 for this sequence (the exit code)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

@@ -96,6 +96,7 @@ pub(super) fn completions(
                 defer_to_exit: false,
                 loans,
                 selection_complements: Vec::new(),
+                owner_cleanups: arena::HandleSpan::empty(),
                 case_conditions: Default::default(),
             },
         ));

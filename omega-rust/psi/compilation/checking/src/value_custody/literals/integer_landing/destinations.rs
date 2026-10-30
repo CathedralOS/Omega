@@ -97,11 +97,7 @@ pub(crate) fn anonymous_integer_landing_warnings(
                 ExpressionNode::Float(_) | ExpressionNode::Binary(_) | ExpressionNode::Match(_)
             )
         });
-        if has_candidate_operand
-            && crate::proof_contracts::contract_entailment::proof_integer_expression(
-                program, expression,
-            )
-        {
+        if has_candidate_operand && crate::proof_integer_expression(program, expression) {
             for operand in [binary.left, binary.right] {
                 append_integer_landing_warning(program, None, operand, &mut warned, &mut warnings);
             }

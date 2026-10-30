@@ -3,7 +3,7 @@
 use super::{PackagePolicyBaseline, SemanticBindingReviewCandidate};
 use package_compilation::{
     AcceptedSemanticBinding, BuildEvaluationUsage, BuildObservationSummary, ConsumedSourceUnit,
-    PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment, RestrictedBuildRequest,
+    PackageBuildHandoff, PackageSourceConsumptionCommitment, RestrictedBuildRequest,
 };
 
 /// Compiler findings, not accepted package policy. The package manager joins
@@ -18,7 +18,7 @@ pub struct PackageReviewEvidence {
     pub semantic_bindings: Vec<AcceptedSemanticBinding>,
     pub service_binding_candidates: Vec<SemanticBindingReviewCandidate>,
     pub hosted_exit_binding_candidates: Vec<SemanticBindingReviewCandidate>,
-    pub generated_source_bundle: PackageGeneratedSourceBundle,
+    pub build_handoff: PackageBuildHandoff,
     pub policy: PackagePolicyBaseline,
     pub policy_canonical_bytes: usize,
 }
@@ -27,6 +27,5 @@ pub struct PackageReviewEvidence {
 /// exist only for a package subject; absence cannot authorize cache publication.
 #[derive(Debug)]
 pub struct PackageReviewSourceFacts {
-    pub tolerated_unsettled_service_fields: bool,
     pub consumed_units: Option<Vec<ConsumedSourceUnit>>,
 }

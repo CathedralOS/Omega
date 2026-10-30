@@ -26,38 +26,38 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> check_after_first(main)
         false -> bad_old1(main)
     }
-    state check_after_first(main: &mut Main) {
+    machine check_after_first(main: &mut Main) {
         transition main.counter == 15 {
             true -> do_second_add(main)
             false -> bad_after_first(main)
         }
     }
-    state do_second_add(main: &mut Main) {
+    machine do_second_add(main: &mut Main) {
         let old2: u32 in Wrapping = main.counter.fetch_add(8, NoOrdering);
         transition old2 == 15 {
             true -> check_after_second(main)
             false -> bad_old2(main)
         }
     }
-    state check_after_second(main: &mut Main) {
+    machine check_after_second(main: &mut Main) {
         transition main.counter == 23 {
             true -> good(main)
             false -> bad_after_second(main)
         }
     }
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
-    state bad_old1(main: &mut Main) {
+    machine bad_old1(main: &mut Main) {
         Console::exit_process(71);
     }
-    state bad_after_first(main: &mut Main) {
+    machine bad_after_first(main: &mut Main) {
         Console::exit_process(72);
     }
-    state bad_old2(main: &mut Main) {
+    machine bad_old2(main: &mut Main) {
         Console::exit_process(73);
     }
-    state bad_after_second(main: &mut Main) {
+    machine bad_after_second(main: &mut Main) {
         Console::exit_process(74);
     }
 }

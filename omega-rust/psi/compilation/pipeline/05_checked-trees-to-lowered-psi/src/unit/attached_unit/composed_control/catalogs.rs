@@ -15,6 +15,8 @@ use std::borrow::Cow;
 /// same records an ordinary body's calls
 /// resolve against, so a state's calls emit through the one frame emitter.
 pub(crate) struct ComposedCatalogs<'a> {
+    pub(crate) scalar_applications:
+        &'a std::sync::Arc<super::super::scalar_applications::SourceScalarApplications>,
     pub(crate) cleanup_control: &'a checked_trees::CheckedCleanupControlPlans,
     pub(crate) structural_types: Cow<'a, [StructuralTypeDeclaration]>,
     pub(crate) type_ids: Cow<'a, [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)]>,
@@ -32,12 +34,14 @@ pub(crate) struct ComposedCatalogs<'a> {
     /// result republishes the callee's qualified result through it.
     pub(in crate::unit::attached_unit) prepared_scalar_qualifications:
         Option<&'a crate::expression_preparation::qualifications::PreparedScalarQualifications>,
+    pub(in crate::unit::attached_unit) dynamic_dispatch:
+        Option<std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>>,
     pub(crate) service_ids: Cow<'a, [(ServiceReachId, ServiceId)]>,
     pub(crate) next_place: u64,
     /// Private constructor, join, and literal places; not authored result ordinals.
     pub(crate) temporary_places: Vec<StructuralPlaceDeclaration>,
     pub(crate) result_places: Vec<StructuralPlaceDeclaration>,
-    pub(crate) scalar_calls: scalar_calls::ComposedScalarCalls,
+    pub(crate) scalar_calls: scalar_calls::ComposedScalarCalls<'a>,
     pub(crate) root_crash_routes: Vec<checked_trees::CrashRouteBucket>,
     pub(crate) next_value: u64,
     pub(crate) next_block: u64,

@@ -19,6 +19,22 @@ use crate::provider_planning::ProviderBinding;
 
 mod trait_requirements;
 
+/// Source-only consumers request this projection at their boundary. Ordinary
+/// native production must not reconstruct checked instances just to discard
+/// them when it joins the canonical Terminal provider roster.
+pub fn project_checked_provider_instances(
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
+    selected: &effects::SelectedProviderPlanFacts,
+) -> Result<effects::SelectedProviderPlanFacts, Vec<diagnostics::Diagnostic>> {
+    let (rows, identities) =
+        derive_selected_requirement_specializations(typed, check_facts, selected)?;
+    selected
+        .clone()
+        .with_specialized_requirement_rows(rows, &identities)
+        .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])
+}
+
 pub(crate) fn derive_selected_requirement_specializations(
     typed: &checked_trees::typed_trees::TypedTrees,
     check_facts: &checked_trees::CheckFacts,
@@ -32,6 +48,21 @@ pub(crate) fn derive_selected_requirement_specializations(
 > {
     let provider_context =
         crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
+    let generic_top_level_templates = typed
+        .machines()
+        .iter()
+        .filter(|requirement| {
+            requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+                && !typed.machine_type_parameters(requirement).is_empty()
+        })
+        .filter_map(|requirement| {
+            let schema = crate::service_schema::from_typed_boundary_requirement(
+                provider_context,
+                requirement,
+            )?;
+            Some((requirement, schema))
+        })
+        .collect::<Vec<_>>();
     let mut diagnostics = Vec::new();
     let mut rows = Vec::new();
     let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
@@ -44,20 +75,9 @@ pub(crate) fn derive_selected_requirement_specializations(
             &mut identities,
             &mut diagnostics,
         );
-        let templates = typed
-            .machines()
+        let templates = generic_top_level_templates
             .iter()
-            .filter(|requirement| {
-                requirement.supply_mode
-                    == language_semantics::MachineSupplyMode::TopLevelRequirement
-                    && !typed.machine_type_parameters(requirement).is_empty()
-                    && crate::service_schema::from_typed_boundary_requirement(
-                        provider_context,
-                        requirement,
-                    )
-                    .as_ref()
-                        == Some(&plan.schema)
-            })
+            .filter_map(|(requirement, schema)| (*schema == plan.schema).then_some(*requirement))
             .collect::<Vec<_>>();
         let [template] = templates.as_slice() else {
             if templates.len() > 1 {

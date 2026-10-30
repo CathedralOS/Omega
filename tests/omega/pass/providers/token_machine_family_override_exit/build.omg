@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "token_machine_family_override_exit");
-    Build::select_provider<Math::choose, RightProvider>(builder);
+    Build::select_provider<Math::choose, RightProvider>(builder, linux_arm64);
+    Build::select_provider<Math::choose, RightProvider>(builder, linux_x86_64);
+    Build::select_provider<Math::choose, RightProvider>(builder, macos_arm64);
+    Build::select_provider<Math::choose, RightProvider>(builder, macos_x86_64);
+    Build::select_provider<Math::choose, RightProvider>(builder, windows_x86_64);
+    Build::select_provider<Math::choose, RightProvider>(builder, uefi_x86_64);
+    Build::select_provider<Math::choose, RightProvider>(builder, cross_platform_cli);
+    Build::select_provider<Math::choose, RightProvider>(builder, local_unchecked);
+    Build::select_provider<Math::choose, RightProvider>(builder, alpha_bootstrap);
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);

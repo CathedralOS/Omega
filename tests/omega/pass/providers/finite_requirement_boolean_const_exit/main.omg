@@ -23,16 +23,16 @@ macos_arm64 machine Main::main(main: &mut Main) reaches Service crashes Trap {
     let selected: i32 = Service::echo<true>((17 as i32));
     let other: i32 = Service::echo<false>((25 as i32));
     transition selected == 18 && other == 27 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 linux_x86_64 machine Main::main(main: &mut Main) reaches Service crashes Trap {
     let selected: i32 = Service::echo<true>((17 as i32));
     let other: i32 = Service::echo<false>((25 as i32));
     transition selected == 18 && other == 27 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

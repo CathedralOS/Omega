@@ -190,6 +190,7 @@ fn assigned_stored_origins(
     let established = stored
         .iter()
         .find(|local| local.local_symbol == source.root);
+    inference.specialize_source(program, &mut source);
     let may_select = source
         .segments
         .iter()
@@ -268,18 +269,21 @@ fn assigned_stored_origins(
         symbols,
         inference,
         include_shared,
-        &|expression, reference, _implicit_borrow, inference| {
-            if include_shared {
-                reference_subjects::backing_origin(
-                    program, machine, expression, symbols, inference, aliases, stored,
-                )
-                .or_else(|| reference_subjects::unknown_readonly_origin(program, reference, ""))
-                .map(|origin| vec![origin])
-            } else {
-                exclusive_reference_origins(program, machine, expression, symbols, inference)
-            }
+        &crate::machine_calls::calls::write_frames::path_instantiation::aggregate_arguments::SymbolicArguments {
+            reference: &|expression, reference, _implicit_borrow, inference| {
+            super::super::path_instantiation::aggregate_arguments::symbolic_sources(
+                if include_shared {
+                    reference_subjects::backing_origin(
+                        program, machine, expression, symbols, inference, aliases, stored,
+                    )
+                    .or_else(|| reference_subjects::unknown_readonly_origin(program, reference, ""))
+                    .map(|origin| vec![origin])
+                } else {
+                    exclusive_reference_origins(program, machine, expression, symbols, inference)
+                },
+            )
         },
-        &|expression, reference, _| {
+            stored: &|expression, reference, _| {
             reference_leaves_before_statement_for_query(
                 program,
                 state,
@@ -290,6 +294,7 @@ fn assigned_stored_origins(
                 None,
                 include_shared,
             )
+        },
         },
     )?;
     let mut replaced = StoredLocalOrigins {
@@ -305,10 +310,18 @@ fn assigned_stored_origins(
         // Shared-value producers already captured their reference boundary.
         // Resolving that value through the current slot again would redirect
         // aliases after replacement.
-        let captured = if include_shared {
-            vec![leaf.origin.clone()]
-        } else {
-            canonical_reference_origins(program, &leaf.origin, aliases, stored)
+        let captured = match &leaf.origin {
+            Some(
+                super::super::path_instantiation::aggregate_arguments::ReferenceSource::Captured(_),
+            ) => return None,
+            origin => {
+                let origin = origin.as_ref().map(|origin| origin.place().clone());
+                if include_shared {
+                    vec![origin]
+                } else {
+                    canonical_reference_origins(program, &origin, aliases, stored)
+                }
+            }
         };
         for origin in captured {
             let mut local_segments = source.segments.clone();

@@ -22,19 +22,19 @@ machine Main::main(context: &mut Main) reaches Console {
         Cell::Water -> second(context, 40)
         _ -> finish(context, 1)
     }
-    state second(context: &mut Main, base: i32) {
+    machine second(context: &mut Main, base: i32) {
         transition context.grid[3] {
             Cell::Wall -> third(context, base + 2)
             _ -> finish(context, 2)
         }
     }
-    state third(context: &mut Main, total: i32) {
+    machine third(context: &mut Main, total: i32) {
         transition context.grid[1] {
             Cell::Door -> finish(context, total)
             _ -> finish(context, 3)
         }
     }
-    state finish(context: &mut Main, code: i32) {
+    machine finish(context: &mut Main, code: i32) {
         Console::exit_process(code);
     }
 }

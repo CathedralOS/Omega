@@ -1,0 +1,10 @@
+// Expected exit: 0
+machine value<const Number: u64>() -> u64 {
+    read()
+    machine read() -> u64 { Number }
+}
+machine main() crashes Trap {
+    transition value<42>() == 42 { true -> done() _ -> failed() }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
+}

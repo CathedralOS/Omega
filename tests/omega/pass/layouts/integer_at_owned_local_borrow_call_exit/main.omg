@@ -72,7 +72,7 @@ machine fill(instant: &mut Instant, seconds: i64) -> i64 {
 machine Main::main(main: &mut Main) crashes Trap {
     main.bytes[0] = 100;
     transition { _ -> measure(main) }
-    state measure(main: &mut Main) {
+    machine measure(main: &mut Main) {
         let mut instant: Instant = Instant { seconds: 0, nanoseconds: 0 };
         let status: i64 = fill(&mut instant, 7);
         transition status == 0 && instant.seconds == 7 && main.bytes[0] == 100 {
@@ -80,8 +80,8 @@ machine Main::main(main: &mut Main) crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

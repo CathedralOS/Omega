@@ -18,15 +18,15 @@ machine Main::main(main: &mut Main) {
         (true) -> run(main, Double as dyn Step<Counter>)
         _ -> run(main, Increment as dyn Step<Counter>)
     }
-    state run(main: &mut Main, step: dyn Step<Counter>) {
+    machine run(main: &mut Main, step: dyn Step<Counter>) {
         Step::apply(step, &mut main.counter);
         transition main.counter.value == 10 {
             (true) -> good(main)
             _ -> bad(main)
         }
     }
-    state good(main: &mut Main) { let value: i32 = 70; }
-    state bad(main: &mut Main) { let value: i32 = 71; }
+    machine good(main: &mut Main) { let value: i32 = 70; }
+    machine bad(main: &mut Main) { let value: i32 = 71; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

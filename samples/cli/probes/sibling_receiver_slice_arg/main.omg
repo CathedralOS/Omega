@@ -22,11 +22,11 @@ machine Sink::fill(sink: &mut Sink, bytes: &mut [u8]) {
         true -> filled(sink, bytes)
         _ -> skipped(sink)
     }
-    state filled(sink: &mut Sink, bytes: &mut [u8]) {
+    machine filled(sink: &mut Sink, bytes: &mut [u8]) {
         bytes[0] = 9;
         sink.filled = bytes.len;
     }
-    state skipped(sink: &mut Sink) {
+    machine skipped(sink: &mut Sink) {
         sink.filled = 0;
     }
 }
@@ -44,8 +44,8 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

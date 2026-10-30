@@ -39,6 +39,7 @@ pub(super) fn validate_target(
             | AbstractOperation::ReturnStructural { psi_edge, .. }
             | AbstractOperation::ReturnUnit { psi_edge, .. }
             | AbstractOperation::ExternalCompletion { psi_edge, .. }
+            | AbstractOperation::InvokeNoNormal { psi_edge, .. }
             | AbstractOperation::Crash { psi_edge, .. }
             | AbstractOperation::Jump { psi_edge, .. } => vec![*psi_edge],
             AbstractOperation::Conditional {

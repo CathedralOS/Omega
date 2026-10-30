@@ -37,6 +37,8 @@ impl<'program> CallScopes<'program> {
                     expression,
                     typed_trees::expression::ExpressionNode::Call(call)
                         if call.requirement_application.is_valid()
+                            || matches!(program.expression_table.build_selection_request(call.build_selection),
+                                Some(typed_trees::expression::BuildSelectionRequest::ProviderReadiness(_)))
                 )
             })
         {
@@ -221,9 +223,8 @@ pub(super) fn validate_where_facts(
     caller_state: Option<&State>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    use crate::proof_contracts::contract_entailment::{
-        StrictArithmeticImplicationJudgment, static_application_where_judgment,
-    };
+    use crate::StrictArithmeticImplicationJudgment;
+    use crate::proof_contracts::contract_entailment::static_applications::static_application_where_judgment;
     let judgment = static_application_where_judgment(
         program,
         source,

@@ -8,33 +8,33 @@ public data Input { values: [i32 in Wrapping; 20]; count: i32 in Wrapping; }
 machine whitespace(value: i32) -> bool { transition { _ -> (value == 32 || value == 9 || value == 10 || value == 13) } }
 machine character(reader: &mut Reader) -> i32 reaches Console {
     transition reader.consumed >= 0 && reader.consumed < 4096 { true -> read(reader) _ -> -2 }
-    state read(reader: &mut Reader) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {
+    machine read(reader: &mut Reader) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {
         let byte: ByteRead = block Console::read_byte();
         transition byte { ByteRead::Eof -> -1 ByteRead::Byte { value } -> counted(reader, value) }
     }
-    state counted(reader: &mut Reader, value: i32) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {
+    machine counted(reader: &mut Reader, value: i32) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {
         reader.consumed = reader.consumed + 1;
         transition { _ -> value }
     }
 }
 machine number(reader: &mut Reader) -> Number reaches Console {
     transition { _ -> start(reader) }
-    state start(reader: &mut Reader) -> Number {
+    machine start(reader: &mut Reader) -> Number {
         let byte: i32 = block character(reader);
         transition whitespace(byte) { true -> start(reader) _ -> digits(reader, byte, 0, 0) }
     }
-    state digits(reader: &mut Reader, byte: i32, value: i32 in Wrapping, count: i32 in Wrapping) -> Number {
+    machine digits(reader: &mut Reader, byte: i32, value: i32 in Wrapping, count: i32 in Wrapping) -> Number {
         transition byte >= 48 && byte <= 57 && count < 3 {
             true -> append(reader, byte, value, count)
             _ -> finish(byte, value, count)
         }
     }
-    state append(reader: &mut Reader, byte: i32, value: i32 in Wrapping, count: i32 in Wrapping) -> Number {
+    machine append(reader: &mut Reader, byte: i32, value: i32 in Wrapping, count: i32 in Wrapping) -> Number {
         let next: i32 in Wrapping = value * 10 + (byte as i32 in Wrapping) - 48;
         let observed: i32 = block character(reader);
         transition { _ -> digits(reader, observed, next, count + 1) }
     }
-    state finish(byte: i32, value: i32 in Wrapping, count: i32 in Wrapping) -> Number {
+    machine finish(byte: i32, value: i32 in Wrapping, count: i32 in Wrapping) -> Number {
         transition count > 0 && (whitespace(byte) || byte == -1) {
             true -> Number { valid: true, value: value }
             _ -> Number { valid: false, value: 0 }
@@ -44,7 +44,7 @@ machine number(reader: &mut Reader) -> Number reaches Console {
 machine ended(reader: &mut Reader) -> bool reaches Console {
     let byte: i32 = block character(reader);
     transition byte == -1 { true -> true _ -> space(reader, byte) }
-    state space(reader: &mut Reader, byte: i32) -> bool {
+    machine space(reader: &mut Reader, byte: i32) -> bool {
         transition whitespace(byte) { true -> block ended(reader) _ -> false }
     }
 }
@@ -55,20 +55,20 @@ crashes Trap
 {
     input.count = 0;
     transition { _ -> headers(reader, input, 0) }
-    state headers(reader: &mut Reader, input: &mut Input, position: i32 in Wrapping) -> bool {
+    machine headers(reader: &mut Reader, input: &mut Input, position: i32 in Wrapping) -> bool {
         transition position >= 0 && position < 4 { true -> header(reader, input, position) _ -> shape(reader, input) }
     }
-    state header(reader: &mut Reader, input: &mut Input, position: i32 in Wrapping) -> bool {
+    machine header(reader: &mut Reader, input: &mut Input, position: i32 in Wrapping) -> bool {
         let item: Number = block number(reader);
         transition item.valid { true -> store_header(reader, input, position, item.value) _ -> false }
     }
-    state store_header(reader: &mut Reader, input: &mut Input, position: i32 in Wrapping, value: i32 in Wrapping) -> bool
+    machine store_header(reader: &mut Reader, input: &mut Input, position: i32 in Wrapping, value: i32 in Wrapping) -> bool
     requires position >= 0 && position < 4
     {
         input.values[position] = value;
         transition { _ -> headers(reader, input, position + 1) }
     }
-    state shape(reader: &mut Reader, input: &mut Input) -> bool {
+    machine shape(reader: &mut Reader, input: &mut Input) -> bool {
         let length: i32 in Wrapping = 4 + 2 * input.values[2];
         transition input.values[0] >= 1 && input.values[0] <= 20 && input.values[1] >= 1 && input.values[1] <= 20
             && input.values[2] >= 1 && input.values[2] <= 8 && input.values[3] >= 0 && input.values[3] <= 32 {
@@ -76,28 +76,28 @@ crashes Trap
             _ -> false
         }
     }
-    state batches(reader: &mut Reader, input: &mut Input, position: i32 in Wrapping, length: i32 in Wrapping) -> bool {
+    machine batches(reader: &mut Reader, input: &mut Input, position: i32 in Wrapping, length: i32 in Wrapping) -> bool {
         transition position >= 4 && position < 20 && position < length { true -> batch(reader, input, position, length) _ -> complete(reader, input, length) }
     }
-    state batch(reader: &mut Reader, input: &mut Input, position: i32 in Wrapping, length: i32 in Wrapping) -> bool {
+    machine batch(reader: &mut Reader, input: &mut Input, position: i32 in Wrapping, length: i32 in Wrapping) -> bool {
         let item: Number = block number(reader);
         transition item.valid && item.value <= 50 { true -> store_batch(reader, input, position, length, item.value) _ -> false }
     }
-    state store_batch(reader: &mut Reader, input: &mut Input, position: i32 in Wrapping, length: i32 in Wrapping, value: i32 in Wrapping) -> bool
+    machine store_batch(reader: &mut Reader, input: &mut Input, position: i32 in Wrapping, length: i32 in Wrapping, value: i32 in Wrapping) -> bool
     requires position >= 4 && position < 20
     {
         input.values[position] = value;
         transition { _ -> batches(reader, input, position + 1, length) }
     }
-    state complete(reader: &mut Reader, input: &mut Input, length: i32 in Wrapping) -> bool {
+    machine complete(reader: &mut Reader, input: &mut Input, length: i32 in Wrapping) -> bool {
         input.count = length;
         let finished: bool = block ended(reader);
         transition finished { true -> counts(input, 4) _ -> false }
     }
-    state counts(input: &Input, position: i32 in Wrapping) -> bool {
+    machine counts(input: &Input, position: i32 in Wrapping) -> bool {
         transition position >= 4 && position < 19 && position < input.count { true -> pair(input, position) _ -> true }
     }
-    state pair(input: &Input, position: i32 in Wrapping) -> bool {
+    machine pair(input: &Input, position: i32 in Wrapping) -> bool {
         transition input.values[position] <= input.values[position + 1] { true -> counts(input, position + 2) _ -> false }
     }
 }

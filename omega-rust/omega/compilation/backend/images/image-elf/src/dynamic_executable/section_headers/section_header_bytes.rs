@@ -9,8 +9,6 @@
 //! [`Elf64_Shdr`]: https://gabi.xinuos.com/elf/03-sheader.html#section-header
 //! [data encoding]: https://gabi.xinuos.com/elf/02-eheader.html#data-encoding
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
 use crate::bytes::{write_u32, write_u64};
 use crate::constants::{ELF64_SECTION_HEADER_SIZE, SECTION_COUNT, SHF_ALLOC};
@@ -56,6 +54,7 @@ impl ValidatedElfSectionHeaderTableTemplate {
         self.contents.bytes.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn placement_fixup_count(&self) -> usize {
         self.contents.placement_fixups.len()
     }
@@ -126,23 +125,12 @@ struct Candidate {
 pub(crate) fn serialize_elf_section_header_table(
     roster: ValidatedElfDynamicSectionRoster,
 ) -> Result<ValidatedElfSectionHeaderTableTemplate, Box<ElfSectionHeaderTableSerializationError>> {
-    checked::plan_candidate(
-        roster,
-        encode_contents,
-        |roster, contents| non_authoritative_template_compatibility_fingerprint(&roster, &contents),
-        |roster, contents, fingerprint| Candidate {
-            roster: roster,
-            contents: contents,
-            non_authoritative_template_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.roster,
-        |roster, diagnostic| {
-            Box::new(ElfSectionHeaderTableSerializationError {
-                roster: roster,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: roster,
+        derive: encode_contents,
+        contents: contents,
+        fingerprint: non_authoritative_template_compatibility_fingerprint,
+        error: ElfSectionHeaderTableSerializationError,
     )
 }
 
@@ -212,27 +200,13 @@ fn placement_fixup(
     })
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfSectionHeaderTableTemplate, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.roster, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_template_compatibility_fingerprint
-                == non_authoritative_template_compatibility_fingerprint(
-                    &candidate.roster,
-                    &candidate.contents,
-                )
-        },
-        "ELF section-header template compatibility fingerprint does not replay",
-        |candidate| ValidatedElfSectionHeaderTableTemplate {
-            roster: candidate.roster,
-            contents: candidate.contents,
-            non_authoritative_template_compatibility_fingerprint: candidate
-                .non_authoritative_template_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: roster,
+    contents: contents,
+    validated: ValidatedElfSectionHeaderTableTemplate,
+    validate: validate_contents,
+    fingerprint: non_authoritative_template_compatibility_fingerprint,
+    message: "ELF section-header template compatibility fingerprint does not replay",
 }
 
 fn validate_contents(
@@ -385,12 +359,9 @@ fn non_authoritative_template_compatibility_fingerprint(
     roster: &ValidatedElfDynamicSectionRoster,
     contents: &ElfSectionHeaderTableTemplateContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-section-header-table-template.v1");
-    hash.bytes(
-        &roster
-            .non_authoritative_roster_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf-section-header-table-template.v1",
+        roster.non_authoritative_roster_compatibility_fingerprint(),
     );
     hash.bytes(&contents.bytes);
     hash.bytes(&(contents.placement_fixups.len() as u64).to_le_bytes());

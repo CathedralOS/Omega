@@ -1,0 +1,10 @@
+// Expected error: both mutable and read-only
+data Control { value: i32; }
+machine observe(control: &Control) -> &i32 { &control.value }
+machine transfer(control: &mut Control) {
+    transition { _ -> receive(control, observe(control)) }
+}
+machine receive(control: &mut Control, retained: &i32) {
+    control.value = 9;
+    let value: i32 = retained;
+}

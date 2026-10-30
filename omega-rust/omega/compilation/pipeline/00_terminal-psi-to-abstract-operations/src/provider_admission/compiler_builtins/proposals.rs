@@ -7,60 +7,22 @@
 //! its selected plan and Terminal boundary. The consuming lowerer admits it
 //! through its local target catalog.
 
+use super::external_satisfaction::reconcile_numeric_meaning;
 use diagnostics::Diagnostic;
 use effects::CompilerIntrinsicExecutionIdentity;
-use effects::provider_plan::ProviderPlan;
-use std::collections::{BTreeMap, BTreeSet};
+use effects::provider_plan::ServiceSchema;
+use provider_selection::selected_external_execution;
+use std::collections::BTreeSet;
 
-/// The source-free part of one retained provider review. The complete plan is
-/// compared before its row-aligned execution identities can supply a proposal.
-pub struct CompilerIntrinsicPlanProvenance<'a> {
-    pub plan: &'a ProviderPlan,
-    pub row_executions: &'a [Option<CompilerIntrinsicExecutionIdentity>],
-}
-
-/// The boundary's IEEE format: prefer its result, otherwise its first IEEE
-/// operand. Classification returns Bool, not the classified carrier, so
-/// format-free builtin identities cannot infer their format from results alone.
-/// This is only a proposal; admission independently checks the complete
-/// signature, rejecting mixed carriers or a substituted result.
-fn boundary_float_formats(
-    identities: &terminal_psi::TerminalIdentityTable,
-    boundaries: &[terminal_psi::BoundaryMachineDeclaration],
-) -> BTreeMap<String, semantic_vocabulary::IeeeFloatFormat> {
-    boundaries
-        .iter()
-        .filter_map(|boundary| {
-            let format = match boundary.result {
-                terminal_psi::BoundaryMachineResult::Scalar(
-                    semantic_vocabulary::QualifiedScalarType {
-                        scalar_type: semantic_vocabulary::ScalarType::IeeeFloat(format),
-                        ..
-                    },
-                ) => Some(format),
-                _ => boundary
-                    .scalar_parameters
-                    .iter()
-                    .find_map(|parameter| match parameter {
-                        semantic_vocabulary::ScalarType::IeeeFloat(format) => Some(*format),
-                        _ => None,
-                    }),
-            }?;
-            Some((
-                identities
-                    .text(boundary.identity)
-                    .unwrap_or_default()
-                    .to_string(),
-                format,
-            ))
-        })
-        .collect()
-}
+pub use provider_selection::CompilerIntrinsicPlanProvenance;
 
 struct SelectedIntrinsicRow<'a> {
     requirement_identity: &'a str,
     plan_index: usize,
+    row: &'a effects::provider_plan::ProviderPlanRow,
+    semantic_schema: &'a ServiceSchema,
     execution: Option<CompilerIntrinsicExecutionIdentity>,
+    external_realization: Option<&'a str>,
 }
 
 /// Project called intrinsic rows into native catalog proposals, each bound
@@ -68,14 +30,14 @@ struct SelectedIntrinsicRow<'a> {
 /// Provenance stays borrowed and source-free; every plan is checked even
 /// without demand. The receiving target catalog admits these proposals later.
 pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
-    selected: &effects::SelectedProviderPlanFacts,
+    selected: &'a effects::SelectedProviderPlanFacts,
     provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'a>>,
     demanded_boundaries: &BTreeSet<String>,
     boundaries: &[terminal_psi::BoundaryMachineDeclaration],
+    external_providers: &[terminal_psi::ExternalProviderConformance],
     identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<Vec<super::TerminalCompilerBuiltinProposal>, Vec<Diagnostic>> {
     let plans = selected.plans();
-    let float_formats = boundary_float_formats(identities, boundaries);
     if plans.len() != provenance.len() {
         return Err(vec![Diagnostic::error(
             "selected provider plans are not aligned with compiler-intrinsic settlement provenance",
@@ -83,7 +45,10 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
     }
     let mut selected_rows = Vec::new();
     for (plan_index, (plan, retained)) in plans.iter().zip(provenance).enumerate() {
-        if retained.plan != plan || retained.row_executions.len() != plan.rows.len() {
+        if retained.plan != plan
+            || retained.row_executions.len() != plan.rows.len()
+            || retained.row_numeric_realizations.len() != plan.rows.len()
+        {
             return Err(vec![Diagnostic::error(format!(
                 "selected compiler-intrinsic plan `{}` has misaligned retained settlement provenance",
                 plan.name,
@@ -92,7 +57,12 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
         if demanded_boundaries.is_empty() {
             continue;
         }
-        for (row, execution) in plan.rows.iter().zip(retained.row_executions) {
+        for ((row, execution), realization) in plan
+            .rows
+            .iter()
+            .zip(retained.row_executions)
+            .zip(retained.row_numeric_realizations)
+        {
             if matches!(
                 row.binding,
                 effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
@@ -100,7 +70,10 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
                 selected_rows.push(SelectedIntrinsicRow {
                     requirement_identity: plan.identities.text(row.requirement_identity),
                     plan_index,
+                    row,
+                    semantic_schema: retained.semantic_schema,
                     execution: *execution,
+                    external_realization: realization.as_deref(),
                 });
             }
         }
@@ -150,23 +123,49 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
         // A row this compile could not close is retained with its reason, not
         // refused here: whether the boundary is executed is each entry's
         // execution-scope question, answered at admission.
-        let settlement = match selected_row.execution {
-            None => super::TerminalCompilerBuiltinSettlement::NoClosedCatalogIdentity,
-            Some(execution) => {
-                match compiler_builtin_execution(execution, float_formats.get(requirement).copied())
-                {
-                    Some(execution) => {
-                        super::TerminalCompilerBuiltinSettlement::Execution(execution)
-                    }
-                    None => super::TerminalCompilerBuiltinSettlement::NoNativeBoundaryRealization,
-                }
+        let identity = match selected_external_execution(
+            external_providers,
+            identities,
+            &boundary.owner,
+            &plans[selected_row.plan_index],
+            selected_row.row,
+            selected_row.execution,
+            selected_row.external_realization,
+        ) {
+            Ok(identity) => identity,
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "Terminal boundary `{requirement}` {reason}"
+                )));
+                continue;
             }
+        };
+        if let Err(reason) = reconcile_numeric_meaning(boundary.numeric_intrinsic, identity) {
+            diagnostics.push(Diagnostic::error(format!(
+                "Terminal boundary `{requirement}` {reason}"
+            )));
+            continue;
+        }
+        let format = boundary
+            .numeric_intrinsic
+            .and_then(|meaning| meaning.builtin_format());
+        let settlement = match identity {
+            None => super::TerminalCompilerBuiltinSettlement::NoClosedCatalogIdentity,
+            Some(identity) => match compiler_builtin_execution(identity, format) {
+                Some(execution) => super::TerminalCompilerBuiltinSettlement::Execution {
+                    identity,
+                    execution,
+                },
+                None => super::TerminalCompilerBuiltinSettlement::NoNativeBoundaryRealization,
+            },
         };
         evidence.push(super::TerminalCompilerBuiltinProposal::new(
             selected_row.requirement_identity.to_owned(),
             selected_row.plan_index,
             boundary.id,
             settlement,
+            selected_row.semantic_schema,
+            &plans[selected_row.plan_index].schema,
         ));
     }
     if diagnostics.is_empty() {
@@ -212,9 +211,113 @@ fn nearest_arithmetic(
     target_operations::CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format }
 }
 
+/// Format-bearing builtin symbols name an operation, a directed mode, and
+/// one IEEE format. `nearest_arithmetic`, `nearest_directed_binary`, and
+/// `nearest_directed_square_root` already build that execution row.
+fn format_bearing_builtin(
+    function: symbols::BuiltinFunction,
+) -> Option<target_operations::CompilerBuiltinExecution> {
+    use semantic_vocabulary::IeeeFloatFormat::{Binary32, Binary64};
+    use symbols::BuiltinFunction as Function;
+    use target_operations::IeeeFloatArithmeticOperation as Arithmetic;
+    use target_operations::IeeeFloatBinaryOperation as Binary;
+    use target_operations::IeeeFloatRoundingDirection as Rounding;
+
+    let classify = Arithmetic::Classify;
+    let fused = Arithmetic::FusedMultiplyAdd;
+    let multiply_add = Arithmetic::MultiplyThenAdd;
+    let directed =
+        |operation, rounding, format| nearest_directed_binary(operation, rounding, format);
+    let square_root = |rounding, format| nearest_directed_square_root(rounding, format);
+    let arithmetic = |operation, format| nearest_arithmetic(operation, format);
+    Some(match function {
+        Function::FloatClassifyF32 => arithmetic(classify, Binary32),
+        Function::FloatClassifyF64 => arithmetic(classify, Binary64),
+        Function::FloatAddTowardZeroF32 => directed(Binary::Add, Rounding::TowardZero, Binary32),
+        Function::FloatAddTowardZeroF64 => directed(Binary::Add, Rounding::TowardZero, Binary64),
+        Function::FloatAddTowardPositiveF32 => {
+            directed(Binary::Add, Rounding::TowardPositive, Binary32)
+        }
+        Function::FloatAddTowardPositiveF64 => {
+            directed(Binary::Add, Rounding::TowardPositive, Binary64)
+        }
+        Function::FloatAddTowardNegativeF32 => {
+            directed(Binary::Add, Rounding::TowardNegative, Binary32)
+        }
+        Function::FloatAddTowardNegativeF64 => {
+            directed(Binary::Add, Rounding::TowardNegative, Binary64)
+        }
+        Function::FloatSubtractTowardZeroF32 => {
+            directed(Binary::Subtract, Rounding::TowardZero, Binary32)
+        }
+        Function::FloatSubtractTowardZeroF64 => {
+            directed(Binary::Subtract, Rounding::TowardZero, Binary64)
+        }
+        Function::FloatSubtractTowardPositiveF32 => {
+            directed(Binary::Subtract, Rounding::TowardPositive, Binary32)
+        }
+        Function::FloatSubtractTowardPositiveF64 => {
+            directed(Binary::Subtract, Rounding::TowardPositive, Binary64)
+        }
+        Function::FloatSubtractTowardNegativeF32 => {
+            directed(Binary::Subtract, Rounding::TowardNegative, Binary32)
+        }
+        Function::FloatSubtractTowardNegativeF64 => {
+            directed(Binary::Subtract, Rounding::TowardNegative, Binary64)
+        }
+        Function::FloatMultiplyTowardZeroF32 => {
+            directed(Binary::Multiply, Rounding::TowardZero, Binary32)
+        }
+        Function::FloatMultiplyTowardZeroF64 => {
+            directed(Binary::Multiply, Rounding::TowardZero, Binary64)
+        }
+        Function::FloatMultiplyTowardPositiveF32 => {
+            directed(Binary::Multiply, Rounding::TowardPositive, Binary32)
+        }
+        Function::FloatMultiplyTowardPositiveF64 => {
+            directed(Binary::Multiply, Rounding::TowardPositive, Binary64)
+        }
+        Function::FloatMultiplyTowardNegativeF32 => {
+            directed(Binary::Multiply, Rounding::TowardNegative, Binary32)
+        }
+        Function::FloatMultiplyTowardNegativeF64 => {
+            directed(Binary::Multiply, Rounding::TowardNegative, Binary64)
+        }
+        Function::FloatDivideTowardZeroF32 => {
+            directed(Binary::Divide, Rounding::TowardZero, Binary32)
+        }
+        Function::FloatDivideTowardZeroF64 => {
+            directed(Binary::Divide, Rounding::TowardZero, Binary64)
+        }
+        Function::FloatDivideTowardPositiveF32 => {
+            directed(Binary::Divide, Rounding::TowardPositive, Binary32)
+        }
+        Function::FloatDivideTowardPositiveF64 => {
+            directed(Binary::Divide, Rounding::TowardPositive, Binary64)
+        }
+        Function::FloatDivideTowardNegativeF32 => {
+            directed(Binary::Divide, Rounding::TowardNegative, Binary32)
+        }
+        Function::FloatDivideTowardNegativeF64 => {
+            directed(Binary::Divide, Rounding::TowardNegative, Binary64)
+        }
+        Function::FloatSqrtTowardZeroF32 => square_root(Rounding::TowardZero, Binary32),
+        Function::FloatSqrtTowardZeroF64 => square_root(Rounding::TowardZero, Binary64),
+        Function::FloatSqrtTowardPositiveF32 => square_root(Rounding::TowardPositive, Binary32),
+        Function::FloatSqrtTowardPositiveF64 => square_root(Rounding::TowardPositive, Binary64),
+        Function::FloatSqrtTowardNegativeF32 => square_root(Rounding::TowardNegative, Binary32),
+        Function::FloatSqrtTowardNegativeF64 => square_root(Rounding::TowardNegative, Binary64),
+        Function::FloatFusedMultiplyAddF32 => arithmetic(fused, Binary32),
+        Function::FloatFusedMultiplyAddF64 => arithmetic(fused, Binary64),
+        Function::FloatMultiplyThenAddF32 => arithmetic(multiply_add, Binary32),
+        Function::FloatMultiplyThenAddF64 => arithmetic(multiply_add, Binary64),
+        _ => return None,
+    })
+}
+
 /// The native realization of one selected intrinsic identity, if the local
-/// catalog has one. `boundary_format` is the called boundary's IEEE
-/// format, which the format-free builtin identities need; admission rejoins
+/// catalog has one. `boundary_format` is the Psi-published IEEE
+/// format, which the format-free custody identities need; admission rejoins
 /// the complete boundary signature independently.
 fn compiler_builtin_execution(
     identity: CompilerIntrinsicExecutionIdentity,
@@ -293,250 +396,10 @@ fn compiler_builtin_execution(
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
             // Format-bearing identities must not borrow an unrelated boundary's
             // result format. Complete signature admission below remains required.
-            match function {
-                symbols::BuiltinFunction::FloatClassifyF32 => {
-                    return Some(nearest_arithmetic(
-                        Arithmetic::Classify,
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatClassifyF64 => {
-                    return Some(nearest_arithmetic(
-                        Arithmetic::Classify,
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ));
-                }
-
-                symbols::BuiltinFunction::FloatAddTowardZeroF32 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Add,
-                        target_operations::IeeeFloatRoundingDirection::TowardZero,
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatAddTowardZeroF64 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Add,
-                        target_operations::IeeeFloatRoundingDirection::TowardZero,
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatAddTowardPositiveF32 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Add,
-                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatAddTowardPositiveF64 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Add,
-                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatAddTowardNegativeF32 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Add,
-                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatAddTowardNegativeF64 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Add,
-                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatSubtractTowardZeroF32 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Subtract,
-                        target_operations::IeeeFloatRoundingDirection::TowardZero,
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatSubtractTowardZeroF64 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Subtract,
-                        target_operations::IeeeFloatRoundingDirection::TowardZero,
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatSubtractTowardPositiveF32 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Subtract,
-                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatSubtractTowardPositiveF64 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Subtract,
-                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatSubtractTowardNegativeF32 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Subtract,
-                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatSubtractTowardNegativeF64 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Subtract,
-                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatMultiplyTowardZeroF32 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Multiply,
-                        target_operations::IeeeFloatRoundingDirection::TowardZero,
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatMultiplyTowardZeroF64 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Multiply,
-                        target_operations::IeeeFloatRoundingDirection::TowardZero,
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatMultiplyTowardPositiveF32 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Multiply,
-                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatMultiplyTowardPositiveF64 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Multiply,
-                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatMultiplyTowardNegativeF32 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Multiply,
-                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatMultiplyTowardNegativeF64 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Multiply,
-                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatDivideTowardZeroF32 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Divide,
-                        target_operations::IeeeFloatRoundingDirection::TowardZero,
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatDivideTowardZeroF64 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Divide,
-                        target_operations::IeeeFloatRoundingDirection::TowardZero,
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatDivideTowardPositiveF32 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Divide,
-                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatDivideTowardPositiveF64 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Divide,
-                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatDivideTowardNegativeF32 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Divide,
-                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatDivideTowardNegativeF64 => {
-                    return Some(nearest_directed_binary(
-                        target_operations::IeeeFloatBinaryOperation::Divide,
-                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatSqrtTowardZeroF32 => {
-                    return Some(nearest_directed_square_root(
-                        target_operations::IeeeFloatRoundingDirection::TowardZero,
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatSqrtTowardZeroF64 => {
-                    return Some(nearest_directed_square_root(
-                        target_operations::IeeeFloatRoundingDirection::TowardZero,
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatSqrtTowardPositiveF32 => {
-                    return Some(nearest_directed_square_root(
-                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatSqrtTowardPositiveF64 => {
-                    return Some(nearest_directed_square_root(
-                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatSqrtTowardNegativeF32 => {
-                    return Some(nearest_directed_square_root(
-                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatSqrtTowardNegativeF64 => {
-                    return Some(nearest_directed_square_root(
-                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatFusedMultiplyAddF32 => {
-                    return Some(nearest_arithmetic(
-                        Arithmetic::FusedMultiplyAdd,
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatFusedMultiplyAddF64 => {
-                    return Some(nearest_arithmetic(
-                        Arithmetic::FusedMultiplyAdd,
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatMultiplyThenAddF32 => {
-                    return Some(nearest_arithmetic(
-                        Arithmetic::MultiplyThenAdd,
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ));
-                }
-                symbols::BuiltinFunction::FloatMultiplyThenAddF64 => {
-                    return Some(nearest_arithmetic(
-                        Arithmetic::MultiplyThenAdd,
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ));
-                }
-                _ => {}
+            if let Some(execution) = format_bearing_builtin(function) {
+                return Some(execution);
             }
+
             let operation = match function {
                 symbols::BuiltinFunction::FloatMinimum => Arithmetic::Minimum,
                 symbols::BuiltinFunction::FloatMaximum => Arithmetic::Maximum,
@@ -612,4 +475,47 @@ fn compiler_builtin_execution(
         CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison { .. } => return None,
     };
     Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use language_semantics::numeric_intrinsics::NumericIntrinsic;
+
+    #[test]
+    fn portable_numeric_meaning_cannot_authorize_or_replace_provider_custody() {
+        let meaning = NumericIntrinsic::from_canonical_encoding([0, 5, 1, 0]).unwrap();
+        let selected = CompilerIntrinsicExecutionIdentity::from(meaning);
+        assert!(reconcile_numeric_meaning(Some(meaning), Some(selected)).is_ok());
+        assert!(reconcile_numeric_meaning(Some(meaning), None).is_err());
+        assert!(reconcile_numeric_meaning(None, Some(selected)).is_err());
+        let other = NumericIntrinsic::from_canonical_encoding([0, 6, 1, 0]).unwrap();
+        assert!(reconcile_numeric_meaning(Some(other), Some(selected)).is_err());
+        assert!(
+            reconcile_numeric_meaning(
+                Some(meaning),
+                Some(CompilerIntrinsicExecutionIdentity::HostedExitProcessI32)
+            )
+            .is_err()
+        );
+        assert!(
+            reconcile_numeric_meaning(
+                None,
+                Some(CompilerIntrinsicExecutionIdentity::HostedExitProcessI32)
+            )
+            .is_ok()
+        );
+        assert!(reconcile_numeric_meaning(None, None).is_ok());
+        let format = meaning.builtin_format().unwrap();
+        assert_eq!(format, semantic_vocabulary::IeeeFloatFormat::Binary64);
+        assert!(matches!(
+            compiler_builtin_execution(selected, Some(format)),
+            Some(
+                target_operations::CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                    operation: target_operations::IeeeFloatArithmeticOperation::IsNan,
+                    format: semantic_vocabulary::IeeeFloatFormat::Binary64,
+                }
+            )
+        ));
+    }
 }

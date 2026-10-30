@@ -15,12 +15,12 @@ machine clip_fraction(start_distance: f64, end_distance: f64) -> f64
         true -> admit(start_distance, difference)
         _ -> zero()
     }
-    state admit(start_distance: f64, difference: f64) -> f64
+    machine admit(start_distance: f64, difference: f64) -> f64
         requires start_distance >= 0.0 && start_distance <= 4.0 && difference >= 0.5 && difference <= 8.0
     {
         start_distance / difference
     }
-    state zero() -> f64 { 0.0 }
+    machine zero() -> f64 { 0.0 }
 }
 
 machine clip_fraction_reversed(start_distance: f64, end_distance: f64) -> f64
@@ -31,12 +31,12 @@ machine clip_fraction_reversed(start_distance: f64, end_distance: f64) -> f64
         true -> admit(start_distance, difference)
         _ -> zero()
     }
-    state admit(start_distance: f64, difference: f64) -> f64
+    machine admit(start_distance: f64, difference: f64) -> f64
         requires start_distance >= 0.0 && start_distance <= 4.0 && difference >= 0.5 && difference <= 8.0
     {
         start_distance / difference
     }
-    state zero() -> f64 { 0.0 }
+    machine zero() -> f64 { 0.0 }
 }
 
 machine clip_fraction_field(start_distance: f64, end_distance: f64) -> f64
@@ -48,12 +48,12 @@ machine clip_fraction_field(start_distance: f64, end_distance: f64) -> f64
         true -> admit(start_distance, gap.difference)
         _ -> zero()
     }
-    state admit(start_distance: f64, difference: f64) -> f64
+    machine admit(start_distance: f64, difference: f64) -> f64
         requires start_distance >= 0.0 && start_distance <= 4.0 && difference >= 0.5 && difference <= 8.0
     {
         start_distance / difference
     }
-    state zero() -> f64 { 0.0 }
+    machine zero() -> f64 { 0.0 }
 }
 
 machine main() crashes Trap {
@@ -64,6 +64,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() { }
-    state bad() { crash Trap; }
+    machine done() { }
+    machine bad() { crash Trap; }
 }

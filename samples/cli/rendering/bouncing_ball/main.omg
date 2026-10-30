@@ -43,28 +43,28 @@ machine Main::step(main: &mut Main) {
         _ -> check_lower(main, new_pos)
     }
 
-    state upper_bounce(main: &mut Main, new_pos: i32 in Wrapping) {
+    machine upper_bounce(main: &mut Main, new_pos: i32 in Wrapping) {
         // Reflect off upper wall: pos = 18 - new_pos, vel = -vel.
         main.s.pos = 18 - new_pos;
         let old_vel: i32 in Wrapping = main.s.vel;
         main.s.vel = 0 - old_vel;
     }
 
-    state check_lower(main: &mut Main, new_pos: i32 in Wrapping) {
+    machine check_lower(main: &mut Main, new_pos: i32 in Wrapping) {
         transition new_pos < 0 {
             true -> lower_bounce(main, new_pos)
             _ -> move_normal(main, new_pos)
         }
     }
 
-    state lower_bounce(main: &mut Main, new_pos: i32 in Wrapping) {
+    machine lower_bounce(main: &mut Main, new_pos: i32 in Wrapping) {
         // Reflect off lower wall: pos = -new_pos, vel = -vel.
         main.s.pos = 0 - new_pos;
         let old_vel: i32 in Wrapping = main.s.vel;
         main.s.vel = 0 - old_vel;
     }
 
-    state move_normal(main: &mut Main, new_pos: i32 in Wrapping) {
+    machine move_normal(main: &mut Main, new_pos: i32 in Wrapping) {
         main.s.pos = new_pos;
     }
 }
@@ -94,14 +94,14 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::write_line("PASS: ball at pos 6 after 8 steps, 6 + 64 == 70 (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(70);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::write_line("FAIL: final position wrong -- expected pos 6 (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

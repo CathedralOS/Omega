@@ -25,6 +25,6 @@ windows_x86_64 machine read_mark() -> u64 {
 }
 machine main() crashes Trap {
     transition read_mark() == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

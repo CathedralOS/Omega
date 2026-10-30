@@ -48,14 +48,24 @@ setup are not additional public program stages.
 
 Independent stage crates remain directly testable, but production consumers do
 not assemble them. The Psi driver feeds stages 00 through 07 once per
-compilation and never observes a realization target: target-scoped machine
-bodies are data checked for every target, and the Build evaluates once into
+compilation and never observes a realization target: every supplied ordinary
+implementation is checked, and the Build evaluates once into provider and entry
 rows keyed by target
 ([multi-target compilation](../wiki/spec/build/configuration.md#multi-target-compilation)).
 It returns one Terminal Psi artifact. The Omega driver realizes each target in
 the realization set from that artifact and the target's Build rows: provider
 selection and installation in stage 00, then stages 01 through 09 and image
 emission.
+
+Native binding intent belongs to package-local Build rows:
+`Build::bind<Requirement>(builder, target, locator)` names an exact designated
+product requirement and ordinary typed locator data with inferred byte lengths.
+It does not execute product code or install Build-host supply. The compiler
+derives native candidates/plans and retains requirement, target, supplier,
+calling policy and authored provenance through review and realization. Source
+`via` clauses and per-symbol forwarding realizers are retired; remaining parser,
+source and review carriers are work under `BUILD-OWNED-NATIVE-BINDINGS` in
+[the task board](../TASKS.md#pipeline-route), not a parallel supply route.
 
 The two drivers are the production dependency boundary around the stages. A
 consumer needing source semantics calls the Psi driver with explicit source,
@@ -106,14 +116,30 @@ retained entry through source-signature custody; native and interpreted
 execution do not rewrite the artifact's default entry. Nominal callback bodies
 join that same portable closure and retain exact selected entries beside their
 native ABI adapters. Main and callbacks borrow one provider context; callback
-realization never starts another Psi production. Product constants
-requiring selected-provider evaluation reject until portable recipes cross this
-boundary; selected providers cannot inject completion roles into checked source.
+realization never starts another Psi production. Product constant applications
+and their checked conditions cross this boundary in canonical Terminal Psi.
+Selected realization completes them without copying or rewriting checked source;
+selected providers cannot inject completion roles into checked source.
+Psi retains each const argument's complete expression, lexical owner and result
+carrier. Type and body copying carry that relationship through exact occurrence
+maps; substituted array fields refer to the same retained extent. Preparation
+creates ordinary evaluation entries from closed expression inputs, including
+closed expressions inside generic owners, without dropping the template's
+checking obligations. Canonical publication consumes those entries, never the
+first nested helper as a substitute for the complete expression. Selected
+execution still owes provider admission, completion and every recorded bound.
 Accepted package roles enter source preparation before checking instead.
 Psi owns their declaration admission and confined nomination before matching
 retained checks. Realization only rejoins the resulting source declarations to
-selected provider rows. Synchronous provider-cycle checks consume Psi's checked
-invocation facts rather than a second coordinator-owned inference sidecar.
+selected provider rows. Source-only synchronous provider-cycle checks consume
+Psi's checked invocation facts. Receiving provider admission independently
+checks every installed canonical instance, including uncalled closed tuples,
+using the same whole-plan graph rule. Opaque rows contribute their declared
+ceilings; uninstantiated source templates grant no executable instance.
+`terminal-installation` owns the retained synchronous call closure (ordinary,
+no-normal, cleanup, invoked dynamic slots and selected target members). Native
+authority review borrows that closure and classifies physical operations; it
+does not maintain another call traversal or trust an earlier source check.
 Psi also owns exact provider-selection declarations and the shared decoder for
 static defaults and executed Build choices. Checked Product selection returns
 all authored defaults before root pruning; Omega only selects retained rows.
@@ -138,17 +164,82 @@ one roster through the same Terminal producer as standalone requests.
 Package-manager batches supply dependency-ordered custody/consent plans; the
 compiler owns generated-output joins, Build/Product continuations and independent
 component publication. Target plans enter together; matching post-Build root
-continuations share source completion. Package operations supply requested
+continuations share source completion. The captured Build prefix retains its
+deferred Product frontend by exact source and semantic inputs. Siblings validate
+live custody before borrowing it, then rejoin their own Build selections and
+receipts; a reused frontend never substitutes another occurrence's return or
+grants. Package operations supply requested
 products and exact root permission consent, and receive reports or inspections,
 not checked activations to resume. Standalone and session products share
-selection, Terminal production, then installation; source checking no longer
-installs the package product ahead of that sequence. Review descriptions supply
-the same borrowed production facts without a second producer mode.
+complete source-side selection, Terminal production, then permission/trust
+admission and artifact completion. No source-reading installation phase follows
+Terminal production. Review descriptions supply
+the same borrowed production facts without a second producer mode. Demanded
+components and lazy review descriptions enter the same product sequence as root
+compilation. Component completion owns its exported plans, description and
+permission evidence, not a second Terminal batch loop or public checked-source
+publication entrance. Terminal cohorts retain each admitted application beside
+its exact entry, callback roots and exclusion policy. Source-sharing comparisons
+use those requests directly; only caller order is restored after cohort work,
+without parallel entry tables or empty outcome slots.
+Composition admission runs once per application, before optimization. Psi lends
+an ordered, lazily projected stream of canonical entry, callback and physical
+adapter roots; Omega prepares the exclusion/provider context once and judges
+each root separately. Root-specific attribution and first-refusal precedence
+survive, including missing-body checks when no authored service exclusion
+resolves. This does not remove source-side callback selection or replace its
+complete dormant-declaration checks with emitted-call reachability.
+Before shared production, each application prepares the exact target-provider
+candidates, nominal owners and authored family declarations for its Build rows.
+After production, provider publication consumes that owned preparation and the
+artifact's demand catalog, not typed trees. It uses the ordinary whole-provider
+selector and canonical roster join; unused competing candidates stay harmless,
+family coordinates remain complete and unavailable targets retain refusal rows.
+Preparation is application-local: a source cohort does not establish equality of
+Build defaults, overrides or assumptions. This removes late source reconstruction
+from publication, not all source dependencies from provider planning.
+Compiler-private native component retention stores the canonical description
+and complete source-free derivation inputs together. Package admission supplies
+an exact compiler/library, source/dependency, purpose/target and snapshot key;
+the compiler adds current generated bytes, accepted bindings, descriptions and
+optimization inputs. A fresh Build admission precedes lookup. Recovery re-enters
+the ordinary entry, calling-plan and provider producers against the embedded
+canonical artifact; it never deserializes a validated wrapper. Receiving policy,
+live backing, host bindings and resource charges remain current invocation
+inputs. Same-invocation consumers borrow the produced object directly; encoding
+happens only when component persistence was requested. Source/check retention
+uses the separate coupled graph described below.
 Package preparation advances dependency-first rounds across target rosters;
 demanded component continuations enter the same source batch as their siblings,
 rather than completing one target's entire dependency chain first.
-Build admission and charges remain occurrence-local. Separate dependency rounds
-and standalone/session preparation still prevent one complete source prefix:
+Build admission and charges remain occurrence-local. The invocation also owns
+one source catalogue and Psi's canonical pre-Build frontend snapshots. Admission
+assigns coordinates before parsing; a dependency continuation keeps resolution,
+typing and pending evaluations paired while the consumer adds fresh declarations.
+Source membership, imports, aliases and declaration authority must still match.
+Anonymous Build-to-Product sealing admits a new source instance and issues its
+exact correspondence; executed descriptions keep their original records and
+Product lookup consumes that correspondence. The correspondence alone transfers
+no checking judgment, executed Build return or evaluation charge.
+
+Compiler-private source retention stores the complete coupled source/check graph:
+source preparation and parsed frontiers, declaration/state/expression coordinates,
+pending source completions, their original accounting, and exact-program checking
+judgments. The application requests disk retention for a compiler invocation;
+short-lived in-memory sessions use the same pipeline without publishing records.
+The compiler/library identity selects a private format namespace. Fresh source
+and dependency observations, full preparation admission, and fresh declaration
+selection authority must match before a retained judgment is used. Recorded
+authority is comparison data, never a restored grant; invocation resources and
+Build admission are reacquired. Invalid, truncated or obsolete records are
+optional misses. Terminal values inside the graph use the canonical Terminal
+codec and rejoin companion receipts through their original producers.
+
+This implements cross-invocation exact-program reuse. It does not admit checked
+dependency judgments into a different consumer from body hashes: cross-consumer
+reuse still needs complete producer-dependency context admission. In-memory
+shared declaration pages, local flow facts and conservative unknown-input
+fallback retain their existing ownership.
 
 | Input → output | Owner |
 | --- | --- |
@@ -185,12 +276,15 @@ foundations, product reports and publication keep independent ownership.
 | `omega/application/cli/src/main.rs` | Parse and dispatch; display outcomes |
 | `omega/application/build/src/build.rs` | Request admission, Build lifecycle, requested products, required tests and publication |
 | `omega/application/build/src/build_execution.rs` | Dependency jobs and Build activation readiness; mandatory final join |
+| `omega/application/build/src/source_compilation.rs` | One-shot source consumers: prepare an opaque compiler invocation, execute Build, complete the requested products |
+| `omega/application/build/src/build_session.rs` | Invocation compiler lifetime beside independently package-owned staging and aggregate sponsors |
 | `omega/application/build/src/package_commands.rs` | Admitted install/update target-review work; complete findings returned to package-owned publication |
 | `omega/application/build/src/package_review.rs` | Admitted review dependency passes, compiler calls and suspended-Build cache recovery, shared with audit |
 | `omega/application/build/src/package_inspection.rs` | Read-only audit session lifetime and ordered target execution; package-owned pinned resolution and reporting |
 | `psi/compilation/driver/src/compiler.rs` | Source processing and checking through Terminal Psi |
 | `omega/compilation/driver/src/compiler.rs` | Terminal plus explicit realization inputs through native emission |
 | Terminal interpreter entrance | Load or borrow code, execute, suspend, install admitted bindings, resume |
+| `omega/application/native-provider-runtime/src/native_provider_runtime.rs` | Sponsor isolated native provider incarnations, immutable mapped homes and exact compiled frame adapters; consume source-free products |
 
 These are destination owners, not extra facades above the current compiler.
 Dismantle the existing product coordinator into its actual owners. Reuse the
@@ -216,12 +310,317 @@ source continuation across Build/generated-source admission, exposing only the
 operation needed to resume with admitted inputs. Sessions retain storage and
 reusable judgments, not alternate compilation paths.
 
+After Product sources join, Psi's source continuation admits provider requests
+as one operation: recover original lexical owners, form every authored recipe,
+prepare reached applications with their captured static arguments, then admit
+the executed selections. The Product coordinator authenticates dependency
+selections before this call and publishes its result; it does not drive typing
+one operand at a time. Whole-provider choice remains Omega-owned. Provider
+admission completes before opaque-representation admission, so an invalid
+provider request may report first when both independent request kinds are
+invalid; both still reject when reached.
+
+ProgramEntry descriptions and final source compatibility are Psi judgments.
+The target catalog supplies only source-visible slot requirements; it never
+receives typed trees through a compatibility callback. Psi retains lexical
+lookup, exact declared-owner recovery and executed root-binding rejoin, including
+the original description's slot identity. Final entry settlement repeats the
+source check against the completed declaration before Omega derives physical
+layout and calling plans. Semantic arrival resolves inside the exact core
+Product owner; physical arrival resolves inside its selected schema. Shared
+source-signature extraction preserves normalized identities without combining
+those distinct authority paths. Hosted source checks are not evidence of
+physical arrival execution.
+
+Psi also admits source-issued audit registrations, runtime assumed-binding
+relationships and wire demands as one declaration operation after Product join.
+It forms every authored request before admitting executed selections, resolves
+their exact operands and authors, and enforces consuming-root authority for
+assumed relationships. The Product coordinator installs those returned records;
+it does not resolve their source operands or mutate admission policy. Package
+review owns audit projection, Psi checking owns wire compatibility, and Omega
+owns runtime provider compatibility. Uncalled legacy checked-expression
+collectors are not alternative admission routes.
+
+The post-join source continuation now admits the complete root Product policy
+in one ordered operation: provider applications, representation choices, native
+intent, root grants, audit/assumption/wire declarations, then exclusions.
+The Product coordinator authenticates package providers first, invokes that
+operation, resolves captured dependency native intent through Psi, attaches
+evaluation receipts and publishes the returned choices. It never borrows typed
+trees to drive individual source judgments. Source formation now finishes before
+native receipt attachment and dependency-intent resolution; when both fail, the
+root source error reports first. Neither independent failure becomes admissible.
+
+Authored grant and exclusion records belong to language semantics. Shared crash
+causes and physical-class vocabulary retain their canonical encoding; naming a
+restriction establishes no behavioral absence. Omega still resolves service
+identities against Terminal catalogs, resolves grants against selected plans,
+classifies physical mechanisms and checks the selected executable closure.
+
+Final representation admission belongs to Psi checking, not the Product
+coordinator. Build's selected applications carry their activation, source-issued
+requests and executed roster into `CheckRequest`; Psi recloses them against the
+completed authored/generated graph before source-completion preparation or
+retained-check matching. Only that admission derives semantic-copy property
+receipts. A caller cannot supply copy facts or bypass final application custody
+through a cached language judgment.
+
 Both interpreter and native realization consume a common Terminal view: borrow
 same-session storage, or admit external bytes once and borrow that owned storage.
 Keep suspended activation storage alive while separately compiling helpers.
 Target/Build companion inputs travel explicitly; consumers cannot reopen checked
 source. Matching compilation inputs may share work; host Build and product
 contexts are not interchangeable merely because source bytes match.
+
+Callback and physical-entry adapters now join their exact selected declarations
+to canonical Terminal bodies. Each body retains its combined scalar/structural
+runtime order, so native preparation derives the formal correspondence from
+the artifact itself, including after reload. There is no late Psi signature query
+for these adapters. Other checked-source inputs to product coordination remain
+part of the migration; this does not claim the entire driver is source-free.
+
+Entry custody retains declared arguments and physical/semantic calling contracts,
+not synthesized service fields on an application record. Provider roots come from
+actual calls and callback demand. Selected entries, private native derivation
+records and runtime provisions carry no synthetic field-establishment roster;
+older private records reject at their schema boundary. Ordinary provider
+admission, placed-view inputs and physical entry adapters remain independent.
+
+Component publication prepares its exported calling applications before Terminal
+production. The retained product carries those complete applications to the
+ordinary provider catalog join, which checks agreement with imported and explicit
+boundary policies without reopening typed source. Native proposal construction
+does not materialize component policies or maintain a second catalog merge.
+
+Independent component selection retains its exact verified artifact, native
+proposal, selected plan and export/calling-application association. Terminal
+production checks the retained availability; native preparation borrows the
+completed join instead of searching the checked source product again. Missing
+products remain a native-only refusal, including direct compiler requests that
+have no package session to attach them. The invocation-local selection is not
+serialized or an installed capability. Actual receiving-artifact admission still
+checks every selected export at the cross-artifact edge.
+
+Checked-provider binding also closes exact selecting declarations and target-family
+associations into a source-free record beside the complete selected plans. Native
+request projection borrows that record instead of reopening typed declarations.
+Preparation retains a refusal as data until the native handoff demands it, so a
+checking-only stop does not acquire native-only obligations. Physical family
+membership and receiving admission still belong to the Terminal consumer.
+
+Ordinary provider binding retains closed intrinsic/syscall applications, but
+does not replay checked-adapter instances. Native realization and unoptimized
+behavior-exclusion admission join those instances from Terminal's canonical
+provider associations and exact prepared declarations. Check/inspection stops,
+nominal callback preparation, checked-reference interpretation and package
+review request their checked-source projection explicitly. Review derives it
+from original compiler custody, never from the supplied semantic candidate.
+The selected plans, Import application custody and exact owner identities stay
+unchanged; each completed instance roster recomputes its aggregate commitment.
+
+Numeric meaning and external satisfaction have one Psi declaration producer,
+shared by Terminal retention and rootless package projection. Checked-provider
+binding retains that projection before selection. Package review prepares its
+supplied candidate independently, then joins nominal requirement, realization
+and selecting-owner identities against immutable custody. A library needs no
+ProgramEntry or executable lowering to review its uncalled supplied declarations.
+Private checking-only coordinates remain invocation-local, never portable owners.
+The selected row no longer duplicates numeric execution identity: review and
+native settlement consume the checked meaning through the shared source-free
+external-satisfaction join. Host/placement authority remains independent.
+Psi also retains the requirement's exact schema, method and owner coordinates.
+Numeric settlement checks these against the selected whole plan through the
+same source-free join; early typed Build planning adapts the source-owned view
+to that shared check. Eligibility is retained independently of numeric meaning,
+so absent meaning cannot fall through into another execution category.
+Direct-call preparation retains original plans and provenance once, with foreign
+ABI results or deferred refusals attached to their original row coordinates.
+Selected execution resolves accepted host bindings and constructs complete
+target-companion leaves from those borrowed rows. There is no placeholder-leaf
+mutation pass or per-leaf source-plan copy. The projected callable contract stays
+distinct from the original satisfied schema and accepted public-plan identity;
+native demand and receiving authority still decide which supplies may execute.
+Source-dependent grants, callbacks, selected review, host roles and direct-call
+supplies now close together in `selected-dispatch/src/provider_binding.rs`.
+The returned `SelectedExecution` owns its provenance and target custody before
+Terminal production borrows it. There is no intermediate checked-provider
+result or post-Terminal source installation phase: that old operation consumed
+no artifact. Conversion to `CheckedCompilation` only assembles the completed
+custody. Checking-only task validation remains separate from artifact-based
+native task demand. Source/role failures can therefore precede Terminal or task
+diagnostics; native source failures remain deferred, and receiving permission,
+trust admission and actual native demand stay at their existing boundaries.
+This consolidates the source preparation owner, not the intended future
+Terminal-only provider selection.
+Installation-reach preparation reads the selected provider's exact retained
+requirement and realization rows, including inherited and dormant declarations.
+It projects checked bounds and dependency identities once; source-free
+`provider-selection` owns fixed-point substitution across the complete selected
+closure. A missing source realization is not an empty service row, and a pending
+competing publisher cannot become a unique fallback. No typed declaration search
+or provider-name reconstruction occurs during substitution. Existing selected
+fact attachment validates the bound; independent package review still compares
+the resolved row with its own checked-source projection.
+Accepted-service preparation likewise retains the exact nominal owner, complete
+target-side schema and ordered requirement identities once at checked-provider
+binding. Resolved semantic bindings carry that record, not a source-arena symbol.
+Requirement-only role resolution, permission validation and candidate nomination
+consume it without rebuilding typed schemas. Independent package review projects
+the supplied program into its own catalog, compares complete records against
+immutable custody and uses only its own source correspondence for remaining
+contract capture. Unsupported or unowned unused declarations retain deferred
+projection refusals. Host classification still uses a catalog-local source join;
+this does not claim all accepted-service preparation is portable Psi.
+Original provider rows retain declaration facts shared by selected review and
+direct-call completion. Each row owns its optional direct-call input; bodyful
+checked completion adapters keep their host-role facts without acquiring a
+direct leaf. Selected settlement rejoins the exact original plan/provenance and
+consumes prepared placed-catalog and exit-role facts, not checked trees.
+Independent package review still projects its supplied candidate afresh.
+These original rows retain intrinsic declaration facts:
+exact nominal owners, bundled-source eligibility, signature/effect/supply checks
+and sealed placed-operation contracts. Selected-row review projects the supplied
+source through that same producer. Direct-call completion joins target and accepted
+public-plan custody without reopening checked trees; deferred shape failures are
+consumed only after the original ownership/target gate. Numeric execution still
+comes from Psi's external declarations. The accepted public plan, original row
+and projected callable plan remain distinct. Planning candidates enter completion
+only after source-owned row declaration preparation consumes their original
+ownership and derives these facts from the shared checked program. Product scalar
+completion follows canonical publication; it does not rewrite those declarations
+or substitute a target-specific checked snapshot.
+Earlier typed constant/comparison evaluation, general review call coordinates
+and source-dependent direct-call preparation remain migration work; this does not claim
+that selected dispatch as a whole is source-free. Retaining current declarations
+does not reinstate retired standalone boundary requirements or source `via`
+bindings; their language migration remains separately owned.
+
+The source-producing operation returns each Terminal application with its exact
+Build provider companion. It closes those proposals against the emitted demand
+catalog before returning the product: selecting against all source candidates
+would incorrectly demand unused providers. Native completion attaches the retained
+proposals without reopening source selection. Unavailable target rows remain data
+for receiving admission, not failures of shared portable production.
+Authored provider derivation retains the exact target, defaults and original
+candidate provenance before native Build supplies or compiler-minted plans enter
+the execution inventory. Early settlement and publication consume that same
+inventory; additional publication targets use its source-side producer. Publication
+does not settle defaults or derive the requested target a second time. Portable
+owner closure and actual-demand selection remain later operations, preserving
+rootless checks and deferred refusals for unused candidates and unavailable targets.
+`realization/provider-selection` owns whole-provider choice and admission over
+prepared declarations. Source Check/review adapts exact invocation identities;
+Terminal publication retains nominal declaration kind and callable overload
+without source handles. Both use the same default/override, inherited-map,
+complete-family and composition policy. Choice consumes candidates and keeps each
+selected plan beside its closure columns; publication cannot recover another
+plan from a later inventory. Source preparation retains family replay refusals,
+while artifact demand determines which complete candidates enter selection.
+Completion consumes an explicit native-proposal request and the produced
+application, not a checked compilation. The application retains physical-adapter
+selection; completion still binds its exact arrival contract against the artifact.
+The native compiler owns this source-free preparation in `application.rs`, plus
+admission of the independently supplied package-permission rows. Product
+coordination supplies those inputs and requests preparation; it has no direct
+dependency on numbered Omega stages. Artifact-only and component publication use
+the same preparation without emitting an image. This does not yet remove source
+provider selection from product coordination or stage vocabulary from shared
+product representations.
+
+Product scalar completion consumes canonical Terminal applications, declaration
+conditions and exact lexical identities, not a private checked-tree rewrite.
+Source completion records deferred recipes and complete initializer entries in
+the typed program before checking. Product carriers retain neither a second
+authored forest nor source-evaluation continuations for later target closure.
+Early Build evaluation still consumes its pending source work before admitting
+the Build activation; that execution is separate from Product scalar completion.
+Source checking roots complete initializer entries before ordinary preparation.
+It exposes no target-proof closure that rebuilds checked trees or refreshes their
+execution catalog. Callable descriptions are published inside the checking stage,
+not through a second coordinator-callable source settlement operation.
+Psi retains the computations and obligations; its compile-time evaluator executes
+dependency-ready canonical jobs and closes each authored proof scope. The
+application supplies exact provider selections, target families, address semantics
+and carrier geometry, and retains evaluation accounting even on refusal.
+Native preparation first determines the work and scalar demand for the root and
+its components. The application completes that demand; native compilation consumes
+the same preparation and completed inputs. Native production has no interpreter
+dependency or evaluator callback, and cannot silently recompute a missing value.
+`application/build/src/native_completion.rs` owns this lifecycle for standalone
+and package products. Source compilation transfers an owned `PendingNativeProduct`
+after admission and Terminal preparation, releasing its checked source. The shared
+`build-evaluation` scalar operation also serves descriptive Check, inspection and
+component publication; those stops do not acquire native execution obligations.
+Declaration-only Check publishes a rootless Terminal product when conditions need
+completion; a Check with no retained scalar obligations stops before publication.
+Demanded components complete all declaration conditions against their shared
+Application artifact before publishing descriptions or entering the component
+cache. They do not first produce a disposable declaration artifact per target.
+Lazy review retains its earlier checking boundary because review evidence may
+be consumed without ever requesting a component.
+Named inspection joins the same batch with its selected machine as part of
+production identity. Equal selections share portable code and source-issued
+Build companions; different inspected roots remain distinct. Inspection completes
+declaration scalar and task obligations against that product without a
+ProgramEntry or native installation. External artifact inspection retains only
+the admitted artifact and cannot recreate the source-issued companions.
+Published checking, inspection and component completion consume the artifact's
+complete task-demand bundle and identity table, including declarations outside
+the selected entry's executable reach. They do not lower those obligations from
+checked source again. A checking stop without publication still projects its
+task demands directly; full checked-provider instance coverage remains a
+separate source judgment.
+
+Build-helper production publishes the checked source unchanged. The waiting
+Build activation admits each explicitly named provider slot, discovers its
+scalar and inline-storage demands, then completes canonical applications under
+the admitted Build execution profile and that slot's exact provider selection.
+It never selects the dependency's Product defaults. Installed components own
+their completed scalar admission after temporary helper preparation is released.
+Evaluation charges the waiting invocation directly; retained observations are
+not charged again. Already-installed backing skips completion before resumption.
+Numeric intrinsic classification has one source-owned decision: the exact
+requirement's token or named catalog row supplies both signature obligations
+and its closed execution identity. Provider planning and selected dispatch use
+that classification; diagnostic strings do not gate support. Package review
+still independently rejoins its supplied candidate to retained selection
+custody. Psi publishes numeric meaning and its exact IEEE format in canonical
+Terminal boundary declarations; native proposal creation consumes that meaning
+and joins the selected external realization to canonical checked satisfaction
+edges. The module-level catalog is independent of executable call shapes, so
+directly lowered comparisons retain the same relation. It retains requirement,
+realization and selecting-owner
+declarations, authored target membership, package identities and structural binding mechanisms independently
+of target selection. Native retention omits the duplicate numeric execution
+sidecar; host and placement authority judgments remain separate. Portable
+decoding validates declaration coordinates and the complete numeric signature.
+This meaning does not select or authorize a provider. Review-only
+products still use checked source custody: moving their complete conformance
+evidence to Terminal remains part of provider-settlement migration.
+Provider selection and target geometry still originate outside Psi. Product
+scalar publication is target-neutral; source-dependent provider preparation,
+review projection remain migration work. This is
+not yet a completed Terminal-only provider pipeline.
+
+Independent component emission belongs to the same source-free native compiler
+entrance as root emission. Product preparation supplies each verified component,
+retained proposal, complete receiving plan and accepted package permissions.
+Native compilation keeps each emitted image beside its admitted call, joins the
+root's settlements, and retains component products in the resulting runtime
+provisions. There is no public component-emission entrance or outer before/after
+native orchestration. Receiver policy remains separate from package acceptance.
+
+An anonymous Build runs before its final source graph has a declaration owner.
+The Psi production request therefore distinguishes invocation-only code from
+portable publication, using the same stages, Terminal representation and
+interpreter. Invocation-local coordinates retain their live code owner; neither
+artifact encoding nor native production accepts that private product. Build
+companions require both exact code semantics and the same invocation owner.
+After the dependency join, package coordination must establish the final owner
+before Product resolution and typing, as required by
+[anonymous owner identity](../wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity).
+Retagging already-typed declarations or replaying Build is not that transition.
 
 ### Visible execution
 
@@ -234,6 +633,100 @@ while Build runs; waiting resumes the same activation without replaying effects.
 Build return joins all requests before product completion. Product bindings are
 inert during Build. Generated source cannot change admitted authored meaning.
 Ordinary Build helpers need Psi execution, not native product compilation.
+
+Demanded Product descriptions pause that same activation while the
+application acquires and settles its issued Product dependencies. The compiler's
+opaque query context shares the captured source prefix, loads authored Product
+declarations through the source-assembly owner and answers under the query
+author's lexical scope. It neither assigns an unfinished root its final package
+identity nor executes Product bodies. Final binding rejoins the selected source
+declaration rather than reusing an old arena handle or looking up its name.
+Query dependencies join the same demanded-source ledger as executed helpers,
+including purpose-qualified workspace-catalog records. Entry, data-schema and
+named-implementation provider descriptions share lexical resolution; role-specific
+inspection authenticates the activation's issued description and returns an
+accounted immutable byte view. It does not reopen source or execute Product code.
+
+Execution preparation and Product completion carry different inputs. Source
+inventories, named inputs, required outputs, resource sponsors and restricted
+grants must join the activation before its effects. A returned Build does not
+discharge a later execution request merely because its source graph matches.
+After return, the coordinator joins final source custody and chooses Product
+targets; it must not discard execution obligations while converting occurrence
+plans into retained Product work. Build's execution profile remains independent
+of those targets.
+
+The compiler's `settle_package_build` consumes the exact returned activation and
+checks its source-request ledger and required outputs before returning opaque
+`CompletedBuild` custody. `prepare_package_product` admits each requested Product
+context from that settled output. Review proposals, accepted semantic bindings
+and compilation purpose belong to that context, not the executed Build. The
+source graph and execution observations remain fixed. Product source is resolved
+and typed under its own admissions; a sibling's typed declarations are never
+retagged. Default Builds retain immutable parsing for changed source-routing
+inputs. The ordinary `complete_package_build` route consumes the same settlement
+and Product-preparation sequence without forking a nonexistent sibling. An
+already prepared `PackageBuild::select_target` remains restricted to equal source
+and semantic inputs; it selects realization, not a new Product judgment.
+
+Ordinary CLI and SDK build/check/run/inspection use this lifecycle; SDK callers
+submit `BuildRequest` rather than preparing a second, statically projected graph.
+Package recovery
+begins before acquisition; one application session executes actual declarations
+and selected dependency requests, retains their source captures and settles each
+Build. Package-owned Product admission preserves source/compiler/lock checks and
+target-specific refusals, but issues no second execution request. Its inert
+execution requirement must match the pre-effect host profile, snapshot, named
+inputs and required-output roster retained with the Build. Discovery runs with
+private snapshot/staging authority only: a restricted request stops before effects;
+neither an accepted Product row nor a discarded late grant can authorize it.
+Matching Product admissions share one prepared source continuation; realization
+still validates each target's own generated bundles and permissions. Named Git
+selection settles the actual workspace catalog and observes member declarations
+from authenticated subtrees. Those observations are not completed Builds or
+Products: only selected members join their dependencies and prepare Products,
+using their original returned activations. Relative Paths stay within registered
+member navigation at the frozen repository resolution. Install/update/resume
+execute their staged candidates through the same discovery loop and retain the
+settled Builds across review passes and targets. Proposal identity, original
+local dependency bases, execution inventories, review decisions and accepted-pair
+publication remain package-owned. Semantic-role discovery and accepted bindings
+remain part of Product judgment reuse, never copied into a bound admission.
+The retired entry-field tolerance mode is absent from compiler requests,
+continuations and review facts; ordinary entry contracts establish actual
+arguments, never provisional fields. Older review-cache formats miss rather
+than importing a provisional verdict. Observational audit uses
+the same executed source roster and retained Product review. Its accepted graph
+admits dependency requests before acquisition, preserves exact Git pins, and
+permits only root-content changes; per-target findings never recover proposals
+or publish acceptance. Source failure remains unavailable findings for every
+requested target. Review has no fresh-execution or sponsor-issuing route.
+Standalone batches, diagnostic checks and named inspection use that same
+application execution owner. The compiler's opaque `PreparedCompilation` and
+`SourceCompilation` keep source continuations and target policy alive; their
+completion accepts the exact returned Build, never an execution callback or a
+checked-tree sidecar. Target-local refusals and post-Build discovery remain in
+their outcomes. Explicit provider readiness retains the suspended activation
+while its named dependency is acquired, settled and compiled to Terminal Psi,
+then installs that exact implementation before resuming. Helper Product
+preparation uses an explicit dependency-first frontier, retaining
+generated bundles by package and purpose without recursive preparation calls.
+Source execution, provider/query dependencies, graph resolution and workspace
+catalogs also use application-owned pending work. Each paused Build retains its
+original invocation, interpreter activation and exact host adapters. Immutable
+Terminal code and source-issued call tables share their existing owners without
+encoding, decoding or rebuilding code. Host issuance and activation start remain
+once-only even when caller handles are cloned or dropped. Checking still retains
+recursive walks; this work does not remove the large compiler stack reservation.
+The final source join
+also reconciles helper graphs retained with workspace declaration observations;
+unselected members' pending Product requests stay inert. Package locks retain
+catalog execution custody separately from Product routing. Applied/inherited
+multi-slot readiness remains open. Corpus consumers use this same executed
+discovery and retain settled Builds through target selection and Product
+admission. Their explicit fixture consent does not construct a second source
+graph or grant late execution inputs; named inspection consumes retained
+products as well.
 
 Each compiler entrance shows named representations and actual stage calls in
 execution order. A separate `pipeline.rs` is justified only if it owns meaningful
@@ -304,7 +797,7 @@ library APIs; they do not introduce another compiler driver.
 | Terminal Psi loading, supplied-binding installation and execution | Psi interpreter facade under `interpreter/` |
 | Target-aware interpreter host adapters | Omega-owned host integration outside Psi, reusing independent backend ABI/mechanism libraries; not a compiler driver |
 | Compile-time interpretation and result elaboration | Psi `compilation/compile-time/` |
-| Checked program → published Terminal artifact | Psi compiler facade; current Rust migration adapter: `omega/compilation/driver/terminal-production/` |
+| Checked program → published Terminal artifact | `psi/compilation/driver/terminal-production/`, called directly with consumer-owned policy and observation |
 | Ordinary library reference implementations | `library/`, outside the compiler halves |
 
 ### Program families and support packages
@@ -355,16 +848,33 @@ This product owner consumes artifact and custody owners without depending
 on compiler orchestration or build evaluation. It is an output lifecycle, not a
 new program representation or pipeline phase. The CLI publishes through it directly.
 
-Product target families form during ordinary Psi resolution, including generated
-source extensions. Typed machines retain their authored target independently of
-canonical naming. Build helpers select their separately admitted execution target;
-provider planning consumes typed identities, not a parallel source-name roster
-carried through compilation. A canonical body is not a portable family contract.
+Product source, including generated extensions, declares ordinary named
+implementations and explicit requirements. Build records target-keyed provider
+selections separately; source declarations have no target modifier or implicit
+same-path body family. Provider planning joins exact checked requirement and
+implementation identities, never a source-name roster or a target-selected
+source body. Build helpers use their separately admitted execution profile.
+The remaining target-sibling and portable-family-head machinery is legacy work
+under `BUILD-OWNED-TARGET-SELECTION` in [the task board](../TASKS.md#pipeline-route).
 
 Checked qualification evidence names its source declaration and exact boundary
 requirement, not a selected provider's receipt number. Provider grant binding
 borrows that evidence and returns selected plans and grants separately; it never
 rewrites or clones checked Psi to stamp target-specific authority into facts.
+Psi prepares each authorized contract issuer's export identity once before
+sharing the checking baseline with flow workers. Admitted fact occurrences carry
+that stable issuer handle; the inventory alone creates no obligation. Omega's
+source-free grant policy consumes those occurrences, including uncalled bodies at
+the Check stop, and preserves declaring-owner preference and ambiguous-grant
+refusal without rescanning typed traits or signatures.
+
+Psi retains checked operator declaration eligibility separately from closed
+application body candidates. Open or dormant declarations do not root bodies or
+establish executable coverage. Omega admission and checked dispatch join selected
+plans to that inventory through one source-free choice operation, preserving
+provider/package identity, effective target context, scope and application
+coordinates. Neither consumer rediscovers specialization or source satisfaction;
+the exact application's existing body span supplies its executable alternatives.
 
 `omega/compilation/driver/` owns only compilation orchestration.
 [`omega/compilation/native-production/`](omega/compilation/native-production/README.md)
@@ -389,7 +899,19 @@ accepted through `omega.lock`. Pipeline execution does not load or mutate a
 separate admissions file.
 
 [`omega/compilation/realization/provider-planning/`](omega/compilation/realization/provider-planning/README.md)
-owns provider choices and calling, component and task planning.
+owns source provider derivation, declaration preparation, and calling/component
+planning. [`provider-selection/src/provider_selection.rs`](omega/compilation/realization/provider-selection/src/provider_selection.rs)
+owns shared whole-provider choice and admission; its `publication.rs` selects
+canonical companions against Terminal demand without source dependencies.
+Psi projects checked task activation requirements, exact specialization and
+carry evidence, and the reachable frame graph into Terminal Psi. State-resident
+storage and staged arguments at each suspension crossing remain separate
+alternatives. Native proposal construction joins those demands to exact selected
+runtime plans and target geometry without reopening source. Checking-only stops
+request that same portable projection without executable body lowering and use
+the same source-free join. Instruction lowering and task storage share the
+backend calling-conventions geometry owner. This closes static activation
+planning; it does not implement a task executor.
 [`selected-dispatch/`](omega/compilation/realization/selected-dispatch/README.md) owns selected
 execution preparation and settlement.
 It imports no Psi transform: the source coordinator owns stage requests and
@@ -397,9 +919,78 @@ supplies operator selections. Adapter dispatch reads the canonical backing
 through a Product declaration/occurrence selection instead of cloning and
 pruning a separate program. Build copies remain outside that selected frontier.
 Provider grants resolve through backend provider evidence.
-Product adapter dispatch and selected float executions live beside the checked
-program in `SelectedExecution`; they never copy or mutate checked Psi. The
-reference checked interpreter receives those explicit execution bindings.
+Optional x86 FMA admission consumes demanded Terminal builtin proposals at
+native provider admission. Checked source retains no separate FMA association
+list: an operation in an unselected target body creates no deployment demand
+for the selected body. Exact profile and feature admission remain required for
+each realized FMA, and its ordinary target-operation record carries that custody.
+Normal Product operator/requirement admission
+borrows the checked external catalog and its exact source-to-nominal correspondence;
+it does not rescan typed numeric meaning or satisfaction edges. That catalog is
+prepared before selected plan binding, so malformed declarations may precede plan
+or qualification diagnostics; both remain pre-execution refusals. Early Build's
+typed-only comparison path remains separate until it owns checked declarations.
+Product boundary-provider admission also consumes Psi's complete requirement
+inventory and occurrence applicability. Checking records slot/package identity,
+the distinct dormant-operator versus direct-call eligibility, and whether a use
+belongs to a generic machine; admission no longer reconstructs those facts from
+typed declarations. Requirement rows exist without implementations or uses.
+Product root pruning projects direct-call rows and template applicability with
+the machine roster while preserving independent operator declarations. The
+prepared Psi declaration owner now projects that complete inventory into a
+borrowed, source-free review view. The complete dormant/operator/direct-call
+admission sequence and plan cardinality belong to `provider-selection`.
+Unavailable application or numeric evidence remains data until the selected
+binding requires it; projection never rejects an unused declaration or a skipped
+generic template. Declaration strings and body eligibility remain borrowed from
+the exact immutable owner, without a second cache or portable-publication demand.
+Unused declarations and dead concrete uses cannot be replaced by emitted demand.
+`provider-selection/boundary_applications.rs` owns the canonical executable
+application operation: exact selected-row/provenance joins, checked body choice
+and numeric execution admission. Stage 00 constructs operation-bound physical
+coverage from that result. Source and canonical admission share numeric
+satisfaction and callable/package/target selection; source eligibility additionally
+checks Product, provider application and lifetime coordinates, while canonical
+admission checks nominal requirement and closed application. Neither fabricates
+the other's metadata. Unused invocation-local declarations are not forced into
+portable publication. Complete selected-plan binding now belongs to
+`provider-selection/selected_binding.rs`: grants, qualification, boundary
+admission, reach resolution, physical-leaf aliases and Import application
+attachment run in their original order without typed trees or check facts.
+Psi projects selected declaration evidence from the exact source associations;
+unavailable evidence remains deferred until its admission phase. Named-provider
+derivation retains the original declaration/capture scope and declaration-row
+order, so source projection never repeats target selection or substitutes an
+open declaration scope for a captured receiving application. The temporary view
+borrows the existing selected plan/provenance rather than creating a second
+candidate cache. Early/reference instance projection shares Psi's closed-leaf
+roster but remains separate from ordinary Product preparation.
+Callback-root selection likewise belongs to source-free `provider-selection`:
+Psi supplies each original nominal use's registration classification and checked
+entry facts. The source adapter prepares exact selected-row body evidence and
+calling-plan associations, retaining the whole selected-instance validation
+before per-use policy. Registration failures suppress only that occurrence's
+plan diagnostics; inactive declarations still owe their calling-plan obligations.
+Occurrence order and duplicate roots survive without exported indices.
+Psi closes the selected callback roots into one canonical declaration table
+before selected execution returns. The application companion carries exact
+declarations, not callback source symbols. Composition rejoins each complete
+owner/signature/contract/specialization to exactly one unoptimized body, lazily
+after the semantic entry and before the physical adapter. Unavailable declarations
+remain deferred so checking-only products need no emitted callback body. Diagnostic
+names and spans remain payload; Psi still projects ordinary callee/provider names
+and root-specific caller chains. This transient companion changes no portable
+schema and does not replace dormant source-use admission with emitted reachability.
+The surrounding selected-execution coordinator still consumes this source
+preparation and service declarations; shared checked-instance/adapter projection
+and the complete source-to-Terminal facade migration remain unfinished.
+Early/reference source adapters remain distinct from Product policy.
+The optional reference checked interpreter prepares adapter dispatch and selected
+float executions at its own entrance. `SelectedExecution` retains no reference
+dispatch table, and ordinary Product installation does not scan source to prepare
+an engine it will not run. Terminal/native provider admission consumes canonical
+demand and selected rows independently. Reference preparation never copies or
+mutates checked Psi; Build's required comparison preparation remains separate.
 Matching source-owner/entry/Psi-optimization requests share one Terminal
 production and backing allocation, including in retained native images. Each
 target independently admits the unoptimized composition and retains its own
@@ -407,20 +998,23 @@ entry receipt and native proposal. Distinct roots and callbacks are retained
 in that same whole-program Terminal roster.
 These remain checked-tree realization seams with package-input custody;
 moving them out of the coordinator does not establish the intended Terminal-only
-handoff. Callback proposal production now closes source placements into body,
-ABI and argument records once; retained native re-entry borrows those records
-without retaining or rejoining checked-source callback placements.
-The native placement carries application/contract identity and its ABI recipe;
-the source-selected machine stays with the producer that compiles its body.
-Backend callback planning no longer depends on checked-tree records.
+handoff. Executable callback placement belongs to Omega stage 00: canonical
+callback applications name their registrar operation, exact body, requirement
+and checked entry admission; target calling applications retain exact static
+binder ordinals, requirement identities and synchronous invocation membership.
+Fresh and recovered native inputs derive placements through the same join.
+Neither the realization request nor its persisted record carries source-produced
+callback placements. Source preparation still selects callback roots and checks
+dormant declarations before behavior admission; emitted occurrences alone cannot
+replace that complete source roster.
 Psi identifies callback uses from their declared calling policy and retains
 the exact checked entry resource receipt. Native ABI plan hashes are not
 callback checking facts; Omega binds the checked entry to its evaluated calling
 application without rewriting the nominal-use facts. Evaluated calling applications
 belong to provider settlement, not typed trees. Schema derivation receives those
 applications explicitly; package review joins the exact schema commitment to
-the retained realization. Callback materialization borrows the checked program
-and updates only its native application, without reopening the source owner.
+the retained realization. Callback materialization consumes only canonical
+Terminal uses and completed calling applications, without reopening source.
 
 Logical `Binding<R>` shapes and occurrence receipts are Psi data, independent
 of selected composition mode. Provider settlement does not mutate typed trees
@@ -429,12 +1023,13 @@ selected provider and establishes runtime custody; a logical Binding marker
 never grants zero-sized storage or authority. Native entry storage currently
 supports Fused establishment and rejects other modes.
 
-Physical data-layout queries must not rewrite typed source before checking.
-The former target-selected `size_of`/`align_of` literal fold is removed. These
-queries currently report an explicit implementation gap during source lowering;
-restoration must retain a portable query and consume the exact selected layout
-after the Psi boundary, including explicit target custody for constant evaluation.
-Ordinary authored machines with those names remain ordinary calls.
+Physical data-layout queries remain symbolic during shared Product checking.
+Canonical scalar applications retain `size_of`/`align_of` observations across
+Terminal publication. Completion uses explicit selected-target carrier geometry,
+not interpreter storage or host pointer widths. Reference/view carriers and sum
+packing preserve their physical layout distinctions. Build-helper completion
+uses its separately admitted execution profile at provider installation. Ordinary
+authored machines with those names remain ordinary calls.
 
 Calling-policy evaluation retains its validated ABI application as backend-owned
 output. Native entry and registrar settlement consume that application, not the
@@ -470,12 +1065,16 @@ Shared process and filesystem utilities remain under `omega/foundation/`.
 `psi/interpreter/` contains the independent `checked-interpreter` and
 `terminal-interpreter` engines. `psi/compilation/compile-time/` admits execution
 and elaborates results into source and typed trees. Checked fixed-array-length
-jobs use the Terminal program/instance lifecycle; the remaining compile-time and
-Build consumers still use the checked interpreter.
+jobs use the Terminal program/instance lifecycle. Build activations use the
+Terminal Build host in `omega/compilation/build-evaluation/`; there is no
+checked-tree Build execution entrypoint. Remaining pure compile-time value and
+policy jobs, plus the explicitly selected reference corpus leg, still use the
+checked interpreter and remain the interpreter-consolidation frontier.
 `psi/compilation/driver/terminal-production/` owns the one checked-program
 lowering, optimization and publication sequence, below the source facade so
-early jobs do not depend back on their source coordinator. The Omega adapter
-supplies product policy and reporting. Stage 05 owns input-ledger validation;
+early jobs do not depend back on their source coordinator. Product consumers
+call this operation directly with their policy and reporting observer; no Omega
+production wrapper remains. Stage 05 owns input-ledger validation;
 stage 07 owns entry receipts and source-correspondence judgments. This shared
 operation is neither another Psi stage nor a second complete compiler driver.
 Exact consumed-source and toolchain identities belong to the shared
@@ -725,8 +1324,8 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   `codec/`, `semantics/` and `fuel/`.
   Representation data and candidate production remain independent of checking.
 - Psi `compilation/driver/terminal-production/` — sequences stages 05–07 through
-  publication. Omega `compilation/driver/terminal-production/` supplies product
-  policy and reporting; it does not assemble the stages. Exclusion admission
+  publication. Omega consumers supply product policy and reporting directly;
+  they do not assemble the stages or wrap this production entrance. Exclusion admission
   borrows the unoptimized Terminal composition inside that sequence, without
   exporting or cloning its checked-source lowering.
 - Psi `compilation/compile-time/` — evaluation admission and result elaboration.

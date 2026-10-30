@@ -24,6 +24,6 @@ machine main() crashes Trap {
     let a: Choice = dispatch(Selected as dyn Family, 16);
     let b: Choice = dispatch(Other as dyn Family, 32);
     transition valid(a, 16) && valid(b, 32) { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

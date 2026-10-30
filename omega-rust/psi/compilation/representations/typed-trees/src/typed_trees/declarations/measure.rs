@@ -3,7 +3,7 @@ use arena::HandleSpan;
 use symbols::SymbolHandle;
 
 /// A well-founded termination measure declared with the `measure` keyword.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct MeasureDefinition {
     pub symbol: SymbolHandle,
     /// Fully-qualified declaration path, e.g. `Card::PowerOrder`.

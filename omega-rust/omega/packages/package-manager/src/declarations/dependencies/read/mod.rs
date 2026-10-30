@@ -1,4 +1,6 @@
-//! Hermetic projection of literal dependency requests from `build.omg`.
+//! Ordered dependency request records and legacy literal projection adapters.
+//! Executed Build ledgers supply the records directly; static extraction remains
+//! only until production package preparation migrates to that executed route.
 
 mod aliases;
 mod error;
@@ -10,11 +12,10 @@ mod source_literal;
 pub(crate) use aliases::DependencyAliasError;
 pub(crate) use error::DependencyProjectionError;
 pub(crate) use extraction::extract_build_dependency_projection;
-pub(crate) use projection::extract_build_projection_from_source;
 
-use crate::declarations::roles::BuildDeclaration;
 use crate::declarations::{AliasName, PackageName};
 use aliases::validate_alias_uniqueness;
+use build_declarations::BuildDeclaration;
 /// Which authorized context one direct dependency edge serves.
 ///
 /// `depend`/`depend_as` rows authorize product imports. `build_depend`/
@@ -31,12 +32,12 @@ pub(crate) use projection::validate_static_dependency_source;
 /// Selection is request custody, not source or package identity. Omitting the
 /// source field normalizes to the zero case, `Root`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageSelection {
+pub(crate) enum PackageSelection {
     Root,
     Named(PackageName),
 }
 
-/// One source request projected without evaluating `build.omg`.
+/// One source request, retaining its exact locator and explicit alias.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum DependencySourceRequest {
     Path {
@@ -51,8 +52,7 @@ pub(crate) enum DependencySourceRequest {
     },
 }
 
-/// The one ordered set of unconditional direct dependency rows within a
-/// single purpose scope.
+/// The ordered direct dependency requests within one purpose scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ProjectedDependencies {
     authored_dependencies: Vec<DependencySourceRequest>,
@@ -93,6 +93,54 @@ pub(crate) struct DependencyProjections {
 }
 
 impl DependencyProjections {
+    /// Retain exactly the issued dependency ledger, preserving ordinal order
+    /// within each purpose. No source syntax or unselected branch contributes.
+    pub(crate) fn from_executed_requests<'request>(
+        requests: impl IntoIterator<Item = &'request build_declarations::BuildRequest>,
+    ) -> Result<Self, String> {
+        use build_declarations::{BuildDependencySource, BuildRequest};
+        let mut product = Vec::new();
+        let mut build = Vec::new();
+        for request in requests {
+            let BuildRequest::Dependency {
+                purpose,
+                alias,
+                source,
+            } = request
+            else {
+                continue;
+            };
+            let explicit_alias = alias
+                .as_ref()
+                .map(|name| AliasName::parse(name.as_str()))
+                .transpose()?;
+            let request = match source {
+                BuildDependencySource::Path(location) => DependencySourceRequest::Path {
+                    explicit_alias,
+                    location: location.clone(),
+                },
+                BuildDependencySource::Git {
+                    repository,
+                    revision,
+                    package,
+                } => DependencySourceRequest::Git {
+                    explicit_alias,
+                    repository: repository.clone(),
+                    revision: revision.clone(),
+                    selection: match package {
+                        Some(name) => PackageSelection::Named(name.clone().into()),
+                        None => PackageSelection::Root,
+                    },
+                },
+            };
+            match purpose {
+                DependencyPurpose::Product => product.push(request),
+                DependencyPurpose::Build => build.push(request),
+            }
+        }
+        Ok(Self::new(product.into(), build.into()))
+    }
+
     pub fn new(product: ProjectedDependencies, build: ProjectedDependencies) -> Self {
         Self { product, build }
     }
@@ -145,6 +193,39 @@ impl From<ProjectedDependencies> for DependencyProjections {
 }
 
 impl DependencySourceRequest {
+    /// Retain acquisition's exact request in the shared executed vocabulary.
+    pub(crate) fn build_request(
+        &self,
+        purpose: DependencyPurpose,
+    ) -> Result<build_declarations::BuildRequest, String> {
+        use build_declarations::{BuildDependencySource, BuildRequest, ProjectName};
+        let alias = self
+            .explicit_alias()
+            .map(|name| ProjectName::parse(name.as_str()))
+            .transpose()?;
+        let source = match self {
+            Self::Path { location, .. } => BuildDependencySource::Path(location.clone()),
+            Self::Git {
+                repository,
+                revision,
+                selection,
+                ..
+            } => BuildDependencySource::Git {
+                repository: repository.clone(),
+                revision: revision.clone(),
+                package: match selection {
+                    PackageSelection::Root => None,
+                    PackageSelection::Named(name) => Some(ProjectName::parse(name.as_str())?),
+                },
+            },
+        };
+        Ok(BuildRequest::Dependency {
+            purpose,
+            alias,
+            source,
+        })
+    }
+
     pub fn explicit_alias(&self) -> Option<&AliasName> {
         match self {
             Self::Path { explicit_alias, .. } | Self::Git { explicit_alias, .. } => {
@@ -180,14 +261,6 @@ impl BuildDependencyProjection {
             declaration,
             dependencies,
         }
-    }
-
-    pub fn build_dependencies(&self) -> &[DependencySourceRequest] {
-        self.dependencies.requests(DependencyPurpose::Build)
-    }
-
-    pub const fn dependency_projections(&self) -> &DependencyProjections {
-        &self.dependencies
     }
 
     pub fn into_parts(self) -> (BuildDeclaration, DependencyProjections) {

@@ -37,8 +37,7 @@ The [upper AArch64 register probe](arm_probe/main.omg) exercises the same fact a
 
 Validation is recorded in the task's qualification/evidence ledger. The original
 scalar comparison repair is published; the modern nested-machine witness and
-closed saved-subject production are being qualified. Ambient completed-capture
-transport, other flag-producing catalog families, AArch64 countdown parity,
+closed saved-subject production are being qualified. Other flag-producing catalog families, AArch64 countdown parity,
 privileged effect settlement, supplied-environment interpretation, and the
 integration canaries remain requirements of the full parent task. Completed,
 reviewed repairs may be published through the normal PR and merge queue.
@@ -56,11 +55,67 @@ This exercises closed logical subject custody: the copied goal retains its own
 match definition, subject, nominal pattern head, and alias anchor. Declaration,
 label exit, normal helper return, and caller consumption independently resolve
 the same readable observation at their own proof frontier. No match goal or
-label assertion supplies an assumption. Ambient completed captures still need
-their actual value/epoch transport; this closed production does not establish
-that remaining requirement or close the full board item.
+label assertion supplies an assumption. This closed production alone does not establish transport with a separate
+scalar observation or close the full board item.
 
 The other-state production uses a nested ordinary machine with an explicit
 computed argument, preserving the original 37 bound and success/failure oracle.
 The shared nested-declaration prerequisite retains lexical identity before
 flattening; it supplies no enclosing runtime capture.
+
+## Captured seed in a label goal
+
+The `ambient_capture/` production in each standard place keeps the comparison,
+seed 37, output record, four target bodies and original exit-0 oracle. The
+last label requires `output.value == seed` and ensures the same relation through
+`match output { AsmSavedOutput { value } -> value == seed }`. The incoming
+relation justifies that goal; the goal is never a premise. Both the saved
+record subject and the ordinary captured scalar must keep their exact values
+and storage versions when the label is extracted into an ordinary helper.
+
+The optimized fixed baseline `ccc9bf848faf12acabb9762ec570c7572b90cc5d` rejects
+this valid label goal in all four target bodies with `cannot prove asm ensures
+fact at block exit`. The closed literal-37 production is retained as a control;
+its historical Linux x86-64 run reports native exit 0 and interpreter exit 0.
+Fresh qualified observations and exact producer identities remain in the
+implementation evidence; historical observations are not results from a newer
+compiler.
+
+Every positive and its twin differ only in the last label's equality: the twin
+requires the observed value to differ from the captured seed. The written
+control changes the output after the label's entry requirement and must reject
+the stale postcondition. No caller guard establishes either assembly goal.
+
+| Place | Captured-seed production | False-goal twin |
+| --- | --- | --- |
+| local | [program](local/ambient_capture/main.omg) | [reject](local/ambient_capture/invalid/main.omg) |
+| field | [program](field/ambient_capture/main.omg) | [reject](field/ambient_capture/invalid/main.omg) |
+| parameter | [program](parameter/ambient_capture/main.omg) | [reject](parameter/ambient_capture/invalid/main.omg) |
+| call result | [program](call_result/ambient_capture/main.omg) | [reject](call_result/ambient_capture/invalid/main.omg) |
+| match join | [program](match_join/ambient_capture/main.omg) | [reject](match_join/ambient_capture/invalid/main.omg) |
+| const name | [program](const_name/ambient_capture/main.omg) | [reject](const_name/ambient_capture/invalid/main.omg) |
+| nested machine | [program](other_state/ambient_capture/main.omg) | [reject](other_state/ambient_capture/invalid/main.omg) |
+| another machine | [program](other_machine/ambient_capture/main.omg) | [reject](other_machine/ambient_capture/invalid/main.omg) |
+| target body | [program](target_body/ambient_capture/main.omg) | [reject](target_body/ambient_capture/invalid/main.omg) |
+
+The sources are pinned as
+`tests/omega/{pass,fail}/facts/checked_asm_compare_preserves_ambient_capture_through_*`.
+The overlapping-write control is [written](local/ambient_capture/invalid_written/main.omg),
+pinned as `fail/asm/checked_asm_ambient_capture_written_rejected`.
+
+Establishment, identity and composition use the same independently proved label
+requirement, ordinary explicit arguments and match-owned record subject. The
+current-predicate binder observes the readable referent carrier of a whole
+primitive loan while retaining its original place and live storage cut;
+write-only references provide no readable carrier. Both state contracts and
+current observations use that judgment. No capture producer is replayed, no
+permission is widened, and writes still invalidate overlapping observations.
+
+The existing Terminal lowering, provider and calling plans, instruction/frame
+realization, encoding and native emission carry the unchanged program. Linux
+x86-64 dual-engine runs establish execution on that host; the other hosted
+targets are declared and checked, with matching-host execution still unverified.
+This production addresses the captured-scalar goal frontier of
+**CHECKED-ASM-LABEL-CONTRACTS**; the task's remaining catalog families, AArch64
+countdown parity, effect retirement, privileged settlement, supplied-environment
+interpretation and integration canaries remain open.

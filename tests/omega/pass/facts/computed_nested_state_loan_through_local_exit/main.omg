@@ -29,7 +29,7 @@ requires row == 2, column == 1 {
     let selected_row: u64 = row;
     let selected_column: u64 = column;
     transition { _ -> apply(&mut rows[choose_row(cursor, selected_row)].data[choose_column(cursor, selected_column)], replacement(cursor)) }
-    state apply(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { store(value, incoming); }
+    machine apply(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { store(value, incoming); }
 }
 machine main() crashes Trap {
     let mut rows: [Row; 3];
@@ -43,6 +43,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

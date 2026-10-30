@@ -17,11 +17,11 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> run(main, s)
         _ -> bad(main)
     }
-    state run(main: &mut Main, s: u64) {
+    machine run(main: &mut Main, s: u64) {
         let r: u64 = rounded(10, s);
         Console::exit_process(70);
     }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 machine opaque() -> u64 {

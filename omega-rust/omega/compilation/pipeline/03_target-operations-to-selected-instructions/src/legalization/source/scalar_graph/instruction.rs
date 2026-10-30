@@ -13,16 +13,21 @@ mod scalar_instructions;
 mod storage_instructions;
 
 use crate::LegalizationError;
+use crate::legalization::accepted_fact;
 use crate::legalization::scalar_graph_input;
 use semantic_vocabulary::IntegerValue;
-pub(super) fn project(
+pub(super) fn project<'a, 'g>(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
-    native: &TargetOperationPlan,
-    plan: &AbstractOperationPlan,
-    unit: &PsiOptimizationUnit,
+    native: &'a TargetOperationPlan,
+    plan: &'a AbstractOperationPlan,
+    unit: &'a PsiOptimizationUnit,
     targeted: &target_operations::TargetUnitOperation,
-) -> Result<LegalizedScalarInstruction, LegalizationError> {
+    call_descriptor_origins: &mut scalar_graph_input::byte_views::CallDescriptorOrigins<'a, 'g>,
+) -> Result<LegalizedScalarInstruction, LegalizationError>
+where
+    'a: 'g,
+{
     let (operation, result) = scalar_graph_input::instruction(node).ok_or(Error::custody())?;
     // Installed and ordinary calls already share the target producer's call
     // row. Preserve that origin directly instead of manufacturing a replacement
@@ -31,7 +36,7 @@ pub(super) fn project(
         targeted,
         target_operations::TargetUnitOperation::Call { .. }
     ) {
-        call_instructions::project_call(optimized, unit, targeted, native, plan)?
+        call_instructions::project_call(optimized, unit, targeted, call_descriptor_origins)?
     } else if let target_operations::TargetUnitOperation::PlacementLifecycle {
         boundary,
         operands,
@@ -551,7 +556,7 @@ pub(super) fn project(
                 bytes: bytes.clone(),
             },
             AbstractOperation::ByteSequenceSubslice { .. } => {
-                storage_instructions::project_byte_sequence_subslice(node, optimized, unit)?
+                storage_instructions::project_subslice(node, optimized, unit)?
             }
             AbstractOperation::StructuralByteSequenceFieldByteStore { .. } => {
                 storage_instructions::project_structural_byte_sequence_field_byte_store(
@@ -679,7 +684,7 @@ pub(super) fn project(
                 storage_instructions::project_element_view_write(node, optimized, unit)?
             }
             AbstractOperation::ElementViewSubslice { .. } => {
-                storage_instructions::project_element_view_subslice(node, optimized, unit)?
+                storage_instructions::project_subslice(node, optimized, unit)?
             }
             AbstractOperation::EstablishElementView {
                 psi_operation,
@@ -692,20 +697,7 @@ pub(super) fn project(
                 let accepted_fact = match region {
                     terminal_psi::ElementViewRegion::WholeCollection => None,
                     terminal_psi::ElementViewRegion::RepresentationBytes { obligation, .. } => {
-                        Some(
-                            unit.accepted_obligation_facts
-                                .iter()
-                                .find(|fact| {
-                                    fact.machine == optimized.machine
-                                        && fact.owner
-                                            == optimization_unit::PsiProvenance::Operation(
-                                                *psi_operation,
-                                            )
-                                        && fact.obligation == *obligation
-                                })
-                                .ok_or(Error::custody())?
-                                .identity,
-                        )
+                        Some(accepted_fact(unit, optimized, *psi_operation, *obligation)?)
                     }
                 };
                 LegalizedScalarInstructionKind::EstablishElementView {

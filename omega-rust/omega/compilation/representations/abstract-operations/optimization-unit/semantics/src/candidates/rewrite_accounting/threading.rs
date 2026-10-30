@@ -1,4 +1,6 @@
-use crate::candidates::{canonicalize_provenance, provenance_realized_at};
+use crate::candidates::{
+    canonicalize_provenance, provenance_realized_at, realize_node_provenance, realized_at_own_site,
+};
 use optimization_unit::{
     NodeLocation, OwnershipFrontierSite, PsiOptimizationFunction, PsiOptimizationUnit,
     PsiRealizationSite, ValueDefinition,
@@ -6,7 +8,7 @@ use optimization_unit::{
 use semantic_vocabulary::{BlockId, EdgeId};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub(crate) fn reconstruct_linear_thread_bindings(
+pub fn reconstruct_linear_thread_bindings(
     parameters: &[ValueDefinition],
     incoming: &[abstract_operations::ValueBinding],
     outgoing: &[abstract_operations::ValueBinding],
@@ -40,7 +42,14 @@ pub(crate) fn reconstruct_linear_thread_bindings(
     )
 }
 
-pub(crate) fn reconstruct_linear_thread_ownership_is_identity(
+/// The ownership-frontier identity both empty-block threads owe: the six
+/// frontier sites the thread erases or retargets carry one snapshot at the
+/// unit's identity, or -- with no frontier fact published at all -- the
+/// function declares no structural parameters, entry claims or places.
+/// Proposing rules and the replay checkers share it; it decides ownership
+/// only, so it grants neither acceptance nor the provenance accounting a
+/// rewrite still owes.
+pub fn reconstruct_linear_thread_ownership_is_identity(
     unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     incoming: EdgeId,
@@ -152,12 +161,7 @@ pub(crate) fn reconstruct_path_thread_accounting(
                     machine: function.machine,
                     edge: edge.psi_edge,
                 };
-                realized.push(provenance_realized_at(
-                    site,
-                    site,
-                    &edge.provenance,
-                    &edge.fuel,
-                ));
+                realized.push(realized_at_own_site(site, &edge.provenance, &edge.fuel));
                 realized.push(provenance_realized_at(
                     outgoing_site,
                     site,
@@ -201,15 +205,12 @@ fn effect_audit(
                 || node.effect.output != expected_effect.checked_add(1)?;
             if effect_changes && except != Some(location) {
                 affected.insert(block.id);
-                if !node.provenance.is_empty() {
-                    let site = PsiRealizationSite::Node(location);
-                    realized.push(provenance_realized_at(
-                        site,
-                        site,
-                        &node.provenance,
-                        &node.fuel,
-                    ));
-                }
+                realize_node_provenance(
+                    function.machine,
+                    block.id,
+                    std::iter::once((node_index, node)),
+                    realized,
+                )?;
             }
             expected_effect = expected_effect.checked_add(1)?;
         }

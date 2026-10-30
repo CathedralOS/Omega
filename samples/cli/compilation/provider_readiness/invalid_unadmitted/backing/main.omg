@@ -1,0 +1,9 @@
+use omega::language::core::program_image;
+
+boundary trait Unprovided {
+    machine value() -> addr reaches;
+}
+
+public Selected satisfies ProgramImage {
+    machine retained_suffix_start() -> addr { Unprovided::value() }
+}

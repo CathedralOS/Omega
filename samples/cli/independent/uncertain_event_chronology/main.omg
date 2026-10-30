@@ -16,7 +16,7 @@ machine Main::main(main: &mut Main) reaches Console {
         LineReadResult::EndOfInput { count } -> input(main, count)
         _ -> invalid(main)
     }
-    state input(main: &mut Main, count: u64) {
+    machine input(main: &mut Main, count: u64) {
         let mut model: Chronology;
         let valid: bool = parse(&main.bytes, count, &mut model);
         transition valid {
@@ -24,7 +24,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> invalid(main)
         }
     }
-    state solve(main: &mut Main, model: &mut Chronology) {
+    machine solve(main: &mut Main, model: &mut Chronology) {
         let mut result: Reconciliation;
         reconcile(model, &mut result);
         transition result.count > 0 {
@@ -32,19 +32,19 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> witness(main, model, &mut result)
         }
     }
-    state feasible(main: &mut Main, result: &Reconciliation) {
+    machine feasible(main: &mut Main, result: &Reconciliation) {
         Console::write("feasible count=");
         number(main, result.count);
         Console::write_line("");
         transition { _ -> event(main, result, 0) }
     }
-    state event(main: &mut Main, result: &Reconciliation, index: i32 in Wrapping) {
+    machine event(main: &mut Main, result: &Reconciliation, index: i32 in Wrapping) {
         transition index >= 0 && index < 3 {
             true -> report(main, result, index)
             false -> success(main)
         }
     }
-    state report(main: &mut Main, result: &Reconciliation, index: i32 in Wrapping)
+    machine report(main: &mut Main, result: &Reconciliation, index: i32 in Wrapping)
     requires index >= 0
     requires index < 3
     {
@@ -57,7 +57,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("");
         transition { _ -> event(main, result, index + 1) }
     }
-    state witness(main: &mut Main, model: &mut Chronology, result: &mut Reconciliation) {
+    machine witness(main: &mut Main, model: &mut Chronology, result: &mut Reconciliation) {
         contradiction(model, result);
         Console::write("infeasible witness bounds+edges=");
         number(main, model.enabled[0] as i32 in Wrapping);
@@ -67,8 +67,8 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line(" count=0");
         Console::exit_process(0);
     }
-    state success(main: &mut Main) { Console::exit_process(0); }
-    state invalid(main: &mut Main) {
+    machine success(main: &mut Main) { Console::exit_process(0); }
+    machine invalid(main: &mut Main) {
         Console::write_line("invalid input");
         Console::exit_process(2);
     }
@@ -76,13 +76,13 @@ machine Main::main(main: &mut Main) reaches Console {
 
 machine number(main: &mut Main, value: i32 in Wrapping) reaches Console {
     transition { _ -> digit(main, value, 1000, false) }
-    state digit(main: &mut Main, value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
+    machine digit(main: &mut Main, value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
         transition divisor > 0 {
             true -> extract(main, value, divisor, started)
             false -> done()
         }
     }
-    state extract(main: &mut Main, value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool)
+    machine extract(main: &mut Main, value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool)
     requires divisor > 0
     {
         let digit: i32 in Wrapping = value / divisor;
@@ -91,13 +91,13 @@ machine number(main: &mut Main, value: i32 in Wrapping) reaches Console {
             false -> digit(main, value % divisor, divisor / 10, false)
         }
     }
-    state emit(main: &mut Main, value: i32 in Wrapping, divisor: i32 in Wrapping, digit: i32 in Wrapping)
+    machine emit(main: &mut Main, value: i32 in Wrapping, divisor: i32 in Wrapping, digit: i32 in Wrapping)
     requires divisor > 0
     {
         Console::write_byte((digit + 48) as i32);
         transition { _ -> digit(main, value % divisor, divisor / 10, true) }
     }
-    state done() { }
+    machine done() { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

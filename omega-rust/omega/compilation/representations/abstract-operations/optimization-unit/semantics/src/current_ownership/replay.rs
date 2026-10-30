@@ -546,7 +546,8 @@ pub(super) fn validate_current_ownership_cfg(
                 O::CallStructural {
                     callee: abstract_operations::AbstractCallTarget::Machine(callee),
                     ..
-                } => functions[callee]
+                }
+                | O::InvokeNoNormal { callee, .. } => functions[callee]
                     .structural_parameters
                     .iter()
                     .map(|parameter| parameter.multiplicity)
@@ -635,13 +636,26 @@ pub(super) fn validate_current_ownership_cfg(
                 }
             }
 
-            if let O::CallStructural {
-                callee,
-                structural_arguments,
-                claim_transfers,
-                ..
-            } = &node.operation
-            {
+            let no_normal_target;
+            let invocation = match &node.operation {
+                O::CallStructural {
+                    callee,
+                    structural_arguments,
+                    claim_transfers,
+                    ..
+                } => Some((callee, structural_arguments, claim_transfers)),
+                O::InvokeNoNormal {
+                    callee,
+                    structural_arguments,
+                    claim_transfers,
+                    ..
+                } => {
+                    no_normal_target = abstract_operations::AbstractCallTarget::Machine(*callee);
+                    Some((&no_normal_target, structural_arguments, claim_transfers))
+                }
+                _ => None,
+            };
+            if let Some((callee, structural_arguments, claim_transfers)) = invocation {
                 let invalid = || OptimizationUnitValidationError::CurrentCleanupMismatch {
                     machine: function.machine,
                     block: block_id,
@@ -933,6 +947,9 @@ pub(super) fn validate_current_ownership_cfg(
                 O::ReleaseActivationClaim { claim, .. } => vec![*claim],
                 O::TransformContent { .. } => transformed_parents,
                 O::CallStructural {
+                    claim_transfers, ..
+                }
+                | O::InvokeNoNormal {
                     claim_transfers, ..
                 } => claim_transfers
                     .iter()

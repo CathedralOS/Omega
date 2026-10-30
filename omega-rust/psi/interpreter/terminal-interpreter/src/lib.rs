@@ -48,7 +48,10 @@ mod capabilities;
 mod content_transformations;
 mod custody;
 mod effects;
+mod memory_ordering;
+pub use memory_ordering::TerminalMemoryOrderingEnvironment;
 mod element_views;
+mod entry_results;
 mod errors;
 mod execution;
 mod instance;
@@ -59,10 +62,12 @@ mod record;
 mod reference;
 mod result_custody;
 mod results;
+pub use entry_results::TerminalEntryResultRequest;
 mod runtime_indexes;
 mod runtime_rows;
 mod scalar_array;
 mod scalar_operations;
+mod scalar_storage;
 mod storage_addresses;
 mod structural_identities;
 mod structural_inputs;
@@ -81,17 +86,23 @@ pub use capabilities::{
     TerminalExecutionRequirements, TerminalExternalCompletionDemand, TerminalUnsupportedCapability,
 };
 pub use effects::byte_buffers::TerminalBoundaryByteBuffer;
-pub use effects::results::TerminalEffectResult;
+pub use effects::original_storage::{
+    TerminalOriginalReferenceValue, TerminalOriginalScalarBackings, TerminalOriginalScalarValue,
+    TerminalOriginalStorageLoan, TerminalOriginalStorageRequest, TerminalOriginalStorageRoot,
+};
+pub use effects::results::{TerminalByteSequenceValue, TerminalEffectResult};
 pub use effects::scalar_loans::TerminalBoundaryScalarBuffer;
 pub use effects::storage_inputs::{
+    TerminalBoundaryByteViewBuffer, TerminalBoundaryReferenceSelection,
     TerminalBoundaryStorageBuffer, TerminalBoundaryStorageValue, TerminalBoundaryStructuralBuffer,
     TerminalStorageContents,
 };
 pub use effects::{
     AdmittedAssumedBinding, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
-    AssumedBindingSelection, ProviderInstallationSelection, TerminalEffect, TerminalEffectHandler,
-    TerminalEffectRejection, TerminalRuntimeSupplies, TerminalRuntimeSupplyRequest,
-    TerminalX86FlagsEnvironment, admit_target_layouts, admit_target_machine_selections,
+    AssumedBindingSelection, ProviderInstallationSelection, TerminalCallStorageRequirements,
+    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalRuntimeSupplies,
+    TerminalRuntimeSupplyRequest, TerminalX86FlagsEnvironment, admit_target_layouts,
+    admit_target_machine_selections,
 };
 pub use errors::{
     AssumedBindingRejection, ProviderInstallationError, TerminalArtifactInterpretError,
@@ -103,16 +114,20 @@ pub use instance::{
     TerminalEntryStorageValue, TerminalInstance, TerminalInstanceCloseError, TerminalInstanceError,
     TerminalProcessExitAdmission,
 };
-pub use program::{TerminalInstantiation, TerminalProgram, TerminalProgramEntry};
+pub use program::{
+    TerminalInstantiation, TerminalProgram, TerminalProgramEntry, TerminalScalarApplicationRequest,
+};
 pub use provider_storage::{
     TerminalProviderStorageInput, TerminalProviderStorageRejection, TerminalReturnedProviderStorage,
 };
 pub use results::{
-    TerminalCrash, TerminalCrashSite, TerminalExecutionResult, TerminalExecutionStatus,
-    TerminalExternalCompletion, TerminalScalarCaseResult, TerminalStructuralResult,
+    TerminalCrash, TerminalCrashSite, TerminalEffectWait, TerminalExecutionResult,
+    TerminalExecutionStatus, TerminalExternalCompletion, TerminalScalarCaseResult,
+    TerminalStructuralResult,
 };
 pub use scalar_array::{TerminalScalarArrayResult, TerminalScalarArrayValue};
 pub use scalar_operations::float_result_policy;
+pub use scalar_storage::TerminalScalarBacking;
 pub use structural_inputs::byte_arrays::TerminalStructuralByteArrayValue;
 pub use structural_inputs::case_membership::TerminalStructuralCaseValue;
 pub use structural_inputs::placed_views::TerminalPlacedViewEstablishment;

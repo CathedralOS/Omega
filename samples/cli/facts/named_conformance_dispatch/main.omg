@@ -31,6 +31,6 @@ ensures result == left + right
 machine main() blocks; crashes Trap {
     let result: i32 = block apply<Selected>(20, 22);
     transition result == 42 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

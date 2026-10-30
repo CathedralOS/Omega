@@ -69,6 +69,7 @@ impl OperationFrame<'_, '_> {
             &earlier,
             inputs.byte_places,
             inputs.evaluated_selectors,
+            inputs.completed_structural_arguments,
         )?;
         let prepared_claims = crate::emission::claim_bindings::prepare_checked_claim_transfers(
             identities,
@@ -80,10 +81,15 @@ impl OperationFrame<'_, '_> {
         let claim_transfers = crate::emission::claim_bindings::emit_prepared_claim_transfers(
             &prepared_claims,
             self.calls.claims.bindings(),
+            &structural_arguments,
+            &mut self.evaluation.current_claims,
         )?;
         let shape = slot_plan.result.clone();
         let id = self.operations.allocate();
         let (result, mut declaration) = match call.result() {
+            CheckedUnitCallResult::NoNormal => {
+                return unsupported("dynamic invocation has no exact checked no-normal callee");
+            }
             CheckedUnitCallResult::Unit => (OperationResult::Unit, None),
             CheckedUnitCallResult::Scalar(result) => (
                 OperationResult::Scalar(ValueDeclaration {
@@ -131,9 +137,10 @@ impl OperationFrame<'_, '_> {
             });
         }
         if declaration.is_none() {
-            self.record_source_call(call.coordinate, None, id, call.target.machine)?;
+            self.record_source_call(call.coordinate, call.source_site(), id, call.target.machine)?;
         }
         let mut span = super::super::argument_evaluation::BlockEmissionSpan {
+            current_claims: self.evaluation.current_claims.clone(),
             erased_scalar_formals: Vec::new(),
             erased_proof_formals: Vec::new(),
             id: self.evaluation.current,
@@ -164,6 +171,7 @@ impl OperationFrame<'_, '_> {
                 self.operations,
                 |_| Ok(crate::unit::place_id(allocate_dense(self.next_place)?)),
             );
+        self.evaluation.current_claims = span.current_claims;
         self.evaluation.current = span.id;
         self.evaluation.parameters = span.parameters;
         self.evaluation.block_structural_parameters = span.structural_parameters;

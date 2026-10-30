@@ -20,8 +20,8 @@ ensures result >= 40u16 && result <= 64u16
         true -> pass(combined)
         _ -> bad()
     }
-    state pass(c: u16) -> u16 { c }
-    state bad() { crash Trap; }
+    machine pass(c: u16) -> u16 { c }
+    machine bad() -> u16 { crash Trap; }
 }
 
 machine exercise(base: u16) -> u16 crashes Trap {
@@ -35,6 +35,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -13,7 +13,7 @@ use symbol_resolved_trees::{
 };
 use symbols::{SymbolHandle, SymbolKind};
 
-impl<'program> Collector<'program> {
+impl<'program> Collector<'program, '_> {
     pub(super) fn constant(
         &mut self,
         symbol: SymbolHandle,
@@ -178,6 +178,12 @@ impl<'program> Collector<'program> {
             return Err("constant dependency has ambiguous data declaration custody".to_owned());
         }
         self.type_parameters(definition.type_parameters)?;
+        // A type's proof terms belong to declaration readiness, not the
+        // initializer's authored value-call roster. The checked destination
+        // owner retains and judges these clauses under their own declaration.
+        if self.purpose == super::DependencyPurpose::DeclarationReadiness {
+            self.predicate_facts(definition.where_facts)?;
+        }
         if let Some(quotient) = &definition.quotient {
             self.types.push(&quotient.carrier);
         }
@@ -189,6 +195,9 @@ impl<'program> Collector<'program> {
             match member {
                 DataMember::Field(field) => self.types.push(&field.type_reference),
                 DataMember::Variant(variant) => {
+                    if self.purpose == super::DependencyPurpose::DeclarationReadiness {
+                        self.predicate_facts(variant.where_facts)?;
+                    }
                     let fields = self.program.data_payload_fields(variant.payload);
                     if fields.len() != variant.payload.len() {
                         return Err("constant dependency has stale variant fields".to_owned());
@@ -257,6 +266,8 @@ impl<'program> Collector<'program> {
                 TypeParameterKind::Machine {
                     contract: MachineParameterContract::Structural(signature),
                 } => {
+                    self.predicate_facts(signature.where_facts)?;
+                    self.contracts(signature.contracts)?;
                     self.type_parameters(signature.type_parameters)?;
                     self.state_parameters(signature.parameters)?;
                     if let Some(reference) = &signature.return_type {
@@ -303,8 +314,16 @@ impl<'program> Collector<'program> {
             return Ok(());
         }
         for argument in arguments {
-            if self.program.symbols.get(argument.symbol).kind == SymbolKind::Conformance {
-                self.conformance_declaration(argument.symbol)?;
+            let selected = self.program.symbols.get(argument.symbol);
+            match selected.kind {
+                SymbolKind::Conformance => self.conformance_declaration(argument.symbol)?,
+                SymbolKind::Machine => self.machines.push(argument.symbol),
+                SymbolKind::State
+                    if self.program.symbols.get(selected.parent).kind == SymbolKind::Machine =>
+                {
+                    self.machines.push(selected.parent);
+                }
+                _ => {}
             }
             if argument.type_reference.is_valid() {
                 self.type_child(argument.type_reference)?;

@@ -12,7 +12,26 @@ use symbols::SymbolHandle;
 
 use crate::checked_trees::keyed_rows::KeyedRows;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+/// Why this exact region lies outside the selected cleanup complement.
+/// Unestablished is positive receiving evidence, never an inactive tag or an
+/// inference from an unknown claim identity. Mixed provenance stays unknown.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum ContextualCleanupExclusionCause {
+    #[default]
+    Unknown,
+    Consumed,
+    Unestablished,
+    InactiveCase,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct ContextualCleanupExcludedRegion {
+    pub root: facts::PlaceRoot,
+    pub segments: HandleSpan<PlaceSegment>,
+    pub cause: ContextualCleanupExclusionCause,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContextualCleanupFacts {
     pub dispositions: Arena<ContextualCleanupDisposition>,
     /// Receiving extents authenticated with the old occurrence's disposition.
@@ -25,7 +44,7 @@ pub struct ContextualCleanupFacts {
     /// Source-to-instance correspondence produced by machine specialization.
     /// These join selected occurrences; they do not grant hook prerequisites.
     pub applications: Arena<ContextualCleanupApplication>,
-    pub exclusions: Arena<Place>,
+    pub exclusions: Arena<ContextualCleanupExcludedRegion>,
     pub segments: Arena<PlaceSegment>,
     /// Open source windows at exact evaluated invocations. Their storage is
     /// selected with deaths; invocation effects are checked only after the
@@ -128,7 +147,7 @@ impl ContextualCleanupFacts {
 
 /// One successful receiving write, distinct from the claims it establishes.
 /// Its destination path belongs to `ContextualCleanupFacts::segments`.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContextualStorageEstablishment {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -136,7 +155,7 @@ pub struct ContextualStorageEstablishment {
     pub destination: Place,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StorageWindowInvocation {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -148,7 +167,7 @@ pub struct StorageWindowInvocation {
     pub opened_statement: Option<usize>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContextualCleanupDisposition {
     /// Conditional complement of this exact owned value join. The source
     /// occurrence proves its ordinary cleanup; receiving storage is selected
@@ -181,15 +200,13 @@ pub struct ContextualCleanupDisposition {
     /// The selected path uses the flow ownership segment arena. Excluded
     /// subtrees below use this family's segment arena instead.
     pub path: HandleSpan<PlaceSegment>,
-    pub exclusions: HandleSpan<Place>,
-    /// Excluded regions proved transferred on every predecessor where their
-    /// case is active. A possible exclusion alone cannot justify disposing a
-    /// runtime-selected complement. These are exact members of `exclusions`.
-    pub definite_exclusions: HandleSpan<Place>,
+    pub exclusions: HandleSpan<ContextualCleanupExcludedRegion>,
+    /// Exact exclusions transferred on every predecessor where their case exists.
+    pub definite_exclusions: HandleSpan<ContextualCleanupExcludedRegion>,
     /// Alternatives proved inactive at this occurrence. Unlike transferred
     /// subtrees, these do not make an intact nominal owner partially moved.
     /// Paths use the same place/segment arenas as exclusions.
-    pub inactive_cases: HandleSpan<Place>,
+    pub inactive_cases: HandleSpan<ContextualCleanupExcludedRegion>,
     /// The death belongs to a root still under field-wise construction at
     /// this edge, so the ownership producer already ordered this root's
     /// deaths in reverse establishment order. Consumers keep that order; a
@@ -207,7 +224,7 @@ pub struct ContextualCleanupDisposition {
 /// The same lexical death edge in a retained template and one exact instance.
 /// Both handles belong to `ContextualCleanupFacts::dispositions`; refresh them
 /// with that arena rather than carrying scratch handles across flow sweeps.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContextualCleanupApplication {
     pub template: Handle<ContextualCleanupDisposition>,
     pub instance: Handle<ContextualCleanupDisposition>,
@@ -216,12 +233,12 @@ pub struct ContextualCleanupApplication {
 /// Instantiated cleanup prerequisites, distinct from authored `requires`.
 /// The shared checked predicate vocabulary names every observation in its
 /// exact invocation namespace during source flow and Terminal publication.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContextualCleanupEntryRequirements {
     pub rows: Arena<ContextualCleanupEntryRequirement>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContextualCleanupEntryRequirement {
     pub machine: SymbolHandle,
     /// Complete callable clause in the invocation's checked scalar namespace.
@@ -281,6 +298,7 @@ impl ContextualCleanupEntryRequirement {
         let CheckedBooleanExpression::StructuralParameterField {
             parameter_position,
             path,
+            ..
         } = subject
         else {
             return None;

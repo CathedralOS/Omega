@@ -26,11 +26,13 @@ struct RecursiveEntry {
     owner: SymbolHandle,
 }
 
-pub(crate) fn normalize(program: &mut SymbolResolvedTrees) {
+pub(crate) fn normalize(program: &mut SymbolResolvedTrees, work: &[SymbolHandle]) {
     let attached = attached_machines(program);
     for machine_position in 0..program.machines.len() {
         let machine = &program.machines[machine_position];
-        if !unambiguous_canonical_entry(program, &attached, machine) {
+        if !work.contains(&machine.symbol)
+            || !unambiguous_canonical_entry(program, &attached, machine)
+        {
             continue;
         }
         let states = machine.states;
@@ -201,6 +203,7 @@ fn recursive_target(
     Some(TransitionTargetNode::Named {
         operational_acknowledgement: call.operational_acknowledgement,
         path: TableNamePath {
+            receiver_symbol: Default::default(),
             members: statements.insert_name_path_members(std::slice::from_ref(&call.target)),
             head_symbol: identity.machine,
             symbol: identity.machine,

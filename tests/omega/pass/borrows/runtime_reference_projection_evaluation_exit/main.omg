@@ -101,6 +101,6 @@ machine main() crashes Trap {
     transition retained_check() == 17 && wide_output == 3 && supplied_byte == 23 && length == 3 && local_record() == 42 && output == 23 && direct(view) == 31 && indexed(view, 0) == 17 && result == 23 && cursor.calls == 8 && first_held == 17 && second_held == 23 && nested_held == 17 && first_retained == 17 && second_retained == 23 {
         true -> done() _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

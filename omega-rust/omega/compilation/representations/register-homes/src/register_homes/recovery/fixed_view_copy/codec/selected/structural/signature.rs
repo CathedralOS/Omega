@@ -1,7 +1,7 @@
 //! Ordinary structural signature data; no separate executable function payload.
 use crate::FixedViewCopyDecodeError;
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
-    Cursor, decode_id, decode_ids, encode_ids, length,
+    Cursor, decode_id, decode_ids, decode_list, encode_ids, length,
 };
 use crate::register_homes::recovery::fixed_view_copy::codec::selected::structural::declarations::{
     decode_access, decode_entry_claim, decode_multiplicity, decode_parameter, decode_path,
@@ -114,19 +114,13 @@ pub(super) fn encode_signature(
 pub(super) fn decode_signature(
     cursor: &mut Cursor<'_>,
 ) -> Result<LegalizedStructuralContract, FixedViewCopyDecodeError> {
-    let count = cursor.length()?;
-    let mut structural_types = Vec::new();
-    for _ in 0..count {
-        structural_types.push(decode_type(cursor)?);
-    }
-    let count = cursor.length()?;
-    let mut referents = Vec::with_capacity(count);
-    for _ in 0..count {
-        referents.push(terminal_psi::StructuralReferentIdentity {
+    let structural_types = decode_list(cursor, decode_type)?;
+    let referents = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
+        Ok(terminal_psi::StructuralReferentIdentity {
             id: decode_id(cursor, StructuralTypeId::new)?,
             identity: terminal_psi::TerminalIdentityIndex(cursor.u32()?),
-        });
-    }
+        })
+    })?;
     let count = cursor.length()?;
     let quotients = terminal_codec::decode_quotient_catalog(cursor.take(count)?)
         .map_err(|_| FixedViewCopyDecodeError::InvalidQuotientCatalog)?;
@@ -152,11 +146,7 @@ pub(super) fn decode_signature(
             catalog: "placement lifecycles",
             cause,
         })?;
-    let count = cursor.length()?;
-    let mut parameters = Vec::new();
-    for _ in 0..count {
-        parameters.push(decode_parameter(cursor, true)?);
-    }
+    let parameters = decode_list(cursor, |cursor| decode_parameter(cursor, true))?;
     let result = crate::cursor::optional(
         cursor,
         |c| {
@@ -234,16 +224,8 @@ pub(super) fn decode_signature(
         },
         FixedViewCopyDecodeError::UnknownOption,
     )?;
-    let count = cursor.length()?;
-    let mut structural_places = Vec::new();
-    for _ in 0..count {
-        structural_places.push(decode_place(cursor)?);
-    }
-    let count = cursor.length()?;
-    let mut entry_claims = Vec::new();
-    for _ in 0..count {
-        entry_claims.push(decode_entry_claim(cursor)?);
-    }
+    let structural_places = decode_list(cursor, decode_place)?;
+    let entry_claims = decode_list(cursor, decode_entry_claim)?;
     Ok(LegalizedStructuralContract {
         structural_types: abstract_operations::StructuralTypeCatalog::new(
             structural_types,

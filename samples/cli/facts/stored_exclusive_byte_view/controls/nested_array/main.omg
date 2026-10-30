@@ -5,6 +5,6 @@ machine main() crashes Trap {
     let moved: [[&mut [u8]; 1]; 1] = windows;
     let observed: bool = moved[0][0].len == 1 && moved[0][0][0] == 19;
     transition observed { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

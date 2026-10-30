@@ -6,7 +6,7 @@
 use super::super::super::{
     CheckedScalarExpressionRole, LoweringError, OperationKind, PlaceId, ScalarType, unsupported,
 };
-use super::{Emission, ValueContinuation};
+use super::{Emission, ValueContinuation, ValueOutcome};
 use crate::emission::operation_emission::integer::LoweredIntegerComparisonKind;
 
 impl Emission<'_, '_, '_> {
@@ -14,13 +14,15 @@ impl Emission<'_, '_, '_> {
     pub(super) fn dispatch(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        value: checked_trees::CheckedStructuralValueHandle,
         expression: checked_trees::expression::ExpressionHandle,
         subject: checked_trees::CheckedDispatchSubject,
         arms: arena::HandleSpan<checked_trees::CheckedStructuralDispatchArm>,
         continuation: Option<&mut ValueContinuation>,
-    ) -> Result<PlaceId, LoweringError> {
+    ) -> Result<ValueOutcome<PlaceId>, LoweringError> {
         let completed_prefix = self.evaluation.completed_operand_scope.len();
-        let result = self.dispatch_value(identities, expression, subject, arms, continuation);
+        let result =
+            self.dispatch_value(identities, value, expression, subject, arms, continuation);
         self.evaluation
             .completed_operand_scope
             .truncate(completed_prefix);
@@ -30,11 +32,12 @@ impl Emission<'_, '_, '_> {
     fn dispatch_value(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        value: checked_trees::CheckedStructuralValueHandle,
         expression: checked_trees::expression::ExpressionHandle,
         subject: checked_trees::CheckedDispatchSubject,
         arms: arena::HandleSpan<checked_trees::CheckedStructuralDispatchArm>,
         continuation: Option<&mut ValueContinuation>,
-    ) -> Result<PlaceId, LoweringError> {
+    ) -> Result<ValueOutcome<PlaceId>, LoweringError> {
         let arms = self
             .checked
             .facts
@@ -71,6 +74,9 @@ impl Emission<'_, '_, '_> {
                     self.calls,
                     self.operations,
                 )?;
+                if self.operations.invocation_completion.is_some() {
+                    return Ok(ValueOutcome::NoNormal);
+                }
                 self.evaluation
                     .bind_completed_value_alias(value, alias, self.operations)?;
                 // The actual producer above dominates every predicate and
@@ -84,8 +90,11 @@ impl Emission<'_, '_, '_> {
         let continuation = if let Some(continuation) = continuation {
             continuation
         } else {
-            owned_continuation =
-                self.root_value_continuation(self.values[..source_count].to_vec())?;
+            owned_continuation = self.root_value_continuation(
+                identities,
+                value,
+                self.values[..source_count].to_vec(),
+            )?;
             owned_continuation.claim_destinations =
                 crate::emission::claim_bindings::selections::reserve(
                     self.checked,
@@ -99,6 +108,7 @@ impl Emission<'_, '_, '_> {
             &mut owned_continuation
         };
         let route_prefix = self.selection_route.len();
+        let mut normal_arrivals = 0usize;
         for (position, arm) in arms.iter().enumerate() {
             let mut fallback = None;
             if let checked_trees::CheckedScalarDispatchPattern::Predicate(predicate) = arm.pattern {
@@ -152,29 +162,8 @@ impl Emission<'_, '_, '_> {
                 }
             }
             self.values.truncate(source_count);
-            // Constructor births and moved claims belong to this predecessor,
-            // not to the destination names bound at the common continuation.
-            let arm_claims = self
-                .checked
-                .facts
-                .flow
-                .ownership
-                .owned_selection_at(self.state, self.statement)
-                .map(|(_, receipt)| {
-                    crate::emission::claim_bindings::prepare_selection_arm_claims(
-                        identities,
-                        self.checked,
-                        receipt,
-                        arm.source_arm,
-                        self.structural_type,
-                        self.environment.structural_types,
-                    )
-                })
-                .transpose()?;
-            let previous = arm_claims
-                .filter(|claims| !claims.is_empty())
-                .map(|prepared| self.install_establishment_claims(&prepared))
-                .transpose()?;
+            // Births are attached to exact completed constructor nodes by
+            // complete_construction; this route only chooses storage aliases.
             if position + 1 < arms.len() {
                 self.selection_route.push(
                     crate::emission::claim_bindings::selections::SelectedDecision {
@@ -195,16 +184,39 @@ impl Emission<'_, '_, '_> {
                     },
                 );
             }
-            if let Some(enclosing) = previous {
-                self.restore_establishment_claims(enclosing);
+            match emitted? {
+                ValueOutcome::Normal(_) => normal_arrivals += 1,
+                ValueOutcome::NoNormal => {
+                    if fallback.is_some() || normal_arrivals != 0 {
+                        let terminator = self
+                            .operations
+                            .take_invocation_completion(self.next_edge)?
+                            .ok_or(LoweringError::Unsupported(
+                                "nonreturning value arm lost its invocation",
+                            ))?;
+                        self.finish(terminator);
+                    }
+                    // A last nonreturning arm with no normal predecessor leaves
+                    // its invocation for the enclosing evaluator to seal.
+                }
             }
-            emitted?;
-            self.restore_fallback(fallback);
+            self.restore_fallback(fallback)?;
         }
         self.selection_route.truncate(route_prefix);
+        if normal_arrivals == 0 {
+            if is_root {
+                self.environment
+                    .private_places
+                    .retain(|declaration| declaration.id != continuation.place);
+                self.operations
+                    .block_entry_claims
+                    .retain(|claim| claim.input != continuation.place);
+            }
+            return Ok(ValueOutcome::NoNormal);
+        }
         if is_root {
             self.record_root_continuation(continuation)?;
         }
-        Ok(continuation.place)
+        Ok(ValueOutcome::Normal(continuation.place))
     }
 }

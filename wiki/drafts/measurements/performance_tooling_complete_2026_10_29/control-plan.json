@@ -1,0 +1,32 @@
+{
+  "schema": "omega-performance-plan/1",
+  "name": "length local compiler comparison",
+  "working_directory": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega",
+  "inputs": [
+    "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\wrong-sum-control\\main.omg",
+    "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\wrong-sum-control\\build.omg",
+    "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\wrong-sum-control\\omega.lock",
+    "source/library"
+  ],
+  "baseline": {
+    "program": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\omega-plain.exe"
+  },
+  "candidate": {
+    "program": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\omega-plain.exe"
+  },
+  "warmups": 1,
+  "pairs": 6,
+  "timeout_ms": 60000,
+  "measurement": {
+    "kind": "compiler",
+    "source": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\wrong-sum-control\\main.omg",
+    "library_root": "source/library",
+    "target": "windows_x86_64",
+    "expected": {
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "require_identical_artifacts": true
+  }
+}

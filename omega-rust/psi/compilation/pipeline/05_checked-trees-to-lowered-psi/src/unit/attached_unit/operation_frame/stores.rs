@@ -28,10 +28,11 @@
 
 use super::{
     OperationFrame, StructuralTypeRoster, allocate_structural_result, last_operation_id,
-    operation_result_declaration, structural_type_declaration, window_place,
+    structural_type_declaration, window_place,
 };
 use crate::emission::borrowed_window::BorrowedWindowRepairValue;
 use crate::emission::indexed_write::IndexedWriteTarget;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::unit::{
@@ -866,6 +867,9 @@ impl OperationFrame<'_, '_> {
         for step in selected {
             match step {
                 PreparedStructuralPathSegment::Static(step) => written.push(step),
+                PreparedStructuralPathSegment::EvaluatedFixedIndex { index, .. } => {
+                    written.push(terminal_psi::StructuralPathSegment::FixedIndex(index));
+                }
                 PreparedStructuralPathSegment::ViewExtent { .. } => {}
                 PreparedStructuralPathSegment::RuntimeIndex(_)
                 | PreparedStructuralPathSegment::ComputedIndex(_)
@@ -1125,13 +1129,14 @@ impl OperationFrame<'_, '_> {
             &store.destination.path,
         )? {
             let logical = self.receiving_place(captured.original_source, captured.original_path)?;
+            let write = self.proven_store_path(store, &logical.path);
             if !terminal_semantics::store_preserves_domain_content(
                 self.structural_types.declarations().iter(),
                 self.callees.domain_declarations.iter(),
                 &identities.snapshot(),
                 &logical.qualifications,
                 &logical.projected_qualifications,
-                &logical.path,
+                &write,
             ) {
                 return unsupported("captured scalar store changes logical conserved Content");
             }
@@ -1224,7 +1229,7 @@ impl OperationFrame<'_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "scalar store has no field declaration",
             ))?;
-            let mut written = path.clone();
+            let mut written = self.proven_store_path(store, &path);
             written.push(terminal_psi::StructuralPathSegment::Field(field.identity));
             if !terminal_semantics::store_preserves_domain_content(
                 self.structural_types.declarations().iter(),
@@ -1247,6 +1252,38 @@ impl OperationFrame<'_, '_> {
         )?;
         self.push_unit(kind);
         Ok(())
+    }
+
+    /// The checked destination path's proven assignment coordinates are the
+    /// authoritative write geometry: a runtime selector checking proved to one
+    /// coordinate stays disjoint from every other element's conserved Content.
+    /// An unproven selector keeps its conservative overlap exactly as checking
+    /// saw it. Positions mirror the checked destination path one for one.
+    fn proven_store_path(
+        &self,
+        store: &CheckedStorePlan,
+        path: &[terminal_psi::StructuralPathSegment],
+    ) -> Vec<terminal_psi::StructuralPathSegment> {
+        let mut write = path.to_vec();
+        for (position, segment) in write.iter_mut().enumerate() {
+            let (
+                terminal_psi::StructuralPathSegment::RuntimeIndex { .. },
+                Some(checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                    checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
+                )),
+            ) = (&*segment, store.destination.path.get(position))
+            else {
+                continue;
+            };
+            if let Some(coordinate) = self.checked.facts.assignment_index_coordinate(
+                self.state,
+                store.statement_index,
+                *depth,
+            ) {
+                *segment = terminal_psi::StructuralPathSegment::FixedIndex(coordinate);
+            }
+        }
+        write
     }
 
     /// Resolve a complete receiving contract at the retained place. A type
@@ -1510,6 +1547,7 @@ impl OperationFrame<'_, '_> {
         let Some(hole_type) = field.field_type.as_structural() else {
             return unsupported("sum field store names a non-structural field");
         };
+        let first_operand_operation = self.operations.operations.len();
         let (replacement, type_identity) = match &store.value {
             CheckedStoreValue::Place(value) => (
                 self.copied_sum_value(identities, value, hole_type)?,
@@ -1528,6 +1566,12 @@ impl OperationFrame<'_, '_> {
                 return unsupported("sum field store holds no sum value");
             }
         };
+        // The store consumes this operand inside the statement, before the
+        // outer effect publishes its results. Publish only the straight-line
+        // producers this evaluation just completed, including empty rosters.
+        self.evaluation
+            .current_claims
+            .publish_operations(&self.operations.operations[first_operand_operation..])?;
         let hole = window_place(source, &store.destination.path, type_identity);
 
         let displacement = self.windows.captured_displacement_expression(
@@ -1554,7 +1598,7 @@ impl OperationFrame<'_, '_> {
         let move_id =
             last_operation_id(self.operations, "sum field store move emitted no operation")?;
         self.private_places
-            .push(operation_result_declaration(moved, move_id, hole_type));
+            .push(operation_result_place(moved, move_id, hole_type));
         self.emit_window_store(
             identities,
             store.statement_index,
@@ -1611,7 +1655,7 @@ impl OperationFrame<'_, '_> {
             },
         )?;
         self.private_places
-            .push(operation_result_declaration(copied_place, copy, hole_type));
+            .push(operation_result_place(copied_place, copy, hole_type));
         Ok(copied_place)
     }
 
@@ -1771,7 +1815,7 @@ impl OperationFrame<'_, '_> {
                 fields: initialized.into_iter().map(|(_, field)| field).collect(),
             },
         )?;
-        self.private_places.push(operation_result_declaration(
+        self.private_places.push(operation_result_place(
             copied_place,
             establishment,
             hole_type,

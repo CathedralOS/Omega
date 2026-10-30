@@ -5,39 +5,39 @@ machine number(value: i32 in Wrapping) reaches Console {
         true -> negative(value)
         _ -> magnitude(value)
     }
-    state negative(value: i32 in Wrapping) {
+    machine negative(value: i32 in Wrapping) {
         Console::write_byte(45);
         transition { _ -> magnitude(0 - value) }
     }
-    state magnitude(value: i32 in Wrapping) {
+    machine magnitude(value: i32 in Wrapping) {
         transition { _ -> scale(value, 1) }
     }
-    state scale(value: i32 in Wrapping, divisor: i32 in Wrapping) {
+    machine scale(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition divisor > 0 {
             true -> scale_positive(value, divisor)
             _ -> done()
         }
     }
-    state scale_positive(value: i32 in Wrapping, divisor: i32 in Wrapping) {
+    machine scale_positive(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition value / divisor >= 10 && divisor <= 100000000 {
             true -> scale(value, divisor * 10)
             _ -> digit(value, divisor)
         }
     }
-    state digit(value: i32 in Wrapping, divisor: i32 in Wrapping) {
+    machine digit(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition divisor > 0 {
             true -> digit_positive(value, divisor)
             _ -> done()
         }
     }
-    state digit_positive(value: i32 in Wrapping, divisor: i32 in Wrapping) {
+    machine digit_positive(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         Console::write_byte((value / divisor % 10 + 48) as i32);
         transition divisor > 1 {
             true -> digit(value, divisor / 10)
             _ -> done()
         }
     }
-    state done() { }
+    machine done() { }
 }
 
 data Main { }
@@ -47,11 +47,11 @@ machine Main::main(main: &mut Main) reaches Console {
         ByteRead::Byte { value } -> emit(main, value)
         _ -> finish(main)
     }
-    state emit(main: &mut Main, value: i32) {
+    machine emit(main: &mut Main, value: i32) {
         number(value as i32 in Wrapping);
         transition { _ -> finish(main) }
     }
-    state finish(main: &mut Main) { Console::exit_process(0); }
+    machine finish(main: &mut Main) { Console::exit_process(0); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

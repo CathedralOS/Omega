@@ -18,10 +18,10 @@ machine held() -> u64 {
         true -> good()
         false -> bad()
     }
-    state good() {
+    machine good() -> u64 {
         70
     }
-    state bad() {
+    machine bad() -> u64 {
         71
     }
 }

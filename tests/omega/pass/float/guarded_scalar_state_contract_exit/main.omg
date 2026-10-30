@@ -7,13 +7,13 @@ machine bounded_integer(value: f64) -> i64 {
         true -> bounded(value)
         false -> rejected()
     }
-    state bounded(value: f64) -> i64
+    machine bounded(value: f64) -> i64
     requires value == value && value >= -100.0 && value <= 100.0
     {
         let converted: i64 = I64::from_f64(value);
         transition { _ -> (converted) }
     }
-    state rejected() -> i64 { transition { _ -> (0) } }
+    machine rejected() -> i64 { transition { _ -> (0) } }
 }
 
 // A preceding Boolean formal distinguishes authored from dense subject indices;
@@ -23,10 +23,10 @@ machine bounded_single(accepted: bool, value: f32) -> f32 {
         true -> bounded(accepted, value)
         false -> rejected()
     }
-    state bounded(accepted: bool, value: f32) -> f32
+    machine bounded(accepted: bool, value: f32) -> f32
     requires accepted && value != 0.0f32 && value < 10.0f32 && value > -10.0f32
     { transition { _ -> (value) } }
-    state rejected() -> f32 { transition { _ -> (0.0f32) } }
+    machine rejected() -> f32 { transition { _ -> (0.0f32) } }
 }
 
 machine main() crashes Trap {
@@ -45,6 +45,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

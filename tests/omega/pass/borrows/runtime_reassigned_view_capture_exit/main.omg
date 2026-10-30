@@ -17,5 +17,5 @@ machine main() crashes Trap {
         && items[2].value == 31 && items[3].value == 19 {
         true -> done() _ -> bad()
     }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

@@ -10,7 +10,7 @@ machine Main::climb(context: &mut Main, n: i32) reaches Console {
         true -> done(context, n)
         false -> Main::climb(context, n + 1)
     }
-    state done(context: &mut Main, n: i32) { Console::exit_process(n); }
+    machine done(context: &mut Main, n: i32) { Console::exit_process(n); }
 }
 machine Main::main(context: &mut Main) { Main::climb(context, 0); }
 

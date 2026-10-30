@@ -40,6 +40,18 @@ pub(crate) fn storage_path_compatibility(
     place_segments_compatibility(program, left, right, &premises, &mut Some(lookup))
 }
 
+/// The storage-transfer producer freezes a known selector once, before any
+/// custody consumer records exclusions. The proof is the same completed-value
+/// observation used by spatial equality, never a current mutable query.
+pub(crate) fn captured_storage_index(
+    program: &dyn validation::CheckingInput,
+    captures: StorageSelectorFacts<'_>,
+    lookup: &validation::ImmutableBoundLookup<'_>,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<usize> {
+    captured_values::captured_storage_index(program, captures, lookup, expression)
+}
+
 /// Cleanup must separate its selected receiver from moved storage in every
 /// incoming occurrence. Only immutable captured-value relations supplement the
 /// context-free spatial judgment; current mutable selector facts cannot do so.
@@ -94,10 +106,33 @@ pub(super) fn captured_place_compatibility<'p>(
     let (left_place, right_place) = receiver_namespace
         .as_ref()
         .map_or((left, right), |(left, right)| (left, right));
-    let roots_valid = left_place.root.is_valid() && right_place.root.is_valid();
-    let same_root = roots_valid
+    // An output namespace is an identity, never a fresh allocation. Only the
+    // supplied incoming resource can admit its compatibility with another
+    // reference; an unbacked spelling proves neither access nor disjointness.
+    let authenticated = |place: &checked_trees::CapturedPlace| {
+        !matches!(place.root, facts::PlaceRoot::InvocationOutput(_))
+            || place.incoming_reference.is_valid()
+    };
+    let roots_valid = left_place.root.is_valid()
+        && right_place.root.is_valid()
+        && authenticated(left_place)
+        && authenticated(right_place);
+    let same_family = roots_valid
         && left_place.root == right_place.root
         && left_place.incoming_reference == right_place.incoming_reference;
+    let (owners_overlap, owner_containment) = if same_family {
+        place_segments_compatibility(
+            program,
+            &left_place.incoming_owner_path,
+            &right_place.incoming_owner_path,
+            premises,
+            bound_lookup,
+        )
+    } else {
+        (false, checked_trees::CapturedPlaceContainment::None)
+    };
+    let same_root =
+        same_family && owner_containment == checked_trees::CapturedPlaceContainment::Same;
     let (segments_may_overlap, containment) = if same_root {
         place_segments_compatibility(
             program,
@@ -107,16 +142,19 @@ pub(super) fn captured_place_compatibility<'p>(
             bound_lookup,
         )
     } else {
-        (false, checked_trees::CapturedPlaceContainment::None)
+        (
+            same_family && owners_overlap,
+            checked_trees::CapturedPlaceContainment::None,
+        )
     };
-    // Different incoming permissions need not denote different bytes: shared
-    // input descriptors may alias. The invocation admitted their permissions
-    // together; keep that compatibility separate from a spatial conclusion.
+    // Distinct selected ingress leaves are independent admitted permissions,
+    // never a claim that their physical referents occupy different bytes.
+    // Unknown selector relations cannot split one family into permissions.
     let independent_input_permissions = roots_valid
-        && !same_root
-        && (left_place.incoming_reference.is_valid() || right_place.incoming_reference.is_valid());
+        && (left_place.incoming_reference.is_valid() || right_place.incoming_reference.is_valid())
+        && (!same_family || !owners_overlap);
     let disjoint =
-        roots_valid && !independent_input_permissions && (!same_root || !segments_may_overlap);
+        roots_valid && !independent_input_permissions && (!same_family || !segments_may_overlap);
     let shares_dependent_fact = same_root
         && place_segments_share_dependent_fact(
             program,
@@ -182,6 +220,7 @@ fn attached_field_place_under_receiver(
     segments.extend_from_slice(&field_place.segments);
     Some(checked_trees::CapturedPlace {
         incoming_reference: Default::default(),
+        incoming_owner_path: Default::default(),
         root: receiver.root,
         segments,
     })
@@ -199,6 +238,7 @@ pub(super) fn canonical_place_for_loan(
             if facts::PlaceRoot::Symbol(symbol) == loan.root {
                 Some(checked_trees::CapturedPlace {
                     incoming_reference: Default::default(),
+                    incoming_owner_path: Default::default(),
                     root: place.root,
                     segments: place.segments.clone(),
                 })
@@ -212,6 +252,7 @@ pub(super) fn canonical_place_for_loan(
                     )) if facts::PlaceRoot::Symbol(*field_symbol) == loan.root => {
                         Some(checked_trees::CapturedPlace {
                             incoming_reference: Default::default(),
+                            incoming_owner_path: Default::default(),
                             root: loan.root,
                             segments: remaining.to_vec(),
                         })
@@ -227,12 +268,14 @@ pub(super) fn canonical_place_for_loan(
                     )) if facts::PlaceRoot::Symbol(*field_symbol) == loan.root => {
                         Some(checked_trees::CapturedPlace {
                             incoming_reference: Default::default(),
+                            incoming_owner_path: Default::default(),
                             root: loan.root,
                             segments: remaining.to_vec(),
                         })
                     }
                     _ => Some(checked_trees::CapturedPlace {
                         incoming_reference: Default::default(),
+                        incoming_owner_path: Default::default(),
                         root: place.root,
                         segments: place.segments.clone(),
                     }),
@@ -241,12 +284,14 @@ pub(super) fn canonical_place_for_loan(
         }
         facts::PlaceRoot::Expression(_) => Some(checked_trees::CapturedPlace {
             incoming_reference: Default::default(),
+            incoming_owner_path: Default::default(),
             root: place.root,
             segments: place.segments.clone(),
         }),
         facts::PlaceRoot::Unknown
         | facts::PlaceRoot::TypeReference(_)
-        | facts::PlaceRoot::InvocationReferent { .. } => None,
+        | facts::PlaceRoot::InvocationReferent { .. }
+        | facts::PlaceRoot::InvocationOutput(_) => None,
     }
 }
 
@@ -282,6 +327,10 @@ fn captured_loan_place(
 ) -> checked_trees::CapturedPlace {
     checked_trees::CapturedPlace {
         incoming_reference: loan.incoming_reference,
+        incoming_owner_path: borrow
+            .access_segments
+            .span_or_empty(loan.incoming_owner_path)
+            .to_vec(),
         root: loan.root,
         segments: borrow.loan_segments(loan).to_vec(),
     }

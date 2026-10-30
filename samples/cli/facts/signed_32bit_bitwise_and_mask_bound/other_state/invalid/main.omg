@@ -9,7 +9,7 @@ requires raw == 116i32
     transition {
         _ -> step(res)
     }
-    state step(masked: i32) -> i32
+    machine step(masked: i32) -> i32
     requires masked >= 40i32 && masked <= 63i32
     {
         let headroom: i32 = 63i32 - masked;
@@ -27,6 +27,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -36,6 +36,9 @@ pub fn validate_machine_effect_catalog(
         return Err(MachineEffectCatalogValidationError::RegisterConstraintRootMismatch);
     }
     let selected = catalog.selected_keys.in_identity_order();
+    if catalog.selected_keys.invoke_no_normal != catalog.selected_keys.ordinary_call_constraints() {
+        return Err(MachineEffectCatalogValidationError::DeclarationRosterMismatch);
+    }
     if selected.iter().copied().collect::<BTreeSet<_>>().len() != selected.len() {
         return Err(MachineEffectCatalogValidationError::DuplicateSelectedConstraintKey);
     }
@@ -72,22 +75,7 @@ pub fn validate_machine_effect_catalog(
     Ok(ValidatedMachineEffectCatalog { catalog, identity })
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct MachineEffectCatalogIdentity([u8; 32]);
-
-impl MachineEffectCatalogIdentity {
-    pub(crate) fn from_canonical_bytes(bytes: &[u8]) -> Self {
-        Self(crate::digest_encoder::content_identity(&bytes).into())
-    }
-
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+crate::identity::sha256_identity!(MachineEffectCatalogIdentity);
 
 /// The `MachineSemanticKind` catalog: a single roster drives the enum and the
 /// fixed-entry table so a variant cannot be declared in only one place.
@@ -242,10 +230,12 @@ machine_semantic_kinds! {
     { fixed ModelSpecificWrite },
     { fixed ProcessorHalt },
     { fixed InterruptControl },
+    { fixed MemoryFence },
     { fixed ControlRegisterRead },
     { fixed ControlRegisterWrite },
 
     { fixed AtomicFence },
+    { fixed InvokeNoNormal },
     {
         /// One `Trapping` primitive at one carrier: the exact result, or an
         /// in-function architectural trap when the policy predicate holds.
@@ -332,6 +322,7 @@ pub enum MachineAlternativeFamily {
     ModelSpecificWrite,
     ProcessorHalt,
     InterruptControl,
+    MemoryFence,
 
     AtomicFence,
     AtomicAccess(AtomicForm),
@@ -427,11 +418,13 @@ pub enum MachineAlternativeFamily {
     TrappingInteger(TrappingForm),
     NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm),
     FloatResultPolicy(FloatResultPolicyForm),
+    InvokeNoNormal,
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
     fn from(value: MachineSemanticKind) -> Self {
         match value {
+            MachineSemanticKind::InvokeNoNormal => Self::InvokeNoNormal,
             MachineSemanticKind::SystemRegisterRead => Self::SystemRegisterRead,
             MachineSemanticKind::SystemRegisterWrite => Self::SystemRegisterWrite,
             MachineSemanticKind::ControlRegisterRead => Self::ControlRegisterRead,
@@ -442,6 +435,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::ModelSpecificWrite => Self::ModelSpecificWrite,
             MachineSemanticKind::ProcessorHalt => Self::ProcessorHalt,
             MachineSemanticKind::InterruptControl => Self::InterruptControl,
+            MachineSemanticKind::MemoryFence => Self::MemoryFence,
 
             MachineSemanticKind::CopyBytes => Self::CopyBytes,
             MachineSemanticKind::BitwiseAndI64 => Self::BitwiseAndI64,
@@ -601,6 +595,8 @@ pub enum MachineAlternativeApplicability {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineMemoryEffect {
+    /// Exact ordering event selected by the catalog operation, without a location.
+    CatalogFenceV1,
     /// Orders coherent memory without accessing a location.
     AtomicFenceV1,
     /// Private aligned storage used and released within the form.
@@ -661,6 +657,12 @@ pub enum MachineCallEffect {
     /// Returning local invocation; the encoded control retains direct versus
     /// indirect selection without changing its data calling convention.
     InternalNormalReturnV1 {
+        pre_call_stack_alignment: u16,
+    },
+    /// The physical call enters the ordinary declared ABI, retaining its
+    /// caller activation and return-address footprint. There is no semantic
+    /// result, caller resumption or normal frame-release credit.
+    InternalNoNormalV1 {
         pre_call_stack_alignment: u16,
     },
     /// Call to an admitted foreign boundary that returns normally. Its encoded
@@ -727,6 +729,13 @@ pub struct MachineEncodedEffects {
 }
 
 impl MachineEncodedEffects {
+    pub fn catalog_fence_v1() -> Self {
+        Self {
+            memory: MachineEncodedMemoryEffect::CatalogFenceV1,
+            ..Self::fallthrough_v1(Vec::new(), Vec::new())
+        }
+    }
+
     pub fn atomic_fence_v1() -> Self {
         Self {
             memory: MachineEncodedMemoryEffect::AtomicFenceV1,
@@ -748,6 +757,23 @@ impl MachineEncodedEffects {
             stack: MachineEncodedStackEffect::UnchangedV1,
             trap: MachineEncodedTrapBehavior::NeverV1,
             control: MachineEncodedControlEffect::FallThroughV1,
+        }
+    }
+
+    /// A supervisor entry's effect row: the matched kernel-call constraint
+    /// supplies every operand and implicit-unit custody, entry may fault
+    /// architecturally, and control transfers to the kernel.
+    pub fn supervisor_call_v1(row: &register_model::RegisterInstructionConstraint) -> Self {
+        Self {
+            external_operand_reads: row.operand_reads(),
+            external_operand_writes: row.operand_writes(),
+            implicit_unit_uses: row.implicit_uses.clone(),
+            implicit_unit_defs: row.implicit_defs.clone(),
+            implicit_unit_clobbers: row.clobbers.clone(),
+            memory: MachineEncodedMemoryEffect::NoneV1,
+            stack: MachineEncodedStackEffect::UnchangedV1,
+            trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+            control: MachineEncodedControlEffect::SupervisorCallV1,
         }
     }
 
@@ -785,6 +811,8 @@ impl MachineEncodedEffects {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedMemoryEffect {
+    /// Catalog ordering event; the selected kind and byte decoder fix its exact mask.
+    CatalogFenceV1,
     /// Load one pointer from a named, layout-derived table field. The call's
     /// return-address write remains described by its stack lifecycle.
     ReadTableFieldV1 {
@@ -981,6 +1009,108 @@ pub struct MachineEffectDeclaration {
     pub alternatives: Vec<MachineAlternative>,
 }
 
+impl MachineEffectDeclaration {
+    /// A call over the selected constraint row: the ISA's encoded row states
+    /// the operand custody and the activation-stack work, this declaration
+    /// adds the call barrier and one always-applicable alternative naming the
+    /// semantic at the encoder's exact byte count. `foreign_supervisor_bytes`
+    /// is `Some` when the callee is an import: a kernel import rewrites the
+    /// memory, stack and control contract to the supervisor form at that fixed
+    /// width, and every other import is an external normal-return call. The
+    /// pre-call stack alignment is the calling convention's, so the ISA states
+    /// it.
+    pub fn call(
+        semantic: MachineSemanticKind,
+        constraint: RegisterConstraintKey,
+        pre_call_stack_alignment: u16,
+        byte_count: u16,
+        foreign_supervisor_bytes: Option<u16>,
+        encoded: MachineEncodedEffects,
+    ) -> Self {
+        let mut declaration = Self {
+            semantic,
+            constraint,
+            memory: MachineMemoryEffect::NoneV1,
+            trap: MachineTrapBehavior::NeverV1,
+            barrier: MachineBarrier::Call,
+            call: if semantic == MachineSemanticKind::InvokeNoNormal {
+                MachineCallEffect::InternalNoNormalV1 {
+                    pre_call_stack_alignment,
+                }
+            } else {
+                MachineCallEffect::InternalNormalReturnV1 {
+                    pre_call_stack_alignment,
+                }
+            },
+            cleanup: MachineCleanupEffect::NoneV1,
+            alternatives: vec![MachineAlternative {
+                key: MachineAlternativeKey {
+                    family: semantic.into(),
+                    variant: 0,
+                },
+                applicability: MachineAlternativeApplicability::Always,
+                size: MachineSizeKnowledge::ExactBytes(byte_count),
+                latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+                encoded,
+            }],
+        };
+        match foreign_supervisor_bytes {
+            Some(supervisor_byte_count)
+                if constraint.family == register_model::RegisterConstraintFamily::SystemCall =>
+            {
+                declaration.call = MachineCallEffect::SupervisorNormalReturnV1;
+                for alternative in &mut declaration.alternatives {
+                    alternative.size = MachineSizeKnowledge::ExactBytes(supervisor_byte_count);
+                    alternative.encoded.memory = MachineEncodedMemoryEffect::NoneV1;
+                    alternative.encoded.stack = MachineEncodedStackEffect::UnchangedV1;
+                    alternative.encoded.control = MachineEncodedControlEffect::SupervisorCallV1;
+                }
+            }
+            Some(_) => {
+                declaration.call = MachineCallEffect::ExternalNormalReturnV1 {
+                    pre_call_stack_alignment,
+                };
+            }
+            None => {}
+        }
+        declaration
+    }
+
+    /// One always-applicable alternative over the selected constraint row: the
+    /// form states the semantic, the columns the semantic owns, its alternative
+    /// family, and the size and encoded effects its encoder produces. The call
+    /// and cleanup columns stay at their no-effect identity and latency at the
+    /// stable baseline; a form that declares an actual call or cleanup surface
+    /// states that row itself.
+    pub fn single(
+        semantic: MachineSemanticKind,
+        constraint: RegisterConstraintKey,
+        memory: MachineMemoryEffect,
+        trap: MachineTrapBehavior,
+        barrier: MachineBarrier,
+        family: MachineAlternativeFamily,
+        size: MachineSizeKnowledge,
+        encoded: MachineEncodedEffects,
+    ) -> Self {
+        Self {
+            semantic,
+            constraint,
+            memory,
+            trap,
+            barrier,
+            call: MachineCallEffect::NoneV1,
+            cleanup: MachineCleanupEffect::NoneV1,
+            alternatives: vec![MachineAlternative {
+                key: MachineAlternativeKey { family, variant: 0 },
+                applicability: MachineAlternativeApplicability::Always,
+                size,
+                latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+                encoded,
+            }],
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineEffectCatalog {
     pub target: NativeTarget,
@@ -1131,4 +1261,53 @@ pub fn validate_isa_machine_effect_catalog<E>(
         return Err(IsaCatalogValidation::SemanticMismatch);
     }
     Ok(validated)
+}
+
+/// State an ISA machine-effect catalog's admission plumbing once: the
+/// crate-local validation error and its four-arm fail-closed correspondence to
+/// the shared [`validate_isa_machine_effect_catalog`] outcomes, its `Display`,
+/// and the `validate` entry point. An ISA names its error type, entry point,
+/// architecture, label, and catalog builder; every arm of the correspondence is
+/// stated here, so a new validation outcome is added in one place.
+#[macro_export]
+macro_rules! isa_machine_effect_catalog_plumbing {
+    ($error:ident, $validate:ident, $architecture:expr, $label:literal, $build:path) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub enum $error {
+            TargetArchitectureMismatch,
+            UnsupportedTargetAbi,
+            Structural($crate::MachineEffectCatalogValidationError),
+            TargetSemanticMismatch,
+        }
+
+        impl std::fmt::Display for $error {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(formatter, "invalid {} machine effects: {:?}", $label, self)
+            }
+        }
+
+        impl std::error::Error for $error {}
+
+        pub fn $validate(
+            target: ::target::NativeTarget,
+            constraints: &::register_model::ValidatedRegisterConstraintCatalog,
+            catalog: $crate::MachineEffectCatalog,
+        ) -> Result<$crate::ValidatedMachineEffectCatalog, $error> {
+            $crate::validate_isa_machine_effect_catalog(
+                $architecture,
+                target,
+                constraints,
+                catalog,
+                $build,
+            )
+            .map_err(|failure| match failure {
+                $crate::IsaCatalogValidation::ArchitectureMismatch => {
+                    $error::TargetArchitectureMismatch
+                }
+                $crate::IsaCatalogValidation::Structural(error) => $error::Structural(error),
+                $crate::IsaCatalogValidation::SemanticMismatch => $error::TargetSemanticMismatch,
+                $crate::IsaCatalogValidation::Builder(error) => error,
+            })
+        }
+    };
 }

@@ -11,6 +11,6 @@ machine main() crashes Trap {
     let input: Outer<16> = Outer { inner: Inner { bytes: [11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23] } };
     let output: Outer<16> = Family::row<16>(Selected as dyn Family, input);
     transition output.inner.bytes[0] == 11 && output.inner.bytes[15] == 23 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

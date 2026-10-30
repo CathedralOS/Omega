@@ -1,0 +1,13 @@
+// Attachment does not change a nested machine's invocation contract.
+// Expected exit: 0.
+data Program {}
+machine Program::run() -> u64 {
+    transition { _ -> answer() }
+    machine answer() -> u64 { 42 }
+}
+machine main() crashes Trap {
+    let value: u64 = Program::run();
+    transition value == 42 { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

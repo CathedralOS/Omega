@@ -17,34 +17,18 @@ pub(crate) fn check_product_source(
     selections: &mut psi_compiler::ProductSelections,
 ) -> Result<CheckedProductSource, Vec<Diagnostic>> {
     let PreparedProductSource {
+        source_completion_accounting,
         typed,
-        pending_pre_checks,
         computed_build_config,
         admission,
         build_sources,
         mut timings,
         retained_build_check,
     } = source;
-    // A deferred application still needs selected runtime meaning. The shared
-    // judgment checks its symbolic recipe; each target closure resumes this
-    // continuation under its own selected rows after settlement.
-    let constant_recipe_continuations = pending_pre_checks;
-    let constant_recipe_source =
-        (!constant_recipe_continuations.is_empty()).then(|| Arc::new(typed.clone()));
+    source_completion_accounting
+        .validate_charges()
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let build = &computed_build_config.config;
-    let representations = representation_planning::rederive_opaque_representation_selections(
-        &typed,
-        computed_build_config.selected_build_machine_symbol,
-        &build.opaque_representation_selections,
-    )?;
-    let opaque_properties = representations
-        .iter()
-        .filter(|selection| {
-            selection.copy_disposition()
-                == representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy
-        })
-        .map(|selection| validation::OpaqueDataPropertyReceipt::copy(selection.opaque()))
-        .collect::<Vec<_>>();
     let symbol_sources = typed.symbols.source_map();
     let source_admission = psi_compiler::SourceAdmission {
         completion: match package_inputs.and_then(|inputs| {
@@ -65,8 +49,12 @@ pub(crate) fn check_product_source(
             }
             None => validation::source_completion::SourceCompletionAdmission::None,
         },
-        opaque_properties: &opaque_properties,
-        opaque_representations: &representations,
+        representations: psi_compiler::ProductRepresentationInput {
+            activation: computed_build_config.selected_build_machine_symbol,
+            declared: &computed_build_config.declared_product_selections,
+            executed: &computed_build_config.product_selection_requests,
+            retained: &build.opaque_representation_selections,
+        },
         asm_authority: Some(
             validation::AsmAuthorityAdmission::from_freestanding(build.settings.freestanding)
                 .with_grants(
@@ -115,11 +103,28 @@ pub(crate) fn check_product_source(
         retained,
         selection: product_selection,
     } = selections.select(outcome, roots)?;
+    // One default inventory feeds initial settlement, Terminal demand roots
+    // and every target proposal. Package handoffs have the same default tier
+    // on all three routes; only the root Build supplies overrides.
+    let mut provider_defaults = provider_defaults.to_vec();
+    for selection in &build.package_provider_selections {
+        provider_defaults.push(
+            build_time_evaluation::provider_declarations::TargetProviderDefaults {
+                target: selection
+                    .target
+                    .map(|target| target.canonical_name().to_owned()),
+                machines: Vec::new(),
+                selections: vec![selection.clone()],
+            },
+        );
+    }
     let sources = Arc::new(build_sources.seal(&program, package_inputs)?);
     let accepted_template_classifications =
         trust_model::AcceptedTemplateClassifications::capture(&program);
     Ok(CheckedProductSource {
+        source_completion_accounting,
         program,
+        external_declarations: Arc::default(),
         provider_defaults: provider_defaults.into(),
         computed_build_config,
         admission,
@@ -132,7 +137,5 @@ pub(crate) fn check_product_source(
             ..Default::default()
         },
         product_selection,
-        constant_recipe_continuations,
-        constant_recipe_source,
     })
 }

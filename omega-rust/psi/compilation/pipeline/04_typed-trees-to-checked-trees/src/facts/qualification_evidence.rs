@@ -6,7 +6,7 @@
 //! result subjects remain in the ordinary contract facts and are not erased.
 
 use checked_trees::ContractProofFact;
-use facts::{FactPayload, QualificationEvidence};
+use facts::{BoundaryQualificationIssuerRecord, FactPayload, FactPlan, QualificationEvidence};
 use language_semantics::{
     DomainEstablishmentRoute, MachineSupplyMode, QualificationEvidenceOrigin,
 };
@@ -21,8 +21,93 @@ pub(crate) fn domain_definition(
     program.domain_definition(domain_symbol)
 }
 
+/// Project authorized contract issuers once, before flow forks the fact plan.
+/// The shared baseline gives repeated calls and independent workers the same
+/// evidence identity. Unused declarations are inventory, not grant obligations:
+/// consumers follow issuer handles from actual admitted facts only.
+pub(crate) fn prepare_issuers(
+    program: &dyn ::validation::CheckingInput,
+    proof: &checked_trees::ProofFacts,
+    facts: &mut FactPlan,
+) -> Result<(), diagnostics::Diagnostic> {
+    for (_, contract) in proof.contract_facts.iter() {
+        let Some(authorization) = contract.qualification_authorization else {
+            continue;
+        };
+        if issuer_handle(facts, authorization).is_valid() {
+            continue;
+        }
+        let owner = program
+            .trait_definition_by_symbol(authorization.requirement_symbol)
+            .filter(|owner| owner.is_boundary)
+            .ok_or_else(|| {
+                diagnostics::Diagnostic::error(format!(
+                    "qualification issuer {:?} has no exact boundary declaration",
+                    authorization.requirement_symbol,
+                ))
+            })?;
+        let requirement = program
+            .trait_machine_signature_by_symbol(owner, authorization.signature_symbol)
+            .ok_or_else(|| {
+                diagnostics::Diagnostic::error(format!(
+                    "qualification issuer {:?} does not own exact requirement {:?}",
+                    authorization.requirement_symbol, authorization.signature_symbol,
+                ))
+            })?;
+        let is_product_owner = program
+            .symbols
+            .symbol_provenance_source_span(owner.symbol)
+            .and_then(|span| program.symbols.source_file(span))
+            .is_none_or(|file| file.dependency_scope == source::DependencyScope::Product);
+        facts
+            .qualification_issuers
+            .append(BoundaryQualificationIssuerRecord {
+                source_symbol: authorization.requirement_symbol,
+                requirement_symbol: authorization.signature_symbol,
+                issuer: language_semantics::BoundaryQualificationIssuer {
+                    requirement_identity: program
+                        .trait_requirement_callable_identity_text(owner, requirement),
+                    boundary_path: program.trait_declaration_path(owner),
+                    boundary_package: program.symbols.symbol_package_identity(owner.symbol),
+                    is_product_owner,
+                },
+            });
+    }
+    Ok(())
+}
+
+fn issuer_handle(
+    facts: &FactPlan,
+    authorization: checked_trees::BoundaryQualificationAuthorization,
+) -> arena::Handle<BoundaryQualificationIssuerRecord> {
+    facts
+        .qualification_issuers
+        .iter()
+        .find_map(|(handle, record)| {
+            (record.source_symbol == authorization.requirement_symbol
+                && record.requirement_symbol == authorization.signature_symbol)
+                .then_some(handle)
+        })
+        .unwrap_or_default()
+}
+
+fn admitted_evidence(
+    facts: &FactPlan,
+    authorization: checked_trees::BoundaryQualificationAuthorization,
+) -> Option<QualificationEvidence> {
+    let issuer = issuer_handle(facts, authorization);
+    issuer.is_valid().then(|| {
+        QualificationEvidence::from_admitted_requirement(
+            authorization.requirement_symbol,
+            authorization.signature_symbol,
+            issuer,
+        )
+    })
+}
+
 pub(crate) fn call_contract_evidence(
     program: &dyn ::validation::CheckingInput,
+    facts: &FactPlan,
     target_symbol: SymbolHandle,
     target_state_symbol: SymbolHandle,
     contract: &ContractProofFact,
@@ -35,6 +120,7 @@ pub(crate) fn call_contract_evidence(
     if matches!(payload, FactPayload::ContractCarryPermission { .. }) {
         return call_carry_permission_evidence(
             program,
+            facts,
             target_symbol,
             target_state_symbol,
             contract,
@@ -47,55 +133,32 @@ pub(crate) fn call_contract_evidence(
         return Some(QualificationEvidence::default());
     };
 
-    if let Some(machine) = program.machine_by_symbol(target_symbol) {
-        let checked_body = machine.body_is_present
-            && matches!(
-                machine.supply_mode,
-                MachineSupplyMode::CheckedBody | MachineSupplyMode::Boundary
-            );
-        if checked_body {
-            // A checked adapter inherits the boundary requirement so its body
-            // can be validated against that requirement, but a direct call to
-            // the adapter is not the admitted crossing. Only a call whose
-            // target is the boundary trait/signature may consume the attached
-            // authorization and originate its qualified result.
-            if contract.qualification_authorization.is_some() {
-                return None;
-            }
+    match ::validation::call_qualification_source(
+        program,
+        target_symbol,
+        contract.qualification_authorization,
+    )? {
+        ::validation::CallQualificationSource::CheckedBody(machine) => {
             let origin =
                 if machine_domain_establishment_route(program, machine, domain_symbol).is_some() {
                     QualificationEvidenceOrigin::AuthorizedRouteEstablishment
-                } else if domain.predicate_body.is_present() {
+                } else if domain.predicate_presence.is_present() {
                     QualificationEvidenceOrigin::Prover
                 } else {
                     QualificationEvidenceOrigin::CheckedTransformation
                 };
-            return Some(QualificationEvidence::from_origin(origin, target_symbol));
+            Some(QualificationEvidence::from_origin(origin, target_symbol))
         }
-
-        return contract.qualification_authorization.map(|authorization| {
-            QualificationEvidence::from_admitted_requirement(
-                authorization.requirement_symbol,
-                authorization.signature_symbol,
-            )
-        });
+        ::validation::CallQualificationSource::AdmittedRequirement(authorization) => {
+            admitted_evidence(facts, authorization)
+        }
+        ::validation::CallQualificationSource::Propagated => {
+            Some(QualificationEvidence::from_origin(
+                QualificationEvidenceOrigin::Propagated,
+                target_symbol,
+            ))
+        }
     }
-
-    if let Some(trait_definition) = program.trait_definition_by_symbol(target_symbol)
-        && trait_definition.is_boundary
-    {
-        return contract.qualification_authorization.map(|authorization| {
-            QualificationEvidence::from_admitted_requirement(
-                authorization.requirement_symbol,
-                authorization.signature_symbol,
-            )
-        });
-    }
-
-    Some(QualificationEvidence::from_origin(
-        QualificationEvidenceOrigin::Propagated,
-        target_symbol,
-    ))
 }
 
 pub(crate) fn machine_has_checked_domain_establishment(
@@ -166,50 +229,32 @@ pub(crate) fn machine_domain_establishment_route(
 
 fn call_carry_permission_evidence(
     program: &dyn ::validation::CheckingInput,
+    facts: &FactPlan,
     target_symbol: SymbolHandle,
     _target_state_symbol: SymbolHandle,
     contract: &ContractProofFact,
 ) -> Option<QualificationEvidence> {
-    if let Some(machine) = program.machine_by_symbol(target_symbol) {
-        let checked_body = machine.body_is_present
-            && matches!(
-                machine.supply_mode,
-                MachineSupplyMode::CheckedBody | MachineSupplyMode::Boundary
-            );
-        if checked_body {
-            if contract.qualification_authorization.is_some() {
-                return None;
-            }
-            return Some(QualificationEvidence::from_origin(
+    match ::validation::call_qualification_source(
+        program,
+        target_symbol,
+        contract.qualification_authorization,
+    )? {
+        ::validation::CallQualificationSource::CheckedBody(_) => {
+            Some(QualificationEvidence::from_origin(
                 QualificationEvidenceOrigin::CheckedTransformation,
                 target_symbol,
-            ));
+            ))
         }
-        return contract.qualification_authorization.map(|authorization| {
-            QualificationEvidence::from_admitted_requirement(
-                authorization.requirement_symbol,
-                authorization.signature_symbol,
-            )
-        });
+        ::validation::CallQualificationSource::AdmittedRequirement(authorization) => {
+            admitted_evidence(facts, authorization)
+        }
+        ::validation::CallQualificationSource::Propagated => {
+            Some(QualificationEvidence::from_origin(
+                QualificationEvidenceOrigin::Propagated,
+                target_symbol,
+            ))
+        }
     }
-
-    if program
-        .traits()
-        .iter()
-        .any(|definition| definition.symbol == target_symbol && definition.is_boundary)
-    {
-        return contract.qualification_authorization.map(|authorization| {
-            QualificationEvidence::from_admitted_requirement(
-                authorization.requirement_symbol,
-                authorization.signature_symbol,
-            )
-        });
-    }
-
-    Some(QualificationEvidence::from_origin(
-        QualificationEvidenceOrigin::Propagated,
-        target_symbol,
-    ))
 }
 
 pub(crate) fn operator_contract_evidence(
@@ -223,7 +268,7 @@ pub(crate) fn operator_contract_evidence(
     let Some(domain) = domain_definition(program, domain_symbol) else {
         return QualificationEvidence::default();
     };
-    if domain.predicate_body.is_present() {
+    if domain.predicate_presence.is_present() {
         return QualificationEvidence::from_origin(
             QualificationEvidenceOrigin::Prover,
             operator_symbol,

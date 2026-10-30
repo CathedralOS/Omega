@@ -7,14 +7,14 @@ machine retain(records: &mut [Match], count: u64, minimum: i32) -> u64
 requires count <= records.len
 ensures result <= count {
     transition { _ -> next(records, count, minimum, 0, 0) }
-    state next(records: &mut [Match], count: u64, minimum: i32, read: u64, written: u64) -> u64
+    machine next(records: &mut [Match], count: u64, minimum: i32, read: u64, written: u64) -> u64
     requires written <= read && read <= count && count <= records.len {
         transition read < count {
             true -> inspect(records, count, minimum, read, written)
             false -> written
         }
     }
-    state inspect(records: &mut [Match], count: u64, minimum: i32, read: u64, written: u64) -> u64
+    machine inspect(records: &mut [Match], count: u64, minimum: i32, read: u64, written: u64) -> u64
     requires written <= read && read < count && count <= records.len {
         let record: Match = records[read];
         transition record.value >= minimum {
@@ -22,7 +22,7 @@ ensures result <= count {
             false -> next(records, count, minimum, read + 1, written)
         }
     }
-    state keep(records: &mut [Match], count: u64, minimum: i32, read: u64, written: u64, record: Match) -> u64
+    machine keep(records: &mut [Match], count: u64, minimum: i32, read: u64, written: u64, record: Match) -> u64
     requires written <= read && read < count && count <= records.len {
         records[written] = record;
         transition { _ -> next(records, count, minimum, read + 1, written + 1) }
@@ -61,6 +61,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

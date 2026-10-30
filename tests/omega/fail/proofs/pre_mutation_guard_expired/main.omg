@@ -2,8 +2,8 @@ data Context { count: u64; }
 machine overwrite(context: &mut Context) -> bool { context.count = 9; true }
 machine main(context: &mut Context) {
     transition context.count < 6 && overwrite(context) { true -> bounded(context) false -> done() }
-    state bounded(context: &Context) requires context.count < 6 { }
-    state done() { }
+    machine bounded(context: &Context) requires context.count < 6 { }
+    machine done() { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

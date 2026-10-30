@@ -1,4 +1,4 @@
-domain u64::Positive(value) requires 1 <= value;
+domain u64::Positive requires 1 <= self;
 data Token { value: u64 in Positive; }
 data Holder { tokens: [Token; 0]; value: u64; }
 
@@ -18,6 +18,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

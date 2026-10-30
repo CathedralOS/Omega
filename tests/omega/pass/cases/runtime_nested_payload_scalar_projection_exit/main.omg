@@ -20,7 +20,7 @@ machine read_nested(value: &ArrayEnvelope) -> u32 {
         Nested::Present { envelope } -> nested_payload(envelope)
         Nested::Empty -> 0
     }
-    state nested_payload(envelope: Envelope) -> u32 {
+    machine nested_payload(envelope: Envelope) -> u32 {
         transition envelope.outcome {
             Outcome::Ok { details } -> (details.mode & 511)
             Outcome::Error -> 0
@@ -37,7 +37,7 @@ machine main() crashes Trap {
         true -> nested(value)
         false -> bad()
     }
-    state nested(value: Envelope) {
+    machine nested(value: Envelope) {
         let array_envelope: ArrayEnvelope = ArrayEnvelope {
             prefix: 87,
             values: [Nested::Empty, Nested::Present { envelope: value }]
@@ -47,6 +47,6 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

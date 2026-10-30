@@ -3,8 +3,28 @@
 //! and every projected access remain independently checked.
 
 use crate::LoweringError;
+
+fn geometry_error(
+    error: calling_conventions::terminal_layout::TerminalLayoutError,
+) -> LoweringError {
+    use calling_conventions::terminal_layout::TerminalLayoutError as Geometry;
+    match error {
+        Geometry::RecursiveStructuralType(identity) => {
+            LoweringError::RecursiveStructuralType(identity)
+        }
+        Geometry::UnknownStructuralType(identity) => LoweringError::UnknownStructuralType(identity),
+        Geometry::UnclosedTargetLayout(identity) => LoweringError::UnclosedTargetLayout(identity),
+        Geometry::UnclosedArrayExtent(identity) => LoweringError::UnclosedArrayExtent(identity),
+        Geometry::StructuralTypeTooLarge(identity) => {
+            LoweringError::StructuralTypeTooLarge(identity)
+        }
+        Geometry::EmptyStructuralType(identity) => LoweringError::EmptyStructuralType(identity),
+        Geometry::UnsupportedStructuralSum(identity) => {
+            LoweringError::UnsupportedStructuralSum(identity)
+        }
+    }
+}
 use calling_conventions::ValueShape;
-use semantic_vocabulary::IeeeFloatFormat;
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralAccess, StructuralPathSegment};
@@ -28,6 +48,19 @@ pub(super) struct PrimitiveProjection {
     pub(super) scalar: ScalarType,
     pub(super) pointer_slots: Vec<StorageProjection>,
     pub(super) leaf: StorageProjection,
+}
+
+impl PrimitiveProjection {
+    /// Every selector this address owns, in region order: each pointer slot
+    /// before the final region. Selection applies one run per authored
+    /// segment, so they never flatten into a single offset.
+    pub(super) fn selector_runs(self) -> Vec<(semantic_vocabulary::ValueId, u32)> {
+        self.pointer_slots
+            .into_iter()
+            .chain([self.leaf])
+            .flat_map(|region| region.indices)
+            .collect()
+    }
 }
 
 /// Select borrowed backing after each stored reference crossing. Offsets are
@@ -142,6 +175,22 @@ pub(super) struct ReferenceProjectionRegions<'path> {
     pub(super) path: &'path [StructuralPathSegment],
     pub(super) pointer_slots: Vec<StorageProjection>,
     pub(super) readable: bool,
+}
+
+impl ReferenceProjectionRegions<'_> {
+    /// Every selector this projection owns, in region order: each ordered
+    /// pointer crossing contributes its own runs before the final region's
+    /// leaf. Selection scales one run per authored segment around its load.
+    pub(super) fn selector_runs(
+        self,
+        leaf: Vec<(semantic_vocabulary::ValueId, u32)>,
+    ) -> Vec<(semantic_vocabulary::ValueId, u32)> {
+        self.pointer_slots
+            .into_iter()
+            .flat_map(|slot| slot.indices)
+            .chain(leaf)
+            .collect()
+    }
 }
 
 pub(super) fn reference_projection_regions<'path>(
@@ -383,7 +432,11 @@ pub(super) fn root_array_projection_metadata(
     let declaration = declarations
         .get(&root)
         .ok_or(LoweringError::UnknownStructuralType(root))?;
-    let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+    let StructuralTypeShape::FixedArray {
+        element,
+        length: terminal_psi::ArrayExtent::Literal(length),
+    } = declaration.shape
+    else {
         return Ok((None, None));
     };
     let shape = structural_shape(element, declarations, cache, active)?;
@@ -398,146 +451,13 @@ pub(crate) fn structural_shape(
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<ValueShape, LoweringError> {
-    if let Some(shape) = cache.get(&structural_type) {
-        return Ok(*shape);
-    }
-    if !active.insert(structural_type) {
-        return Err(LoweringError::RecursiveStructuralType(structural_type));
-    }
-    let result = (|| {
-        let declaration = declarations
-            .get(&structural_type)
-            .copied()
-            .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
-        match &declaration.shape {
-            // Established Fused bindings have no payload. This describes only
-            // geometry; their marker is not an empty-record constructor.
-            StructuralTypeShape::BindingCarrier => Ok(ValueShape::integer(0, 1)),
-            // All supported native ABIs use 64-bit addresses. The carrier
-            // stores the referent's address, never its contents; custody is
-            // checked separately. Nested reference leaves use the same layout
-            // as whole results, so enclosing record offsets remain coherent.
-            StructuralTypeShape::Reference { referent, .. } => Ok(ValueShape::integer(
-                if scalar_storage_type(*referent, declarations).is_some() {
-                    16
-                } else {
-                    8
-                },
-                8,
-            )),
-            StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean) => {
-                Ok(ValueShape::integer(1, 1))
-            }
-            StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)) => {
-                let byte_size = integer.bits().div_ceil(8);
-                Ok(ValueShape::integer(
-                    u32::from(byte_size),
-                    byte_size.next_power_of_two().min(8),
-                ))
-            }
-            StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
-                IeeeFloatFormat::Binary32,
-            )) => Ok(ValueShape::float(4)),
-            StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
-                IeeeFloatFormat::Binary64,
-            )) => Ok(ValueShape::float(8)),
-            StructuralTypeShape::ByteSequence(carrier) => {
-                byte_sequence_shape(*carrier, structural_type)
-            }
-            // A borrowed element view is a base+extent descriptor, the same
-            // two-word carrier as `ByteSequence::BorrowedView`.
-            StructuralTypeShape::ElementView { .. } => Ok(ValueShape::integer(16, 8)),
-            StructuralTypeShape::Record { fields, storage } => {
-                if matches!(
-                    storage,
-                    terminal_psi::StructuralRecordStorage::TargetLayout(_)
-                ) {
-                    return Err(LoweringError::UnclosedTargetLayout(structural_type));
-                }
-                if let terminal_psi::StructuralRecordStorage::Authored(storage)
-                | terminal_psi::StructuralRecordStorage::PlacedView(storage)
-                | terminal_psi::StructuralRecordStorage::PlacedAccessor(storage) = storage
-                {
-                    return Ok(ValueShape::integer(
-                        u32::try_from(storage.byte_size)
-                            .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))?,
-                        u16::try_from(storage.byte_alignment)
-                            .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))?,
-                    ));
-                }
-                let mut byte_size = 0_u32;
-                let mut alignment = 1_u16;
-                for field in fields {
-                    // Authored relevance and physical carrier erasure are
-                    // independent: a Fused service remains semantically relevant.
-                    if field.relevance.is_erased()
-                        || matches!(field.field_type, StructuralFieldType::Erased { .. })
-                    {
-                        continue;
-                    }
-                    let field_shape = structural_field_shape(
-                        &field.field_type,
-                        structural_type,
-                        declarations,
-                        cache,
-                        active,
-                    )?;
-                    alignment = alignment.max(field_shape.alignment);
-                    byte_size = checked_align_up_u32(byte_size, u32::from(field_shape.alignment))
-                        .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
-                    byte_size = byte_size
-                        .checked_add(field_shape.byte_size)
-                        .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
-                }
-                byte_size = checked_align_up_u32(byte_size, u32::from(alignment))
-                    .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
-                Ok(ValueShape::integer(byte_size, alignment))
-            }
-            StructuralTypeShape::FixedArray { element, length } => {
-                // The complete primitive-array chain is still checked below
-                // empty dimensions. Its canonical zero-byte ABI must not need
-                // an addressable element layout or overflow an unused extent.
-                if let Ok((_, 0, shape)) =
-                    super::control_flow::scalar_arrays::shape(structural_type, declarations)
-                {
-                    return Ok(shape);
-                }
-                let element = structural_shape(*element, declarations, cache, active)?;
-                let stride = checked_align_up_u32(element.byte_size, u32::from(element.alignment))
-                    .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
-                let byte_size = u64::from(stride)
-                    .checked_mul(*length)
-                    .and_then(|size| u32::try_from(size).ok())
-                    .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
-                Ok(ValueShape::integer(
-                    byte_size,
-                    if *length == 0 { 1 } else { element.alignment },
-                ))
-            }
-            StructuralTypeShape::Sum { cases } => conventional_sum_layout_from_parts(
-                structural_type,
-                &[],
-                cases,
-                declarations,
-                cache,
-                active,
-            )
-            .map(|layout| layout.shape),
-            StructuralTypeShape::Mixed { fields, cases } => conventional_sum_layout_from_parts(
-                structural_type,
-                fields,
-                cases,
-                declarations,
-                cache,
-                active,
-            )
-            .map(|layout| layout.shape),
-        }
-    })();
-    active.remove(&structural_type);
-    let shape = result?;
-    cache.insert(structural_type, shape);
-    Ok(shape)
+    calling_conventions::terminal_layout::structural_shape(
+        structural_type,
+        declarations,
+        cache,
+        active,
+    )
+    .map_err(geometry_error)
 }
 
 /// Internal scalar loans carry a descriptor; aggregate loans remain thin.
@@ -560,11 +480,7 @@ pub(super) fn scalar_storage_type(
     structural_type: StructuralTypeId,
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Option<ScalarType> {
-    let StructuralTypeShape::PrimitiveScalar(scalar) = declarations.get(&structural_type)?.shape
-    else {
-        return None;
-    };
-    runtime_abi::ScalarStorageCodec::from_scalar(scalar).map(|_| scalar)
+    calling_conventions::terminal_layout::scalar_storage_type(structural_type, declarations)
 }
 
 pub(super) use crate::structural_shapes::parameter_shape as structural_parameter_shape;
@@ -575,75 +491,13 @@ pub(super) fn structural_sum_layout(
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<calling_conventions::ConventionalSumLayout, LoweringError> {
-    let declaration = declarations
-        .get(&structural_type)
-        .copied()
-        .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
-    match &declaration.shape {
-        StructuralTypeShape::Sum { cases } => conventional_sum_layout_from_parts(
-            structural_type,
-            &[],
-            cases,
-            declarations,
-            cache,
-            active,
-        ),
-        StructuralTypeShape::Mixed { fields, cases } => conventional_sum_layout_from_parts(
-            structural_type,
-            fields,
-            cases,
-            declarations,
-            cache,
-            active,
-        ),
-        _ => Err(LoweringError::UnsupportedStructuralSum(structural_type)),
-    }
-}
-
-fn conventional_sum_layout_from_parts(
-    structural_type: StructuralTypeId,
-    common_fields: &[terminal_psi::StructuralFieldDeclaration],
-    cases: &[terminal_psi::StructuralCaseDeclaration],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
-) -> Result<calling_conventions::ConventionalSumLayout, LoweringError> {
-    if cases.is_empty() {
-        return Err(LoweringError::EmptyStructuralType(structural_type));
-    }
-    let common = common_fields
-        .iter()
-        .filter(|field| !field.relevance.is_erased())
-        .map(|field| {
-            structural_field_shape(
-                &field.field_type,
-                structural_type,
-                declarations,
-                cache,
-                active,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let payloads = cases
-        .iter()
-        .map(|case| {
-            case.fields
-                .iter()
-                .filter(|field| !field.relevance.is_erased())
-                .map(|field| {
-                    structural_field_shape(
-                        &field.field_type,
-                        structural_type,
-                        declarations,
-                        cache,
-                        active,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    calling_conventions::evaluate_conventional_sum_layout(&common, &payloads)
-        .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))
+    calling_conventions::terminal_layout::structural_sum_layout(
+        structural_type,
+        declarations,
+        cache,
+        active,
+    )
+    .map_err(geometry_error)
 }
 
 fn structural_field_storage_shape(
@@ -694,75 +548,14 @@ fn structural_field_shape(
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<ValueShape, LoweringError> {
-    if matches!(
+    calling_conventions::terminal_layout::structural_field_shape(
         field,
-        StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)
-    ) && field.atomic_scalar_type().is_none()
-    {
-        return Err(LoweringError::UnknownStructuralType(owner));
-    }
-    match field {
-        StructuralFieldType::RefinedScalar(refinement) => structural_field_shape(
-            &StructuralFieldType::Scalar(refinement.carrier()),
-            owner,
-            declarations,
-            cache,
-            active,
-        ),
-        StructuralFieldType::Scalar(ScalarType::Boolean)
-        | StructuralFieldType::Atomic(ScalarType::Boolean) => Ok(ValueShape::integer(1, 1)),
-        StructuralFieldType::Scalar(ScalarType::Integer(integer))
-        | StructuralFieldType::Atomic(ScalarType::Integer(integer)) => {
-            let size = integer.bits().div_ceil(8);
-            Ok(ValueShape::integer(
-                u32::from(size),
-                size.next_power_of_two().min(16),
-            ))
-        }
-        StructuralFieldType::BoundedInteger(bounds)
-        | StructuralFieldType::AtomicBoundedInteger(bounds) => {
-            let integer = bounds.integer_type();
-            let size = integer.bits().div_ceil(8);
-            Ok(ValueShape::integer(
-                u32::from(size),
-                size.next_power_of_two().min(16),
-            ))
-        }
-        StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32))
-        | StructuralFieldType::Atomic(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32))
-        | StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => Ok(ValueShape::float(4)),
-        StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64))
-        | StructuralFieldType::Atomic(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64))
-        | StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary64) => Ok(ValueShape::float(8)),
-        StructuralFieldType::ByteSequence(carrier)
-        | StructuralFieldType::PredicateByteSequence { carrier, .. } => {
-            byte_sequence_shape(*carrier, owner)
-        }
-        StructuralFieldType::Structural(nested) => {
-            structural_shape(*nested, declarations, cache, active)
-        }
-        StructuralFieldType::Erased { .. } => {
-            // Callers filter erased fields before requesting runtime shape.
-            Err(LoweringError::UnknownStructuralType(owner))
-        }
-    }
-}
-
-pub(super) fn resolve_structural_field_path(
-    structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
-) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
-    projection_path(
-        structural_type,
-        path,
+        owner,
         declarations,
         cache,
         active,
-        StructuralFieldType::canonical_leaf_type,
     )
+    .map_err(geometry_error)
 }
 
 fn field_geometry<'types>(
@@ -927,97 +720,30 @@ pub(super) fn case_projection(
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
-    use semantic_vocabulary::CanonicalStructuralPathSegment as Segment;
     let invalid = || LoweringError::UnsupportedStructuralSum(root);
     let endpoint =
         terminal_semantics::canonical_case_leaf_type(declarations.values().copied(), root, path)
             .ok_or_else(invalid)?;
-    let mut current = root;
-    let mut offset = 0u32;
-    let mut segments = path.iter();
-    while let Some(segment) = segments.next() {
-        let shape = &declarations.get(&current).ok_or_else(invalid)?.shape;
-        let (next, displacement) = match segment {
-            Segment::Case(identity) => {
-                let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
-                    shape
-                else {
-                    return Err(invalid());
-                };
-                let case_position =
-                    terminal_psi::structural_case_position(cases, *identity).ok_or_else(invalid)?;
-                let Some(Segment::Field(field)) = segments.next() else {
-                    return Err(invalid());
-                };
-                let (field_position, declaration) = cases[case_position]
-                    .fields
-                    .iter()
-                    .filter(|field| !field.relevance.is_erased())
-                    .enumerate()
-                    .find(|(_, declaration)| declaration.id == *field)
-                    .ok_or_else(invalid)?;
-                let Some(next) = declaration.field_type.as_structural() else {
-                    return Err(invalid());
-                };
-                let layout = structural_sum_layout(current, declarations, cache, active)?;
-                (
-                    next,
-                    layout.cases[case_position].fields[field_position].byte_offset,
-                )
-            }
-            Segment::Field(identity) => {
-                let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = shape else {
-                    return Err(invalid());
-                };
-                let (field_position, field) = fields
-                    .iter()
-                    .filter(|field| !field.relevance.is_erased())
-                    .enumerate()
-                    .find(|(_, field)| field.id == *identity)
-                    .ok_or_else(invalid)?;
-                let Some(next) = field.field_type.as_structural() else {
-                    return Err(invalid());
-                };
-                let displacement = if matches!(shape, StructuralTypeShape::Mixed { .. }) {
-                    structural_sum_layout(current, declarations, cache, active)?.common_fields
-                        [field_position]
-                        .byte_offset
-                } else {
-                    resolve_structural_field_path(
-                        current,
-                        &[StructuralPathSegment::Field(field.identity.clone())],
-                        declarations,
-                        cache,
-                        active,
-                    )?
-                    .2
-                };
-                (next, displacement)
-            }
-            Segment::FixedIndex(index) => {
-                let (next, _, displacement) = resolve_structural_projection_path(
-                    current,
-                    &[StructuralPathSegment::FixedIndex(*index)],
-                    declarations,
-                    cache,
-                    active,
-                )?;
-                (next, displacement)
-            }
-        };
-        current = next;
-        offset = offset.checked_add(displacement).ok_or_else(invalid)?;
-    }
-    if current != endpoint {
+    let storage_path = terminal_semantics::canonical_structural_storage_path(
+        declarations.values().copied(),
+        root,
+        path,
+    )
+    .ok_or_else(invalid)?;
+    // The static canonical path keeps every stored-pointer crossing. Ordinary
+    // copies already separate their regions and require readable references;
+    // use that geometry rather than flattening pointers into inline offsets.
+    let (selected, shape, offset, indices) =
+        runtime_leaf_copy_projection(root, &storage_path, endpoint, declarations, cache, active)?;
+    if selected != endpoint || !indices.is_empty() {
         return Err(invalid());
     }
-    Ok((
-        endpoint,
-        structural_shape(endpoint, declarations, cache, active)?,
-        offset,
-    ))
+    Ok((endpoint, shape, offset))
 }
 
+/// Resolve a static storage projection to its canonical leaf. A path that
+/// selects through a runtime index belongs to the runtime projection query,
+/// whose caller owns each selector's dominating source.
 pub(super) fn resolve_structural_projection_path(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
@@ -1025,31 +751,13 @@ pub(super) fn resolve_structural_projection_path(
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
-    projection_path(
-        structural_type,
-        path,
-        declarations,
-        cache,
-        active,
-        StructuralFieldType::canonical_leaf_type,
-    )
-}
-
-fn projection_path(
-    structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
-    leaf_type: impl Fn(&StructuralFieldType) -> Option<StructuralFieldType>,
-) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
     let (selected, shape, offset, indices) = storage_projection_path(
         structural_type,
         path,
         declarations,
         cache,
         active,
-        leaf_type,
+        StructuralFieldType::canonical_leaf_type,
     )?;
     if !indices.is_empty() {
         return Err(LoweringError::UnsupportedStructuralReference(
@@ -1226,7 +934,10 @@ pub(super) fn runtime_storage_projection<'types>(
                     .copied()
                     .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
                 let element = match &declaration.shape {
-                    StructuralTypeShape::FixedArray { element, length } => {
+                    StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                    } => {
                         if matches!(segment, StructuralPathSegment::FixedIndex(index) if index >= length)
                         {
                             return Err(LoweringError::UnknownStructuralType(structural_type));
@@ -1381,12 +1092,7 @@ pub(super) fn runtime_leaf_copy_projection(
         active,
         |field| field.leaf_copy_type(Some(expected)),
     )?;
-    let indices = regions
-        .pointer_slots
-        .into_iter()
-        .flat_map(|slot| slot.indices)
-        .chain(leaf_indices)
-        .collect();
+    let indices = regions.selector_runs(leaf_indices);
     Ok((selected, shape, byte_offset, indices))
 }
 
@@ -1415,13 +1121,40 @@ pub(super) fn runtime_borrowed_projection(
         active,
         |field| field.borrowed_presentation_type(access, expected),
     )?;
-    let indices = regions
-        .pointer_slots
-        .into_iter()
-        .flat_map(|slot| slot.indices)
-        .chain(leaf_indices)
-        .collect();
+    let indices = regions.selector_runs(leaf_indices);
     Ok((selected, shape, offset, indices))
+}
+
+/// Taking an address needs the original storage path and selector geometry,
+/// not a standalone declaration for an inline scalar field. Typed call loans
+/// retain their separate leaf-presentation query above.
+pub(super) fn storage_address_indices(
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<Vec<(semantic_vocabulary::ValueId, u32)>, LoweringError> {
+    let invalid = || LoweringError::UnsupportedStructuralReference(structural_type);
+    let regions =
+        reference_projection_regions(structural_type, path, declarations).ok_or_else(invalid)?;
+    let leaf_indices = if !regions.path.is_empty()
+        && matches!(
+            declarations.get(&regions.root).map(|row| &row.shape),
+            Some(StructuralTypeShape::ByteSequence(_))
+        ) {
+        contiguous_primitive_projection(regions.root, regions.path, declarations)
+            .ok_or_else(invalid)?
+            .2
+    } else {
+        runtime_storage_projection(
+            regions.root,
+            regions.path,
+            declarations,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )?
+        .3
+    };
+    Ok(regions.selector_runs(leaf_indices))
 }
 
 fn runtime_projection_with_leaf_type(
@@ -1474,31 +1207,12 @@ pub(super) fn byte_sequence_shape(
     carrier: terminal_psi::ByteSequenceCarrier,
     structural_type: StructuralTypeId,
 ) -> Result<ValueShape, LoweringError> {
-    let byte_size = match carrier {
-        // Current native targets are 64-bit. The semantic carrier
-        // deliberately does not retain the physical descriptor fields.
-        terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 16_u64,
-        // A bounded view's extent lives in the declaration, so the descriptor
-        // is the bare referent pointer.
-        terminal_psi::ByteSequenceCarrier::BoundedView { .. } => 8_u64,
-        terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => capacity
-            .checked_add(8)
-            .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?,
-    };
-    Ok(ValueShape::integer(
-        u32::try_from(byte_size)
-            .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))?,
-        8,
-    ))
+    calling_conventions::terminal_layout::byte_sequence_shape(carrier, structural_type)
+        .map_err(geometry_error)
 }
 
 pub(super) fn checked_align_up_u32(value: u32, alignment: u32) -> Option<u32> {
-    let remainder = value % alignment;
-    if remainder == 0 {
-        Some(value)
-    } else {
-        value.checked_add(alignment - remainder)
-    }
+    calling_conventions::terminal_layout::checked_align_up_u32(value, alignment)
 }
 
 #[cfg(test)]

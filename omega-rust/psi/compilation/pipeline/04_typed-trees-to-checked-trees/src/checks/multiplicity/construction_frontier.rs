@@ -51,6 +51,17 @@ pub(super) struct ConstructionFrontier {
 }
 
 impl ConstructionFrontier {
+    /// A completed ingress or whole receiving write establishes its actual
+    /// value, independently of whether it carries a claim at the root.
+    pub(super) fn completed(
+        program: &dyn validation::CheckingInput,
+        reference: TypeReferenceHandle,
+    ) -> Self {
+        let mut frontier = Self::new(program, reference);
+        frontier.establish(program, &[]);
+        frontier
+    }
+
     pub(super) fn new(
         program: &dyn ::validation::CheckingInput,
         reference: TypeReferenceHandle,

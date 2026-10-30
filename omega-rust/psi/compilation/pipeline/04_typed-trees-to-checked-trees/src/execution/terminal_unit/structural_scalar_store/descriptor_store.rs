@@ -8,9 +8,8 @@
 //! expression; source loans and Terminal replay prove backing lifetime, while
 //! a separate current-value obligation proves the slot's byte predicates.
 use super::super::CheckFacts;
-use super::destination::{Destination, StoreRoots};
+use super::destination::StoreRoots;
 use super::value::AssignmentSource;
-use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::terminal_field_identity;
 
 /// The descriptor slot one store replaces: the carrier path from the root,
@@ -23,18 +22,21 @@ pub(super) struct DescriptorSlot<'a> {
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn store(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    site: &super::Site<'_, '_, '_>,
     roots: StoreRoots<'_>,
-    destination: &Destination<'_>,
     slot: DescriptorSlot<'_>,
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-    source: AssignmentSource,
-    trace: &LocalConstructionTrace,
 ) -> Option<checked_trees::CheckedUnitEffectOperationPlan> {
+    let super::Occurrence {
+        program,
+        facts,
+        machine,
+        state,
+        statement_index,
+        assignment,
+        source,
+        trace,
+    } = site.occurrence;
+    let destination = site.destination;
     trace.phase("structural field store: borrowed view field: descriptor source");
     if destination.dynamic_index.is_some() {
         return None;
@@ -108,6 +110,7 @@ pub(super) fn descriptor_store(
                 return None;
             }
             checked_trees::CheckedUnitStructuralArgumentPlan {
+                projection_evaluations: Default::default(),
                 source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                     binding_ordinal,
                 },

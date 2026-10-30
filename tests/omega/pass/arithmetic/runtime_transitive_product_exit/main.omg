@@ -3,14 +3,14 @@ machine double(value: i32, floor: i32, ceiling: i32) -> i32 {
         && value < ceiling && ceiling <= 10i32;
     transition { _ -> decide(value, valid) }
 
-    state decide(value: i32, valid: bool) -> i32 {
+    machine decide(value: i32, valid: bool) -> i32 {
         transition valid {
             true -> calculate(value)
             false -> empty()
         }
     }
-    state calculate(value: i32) -> i32 { value * 2i32 }
-    state empty() -> i32 { 0i32 }
+    machine calculate(value: i32) -> i32 { value * 2i32 }
+    machine empty() -> i32 { 0i32 }
 }
 
 machine main() crashes Trap {
@@ -21,6 +21,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

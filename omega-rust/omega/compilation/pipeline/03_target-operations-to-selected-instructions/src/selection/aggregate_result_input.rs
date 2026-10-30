@@ -12,6 +12,8 @@
 //! A home lookup preserves the result's domain metadata without interpreting
 //! it as a storage restriction: an authorized boundary result occupies the
 //! same home as any other value of its declared representation.
+use crate::selection::place_declaration::declares_block_parameter;
+
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
@@ -100,7 +102,18 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
         call.arguments.iter().any(|argument|
             matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, target, .. }
                 if semantic.place == place && argument_transport_requires_home(target)))));
-    forwarded || dispatched || cleanup_borrow || source.instructions().any(|row| {
+    let borrows_parameter = |call: &legalized_operations::LegalizedScalarCall| {
+        call.arguments.iter().any(|argument| {
+            matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, .. }
+                if semantic.place == place && semantic.access != StructuralAccess::Owned)
+        })
+    };
+    let terminal_borrow = source.blocks.iter().any(|block| {
+        matches!(&block.terminator,
+        legalized_operations::LegalizedScalarTerminator::InvokeNoNormal { call, .. }
+            if borrows_parameter(call))
+    });
+    forwarded || dispatched || cleanup_borrow || terminal_borrow || source.instructions().any(|row| {
         match &row.kind {
             LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, .. }
@@ -144,10 +157,7 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
             LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation { left, right, .. } => left.source() == place || right.source() == place,
             LegalizedScalarInstructionKind::ByteSequenceEqual { left, right } => left.source() == place || right.source() == place,
             LegalizedScalarInstructionKind::ByteSequencePredicate { operand, .. } => operand.source() == place,
-            LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument| {
-                matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, .. }
-                    if semantic.place == place && semantic.access != StructuralAccess::Owned)
-            }),
+            LegalizedScalarInstructionKind::Call(call) => borrows_parameter(call),
             LegalizedScalarInstructionKind::NormalizedForeignCall(call) => call
                 .structural_arguments
                 .iter()
@@ -809,11 +819,12 @@ pub(super) fn fields(
     else {
         return None;
     };
-    // A constructor's claims describe its transferred obligations, not its
-    // storage layout. Projected memberships likewise add no bytes. As for
-    // record fields, rejoin each owned operand and the
-    // selected payload's declared geometry without granting fresh custody.
-    if row.result.is_some() || !result.qualifications.is_empty() {
+    // Claims and memberships remain on the exact produced home; they add no
+    // bytes to its tag or payload. Rejoin that home before reconstructing the
+    // selected declaration's geometry, without granting fresh custody.
+    if row.result.is_some()
+        || operation_result(source, result.place) != Some((row.operation, result))
+    {
         return None;
     }
     let signature = source.structural.as_ref()?;
@@ -1243,14 +1254,7 @@ pub(super) fn block_home(
     let signature = source.structural.as_ref()?;
     if matching.next().is_some()
         || parameter.access != StructuralAccess::Owned
-        || !signature.structural_places.iter().any(|declaration| {
-            declaration.id == place
-                && declaration.kind
-                    == semantic_vocabulary::StructuralPlaceKind::BlockParameter {
-                        block,
-                        position: parameter.position,
-                    }
-        })
+        || !declares_block_parameter(signature, place, block, parameter.position)
     {
         return None;
     }

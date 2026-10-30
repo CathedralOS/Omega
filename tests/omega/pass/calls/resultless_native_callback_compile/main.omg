@@ -13,7 +13,7 @@ satisfies CallingPolicy::plan
         true -> accept()
         _ -> reject()
     }
-    state accept() -> BoundaryPlanResult {
+    machine accept() -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan;
         output.call.convention = CallingConvention::SystemVAMD64;
         output.call.stack_alignment = 16;
@@ -25,7 +25,7 @@ satisfies CallingPolicy::plan
         output.state.preemption = Preemption::NotApplicable;
         BoundaryPlanResult::Accepted { plan: output }
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "initializer must be void(void)" },
         }
@@ -50,7 +50,7 @@ satisfies CallingPolicy::plan
         true -> accept(signature)
         _ -> reject()
     }
-    state accept(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine accept(signature: BoundarySignature) -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan;
         output.call.convention = CallingConvention::SystemVAMD64;
         output.call.parameter_count = signature.native_parameter_count;
@@ -121,7 +121,7 @@ satisfies CallingPolicy::plan
         output.state.preemption = Preemption::NotApplicable;
         BoundaryPlanResult::Accepted { plan: output }
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "invalid pthread_once telescope" },
         }

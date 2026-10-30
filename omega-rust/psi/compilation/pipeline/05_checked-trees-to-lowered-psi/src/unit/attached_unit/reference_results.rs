@@ -6,9 +6,10 @@
 use super::super::StructuralArgument;
 use super::{
     LoweringError, Operation, OperationKind, StructuralMultiplicity, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeId, allocate_dense, lookup_type_id, place_id,
+    StructuralTypeId, allocate_dense, lookup_type_id, place_id,
 };
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use checked_trees::CheckedUnitStructuralResultBindingPlan;
 
 /// The checked expression the reference operation actually evaluates.
@@ -76,15 +77,13 @@ pub(crate) fn publish_storage(
         qualifications: Default::default(),
     };
     let id = operations.allocate();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
+    operations.push(Operation::unsuspended(
         id,
-        result: terminal_psi::OperationResult::Scalar(value.clone()),
-        kind: OperationKind::IntegerConstant {
+        terminal_psi::OperationResult::Scalar(value.clone()),
+        OperationKind::IntegerConstant {
             value: semantic_vocabulary::IntegerValue::Unsigned(0),
         },
-    });
+    ));
     Ok((
         PublishedReferenceStorage::RepresentationView(terminal_psi::ReferenceStorageView {
             byte_offset,
@@ -94,7 +93,7 @@ pub(crate) fn publish_storage(
     ))
 }
 
-pub(super) fn emit<'parameter>(
+pub(super) fn emit(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     formation: Formation<'_>,
     result: &CheckedUnitStructuralResultBindingPlan,
@@ -102,7 +101,7 @@ pub(super) fn emit<'parameter>(
     storage: PublishedReferenceStorage,
     types: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     declarations: &[terminal_psi::StructuralTypeDeclaration],
-    parameters: impl Iterator<Item = &'parameter terminal_psi::StructuralParameterDeclaration>,
+    evaluation: &super::argument_evaluation::Evaluation,
     next_place: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
@@ -114,35 +113,40 @@ pub(super) fn emit<'parameter>(
         source,
         storage,
         declarations,
-        parameters,
+        evaluation,
         place_id(allocate_dense(next_place)?),
         operations,
     )
 }
 
-pub(crate) fn emit_carrier<'parameter>(
+pub(crate) fn emit_carrier(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     formation: Formation<'_>,
     structural_type: StructuralTypeId,
     source: StructuralArgument,
     storage: PublishedReferenceStorage,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
-    parameters: impl Iterator<Item = &'parameter terminal_psi::StructuralParameterDeclaration>,
+    evaluation: &super::argument_evaluation::Evaluation,
     place: semantic_vocabulary::PlaceId,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let id = operations.allocate();
-    let parameters = parameters.collect::<Vec<_>>();
+    let parameters = evaluation.structural_root_parameters().collect::<Vec<_>>();
     let resident_source = if let PublishedReferenceStorage::ResidentPlaced {
         extent,
         granted,
         resident,
     } = storage
     {
-        let (root, _, _) = super::structural_values::member_memberships::source_memberships(
+        let (root, _, _) = super::structural_values::member_memberships::source_memberships_in(
             source.place,
             parameters.iter().copied(),
-            operations,
+            operations.iter().chain(
+                evaluation
+                    .blocks
+                    .iter()
+                    .flat_map(|block| block.operations.iter()),
+            ),
         )
         .ok_or(LoweringError::Unsupported(
             "resident reference lost its supplying declaration",
@@ -298,6 +302,8 @@ pub(crate) fn emit_carrier<'parameter>(
             terminal_psi::StructuralTypeShape::Reference { .. }
         )
     {
+        // Completed evaluation can move a source producer into an earlier
+        // private block. Its emitted declaration remains the membership owner.
         // A descriptor carries the actual source's memberships below its
         // borrowed boundary, never qualifications on the descriptor itself.
         // Constructor transport then prefixes these same rows with its field
@@ -308,10 +314,15 @@ pub(crate) fn emit_carrier<'parameter>(
             ));
         };
         if let Some((root, whole, projected)) =
-            super::structural_values::member_memberships::source_memberships(
+            super::structural_values::member_memberships::source_memberships_in(
                 source.place,
                 parameters.iter().copied(),
-                operations,
+                operations.iter().chain(
+                    evaluation
+                        .blocks
+                        .iter()
+                        .flat_map(|block| block.operations.iter()),
+                ),
             )
         {
             let path = terminal_semantics::reference_source_storage_path(
@@ -384,18 +395,6 @@ pub(crate) fn emit_carrier<'parameter>(
         result.projected_qualifications.sort();
         result.projected_qualifications.dedup();
     }
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id,
-        result,
-        kind,
-    });
-    Ok(StructuralPlaceDeclaration {
-        id: place,
-        kind: StructuralPlaceKind::OperationResult {
-            producer: id,
-            structural_type,
-        },
-    })
+    operations.push(Operation::unsuspended(id, result, kind));
+    Ok(operation_result_place(place, id, structural_type))
 }

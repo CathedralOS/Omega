@@ -4,6 +4,7 @@
 //! audit. Instruction construction consumes target rows directly and never
 //! invokes this matcher or borrows its reconstructed loan state.
 use super::LegalizationError;
+use crate::legalization::{accepted_fact, references_obligation};
 use abstract_operations::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
     AbstractStructuralCallResult, IntegerShiftPolicy,
@@ -40,6 +41,7 @@ pub(super) mod read_byte;
 pub(super) mod scalar_arrays;
 pub(super) mod structural_case;
 pub(super) use hosted_scalar::hosted_realization;
+mod invocations;
 mod literals;
 pub(super) mod primitive_locals;
 pub(super) mod reference_custody;
@@ -385,15 +387,8 @@ pub(super) fn match_input(
             return Err(LegalizationError::custody());
         }
         let obligation_custody_missing = |psi_operation: OperationId, obligation: ObligationId| {
-            !unit.accepted_obligation_facts.iter().any(|fact| {
-                fact.machine == optimized.machine
-                    && fact.owner == optimization_unit::PsiProvenance::Operation(psi_operation)
-                    && fact.obligation == obligation
-            }) || !optimized.facts.iter().any(|fact| {
-                matches!(fact,
-                    optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
-                    if *referenced == obligation && *support == psi_operation)
-            })
+            accepted_fact(unit, optimized, psi_operation, obligation).is_err()
+                || !references_obligation(optimized, psi_operation, obligation)
         };
         // Every obligation-bearing integer operation keeps accepted custody.
         let integer_obligation = match &node.operation {

@@ -43,7 +43,7 @@ pub(super) fn append_derived_predicates(
         if !domain.establishment_routes.is_empty()
             || !typed_trees::domain::index_parameters(program, domain).is_empty()
             || domain.alias.is_some()
-            || !domain.predicate_body.is_present()
+            || !domain.predicate_presence.is_present()
             || !value_proves_predicate(
                 program,
                 semantic,
@@ -155,10 +155,7 @@ fn value_proves_predicate(
             return false;
         }
         match fact.payload {
-            facts::domain_membership_symbol_and_instance_pattern!(
-                domain_symbol,
-                semantic_domain
-            ) => {
+            facts::domain_membership_pattern!(domain_symbol, semantic_domain) => {
                 // The materialized bytes retain the same primitive predicate
                 // across bounded carriers. This is not carrier/domain identity.
                 index_free_membership(program, domain_symbol, semantic_domain)
@@ -487,7 +484,7 @@ fn carrier_proves_predicate(
                 .is_some_and(|bytes| predicate.holds_for(&bytes))
         }
         FactPayload::BytePredicate { predicate: proved } => proved.implies(predicate),
-        facts::domain_membership_symbol_and_instance_pattern!(domain_symbol, semantic_domain) => {
+        facts::domain_membership_pattern!(domain_symbol, semantic_domain) => {
             index_free_membership(program, domain_symbol, semantic_domain)
                 && validation::field_domains::domain_byte_predicate(program, domain_symbol)
                     .is_some_and(|proved| proved.implies(predicate))

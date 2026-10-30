@@ -3,7 +3,7 @@
 //! Call owners and boundary invocation sites retain distinct completion tags.
 
 use selected_instructions::MachineIdentityBytes;
-use semantic_vocabulary::BoundaryInvocationSite;
+use semantic_vocabulary::InvocationSite;
 use target_operations::CallSiteOwner;
 
 use crate::{ResolvedConditionalBranchEvidence, ResolvedJumpEvidence};
@@ -58,6 +58,10 @@ pub(super) fn encode_call_owner(bytes: &mut impl MachineIdentityBytes, owner: Ca
             bytes.identity_bytes(&[0]);
             bytes.identity_bytes(&operation.get().to_le_bytes());
         }
+        CallSiteOwner::InvokeNoNormal(edge) => {
+            bytes.identity_bytes(&[3]);
+            bytes.identity_bytes(&edge.get().to_le_bytes());
+        }
         CallSiteOwner::ExternalCompletion(edge) => {
             bytes.identity_bytes(&[2]);
             bytes.identity_bytes(&edge.get().to_le_bytes());
@@ -73,16 +77,17 @@ pub(super) fn encode_call_owner(bytes: &mut impl MachineIdentityBytes, owner: Ca
     }
 }
 
-pub(super) fn encode_invocation_site(
-    bytes: &mut impl MachineIdentityBytes,
-    site: BoundaryInvocationSite,
-) {
+pub(super) fn encode_invocation_site(bytes: &mut impl MachineIdentityBytes, site: InvocationSite) {
     match site {
-        BoundaryInvocationSite::Operation(operation) => {
+        InvocationSite::Operation(operation) => {
             bytes.identity_bytes(&[0]);
             bytes.identity_bytes(&operation.get().to_le_bytes());
         }
-        BoundaryInvocationSite::ExternalCompletion(edge) => {
+        InvocationSite::InvokeNoNormal(edge) => {
+            bytes.identity_bytes(&[2]);
+            bytes.identity_bytes(&edge.get().to_le_bytes());
+        }
+        InvocationSite::ExternalCompletion(edge) => {
             bytes.identity_bytes(&[1]);
             bytes.identity_bytes(&edge.get().to_le_bytes());
         }

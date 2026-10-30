@@ -1,7 +1,7 @@
 # Array maximum
 
 The program scans `[4, 15, 8, 42, 16, 23]` through a shared fixed-array
-parameter carried around a runtime-indexed state loop. Its maximum is 42,
+parameter carried around a runtime-indexed nested-machine cycle. Its maximum is 42,
 not the final element. It prints three lines, accepts Enter or EOF, and
 exits 42.
 
@@ -25,4 +25,6 @@ python3 tools/corpus_gate.py --both --filter collections/runtime_shared_fixed_ar
 
 That route uses disposable test admission, not a dependency audit. On macOS
 ARM64 both native execution and checked interpretation produce exit 42 and
-the complete expected stdout. Other hosts remain unverified.
+the complete expected stdout. The nested-machine migration also executes this
+byte-identical body in Terminal Psi and Windows x86-64 native execution with
+exit 42 and exact stdout. Package-review acceptance remains separate.

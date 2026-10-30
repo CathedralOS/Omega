@@ -19,7 +19,7 @@ machine try_transform<'storage>(token: Token<'storage>, succeed: bool) -> Attemp
         true -> success(token)
         false -> Attempt::Failure { token: token }
     }
-    state success(token: Token<'storage>) -> Attempt<'storage> {
+    machine success(token: Token<'storage>) -> Attempt<'storage> {
         let value: u64 = token.value;
         let reference: &'storage i32 = token.reference;
         drop(token);
@@ -44,7 +44,7 @@ machine restore<'storage>(attempt: Attempt<'storage>) -> Token<'storage> {
 machine settle<'storage>(token: Token<'storage>, succeed: bool) -> Token<'storage> {
     let attempt: Attempt<'storage> = relay(token, succeed);
     transition { _ -> restoring(attempt) }
-    state restoring(attempt: Attempt<'storage>) -> Token<'storage> {
+    machine restoring(attempt: Attempt<'storage>) -> Token<'storage> {
         restore(attempt)
     }
 }
@@ -70,6 +70,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

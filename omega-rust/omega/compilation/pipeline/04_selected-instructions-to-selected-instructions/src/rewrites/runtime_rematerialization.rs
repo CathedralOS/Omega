@@ -78,13 +78,7 @@ pub enum RuntimeRematerializationError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for RuntimeRematerializationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid runtime-value rematerialization: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for RuntimeRematerializationError {}
+failed_display!(
+    RuntimeRematerializationError,
+    "invalid runtime-value rematerialization"
+);

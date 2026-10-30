@@ -61,8 +61,19 @@ pub(crate) struct StructuralScalarFieldBinding {
 #[derive(Clone, Default)]
 pub(crate) struct StructuralFieldBindings {
     roots: Vec<StructuralScalarFieldBinding>,
+    /// Physical parameter homes include write-only storage for explicit byte
+    /// metadata. They do not enter the readable scalar-field binding catalog.
+    parameter_homes: Vec<StructuralParameterHome>,
     established_payloads: Vec<EstablishedCasePayload>,
     declarations: std::sync::Arc<[StructuralTypeDeclaration]>,
+}
+
+#[derive(Clone)]
+struct StructuralParameterHome {
+    source_position: u32,
+    source: PlaceId,
+    access: StructuralAccess,
+    structural_type: StructuralTypeId,
 }
 
 impl std::ops::Deref for StructuralFieldBindings {
@@ -80,6 +91,7 @@ impl std::ops::DerefMut for StructuralFieldBindings {
 impl StructuralFieldBindings {
     pub(crate) fn clear_parameters(&mut self) {
         self.roots.clear();
+        self.parameter_homes.clear();
     }
 
     /// Adopt the full declaration catalog when an evaluation built without
@@ -101,7 +113,7 @@ impl StructuralFieldBindings {
     /// All observations retain the established home, including a projected
     /// alias prefix. The endpoint declaration describes that prefix, never the
     /// physical root. Moves and rebindings update this same local roster.
-    pub(crate) fn observation_home(
+    pub(crate) fn storage_home(
         &self,
         root: checked_trees::CheckedStorageRoot,
         structural_locals: &[super::StructuralLocalBinding],
@@ -109,7 +121,7 @@ impl StructuralFieldBindings {
     ) -> Result<(terminal_psi::StructuralArgument, StructuralTypeId), LoweringError> {
         let candidates: Vec<_> = match root {
             checked_trees::CheckedStorageRoot::Parameter { index } => self
-                .roots
+                .parameter_homes
                 .iter()
                 .filter(|binding| binding.source_position == index)
                 .map(|binding| {
@@ -256,6 +268,15 @@ impl StructuralScalarFieldBinding {
         }
         StructuralFieldBindings {
             roots: bindings,
+            parameter_homes: parameters
+                .iter()
+                .map(|(position, parameter)| StructuralParameterHome {
+                    source_position: *position,
+                    source: parameter.place,
+                    access: parameter.access,
+                    structural_type: parameter.structural_type,
+                })
+                .collect(),
             established_payloads: Vec::new(),
             declarations,
         }
@@ -479,7 +500,7 @@ fn descriptor_observation(
     })
 }
 
-fn canonical_field_read(
+pub(super) fn canonical_field_read(
     source: crate::emission::operation_emission::expressions::PrimitiveReadSource,
     path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     field: StructuralFieldId,
@@ -618,7 +639,7 @@ pub(crate) fn resolve_case_payload(
             // The observation owns preparation, not the successor argument
             // scanner. Its carrier copy is emitted only where this expression
             // executes, and Terminal replay checks the selected case there.
-            let source = prepare_case_observation(
+            prepare_case_observation(
                 payload.source,
                 binding.structural_type,
                 &[
@@ -627,25 +648,11 @@ pub(crate) fn resolve_case_payload(
                 ],
                 &binding.declarations,
             )?
-            .source;
-            match &mut payload.observation {
-                LoweredDirectExpression::PrimitiveRead { source: target, .. }
-                | LoweredDirectExpression::StructuralField { source: target, .. } => {
-                    *target = source
-                }
-                LoweredDirectExpression::Boolean { expression } => match expression.as_mut() {
-                    LoweredBooleanReturnExpression::StructuralField { source: target, .. }
-                    | LoweredBooleanReturnExpression::PrimitiveRead { source: target, .. } => {
-                        *target = source
-                    }
-                    _ => {
-                        return unsupported(
-                            "case payload did not resolve to a Boolean observation",
-                        );
-                    }
-                },
-                _ => return unsupported("case payload did not resolve to a field observation"),
-            }
+            .rebase_observation(
+                binding.structural_type,
+                &binding.declarations,
+                &mut payload.observation,
+            )?;
             return Ok(CasePayloadRead::Observation {
                 expression: payload.observation,
             });

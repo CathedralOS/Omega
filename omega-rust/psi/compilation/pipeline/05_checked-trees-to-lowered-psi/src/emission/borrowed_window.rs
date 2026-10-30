@@ -410,7 +410,7 @@ impl BorrowedWindowLedger {
                     &place.projected_qualifications,
                     &path,
                 );
-            let source = super::assignment_destination::capture(
+            let source = super::completed_address::capture(
                 place.source,
                 path,
                 capture_type,
@@ -674,7 +674,7 @@ impl BorrowedWindowLedger {
         moved: &CheckedUnitStructuralArgumentPlan,
         expression: typed_trees::expression::ExpressionHandle,
         result: &CheckedUnitStructuralResultBindingPlan,
-        result_claims: Vec<terminal_psi::StructuralResultClaimBinding>,
+        prepared_claims: &[crate::emission::claim_bindings::PreparedClaim],
         evaluation: &mut WindowEvaluation<'_, '_>,
         values: &mut Vec<terminal_psi::ValueDeclaration>,
         next_value: &mut u64,
@@ -765,6 +765,51 @@ impl BorrowedWindowLedger {
             next_value,
             operations,
         )?;
+        let selected_path = terminal_semantics::structural_window_projection(
+            structural_types.iter(),
+            evaluated.root_type,
+            &path,
+            field,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "extraction has no exact current storage projection",
+        ))?
+        .path;
+        let result_claims = if place.restoration_required {
+            // Opening a borrowed hole creates this frame's checked debt names;
+            // the caller's resource is not an owned source in this frame.
+            crate::emission::claim_bindings::emit_establishment_claims(
+                prepared_claims,
+                &mut evaluation.calls.claims,
+            )?
+        } else {
+            let argument = StructuralArgument {
+                place: source,
+                path: selected_path.clone(),
+                access: StructuralAccess::Owned,
+            };
+            let completed = evaluation.evaluation.current_claims.source(&argument)?;
+            crate::emission::claim_bindings::lower_owned_operand_claims(
+                identities,
+                evaluation.checked,
+                evaluation.machine,
+                evaluation.state,
+                evaluation.statement_index,
+                expression,
+                None,
+                None,
+                evaluation.calls.claims.bindings(),
+                completed.as_deref(),
+                hole_type,
+                structural_types,
+            )?
+        };
+        if !place.restoration_required {
+            evaluation
+                .evaluation
+                .current_claims
+                .replace(source, &selected_path, &[])?;
+        }
         let moved_place = place_id(allocate_dense(environment.next_place)?);
         // The RHS can observe storage again after capture cleared the cache.
         // Both spellings now denote the modified subtree; neither retains a
@@ -788,6 +833,28 @@ impl BorrowedWindowLedger {
                 field,
             },
         );
+        let produced_claims = operations
+            .operations
+            .last()
+            .and_then(|operation| operation.result.structural())
+            .ok_or(LoweringError::Unsupported(
+                "extraction lost its completed producer",
+            ))?
+            .claims
+            .clone();
+        evaluation
+            .evaluation
+            .current_claims
+            .publish(moved_place, produced_claims)?;
+        if place.restoration_required {
+            crate::emission::claim_bindings::record_prepared_introductions(
+                operations,
+                moved_place,
+                prepared_claims,
+                &evaluation.calls.claims,
+                crate::emission::claim_bindings::ClaimEstablishmentKind::DetachedValue,
+            )?;
+        }
         environment.windows.open.push(OpenBorrowedWindow {
             opening: moved_place,
             source: storage_source,
@@ -1008,7 +1075,35 @@ impl BorrowedWindowLedger {
         operations
             .invalidate_field_lengths_under(evaluated.original_source, &evaluated.original_path);
         operations.invalidate_field_lengths_under(source, &path);
-        operations.push_leaf(
+        if !place.restoration_required {
+            let selected_path = terminal_semantics::structural_window_projection(
+                structural_types.iter(),
+                evaluated.root_type,
+                &path,
+                field,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "store has no exact current storage projection",
+            ))?
+            .path;
+            let argument = StructuralArgument {
+                place: value.place,
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            };
+            let claims = evaluation
+                .evaluation
+                .current_claims
+                .source(&argument)?
+                .ok_or(LoweringError::Unsupported(
+                    "stored operand has no completed custody namespace",
+                ))?;
+            evaluation
+                .evaluation
+                .current_claims
+                .replace(source, &selected_path, &claims)?;
+        }
+        let operation = operations.push_leaf(
             OperationResult::Unit,
             OperationKind::StoreStructuralField {
                 disposition: if index.is_none() && place.restoration_required {
@@ -1026,6 +1121,9 @@ impl BorrowedWindowLedger {
                 },
             },
         );
+        evaluation
+            .evaluation
+            .retire_structural_operation_operands(operation, operations)?;
         if let Some(index) = index {
             environment.windows.open.remove(index);
         }
@@ -1505,6 +1603,8 @@ fn spell_place(plan: &CheckedUnitStructuralArgumentPlan) -> String {
                         .path
                         .iter()
                         .map(|segment| match segment {
+                            checked_trees::CheckedStructuralPredicatePathSegment::Referent =>
+                                "*".to_string(),
                             checked_trees::CheckedStructuralPredicatePathSegment::Field(
                                 identity,
                             ) => identity.spelling(),

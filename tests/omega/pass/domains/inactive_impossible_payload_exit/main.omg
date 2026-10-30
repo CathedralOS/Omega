@@ -1,6 +1,6 @@
 // Expected exit: 0
 // An uninhabited alternative does not prevent using the empty alternative.
-domain u64::Impossible(value) requires false;
+domain u64::Impossible requires false;
 
 data Choice [copy] {
     case Empty;
@@ -29,6 +29,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

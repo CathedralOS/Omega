@@ -20,7 +20,7 @@ machine replace(destination: &write i32, value: i32) {
 machine forward(destination: &write i32, value: i32) {
     transition { _ -> write_value(&write destination, value) }
 
-    state write_value(destination: &write i32, value: i32) {
+    machine write_value(destination: &write i32, value: i32) {
         replace(&write destination, value);
     }
 }
@@ -40,8 +40,8 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

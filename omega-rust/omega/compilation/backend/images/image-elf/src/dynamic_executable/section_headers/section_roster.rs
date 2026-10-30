@@ -10,9 +10,8 @@
 //! [section header]: https://gabi.xinuos.com/elf/03-sheader.html#section-header
 //! [`e_shstrndx`]: https://gabi.xinuos.com/elf/02-eheader.html#elf-header
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
+use crate::bytes::require_name;
 use crate::constants::SECTION_COUNT;
 use crate::dynamic_executable::checked::{checked_u32, require};
 use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ElfDynamicSectionKind;
@@ -144,25 +143,12 @@ struct Candidate {
 pub(crate) fn plan_elf_dynamic_section_roster(
     section_names: ValidatedElfSectionNameTablePlan,
 ) -> Result<ValidatedElfDynamicSectionRoster, Box<ElfDynamicSectionRosterPlanningError>> {
-    checked::plan_candidate(
-        section_names,
-        derive_contents,
-        |section_names, contents| {
-            non_authoritative_roster_compatibility_fingerprint(&section_names, &contents)
-        },
-        |section_names, contents, fingerprint| Candidate {
-            section_names: section_names,
-            contents: contents,
-            non_authoritative_roster_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.section_names,
-        |section_names, diagnostic| {
-            Box::new(ElfDynamicSectionRosterPlanningError {
-                section_names: section_names,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: section_names,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_roster_compatibility_fingerprint,
+        error: ElfDynamicSectionRosterPlanningError,
     )
 }
 
@@ -322,27 +308,13 @@ const fn index_for_kind(kind: ElfDynamicRosterSectionKind) -> u32 {
     kind as u32
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfDynamicSectionRoster, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.section_names, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_roster_compatibility_fingerprint
-                == non_authoritative_roster_compatibility_fingerprint(
-                    &candidate.section_names,
-                    &candidate.contents,
-                )
-        },
-        "ELF dynamic section-roster compatibility fingerprint does not replay",
-        |candidate| ValidatedElfDynamicSectionRoster {
-            section_names: candidate.section_names,
-            contents: candidate.contents,
-            non_authoritative_roster_compatibility_fingerprint: candidate
-                .non_authoritative_roster_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: section_names,
+    contents: contents,
+    validated: ValidatedElfDynamicSectionRoster,
+    validate: validate_contents,
+    fingerprint: non_authoritative_roster_compatibility_fingerprint,
+    message: "ELF dynamic section-roster compatibility fingerprint does not replay",
 }
 
 fn validate_contents(
@@ -394,18 +366,11 @@ fn validate_name(
     section_names: &[u8],
     row: &ElfNumericSectionDescriptor,
 ) -> Result<(), Diagnostic> {
-    let offset = usize::try_from(row.name_offset)
-        .map_err(|_| Diagnostic::error("numeric ELF sh_name exceeds usize"))?;
-    let tail = section_names
-        .get(offset..)
-        .ok_or_else(|| Diagnostic::error("numeric ELF sh_name is outside .shstrtab"))?;
-    let terminator = tail
-        .iter()
-        .position(|byte| *byte == 0)
-        .ok_or_else(|| Diagnostic::error("numeric ELF section name is not NUL-terminated"))?;
-    require(
-        tail.get(..terminator) == Some(expected_name(row.kind)),
-        "numeric ELF sh_name does not select its exact canonical name",
+    require_name(
+        section_names,
+        row.name_offset,
+        expected_name(row.kind),
+        "numeric ELF sh_name",
     )
 }
 
@@ -574,12 +539,9 @@ fn non_authoritative_roster_compatibility_fingerprint(
     section_names: &ValidatedElfSectionNameTablePlan,
     contents: &ElfDynamicSectionRosterContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-dynamic-section-roster.v2");
-    hash.bytes(
-        &section_names
-            .non_authoritative_table_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf-dynamic-section-roster.v2",
+        section_names.non_authoritative_table_compatibility_fingerprint(),
     );
     hash.bytes(&contents.section_name_table_index.to_le_bytes());
     hash.bytes(&(contents.rows.len() as u64).to_le_bytes());

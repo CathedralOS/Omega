@@ -86,6 +86,29 @@ pub(in crate::execution::terminal_unit) struct StatementSequence {
     pub(in crate::execution::terminal_unit) next_scalar_binding: usize,
 }
 
+/// The construction context every statement producer reads and extends: the
+/// program, the checked facts, the scalar callee closure, the shape collector,
+/// the machine/state pair under evaluation, the structural parameter plans,
+/// the entry claims, the trivial affine locals and the construction trace.
+/// The four producers (`assignments`, `local_data`, `statement_call` and
+/// `completion`) each restated this same ten-field prefix as the head of their
+/// own planner and `build` staged it again at every dispatch site; the prefix
+/// is identical for all of them, so one owner carries it and each producer's
+/// remaining fields name only the ledger its statement kind extends.
+pub(in crate::execution::terminal_unit) struct Construction<'a, 'program, 'shapes> {
+    pub(super) program: &'program dyn ::validation::CheckingInput,
+    pub(super) facts: &'program CheckFacts,
+    pub(super) scalar_callees: ScalarCalleeClosure,
+    pub(super) shapes: &'a mut ShapeCollector<'shapes>,
+    pub(super) machine: &'program typed_trees::machine::Machine,
+    pub(super) state: &'program typed_trees::state::State,
+    pub(super) structural_parameters: &'a mut [CheckedUnitStructuralParameterPlan],
+    pub(super) entry_claims: &'a [CheckedUnitEntryClaimPlan],
+    pub(super) trivial_affine_locals:
+        &'a [(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
+    pub(super) trace: &'a LocalConstructionTrace,
+}
+
 /// The trace phase for one statement kind in the shared sequence, so an
 /// omission names which statement family stopped local construction.
 fn statement_phase(statement: &StatementNode) -> &'static str {
@@ -178,6 +201,7 @@ pub(in crate::execution::terminal_unit) fn build(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
+    prepared_calls: &mut crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     structural_parameters: &mut [CheckedUnitStructuralParameterPlan],
@@ -205,19 +229,53 @@ pub(in crate::execution::terminal_unit) fn build(
     // expression of a value body, or the scalar-control terminator's own
     // statements. Those belong to the terminator and `completion`. A walk
     // that stops anywhere else would leave the authored statements after
-    // it unplanned, so the body has no route.
+    // it unplanned, so the body has no route. A proven nonreturning expression
+    // stays in the prefix: it evaluates its call rather than supplying a value
+    // to the return owner, independently of the declared result carrier.
     let sequenced = |index: usize, statement: &StatementNode| {
-        (!matches!(statement, StatementNode::Transition(_))
-            || call_occurrences::terminal_named_call(program, machine, state, index).is_some())
-            && !is_arm_destructure_marker(statement)
-            && !matches!(statement, StatementNode::Expression(expression)
-                if !is_unit(program, state.return_type)
-                    && (!matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_))
-                        || u32::try_from(index).ok().is_some_and(|ordinal| facts.values.scalar_computations.root_at(
-                            state.symbol, ordinal, CheckedScalarExpressionRole::Return,
-                        ).is_some() || facts.values.structural_values.root_for_expression(
-                            state.symbol, ordinal, *expression,
-                        ).is_some())))
+        let terminal_call = matches!(statement, StatementNode::Transition(_))
+            && call_occurrences::terminal_invocation(program, machine, state, index).is_some();
+        if (matches!(statement, StatementNode::Transition(_)) && !terminal_call)
+            || is_arm_destructure_marker(statement)
+        {
+            return false;
+        }
+        // A normalized terminal invocation and a bare tail expression share
+        // their retained completion owner. The call occurrence ledger already
+        // assigns that owner's nested calls; do not invoke the outer call a
+        // second time through the statement roster.
+        let completion_expression = match statement {
+            StatementNode::Expression(expression) => Some(*expression),
+            StatementNode::Transition(transition) if terminal_call => {
+                match program.statement_table.transition_target(transition.target) {
+                    typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                        Some(*expression)
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        !completion_expression.is_some_and(|expression| {
+            !is_unit(program, state.return_type)
+                && validation::expression_normal_completion_possible(program, expression)
+                    != Some(false)
+                && (!matches!(
+                    program.expression_table.expression(expression),
+                    ExpressionNode::Call(_)
+                ) || u32::try_from(index).ok().is_some_and(|ordinal| {
+                    facts
+                        .values
+                        .scalar_computations
+                        .root_at(state.symbol, ordinal, CheckedScalarExpressionRole::Return)
+                        .is_some()
+                        || facts
+                            .values
+                            .structural_values
+                            .root_for_expression(state.symbol, ordinal, expression)
+                            .is_some()
+                }))
+        })
     };
     let execution_order = program
         .statement_table
@@ -272,7 +330,9 @@ pub(in crate::execution::terminal_unit) fn build(
     // exit checking proves handback from each current flow exit, and lowering
     // executes that exit's checked cleanup. This remains true for owned and
     // borrowed carriers alike, including values consumed by this prefix.
-    let mut operations = Vec::new();
+    let owner_candidates =
+        reference_retirement::OwnerCandidates::new(program, facts, machine.symbol, state.symbol)?;
+    let mut operations = Vec::<CheckedUnitEffectOperationPlan>::new();
     let mut place_loans = Vec::new();
     // Erased borrow carriers have no storage binding: the sequence advances
     // past their declarations while each use's planner joins the captured
@@ -304,6 +364,25 @@ pub(in crate::execution::terminal_unit) fn build(
     let mut structural_results = Vec::new();
     let mut call_count = 0_usize;
     let binders = machine_binders(program, machine);
+    // The one construction owner built at each dispatch: the macro reads the
+    // shared tuple from this function's own scope, so a dispatch names only
+    // the ledger fields of the statement kind it plans.
+    macro_rules! construction {
+        () => {
+            Construction {
+                program,
+                facts,
+                scalar_callees,
+                shapes: &mut *shapes,
+                machine,
+                state,
+                structural_parameters: &mut *structural_parameters,
+                entry_claims,
+                trivial_affine_locals,
+                trace,
+            }
+        };
+    }
     trace.phase("statement sequence: scalar field store sequence");
     let mut stores = phase_profile::scope("05.d.8_10.a.3.2c.3b3.stores", || {
         super::super::structural_scalar_store::build_structural_scalar_field_store_sequence_traced(
@@ -328,6 +407,12 @@ pub(in crate::execution::terminal_unit) fn build(
         .iter()
         .copied()
     {
+        if operations
+            .last()
+            .is_some_and(|operation| !operation.has_normal_continuation())
+        {
+            break;
+        }
         let statement = &statements[index];
         if let StatementNode::Expression(expression) = statement
             && program
@@ -360,11 +445,25 @@ pub(in crate::execution::terminal_unit) fn build(
         }
 
         let statement_index = u32::try_from(index).ok()?;
+        prepared_calls.prepare_before(
+            program,
+            facts,
+            shapes,
+            machine,
+            state,
+            structural_parameters,
+            trivial_affine_locals,
+            entry_claims,
+            &operations,
+            index,
+        );
         trace.phase("statement sequence: reference retirement");
         trace.statement(Some(statement_index));
         append_reference_releases(
+            &owner_candidates,
             program,
             facts,
+            prepared_calls,
             shapes,
             structural_parameters,
             machine.symbol,
@@ -405,7 +504,7 @@ pub(in crate::execution::terminal_unit) fn build(
             // the machine's result.
             || (matches!(statement, StatementNode::Transition(_))
                 && !is_unit(program, state.return_type)
-                && call_occurrences::terminal_named_call(program, machine, state, index)
+                && call_occurrences::terminal_invocation(program, machine, state, index)
                     .is_some());
         let mut structural_result = None;
         // A store whose source is this statement's own call is appended after
@@ -445,19 +544,10 @@ pub(in crate::execution::terminal_unit) fn build(
             }
             StatementNode::Assignment(assignment) => match assignments::plan(
                 assignments::Planner {
-                    program,
-                    facts,
-                    scalar_callees,
-                    shapes: &mut *shapes,
-                    machine,
-                    state,
-                    structural_parameters: &mut *structural_parameters,
+                    construction: construction!(),
+                    binders: &binders,
                     scalar_parameters,
                     parameter_storage,
-                    entry_claims,
-                    trivial_affine_locals,
-                    trace,
-                    binders: &binders,
                     stores: &mut stores,
                     operations: &mut operations,
                     scalar_count: &mut scalar_count,
@@ -484,16 +574,7 @@ pub(in crate::execution::terminal_unit) fn build(
             },
             StatementNode::LocalData(local) => match local_data::plan(
                 local_data::Planner {
-                    program,
-                    facts,
-                    scalar_callees,
-                    shapes: &mut *shapes,
-                    machine,
-                    state,
-                    structural_parameters: &mut *structural_parameters,
-                    entry_claims,
-                    trivial_affine_locals,
-                    trace,
+                    construction: construction!(),
                     binders: &binders,
                     erased_locals: &erased_locals,
                     operations: &mut operations,
@@ -581,7 +662,7 @@ pub(in crate::execution::terminal_unit) fn build(
                 None
             }
             StatementNode::Transition(_)
-                if call_occurrences::terminal_named_call(program, machine, state, index)
+                if call_occurrences::terminal_invocation(program, machine, state, index)
                     .is_some() =>
             {
                 if let Some(primitive_type) = program.primitive_type_reference(state.return_type) {
@@ -611,19 +692,10 @@ pub(in crate::execution::terminal_unit) fn build(
         };
         statement_call::plan(
             statement_call::Planner {
-                program,
-                facts,
-                scalar_callees,
-                shapes: &mut *shapes,
-                machine,
-                state,
-                structural_parameters: &mut *structural_parameters,
+                construction: construction!(),
                 scalar_parameters,
                 parameter_storage,
-                entry_claims,
-                trivial_affine_locals,
                 calls,
-                trace,
                 operations: &mut operations,
                 structural_count: &mut structural_count,
                 call_count: &mut call_count,
@@ -643,23 +715,22 @@ pub(in crate::execution::terminal_unit) fn build(
                 result_stores: call_result_stores,
             },
         )?;
+        if operations
+            .last()
+            .is_some_and(|operation| !operation.has_normal_continuation())
+        {
+            break;
+        }
     }
     drop(_loop_guard);
     trace.statement(None);
     phase_profile::scope("05.d.8_10.a.3.2c.3b5.completion", || {
         completion::complete(completion::Completion {
-            program,
-            facts,
-            scalar_callees,
-            shapes,
-            machine,
-            state,
-            structural_parameters,
-            entry_claims,
-            calls,
-            trivial_affine_locals,
-            trace,
+            construction: construction!(),
+            owner_candidates,
+            prepared_calls,
             binders: &binders,
+            calls,
             scalar_control,
             operations,
             place_loans,
@@ -712,45 +783,47 @@ pub(in crate::execution::terminal_unit) fn returning_terminator(
         &facts.values.scalar_expressions,
         prefix_count,
     );
-    let terminator =
-        if let Some(terminator @ checked_trees::CheckedScalarStateTerminator::Conditional { .. }) =
-            binary
+    let terminator = if let Some(
+        terminator @ (checked_trees::CheckedScalarStateTerminator::Conditional { .. }
+        | checked_trees::CheckedScalarStateTerminator::Return { .. }
+        | checked_trees::CheckedScalarStateTerminator::Crash { .. }),
+    ) = binary
+    {
+        terminator
+    } else if let Some(tail) = guarded.next() {
+        if guarded.next().is_some() {
+            return None;
+        }
+        let arms = facts.flow.guarded_exits.exits.span(tail.arms)?;
+        if arms.first()?.guard_statement_ordinal as usize != prefix_count
+            || !arms.iter().all(|arm| {
+                matches!(
+                    arm.destination,
+                    checked_trees::CheckedScalarBranchDestination::Return { .. }
+                )
+            })
+            || tail.fallback.as_ref().is_some_and(|fallback| {
+                !matches!(
+                    fallback,
+                    checked_trees::CheckedScalarBranchDestination::Return { .. }
+                )
+            })
         {
-            terminator
-        } else if let Some(tail) = guarded.next() {
-            if guarded.next().is_some() {
-                return None;
-            }
-            let arms = facts.flow.guarded_exits.exits.span(tail.arms)?;
-            if arms.first()?.guard_statement_ordinal as usize != prefix_count
-                || !arms.iter().all(|arm| {
-                    matches!(
-                        arm.destination,
-                        checked_trees::CheckedScalarBranchDestination::Return { .. }
-                    )
-                })
-                || tail.fallback.as_ref().is_some_and(|fallback| {
-                    !matches!(
-                        fallback,
-                        checked_trees::CheckedScalarBranchDestination::Return { .. }
-                    )
-                })
-            {
-                return None;
-            }
-            checked_trees::CheckedScalarStateTerminator::Guarded {
-                arms: tail.arms,
-                fallback: tail.fallback.clone(),
-            }
-        } else {
-            crate::execution::terminal_scalar::checked_terminator(
-                program,
-                machine,
-                state,
-                &facts.values.scalar_expressions,
-                prefix_count,
-            )?
-        };
+            return None;
+        }
+        checked_trees::CheckedScalarStateTerminator::Guarded {
+            arms: tail.arms,
+            fallback: tail.fallback.clone(),
+        }
+    } else {
+        crate::execution::terminal_scalar::checked_terminator(
+            program,
+            machine,
+            state,
+            &facts.values.scalar_expressions,
+            prefix_count,
+        )?
+    };
     let returning_tail = match &terminator {
         // Final expressions already belong to the scalar-result route, which
         // also supports ownership frontiers outside scalar-control admission.
@@ -782,6 +855,59 @@ pub(in crate::execution::terminal_unit) fn scalar_control(
 ) -> Option<(checked_trees::CheckedUnitScalarControlPlan, usize)> {
     let primitive_type = program.primitive_type_reference(state.return_type)?;
     let (terminator, prefix_count) = returning_terminator(program, facts, machine, state)?;
+    let retained_return = |statement, continuation| {
+        let role = if continuation {
+            CheckedScalarExpressionRole::ContinuationReturn
+        } else {
+            CheckedScalarExpressionRole::Return
+        };
+        facts
+            .values
+            .scalar_expressions
+            .bound_expression_at(state.symbol, statement, role)
+            .is_some()
+            || facts
+                .values
+                .scalar_computations
+                .root_at(state.symbol, statement, role)
+                .is_some()
+    };
+    let retained_destination =
+        |destination: &checked_trees::CheckedScalarBranchDestination| match destination {
+            checked_trees::CheckedScalarBranchDestination::Return {
+                statement_ordinal,
+                is_continuation,
+            } => retained_return(*statement_ordinal, *is_continuation),
+            _ => false,
+        };
+    // A completion coordinate does not establish a scalar value. Ordinary
+    // terminal invocations may own their result through an arm call instead;
+    // only the retained expression lane can publish scalar-control returns.
+    let complete = match &terminator {
+        checked_trees::CheckedScalarStateTerminator::Return { statement_ordinal } => {
+            retained_return(*statement_ordinal, false)
+        }
+        checked_trees::CheckedScalarStateTerminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => retained_destination(when_true) && retained_destination(when_false),
+        checked_trees::CheckedScalarStateTerminator::Guarded { arms, fallback } => {
+            facts
+                .flow
+                .guarded_exits
+                .exits
+                .span(*arms)?
+                .iter()
+                .all(|arm| retained_destination(&arm.destination))
+                && fallback.as_ref().is_none_or(retained_destination)
+        }
+        checked_trees::CheckedScalarStateTerminator::Crash { .. } => true,
+        _ => false,
+    };
+    if !complete {
+        return None;
+    }
     Some((
         checked_trees::CheckedUnitScalarControlPlan {
             primitive_type,

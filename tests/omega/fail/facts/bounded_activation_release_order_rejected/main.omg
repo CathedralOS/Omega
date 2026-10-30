@@ -4,16 +4,16 @@ machine main() crashes Trap {
         ActivationClaimAttempt::Established { claim } -> first(claim)
         ActivationClaimAttempt::Rejected -> bad()
     }
-    state first(first: ActivationClaim) {
+    machine first(first: ActivationClaim) {
         transition Activation::try_claim<8>(3) {
             ActivationClaimAttempt::Established { claim } -> second(first, claim)
             ActivationClaimAttempt::Rejected -> rejected(first)
         }
     }
-    state second(first: ActivationClaim, second: ActivationClaim) {
+    machine second(first: ActivationClaim, second: ActivationClaim) {
         ActivationClaim::release(first);
         ActivationClaim::release(second);
     }
-    state rejected(first: ActivationClaim) { ActivationClaim::release(first); crash Trap; }
-    state bad() { crash Trap; }
+    machine rejected(first: ActivationClaim) { ActivationClaim::release(first); crash Trap; }
+    machine bad() { crash Trap; }
 }

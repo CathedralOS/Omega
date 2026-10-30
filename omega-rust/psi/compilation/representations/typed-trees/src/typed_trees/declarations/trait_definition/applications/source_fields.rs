@@ -14,6 +14,7 @@ use crate::TypedTrees;
 use crate::data::DataMember;
 use crate::references::TypedReferences;
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
+use std::collections::BTreeSet;
 use symbols::SymbolHandle;
 
 pub(super) fn contract_application_roots<'program>(
@@ -40,10 +41,19 @@ pub(super) fn contract_application_roots<'program>(
     discovery.roots
 }
 
+// A membership key only: every component is the original handle's complete
+// arena position and generation. Discovery retains the actual typed handles.
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct SourceFieldOccurrence {
+    owner: (u32, u32),
+    reference: (u32, u32),
+    frames: Vec<(u32, u32)>,
+}
+
 struct SourceFields<'program> {
     program: &'program TypedTrees,
     roots: Vec<AppliedTraitScope<'program>>,
-    seen: Vec<Vec<(SymbolHandle, TypeReferenceHandle, Vec<TypeReferenceHandle>)>>,
+    seen: Vec<BTreeSet<SourceFieldOccurrence>>,
     active: Vec<(SymbolHandle, usize)>,
     // Query-local construction storage over one immutable program. A symbol
     // resolves to the same original declaration throughout this discovery;
@@ -70,45 +80,26 @@ impl SourceFields<'_> {
         let enclosing_applications = &enclosing_applications[..applied.scope_starts.len()];
         let slot = reference.arena_index() as usize;
         if self.seen.len() <= slot {
-            self.seen.resize_with(slot + 1, Vec::new);
+            self.seen.resize_with(slot + 1, BTreeSet::new);
         }
-        // A field at u64 and bool under the same owner is two occurrences.
-        // Generations, supplying owner and full frame path all remain in the key.
-        // Only this membership bucket is ordered, not the traversal or frame
-        // sequence. Root publication retains the authored discovery order.
-        let seen = &mut self.seen[slot];
-        let insertion =
-            match seen.binary_search_by(|(existing_owner, existing_reference, frames)| {
-                (
-                    existing_owner.arena_index(),
-                    existing_owner.generation(),
-                    existing_reference.arena_index(),
-                    existing_reference.generation(),
-                )
-                    .cmp(&(
-                        owner.arena_index(),
-                        owner.generation(),
-                        reference.arena_index(),
-                        reference.generation(),
-                    ))
-                    .then_with(|| {
-                        frames
-                            .iter()
-                            .map(|frame| (frame.arena_index(), frame.generation()))
-                            .cmp(
-                                enclosing_applications
-                                    .iter()
-                                    .map(|frame| (frame.arena_index(), frame.generation())),
-                            )
-                    })
-            }) {
-                Ok(_) => return,
-                Err(insertion) => insertion,
-            };
-        seen.insert(
-            insertion,
-            (owner, reference, enclosing_applications.to_vec()),
-        );
+        // Membership retains the full generational owner/reference and frame
+        // path. It never orders root publication. Large source graphs contain
+        // many distinct telescopes in one reference bucket; inserting into a
+        // sorted vector repeatedly shifted that entire inventory during every
+        // discovery. A query-local ordered set keeps the same exact membership
+        // judgment without those quadratic moves.
+        let identity = |handle: TypeReferenceHandle| (handle.arena_index(), handle.generation());
+        if !self.seen[slot].insert(SourceFieldOccurrence {
+            owner: (owner.arena_index(), owner.generation()),
+            reference: identity(reference),
+            frames: enclosing_applications
+                .iter()
+                .copied()
+                .map(identity)
+                .collect(),
+        }) {
+            return;
+        }
 
         // A selector publishes its requirement contract even before a concrete
         // implementation is selected. Generic callers need that symbolic view
@@ -138,14 +129,6 @@ impl SourceFields<'_> {
             return;
         }
 
-        if let Ok(Some(contract)) =
-            crate::service::inspect_service_carrier_contract(self.program, reference)
-        {
-            if let Some(scope) = contract.application(self.program, owner, enclosing_applications) {
-                self.roots.push(scope);
-            }
-            return;
-        }
         match self.program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => return,
             TypeReferenceNode::Constrained { base_type, .. } => {

@@ -19,13 +19,13 @@ machine multiply() -> bool {
         DurationResult::Ok { duration } -> product(duration)
         DurationResult::Overflow -> no()
     }
-    state product(duration: Duration) -> bool {
+    machine product(duration: Duration) -> bool {
         transition duration.seconds == 8 && duration.subsecond_nanoseconds == 400000000 {
             true -> zero()
             false -> no()
         }
     }
-    state zero() -> bool {
+    machine zero() -> bool {
         let maximum: Duration = Duration::MAX;
         let result: DurationResult = Duration::checked_multiply(&maximum, 0);
         transition result {
@@ -33,13 +33,13 @@ machine multiply() -> bool {
             DurationResult::Overflow -> no()
         }
     }
-    state check_zero(duration: Duration) -> bool {
+    machine check_zero(duration: Duration) -> bool {
         transition duration.seconds == 0 && duration.subsecond_nanoseconds == 0 {
             true -> overflow()
             false -> no()
         }
     }
-    state overflow() -> bool {
+    machine overflow() -> bool {
         let maximum: Duration = Duration::MAX;
         let result: DurationResult = Duration::checked_multiply(&maximum, 2);
         transition result {
@@ -47,8 +47,8 @@ machine multiply() -> bool {
             DurationResult::Ok { duration } -> no()
         }
     }
-    state yes() -> bool { true }
-    state no() -> bool { false }
+    machine yes() -> bool { true }
+    machine no() -> bool { false }
 }
 
 machine divide() -> bool {
@@ -58,21 +58,21 @@ machine divide() -> bool {
         DurationResult::Ok { duration } -> quotient(duration)
         DurationResult::Overflow -> no()
     }
-    state quotient(duration: Duration) -> bool {
+    machine quotient(duration: Duration) -> bool {
         transition duration.seconds == 2 && duration.subsecond_nanoseconds == 750000000 {
             true -> zero_divisor(duration)
             false -> no()
         }
     }
-    state zero_divisor(duration: Duration) -> bool {
+    machine zero_divisor(duration: Duration) -> bool {
         let result: DurationResult = Duration::divide(&duration, 0);
         transition result {
             DurationResult::Overflow -> yes()
             DurationResult::Ok { duration } -> no()
         }
     }
-    state yes() -> bool { true }
-    state no() -> bool { false }
+    machine yes() -> bool { true }
+    machine no() -> bool { false }
 }
 
 machine main() crashes Trap {
@@ -83,6 +83,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -5,6 +5,50 @@ use crate::interpreter::evaluator::{
     wrap_to_width,
 };
 impl<'program> Evaluator<'program> {
+    /// `X as dyn Trait<Args>` produces a runtime selector, not a storage
+    /// conversion. The operand names the selected implementation (or already
+    /// carries a data value); the selector value is the implementation's
+    /// type identity so a later dynamic slot call dispatches on it.
+    /// `Ok(None)` for every non-dynamic target.
+    pub(in crate::interpreter::evaluator) fn try_dynamic_selector_cast(
+        &mut self,
+        cast: &typed_trees::expression::TableCastExpression,
+        frame: &mut Frame,
+    ) -> EvalResult<Option<Value>> {
+        if !matches!(
+            self.program
+                .type_reference_table
+                .type_reference(cast.target_type),
+            typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
+        ) {
+            return Ok(None);
+        }
+        if let ExpressionNode::Name(path) =
+            self.program.expression_table.expression(cast.value).clone()
+        {
+            // A named implementation (`CounterReader as dyn Reader<_>`) names
+            // its `satisfies` conformance or realizing machine — a symbol,
+            // not a place root. Materialize the selector's type identity
+            // without evaluating storage that does not exist.
+            let implementation = self
+                .program
+                .conformance_by_symbol(path.symbol)
+                .map(|conformance| (conformance.symbol, conformance.trait_name.as_str()))
+                .or_else(|| {
+                    self.find_machine_by_symbol(path.symbol)
+                        .map(|machine| (machine.symbol, machine.name.as_str()))
+                });
+            if let Some((symbol, name)) = implementation {
+                return Ok(Some(Value::Struct {
+                    type_symbol: symbol,
+                    type_name: name.into(),
+                    fields: Default::default(),
+                }));
+            }
+        }
+        self.eval_expression(cast.value, frame).map(Some)
+    }
+
     /// The target `PrimitiveType` of a cast's full type reference.
     pub(in crate::interpreter::evaluator) fn cast_target_primitive(
         &self,

@@ -1,0 +1,8 @@
+use omega::language::core::program_image;
+
+machine build(builder: &mut Build) suspends; {
+    Build::application(builder, "provider_readiness_replacement");
+    Build::build_depend_as(builder, "backing", Source::Path { location: "../backing" });
+    suspend Build::await_provider<ProgramImage, backing::TestImage>(builder);
+    suspend Build::await_provider<ProgramImage, backing::OtherImage>(builder);
+}

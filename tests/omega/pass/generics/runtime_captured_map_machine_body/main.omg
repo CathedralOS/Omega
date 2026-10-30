@@ -12,6 +12,6 @@ machine choose<Operations satisfies Getter>() -> i32 blocks; {
 machine main() blocks; crashes Trap {
     let observed: i32 = block choose<Selected<read>>();
     transition observed == 83 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

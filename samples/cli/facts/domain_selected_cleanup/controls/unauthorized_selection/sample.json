@@ -1,0 +1,6 @@
+{
+  "role": "intended-invalid",
+  "rejection_contains": [
+    "only the carrier's owning package may authorize the selection"
+  ]
+}

@@ -1,0 +1,1 @@
+{"role": "intended-invalid", "entry": "main.omg", "rejection_contains": ["does not refine `Callback`: expected 0 parameter(s), got 1"]}

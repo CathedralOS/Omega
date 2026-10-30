@@ -19,6 +19,7 @@ use crate::physical::derivation::provider_custody::rejoin_admitted_provider_exec
 use crate::physical::derivation::provider_custody::settlement_completion_custody_is_exact;
 use crate::physical::derivation::settlement_identity::admitted_provider_settlement_identity;
 use crate::physical::native_byte_span;
+use crate::physical::sole_terminal_operation;
 use machine_code::BoundaryExecutionRecord;
 use object_file::SectionKind;
 use optimization_core::NativeOptimizationProjectionIdentity;
@@ -66,16 +67,10 @@ pub(crate) fn derive_admitted_provider_settlement_child(
     // call on the occurrence's machine, and that call must carry the
     // settlement's exact structural-argument and completion-receipt custody.
     // None of the supported mechanisms retain a scalar argument.
-    let matching_operations = module
-        .machines
-        .iter()
-        .filter(|machine| machine.id == occurrence.machine())
-        .flat_map(|machine| machine.operations())
-        .filter(|operation| Some(operation.id) == occurrence.operation())
-        .collect::<Vec<_>>();
-    let [operation] = matching_operations.as_slice() else {
-        return Err("installed D41 settlement does not rejoin one Terminal operation");
-    };
+    let operation = occurrence
+        .operation()
+        .and_then(|operation| sole_terminal_operation(module, occurrence.machine(), operation))
+        .ok_or("installed D41 settlement does not rejoin one Terminal operation")?;
     let OperationKind::BoundaryCall {
         boundary,
         arguments,

@@ -1,0 +1,17 @@
+// A retained reference is not a completed payload copy: the mutation must reject.
+data Item [copy] { case Empty; case Ready(count: u64); }
+
+machine take(item: &mut Item) -> u64 {
+    transition item {
+        Item::Ready { count } -> clear(item, &item)
+        Item::Empty -> 0
+    }
+    machine clear(item: &mut Item, saved: &Item) -> u64 {
+        item = Item::Empty;
+        transition saved { Item::Ready { count } -> (count) Item::Empty -> 0 }
+    }
+}
+machine main() {
+    let mut item: Item = Item::Ready { count: 42 };
+    let count: u64 = take(&mut item);
+}

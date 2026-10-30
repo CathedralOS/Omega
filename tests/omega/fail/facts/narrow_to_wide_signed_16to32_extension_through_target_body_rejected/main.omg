@@ -12,40 +12,80 @@ requires wide >= 300i32 && wide <= 500i32
     }
 }
 
-linux_x86_64 machine exercise(narrow: i16) -> i32
-requires narrow >= 300i16 && narrow <= 501i16
-{
-    let wide: i32 = narrow as i32;
-    verify_wide(wide)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine exercise(narrow: i16) -> i32
-requires narrow >= 300i16 && narrow <= 501i16
-{
-    let wide: i32 = narrow as i32;
-    verify_wide(wide)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine exercise(narrow: i16) -> i32
-requires narrow >= 300i16 && narrow <= 501i16
-{
-    let wide: i32 = narrow as i32;
-    verify_wide(wide)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine exercise(narrow: i16) -> i32
-requires narrow >= 300i16 && narrow <= 501i16
-{
-    let wide: i32 = narrow as i32;
-    verify_wide(wide)
+boundary trait SelectedProbe {
+    machine exercise(narrow: i16) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+        requires narrow >= 300i16 && narrow <= 501i16;
 }
 
-machine main() crashes Trap {
-    let exit_code: i32 = exercise(400i16);
+X86Probe satisfies SelectedProbe {
+    machine exercise(narrow: i16) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+        requires narrow >= 300i16 && narrow <= 501i16
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let wide: i32 = narrow as i32;
+        verify_wide(wide)
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine exercise(narrow: i16) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+        requires narrow >= 300i16 && narrow <= 501i16
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let wide: i32 = narrow as i32;
+        verify_wide(wide)
+    }
+}
+
+
+
+
+
+
+
+
+
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
+    let exit_code: i32 = SelectedProbe::exercise(400i16);
     transition exit_code == 0i32 {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

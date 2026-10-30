@@ -1,5 +1,5 @@
 // Every widening conversion in the public numeric_conversion surface keeps
-// its value: signed sources sign-extend (-128, -32768 and i32::MIN stay
+// its value: signed sources sign-extend (-128, -32768 and i32 minimum stay
 // negative) and unsigned sources zero-extend into both unsigned and
 // signed targets (u8 255 -> i16 255, never -1). `literal_checks` passes
 // constants; `runtime_checks` reads the extremes through a borrowed
@@ -107,6 +107,6 @@ machine main() crashes Trap {
         _ -> failed()
     }
 
-    state passed() {}
-    state failed() { crash Trap; }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }

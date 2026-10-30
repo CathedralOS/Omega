@@ -155,6 +155,29 @@ pub enum NormalizedForeignCallMechanism {
     },
 }
 
+impl NormalizedForeignCallMechanism {
+    /// The admitted user-space stack contribution every non-kernel mechanism
+    /// carries. A kernel entry consumes no foreign receiver-stack reserve, so
+    /// this split is answered once instead of at each report coordinate.
+    fn same_stack_contribution(&self) -> Option<&task_plans::AdmittedSameStackContribution> {
+        match self {
+            Self::Import {
+                same_stack_contribution,
+                ..
+            }
+            | Self::Component {
+                same_stack_contribution,
+                ..
+            }
+            | Self::Table {
+                same_stack_contribution,
+                ..
+            } => Some(same_stack_contribution),
+            Self::SystemCall(_) => None,
+        }
+    }
+}
+
 /// Exact source-free custody for a direct kernel entry. Unlike an imported
 /// user-space callee it consumes no foreign receiver-stack reserve. The
 /// ordinary lowering stages still owe argument placement, result custody and
@@ -235,42 +258,20 @@ impl NormalizedForeignCallBinding {
         &'identities self,
         identities: &'identities terminal_psi::TerminalIdentityTable,
     ) -> Option<&'identities str> {
-        match &self.mechanism {
-            NormalizedForeignCallMechanism::Import {
-                same_stack_contribution,
-                ..
-            }
-            | NormalizedForeignCallMechanism::Component {
-                same_stack_contribution,
-                ..
-            }
-            | NormalizedForeignCallMechanism::Table {
-                same_stack_contribution,
-                ..
-            } => identities.text(same_stack_contribution.requirement_identity()),
-            NormalizedForeignCallMechanism::SystemCall(binding) => {
-                Some(binding.requirement_identity.as_str())
-            }
+        match self.mechanism.same_stack_contribution() {
+            Some(contribution) => identities.text(contribution.requirement_identity()),
+            None => self
+                .system_call()
+                .map(|binding| binding.requirement_identity.as_str()),
         }
     }
 
     pub fn provider_plan_report_identity(&self) -> u64 {
-        match &self.mechanism {
-            NormalizedForeignCallMechanism::Import {
-                same_stack_contribution,
-                ..
-            }
-            | NormalizedForeignCallMechanism::Component {
-                same_stack_contribution,
-                ..
-            }
-            | NormalizedForeignCallMechanism::Table {
-                same_stack_contribution,
-                ..
-            } => same_stack_contribution.provider_plan_report_identity(),
-            NormalizedForeignCallMechanism::SystemCall(binding) => {
-                binding.provider_plan_report_identity
-            }
+        match self.mechanism.same_stack_contribution() {
+            Some(contribution) => contribution.provider_plan_report_identity(),
+            None => self
+                .system_call()
+                .map_or(0, |binding| binding.provider_plan_report_identity),
         }
     }
 
@@ -386,21 +387,7 @@ impl NormalizedForeignCallBinding {
     /// User-space counterparties share stack and floating-control obligations,
     /// whether their entry address comes from a linker or a named table field.
     pub fn same_stack_contribution(&self) -> Option<&task_plans::AdmittedSameStackContribution> {
-        match &self.mechanism {
-            NormalizedForeignCallMechanism::Import {
-                same_stack_contribution,
-                ..
-            }
-            | NormalizedForeignCallMechanism::Component {
-                same_stack_contribution,
-                ..
-            }
-            | NormalizedForeignCallMechanism::Table {
-                same_stack_contribution,
-                ..
-            } => Some(same_stack_contribution),
-            NormalizedForeignCallMechanism::SystemCall(_) => None,
-        }
+        self.mechanism.same_stack_contribution()
     }
 
     pub fn table_dispatch(&self) -> Option<(u32, bool)> {
@@ -476,8 +463,18 @@ impl From<BoundaryRealization> for BoundarySettlementRealization {
     }
 }
 
-macro_rules! builtin_settlement_conversion {
-    ($realization:ty) => {
+/// One closed realization's conversions to the settlement surface: its variant
+/// in [`BoundaryRealization`] and the enclosing [`BoundarySettlementRealization`]
+/// choice. Every compiler-builtin realization carries the same two-step
+/// mapping, so one rule owns both levels.
+macro_rules! boundary_realization_conversion {
+    ($variant:ident, $realization:ty) => {
+        impl From<$realization> for BoundaryRealization {
+            fn from(realization: $realization) -> Self {
+                Self::$variant(realization)
+            }
+        }
+
         impl From<$realization> for BoundarySettlementRealization {
             fn from(realization: $realization) -> Self {
                 Self::Builtin(realization.into())
@@ -485,15 +482,6 @@ macro_rules! builtin_settlement_conversion {
         }
     };
 }
-
-builtin_settlement_conversion!(MetadataOnlyPortRealization);
-builtin_settlement_conversion!(DirectPortReadU8Realization);
-builtin_settlement_conversion!(LinuxWriteLineRealization);
-builtin_settlement_conversion!(HostedExitProcessI32Realization);
-builtin_settlement_conversion!(HostedReadByteRealization);
-builtin_settlement_conversion!(HostedWriteByteI32Realization);
-builtin_settlement_conversion!(ClaimCompletionOnlyRealization);
-builtin_settlement_conversion!(NearestIeeeFloatArithmeticRealization);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundaryRealization {
@@ -515,63 +503,22 @@ pub enum BoundaryRealization {
     NearestIeeeFloatArithmetic(NearestIeeeFloatArithmeticRealization),
 }
 
-impl From<NearestIeeeFloatArithmeticRealization> for BoundaryRealization {
-    fn from(realization: NearestIeeeFloatArithmeticRealization) -> Self {
-        Self::NearestIeeeFloatArithmetic(realization)
-    }
-}
-
-impl From<MetadataOnlyPortRealization> for BoundaryRealization {
-    fn from(realization: MetadataOnlyPortRealization) -> Self {
-        Self::MetadataOnlyPort(realization)
-    }
-}
-
-impl From<DirectPortReadU8Realization> for BoundaryRealization {
-    fn from(realization: DirectPortReadU8Realization) -> Self {
-        Self::DirectPortReadU8(realization)
-    }
-}
-
-impl From<HostedExitProcessI32Realization> for BoundaryRealization {
-    fn from(realization: HostedExitProcessI32Realization) -> Self {
-        Self::HostedExitProcessI32(realization)
-    }
-}
-
-impl From<HostedReadByteRealization> for BoundaryRealization {
-    fn from(realization: HostedReadByteRealization) -> Self {
-        Self::HostedReadByte(realization)
-    }
-}
-
-impl From<HostedWriteByteI32Realization> for BoundaryRealization {
-    fn from(realization: HostedWriteByteI32Realization) -> Self {
-        Self::HostedWriteByteI32(realization)
-    }
-}
-
-impl From<LinuxWriteLineRealization> for BoundaryRealization {
-    fn from(realization: LinuxWriteLineRealization) -> Self {
-        Self::LinuxWriteLine(realization)
-    }
-}
-
-impl From<ClaimCompletionOnlyRealization> for BoundaryRealization {
-    fn from(realization: ClaimCompletionOnlyRealization) -> Self {
-        Self::ClaimCompletionOnly(realization)
-    }
-}
-
 /// A selected scalar operation on a sealed placed declaration, with no backing grant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlacedScalarAccessRealization {
     pub contract: [u8; 32],
     pub demand: terminal_psi::PlacedScalarBoundaryDemand,
 }
-impl From<PlacedScalarAccessRealization> for BoundaryRealization {
-    fn from(realization: PlacedScalarAccessRealization) -> Self {
-        Self::PlacedScalarAccess(realization)
-    }
-}
-builtin_settlement_conversion!(PlacedScalarAccessRealization);
+
+boundary_realization_conversion!(
+    NearestIeeeFloatArithmetic,
+    NearestIeeeFloatArithmeticRealization
+);
+boundary_realization_conversion!(MetadataOnlyPort, MetadataOnlyPortRealization);
+boundary_realization_conversion!(DirectPortReadU8, DirectPortReadU8Realization);
+boundary_realization_conversion!(HostedExitProcessI32, HostedExitProcessI32Realization);
+boundary_realization_conversion!(HostedReadByte, HostedReadByteRealization);
+boundary_realization_conversion!(HostedWriteByteI32, HostedWriteByteI32Realization);
+boundary_realization_conversion!(LinuxWriteLine, LinuxWriteLineRealization);
+boundary_realization_conversion!(ClaimCompletionOnly, ClaimCompletionOnlyRealization);
+boundary_realization_conversion!(PlacedScalarAccess, PlacedScalarAccessRealization);

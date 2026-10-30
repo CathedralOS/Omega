@@ -5,7 +5,7 @@ use super::{
     MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
     RegisterViewId, ValidatedAarch64SelectedFormEncoding, ValidatedPhysicalRegisterModel,
-    resolve_registers,
+    request_registers,
 };
 pub(super) fn encode(
     physical: &ValidatedPhysicalRegisterModel,
@@ -76,19 +76,16 @@ fn request(
     operands: &[RegisterViewId],
     displacement: u32,
 ) -> Result<[u8; 3], Aarch64SelectedFormEncodingError> {
-    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
-        || displacement != 0
-        || alternative
-            != (MachineAlternativeKey {
-                family: MachineAlternativeFamily::Load8Indexed,
-                variant: 0,
-            })
-    {
+    if displacement != 0 {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
-    resolve_registers(physical, operands)?
-        .try_into()
-        .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)
+    request_registers(
+        physical,
+        alternative,
+        MachineAlternativeFamily::Load8Indexed,
+        operands,
+        3,
+    )
 }
 
 #[cfg(test)]
@@ -98,6 +95,7 @@ mod tests {
         validate_aarch64_selected_memory_form,
     };
     use super::{MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect};
+    use crate::test_support::reject_every_bit_flip;
 
     #[test]
     fn indexed_byte_load_decodes_every_bit_and_operand_role() {
@@ -125,22 +123,17 @@ mod tests {
                 byte_count: 1,
             }
         );
-        for bit in 0..encoded.bytes().len() * 8 {
-            let mut corrupt = encoded.bytes().to_vec();
-            corrupt[bit / 8] ^= 1 << (bit % 8);
-            assert!(
-                validate_aarch64_selected_memory_form(
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                    0,
-                    &corrupt,
-                )
-                .is_err(),
-                "accepted changed encoding bit {bit}"
-            );
-        }
+        reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |corrupt| {
+            validate_aarch64_selected_memory_form(
+                &physical,
+                kind,
+                alternative,
+                &operands,
+                0,
+                &corrupt,
+            )
+            .is_err()
+        });
         for role in 0..3 {
             let mut corrupt = operands;
             corrupt[role] = operands[(role + 1) % 3];

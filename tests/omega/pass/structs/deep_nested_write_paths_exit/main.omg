@@ -29,31 +29,31 @@ machine Main::build(main: &mut Main) reaches Console {
         true -> leg2(main)
         _ -> wrong_nested_write(main)
     }
-    state leg2(main: &mut Main) {
+    machine leg2(main: &mut Main) {
         main.holder.msg = Msg::Pong { y: 1, z: 2 };
         transition main.holder.msg {
             Msg::Pong { y, z } -> chk(main, y, z)
             _ -> wrong_sum_in_struct(main)
         }
     }
-    state chk(main: &mut Main, y: i32, z: i32) {
+    machine chk(main: &mut Main, y: i32, z: i32) {
         transition y == 1 && z == 2 {
             true -> leg3(main)
             _ -> wrong_sum_payload(main)
         }
     }
-    state leg3(main: &mut Main) {
+    machine leg3(main: &mut Main) {
         main.pair[1].a = 7;
         transition main.pair[1].a == 7 && main.pair[0].a == 0 && main.pair[1].b == 0 {
             true -> good(main)
             _ -> wrong_elem_field(main)
         }
     }
-    state good(main: &mut Main)               { Console::exit_process(70); }
-    state wrong_nested_write(main: &mut Main) { Console::exit_process(71); }
-    state wrong_sum_in_struct(main: &mut Main){ Console::exit_process(72); }
-    state wrong_sum_payload(main: &mut Main)  { Console::exit_process(73); }
-    state wrong_elem_field(main: &mut Main)   { Console::exit_process(74); }
+    machine good(main: &mut Main)               { Console::exit_process(70); }
+    machine wrong_nested_write(main: &mut Main) { Console::exit_process(71); }
+    machine wrong_sum_in_struct(main: &mut Main){ Console::exit_process(72); }
+    machine wrong_sum_payload(main: &mut Main)  { Console::exit_process(73); }
+    machine wrong_elem_field(main: &mut Main)   { Console::exit_process(74); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

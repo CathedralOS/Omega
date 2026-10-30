@@ -1,0 +1,26 @@
+// Expected exit: 0
+// Every actual arrival establishes the helper's required equality.
+// The helper needs no handwritten duplicate of that inferred requirement.
+data Branch {
+    case End;
+    case Next(child: Branch);
+}
+
+machine same(left: Branch, right: Branch)
+requires left == right
+{}
+
+machine visit(value: Branch) {
+    transition value {
+        Branch::End -> forward(Branch::End, Branch::End)
+        Branch::Next { child } -> forward(child, child)
+    }
+
+    machine forward(left: Branch, right: Branch) {
+        same(left, right);
+    }
+}
+
+machine main() {
+    visit(Branch::Next { child: Branch::End });
+}

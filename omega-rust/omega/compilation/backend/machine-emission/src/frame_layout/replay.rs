@@ -1,14 +1,12 @@
 //! Check submitted geometry without constructing a replacement frame plan.
 
-use selected_instructions::MachineAlternativeFamily;
-
 use crate::frame_layout::{
-    FrameAbiPreservationConvention, FrameContinuationCustody, FrameUnwindRestore,
-    ReturnAddressFrameCustody, StagedOptimizedPostAllocationMachinePlan,
-    TargetFrameLayoutError as Error, TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
-    ValidatedAllocatedCalleeSavedRequirements, ValidatedNonAuthoritativeCalleeSaveStorage,
-    ValidatedTargetRegisterEnvironment, call_site::call_site_stack_contract,
-    stack_commit::stack_commit_granule_bytes, unwind::frame_unwind_policy,
+    FrameAbiPreservationConvention, FrameContinuationCustody, ReturnAddressFrameCustody,
+    StagedOptimizedPostAllocationMachinePlan, TargetFrameLayoutError as Error,
+    TargetFrameLayoutPlan, TargetFrameLayoutPolicy, ValidatedAllocatedCalleeSavedRequirements,
+    ValidatedNonAuthoritativeCalleeSaveStorage, ValidatedTargetRegisterEnvironment,
+    call_site::call_site_stack_contract, stack_commit::stack_commit_granule_bytes,
+    unwind::frame_unwind_policy,
 };
 
 pub(super) fn validate_layout(
@@ -64,15 +62,7 @@ pub(super) fn validate_layout(
         if source.machine != requirement.machine || source.machine != storage.machine {
             return Err(Error::FunctionRosterMismatch);
         }
-        let calls = source.instructions().any(|instruction| {
-            matches!(
-                instruction.alternative.key.family,
-                MachineAlternativeFamily::CallScalar
-                    | MachineAlternativeFamily::CallUnit
-                    | MachineAlternativeFamily::CallAggregate
-                    | MachineAlternativeFamily::NormalizedForeignCall
-            )
-        });
+        let calls = super::geometry::contains_call(source);
         let shadow = if calls && required.abi == FrameAbiPreservationConvention::MicrosoftX64 {
             32_u64
         } else {
@@ -144,32 +134,10 @@ pub(super) fn validate_layout(
                 .checked_add(placed.reserved_size_bytes(call_site.stack_alignment_bytes))
                 .ok_or(Error::GeometryOverflow)?;
         }
-        // The stable-address-loan roster is recovered from the physical
-        // address operations themselves, never from the producer's claims:
-        // a materialized frame address on an activation-local non-spill
-        // slot loans that coordinate to the pointer's observers, and no
-        // other access does. Allocator spill materializations are private
-        // reload windows consumed inside the same window, so they cannot
-        // appear. The canonical roster is ascending and duplicate-free,
-        // which exact equality with the recovered set enforces.
-        let stable_address_loans = source
-            .instructions()
-            .filter_map(|instruction| match instruction.address {
-                Some(physical_instructions::PhysicalAddressOperation::FrameAddress {
-                    slot: selected_instructions::FrameStorageSlotId::Local(slot),
-                    ..
-                }) if !matches!(
-                    slot,
-                    selected_instructions::LocalStorageSlotId::Spill { .. }
-                ) =>
-                {
-                    Some(slot)
-                }
-                _ => None,
-            })
-            .collect::<std::collections::BTreeSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
+        // The loan roster is recovered from the physical address operations
+        // themselves, never from the producer's claims; exact equality with
+        // the recovered set enforces the canonical ascending roster.
+        let stable_address_loans = super::geometry::stable_address_loans(source);
         if row.stable_address_loans != stable_address_loans
             || stable_address_loans
                 .iter()
@@ -199,23 +167,16 @@ pub(super) fn validate_layout(
             .abstract_area_bytes
             .checked_add(preservation_offset)
             .ok_or(Error::GeometryOverflow)?;
-        // A red-zone-resident frame is canonical only as a whole: either no
-        // bytes live below the unadjusted stack pointer, or the entire
-        // addressed extent does and nothing is committed. Residency also
-        // requires the leaf System V form, no preservation storage, and only
-        // allocator spill slots, so every below-RSP access still resolves
-        // through signed frame displacements.
+        // A resident row is admitted only for the leaf System V form with a
+        // capacity that holds it; the row's own residency shape is the geometry
+        // owner's.
         if row.frame_size_bytes > super::MAX_FRAME_BYTES {
             return Err(Error::FrameExceedsAddressableExtent {
                 frame_size_bytes: row.frame_size_bytes,
             });
         }
         let resident = row.red_zone_resident_bytes;
-        let committed = row
-            .frame_size_bytes
-            .checked_sub(resident)
-            .filter(|_| resident == 0 || resident == row.frame_size_bytes)
-            .ok_or(Error::NonCanonicalLayout)?;
+        let committed = super::geometry::committed_extent(row).ok_or(Error::NonCanonicalLayout)?;
         if resident != 0 {
             let capacity = u64::from(
                 register_environment::selected_abi_preservation(environment)
@@ -227,12 +188,6 @@ pub(super) fn validate_layout(
                 || calls
                 || !storage.slots.is_empty()
                 || row.frame_size_bytes > capacity
-                || source.local_storage_slots.iter().any(|slot| {
-                    !matches!(
-                        slot.id,
-                        selected_instructions::LocalStorageSlotId::Spill { .. }
-                    )
-                })
             {
                 return Err(Error::NonCanonicalLayout);
             }
@@ -388,37 +343,11 @@ pub(super) fn validate_layout(
                 }
             }
         }
-        // The unwind roster is recovered from the pieces already bound to
-        // the inputs, never by trusting the candidate's own record: a saved
-        // link register — whose custody and coordinates were just checked
-        // canonically above — heads the roster, then every preservation
-        // slot in reverse save order, so the roster is strictly descending
-        // frame offsets. The release is exactly the committed extent and
-        // the restated custody is the checked `return_address`. Exact
-        // equality leaves the producer's roster non-authoritative.
-        let mut restores = Vec::with_capacity(row.callee_save_slots.len() + 1);
-        if let ReturnAddressFrameCustody::SavedLinkRegister {
-            view,
-            frame_offset_bytes,
-            size_bytes,
-        } = row.return_address
-        {
-            restores.push(FrameUnwindRestore {
-                view,
-                frame_offset_bytes,
-                size_bytes: u64::from(size_bytes),
-            });
-        }
-        restores.extend(
-            row.callee_save_slots
-                .iter()
-                .rev()
-                .map(|slot| FrameUnwindRestore {
-                    view: slot.storage_view,
-                    frame_offset_bytes: slot.frame_offset_bytes,
-                    size_bytes: slot.size_bytes,
-                }),
-        );
+        // The roster is recovered from the pieces already bound to the
+        // inputs, never from the candidate's own record: the custody and
+        // coordinates were just checked canonically above. Exact equality
+        // leaves the producer's roster non-authoritative.
+        let restores = super::geometry::unwind_restores(row.return_address, &row.callee_save_slots);
         if row.unwind.restores != restores
             || row.unwind.released_bytes != committed
             || row.unwind.return_address != row.return_address

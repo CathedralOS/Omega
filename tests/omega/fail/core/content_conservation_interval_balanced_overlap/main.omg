@@ -1,0 +1,27 @@
+use omega::language::core::content;
+use omega::language::core::drop;
+
+public data ByteUnit {}
+
+public data Region [linear] {
+    start: u64;
+    end: u64;
+}
+
+// The type owner authorizes the only cleanup plan; linear custody still
+// has to be transferred or dropped exactly once.
+machine Region::drop(region: &mut Region) {}
+
+public domain Region::Owned;
+
+public machine Owned::content(region: &Region) -> IntervalSet<ByteUnit>
+satisfies Content<Region, IntervalSet<ByteUnit>>::project
+{
+    IntervalSet { start: embed(region.start) as Nat, end: embed(region.end) as Nat }
+}
+
+public data Pair { left: Region in Owned; right: Region in Owned; }
+machine retain(left: Region in Owned, right: Region in Owned) -> Pair
+requires left.start == 10 && left.end == 18 && right.start == 10 && right.end == 18
+ensures separate(Owned::content(old(&left)), Owned::content(old(&right))) == separate(Owned::content(&result.left), Owned::content(&result.right))
+{ Pair { left: left, right: right } }

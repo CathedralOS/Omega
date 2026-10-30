@@ -4,7 +4,7 @@
 //! compose outer scopes first so permutations never substitute their siblings.
 
 use symbols::SymbolHandle;
-use typed_trees::static_applications::{StaticMachineApplicationHandle, StaticMachineBindingValue};
+use typed_trees::static_applications::StaticMachineApplicationHandle;
 use typed_trees::type_identity::{
     AppliedTypeIdentityScope, IndexIdentityArgument, applied_declared_carrier_identity,
 };
@@ -194,39 +194,11 @@ impl<'program> Frame<'program> {
         if !application.lexical_owner.is_valid() {
             return Err("selected carrier frame lost its lexical supplier");
         }
-        let arguments = program
-            .expression_table
-            .static_machine_application_bindings(handle)
-            .iter()
-            .map(|binding| {
-                (
-                    binding.parameter,
-                    match &binding.value {
-                        StaticMachineBindingValue::Type(actual) => {
-                            IndexIdentityArgument::TypeArgument(*actual)
-                        }
-                        StaticMachineBindingValue::Const(actual) => {
-                            IndexIdentityArgument::TypeReference(*actual)
-                        }
-                        StaticMachineBindingValue::RuntimeValue {
-                            subject,
-                            expression,
-                            ..
-                        } => {
-                            if expression.is_valid() {
-                                IndexIdentityArgument::Expression(*expression)
-                            } else {
-                                IndexIdentityArgument::Subject(*subject)
-                            }
-                        }
-                        StaticMachineBindingValue::Machine(actual)
-                        | StaticMachineBindingValue::Conformance(actual) => {
-                            IndexIdentityArgument::StaticArgument(actual)
-                        }
-                    },
-                )
-            })
-            .collect();
+        let arguments = crate::machine_calls::static_bindings::index_identity_arguments(
+            program
+                .expression_table
+                .static_machine_application_bindings(handle),
+        );
         Ok(Self {
             declaration: application.binding_declaration,
             arguments,

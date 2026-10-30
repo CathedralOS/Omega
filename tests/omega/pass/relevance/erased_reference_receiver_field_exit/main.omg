@@ -8,6 +8,6 @@ machine boot() crashes Trap {
     let first: i32 = Main::checked(true, 9, &mut value);
     let second: i32 = Main::checked(false, 9, &mut value);
     transition first == 41 && second == 42 { true -> good() false -> bad() }
-    state good() {}
-    state bad() { crash Trap; }
+    machine good() {}
+    machine bad() { crash Trap; }
 }

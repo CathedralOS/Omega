@@ -59,7 +59,7 @@ macos_arm64 machine MeasureProvider::measure(text: &[u8]) -> i32 satisfies Measu
         true -> lend(text)
         _ -> (72)
     }
-    state lend(text: &[u8]) -> i32
+    machine lend(text: &[u8]) -> i32
     requires text.len > 2
     {
         let element: u64 = c_strlen(&text[2]);
@@ -76,7 +76,7 @@ linux_x86_64 machine MeasureProvider::measure(text: &[u8]) -> i32 satisfies Meas
         true -> lend(text)
         _ -> (72)
     }
-    state lend(text: &[u8]) -> i32
+    machine lend(text: &[u8]) -> i32
     requires text.len > 2
     {
         let element: u64 = c_strlen(&text[2]);
@@ -105,8 +105,8 @@ machine Main::main(main: &mut Main) reaches Console + CText + Measure {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

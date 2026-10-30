@@ -1,4 +1,4 @@
-// Bitwise operations on u32 at HIGH values (above i32::MAX) -- the building blocks of hashing,
+// Bitwise operations on u32 at HIGH values (above i32 maximum) -- the building blocks of hashing,
 // flags, and bit-field extraction, where the full 32-bit width and the high bit must be handled.
 // a = 0xF0F0F0F0 (4042322160), b = 0x0F0F0F0F (252645135):
 //   a ^ b == 0xFFFFFFFF,  a & b == 0,  a | b == 0xFFFFFFFF,
@@ -13,34 +13,34 @@ data Main {
 }
 
 machine Main::main(context: &mut Main) reaches Console {
-    transition { _ -> b_xor(context, 4042322160, 252645135) }
+    transition { _ -> b_xor(context, 0xF0F0_F0F0, 0x0F0F_0F0F) }
 
-    state b_xor(context: &mut Main, a: u32 in Wrapping, b: u32 in Wrapping) {
+    machine b_xor(context: &mut Main, a: u32 in Wrapping, b: u32 in Wrapping) {
         let result: u32 in Wrapping = a ^ b;
-        transition result == 4294967295 {
+        transition result == 0xFFFF_FFFF {
             true -> b_and(context, a, b)
             _ -> bad(context)
         }
     }
-    state b_and(context: &mut Main, a: u32 in Wrapping, b: u32 in Wrapping) {
+    machine b_and(context: &mut Main, a: u32 in Wrapping, b: u32 in Wrapping) {
         let result: u32 in Wrapping = a & b;
         transition result == 0 { true -> b_or(context, a, b) _ -> bad(context) }
     }
-    state b_or(context: &mut Main, a: u32 in Wrapping, b: u32 in Wrapping) {
+    machine b_or(context: &mut Main, a: u32 in Wrapping, b: u32 in Wrapping) {
         let result: u32 in Wrapping = a | b;
-        transition result == 4294967295 { true -> b_ext(context, a) _ -> bad(context) }
+        transition result == 0xFFFF_FFFF { true -> b_ext(context, a) _ -> bad(context) }
     }
-    state b_ext(context: &mut Main, a: u32 in Wrapping) {
+    machine b_ext(context: &mut Main, a: u32 in Wrapping) {
         let shifted: u32 in Wrapping = a >> 28;
         let nibble: u32 in Wrapping = shifted & 15;
         transition nibble == 15 { true -> b_not(context, a) _ -> bad(context) }
     }
-    state b_not(context: &mut Main, a: u32 in Wrapping) {
-        let result: u32 in Wrapping = a ^ 4294967295;
-        transition result == 252645135 { true -> ok(context) _ -> bad(context) }
+    machine b_not(context: &mut Main, a: u32 in Wrapping) {
+        let result: u32 in Wrapping = a ^ 0xFFFF_FFFF;
+        transition result == 0x0F0F_0F0F { true -> ok(context) _ -> bad(context) }
     }
-    state ok(context: &mut Main) { Console::exit_process(70); }
-    state bad(context: &mut Main) { Console::exit_process(71); }
+    machine ok(context: &mut Main) { Console::exit_process(70); }
+    machine bad(context: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

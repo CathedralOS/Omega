@@ -594,6 +594,7 @@ impl ExplicitApplication<'_> {
             implementation_receiver: None,
             dispatch: Some(StaticRequirementDispatch {
                 selection_application: source_application,
+                evidence_parameter: SymbolHandle::invalid(),
                 application_report_fingerprint: application.report_fingerprint,
                 application_commitment: application.commitment,
                 declaring_trait: row.declaring_trait,

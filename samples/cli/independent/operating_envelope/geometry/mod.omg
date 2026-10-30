@@ -19,7 +19,7 @@ public machine load(envelope: &mut Envelope, packet: &input::Packet) -> bool {
         true -> header(envelope, packet)
         _ -> false
     }
-    state header(envelope: &mut Envelope, packet: &input::Packet) -> bool {
+    machine header(envelope: &mut Envelope, packet: &input::Packet) -> bool {
         let bound: i32 = packet.values[0];
         let count: i32 in Wrapping = packet.values[1] as i32 in Wrapping;
         transition bound > 0 && bound <= 100 && count >= 0 && count <= 8
@@ -28,7 +28,7 @@ public machine load(envelope: &mut Envelope, packet: &input::Packet) -> bool {
             _ -> false
         }
     }
-    state initialize(envelope: &mut Envelope, packet: &input::Packet, bound: i32,
+    machine initialize(envelope: &mut Envelope, packet: &input::Packet, bound: i32,
                      count: i32 in Wrapping) -> bool {
         envelope.bound = F64::from_i32(bound);
         envelope.constraints = count;
@@ -42,21 +42,21 @@ public machine load(envelope: &mut Envelope, packet: &input::Packet) -> bool {
         envelope.x[3] = 0.0 - envelope.bound; envelope.y[3] = envelope.bound;
         transition { _ -> constraint(envelope, packet, 0) }
     }
-    state constraint(envelope: &mut Envelope, packet: &input::Packet,
+    machine constraint(envelope: &mut Envelope, packet: &input::Packet,
                      index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < envelope.constraints && index < 8 {
             true -> offsets(envelope, packet, index, 2 + index * 3)
             _ -> true
         }
     }
-    state offsets(envelope: &mut Envelope, packet: &input::Packet,
+    machine offsets(envelope: &mut Envelope, packet: &input::Packet,
                   index: i32 in Wrapping, offset: i32 in Wrapping) -> bool {
         transition offset >= 0 && offset < 24 && index >= 0 && index < 8 {
             true -> coefficients(envelope, packet, index, offset)
             _ -> false
         }
     }
-    state coefficients(envelope: &mut Envelope, packet: &input::Packet,
+    machine coefficients(envelope: &mut Envelope, packet: &input::Packet,
                        index: i32 in Wrapping, offset: i32 in Wrapping) -> bool {
         let a: i32 = packet.values[offset];
         let b: i32 = packet.values[offset + 1];
@@ -66,7 +66,7 @@ public machine load(envelope: &mut Envelope, packet: &input::Packet) -> bool {
             _ -> false
         }
     }
-    state assign(envelope: &mut Envelope, packet: &input::Packet, index: i32 in Wrapping,
+    machine assign(envelope: &mut Envelope, packet: &input::Packet, index: i32 in Wrapping,
                  a: i32, b: i32, limit: i32) -> bool {
         envelope.a[index] = F64::from_i32(a);
         envelope.b[index] = F64::from_i32(b);
@@ -80,48 +80,48 @@ machine append(envelope: &mut Envelope, x: f64, y: f64) {
         true -> write(envelope, x, y)
         _ -> overflow(envelope)
     }
-    state write(envelope: &mut Envelope, x: f64, y: f64) {
+    machine write(envelope: &mut Envelope, x: f64, y: f64) {
         envelope.scratch_x[envelope.scratch_count] = x;
         envelope.scratch_y[envelope.scratch_count] = y;
         envelope.scratch_count = envelope.scratch_count + 1;
     }
-    state overflow(envelope: &mut Envelope) { envelope.valid = false; }
+    machine overflow(envelope: &mut Envelope) { envelope.valid = false; }
 }
 
 public machine solve(envelope: &mut Envelope) {
     transition { _ -> constraint(envelope, 0) }
-    state constraint(envelope: &mut Envelope, index: i32 in Wrapping) {
+    machine constraint(envelope: &mut Envelope, index: i32 in Wrapping) {
         transition index >= 0 && index < envelope.constraints && index < 8 {
             true -> begin(envelope, index)
             _ -> measure(envelope, 0, 0.0)
         }
     }
-    state begin(envelope: &mut Envelope, index: i32 in Wrapping) {
+    machine begin(envelope: &mut Envelope, index: i32 in Wrapping) {
         envelope.scratch_count = 0;
         transition { _ -> edge(envelope, index, 0) }
     }
-    state edge(envelope: &mut Envelope, index: i32 in Wrapping, vertex: i32 in Wrapping) {
+    machine edge(envelope: &mut Envelope, index: i32 in Wrapping, vertex: i32 in Wrapping) {
         transition vertex >= 0 && vertex < envelope.count && vertex < 32
                    && index >= 0 && index < 8 {
             true -> successor(envelope, index, vertex, vertex + 1)
             _ -> copy(envelope, index, 0)
         }
     }
-    state successor(envelope: &mut Envelope, index: i32 in Wrapping,
+    machine successor(envelope: &mut Envelope, index: i32 in Wrapping,
                     vertex: i32 in Wrapping, next: i32 in Wrapping) {
         transition next < envelope.count {
             true -> endpoints(envelope, index, vertex, next)
             _ -> endpoints(envelope, index, vertex, 0)
         }
     }
-    state endpoints(envelope: &mut Envelope, index: i32 in Wrapping,
+    machine endpoints(envelope: &mut Envelope, index: i32 in Wrapping,
                     vertex: i32 in Wrapping, next: i32 in Wrapping) {
         transition vertex >= 0 && vertex < 32 && next >= 0 && next < 32 && index >= 0 && index < 8 {
             true -> classify(envelope, index, vertex, next)
             _ -> failure(envelope)
         }
     }
-    state classify(envelope: &mut Envelope, index: i32 in Wrapping,
+    machine classify(envelope: &mut Envelope, index: i32 in Wrapping,
                    vertex: i32 in Wrapping, next: i32 in Wrapping) {
         let start_x: f64 = envelope.x[vertex]; let start_y: f64 = envelope.y[vertex];
         let end_x: f64 = envelope.x[next]; let end_y: f64 = envelope.y[next];
@@ -132,14 +132,14 @@ public machine solve(envelope: &mut Envelope) {
             _ -> intersect(envelope, index, vertex, start_x, start_y, end_x, end_y, start_distance, end_distance)
         }
     }
-    state same(envelope: &mut Envelope, index: i32 in Wrapping, vertex: i32 in Wrapping,
+    machine same(envelope: &mut Envelope, index: i32 in Wrapping, vertex: i32 in Wrapping,
                end_x: f64, end_y: f64, end_distance: f64) {
         transition end_distance <= 0.000000001 {
             true -> keep(envelope, index, vertex, end_x, end_y)
             _ -> edge(envelope, index, vertex + 1)
         }
     }
-    state intersect(envelope: &mut Envelope, index: i32 in Wrapping, vertex: i32 in Wrapping,
+    machine intersect(envelope: &mut Envelope, index: i32 in Wrapping, vertex: i32 in Wrapping,
                     start_x: f64, start_y: f64, end_x: f64, end_y: f64,
                     start_distance: f64, end_distance: f64) {
         // Clip at the admitted boundary epsilon; the same boundary classifies
@@ -151,46 +151,46 @@ public machine solve(envelope: &mut Envelope) {
             _ -> edge(envelope, index, vertex + 1)
         }
     }
-    state keep(envelope: &mut Envelope, index: i32 in Wrapping, vertex: i32 in Wrapping, x: f64, y: f64) {
+    machine keep(envelope: &mut Envelope, index: i32 in Wrapping, vertex: i32 in Wrapping, x: f64, y: f64) {
         append(envelope, x, y);
         transition { _ -> edge(envelope, index, vertex + 1) }
     }
-    state copy(envelope: &mut Envelope, index: i32 in Wrapping, vertex: i32 in Wrapping) {
+    machine copy(envelope: &mut Envelope, index: i32 in Wrapping, vertex: i32 in Wrapping) {
         transition vertex >= 0 && vertex < envelope.scratch_count && vertex < 32 {
             true -> copy_vertex(envelope, index, vertex)
             _ -> next_constraint(envelope, index)
         }
     }
-    state copy_vertex(envelope: &mut Envelope, index: i32 in Wrapping, vertex: i32 in Wrapping) {
+    machine copy_vertex(envelope: &mut Envelope, index: i32 in Wrapping, vertex: i32 in Wrapping) {
         envelope.x[vertex] = envelope.scratch_x[vertex];
         envelope.y[vertex] = envelope.scratch_y[vertex];
         transition { _ -> copy(envelope, index, vertex + 1) }
     }
-    state next_constraint(envelope: &mut Envelope, index: i32 in Wrapping) {
+    machine next_constraint(envelope: &mut Envelope, index: i32 in Wrapping) {
         envelope.count = envelope.scratch_count;
         transition { _ -> constraint(envelope, index + 1) }
     }
-    state measure(envelope: &mut Envelope, vertex: i32 in Wrapping, twice_area: f64) {
+    machine measure(envelope: &mut Envelope, vertex: i32 in Wrapping, twice_area: f64) {
         transition vertex >= 0 && vertex < envelope.count && vertex < 32 {
             true -> area_successor(envelope, vertex, vertex + 1, twice_area)
             _ -> finish(envelope, twice_area)
         }
     }
-    state area_successor(envelope: &mut Envelope, vertex: i32 in Wrapping,
+    machine area_successor(envelope: &mut Envelope, vertex: i32 in Wrapping,
                          next: i32 in Wrapping, twice_area: f64) {
         transition next < envelope.count {
             true -> area_bounds(envelope, vertex, next, twice_area)
             _ -> area_bounds(envelope, vertex, 0, twice_area)
         }
     }
-    state area_bounds(envelope: &mut Envelope, vertex: i32 in Wrapping,
+    machine area_bounds(envelope: &mut Envelope, vertex: i32 in Wrapping,
                       next: i32 in Wrapping, twice_area: f64) {
         transition vertex >= 0 && vertex < 32 && next >= 0 && next < 32 {
             true -> area_edge(envelope, vertex, next, twice_area)
             _ -> failure(envelope)
         }
     }
-    state area_edge(envelope: &mut Envelope, vertex: i32 in Wrapping,
+    machine area_edge(envelope: &mut Envelope, vertex: i32 in Wrapping,
                     next: i32 in Wrapping, twice_area: f64) {
         let x: f64 = envelope.x[vertex]; let y: f64 = envelope.y[vertex];
         let cross: f64 = x * envelope.y[next] - y * envelope.x[next];
@@ -200,10 +200,10 @@ public machine solve(envelope: &mut Envelope) {
             _ -> measure(envelope, vertex + 1, twice_area + cross)
         }
     }
-    state at_window(envelope: &mut Envelope, vertex: i32 in Wrapping, twice_area: f64) {
+    machine at_window(envelope: &mut Envelope, vertex: i32 in Wrapping, twice_area: f64) {
         envelope.window_active = true;
         transition { _ -> measure(envelope, vertex + 1, twice_area) }
     }
-    state finish(envelope: &mut Envelope, twice_area: f64) { envelope.area = twice_area * 0.5; }
-    state failure(envelope: &mut Envelope) { envelope.valid = false; }
+    machine finish(envelope: &mut Envelope, twice_area: f64) { envelope.area = twice_area * 0.5; }
+    machine failure(envelope: &mut Envelope) { envelope.valid = false; }
 }

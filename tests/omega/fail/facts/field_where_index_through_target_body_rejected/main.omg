@@ -27,7 +27,7 @@ machine Main::main(main: &mut Main) {
     main.k = 2;
     main.r = read_target(main);
     transition { _ -> successor(main) }
-    state successor(main: &mut Main) {
+    machine successor(main: &mut Main) {
         main.r = read_target(main);
         main.hits = main.r;
     }

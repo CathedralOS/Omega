@@ -17,10 +17,10 @@ machine check(main: &mut Main, bytes: &[u8], expected: bool) reaches Console {
         true -> checked(13, expected, bytes)
         _ -> bad(main)
     }
-    state checked(tag: u64, expected: bool, bytes: &[u8])
+    machine checked(tag: u64, expected: bool, bytes: &[u8])
         requires valid_utf8(bytes) == expected
     {}
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

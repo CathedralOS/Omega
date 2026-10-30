@@ -3,12 +3,39 @@
 //! require closed identities; by-value children require concrete definitions.
 //! An identity-only target supplies no storage, field, or access authority.
 
-use super::{has_structural_type, require_unique_nonempty_identities};
+use super::require_unique_nonempty_identities;
 use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralFieldType, StructuralTypeShape, TerminalModule, structural_children};
 use terminal_psi::{StructuralRecordStorage, StructuralTypeDeclaration};
+
+pub(super) struct StructuralCatalog<'a> {
+    pub(super) structural_types: &'a [StructuralTypeDeclaration],
+    pub(super) structural_referents: &'a [terminal_psi::StructuralReferentIdentity],
+}
+impl<'a> From<&'a TerminalModule> for StructuralCatalog<'a> {
+    fn from(module: &'a TerminalModule) -> Self {
+        Self {
+            structural_types: &module.structural_types,
+            structural_referents: &module.structural_referents,
+        }
+    }
+}
+fn has_structural_type(catalog: &StructuralCatalog<'_>, id: StructuralTypeId) -> bool {
+    terminal_psi::find_structural_type(catalog.structural_types, id).is_some()
+}
+pub(super) fn validate_type_shape(
+    module: &TerminalModule,
+    declaration: &StructuralTypeDeclaration,
+    attachment_storage: &BTreeSet<StructuralTypeId>,
+) -> Result<(), CodecError> {
+    validate_catalog_type_shape(
+        &StructuralCatalog::from(module),
+        declaration,
+        attachment_storage,
+    )
+}
 
 /// One structural type declaration's shape is well founded: its referent,
 /// fields, element, cases and mixed payloads name known types with the
@@ -36,8 +63,8 @@ fn check_field_identity_relevance(
     }
 }
 
-pub(super) fn validate_type_shape(
-    module: &TerminalModule,
+pub(super) fn validate_catalog_type_shape(
+    module: &StructuralCatalog<'_>,
     declaration: &StructuralTypeDeclaration,
     attachment_storage: &BTreeSet<StructuralTypeId>,
 ) -> Result<(), CodecError> {
@@ -314,7 +341,7 @@ pub(super) fn validate_type_shape(
 /// absence of portable geometry never means an invented native pointer width.
 /// The known contiguous extent also supplies the record's overlap check.
 fn validate_authored_field_extent(
-    module: &TerminalModule,
+    module: &StructuralCatalog<'_>,
     field: &terminal_psi::StructuralFieldDeclaration,
     storage: &semantic_vocabulary::AuthoredFieldStorage,
     record_size: u64,
@@ -381,6 +408,11 @@ fn validate_authored_field_extent(
                     return malformed("repeated field stride overlaps or misaligns its elements");
                 }
             }
+            let length = length
+                .literal()
+                .ok_or(CodecError::MalformedStructuralFoundation(
+                    "authored repeated storage requires a closed array extent",
+                ))?;
             let extent = length.checked_mul(*element_stride).ok_or(
                 CodecError::MalformedStructuralFoundation("repeated field extent overflows"),
             )?;
@@ -401,7 +433,7 @@ fn validate_authored_field_extent(
 /// fragment. Container bounds cover full transfers; source rows must tile
 /// every represented bit exactly once, regardless of destination ordering.
 fn validate_authored_fragments(
-    module: &TerminalModule,
+    module: &StructuralCatalog<'_>,
     field: &terminal_psi::StructuralFieldDeclaration,
     recipe: &semantic_vocabulary::AuthoredBitFragments,
     record_size: u64,
@@ -453,7 +485,7 @@ fn validate_authored_fragments(
 }
 
 fn authored_fragment_source_width(
-    module: &TerminalModule,
+    module: &StructuralCatalog<'_>,
     field: &StructuralFieldType,
 ) -> Option<u64> {
     if let StructuralFieldType::BoundedInteger(integer) = field {
@@ -677,13 +709,37 @@ mod authored_storage_envelope_tests {
             },
             AuthoredFieldStorage::Direct { byte_offset: 0 },
         ] {
-            assert!(validate_authored_field_extent(&module, &field, &storage, 1).is_err());
-            assert!(validate_authored_field_extent(&module, &field, &storage, 8).is_ok());
+            assert!(
+                validate_authored_field_extent(
+                    &super::StructuralCatalog::from(&module),
+                    &field,
+                    &storage,
+                    1
+                )
+                .is_err()
+            );
+            assert!(
+                validate_authored_field_extent(
+                    &super::StructuralCatalog::from(&module),
+                    &field,
+                    &storage,
+                    8
+                )
+                .is_ok()
+            );
         }
         let offset = AuthoredFieldStorage::Direct {
             byte_offset: u64::MAX - 3,
         };
-        assert!(validate_authored_field_extent(&module, &field, &offset, u64::MAX).is_err());
+        assert!(
+            validate_authored_field_extent(
+                &super::StructuralCatalog::from(&module),
+                &field,
+                &offset,
+                u64::MAX
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -723,7 +779,10 @@ mod authored_storage_envelope_tests {
                 scalar_restriction: None,
                 id: array,
                 identity: terminal_psi::TerminalIdentityIndex(941),
-                shape: StructuralTypeShape::FixedArray { element, length: 2 },
+                shape: StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(2),
+                },
             });
         let field = StructuralFieldDeclaration {
             id: StructuralFieldId::new(1).expect("field"),
@@ -736,8 +795,24 @@ mod authored_storage_envelope_tests {
             byte_offset: 0,
             element_stride: 8,
         };
-        assert!(validate_authored_field_extent(&module, &field, &storage, 16).is_ok());
-        assert!(validate_authored_field_extent(&module, &field, &storage, 15).is_err());
+        assert!(
+            validate_authored_field_extent(
+                &super::StructuralCatalog::from(&module),
+                &field,
+                &storage,
+                16
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_authored_field_extent(
+                &super::StructuralCatalog::from(&module),
+                &field,
+                &storage,
+                15
+            )
+            .is_err()
+        );
         for storage in [
             AuthoredFieldStorage::Repeated {
                 byte_offset: 0,
@@ -748,12 +823,28 @@ mod authored_storage_envelope_tests {
                 element_stride: 8,
             },
         ] {
-            assert!(validate_authored_field_extent(&module, &field, &storage, 24).is_err());
+            assert!(
+                validate_authored_field_extent(
+                    &super::StructuralCatalog::from(&module),
+                    &field,
+                    &storage,
+                    24
+                )
+                .is_err()
+            );
         }
         module.structural_types[1].shape = StructuralTypeShape::FixedArray {
             element,
-            length: u64::MAX,
+            length: terminal_psi::ArrayExtent::Literal(u64::MAX),
         };
-        assert!(validate_authored_field_extent(&module, &field, &storage, u64::MAX).is_err());
+        assert!(
+            validate_authored_field_extent(
+                &super::StructuralCatalog::from(&module),
+                &field,
+                &storage,
+                u64::MAX
+            )
+            .is_err()
+        );
     }
 }

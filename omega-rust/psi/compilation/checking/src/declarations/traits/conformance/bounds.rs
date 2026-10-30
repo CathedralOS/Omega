@@ -6,15 +6,10 @@ use crate::declarations::traits::conformance::trait_applications::validate_trait
 use crate::declarations::traits::trait_definition_by_symbol;
 use diagnostics::Diagnostic;
 use typed_trees::machine::Machine;
-use typed_trees::signature::StateSignature;
-use typed_trees::trait_definition::{AppliedTraitScope, TraitDefinition};
+use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::types::TypeReferenceHandle;
 
-#[derive(Clone)]
-pub struct GenericBoundRequirement<'program> {
-    pub signature: &'program StateSignature,
-    pub application: AppliedTraitScope<'program>,
-}
+pub use typed_trees::trait_definition::GenericBoundRequirement;
 
 /// Whether an actual argument type matches a requirement parameter of the
 /// binder's trait. The binder's trait arguments substitute the trait's own
@@ -34,6 +29,7 @@ pub(crate) fn validate_generic_conformance_bounds(
     machine: &Machine,
     symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     validate_conformance_bounds(
         program,
@@ -48,6 +44,7 @@ pub(crate) fn validate_generic_conformance_bounds(
             lifetime_parameters: &machine.lifetime_parameters,
         },
         diagnostics,
+        formation_obligations,
     );
 }
 
@@ -56,6 +53,7 @@ pub(crate) fn validate_trait_conformance_bounds(
     trait_definition: &TraitDefinition,
     symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     validate_conformance_bounds(
         program,
@@ -70,6 +68,7 @@ pub(crate) fn validate_trait_conformance_bounds(
             lifetime_parameters: &trait_definition.lifetime_parameters,
         },
         diagnostics,
+        formation_obligations,
     );
 }
 
@@ -81,6 +80,7 @@ fn validate_conformance_bounds(
     symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
     caller_scope: crate::value_custody::type_references::TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     for bound in bounds {
         if !bound.binder.is_valid() {
@@ -121,6 +121,7 @@ fn validate_conformance_bounds(
             symbols,
             caller_scope,
             diagnostics,
+            formation_obligations,
         );
     }
 }

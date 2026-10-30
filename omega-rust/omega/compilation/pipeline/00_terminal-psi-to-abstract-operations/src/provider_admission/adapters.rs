@@ -1,30 +1,23 @@
 //! Carry checked provider choices without reconstructing their owner from code.
 //!
 //! Source custody qualifies whole plans before release. The selected closure
-//! remains authoritative for specialization and family aliases; this projection
-//! preserves those joins rather than rewriting selected rows. Native admission
+//! carries Terminal-derived specialization and family aliases; this projection
+//! preserves those joins rather than reopening source facts. Native admission
 //! selects its executable subset without rebuilding this producer's output. Neither a
 //! display label nor sharing one realizing machine merges selecting declarations.
 
 use crate::SelectedProviderAdapter;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 
-/// Transient source-normalized owner beside its exact whole selected plan.
-/// External/intrinsic-only plans need no checked selecting declaration.
-pub struct NativeProviderPlanDeclaration<'input> {
-    pub plan: &'input ProviderPlan,
-    pub provider_declaration: Option<String>,
-}
-
 pub(crate) fn retain_selected_provider_adapters(
     selected: &effects::SelectedProviderPlanFacts,
-    declarations: &[NativeProviderPlanDeclaration<'_>],
+    declarations: &[backend_plan::TerminalTargetProviderPlan],
 ) -> Result<Vec<SelectedProviderAdapter>, String> {
     if selected.plans().len() != declarations.len()
         || selected.plans().iter().any(|plan| {
             declarations
                 .iter()
-                .filter(|declaration| declaration.plan == plan)
+                .filter(|declaration| &declaration.plan == plan)
                 .count()
                 != 1
         })
@@ -36,7 +29,7 @@ pub(crate) fn retain_selected_provider_adapters(
     project_complete_adapters(selected, |plan| {
         let mut matches = declarations
             .iter()
-            .filter(|declaration| declaration.plan == plan);
+            .filter(|declaration| &declaration.plan == plan);
         let declaration = matches
             .next()
             .ok_or("native selected plan has no declaration custody")?;

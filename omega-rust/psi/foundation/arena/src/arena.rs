@@ -15,11 +15,25 @@ use std::ops::Range;
 
 use crate::{Handle, HandleSpan};
 
-#[derive(Default)]
-struct SlotMetadata {
-    generations: Vec<u32>,
-    occupied: Vec<bool>,
-    free_indices: Vec<u32>,
+/// Complete nonuniform slot identity, including allocation order for vacant rows.
+/// Storage recovery checks this roster before any handle can resolve against it.
+#[derive(Default, compiler_storage::Record)]
+pub struct ArenaSlotStorage {
+    pub generations: Vec<u32>,
+    pub occupied: Vec<bool>,
+    pub free_indices: Vec<u32>,
+}
+
+type SlotMetadata = ArenaSlotStorage;
+
+/// Borrow the complete logical storage without copying payloads. Mutation
+/// revisions are invocation-local observations and do not travel with storage.
+pub struct ArenaStorageView<'storage, T> {
+    pub dummy: &'storage T,
+    pub items: &'storage [T],
+    pub slots: Option<&'storage ArenaSlotStorage>,
+    pub fresh_generation: u32,
+    pub fresh: bool,
 }
 
 static EMPTY_SLOT_METADATA: SlotMetadata = SlotMetadata {
@@ -69,9 +83,89 @@ pub struct Arena<T> {
     /// same-length in-place rewrite moves it exactly like an append does.
     /// Mutation metadata like `fresh`, so it takes no part in equality.
     revision: u64,
+    rewrite_revision: u64,
 }
 
 impl<T> Arena<T> {
+    pub fn storage_view(&self) -> ArenaStorageView<'_, T> {
+        ArenaStorageView {
+            dummy: &self.dummy,
+            items: &self.items,
+            slots: (!self.implicit_slot_metadata).then(|| self.slot_metadata()),
+            fresh_generation: self.fresh_generation,
+            fresh: self.fresh,
+        }
+    }
+
+    /// Recover an owned page while preserving holes, generations and the next
+    /// reusable slot. This admits storage structure only, never the meaning of
+    /// the payload or any references between pages.
+    pub fn from_storage(
+        dummy: T,
+        items: Vec<T>,
+        slots: Option<ArenaSlotStorage>,
+        fresh_generation: u32,
+        fresh: bool,
+    ) -> Result<Self, &'static str> {
+        if fresh_generation == 0 || items.len() > u32::MAX as usize {
+            return Err("arena storage has an invalid generation or row count");
+        }
+        let active_count = if let Some(slots) = &slots {
+            if slots.generations.len() != items.len() || slots.occupied.len() != items.len() {
+                return Err("arena slot roster does not match payload storage");
+            }
+            if slots.generations.contains(&0) {
+                return Err("arena slot roster has a zero generation");
+            }
+            let mut vacant = slots
+                .occupied
+                .iter()
+                .map(|occupied| !occupied)
+                .collect::<Vec<_>>();
+            for &arena_index in &slots.free_indices {
+                let Some(unlisted) = arena_index
+                    .checked_sub(1)
+                    .and_then(|index| vacant.get_mut(index as usize))
+                else {
+                    return Err("arena free list has an out-of-range slot");
+                };
+                if !*unlisted {
+                    return Err("arena free list repeats a slot or includes an occupied slot");
+                }
+                *unlisted = false;
+            }
+            if vacant.contains(&true) {
+                return Err("arena free list omits a vacant slot");
+            }
+            if fresh
+                && (slots.occupied.contains(&false)
+                    || slots
+                        .generations
+                        .iter()
+                        .any(|generation| *generation != fresh_generation))
+            {
+                return Err("arena fresh storage disagrees with its slot roster");
+            }
+            items.len() - slots.free_indices.len()
+        } else {
+            if !fresh {
+                return Err("arena nonuniform storage is missing its slot roster");
+            }
+            items.len()
+        };
+        Ok(Self {
+            dummy,
+            items,
+            implicit_slot_metadata: slots.is_none(),
+            slot_metadata: slots.map(Box::new),
+            active_count,
+            fresh_generation,
+            fresh,
+            revision: 0,
+            rewrite_revision: 0,
+        })
+    }
+
     #[inline]
     fn slot_metadata(&self) -> &SlotMetadata {
         self.slot_metadata
@@ -210,11 +304,12 @@ impl<T: Clone> Clone for Arena<T> {
             fresh: self.fresh,
             implicit_slot_metadata: self.implicit_slot_metadata,
             revision: self.revision,
+            rewrite_revision: self.rewrite_revision,
         }
     }
 
     fn clone_from(&mut self, source: &Self) {
-        self.bump_revision();
+        self.bump_rewrite_revision();
         self.dummy.clone_from(&source.dummy);
         if source.implicit_slot_metadata {
             if let Some(metadata) = self.slot_metadata.as_mut() {
@@ -289,11 +384,26 @@ impl<T> Arena<T> {
     }
 
     #[inline]
+    pub fn append_epoch(&self) -> Option<(u64, usize)> {
+        self.fresh
+            .then_some((self.rewrite_revision, self.items.len()))
+    }
+
+    #[inline]
     fn bump_revision(&mut self) {
         self.revision = self
             .revision
             .checked_add(1)
             .expect("arena revision overflow");
+    }
+
+    #[inline]
+    fn bump_rewrite_revision(&mut self) {
+        self.bump_revision();
+        self.rewrite_revision = self
+            .rewrite_revision
+            .checked_add(1)
+            .expect("arena rewrite revision overflow");
     }
 }
 
@@ -342,6 +452,7 @@ impl<T: Default> Arena<T> {
             fresh: true,
             implicit_slot_metadata: true,
             revision: 0,
+            rewrite_revision: 0,
         }
     }
 
@@ -360,6 +471,10 @@ impl<T: Default> Arena<T> {
             .as_mut()
             .and_then(|metadata| metadata.free_indices.pop())
         {
+            self.rewrite_revision = self
+                .rewrite_revision
+                .checked_add(1)
+                .expect("arena rewrite revision overflow");
             let index = storage_index_from_arena_index(arena_index);
 
             self.items[index] = item;
@@ -602,7 +717,7 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn get_mut(&mut self, handle: Handle<T>) -> &mut T {
-        self.bump_revision();
+        self.bump_rewrite_revision();
         let index = self.index_from_valid_handle(handle);
 
         if index < self.items.len() {
@@ -618,7 +733,7 @@ impl<T: Default> Arena<T> {
         if index == invalid_index() {
             return false;
         }
-        self.bump_revision();
+        self.bump_rewrite_revision();
 
         let replacement = T::default();
         self.materialize_slot_metadata();
@@ -693,7 +808,7 @@ impl<T: Default> Arena<T> {
 
     #[inline]
     pub fn span_mut(&mut self, span: HandleSpan<T>) -> Option<&mut [T]> {
-        self.bump_revision();
+        self.bump_rewrite_revision();
         if span.is_empty() {
             return Some(&mut []);
         }
@@ -705,7 +820,7 @@ impl<T: Default> Arena<T> {
 
     #[inline]
     pub fn span_mut_or_empty(&mut self, span: HandleSpan<T>) -> &mut [T] {
-        self.bump_revision();
+        self.bump_rewrite_revision();
         if let Some(range) = self.valid_span_range(span) {
             &mut self.items[range]
         } else {
@@ -765,7 +880,7 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn clear(&mut self) {
-        self.bump_revision();
+        self.bump_rewrite_revision();
         self.materialize_slot_metadata();
         if let Some(metadata) = self.slot_metadata.as_mut() {
             for (index, item) in self.items.iter_mut().enumerate() {
@@ -790,7 +905,7 @@ impl<T: Default> Arena<T> {
             retained_length <= self.items.len(),
             "append rewind exceeds arena"
         );
-        self.bump_revision();
+        self.bump_rewrite_revision();
         self.items.truncate(retained_length);
         if let Some(metadata) = self.slot_metadata.as_mut() {
             metadata.generations.truncate(retained_length);
@@ -800,7 +915,7 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn reset_retain_capacity(&mut self) {
-        self.bump_revision();
+        self.bump_rewrite_revision();
         self.items.clear();
         if let Some(metadata) = self.slot_metadata.as_mut() {
             metadata.generations.clear();
@@ -825,6 +940,7 @@ impl<T: Default> Arena<T> {
             fresh: self.fresh,
             implicit_slot_metadata: self.implicit_slot_metadata,
             revision: self.revision,
+            rewrite_revision: self.rewrite_revision,
         }
     }
 
@@ -845,6 +961,15 @@ impl<T: Default> Arena<T> {
         }
     }
 
+    #[inline]
+    pub fn iter_from(&self, start: usize) -> ArenaIter<'_, T> {
+        ArenaIter {
+            arena: self,
+            index: start.min(self.items.len()),
+            marker: PhantomData,
+        }
+    }
+
     pub fn into_items(self) -> impl Iterator<Item = T> {
         let implicit = self.implicit_slot_metadata;
         // Generations and free slots no longer serve a consuming iterator.
@@ -859,7 +984,7 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn for_each_mut(&mut self, mut visit: impl FnMut(Handle<T>, &mut T)) {
-        self.bump_revision();
+        self.bump_rewrite_revision();
         if self.implicit_slot_metadata {
             for (index, item) in self.items.iter_mut().enumerate() {
                 visit(
@@ -1014,3 +1139,48 @@ fn next_generation(generation: u32) -> u32 {
 
 #[cfg(test)]
 mod tests;
+
+// Storage keeps every row, including holes and dummy values. Revisions describe
+// local mutations and restart cold; they convey neither source nor proof identity.
+impl<T: compiler_storage::Record> compiler_storage::Record for Arena<T> {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        output.record(|output| {
+            let storage = self.storage_view();
+            storage.dummy.write(output)?;
+            output.record(|output| {
+                output.sequence(storage.items.len())?;
+                for item in storage.items {
+                    item.write(output)?;
+                }
+                Ok(())
+            })?;
+            match storage.slots {
+                Some(slots) => {
+                    true.write(output)?;
+                    slots.write(output)?;
+                }
+                None => false.write(output)?,
+            }
+            storage.fresh_generation.write(output)?;
+            storage.fresh.write(output)
+        })
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        input.record(|input| {
+            let dummy = T::read(input)?;
+            let items = Vec::<T>::read(input)?;
+            let slots = if bool::read(input)? {
+                Some(ArenaSlotStorage::read(input)?)
+            } else {
+                None
+            };
+            Self::from_storage(dummy, items, slots, u32::read(input)?, bool::read(input)?)
+                .map_err(|reason| input.error(reason))
+        })
+    }
+}

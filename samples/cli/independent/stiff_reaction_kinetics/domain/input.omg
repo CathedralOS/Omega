@@ -23,25 +23,25 @@ crashes Trap
     input.active = false;
     input.valid = true;
     transition { _ -> scan(input) }
-    state scan(input: &mut Input) {
+    machine scan(input: &mut Input) {
         transition input.bytes <= 4096 {
             true -> receive(input)
             false -> invalid(input)
         }
     }
-    state receive(input: &mut Input) {
+    machine receive(input: &mut Input) {
         transition block Console::read_byte() {
             ByteRead::Eof -> finish(input)
             ByteRead::Byte { value } -> classify(input, value)
         }
     }
-    state classify(input: &mut Input, value: i32) {
+    machine classify(input: &mut Input, value: i32) {
         transition input.bytes < 4096 {
             true -> byte(input, value)
             false -> invalid(input)
         }
     }
-    state byte(input: &mut Input, value: i32) {
+    machine byte(input: &mut Input, value: i32) {
         input.bytes = input.bytes + 1;
         transition {
             value >= 48 && value <= 57 -> digit(input, value)
@@ -49,7 +49,7 @@ crashes Trap
             _ -> invalid(input)
         }
     }
-    state digit(input: &mut Input, value: i32) {
+    machine digit(input: &mut Input, value: i32) {
         input.number = input.number * 10 + ((value - 48) as u64 in Wrapping);
         input.active = true;
         transition input.number <= 1000000000000 {
@@ -57,13 +57,13 @@ crashes Trap
             false -> invalid(input)
         }
     }
-    state separator(input: &mut Input) {
+    machine separator(input: &mut Input) {
         Input::flush(input);
         transition input.valid { true -> scan(input) false -> done() }
     }
-    state finish(input: &mut Input) { Input::flush(input); }
-    state invalid(input: &mut Input) { input.valid = false; }
-    state done() {}
+    machine finish(input: &mut Input) { Input::flush(input); }
+    machine invalid(input: &mut Input) { input.valid = false; }
+    machine done() {}
 }
 
 machine Input::flush(input: &mut Input) {
@@ -71,16 +71,16 @@ machine Input::flush(input: &mut Input) {
         true -> store(input)
         false -> other(input)
     }
-    state store(input: &mut Input) {
+    machine store(input: &mut Input) {
         input.values[input.count] = input.number;
         input.count = input.count + 1;
         input.number = 0;
         input.active = false;
     }
-    state other(input: &mut Input) {
+    machine other(input: &mut Input) {
         transition input.active { true -> invalid(input) false -> done() }
     }
-    state invalid(input: &mut Input) { input.valid = false; }
-    state done() {}
+    machine invalid(input: &mut Input) { input.valid = false; }
+    machine done() {}
 }
 

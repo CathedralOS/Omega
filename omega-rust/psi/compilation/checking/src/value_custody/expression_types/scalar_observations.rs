@@ -9,11 +9,69 @@
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+/// Primitive delivery reads a completed reference; reference forwarding keeps
+/// its descriptor. This relation establishes only the receiving carrier and
+/// qualification. Access, formation, value/domain facts and loans still belong
+/// to their independent checks. Every readable crossing remains required.
+pub(super) fn primitive_delivery_matches(
+    program: &dyn crate::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+    required: TypeReferenceHandle,
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    if program.primitive_type_reference(required).is_none() {
+        return false;
+    }
+    let mut substitutions = Vec::new();
+    let Some(mut reference) =
+        super::reference_values::declared_value_type(program, expression, &mut substitutions)
+    else {
+        return false;
+    };
+    let mut read = false;
+    for _ in 0..=program.type_reference_table.type_reference_count() {
+        let Some(declared) =
+            super::reference_values::substituted_reference(program, reference, &substitutions)
+        else {
+            return false;
+        };
+        let Some(observed) = readable_observation_type_reference(program, declared) else {
+            return false;
+        };
+        read |= observed != declared;
+        let Some(resolved) =
+            super::reference_values::substituted_reference(program, observed, &substitutions)
+        else {
+            return false;
+        };
+        if resolved != observed {
+            reference = resolved;
+            continue;
+        }
+        if !read
+            || scalar_observation_meaning(program, observed)
+                != scalar_observation_meaning(program, required)
+        {
+            return false;
+        }
+        use typed_trees::type_identity::TypeIdentityRequest;
+        return program.type_identity(TypeIdentityRequest {
+            substitutions: &substitutions,
+            ..TypeIdentityRequest::ordinary(observed)
+        }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: required_substitutions,
+            ..TypeIdentityRequest::ordinary(required)
+        });
+    }
+    false
+}
+
 /// Complete the operand references of an already selected builtin operation.
 /// Result-type queries intentionally leave anonymous numbers unlanded. Their
-/// first typed peer supplies only a fixed integer destination, never its range,
-/// reference shell or arithmetic policy. Literal formation independently checks
-/// the complete exact value before returning the canonical bare carrier.
+/// first typed peer supplies its comparison carrier or a fixed integer
+/// arithmetic destination, never its range, reference shell or arithmetic
+/// policy. Formation checks the complete exact value independently; observation
+/// retains only the canonical bare carrier after builtin selection.
 /// Float literals keep their existing earlier format-landing owner.
 pub(crate) fn builtin_scalar_operand_references(
     program: &dyn crate::CheckingInput,
@@ -36,18 +94,51 @@ pub(crate) fn builtin_scalar_operand_references(
         } else {
             primitive
         };
-        if !primitive.is_integer() {
-            return None;
+        if primitive == PrimitiveType::Addr {
+            // A homogeneous address comparison has already selected its typed
+            // peer. Retain that carrier while describing completed operands;
+            // this is not an address offset/count conversion or a fit proof.
+            // The operation-entry formation owner checks target-model fit
+            // before this comparison's Boolean result becomes available.
+            if !binary.operator.is_comparison()
+                || references[1 - index].is_none()
+                || !crate::value_custody::literals::has_anonymous_numeric_results(
+                    program,
+                    [binary.left, binary.right][index],
+                )
+            {
+                return None;
+            }
+            let mut diagnostics = Vec::new();
+            crate::proof_contracts::arithmetic_domains::validate_anonymous_integer_primitive_range(
+                program,
+                primitive,
+                [binary.left, binary.right][index],
+                "completed address comparison",
+                &mut diagnostics,
+            );
+            if !diagnostics.is_empty() {
+                return None;
+            }
+        } else {
+            if !primitive.is_integer() {
+                return None;
+            }
+            // Fixed integers retain the ordinary exact landing owner. Addr
+            // cannot use it: land_integer_value deliberately excludes a
+            // target-dependent carrier from fixed-width literal landing.
+            crate::value_custody::literals::land_anonymous_integer_expression(
+                program,
+                [binary.left, binary.right][index],
+                primitive,
+                &[],
+                |expression| {
+                    crate::value_custody::literals::has_anonymous_operator_meaning(
+                        program, expression,
+                    )
+                },
+            )?;
         }
-        crate::value_custody::literals::land_anonymous_integer_expression(
-            program,
-            [binary.left, binary.right][index],
-            primitive,
-            &[],
-            |expression| {
-                crate::value_custody::literals::has_anonymous_operator_meaning(program, expression)
-            },
-        )?;
         crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
             program,
             typed_trees::types::builtin_type_atom(primitive.landed_landing()?),
@@ -60,6 +151,20 @@ pub(crate) fn scalar_observation_meaning(
     program: &dyn crate::CheckingInput,
     declared: TypeReferenceHandle,
 ) -> Option<(PrimitiveType, ArithmeticDomain)> {
+    let observed = readable_observation_type_reference(program, declared)?;
+    Some((
+        program.primitive_type_reference(observed)?,
+        program.arithmetic_domain_for_type_reference(observed),
+    ))
+}
+
+/// Retain the complete readable value type without treating a reference
+/// descriptor's qualifications as qualifications of its referent. Selection
+/// still consumes the declared operand before this observation is interpreted.
+pub(crate) fn readable_observation_type_reference(
+    program: &dyn crate::CheckingInput,
+    declared: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
     let mut reference = declared;
     let mut observed = declared;
     // Every readable crossing matters. A reference to write-only storage
@@ -83,13 +188,57 @@ pub(crate) fn scalar_observation_meaning(
                 observed = *referee;
             }
             TypeReferenceNode::Reference { .. } => return None,
-            _ => {
-                return Some((
-                    program.primitive_type_reference(reference)?,
-                    program.arithmetic_domain_for_type_reference(observed),
-                ));
-            }
+            _ => return Some(observed),
         }
     }
     None
+}
+
+/// A completed choice may expose the same observation for every possible value
+/// without sharing an arithmetic result policy. Keep the ordinary result-type
+/// join strict: observing the resulting integer does not erase an arm's policy
+/// at assignment, argument or return boundaries. Each arm still forms under
+/// its own selected operation before this observation can become a premise.
+pub(super) fn completed_observations_satisfy(
+    program: &dyn crate::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+    reference: Option<TypeReferenceHandle>,
+    expression_type: &mut dyn FnMut(
+        typed_trees::expression::ExpressionHandle,
+    ) -> Option<TypeReferenceHandle>,
+    accepts: &dyn Fn(
+        typed_trees::expression::ExpressionHandle,
+        Option<TypeReferenceHandle>,
+    ) -> Option<()>,
+) -> bool {
+    if reference.is_some() {
+        return accepts(expression, reference).is_some();
+    }
+    match program.expression_table.expression(expression) {
+        typed_trees::expression::ExpressionNode::Atomic(atomic) => {
+            let reference = expression_type(atomic.value);
+            completed_observations_satisfy(
+                program,
+                atomic.value,
+                reference,
+                expression_type,
+                accepts,
+            )
+        }
+        typed_trees::expression::ExpressionNode::Match(dispatch) => {
+            let arms = program.expression_table.match_arms(dispatch.arms);
+            !arms.is_empty()
+                && arms.iter().all(|arm| {
+                    let reference = expression_type(arm.value);
+                    completed_observations_satisfy(
+                        program,
+                        arm.value,
+                        reference,
+                        expression_type,
+                        accepts,
+                    )
+                })
+        }
+        _ => accepts(expression, None).is_some(),
+    }
 }

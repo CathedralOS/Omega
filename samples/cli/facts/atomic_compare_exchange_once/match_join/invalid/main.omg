@@ -32,6 +32,6 @@ machine mismatch(cells: &Cells, branch: bool) -> bool {
 machine main() crashes Trap {
     let cells: Cells;
     transition probe(&cells, true) && mismatch(&cells, false) { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

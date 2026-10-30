@@ -59,10 +59,10 @@ ensures result == 0i32
         true -> ok()
         _ -> bad()
     }
-    state ok() {
+    machine ok() -> i32 {
         0i32
     }
-    state bad() {
+    machine bad() -> i32 {
         crash Trap;
     }
 }
@@ -72,6 +72,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

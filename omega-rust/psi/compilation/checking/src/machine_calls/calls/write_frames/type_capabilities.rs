@@ -207,7 +207,9 @@ fn type_may_carry_write_walk(
         TypeReferenceNode::Constrained { base_type, .. } => {
             type_may_carry_write_walk(program, *base_type, bindings)
         }
-        TypeReferenceNode::Unit | TypeReferenceNode::ConstExpression(_) => false,
+        TypeReferenceNode::Unit
+        | TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. } => false,
         // A by-value record, sum or fixed array without references owns its
         // storage. It cannot add another possible caller referent when a
         // boundary returns a loan from its exclusive arguments. Apply this
@@ -216,8 +218,7 @@ fn type_may_carry_write_walk(
         // initializer effects and exact origins are checked by the callers.
         TypeReferenceNode::Named { .. }
         | TypeReferenceNode::Generic { .. }
-        | TypeReferenceNode::FixedArray { .. }
-        | TypeReferenceNode::DynamicTrait { .. } => {
+        | TypeReferenceNode::FixedArray { .. } => {
             !type_is_reference_free_value(program, handle, bindings)
         }
         TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => true,

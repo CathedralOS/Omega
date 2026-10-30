@@ -18,7 +18,7 @@ machine find(bytes: &[u8], wanted: u8) -> Scan {
         true -> probe(bytes, wanted)
         _ -> (Scan::Clear)
     }
-    state probe(bytes: &[u8], wanted: u8) -> Scan {
+    machine probe(bytes: &[u8], wanted: u8) -> Scan {
         transition bytes[1] == wanted {
             true -> (Scan::Marked { position: 1 })
             _ -> (Scan::Clear)
@@ -31,7 +31,7 @@ machine mark(bytes: &mut [u8]) -> Scan {
         true -> write(bytes)
         _ -> (Scan::Clear)
     }
-    state write(bytes: &mut [u8]) -> Scan {
+    machine write(bytes: &mut [u8]) -> Scan {
         bytes[2] = 9;
         transition { _ -> (Scan::Marked { position: 2 }) }
     }
@@ -47,7 +47,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> refused(71)
     }
 
-    state local(found: u64) {
+    machine local(found: u64) {
         let mut scratch: [u8; 4];
         transition mark(&mut scratch) {
             Scan::Marked { position } -> verify(found, position, scratch[2])
@@ -55,14 +55,14 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state verify(found: u64, marked: u64, written: u8) {
+    machine verify(found: u64, marked: u64, written: u8) {
         transition found == 1 && marked == 2 && written == 9 {
             true -> read()
             _ -> refused(73)
         }
     }
 
-    state read() {
+    machine read() {
         let mut line: [u8; 8];
         transition block Console::read_line(&mut line) {
             LineReadResult::LineComplete { count } -> finish(count)
@@ -71,15 +71,15 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state finish(count: u64) {
+    machine finish(count: u64) {
         transition count == 3 {
             true -> done()
             _ -> refused(75)
         }
     }
 
-    state done() { Console::exit_process(70); }
-    state refused(code: i32) { Console::exit_process(code); }
+    machine done() { Console::exit_process(70); }
+    machine refused(code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

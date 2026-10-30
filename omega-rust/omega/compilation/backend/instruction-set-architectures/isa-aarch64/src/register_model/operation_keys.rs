@@ -9,6 +9,8 @@ use crate::register_model::{
 };
 use register_model::RegisterConstraintKey;
 
+pub const AARCH64_MEMORY_FENCE: RegisterConstraintKey = RegisterConstraintKey::instruction(801);
+
 pub const AARCH64_ATOMIC_FENCE: RegisterConstraintKey = RegisterConstraintKey::instruction(800);
 pub const AARCH64_ATOMIC_LOAD: RegisterConstraintKey = RegisterConstraintKey::instruction(781);
 pub const AARCH64_ATOMIC_STORE: RegisterConstraintKey = RegisterConstraintKey::instruction(782);
@@ -248,7 +250,7 @@ pub const AARCH64_BYTE_LITERAL_IMAGE_ADDRESS: RegisterConstraintKey =
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub(crate) const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 118] = [
+pub(crate) const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 119] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -362,6 +364,7 @@ pub(crate) const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 
     AARCH64_ZERO_BYTES,
     AARCH64_LOAD_ENCODED_SCALAR,
     AARCH64_STORE_ENCODED_SCALAR,
+    AARCH64_MEMORY_FENCE,
     AARCH64_ATOMIC_FENCE,
     AARCH64_PLACED_READ,
     AARCH64_PLACED_WRITE,

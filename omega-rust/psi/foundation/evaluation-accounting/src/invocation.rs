@@ -59,7 +59,7 @@ impl std::fmt::Display for EvaluationAccountingError {
 impl std::error::Error for EvaluationAccountingError {}
 
 /// Logical Terminal storage schedule, separate from its semantic fuel schedule.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalStorageScheduleIdentity(u32);
 
 impl TerminalStorageScheduleIdentity {
@@ -77,7 +77,7 @@ impl TerminalStorageScheduleIdentity {
 }
 
 /// Equal numeric schedule markers from different engines are different units.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum EvaluationMeasurementIdentity {
     CheckedTree,
     TerminalPsi {

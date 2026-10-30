@@ -48,21 +48,11 @@ pub(super) fn location(
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
                 && result.claims.is_empty() => {}
+        // A subslice view and a direct established view publish the same
+        // descriptor residence: which operation formed it does not change the
+        // proof the guard restates.
         Some(abstract_operations::AbstractOperation::ElementViewSubslice { result, .. })
-            if result.place == argument.place
-                && result.structural_type == argument.root_structural_type
-                && matches!(
-                    result.multiplicity,
-                    terminal_psi::nonlinear_multiplicity_pair_pattern!()
-                )
-                && result.qualifications.is_empty()
-                && terminal_semantics::view_descriptor_projected_qualifications(
-                    types.iter(),
-                    result.structural_type,
-                    &result.projected_qualifications,
-                )
-                && result.claims.is_empty() => {}
-        Some(abstract_operations::AbstractOperation::EstablishElementView { result, .. })
+        | Some(abstract_operations::AbstractOperation::EstablishElementView { result, .. })
             if result.place == argument.place
                 && result.structural_type == argument.root_structural_type
                 && matches!(

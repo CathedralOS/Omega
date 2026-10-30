@@ -4,12 +4,12 @@ data Original { value: u32; }
 data Viewed { value: u32; }
 machine overwrite(storage: &write Original) {
     transition { _ -> store(storage as &write Viewed) }
-    state store(view: &write Viewed) { view.value = 73; }
+    machine store(view: &write Viewed) { view.value = 73; }
 }
 machine main() crashes Trap {
     let mut original: Original = Original { value: 0 };
     overwrite(&write original);
     transition original.value == 73 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

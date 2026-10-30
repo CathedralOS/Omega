@@ -9,6 +9,6 @@ machine main() crashes Trap {
     let ticket: Ticket in Issued<7> = issue();
     let view: &Ticket in Issued<7> = retain(&ticket);
     transition view.number == 17 { true -> done() false -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

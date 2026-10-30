@@ -7,7 +7,7 @@ data Chain<T> {
 
 machine invalid(value: u32, tail: Chain<f64>) {
     transition { _ -> conclude(0.0f64 / 0.0f64, tail) }
-    state conclude(value: f64, tail: Chain<f64>)
+    machine conclude(value: f64, tail: Chain<f64>)
     requires
         (Chain::Cons { head: value, tail: Chain::Cons { head: value, tail: tail } })
         == (Chain::Cons { head: value, tail: Chain::Cons { head: value, tail: tail } })

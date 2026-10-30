@@ -1,5 +1,4 @@
 use super::CoreContractDecodeError;
-use std::fmt;
 
 /// The input extent one budget's ceilings are calibrated for, in the units a
 /// pass measures its input by — blocks, instructions, operands and writes. A
@@ -17,6 +16,17 @@ pub struct OptimizationWorkBudget {
     pub(crate) validation_steps: u64,
     pub(crate) commits: u64,
     pub(crate) iterations: u64,
+}
+
+crate::record_views! {
+    record OptimizationWorkBudget;
+    copied {
+        rule_evaluations: u64,
+        candidates: u64,
+        validation_steps: u64,
+        commits: u64,
+        iterations: u64,
+    }
 }
 
 impl OptimizationWorkBudget {
@@ -78,26 +88,6 @@ impl OptimizationWorkBudget {
         ])
     }
 
-    pub const fn rule_evaluations(self) -> u64 {
-        self.rule_evaluations
-    }
-
-    pub const fn candidates(self) -> u64 {
-        self.candidates
-    }
-
-    pub const fn validation_steps(self) -> u64 {
-        self.validation_steps
-    }
-
-    pub const fn commits(self) -> u64 {
-        self.commits
-    }
-
-    pub const fn iterations(self) -> u64 {
-        self.iterations
-    }
-
     pub fn decode(encoded: &[u8]) -> Result<Self, CoreContractDecodeError> {
         let Some(fields) = crate::optimization_core::decode_work_counters(encoded) else {
             return Err(CoreContractDecodeError::WrongLength {
@@ -113,10 +103,7 @@ impl OptimizationWorkBudget {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InvalidOptimizationWorkBudget;
 
-impl fmt::Display for InvalidOptimizationWorkBudget {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("every optimization work-budget axis must be nonzero")
-    }
-}
-
-impl std::error::Error for InvalidOptimizationWorkBudget {}
+crate::fixed_error_display!(
+    InvalidOptimizationWorkBudget,
+    "every optimization work-budget axis must be nonzero"
+);

@@ -8,8 +8,10 @@
 //! store's retained destination here from the legalized function; neither
 //! trusts the other's choice.
 
+use crate::selection::place_declaration::declares_block_parameter;
+
 use legalized_operations::LegalizedScalarFunction;
-use semantic_vocabulary::{BlockId, StructuralPlaceKind};
+use semantic_vocabulary::BlockId;
 use terminal_psi::StructuralParameterDeclaration;
 
 /// Whether `expected` is the owned arrival whose block home a field store
@@ -37,12 +39,5 @@ pub(super) fn store_destination(
         && block != source.entry_block
         && super::address_join_input::join(source, expected.place).is_none()
         && super::aggregate_result_input::block_parameter_shape(source, expected).is_some()
-        && signature.structural_places.iter().any(|declaration| {
-            declaration.id == expected.place
-                && declaration.kind
-                    == (StructuralPlaceKind::BlockParameter {
-                        block,
-                        position: expected.position,
-                    })
-        })
+        && declares_block_parameter(signature, expected.place, block, expected.position)
 }

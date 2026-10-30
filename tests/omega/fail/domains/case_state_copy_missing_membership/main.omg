@@ -1,5 +1,5 @@
 data Range [copy] { start: u64; length: u64; }
-domain Range::Nonempty(range) requires range.length > 0;
+domain Range::Nonempty requires self.length > 0;
 // This payload carries no Nonempty evidence; selecting its case adds none.
 data Outcome { case Ready(range: Range); case Rejected; }
 machine inspect(outcome: Outcome) -> u64 {
@@ -7,5 +7,5 @@ machine inspect(outcome: Outcome) -> u64 {
         Outcome::Ready { range } -> consume(range)
         Outcome::Rejected -> 0
     }
-    state consume(range: Range in Nonempty) -> u64 { range.length - 1 }
+    machine consume(range: Range in Nonempty) -> u64 { range.length - 1 }
 }

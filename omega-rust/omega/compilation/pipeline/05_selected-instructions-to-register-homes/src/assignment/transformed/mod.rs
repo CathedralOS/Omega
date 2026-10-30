@@ -4,14 +4,11 @@
 //! distinct source custody; each constructs its homes and manifest once.
 
 mod construction;
-mod custody;
 mod projection;
 
 use crate::{
-    RegisterHomeError, RegisterHomeIdentity, ValidatedPostAllocationOptimizationManifest,
-    ValidatedRegisterHomes,
+    RegisterHomeError, ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
 };
-use optimization_core::PostAllocationOptimizationManifestIdentity;
 use register_homes::PostAllocationOptimizationManifestError;
 use selected_instructions_to_selected_instructions::{
     OptimizedLiteralFoldCustodyError, OptimizedPreAllocationCustodyError, SelectedProgramRef,
@@ -21,52 +18,41 @@ use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
 };
 
-/// Assignment probe over a completed selected-lowering run's final facts.
-/// Computing the assignment without consuming the run lets the route answer
-/// residual `NoCompatibleHome` pressure with runtime spill instead of
-/// post-lowering homes.
-pub(crate) fn assign_optimized_register_homes_after_selected_lowering(
-    run: &StagedSelectedLoweringOptimizationRun,
-) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
-    construction::assign_register_homes_after_selected_lowering(run)
-}
+use super::PostHomeCustodyReceipt;
 
-/// The staged-homes form over an already-computed assignment, for the
-/// composing route that probed assignment while it still owned the run.
-pub(crate) fn stage_optimized_register_homes_after_selected_lowering_with_assignment(
-    run: StagedSelectedLoweringOptimizationRun,
-    homes: ValidatedRegisterHomes,
-) -> Result<
-    StagedOptimizedRegisterHomesAfterSelectedLowering,
-    OptimizedPostSelectedLoweringHomeCustodyError,
-> {
-    let staged =
-        construction::construct_register_homes_after_selected_lowering_with_assignment(run, homes)?;
-    Ok(staged)
-}
+pub(crate) use construction::{
+    assign_register_homes_after_pre_allocation as assign_optimized_register_homes_after_pre_allocation,
+    assign_register_homes_after_selected_lowering as assign_optimized_register_homes_after_selected_lowering,
+    stage_optimized_register_homes_after_pre_allocation_with_assignment,
+    stage_optimized_register_homes_after_selected_lowering_with_assignment,
+};
 
-/// Assignment probe over a completed pre-allocation run's final facts.
-/// Computing the assignment without consuming the run lets the route answer
-/// residual `NoCompatibleHome` pressure with runtime spill instead of
-/// post-run homes.
-pub(crate) fn assign_optimized_register_homes_after_pre_allocation(
-    run: &StagedPreAllocationOptimizationRun,
-) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
-    construction::assign_register_homes_after_pre_allocation(run)
-}
-
-/// The staged-homes form over an already-computed assignment, for the
-/// composing route that probed assignment while it still owned the run.
-pub(crate) fn stage_optimized_register_homes_after_pre_allocation_with_assignment(
-    run: StagedPreAllocationOptimizationRun,
-    homes: ValidatedRegisterHomes,
-) -> Result<
-    StagedOptimizedRegisterHomesAfterPreAllocation,
-    OptimizedPostPreAllocationHomeCustodyError,
-> {
-    let staged =
-        construction::construct_register_homes_after_pre_allocation_with_assignment(run, homes)?;
-    Ok(staged)
+/// The source-evidence accessors every run-based route publishes: the
+/// environment, selections and budget the admitted source legality settled,
+/// plus the shared assignment-context rows.
+macro_rules! source_evidence_accessors {
+    ($field:ident) => {
+        pub const fn register_environment(
+            &self,
+        ) -> &register_environment::ValidatedTargetRegisterEnvironment {
+            self.$field.source_legality_stage().register_environment()
+        }
+        /// The governing optimizer selections admitted with the run.
+        pub fn selections(&self) -> &optimization_core::OptimizationSelections {
+            self.$field.selections()
+        }
+        /// The per-pass work budget admitted beside the source's evidence.
+        pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
+            self.$field.source_legality_stage().budget_per_pass()
+        }
+        assignment_context_accessors!(
+            $field
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+        );
+    };
 }
 
 /// Strict homes after one or more separately requested literal folds. The
@@ -114,51 +100,22 @@ impl StagedOptimizedRegisterHomesAfterLiteralFolds {
     pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
         self.folds.source_legality_stage().budget_per_pass()
     }
-    /// The retained optimized-target proof input, kept as replay evidence;
-    /// downstream custody checks compare the owner handle by identity.
-    pub fn optimized_target_owner(
-        &self,
-    ) -> &std::sync::Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
-    {
-        self.folds
+    assignment_context_accessors!(
+        folds
             .source_legality_stage()
             .live_range_stage()
             .liveness_stage()
             .selected_stage()
-            .optimized_target_owner()
-    }
-    assignment_context_accessors!();
-    pub const fn custody(&self) -> &StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
-        &self.custody
-    }
+    );
+    receipt_accessor_rows!(borrow StagedOptimizedRegisterHomesAfterLiteralFolds {
+        custody: &StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
+    });
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
-    source: StagedOptimizedLiteralFoldCustodyReceipt,
-    homes: RegisterHomeIdentity,
-    post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-    function_count: usize,
-    assignment_count: usize,
-}
-
-impl StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
-    pub const fn source(&self) -> &StagedOptimizedLiteralFoldCustodyReceipt {
-        &self.source
-    }
-    pub const fn homes(&self) -> RegisterHomeIdentity {
-        self.homes
-    }
-    pub const fn post_allocation_manifest(&self) -> PostAllocationOptimizationManifestIdentity {
-        self.post_allocation_manifest
-    }
-    pub const fn function_count(&self) -> usize {
-        self.function_count
-    }
-    pub const fn assignment_count(&self) -> usize {
-        self.assignment_count
-    }
-}
+/// The literal-fold route's receipt: the fold chain's custody, over the one
+/// post-home shape every staging route publishes.
+pub type StagedOptimizedPostLiteralFoldHomeCustodyReceipt =
+    PostHomeCustodyReceipt<StagedOptimizedLiteralFoldCustodyReceipt>;
 
 /// Strict homes after a complete named selected-lowering suite. The suite's
 /// completion identity is retained even when its transformation ledger is
@@ -203,67 +160,16 @@ impl StagedOptimizedRegisterHomesAfterSelectedLowering {
             None => self.run.source_legality_stage().legality(),
         }
     }
-    /// The register environment admitted with the run's source legality —
-    /// the lowering suite preserves it, so the source's environment is the
-    /// current one.
-    pub const fn register_environment(
-        &self,
-    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
-        self.run.source_legality_stage().register_environment()
-    }
-    /// The governing optimizer selections admitted with the run.
-    pub fn selections(&self) -> &optimization_core::OptimizationSelections {
-        self.run.selections()
-    }
-    /// The per-pass work budget admitted beside the source's evidence.
-    pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
-        self.run.source_legality_stage().budget_per_pass()
-    }
-    /// The retained optimized-target proof input, kept as replay evidence;
-    /// downstream custody checks compare the owner handle by identity.
-    pub fn optimized_target_owner(
-        &self,
-    ) -> &std::sync::Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
-    {
-        self.run
-            .source_legality_stage()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-            .optimized_target_owner()
-    }
-    assignment_context_accessors!();
-    pub const fn custody(&self) -> &StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
-        &self.custody
-    }
+    source_evidence_accessors!(run);
+    receipt_accessor_rows!(borrow StagedOptimizedRegisterHomesAfterSelectedLowering {
+        custody: &StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
+    });
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
-    source: StagedSelectedLoweringOptimizationCustodyReceipt,
-    homes: RegisterHomeIdentity,
-    post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-    function_count: usize,
-    assignment_count: usize,
-}
-
-impl StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
-    pub const fn source(&self) -> &StagedSelectedLoweringOptimizationCustodyReceipt {
-        &self.source
-    }
-    pub const fn homes(&self) -> RegisterHomeIdentity {
-        self.homes
-    }
-    pub const fn post_allocation_manifest(&self) -> PostAllocationOptimizationManifestIdentity {
-        self.post_allocation_manifest
-    }
-    pub const fn function_count(&self) -> usize {
-        self.function_count
-    }
-    pub const fn assignment_count(&self) -> usize {
-        self.assignment_count
-    }
-}
+/// The selected-lowering route's receipt: the lowering run's custody, over the
+/// one post-home shape every staging route publishes.
+pub type StagedOptimizedPostSelectedLoweringHomeCustodyReceipt =
+    PostHomeCustodyReceipt<StagedSelectedLoweringOptimizationCustodyReceipt>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedPostSelectedLoweringHomeCustodyError {
@@ -273,16 +179,10 @@ pub enum OptimizedPostSelectedLoweringHomeCustodyError {
     ReceiptMismatch,
 }
 
-impl std::fmt::Display for OptimizedPostSelectedLoweringHomeCustodyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized post-selected-lowering home staging failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for OptimizedPostSelectedLoweringHomeCustodyError {}
+stage_error_display!(
+    OptimizedPostSelectedLoweringHomeCustodyError,
+    "optimized post-selected-lowering home staging failed"
+);
 
 /// Strict homes after a completed pre-allocation suite. The suite's
 /// completion identity is retained even when its transformation ledger is
@@ -314,67 +214,16 @@ impl StagedOptimizedRegisterHomesAfterPreAllocation {
     pub fn legality(&self) -> &ValidatedAllocationLegality {
         self.run.legality()
     }
-    /// The register environment admitted with the run's source legality —
-    /// the pre-allocation families preserve it, so the source's environment
-    /// is the current one.
-    pub const fn register_environment(
-        &self,
-    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
-        self.run.source_legality_stage().register_environment()
-    }
-    /// The governing optimizer selections admitted with the run.
-    pub fn selections(&self) -> &optimization_core::OptimizationSelections {
-        self.run.selections()
-    }
-    /// The per-pass work budget admitted beside the source's evidence.
-    pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
-        self.run.source_legality_stage().budget_per_pass()
-    }
-    /// The retained optimized-target proof input, kept as replay evidence;
-    /// downstream custody checks compare the owner handle by identity.
-    pub fn optimized_target_owner(
-        &self,
-    ) -> &std::sync::Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
-    {
-        self.run
-            .source_legality_stage()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-            .optimized_target_owner()
-    }
-    assignment_context_accessors!();
-    pub const fn custody(&self) -> &StagedOptimizedPostPreAllocationHomeCustodyReceipt {
-        &self.custody
-    }
+    source_evidence_accessors!(run);
+    receipt_accessor_rows!(borrow StagedOptimizedRegisterHomesAfterPreAllocation {
+        custody: &StagedOptimizedPostPreAllocationHomeCustodyReceipt,
+    });
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedOptimizedPostPreAllocationHomeCustodyReceipt {
-    source: StagedPreAllocationOptimizationCustodyReceipt,
-    homes: RegisterHomeIdentity,
-    post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-    function_count: usize,
-    assignment_count: usize,
-}
-
-impl StagedOptimizedPostPreAllocationHomeCustodyReceipt {
-    pub const fn source(&self) -> &StagedPreAllocationOptimizationCustodyReceipt {
-        &self.source
-    }
-    pub const fn homes(&self) -> RegisterHomeIdentity {
-        self.homes
-    }
-    pub const fn post_allocation_manifest(&self) -> PostAllocationOptimizationManifestIdentity {
-        self.post_allocation_manifest
-    }
-    pub const fn function_count(&self) -> usize {
-        self.function_count
-    }
-    pub const fn assignment_count(&self) -> usize {
-        self.assignment_count
-    }
-}
+/// The pre-allocation route's receipt: the run's custody, over the one
+/// post-home shape every staging route publishes.
+pub type StagedOptimizedPostPreAllocationHomeCustodyReceipt =
+    PostHomeCustodyReceipt<StagedPreAllocationOptimizationCustodyReceipt>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedPostPreAllocationHomeCustodyError {
@@ -384,13 +233,7 @@ pub enum OptimizedPostPreAllocationHomeCustodyError {
     ReceiptMismatch,
 }
 
-impl std::fmt::Display for OptimizedPostPreAllocationHomeCustodyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized post-pre-allocation home staging failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for OptimizedPostPreAllocationHomeCustodyError {}
+stage_error_display!(
+    OptimizedPostPreAllocationHomeCustodyError,
+    "optimized post-pre-allocation home staging failed"
+);

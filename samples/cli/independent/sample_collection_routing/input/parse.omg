@@ -5,27 +5,27 @@ use routing::model;
 public machine parse(bytes: &[u8; 12], plan: &mut Plan) -> bool {
     let mut digits: [i32 in Saturating; 11];
     transition { _ -> digit(bytes, plan, &mut digits, 0) }
-    state digit(bytes: &[u8; 12], plan: &mut Plan, digits: &mut [i32 in Saturating; 11], index: u64) -> bool {
+    machine digit(bytes: &[u8; 12], plan: &mut Plan, digits: &mut [i32 in Saturating; 11], index: u64) -> bool {
         transition index < 11 {
             true -> inspect(bytes, plan, digits, index)
             false -> assemble(plan, digits)
         }
     }
-    state inspect(bytes: &[u8; 12], plan: &mut Plan, digits: &mut [i32 in Saturating; 11], index: u64) -> bool {
+    machine inspect(bytes: &[u8; 12], plan: &mut Plan, digits: &mut [i32 in Saturating; 11], index: u64) -> bool {
         let byte: u8 = bytes[index];
         transition byte >= 48 && byte <= 57 {
             true -> store(bytes, plan, digits, index, byte)
             false -> false
         }
     }
-    state store(bytes: &[u8; 12], plan: &mut Plan, digits: &mut [i32 in Saturating; 11], index: u64, byte: u8) -> bool {
+    machine store(bytes: &[u8; 12], plan: &mut Plan, digits: &mut [i32 in Saturating; 11], index: u64, byte: u8) -> bool {
         digits[index] = (byte as i32 in Saturating) - 48;
         transition index < 11 {
             true -> digit(bytes, plan, digits, index + 1)
             false -> false
         }
     }
-    state assemble(plan: &mut Plan, digits: &[i32 in Saturating; 11]) -> bool {
+    machine assemble(plan: &mut Plan, digits: &[i32 in Saturating; 11]) -> bool {
         plan.capacity = digits[0];
         plan.site_a = digits[1];
         plan.site_b = digits[2];

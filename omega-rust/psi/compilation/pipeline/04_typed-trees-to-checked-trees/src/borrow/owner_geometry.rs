@@ -6,27 +6,34 @@
 use checked_trees::{BorrowLoanOwnerSegment, CheckedUnitStructuralPathSegment};
 use typed_trees::data::DataMember;
 
-/// Declaration selectors of a completed loan relation. The caller has already
-/// selected one carrier; these identities translate its prepared namespace,
-/// not the identity of unrelated storage or the value of an unknown index.
-pub(crate) fn structural_owner_path(
+pub(crate) use validation::borrow_contracts::structural_owner_path;
+
+/// A named formal presents its referee as borrowed storage; a named local
+/// retains its whole stored carrier. Authenticate that declaration before
+/// translating a loan's owner path. Only the formal's outer pointer is absent
+/// from the checked parameter shape: nested references remain stored boundaries.
+/// Canonical sequence descriptors already have their own presentation and do
+/// not acquire an invented pointer hop. This chooses geometry, not permission.
+pub(crate) fn named_carrier_path(
     program: &dyn ::validation::CheckingInput,
-    path: &[BorrowLoanOwnerSegment],
+    state: &typed_trees::state::State,
+    owner: symbols::SymbolHandle,
+    reference: typed_trees::types::TypeReferenceHandle,
+    owner_path: &[BorrowLoanOwnerSegment],
 ) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
-    path.iter()
-        .map(|segment| match segment {
-            BorrowLoanOwnerSegment::Field(symbol) => Some(CheckedUnitStructuralPathSegment::Field(
-                program.any_field_owner(*symbol)?.1.member_identity(),
-            )),
-            BorrowLoanOwnerSegment::Case(symbol) => Some(CheckedUnitStructuralPathSegment::Case(
-                program.variant_owner(*symbol)?.1.member_identity(),
-            )),
-            BorrowLoanOwnerSegment::FixedIndex(index) => Some(
-                CheckedUnitStructuralPathSegment::FixedIndex(u64::try_from(*index).ok()?),
-            ),
-            BorrowLoanOwnerSegment::DynamicIndex => None,
-        })
-        .collect()
+    let reference = if let Some(parameter) = program.state_parameter_by_symbol(state, owner) {
+        if program.state_local_declaration(state, owner).is_some()
+            || program.normalized_type_identity(parameter.type_reference)
+                != program.normalized_type_identity(reference)
+        {
+            return None;
+        }
+        validation::reference_result_custody::stored_loan_parts(program, parameter.type_reference)
+            .map_or(reference, |(referee, _)| referee)
+    } else {
+        reference
+    };
+    carrier_path(program, reference, owner_path)
 }
 
 /// Translate an occurrence's symbolic owner path through its declarations.

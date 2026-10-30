@@ -123,7 +123,7 @@ premises/conclusions express implication, and nested machine-shaped requirements
 express universal logical hypotheses. A representative requirement is:
 
 ```text
-where machine Step(value: A)
+requires machine Step(value: A)
     requires P(value)
     ensures Q(value);
 ```
@@ -177,7 +177,7 @@ For a strict predicate, an ordinary constrained record supplies the source shape
 ```omega
 data Witness<u: core::Level, v: core::Level,
              A: core::Type<u>, P: A -> core::Strict<v>>
-where
+requires
     P(value)
 {
     value: A;
@@ -211,7 +211,7 @@ machine existence_follows<
     Q: A -> core::Strict<w>,
     present: core::Squash<Witness<u,v,A,P>>
 )
-where machine Step(value: A)
+requires machine Step(value: A)
     requires P(value)
     ensures Q(value);
 ensures core::Squash<Witness<u,w,A,Q>>;
@@ -220,7 +220,7 @@ ensures core::Squash<Witness<u,w,A,Q>>;
 }
 ```
 
-The terminating semicolon on the nested `where machine` contract separates its
+The terminating semicolon on the nested `requires machine` contract separates its
 clauses from the enclosing theorem's clauses. The `Step` argument may cite named
 theorem evidence or a term already checked against that logical requirement;
 the latter must not be forced through executable declaration lookup.

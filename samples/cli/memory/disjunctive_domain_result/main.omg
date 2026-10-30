@@ -1,7 +1,7 @@
 // Expected exit: 0. A selected disjunct may differ on each invocation.
 data Pair [copy] { left: u64; right: u64; }
-domain Pair::Small(value)
-requires embed(value.left) < 10 || embed(value.right) < 10;
+domain Pair::Small
+requires embed(self.left) < 10 || embed(self.right) < 10;
 data Checked { case Rejected; case Ready(value: Pair in Small); }
 data Envelope { case Wrapped(value: Checked); }
 data Holder<T> { value: T; }
@@ -18,7 +18,7 @@ machine accepted(value: Pair) -> bool {
     transition wrapped.value {
         Envelope::Wrapped { value } -> inspect(value)
     }
-    state inspect(result: Checked) -> bool {
+    machine inspect(result: Checked) -> bool {
         transition result {
             Checked::Ready { value } -> (true)
             Checked::Rejected -> (false)
@@ -59,6 +59,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

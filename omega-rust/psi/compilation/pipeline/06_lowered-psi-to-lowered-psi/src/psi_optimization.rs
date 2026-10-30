@@ -74,9 +74,9 @@ fn carrier_identity(
 /// Terminal publication accepts the complete carrier and the execution record
 /// together. The record owns the exact selection, so the stage result stores it
 /// once. Empty selection is an executed identity transformation. Passes
-/// preserve the proof, debug and source-custody sidecars; independent
-/// validators exercise their invariants in tests rather than repeating
-/// production work.
+/// preserve the proof, debug and source-custody sidecars; each pass's own
+/// rewrite is the mechanism, observed by the corpus rather than re-derived
+/// beside itself (verification placement, `omega-rust/pipeline.md`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[must_use = "Terminal publication requires the Psi optimization result"]
 pub struct PsiOptimizationStageResult {

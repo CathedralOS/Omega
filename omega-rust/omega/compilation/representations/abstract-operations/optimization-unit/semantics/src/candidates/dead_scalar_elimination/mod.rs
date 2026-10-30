@@ -3,8 +3,9 @@
 //! This entrance admits candidate custody and the analysis contract. Exact
 //! rule classification, the exhaustive operation partition, and independent
 //! rewrite replay descend into named leaves.
-use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
-use optimization_core::{AnalysisInvalidationSet, AnalysisKind, AnalysisSet};
+use super::contract;
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
+use optimization_core::AnalysisKind;
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 mod operation_partition;
@@ -16,31 +17,15 @@ pub(crate) fn validate_dead_scalar_node_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    validate_candidate_contract(input, candidate)?;
-    validation::validate_dead_scalar_node_candidate(input, candidate)
-}
-
-fn validate_candidate_contract(
-    input: &PsiOptimizationUnit,
-    candidate: &PsiRewriteCandidate,
-) -> Result<(), OptimizationUnitValidationError> {
-    validate_psi_optimization_unit(input)?;
-    if candidate.input() != input.identity {
-        return Err(OptimizationUnitValidationError::CandidateInputMismatch);
-    }
-    let expected_safety = rule_catalog::expected_safety(candidate.rule())
+    contract::admit_origin(input, candidate)?;
+    let safety_class = rule_catalog::expected_safety(candidate.rule())
         .ok_or(OptimizationUnitValidationError::CandidateAnalysisContractMismatch)?;
-    if candidate.required_analyses()
-        != AnalysisSet::new([AnalysisKind::ValueLiveness, AnalysisKind::EffectSummaries])
-        || candidate.invalidated_analyses()
-            != AnalysisInvalidationSet::new([
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ])
-        || candidate.safety_class() != expected_safety
-        || candidate.predicted_cost_delta() != -1
-    {
-        return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
-    }
-    Ok(())
+    contract::admit_roster(
+        candidate,
+        &[AnalysisKind::ValueLiveness, AnalysisKind::EffectSummaries],
+        contract::USE_DEFINITION_AND_EFFECT_SUMMARIES,
+        safety_class,
+        Some(-1),
+    )?;
+    validation::validate_dead_scalar_node_candidate(input, candidate)
 }

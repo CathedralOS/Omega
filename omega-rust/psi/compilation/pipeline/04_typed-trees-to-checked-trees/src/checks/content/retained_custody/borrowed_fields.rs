@@ -14,7 +14,9 @@
 //! Recursive expansion and unresolved extents remain explicit analysis limits,
 //! never evidence of an owned source.
 
-use super::structural_sources::{ContentSource, domain_sources, parameter_sources};
+use super::structural_sources::{
+    ContentSource, ContentSourceExpansion, domain_sources, parameter_sources,
+};
 use super::{DomainApplication, domain_name};
 use checked_trees::{CheckFacts, RetainedBorrowCustodyFact};
 use diagnostics::Diagnostic;
@@ -35,7 +37,11 @@ pub(super) fn check_structural_borrow_sources(
     retained_borrow_custodies: &[RetainedBorrowCustodyFact],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let (mut results, result_complete) = domain_sources(program, return_type);
+    let ContentSourceExpansion {
+        sources: mut results,
+        complete: result_complete,
+        ..
+    } = domain_sources(program, return_type);
     for domain in root_result_domains {
         let source = ContentSource {
             domain: *domain,
@@ -43,9 +49,7 @@ pub(super) fn check_structural_borrow_sources(
             nested: false,
             path: Vec::new(),
         };
-        if !results.contains(&source) {
-            results.push(source);
-        }
+        crate::collections::push_unique(&mut results, source);
     }
     results.retain(|result| {
         !result.borrowed
@@ -70,7 +74,9 @@ pub(super) fn check_structural_borrow_sources(
     let sources = parameters
         .iter()
         .map(|parameter| {
-            let (sources, complete) = parameter_sources(program, parameter, contracts);
+            let ContentSourceExpansion {
+                sources, complete, ..
+            } = parameter_sources(program, parameter, contracts);
             if !complete {
                 diagnostics.push(unsupported_structure(label, parameter.name.as_str()));
             }
@@ -103,9 +109,10 @@ pub(super) fn check_structural_borrow_sources(
                 }
                 if source.borrowed {
                     nested_source |= source.nested;
-                    if !borrowed_parameters.contains(&parameter.name.as_str()) {
-                        borrowed_parameters.push(parameter.name.as_str());
-                    }
+                    crate::collections::push_unique(
+                        &mut borrowed_parameters,
+                        parameter.name.as_str(),
+                    );
                 } else {
                     owned_source = true;
                 }

@@ -38,14 +38,14 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> slices(main, sliced)
         _ -> missed(main)
     }
-    state slices(main: &mut Main, sliced: u64) {
+    machine slices(main: &mut Main, sliced: u64) {
         transition sliced == 6 && main.more[0] == 5 && main.more[5] == 5 {
             true -> reached(main)
             _ -> missed(main)
         }
     }
-    state reached(main: &mut Main) { Console::exit_process(70); }
-    state missed(main: &mut Main) { Console::exit_process(71); }
+    machine reached(main: &mut Main) { Console::exit_process(70); }
+    machine missed(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

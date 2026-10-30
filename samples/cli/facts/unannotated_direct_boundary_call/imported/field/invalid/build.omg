@@ -1,7 +1,15 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "unannotated_imported_boundary_call_through_field");
     Build::depend_as(builder, "support", Source::Path { location: "support" });
-    Build::select_provider<support::Mark, MarkerMark>(builder);
+    Build::select_provider<support::Mark, MarkerMark>(builder, linux_arm64);
+    Build::select_provider<support::Mark, MarkerMark>(builder, linux_x86_64);
+    Build::select_provider<support::Mark, MarkerMark>(builder, macos_arm64);
+    Build::select_provider<support::Mark, MarkerMark>(builder, macos_x86_64);
+    Build::select_provider<support::Mark, MarkerMark>(builder, windows_x86_64);
+    Build::select_provider<support::Mark, MarkerMark>(builder, uefi_x86_64);
+    Build::select_provider<support::Mark, MarkerMark>(builder, cross_platform_cli);
+    Build::select_provider<support::Mark, MarkerMark>(builder, local_unchecked);
+    Build::select_provider<support::Mark, MarkerMark>(builder, alpha_bootstrap);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);

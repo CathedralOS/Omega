@@ -31,13 +31,13 @@ reject twin is pinned as
 | Call result | [main](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
 | Match join | [main](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
 | Const name | [main](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| Another state | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
+| Nested machine | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
 | Another machine | [main](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
 | Another target body | [main](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 
 `omega run --both <place>/main.omg` reports Terminal Psi and native exit 0.
-Each twin drops only the right operand's `<= 50` obligation and refuses with
-`cannot prove requires contract for call apply`.
+Each twin omits the right operand bound and rejects at its receiving `apply`
+call, or at the independent nested `step` boundary.
 
 ## Requirements and evidence
 

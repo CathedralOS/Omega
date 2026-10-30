@@ -22,7 +22,7 @@ use super::{
 };
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::calls::{
-    entry_claims, free_structural_scalar_signature_traced, structural_scalar_signature_traced,
+    entry_claims, free_structural_scalar_entry_signature_traced, structural_scalar_signature_traced,
 };
 use crate::execution::terminal_unit::providers::checked_composed_provider_attachment_requirements;
 use crate::execution::terminal_unit::types::{
@@ -51,29 +51,6 @@ pub(super) use result_custody::retained_structural_result;
 pub(super) use successors::{
     EdgeCalls, SuccessorEdge, SuccessorGuard, successor, successor_bindings,
 };
-
-/// The result a state graph describes for `machine`, or `None` when the
-/// machine's result is outside the graph's result vocabulary. Body routing asks
-/// the same question before any builder runs.
-pub(super) fn result_plan(
-    program: &dyn ::validation::CheckingInput,
-    shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-) -> Option<checked_trees::CheckedControlResultPlan> {
-    let entry = program.machine_states(machine).first()?;
-    let result = returns::signature(program, shapes, entry.return_type)?;
-    crate::execution::terminal_unit::types::register_authored_result_domains(
-        program,
-        shapes,
-        machine,
-        entry,
-        &crate::execution::terminal_unit::types::machine_binders(program, machine),
-    )?;
-    // Normal-return contracts use the shared checked guarantee owner for
-    // every carrier. Linear results additionally retain exact outgoing claim
-    // custody; their contracts do not turn guarded completion into a sequence.
-    Some(result)
-}
 
 /// Read one retained source observation roster for the authored owners in this
 /// composed graph. Fusion changes control placement, never the chosen measure
@@ -111,10 +88,15 @@ pub(super) fn natural_rank_plans_for_fused(
         .collect::<Vec<_>>();
     let mut ranks = Vec::new();
     for (owner, state) in fused {
-        if owner.termination_plan.implementation_witness.is_none() {
+        let judgment = admitted.judgment_for_body(owner.symbol, owner.states)?;
+        // A private component member can carry a source-proved coordinate
+        // without authoring a second ranking clause. Read the retained
+        // observation roster rather than reconstructing declaration evidence.
+        if owner.termination_plan.implementation_witness.is_none()
+            && judgment.observations.is_empty()
+        {
             continue;
         }
-        let judgment = admitted.judgment_for_body(owner.symbol, owner.states)?;
         if !judgment.local_terminates {
             return None;
         }
@@ -169,6 +151,32 @@ pub(super) fn natural_rank_plans_for_fused(
                 rank.state == state.state
                     && rank.parameter == state.parameter
                     && rank.parameter_position == state.parameter_position
+                    && rank.function == state.function
+                    && match (state.observation, rank.measure) {
+                        (
+                            validation::RankPremiseObservation::Value,
+                            checked_trees::CheckedNaturalRankMeasure::IntegerValue {
+                                coordinate,
+                                primitive_type,
+                            },
+                        ) => {
+                            let coordinate = admitted.coordinates.get(coordinate);
+                            primitive_type == state.primitive_type
+                                && coordinate.parameter == state.coordinate.parameter
+                                && admitted.path_segments.span(coordinate.path)
+                                    == Some(state.coordinate.path.as_slice())
+                        }
+                        (
+                            validation::RankPremiseObservation::Length,
+                            checked_trees::CheckedNaturalRankMeasure::SequenceLength { coordinate },
+                        ) => {
+                            let coordinate = admitted.coordinates.get(coordinate);
+                            coordinate.parameter == state.coordinate.parameter
+                                && admitted.path_segments.span(coordinate.path)
+                                    == Some(state.coordinate.path.as_slice())
+                        }
+                        _ => false,
+                    }
             })
         }) {
             return None;
@@ -204,13 +212,11 @@ pub(super) fn build_traced(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
+    prepared_calls: &mut crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
     machine: &typed_trees::machine::Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &control::LocalConstructionTrace,
-) -> Option<(
-    CheckedComposedUnitControlMachinePlan,
-    Vec<super::structural_value_calls::PreparedValueCalls>,
-)> {
+) -> Option<CheckedComposedUnitControlMachinePlan> {
     trace.phase("state graph: shape");
     trace.state(None);
     let states = program.machine_states(machine);
@@ -218,7 +224,7 @@ pub(super) fn build_traced(
         return None;
     }
     trace.phase("state graph: result signature");
-    let result = result_plan(program, shapes, machine)?;
+    let result = super::types::declared_result_plan(program, shapes, machine)?;
     // State count and the presence of an aggregate initializer do not choose
     // cleanup semantics. Even one Unit state can owe executable normal-exit
     // actions. Plan its graph here; the shared candidate selection keeps one
@@ -285,7 +291,7 @@ pub(super) fn build_traced(
     for &(owner, state) in fused.iter() {
         trace.phase("state graph: state signature: result and contracts");
         trace.state(Some(state.symbol));
-        if returns::signature(program, shapes, state.return_type)? != result {
+        if super::types::declared_result_type(program, shapes, state.return_type)? != result {
             trace.phase("state graph: state signature: result differs");
             return None;
         }
@@ -296,19 +302,41 @@ pub(super) fn build_traced(
         // decisions, not by independently proving them again or replacing
         // them with a scalar tautology. Declaration projections remain required.
         let Some(contract_predicates) =
-            validation::structural_state_contract_scalar_predicates(program, state)
+            validation::structural_state_contract_predicates(program, state)
         else {
             trace.phase("state graph: state signature: contract shape unadmitted");
             return None;
         };
         let mut requires = Vec::with_capacity(contract_predicates.len());
         for row in contract_predicates {
+            if let validation::StateContractRow::SourceFact(fact) = &row {
+                // The graph entry has an invocation evidence lane, not an
+                // incoming edge. Do not use block-arrival receipts to erase it.
+                if signatures.is_empty()
+                    || facts
+                        .proof
+                        .state_requires_fact(
+                            program.typed_program(),
+                            owner.symbol,
+                            state.symbol,
+                            *fact,
+                        )
+                        .is_none()
+                {
+                    trace.phase("state graph: source requirement has no exact arrival proof owner");
+                    return None;
+                }
+                requires.push(checked_trees::CheckedStateContractRequirement::SourceFact(
+                    *fact,
+                ));
+                continue;
+            }
             let source_expression = match &row {
-                validation::StateScalarContractRow::Expression(expression) => Some(*expression),
+                validation::StateContractRow::Expression(expression) => Some(*expression),
                 _ => None,
             };
             let predicate = match row {
-                validation::StateScalarContractRow::Expression(expression) => {
+                validation::StateContractRow::Expression(expression) => {
                     crate::values::lower_state_scalar_contract_predicate(
                         program,
                         &facts.operators,
@@ -318,7 +346,7 @@ pub(super) fn build_traced(
                         &mut 4096,
                     )
                 }
-                validation::StateScalarContractRow::DeclaredRange {
+                validation::StateContractRow::DeclaredRange {
                     parameter,
                     minimum,
                     maximum,
@@ -333,7 +361,7 @@ pub(super) fn build_traced(
                     maximum,
                     end_inclusive,
                 ),
-                validation::StateScalarContractRow::Domain {
+                validation::StateContractRow::Domain {
                     parameter,
                     constraint,
                 } => crate::values::lower_state_domain_predicate(
@@ -342,7 +370,10 @@ pub(super) fn build_traced(
                     parameter,
                     &constraint,
                 ),
-                validation::StateScalarContractRow::Finite { parameter } => {
+                validation::StateContractRow::SourceFact(_) => {
+                    unreachable!("source fact handled above")
+                }
+                validation::StateContractRow::Finite { parameter } => {
                     validation::state_finite_predicate(program, state, parameter)
                 }
             };
@@ -379,7 +410,7 @@ pub(super) fn build_traced(
         state_requires.push(requires);
         trace.phase("state graph: state signature: parameter signature");
         let (mut structural, scalar) = if owner.attached_data.is_some() {
-            let (identity, structural, scalar) =
+            let (identity, mut structural, scalar) =
                 structural_scalar_signature_traced(program, shapes, state, &[], trace)?;
             // One graph can publish only one attachment identity. Static
             // qualification contributes no attachment storage.
@@ -388,12 +419,12 @@ pub(super) fn build_traced(
                 return None;
             }
             attachment = attachment.or(identity);
+            fold_parameter_entry_domains(program, shapes, state.symbol, &[], &mut structural)?;
             (structural, scalar)
         } else {
-            free_structural_scalar_signature_traced(program, shapes, state, &[], trace)?
+            free_structural_scalar_entry_signature_traced(program, shapes, state, &[], trace)?
         };
         trace.phase("state graph: state signature: entry domains");
-        fold_parameter_entry_domains(program, shapes, machine, state, &mut structural)?;
         if let Err(reason) =
             retain_parameter_arrival_domains(program, facts, shapes, owner, state, &mut structural)
         {
@@ -414,7 +445,6 @@ pub(super) fn build_traced(
     }
     drop(_sig_guard);
     let mut planned = Vec::new();
-    let mut prepared_calls = Vec::new();
     for (state_index, &(owner, state)) in fused.iter().enumerate() {
         let _seq_guard = phase_profile::guard("05.d.8_10.a.3.2c.3.sequence");
         trace.state(Some(state.symbol));
@@ -444,7 +474,7 @@ pub(super) fn build_traced(
                 if matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_)))
         {
             std::ops::Bound::Included(terminator_index)
-        } else if control::terminal_named_call(program, owner, state, terminator_index)
+        } else if control::terminal_invocation(program, owner, state, terminator_index)
             .is_some_and(|target| fused_target_index(program, &fused, target).is_none())
         {
             // An unconditional terminal machine call is this state's last
@@ -489,6 +519,7 @@ pub(super) fn build_traced(
                 facts,
                 scalar_callees,
                 shapes,
+                prepared_calls,
                 owner,
                 state,
                 &mut sequence_structural,
@@ -512,7 +543,7 @@ pub(super) fn build_traced(
         // the returned value. The receiving graph rejoins its exact producer
         // and independently validates the source reference's access and path.
         let _term_guard = phase_profile::guard("05.d.8_10.a.3.2c.4.terminator");
-        let terminator = terminator::build(
+        let (terminator, selected_exit) = terminator::build(
             program,
             facts,
             scalar_callees,
@@ -547,11 +578,11 @@ pub(super) fn build_traced(
         // scalar. Prepare their exact DAG schedules from this completed prefix
         // before accounting; waiting for body publication creates a cycle.
         // Keep the schedules transactional until the complete graph succeeds.
-        let state_calls = super::structural_value_calls::prepare_state(
+        super::structural_value_calls::prepare_state(
             program,
             facts,
             shapes,
-            machine.symbol,
+            prepared_calls,
             owner.symbol,
             state.symbol,
             &super::structural_value_calls::StateCallInputs {
@@ -560,37 +591,43 @@ pub(super) fn build_traced(
                 operations: &operations,
                 trivial_locals: &[],
             },
-        );
+        )?;
         trace.phase("state graph: value call source custody");
         super::structural_value_calls::consume_caller_results(
             program,
             owner.symbol,
             state.symbol,
             &mut operations,
-            state_calls.iter().map(|row| row.calls.as_slice()),
+            prepared_calls.state_schedules(owner.symbol, state.symbol),
         )?;
-        let call_schedules = |value| {
-            state_calls
-                .iter()
-                .find(|row| row.value == value)
-                .map(|row| row.calls.as_slice())
-        };
+        let call_schedules = |value| prepared_calls.schedule(value);
+        let completion = super::cleanup::normal_edges::completed_body_outcome(
+            program,
+            state,
+            terminator.has_normal_continuation(&operations, &facts.flow.guarded_exits)?,
+        );
         result_custody::account(
             program,
             facts,
             &call_schedules,
             shapes,
+            prepared_calls,
             owner,
             state,
             structural,
             &sequence.structural_results,
             &mut operations,
             &terminator,
+            selected_exit,
+            completion,
             trace,
         )?;
-        prepared_calls.extend(state_calls);
         planned.push(CheckedComposedUnitControlStatePlan {
-            normal_exit_cleanups: Default::default(),
+            normal_exit_cleanups: checked_trees::CheckedNormalExitCleanups {
+                completion,
+                ..Default::default()
+            },
+            selected_exit,
             state: state.symbol,
             structural_parameters: structural.clone(),
             scalar_parameters: scalar.clone(),
@@ -813,7 +850,7 @@ pub(super) fn build_traced(
             )?;
     }
     plan.result = result;
-    Some((plan, prepared_calls))
+    Some(plan)
 }
 
 type Signature = (

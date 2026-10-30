@@ -20,6 +20,10 @@
 //!   the facts standing before a store; live guards project the same checked
 //!   consequences onto their exact scalar arguments and descriptor extents.
 //!   Extent knowledge never supplies element contents (`exploration.rs`).
+//! - Integer relations: the same symbolic implication judgment proves ordering
+//!   consequences on every successful return, then publishes exact caller
+//!   actuals for borrow compatibility. Independent interval hulls cannot retain
+//!   correlations such as two unrestricted indices being unequal.
 //! - Proof: helper-theorem implication and predicate handback use symbolic
 //!   descriptors, selected read coordinates and functional store versions.
 //!   Recursive cases owe a complete substituted induction-premise roster and
@@ -107,18 +111,269 @@ pub(crate) fn predicate_application(
         }
         _ => return None,
     };
+    predicate_call(program, call_expression)
+}
+
+fn predicate_call(
+    program: &dyn crate::CheckingInput,
+    call_expression: ExpressionHandle,
+) -> Option<PredicateApplication<'_>> {
     let call = program.expression_table.call_node(call_expression)?;
     if !call.is_ordinary_positional_call() {
         return None;
     }
     let machine = exploration::admitted_predicate_machine(program, call.target_symbol, false)?;
-    Some(PredicateApplication {
-        machine,
-        arguments: program.expression_table.expression_handles(call.arguments),
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    if arguments.len() != call.arguments.len() {
+        return None;
+    }
+    Some(PredicateApplication { machine, arguments })
+}
+
+/// The full declared carrier of an unconditional integer proof formal.
+/// Representation-only queries unwrap qualifications; they cannot establish a
+/// callee's additional domain or reference-formation obligations.
+pub(crate) fn bare_integer_parameter_type(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<typed_trees::types::PrimitiveType> {
+    if !program
+        .type_reference_table
+        .contains_type_reference(reference)
+    {
+        return None;
+    }
+    if !matches!(
+        program.type_reference_table.type_reference(reference),
+        typed_trees::types::TypeReferenceNode::Named { .. }
+    ) {
+        return None;
+    }
+    program
+        .primitive_type_reference(reference)
+        .filter(|primitive| primitive.is_fixed_integer())
+}
+
+/// Judge a complete ordinary predicate at exact closed integer actuals using
+/// the same checked-body explorer as construction and implication. Canonical
+/// bytes supply values, never membership. False and undecided outcomes remain
+/// distinct; no interval consequence substitutes for the complete predicate.
+pub(crate) fn closed_integer_predicate_value(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    values: &[(i128, Option<TypeReferenceHandle>)],
+) -> Option<bool> {
+    let application = predicate_call(program, expression)?;
+    let machine = program.machines().get(application.machine)?;
+    let states = program.machine_states(machine);
+    if states.len() != machine.states.len() {
+        return None;
+    }
+    let entry = states.first()?;
+    let parameters = program.state_parameters(entry);
+    if parameters.len() != entry.parameters.len()
+        || parameters.len() != values.len()
+        || parameters.len() != application.arguments.len()
+    {
+        return None;
+    }
+    let knowledge = parameters
+        .iter()
+        .zip(application.arguments)
+        .zip(values)
+        .map(|((parameter, actual), (value, actual_type))| {
+            let primitive = bare_integer_parameter_type(program, parameter.type_reference)?;
+            if let Some(actual_type) = actual_type {
+                if program.primitive_type_reference(*actual_type) != Some(primitive) {
+                    return None;
+                }
+            } else {
+                let literal = program.expression_table.integer_node(*actual)?;
+                if literal.landing().is_some_and(|landing| {
+                    typed_trees::types::PrimitiveType::from_name(landing.landed_type.name())
+                        != Some(primitive)
+                        || landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
+                }) {
+                    return None;
+                }
+            }
+            let (minimum, maximum) = primitive.integer_bounds()?;
+            if *value < minimum || *value > maximum {
+                return None;
+            }
+            Some(ArgumentKnowledge::Integer(IntegerSet::singleton(*value)))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    unfold(program, application.machine, &knowledge)?.decided()
+}
+
+/// One exact caller actual or a checked mathematical integer bound.
+#[derive(Clone)]
+pub struct PredicateIntegerSubject {
+    pub expression: ExpressionHandle,
+    pub projection: Vec<facts::PlaceSegment>,
+}
+
+/// An inert observation recipe in the predicate's exact declared telescope.
+/// The source handle stays in that telescope; consumers substitute both the
+/// collection and every selector before comparing caller value identities.
+#[derive(Clone)]
+pub struct PredicateIntegerReadSubject {
+    pub predicate: symbols::SymbolHandle,
+    pub expression: ExpressionHandle,
+    pub arguments: Vec<ExpressionHandle>,
+}
+
+#[derive(Clone)]
+pub enum PredicateIntegerOperand {
+    Argument(PredicateIntegerSubject),
+    Read(PredicateIntegerReadSubject),
+    Integer(i128),
+}
+
+/// One typed Boolean leaf of the predicate's exact formal telescope.
+#[derive(Clone)]
+pub struct PredicateBooleanSubject {
+    pub expression: ExpressionHandle,
+    pub projection: Vec<facts::PlaceSegment>,
+}
+
+/// An entire predicate condition retains Boolean typing alongside integer
+/// relations. This list is publishable only after its independent converse.
+pub enum PredicateCondition {
+    Ordering(PredicateOrderingConsequence),
+    Boolean {
+        subject: PredicateBooleanSubject,
+        holds: bool,
+    },
+}
+
+/// A relation proved on every true return, retaining exact caller actuals.
+pub struct PredicateOrderingConsequence {
+    pub left: PredicateIntegerOperand,
+    pub right: PredicateIntegerOperand,
+    pub operator: BinaryOperator,
+}
+
+/// A whole predicate may be replaced by one relation only after both
+/// directions are proved over its complete formal carriers. Entry formation
+/// and exact readable actuals remain obligations of the consuming contract.
+pub fn exact_predicate_ordering(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<PredicateOrderingConsequence> {
+    let application = predicate_application(program, owner, expression)?;
+    implication::exact_ordering(program, &application)
+}
+
+/// A complete conjunction, not a list of independent ambient facts. The shared
+/// interpreter proves both directions and each partial read from earlier guards.
+pub fn exact_predicate_conjunction(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<Vec<PredicateCondition>> {
+    let application = predicate_application(program, owner, expression)?;
+    implication::exact_conjunction(program, &application)
+}
+
+/// Rejoin a callee integer expression to its exact declared actual telescope.
+/// No source expression is manufactured and a read remains an inert recipe.
+pub fn predicate_integer_operand(
+    program: &dyn crate::CheckingInput,
+    predicate: symbols::SymbolHandle,
+    arguments: &[ExpressionHandle],
+    expression: ExpressionHandle,
+) -> Option<PredicateIntegerOperand> {
+    let position = exploration::admitted_predicate_machine(program, predicate, false)?;
+    let machine = &program.machines()[position];
+    let entry = program.machine_states(machine).first()?;
+    if program.state_parameters(entry).len() != arguments.len() {
+        return None;
+    }
+    if let ExpressionNode::Integer(literal) = program.expression_table.expression(expression) {
+        return Some(PredicateIntegerOperand::Integer(
+            literal.decimal_value_i128()?,
+        ));
+    }
+    if program.expression_table.indexed_node(expression).is_some() {
+        if !crate::immutable_entry_indexed_read_identity(program, expression)?
+            .has_scope(machine.symbol, entry.symbol)
+        {
+            return None;
+        }
+        return Some(PredicateIntegerOperand::Read(PredicateIntegerReadSubject {
+            predicate,
+            expression,
+            arguments: arguments.to_vec(),
+        }));
+    }
+    let (position, projection) =
+        crate::immutable_entry_integer_projection(program, predicate, expression)?;
+    Some(PredicateIntegerOperand::Argument(PredicateIntegerSubject {
+        expression: *arguments.get(position)?,
+        projection,
+    }))
+}
+
+fn predicate_boolean_subject(
+    program: &dyn crate::CheckingInput,
+    predicate: symbols::SymbolHandle,
+    arguments: &[ExpressionHandle],
+    expression: ExpressionHandle,
+) -> Option<PredicateBooleanSubject> {
+    let position = exploration::admitted_predicate_machine(program, predicate, false)?;
+    let machine = &program.machines()[position];
+    let entry = program.machine_states(machine).first()?;
+    if program.state_parameters(entry).len() != arguments.len() {
+        return None;
+    }
+    let (position, projection) =
+        crate::immutable_entry_boolean_projection(program, predicate, expression)?;
+    Some(PredicateBooleanSubject {
+        expression: *arguments.get(position)?,
+        projection,
     })
 }
 
-/// One formal observation in a checked exact interval description of a predicate.
+/// Recover integer relations from a positive, already-available predicate
+/// occurrence. The shared symbolic implication engine interprets its checked
+/// body, including calls and branches; naming a predicate supplies no relation.
+/// Unsupported bodies and exhausted proof work contribute no evidence.
+pub fn predicate_ordering_consequences(
+    program: &dyn crate::CheckingInput,
+    call_expression: ExpressionHandle,
+) -> Vec<PredicateOrderingConsequence> {
+    let Some(application) = predicate_call(program, call_expression) else {
+        return Vec::new();
+    };
+    let mut consequences = implication::ordering_consequences(program, &application);
+    // Scalar hulls are necessary consequences, never equivalent replacements
+    // of the predicate. The exact public-envelope judgment below additionally
+    // checks its converse over the complete Cartesian product.
+    if let Some(intervals) = interval_consequences(program, &application) {
+        for interval in intervals.into_iter().filter(|row| !row.extent) {
+            for (bound, operator) in [
+                (interval.low, BinaryOperator::GreaterOrEqual),
+                (interval.high, BinaryOperator::LessOrEqual),
+            ] {
+                consequences.push(PredicateOrderingConsequence {
+                    left: PredicateIntegerOperand::Argument(PredicateIntegerSubject {
+                        expression: interval.argument,
+                        projection: Vec::new(),
+                    }),
+                    right: PredicateIntegerOperand::Integer(bound),
+                    operator,
+                });
+            }
+        }
+    }
+    consequences
+}
+
+/// One interval observation of an exact actual argument. Consumers separately
+/// establish whether it is a consequence or a complete public envelope.
 /// Descriptor extents describe metadata only, never collection contents.
 #[derive(Debug, Clone)]
 pub struct PredicateInterval {
@@ -139,6 +394,32 @@ pub fn exact_predicate_intervals(
     expression: ExpressionHandle,
 ) -> Option<Vec<PredicateInterval>> {
     let application = predicate_application(program, owner, expression)?;
+    let rows = interval_consequences(program, &application)?;
+    if rows.len() != application.arguments.len() {
+        return None;
+    }
+    let narrowed = rows
+        .iter()
+        .map(|row| {
+            let hull = IntegerSet::range(row.low, row.high);
+            if row.extent {
+                ArgumentKnowledge::CollectionExtent(hull)
+            } else {
+                ArgumentKnowledge::Integer(hull)
+            }
+        })
+        .collect::<Vec<_>>();
+    (unfold(program, application.machine, &narrowed)?.decided() == Some(true)).then_some(rows)
+}
+
+/// One-way true-return bounds shared by guard narrowing and borrow relations.
+/// Complete declared carriers seed the existing explorer. Unsupported actual
+/// shapes contribute no row; an empty truth set grants no ambient contradiction.
+/// Consumers retain availability, source meaning and storage epochs separately.
+pub(crate) fn interval_consequences(
+    program: &dyn crate::CheckingInput,
+    application: &PredicateApplication<'_>,
+) -> Option<Vec<PredicateInterval>> {
     let entry = program
         .machine_states(&program.machines()[application.machine])
         .first()?;
@@ -151,27 +432,24 @@ pub fn exact_predicate_intervals(
         return None;
     }
     let unfolding = unfold(program, application.machine, &knowledge)?;
-    let mut narrowed = Vec::with_capacity(knowledge.len());
-    let mut rows = Vec::with_capacity(knowledge.len());
+    let mut rows = Vec::new();
     for (position, (argument, knowledge)) in
         application.arguments.iter().zip(&knowledge).enumerate()
     {
         let extent = match knowledge {
             ArgumentKnowledge::Integer(_) => false,
             ArgumentKnowledge::CollectionExtent(_) => true,
-            _ => return None,
+            _ => continue,
         };
-        let values = unfolding.when_true(position)?;
+        let Some(values) = unfolding.when_true(position) else {
+            continue;
+        };
         let [values] = values.as_slice() else {
-            return None;
+            continue;
         };
-        let (low, high) = values.bounds()?;
-        let hull = IntegerSet::range(low, high);
-        narrowed.push(if extent {
-            ArgumentKnowledge::CollectionExtent(hull)
-        } else {
-            ArgumentKnowledge::Integer(hull)
-        });
+        let Some((low, high)) = values.bounds() else {
+            continue;
+        };
         rows.push(PredicateInterval {
             argument: *argument,
             extent,
@@ -179,7 +457,7 @@ pub fn exact_predicate_intervals(
             high,
         });
     }
-    (unfold(program, application.machine, &narrowed)?.decided() == Some(true)).then_some(rows)
+    Some(rows)
 }
 
 /// One exploration of a predicate at fixed initial knowledge.
@@ -293,7 +571,7 @@ pub(crate) fn unknown_knowledge(
         ValueShape::Collection { length: None, .. } => {
             ArgumentKnowledge::CollectionExtent(IntegerSet::range(0, i128::from(u64::MAX)))
         }
-        ValueShape::Boolean => return None,
+        ValueShape::Boolean | ValueShape::Record(_) => return None,
     })
 }
 
@@ -309,7 +587,7 @@ fn zero_knowledge(
         } => ArgumentKnowledge::Array(vec![IntegerSet::singleton(0); length]),
         ValueShape::Integer(_) => ArgumentKnowledge::Integer(IntegerSet::singleton(0)),
         ValueShape::Boolean => ArgumentKnowledge::Boolean(false),
-        ValueShape::Collection { length: None, .. } => return None,
+        ValueShape::Collection { length: None, .. } | ValueShape::Record(_) => return None,
     })
 }
 

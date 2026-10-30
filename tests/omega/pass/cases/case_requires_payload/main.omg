@@ -13,8 +13,8 @@ machine pick(choice: &Choice, mode: Mode) -> u32 requires choice in Choice::Cell
         Mode::On {} if choice.counter == 3 -> hit()
         _ -> miss()
     }
-    state hit() -> u32 { 7 }
-    state miss() -> u32 { 9 }
+    machine hit() -> u32 { 7 }
+    machine miss() -> u32 { 9 }
 }
 
 data Main {}
@@ -27,6 +27,6 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

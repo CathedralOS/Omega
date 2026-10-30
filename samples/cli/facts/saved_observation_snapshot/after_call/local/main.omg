@@ -1,0 +1,21 @@
+// A saved observation of an unwritten array element stays equal to 7 across a write to a disjoint element.
+// Expected exit: 0
+machine capture<'source>(source: &'source mut u64, marker: &mut u64, event: u64) -> &'source mut u64
+ensures source == 7
+{ source = 7; marker = event; source }
+
+machine agree(observed: u64, current: u64) -> u64
+requires observed == current && observed == 7
+{
+    observed
+}
+
+machine main() crashes Trap {
+    let mut marker: u64 = 0;
+    let mut items: [u64; 2] = [3, 1];
+    let saved: u64 = capture(&mut items[0], &mut marker, 11);
+    items[1] = 4;
+    transition agree(saved, items[0]) == 7 && items[1] == 4 && marker == 11 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

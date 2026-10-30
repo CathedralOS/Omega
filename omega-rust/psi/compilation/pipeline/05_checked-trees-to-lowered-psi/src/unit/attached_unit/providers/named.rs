@@ -116,25 +116,19 @@ impl EdgeReach {
                         .any(|member| member.machine == machine.symbol)
             })),
             Self::Specialization(template) => {
-                // Specialization owns the ordered template-to-instance state
-                // correspondence; the map's entry above must remain its origin.
-                let receipts = typed
-                    .machine_specializations
-                    .iter()
-                    .filter(|receipt| {
-                        receipt.template == *template && receipt.instance == machine.symbol
-                    })
-                    .count();
-                if receipts == 0 {
-                    return Ok(false);
-                }
-                let states = typed
+                let source = typed
                     .machine(*template)
-                    .map_or(0, |template| typed.machine_states(template).len());
-                if receipts != 1 || typed.machine_states(machine).len() != states {
-                    return unsupported("named provider lost its exact specialization entry");
-                }
-                Ok(true)
+                    .and_then(|machine| typed.machine_states(machine).first());
+                let target = typed.machine_states(machine).first();
+                let (Some(source), Some(target)) = (source, target) else {
+                    return unsupported("named provider lost its instantiated entry");
+                };
+                Ok(typed.instantiated_machine_state_matches(
+                    machine.symbol,
+                    *template,
+                    source.symbol,
+                    target.symbol,
+                ))
             }
         }
     }
@@ -147,26 +141,36 @@ enum EdgeCarrier<'a> {
     /// A conformance map owns one row per exact requirement edge.
     ConformanceMap(&'a Conformance),
     /// A machine owns its own exact clause, realized by its own body.
-    Machine(&'a Machine),
+    Machine {
+        declaration: &'a Machine,
+        lifetime_parameters: usize,
+    },
 }
 
 fn edge_carriers<'a>(typed: &'a TypedTrees, machine: &'a Machine) -> Vec<EdgeCarrier<'a>> {
     let mut carriers = typed
         .conformances()
         .iter()
-        .filter(|implementation| implementation.type_parameters.is_empty())
         .map(EdgeCarrier::ConformanceMap)
         .collect::<Vec<_>>();
     // A specialization instance is realized through the authored template that
     // carries its edge, and a statically telescoped declaration owns no closed
-    // provider plan; neither declaration holds a selection of its own.
-    if machine.type_parameters.is_empty()
+    // provider plan; neither declaration holds a selection of its own. The
+    // telescope includes nominal and enclosing implementation binders, even
+    // when the method's value signature does not mention them. Captured
+    // specialization operands are not additional declaration binders.
+    let (type_parameters, lifetime_parameters) =
+        typed.machine_declaration_scope(machine, |left, right| left.symbol == right.symbol);
+    if type_parameters.is_empty()
         && !typed
             .machine_specializations
             .iter()
             .any(|receipt| receipt.instance == machine.symbol)
     {
-        carriers.push(EdgeCarrier::Machine(machine));
+        carriers.push(EdgeCarrier::Machine {
+            declaration: machine,
+            lifetime_parameters: lifetime_parameters.len(),
+        });
     }
     carriers
 }
@@ -221,7 +225,10 @@ fn exact_requirement_edges(
                     lifetime_parameters: implementation.lifetime_parameters.len(),
                 });
             }
-            EdgeCarrier::Machine(owner) => {
+            EdgeCarrier::Machine {
+                declaration: owner,
+                lifetime_parameters,
+            } => {
                 if !declares_exact_requirement(typed, owner, definition, template) {
                     continue;
                 }
@@ -237,7 +244,7 @@ fn exact_requirement_edges(
                     selecting_declaration: owner.symbol,
                     realization: owner.symbol,
                     reach: EdgeReach::Named,
-                    lifetime_parameters: owner.lifetime_parameters.len(),
+                    lifetime_parameters,
                 });
             }
         }

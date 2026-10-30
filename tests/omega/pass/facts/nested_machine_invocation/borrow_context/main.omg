@@ -1,0 +1,13 @@
+// Expected exit: 0
+data Number [copy] { value: u64; }
+machine identity<'view>(value: &'view Number) -> &'view Number {
+    read(value)
+    machine read(item: &'view Number) -> &'view Number { item }
+}
+machine main() crashes Trap {
+    let value: Number = Number { value: 42 };
+    let view: &Number = identity(&value);
+    transition view.value == 42 { true -> done() _ -> failed() }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
+}

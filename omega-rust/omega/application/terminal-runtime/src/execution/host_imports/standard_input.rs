@@ -153,7 +153,17 @@ impl TerminalEffectHandler for ReadByteImport<'_> {
             TerminalScalarAggregateValue {
                 structural_type: self.structural_type,
                 result_case: Some(result_case),
-                fields,
+                fields: fields
+                    .into_iter()
+                    .map(|(field, value)| {
+                        (
+                            vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                                field,
+                            )],
+                            value,
+                        )
+                    })
+                    .collect(),
             },
         ))
     }

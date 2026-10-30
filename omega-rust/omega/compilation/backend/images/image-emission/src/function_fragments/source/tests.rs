@@ -5,7 +5,7 @@ use target_operations::TargetUnitOperation;
 #[test]
 fn atomic_storage_requires_retained_graph_replay() {
     use abstract_operations::atomic::AbstractAtomicLocation;
-    use abstract_operations::{AbstractAtomicEvent, AtomicModificationAfter};
+    use abstract_operations::{AbstractAtomicEvent, AtomicResidencyEdge};
     use semantic_vocabulary::{PlaceId, StructuralFieldId};
 
     let operation = AbstractOperation::AtomicEvent {
@@ -20,7 +20,8 @@ fn atomic_storage_requires_retained_graph_replay() {
             value: ValueId::new(1).unwrap(),
         },
         reads_from: None,
-        modification_after: Some(AtomicModificationAfter::InitialResidency),
+        modification_after: Some(AtomicResidencyEdge::InitialResidency),
+        resident_obligation: None,
     };
     assert!(requires_graph_storage_replay(&[operation]));
 }

@@ -9,12 +9,16 @@ use semantic_vocabulary::{
     StructuralDomainId, StructuralTypeId, ValueId,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// One qualification-only boundary call-admission check. The corresponding
 /// structural argument must already carry `domain`; this row does not create a
 /// proposition or mint an obligation identity.
 pub struct StructuralDomainRequirement {
     pub argument_index: u32,
+    /// Exact subject below the formal; empty retains its whole root. The
+    /// domain carrier must match the complete selected path, including every
+    /// stored-reference crossing. A row does not establish membership.
+    pub path: Vec<crate::StructuralPathSegment>,
     pub domain: StructuralDomainId,
 }
 
@@ -61,6 +65,7 @@ impl BoundaryMachineResult {
         &self,
         result: &crate::TerminalMachineResult,
         requirement: TerminalIdentityIndex,
+        declaration: Option<TerminalIdentityIndex>,
         domains: &[crate::StructuralDomainDeclaration],
     ) -> bool {
         match (self, result) {
@@ -72,13 +77,24 @@ impl BoundaryMachineResult {
                         .iter()
                         .all(|domain| expected.qualifications.contains(domain))
                     && expected.qualifications.iter().all(|domain| {
-                        result.qualifications.contains(domain)
-                            || domains.iter().any(|declaration| {
-                                declaration.id == *domain
-                                    && declaration.carrier == expected.structural_type
-                                    && (declaration.establishment_routes.is_empty()
-                                        || declaration.authorizes_boundary_requirement(requirement))
-                            })
+                        domains.iter().any(|domain_declaration| {
+                            domain_declaration.id == *domain
+                                && domain_declaration.carrier == expected.structural_type
+                                && domain_declaration
+                                    .missing_membership_requirements(
+                                        domains,
+                                        &result.qualifications,
+                                    )
+                                    .is_some_and(|missing| {
+                                        missing.into_iter().all(|required| {
+                                            required.establishment_routes.is_empty()
+                                                || required.authorizes_boundary_requirement(
+                                                    requirement,
+                                                    declaration,
+                                                )
+                                        })
+                                    })
+                        })
                     })
                     && expected
                         .projected_qualifications
@@ -195,6 +211,8 @@ pub struct BoundaryMachineDeclaration {
     /// contract capsule without a body. Synthetic evidence has no declaration.
     /// This is the head's provenance, never a provider donation.
     pub declaration: Option<CheckedBoundaryCallable>,
+    /// Psi-owned numeric meaning, independent of any provider selection.
+    pub numeric_intrinsic: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
     pub role: BoundaryDeclarationRole,
     pub kind: semantic_vocabulary::BoundaryRequirementKind,
     /// Exact opaque completion contract; installation must authenticate it.
@@ -228,6 +246,9 @@ pub struct BoundaryMachineDeclaration {
     /// Admission consumes qualifications already carried by the arguments;
     /// these rows are not proof propositions.
     pub requires: Vec<StructuralDomainRequirement>,
+    /// Source-guaranteed memberships at exact mutable parameter roots on
+    /// normal return. These preserve existing memberships, not issuer authority.
+    pub normal_qualifications: Vec<StructuralDomainRequirement>,
     /// Exact carried scalar memberships, separate from numeric propositions.
     /// Indices name packed scalar arguments; rows never add runtime ABI words.
     pub scalar_domain_requirements: Vec<ScalarDomainRequirement>,
@@ -319,12 +340,62 @@ impl CheckedBoundaryCallable {
 impl BoundaryMachineDeclaration {
     /// Opaque supply cannot assert non-content provenance owned by another
     /// issuer. It needs an actual checked return; equal bits and a matching
-    /// host result annotation do not carry that history. Content domains retain
-    /// their independent input conservation and issuance checks. This query
-    /// does not admit supply, prove predicates, or manufacture custody.
+    /// host result annotation do not carry that history. Content without a consumed
+    /// occurrence of its own qualification also needs its exact authorized
+    /// issuance route. Other content transfers retain their independent
+    /// conservation checks. This query does not admit supply, prove predicates,
+    /// or manufacture custody.
     pub fn requires_checked_result(&self, domains: &[crate::StructuralDomainDeclaration]) -> bool {
         let BoundaryMachineResult::Structural(result) = &self.result else {
             return false;
+        };
+        // Only owned occurrences of this exact qualification can supply its
+        // result custody. Equal algebras and unrelated inputs are insufficient.
+        // A record containing a reference owns its descriptor, never the
+        // qualified referent. Unknown theory cannot establish correspondence.
+        // Native and interpreter host dispatch share this source-free judgment;
+        // it grants no new conservation or issuance evidence.
+        let consumes_qualification = |required: StructuralDomainId| {
+            self.structural_parameters
+                .iter()
+                .enumerate()
+                .any(|(position, parameter)| {
+                    parameter.access == crate::StructuralAccess::Owned
+                        && parameter
+                            .qualifications
+                            .iter()
+                            .chain(
+                                parameter
+                                    .projected_qualifications
+                                    .iter()
+                                    .filter(|row| {
+                                        !row.path.contains(&crate::StructuralPathSegment::Referent)
+                                    })
+                                    .map(|row| &row.domain),
+                            )
+                            .chain(
+                                self.requires
+                                    .iter()
+                                    .filter(|row| {
+                                        usize::try_from(row.argument_index).ok() == Some(position)
+                                            && !row
+                                                .path
+                                                .contains(&crate::StructuralPathSegment::Referent)
+                                    })
+                                    .map(|row| &row.domain),
+                            )
+                            .any(|domain| {
+                                domains
+                                    .iter()
+                                    .find(|declaration| declaration.id == *domain)
+                                    .and_then(|declaration| {
+                                        declaration.required_domain_closure(domains)
+                                    })
+                                    .is_some_and(|closure| {
+                                        closure.iter().any(|node| node.id == required)
+                                    })
+                            })
+                })
         };
         result
             .qualifications
@@ -340,9 +411,26 @@ impl BoundaryMachineDeclaration {
                     .iter()
                     .find(|declaration| declaration.id == *domain)
                     .is_none_or(|declaration| {
-                        declaration.content_projection.is_none()
-                            && !declaration.establishment_routes.is_empty()
-                            && !declaration.authorizes_boundary_requirement(self.identity)
+                        declaration
+                            .required_domain_closure(domains)
+                            .is_none_or(|required| {
+                                required.into_iter().any(|node| {
+                                    // Transferred direct content still owes its
+                                    // conservation edge. Independently supplied
+                                    // content has no such input: an annotation
+                                    // cannot substitute for issuer authorization.
+                                    (node.id != declaration.id && node.content_projection.is_some())
+                                        || ((node.content_projection.is_none()
+                                            || !consumes_qualification(node.id))
+                                            && !node.establishment_routes.is_empty()
+                                            && !node.authorizes_boundary_requirement(
+                                                self.identity,
+                                                self.declaration.as_ref().map(|callable| {
+                                                    callable.source.semantic_declaration
+                                                }),
+                                            ))
+                                })
+                            })
                     })
             })
     }

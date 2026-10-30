@@ -5,16 +5,16 @@ machine main() crashes Trap {
         true -> selected(&mut bytes)
         _ -> bad()
     }
-    state selected(bytes: &mut [u8; 2]) {
+    machine selected(bytes: &mut [u8; 2]) {
         bytes[1] = 90;
         transition { _ -> observed(bytes) }
     }
-    state observed(bytes: &[u8; 2]) {
+    machine observed(bytes: &[u8; 2]) {
         transition bytes[0] == 97 && bytes[1] == 90 {
             true -> done()
             _ -> bad()
         }
     }
-    state done() { }
-    state bad() { crash Trap; }
+    machine done() { }
+    machine bad() { crash Trap; }
 }

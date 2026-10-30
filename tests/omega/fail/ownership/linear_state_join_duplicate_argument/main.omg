@@ -9,7 +9,7 @@ machine exchange(swap: bool, left: Receipt, right: Receipt) {
         true -> received(right, left)
         _ -> received(left, left)
     }
-    state received(first: Receipt, second: Receipt) {
+    machine received(first: Receipt, second: Receipt) {
         drop(first);
         drop(second);
     }

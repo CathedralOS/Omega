@@ -530,34 +530,54 @@ fn lower_slot(
         let terminal_psi::BoundaryMachineResult::Structural(result) = &result else {
             return unsupported("nonstructural dynamic result carries reference origins");
         };
-        let (origin, root_type) =
-            match reference.source.root {
-                checked_trees::CheckedReferenceOriginRoot::Parameter { index } => {
-                    let formal = structural_parameters.get(index as usize).ok_or(
-                        LoweringError::Unsupported("dynamic result region has no structural input"),
-                    )?;
-                    (
-                        terminal_psi::TerminalDynamicReferenceOrigin::Parameter {
-                            argument_index: index,
-                        },
-                        formal.structural_type,
-                    )
-                }
-                checked_trees::CheckedReferenceOriginRoot::Invocation { carrier_type } => {
-                    let carrier_type =
-                        crate::terminal_identities::lookup_type_id(type_ids, &carrier_type)?;
-                    (
-                        terminal_psi::TerminalDynamicReferenceOrigin::Invocation { carrier_type },
-                        carrier_type,
-                    )
-                }
-            };
+        let (origin, root_type) = match reference.source.root {
+            checked_trees::CheckedReferenceOriginRoot::Parameter { index } => {
+                let formal =
+                    structural_parameters
+                        .get(index as usize)
+                        .ok_or(LoweringError::Unsupported(
+                            "dynamic result region has no structural input",
+                        ))?;
+                (
+                    terminal_psi::TerminalDynamicReferenceOrigin::Parameter {
+                        argument_index: index,
+                    },
+                    if reference.source.entry_reference_hops == 0 {
+                        crate::expression_preparation::bindings::structural_paths::ProjectionRoot::Published(formal.structural_type)
+                    } else {
+                        crate::expression_preparation::bindings::structural_paths::ProjectionRoot::BorrowedEntry {
+                                published: formal.structural_type,
+                                access: formal.access,
+                                reference_hops: reference.source.entry_reference_hops,
+                            }
+                    },
+                )
+            }
+            checked_trees::CheckedReferenceOriginRoot::Invocation { carrier_type } => {
+                let carrier_type =
+                    crate::terminal_identities::lookup_type_id(type_ids, &carrier_type)?;
+                (
+                    terminal_psi::TerminalDynamicReferenceOrigin::Invocation { carrier_type },
+                    {
+                        if reference.source.entry_reference_hops != 0 {
+                            return unsupported(
+                                "dynamic invocation origin cannot erase a formal entry",
+                            );
+                        }
+                        crate::expression_preparation::bindings::structural_paths::ProjectionRoot::Published(carrier_type)
+                    },
+                )
+            }
+        };
         let source_path =
             crate::expression_preparation::bindings::structural_paths::lower_reference_origin_path(
                 identities,
                 checked,
                 &reference.source.path,
                 root_type,
+                crate::expression_preparation::bindings::structural_paths::terminal_access(
+                    reference.source.access,
+                ),
                 structural_types,
             )?
             .into_iter()

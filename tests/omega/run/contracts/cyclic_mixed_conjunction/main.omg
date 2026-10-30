@@ -1,0 +1,31 @@
+// Expected exit: 0.
+data Record { enabled: bool; }
+machine first(record: Record, written: u64, remaining: u64) -> u64
+    requires record.enabled && written <= 256u64
+    ensures result <= 256u64
+{
+    transition remaining > 0u64 {
+        true -> second(record, written, remaining - 1u64)
+        false -> (written)
+    }
+}
+machine second(record: Record, written: u64, remaining: u64) -> u64
+    requires written <= 256u64 && record.enabled
+    ensures result <= 256u64
+{
+    transition remaining > 0u64 {
+        true -> first(record, written, remaining - 1u64)
+        false -> (written)
+    }
+}
+machine main() crashes Trap {
+    let zero: u64 = first(Record { enabled: true }, 0u64, 0u64);
+    let odd: u64 = first(Record { enabled: true }, 253u64, 3u64);
+    let even: u64 = first(Record { enabled: true }, 256u64, 8u64);
+    transition zero == 0u64 && odd == 253u64 && even == 256u64 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

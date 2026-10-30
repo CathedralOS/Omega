@@ -15,8 +15,8 @@ requires n <= 9
         9 -> wrap(n)
         _ -> flat(n)
     }
-    state wrap(n: u64) -> Pair { Pair { a: n, b: n } }
-    state flat(n: u64) -> Pair { Pair { a: n, b: 0 } }
+    machine wrap(n: u64) -> Pair { Pair { a: n, b: n } }
+    machine flat(n: u64) -> Pair { Pair { a: n, b: 0 } }
 }
 
 machine Main::main(main: &mut Main) {

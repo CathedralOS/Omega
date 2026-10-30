@@ -4,12 +4,18 @@ use semantic_vocabulary::{OperationId, PlaceId, StructuralPlaceKind};
 
 pub(super) fn producer(
     function: &PsiOptimizationFunction,
-    call: OperationId,
+    call: semantic_vocabulary::InvocationSite,
     source: PlaceId,
 ) -> Option<(OperationId, semantic_vocabulary::StructuralTypeId)> {
+    super::invocations::position(function, call, None)?;
     function.block_nodes().find(|node| {
-        matches!(&node.operation, abstract_operations::boundary_or_structural_call_pair_pattern!(psi_operation,structural_arguments, ..)
-            if *psi_operation == call && structural_arguments.iter().any(|argument| argument.place == source))
+        super::invocations::matches(&node.operation, call)
+            && node.operation.module_invocation().is_some_and(|invocation|
+                invocation.structural_arguments.iter().any(|argument| argument.place == source))
+            || matches!(&node.operation,
+                abstract_operations::boundary_or_structural_call_pair_pattern!(psi_operation, structural_arguments, ..)
+                if call == semantic_vocabulary::InvocationSite::Operation(*psi_operation)
+                    && structural_arguments.iter().any(|argument| argument.place == source))
     })?;
     declaration_producer(function, source)
 }

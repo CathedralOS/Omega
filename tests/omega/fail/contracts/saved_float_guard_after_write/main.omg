@@ -11,5 +11,5 @@ machine main() {
         true -> accept(&reading, 0)
         false -> done()
     }
-    state done() {}
+    machine done() {}
 }

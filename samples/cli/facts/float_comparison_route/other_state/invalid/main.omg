@@ -2,10 +2,10 @@
 // Invalid: the right operand is 212.0 instead of 2.0, so the comparison is true and the program crashes Trap.
 machine main() crashes Trap {
     transition { _ -> compare(212.0, 212.0) }
-    state compare(left: f64, right: f64) {
+    machine compare(left: f64, right: f64) {
         let equal: bool = left == right;
         transition equal { true -> bad() _ -> done() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

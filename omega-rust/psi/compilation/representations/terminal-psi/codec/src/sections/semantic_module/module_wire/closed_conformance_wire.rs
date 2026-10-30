@@ -58,6 +58,7 @@ pub(super) fn encode_closed_conformance_application(
     }
     writer.len("closed conformance schemas", application.schemas.len())?;
     for schema in &application.schemas {
+        writer.u32(schema.requirement_declaration.identity().0);
         for identity in [
             schema.declaring_trait_identity,
             schema.public_requirement_identity,
@@ -113,6 +114,7 @@ pub(super) fn encode_closed_conformance_application(
     }
     writer.len("closed conformance rows", application.rows.len())?;
     for row in &application.rows {
+        writer.u32(row.requirement_declaration.identity().0);
         writer.u32(row.declaring_trait_identity.0);
         writer.u32(row.public_requirement_identity.0);
         writer.len(
@@ -183,6 +185,8 @@ pub(super) fn decode_closed_conformance_application(
             })
         })?,
         schemas: decode_counted(reader, |reader| {
+            let requirement_declaration =
+                terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?));
             let declaring_trait_identity = TerminalIdentityIndex(reader.u32()?);
             let public_requirement_identity = TerminalIdentityIndex(reader.u32()?);
             let requirement_identity = TerminalIdentityIndex(reader.u32()?);
@@ -204,6 +208,7 @@ pub(super) fn decode_closed_conformance_application(
                 None
             };
             Ok(terminal_psi::ClosedConformanceSchema {
+                requirement_declaration,
                 declaring_trait_identity,
                 public_requirement_identity,
                 requirement_identity,
@@ -234,6 +239,9 @@ pub(super) fn decode_closed_conformance_application(
         })?,
         rows: decode_counted(reader, |reader| {
             Ok(ClosedConformanceRow {
+                requirement_declaration: terminal_psi::NominalDeclarationIdentity::new(
+                    TerminalIdentityIndex(reader.u32()?),
+                ),
                 declaring_trait_identity: TerminalIdentityIndex(reader.u32()?), /* closed conformance row declaring trait identity */
                 public_requirement_identity: TerminalIdentityIndex(reader.u32()?), /* closed conformance row public requirement identity */
                 family_tuple: decode_counted(reader, |reader| {

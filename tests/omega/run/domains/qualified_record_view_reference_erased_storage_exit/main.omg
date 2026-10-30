@@ -1,5 +1,5 @@
 // Expected exit: 0. Delayed view evidence crosses an erased sibling and a stored borrow.
-domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 4]::Utf8 requires valid_utf8(self);
 data Evidence {}
 data Room { bytes: [u8; 4] in Utf8; marker: u64; }
 data Held { proof [erased]: Evidence; room: &mut Room; }
@@ -16,6 +16,6 @@ machine main() crashes Trap {
         && rooms[1].bytes == "new!" && rooms[1].bytes.len == 4 && rooms[1].marker == 37 {
         true -> done() false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

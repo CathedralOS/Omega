@@ -31,6 +31,7 @@ use symbols::SymbolHandle;
 use symbols::SymbolKind;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
+use typed_trees::data::TypeParameterKind;
 use typed_trees::name::Identifier;
 use typed_trees::types::FixedArrayLength;
 use typed_trees::types::TypeConstraintNode;
@@ -65,8 +66,7 @@ pub(super) fn elaborate_new_types(
     let type_start = program.type_reference_table.type_reference_count();
     let applications = program
         .type_reference_table
-        .type_reference_rows()
-        .filter(|(reference, _)| reference.arena_index() as usize > first_type)
+        .references_from(first_type.saturating_add(1))
         .map(|(reference, _)| reference)
         .collect::<Vec<_>>();
     for reference in applications {
@@ -95,8 +95,7 @@ fn finalize_produced_types(
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let produced = program
         .type_reference_table
-        .type_reference_rows()
-        .filter(|(reference, _)| reference.arena_index() as usize > type_start)
+        .references_from(type_start.saturating_add(1))
         .map(|(reference, _)| reference)
         .collect::<Vec<_>>();
     crate::monomorphization::finalize_type_domain_instance_identities(program, produced)
@@ -198,6 +197,10 @@ fn elaborate_value_fields(
         )
     }));
     if active.iter().any(|(ancestor, _)| *ancestor == owner) {
+        *active = ancestors;
+        return;
+    }
+    if program.data_application_definition(reference).is_some() {
         *active = ancestors;
         return;
     }
@@ -382,6 +385,15 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
         instantiated.push(member);
     }
     let mut application = template;
+    if application.predicate_subject_type.is_valid() {
+        application.predicate_subject_type = instantiate_type(
+            program,
+            application.predicate_subject_type,
+            &substitutions,
+            &lifetimes,
+            scope,
+        );
+    }
     application.members = program.data_members.insert_many(instantiated);
     application.type_parameters = HandleSpan::empty();
     application.lifetime_parameters.clear();
@@ -420,6 +432,9 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
             .contains_type_reference(reference)
         {
             return false;
+        }
+        if program.closed_data_definition(reference).is_some() {
+            continue;
         }
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Named { symbol, .. } => {
@@ -464,11 +479,11 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                     }
                 }
             }
-            TypeReferenceNode::FixedArray {
-                element_type,
-                length,
-            } => {
-                if !matches!(length, FixedArrayLength::Literal(_)) {
+            TypeReferenceNode::FixedArray { element_type, .. } => {
+                // A retained scalar recipe is closed for representation:
+                // target completion still owes its value and range conditions.
+                // An unbound parameter or unrostered expression is not.
+                if program.declared_array_extent(reference).is_none() {
                     return false;
                 }
                 pending.push(*element_type);
@@ -513,7 +528,16 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                 {
                     return false;
                 }
-                pending.extend(arguments.iter().copied());
+                if let Some(data) = program.unique_data_definition_by_symbol(*base_symbol) {
+                    let parameters = program.data_type_parameters(data);
+                    for (param, &arg) in parameters.iter().zip(arguments.iter()) {
+                        if !matches!(param.kind, TypeParameterKind::Value { .. }) {
+                            pending.push(arg);
+                        }
+                    }
+                } else {
+                    pending.extend(arguments.iter().copied());
+                }
             }
             TypeReferenceNode::DynamicTrait {
                 symbol, arguments, ..
@@ -532,7 +556,9 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                 pending.extend(arguments.iter().copied());
             }
             TypeReferenceNode::ConstExpression(_) => {
-                return false;
+                if program.declared_constant_extent(reference).is_none() {
+                    return false;
+                }
             }
             TypeReferenceNode::Unit => {}
         }
@@ -712,16 +738,25 @@ fn instantiate_type(
                 && let Some((_, actual)) = substitutions
                     .iter()
                     .find(|(parameter, _)| parameter == symbol)
-                && let TypeReferenceNode::Named { symbol, name } =
-                    program.type_reference_table.type_reference(*actual)
             {
-                if symbol.is_valid() {
-                    length = FixedArrayLength::ConstParameter {
-                        symbol: *symbol,
-                        name: name.clone(),
-                    };
-                } else if let Ok(value) = name.as_str().parse::<usize>() {
-                    length = FixedArrayLength::Literal(value);
+                match program.type_reference_table.type_reference(*actual) {
+                    TypeReferenceNode::Named { symbol, name } if symbol.is_valid() => {
+                        length = FixedArrayLength::ConstParameter {
+                            symbol: *symbol,
+                            name: name.clone(),
+                        };
+                    }
+                    TypeReferenceNode::Named { name, .. } => {
+                        if let Ok(value) = name.as_str().parse::<usize>() {
+                            length = FixedArrayLength::Literal(value);
+                        }
+                    }
+                    TypeReferenceNode::ConstExpression(_) => {
+                        // Keep the complete argument, including its selected
+                        // evaluation and lexical context, as the extent.
+                        length = FixedArrayLength::Expression(*actual);
+                    }
+                    _ => {}
                 }
             }
             TypeReferenceNode::FixedArray {

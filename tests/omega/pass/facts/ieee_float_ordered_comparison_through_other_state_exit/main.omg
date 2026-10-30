@@ -16,7 +16,7 @@ machine probe(reading: Reading) -> i32 {
     transition {
         _ -> deliver(reading.value)
     }
-    state deliver(value: f64) -> i32
+    machine deliver(value: f64) -> i32
     requires value >= 1.5 && value <= 2.5
     {
         verify_window(value)
@@ -29,6 +29,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

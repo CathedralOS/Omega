@@ -5,8 +5,8 @@ machine write_pair(values: &mut [i32]) {
         true -> write(values)
         _ -> skip()
     }
-    state write(values: &mut [i32]) { values[0] = 7; values[1] = 9; }
-    state skip() {}
+    machine write(values: &mut [i32]) { values[0] = 7; values[1] = 9; }
+    machine skip() {}
 }
 machine ordinary(window: &mut Window, row: u64)
 requires row < 2;
@@ -15,7 +15,7 @@ machine staged(window: &mut Window, row: u64)
 requires row < 2;
 {
     transition { _ -> next(window, row) }
-    state next(window: &mut Window, row: u64)
+    machine next(window: &mut Window, row: u64)
     requires row < 2;
     { write_pair(&mut window.rows[row].values[0..2]); }
 }
@@ -37,6 +37,6 @@ machine main() crashes Trap {
         true -> passed()
         _ -> failed()
     }
-    state passed() {}
-    state failed() { crash Trap; }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }

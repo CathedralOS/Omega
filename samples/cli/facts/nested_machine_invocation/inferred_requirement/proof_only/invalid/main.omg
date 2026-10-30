@@ -1,0 +1,24 @@
+// One valid arrival cannot donate equality to a different incoming path.
+data Branch {
+    case End;
+    case Next(child: Branch);
+}
+
+machine same(left: Branch, right: Branch)
+requires left == right
+{}
+
+machine visit(value: Branch) {
+    transition value {
+        Branch::End -> forward(Branch::End, Branch::End)
+        Branch::Next { child } -> forward(child, Branch::End)
+    }
+
+    machine forward(left: Branch, right: Branch) {
+        same(left, right);
+    }
+}
+
+machine main() {
+    visit(Branch::Next { child: Branch::End });
+}

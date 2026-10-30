@@ -10,7 +10,12 @@ use terminal_psi::{
 
 mod borrowed_leaves;
 mod call_results;
+mod memberships;
 pub use borrowed_leaves::{BorrowedResultLeaf, BorrowedResultLeafKind, borrowed_result_leaves};
+pub use memberships::{
+    ReferenceResultMemberships, reference_call_preserved_memberships,
+    reference_result_memberships_weaken,
+};
 mod descriptor_regions;
 mod result_regions;
 pub use call_results::{
@@ -207,7 +212,11 @@ pub fn reference_origin_is_covered<'types>(
         else {
             return false;
         };
-        let StructuralTypeShape::FixedArray { length, .. } = collection.shape else {
+        let StructuralTypeShape::FixedArray {
+            length: terminal_psi::ArrayExtent::Literal(length),
+            ..
+        } = collection.shape
+        else {
             continue;
         };
         if length == 0 {
@@ -377,7 +386,7 @@ pub fn reference_origin_type<'types>(
                 root = exact_origin_type(types.clone(), root, &exact)?;
                 exact.clear();
                 let collection = types.clone().find(|declaration| declaration.id == root)?;
-                if matches!(collection.shape, StructuralTypeShape::FixedArray { length, .. } if *index >= length)
+                if matches!(collection.shape, StructuralTypeShape::FixedArray { length: terminal_psi::ArrayExtent::Literal(length), .. } if *index >= length)
                 {
                     return None;
                 }

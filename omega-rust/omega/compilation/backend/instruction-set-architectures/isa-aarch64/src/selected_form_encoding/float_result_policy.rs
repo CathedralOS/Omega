@@ -20,11 +20,9 @@
 use super::{Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint};
 use register_model::{RegisterConstraintKey, RegisterUnitId, RegisterViewId};
 use selected_instructions::{
-    FloatResultPolicyForm, FloatResultPolicyKind, IeeeFloatFormat, MachineAlternative,
-    MachineAlternativeApplicability, MachineAlternativeFamily, MachineAlternativeKey,
-    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
-    MachineEncodedEffects, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
-    MachineSizeKnowledge, MachineTrapBehavior,
+    FloatResultPolicyForm, FloatResultPolicyKind, IeeeFloatFormat, MachineAlternativeFamily,
+    MachineBarrier, MachineEffectDeclaration, MachineEncodedEffects, MachineMemoryEffect,
+    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
 };
 
 fn clobbers(form: FloatResultPolicyForm) -> Vec<RegisterUnitId> {
@@ -58,33 +56,24 @@ pub(crate) fn declaration(
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
     let trapping = form.policy == FloatResultPolicyKind::Trapping;
-    MachineEffectDeclaration {
-        semantic: MachineSemanticKind::FloatResultPolicy(form),
+    MachineEffectDeclaration::single(
+        MachineSemanticKind::FloatResultPolicy(form),
         constraint,
-        memory: MachineMemoryEffect::NoneV1,
-        trap: if trapping {
+        MachineMemoryEffect::NoneV1,
+        if trapping {
             MachineTrapBehavior::TrappingIntegerV1
         } else {
             MachineTrapBehavior::NeverV1
         },
-        barrier: if trapping {
+        if trapping {
             MachineBarrier::ExternalEffect
         } else {
             MachineBarrier::None
         },
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::FloatResultPolicy(form),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes((program(form, &[0; 4]).len() * 4) as u16),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(form),
-        }],
-    }
+        MachineAlternativeFamily::FloatResultPolicy(form),
+        MachineSizeKnowledge::ExactBytes((program(form, &[0; 4]).len() * 4) as u16),
+        effects(form),
+    )
 }
 
 pub(crate) fn footprint(
@@ -357,13 +346,10 @@ pub(crate) fn validate(
     {
         return Err(Error::OperandCountMismatch);
     }
-    let (chunks, remainder) = bytes.as_chunks::<4>();
-    if !remainder.is_empty() {
-        return Err(Error::MalformedEncoding);
-    }
-    let decoded = chunks
-        .iter()
-        .map(|word| decode_word(u32::from_le_bytes(*word)))
+    let decoded = super::word_stream(bytes)
+        .ok_or(Error::MalformedEncoding)?
+        .into_iter()
+        .map(decode_word)
         .collect::<Option<Vec<_>>>()
         .ok_or(Error::MalformedEncoding)?;
     if decoded != program(form, registers) {

@@ -16,5 +16,5 @@ ensures Owned::content(old(&whole)) == Owned::content(&result)
     let captured: u64 = observe(&whole);
     whole.length = 0;
     transition { _ -> finish(whole) }
-    state finish(whole: Region in Owned) -> Region in Owned { whole }
+    machine finish(whole: Region in Owned) -> Region in Owned { whole }
 }

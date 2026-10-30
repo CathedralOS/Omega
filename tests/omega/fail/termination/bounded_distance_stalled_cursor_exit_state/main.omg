@@ -5,6 +5,6 @@ machine fill(index: u64, limit: u64)
 terminates by (index, limit) -> Nat::BoundedDistance;
 {
     transition index < limit { true -> fill(index, limit) _ -> done() }
-    state done() { }
+    machine done() { }
 }
 machine main() { fill(0, 4); }

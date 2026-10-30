@@ -18,8 +18,8 @@ machine probe(left: i64) -> i64 {
         _ -> no()
     }
 
-    state yes() -> i64 { 1i64 }
-    state no() -> i64 { 0i64 }
+    machine yes() -> i64 { 1i64 }
+    machine no() -> i64 { 0i64 }
 }
 
 machine main() crashes Trap {
@@ -29,6 +29,6 @@ machine main() crashes Trap {
         _ -> bad()
     }
 
-    state done() { }
-    state bad() { crash Trap; }
+    machine done() { }
+    machine bad() { crash Trap; }
 }

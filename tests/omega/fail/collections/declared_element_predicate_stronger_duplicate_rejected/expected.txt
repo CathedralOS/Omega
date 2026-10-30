@@ -1,0 +1,2 @@
+cannot prove requires contract for call observe from main
+view[0] in i32::Observed

@@ -127,7 +127,7 @@ pub fn review_package_change_reusing(
     session: &mut PackageBuildSession,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     source_bindings: &mut PackageSourceBindings,
-    execute: crate::review::PackageReviewExecutor,
+    execute: &mut crate::review::PackageReviewExecutor<'_>,
 ) -> Result<PackageChangeReview, PackageChangeError> {
     if accepted.is_some_and(|accepted| accepted.target() != target) {
         return Err(PackageChangeError::Comparison(

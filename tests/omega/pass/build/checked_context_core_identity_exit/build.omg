@@ -9,11 +9,11 @@ machine build(builder: &mut Build) {
     let checked: addr = checked_value(7);
     transition checked == 7 { true -> bind_entries(builder) false -> done() }
 
-    state bind_entries(builder: &mut Build) {
+    machine bind_entries(builder: &mut Build) {
         Build::bind(builder, macos_arm64::ProgramEntry, main);
         Build::bind(builder, linux_arm64::ProgramEntry, main);
         Build::bind(builder, linux_x86_64::ProgramEntry, main);
         Build::bind(builder, windows_x86_64::ProgramEntry, main);
     }
-    state done() {}
+    machine done() {}
 }

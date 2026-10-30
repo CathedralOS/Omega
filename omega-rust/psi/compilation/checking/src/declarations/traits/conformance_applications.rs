@@ -38,7 +38,7 @@ pub fn validate_conformance_applications(
     }
     for (handle, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
-            validate_call_arguments(
+            validate_conformance_call_arguments(
                 program,
                 StaticArgumentCall::Expression(handle, call),
                 &mut diagnostics,
@@ -49,7 +49,7 @@ pub fn validate_conformance_applications(
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 if let Some(call) = statement.as_call() {
-                    validate_call_arguments(
+                    validate_conformance_call_arguments(
                         program,
                         StaticArgumentCall::Statement(call),
                         &mut diagnostics,
@@ -58,14 +58,10 @@ pub fn validate_conformance_applications(
             }
         }
     }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
-fn validate_call_arguments(
+fn validate_conformance_call_arguments(
     program: &dyn crate::CheckingInput,
     call: StaticArgumentCall<'_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -163,21 +159,44 @@ pub fn close_conformance_application(
     program: &dyn crate::CheckingInput,
     selected: &StaticMachineArgument,
 ) -> Result<ClosedConformanceApplication, Diagnostic> {
-    let Some(conformance) = program.conformance_by_symbol(selected.symbol) else {
-        return Err(Diagnostic::error(format!(
-            "static argument `{}` does not name a package-scoped conformance",
-            selected.display_name()
-        )));
-    };
+    close_selected_conformance(
+        program,
+        selected.symbol,
+        selected
+            .application
+            .as_ref()
+            .map_or(&[][..], |application| application.arguments.as_ref()),
+        selected
+            .application
+            .as_ref()
+            .map(|application| application.lifetime_arguments.as_ref()),
+    )
+}
+
+/// A Product declaration locator supplies no application telescope. A generic
+/// declaration therefore rejects here through the same closure as an ordinary
+/// explicit application; declaration identity never supplies missing actuals.
+pub fn close_conformance_declaration(
+    program: &dyn crate::CheckingInput,
+    declaration: SymbolHandle,
+) -> Result<ClosedConformanceApplication, Diagnostic> {
+    close_selected_conformance(program, declaration, &[], None)
+}
+
+fn close_selected_conformance(
+    program: &dyn crate::CheckingInput,
+    declaration: SymbolHandle,
+    supplied: &[StaticMachineArgument],
+    supplied_lifetimes: Option<&[typed_trees::name::Identifier]>,
+) -> Result<ClosedConformanceApplication, Diagnostic> {
+    let conformance = program.conformance_by_symbol(declaration).ok_or_else(|| {
+        Diagnostic::error("selected declaration does not name a package-scoped conformance")
+    })?;
     let declaration_name = conformance
         .alias
         .as_ref()
         .map_or("<unnamed-conformance>", |name| name.as_str());
     let parameters = program.conformance_type_parameters(conformance);
-    let supplied = selected
-        .application
-        .as_ref()
-        .map_or(&[][..], |application| application.arguments.as_ref());
     if parameters.len() != supplied.len() {
         return Err(Diagnostic::error(format!(
             "generic conformance `{declaration_name}` requires {} explicit non-lifetime argument(s), got {}; expected subject and trait shape never fill its own telescope",
@@ -186,21 +205,16 @@ pub fn close_conformance_application(
         )));
     }
 
-    let lifetime_arguments = match &selected.application {
-        Some(application)
-            if application.lifetime_arguments.len() == conformance.lifetime_parameters.len() =>
-        {
-            application
-                .lifetime_arguments
-                .iter()
-                .map(|lifetime| lifetime.as_str().to_owned())
-                .collect::<Vec<_>>()
-        }
-        Some(application) if !application.lifetime_arguments.is_empty() => {
+    let lifetime_arguments = match supplied_lifetimes {
+        Some(lifetimes) if lifetimes.len() == conformance.lifetime_parameters.len() => lifetimes
+            .iter()
+            .map(|lifetime| lifetime.as_str().to_owned())
+            .collect::<Vec<_>>(),
+        Some(lifetimes) if !lifetimes.is_empty() => {
             return Err(Diagnostic::error(format!(
                 "generic conformance `{declaration_name}` requires {} lifetime argument(s), got {}",
                 conformance.lifetime_parameters.len(),
-                application.lifetime_arguments.len()
+                lifetimes.len()
             )));
         }
         _ if conformance.lifetime_parameters.is_empty() => Vec::new(),

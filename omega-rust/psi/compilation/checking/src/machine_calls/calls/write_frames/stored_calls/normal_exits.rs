@@ -1,6 +1,5 @@
-//! Solve normal-exit slot contents across the reachable state graph.
-//! The chronological evaluator supplies each edge completion; only real returns seed
-//! contents, and finite root substitutions bound cyclic composition.
+//! Solve all reachable normal exits in the declared slot namespace.
+//! Completed operands retain their exact source cuts and carrier/backing association.
 
 use super::super as frames;
 use super::*;
@@ -25,12 +24,13 @@ enum SlotExit {
     Return(Vec<StoredLocalOrigins>),
     Edge {
         target: usize,
-        arguments: CompletedArguments,
+        arguments: Vec<SlotArgumentCapture>,
         prefix: CollectedStatementPrefix,
     },
 }
 
 struct SlotEquation<'program> {
+    machine: &'program Machine,
     state: &'program State,
     inventory: Vec<SlotInventory>,
     exits: Vec<SlotExit>,
@@ -38,7 +38,8 @@ struct SlotEquation<'program> {
 
 /// Least fixed point over normal exits. An unvisited return is not an identity
 /// route: only a real normal exit can seed incoming contents. Root substitution
-/// finiteness bounds the source set before iteration; there is no depth cutoff.
+/// finiteness bounds root growth; window composition keeps same-dimension
+/// narrowing finite at the normal-exit boundary. There is no depth cutoff.
 fn solve_state_effects<'program>(
     program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
@@ -46,15 +47,31 @@ fn solve_state_effects<'program>(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<Vec<SlotEffect>> {
-    let mut states = vec![entry];
+    let mut states = vec![(machine, entry)];
     let mut equations = Vec::new();
     let mut substitutions = frames::cycle_substitutions::Substitutions::default();
     let mut index = 0;
     while index < states.len() {
-        let state = states[index];
-        let inventory = destination_inventory(program, state)?;
-        let (last, prefixes) =
-            stored_reference_transfer(program, machine, state, symbols, inference)?;
+        let (machine, state) = states[index];
+        let refusal = |phase| {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE slot-exit-equation-refusal machine={} state={} phase={}",
+                    machine.name, state.name, phase
+                );
+            }
+        };
+        let inventory = destination_inventory(program, state).or_else(|| {
+            refusal("inventory");
+            None
+        })?;
+        let (last, prefixes) = stored_reference_transfer(
+            program, machine, state, symbols, inference,
+        )
+        .or_else(|| {
+            refusal("prefix");
+            None
+        })?;
         let mut exits = Vec::new();
         let mut has_transition = false;
         for (ordinal, statement) in program
@@ -69,88 +86,34 @@ fn solve_state_effects<'program>(
                 continue;
             }
             let prefix = prefixes.get(ordinal)?.as_ref()?;
-            for completed in expression_effects::completed_transition(
-                program, machine, state, transition, prefix, symbols, inference,
-            )? {
-                let edge = completed.target;
-                let prefix = &completed.context;
-                match program.statement_table.transition_target(edge) {
-                    TransitionTargetNode::Named { arguments, .. } => {
-                        if frames::terminal_calls::target(program, machine, edge).is_valid() {
-                            return None;
-                        }
-                        let target = frames::transition_topology::named_transition_target_state(
-                            program, machine, state, edge,
-                        )?;
-                        let target_index = if let Some(index) = states
-                            .iter()
-                            .position(|candidate| candidate.symbol == target.symbol)
-                        {
-                            index
-                        } else {
-                            states.push(target);
-                            states.len() - 1
-                        };
-                        let arguments = program.statement_table.expression_handles(*arguments);
-                        let parameters = program.state_parameters(target);
-                        if parameters.len() != arguments.len() {
-                            return None;
-                        }
-                        for ((parameter, argument), captured) in parameters
-                            .iter()
-                            .zip(arguments)
-                            .zip(&completed.arguments.contexts)
-                        {
-                            let carries_origin = frames::type_reference_is_reference(
-                                program,
-                                parameter.type_reference,
-                            ) || stored_origins::declared_origins_for_query(
-                                program,
-                                parameter.symbol,
-                                parameter.name.as_str(),
-                                parameter.type_reference,
-                                true,
-                            )
-                            .is_some_and(|inventory| !inventory.references.is_empty());
-                            if !carries_origin {
-                                continue;
-                            }
-                            // Finiteness follows captured backing roots, not
-                            // exact descriptor identity. A dynamic window may
-                            // cross this edge with conservative geometry; its
-                            // destination slot is still matched exactly by
-                            // instantiate. Static storage adds no dependency.
-                            let origin = argument_origin(
-                                program, machine, parameter, *argument, captured, symbols,
-                                inference,
-                            )?;
-                            let source = &origin.source;
-                            if !source.builtin_coordinates {
-                                return None;
-                            }
-                            if source.is_static() {
-                                continue;
-                            }
-                            if !source.root.is_valid() {
-                                return None;
-                            }
-                            let from = substitutions.parameter(target.symbol, parameter.symbol);
-                            let to = substitutions.parameter(state.symbol, source.root);
-                            substitutions.insert(
-                                from,
-                                to,
-                                !source.segments.is_empty() || !source.recasts.is_empty(),
-                            );
-                        }
-                        exits.push(SlotExit::Edge {
-                            target: target_index,
-                            arguments: completed.arguments,
-                            prefix: prefix.clone(),
-                        });
+            let completed = expression_effects::prepare_normal_exits(
+                program, machine, state, statement, prefix, symbols, inference,
+            )
+            .or_else(|| {
+                refusal("outgoing-entries");
+                None
+            })?;
+            for completed in completed {
+                if let Some((target_machine, target)) = completed.arrival {
+                    let target_index = if let Some(index) = states
+                        .iter()
+                        .position(|(_, candidate)| candidate.symbol == target.symbol)
+                    {
+                        index
+                    } else {
+                        states.push((target_machine, target));
+                        states.len() - 1
+                    };
+                    if program.state_parameters(target).len() != completed.arguments.len() {
+                        return None;
                     }
-                    TransitionTargetNode::Terminal | TransitionTargetNode::Value(_) => {
-                        exits.push(SlotExit::Return(prefix.stored.clone()))
-                    }
+                    exits.push(SlotExit::Edge {
+                        target: target_index,
+                        arguments: completed.arguments,
+                        prefix: completed.context,
+                    });
+                } else {
+                    exits.push(SlotExit::Return(completed.context.stored));
                 }
             }
         }
@@ -158,14 +121,12 @@ fn solve_state_effects<'program>(
             exits.push(SlotExit::Return(last.stored));
         }
         equations.push(SlotEquation {
+            machine,
             state,
             inventory,
             exits,
         });
         index += 1;
-    }
-    if !substitutions.is_finite() {
-        return None;
     }
     let mut known = vec![None::<Vec<SlotEffect>>; equations.len()];
     loop {
@@ -184,18 +145,36 @@ fn solve_state_effects<'program>(
                         let Some(relative) = &known[*target] else {
                             continue;
                         };
-                        let effects = instantiate(
+                        let instantiated = instantiate(
                             program,
-                            machine,
+                            equation.machine,
                             program.state_parameters(equations[*target].state),
                             arguments,
                             relative,
                             prefix,
                             symbols,
-                            inference,
-                        )?;
+                        )
+                        .or_else(|| {
+                            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                                eprintln!(
+                                    "CHECKSITE slot-exit-solve-refusal state={} phase=instantiate",
+                                    equation.state.name
+                                );
+                            }
+                            None
+                        })?;
+                        retain_demanded_substitutions(
+                            program,
+                            equation.state,
+                            equations[*target].state,
+                            &instantiated.substitutions,
+                            &mut substitutions,
+                        ).or_else(|| {
+                            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() { eprintln!("CHECKSITE slot-exit-solve-refusal state={} phase=finite-substitution", equation.state.name); }
+                            None
+                        })?;
                         let mut stored = prefix.stored.clone();
-                        apply(program, &mut stored, &effects);
+                        apply(program, &mut stored, &instantiated.effects);
                         stored
                     }
                 };
@@ -249,7 +228,17 @@ fn solve_state_effects<'program>(
                 }
             }
             for stored in &returned {
-                collect_exit(program, equation.state, &inventory, stored, &mut candidate)?;
+                collect_exit(program, equation.state, &inventory, stored, &mut candidate).or_else(
+                    || {
+                        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                            eprintln!(
+                                "CHECKSITE slot-exit-solve-refusal state={} phase=exit-inventory",
+                                equation.state.name
+                            );
+                        }
+                        None
+                    },
+                )?;
             }
             if known[index].is_none() {
                 known[index] = Some(Vec::new());
@@ -287,6 +276,87 @@ fn solve_state_effects<'program>(
         }
     }
     known.into_iter().next()?
+}
+
+/// Only actual relation roots participate in substitution. A checked empty
+/// relation demands no argument origin; an unknown relation never reaches here.
+/// Ordered argument effects have already established each selected edge's slot
+/// inventory. The same growing-cycle law still bounds every demanded root.
+fn retain_demanded_substitutions(
+    program: &dyn crate::CheckingInput,
+    source: &State,
+    target: &State,
+    demanded: &[(FrameSourcePlace, FrameSourcePlace)],
+    substitutions: &mut frames::cycle_substitutions::Substitutions,
+) -> Option<()> {
+    for (formal, actual) in demanded {
+        if !actual.builtin_coordinates {
+            return None;
+        }
+        if actual.is_static() {
+            continue;
+        }
+        let formal_leaf = reference_frontier(program, target, formal)?;
+        let from = substitutions.parameter_leaf(target.symbol, formal.root, &formal_leaf);
+        let (to, actual_leaf) = if program
+            .state_parameter_by_symbol(source, actual.root)
+            .is_some()
+        {
+            let leaf = reference_frontier(program, source, actual)?;
+            (
+                substitutions.parameter_leaf(source.symbol, actual.root, &leaf),
+                leaf,
+            )
+        } else {
+            program.state_local_declaration(source, actual.root)?;
+            // A helper may update an activation-local slot beside an exported
+            // output. Its concrete storage is a dependency sink, not another
+            // forwarded formal. Normal-exit collection still rejects any
+            // local backing that would escape through the exported output.
+            (substitutions.local(source.symbol, actual.root), Vec::new())
+        };
+        // Selecting a descriptor inside an owned record does not descend into
+        // its referent. That finite leaf identity must survive the dependency
+        // join, or forwarding `incoming.cell` looks like a growing root cycle.
+        // Actual prefixes beyond the descriptor still grow and remain refused.
+        substitutions.insert(
+            from,
+            to,
+            actual.segments.len() > actual_leaf.len()
+                || !actual.recasts.is_empty()
+                || actual.representation.is_some(),
+        );
+    }
+    substitutions.is_finite().then_some(())
+}
+
+fn reference_frontier(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    source: &FrameSourcePlace,
+) -> Option<Vec<PlaceSegment>> {
+    let parameter = program.state_parameter_by_symbol(state, source.root)?;
+    let declared = stored_origins::declared_origins_for_query(
+        program,
+        parameter.symbol,
+        parameter.name.as_str(),
+        parameter.type_reference,
+        true,
+    )?;
+    declared
+        .references
+        .iter()
+        .filter(|leaf| {
+            matches!(leaf.kind, stored_origins::StoredOriginKind::Reference(_))
+                && leaf.local_segments.iter().all(|segment| {
+                    matches!(segment, PlaceSegment::Field { symbol } if symbol.is_valid())
+                        || matches!(segment, PlaceSegment::Case { variant } if variant.is_valid())
+                        || matches!(segment, PlaceSegment::FixedIndex { .. })
+                })
+                && source.segments.starts_with(&leaf.local_segments)
+        })
+        .min_by_key(|leaf| leaf.local_segments.len())
+        .map(|leaf| leaf.local_segments.clone())
 }
 
 fn collect_exit(
@@ -339,18 +409,32 @@ fn collect_exit(
             {
                 continue;
             }
-            None => return None,
+            None => {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE slot-exit-source state={} slot={} phase=unknown-contents",
+                        state.name, slot.local_path
+                    );
+                }
+                return None;
+            }
         };
-        for supplied in sources {
+        for mut supplied in sources {
+            super::summary_windows::coarsen(program, &mut supplied);
             let source = &supplied.origin;
             if !source.source.builtin_coordinates {
                 return None;
             }
-            if !source.source.is_static() {
+            if !source.source.is_static() && source.source.output_identity().is_none() {
                 if !source.source.root.is_valid() {
                     return None;
                 }
-                let parameter = program.state_parameter_by_symbol(state, source.source.root)?;
+                let parameter = program.state_parameter_by_symbol(state, source.source.root).or_else(|| {
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!("CHECKSITE slot-exit-source state={} slot={} phase=local-source source={supplied:?}", state.name, slot.local_path);
+                    }
+                    None
+                })?;
                 // Owned input storage dies in the callee. Only a reference
                 // boundary actually crossed by this source survives invocation.
                 if !frames::type_reference_is_reference(program, parameter.type_reference) {

@@ -7,21 +7,21 @@ data Row<const Count: u64> { values: [i64 in Wrapping; Count]; }
 
 machine field_sum<const Count: u64>(row: &Row<Count>) -> i64 in Wrapping {
     transition { _ -> walk(row, 0, 0) }
-    state walk(row: &Row<Count>, index: u64, total: i64 in Wrapping) -> i64 in Wrapping {
+    machine walk(row: &Row<Count>, index: u64, total: i64 in Wrapping) -> i64 in Wrapping {
         transition index < Count { true -> step(row, index, total) _ -> (total) }
     }
-    state step(row: &Row<Count>, index: u64, total: i64 in Wrapping) -> i64 in Wrapping {
+    machine step(row: &Row<Count>, index: u64, total: i64 in Wrapping) -> i64 in Wrapping {
         transition { _ -> walk(row, index + 1, total + row.values[index]) }
     }
 }
 
 machine mirrored_sum<const Count: u64>(values: &[i64 in Wrapping; Count]) -> i64 in Wrapping {
     transition { _ -> walk(values, 0, 0) }
-    state walk(values: &[i64 in Wrapping; Count], index: u64, total: i64 in Wrapping) -> i64 in Wrapping {
+    machine walk(values: &[i64 in Wrapping; Count], index: u64, total: i64 in Wrapping) -> i64 in Wrapping {
         let inside: bool = Count > index;
         transition inside { true -> step(values, index, total) _ -> (total) }
     }
-    state step(values: &[i64 in Wrapping; Count], index: u64, total: i64 in Wrapping) -> i64 in Wrapping {
+    machine step(values: &[i64 in Wrapping; Count], index: u64, total: i64 in Wrapping) -> i64 in Wrapping {
         let cursor: u64 = index;
         transition { _ -> walk(values, index + 1, total + values[cursor]) }
     }
@@ -37,6 +37,6 @@ machine main() crashes Trap {
     let field: i64 in Wrapping = field_sum<4>(&row);
     let mirrored: i64 in Wrapping = mirrored_sum<3>(&local);
     transition field == 6 && mirrored == 4 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

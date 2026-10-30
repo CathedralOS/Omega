@@ -14,11 +14,11 @@ use crate::emission::operation_emission::boundary_calls::result_policy::{
 };
 use crate::emission::operation_emission::boundary_calls::{BoundaryOperands, complete_operands};
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::unit::{
     CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan, LoweringError, Operation,
-    OperationResult, StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind,
-    ValueDeclaration, allocate_dense, lookup_type_id, place_id, terminal_scalar_type, unsupported,
-    value_id,
+    OperationResult, StructuralOperationResult, StructuralPlaceDeclaration, ValueDeclaration,
+    allocate_dense, lookup_type_id, place_id, terminal_scalar_type, unsupported, value_id,
 };
 
 impl OperationFrame<'_, '_> {
@@ -30,41 +30,36 @@ impl OperationFrame<'_, '_> {
     ) -> Result<(), LoweringError> {
         let operands = self.boundary_operands(identities, call, inputs)?;
         if let semantic_vocabulary::BoundaryCompletion::External(kind) = call.completion() {
-            if self.operations.external_completion.is_some() {
+            if self.operations.invocation_completion.is_some() {
                 return unsupported("one evaluation path cannot have two external completions");
             }
-            self.operations.external_completion = Some(
-                crate::emission::operation_emission::buffer::PendingExternalCompletion {
+            self.operations.invocation_completion = Some(
+                crate::emission::operation_emission::buffer::PendingInvocationCompletion {
                     coordinate: SourceCallCoordinate {
                         state: self.state,
                         statement_index: call.coordinate.statement_index as usize,
                         call_ordinal: call.coordinate.call_ordinal as usize,
                     },
-                    source_site: call.source_site().flatten(),
+                    source_site: call.source_site(),
                     target: call.target.machine,
-                    boundary: operands.boundary,
-                    kind,
-                    arguments: operands.arguments,
-                    structural_arguments: operands.structural_arguments,
-                    requirement_obligations: operands.requirement_obligations,
+                    frontier: Default::default(),
+                    outcome: crate::emission::operation_emission::buffer::PendingInvocationOutcome::External {
+                        boundary: operands.boundary, kind,
+                        arguments: operands.arguments,
+                        structural_arguments: operands.structural_arguments,
+                        requirement_obligations: operands.requirement_obligations,
+                    },
                 },
             );
             return Ok(());
         }
         let id = self.operations.allocate();
-        self.record_source_call(
-            call.coordinate,
-            call.source_site().flatten(),
+        self.record_source_call(call.coordinate, call.source_site(), id, call.target.machine)?;
+        self.operations.push(Operation::unsuspended(
             id,
-            call.target.machine,
-        )?;
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result: OperationResult::Unit,
-            kind: operands.into_kind(),
-        });
+            OperationResult::Unit,
+            operands.into_kind(),
+        ));
         Ok(())
     }
 
@@ -111,7 +106,7 @@ impl OperationFrame<'_, '_> {
                 statement_index: call.coordinate.statement_index as usize,
                 call_ordinal: call.coordinate.call_ordinal as usize,
             },
-            call.source_site().flatten(),
+            call.source_site(),
             *target_machine,
         )?
         .bind(
@@ -122,19 +117,12 @@ impl OperationFrame<'_, '_> {
             self.operations,
         )?;
         let id = self.operations.allocate();
-        self.record_source_call(
-            call.coordinate,
-            call.source_site().flatten(),
+        self.record_source_call(call.coordinate, call.source_site(), id, *target_machine)?;
+        self.operations.push(Operation::unsuspended(
             id,
-            *target_machine,
-        )?;
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result: OperationResult::Scalar(value),
-            kind: operands.into_kind(),
-        });
+            OperationResult::Scalar(value),
+            operands.into_kind(),
+        ));
         result_policy::emit(policy, value, self.next_value, self.operations)
     }
 
@@ -178,13 +166,7 @@ impl OperationFrame<'_, '_> {
         };
         let structural_type = lookup_type_id(self.type_ids, type_identity)?;
         let result_place = place_id(allocate_dense(self.next_place)?);
-        let result_declaration = StructuralPlaceDeclaration {
-            id: result_place,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: id,
-                structural_type,
-            },
-        };
+        let result_declaration = operation_result_place(result_place, id, structural_type);
         let returned = super::super::call_results::prepare(
             identities,
             checked,
@@ -202,12 +184,7 @@ impl OperationFrame<'_, '_> {
             self.structural_types.declarations(),
             &mut self.calls.claims,
         )?;
-        self.record_source_call(
-            *coordinate,
-            call.source_site().flatten(),
-            id,
-            *target_machine,
-        )?;
+        self.record_source_call(*coordinate, call.source_site(), id, *target_machine)?;
         Ok((returned, result_declaration))
     }
 
@@ -253,6 +230,7 @@ impl OperationFrame<'_, '_> {
             &earlier,
             inputs.byte_places,
             inputs.evaluated_selectors,
+            inputs.completed_structural_arguments,
         )?;
         let prepared = crate::emission::claim_bindings::prepare_claim_transfers(
             identities,
@@ -274,6 +252,7 @@ impl OperationFrame<'_, '_> {
             structural_arguments,
             &prepared,
             self.calls,
+            &mut self.evaluation.current_claims,
         )
     }
 }

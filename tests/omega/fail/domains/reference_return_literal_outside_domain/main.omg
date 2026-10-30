@@ -3,9 +3,9 @@
 // UTF-8. The return obligation judges the literal's bytes, so the machine is
 // rejected rather than relying on storage the literal does not have. The
 // admitted twin is pass/control_flow/runtime_branching_helper_string.
-domain [u8]::Utf8(bytes)
+domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 data Main {
     out: &[u8] in Utf8;
 }

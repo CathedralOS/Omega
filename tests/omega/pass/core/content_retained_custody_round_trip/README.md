@@ -1,0 +1,5 @@
+This customer acquires one Count1 buffer through the selected admitted InitialSupply invocation, preserves exact content and pointer identity through Writer submit/complete, then releases that allocation. The raw native result and ordinary implementation call establish no Owned qualification.
+
+Its contracts, allocation bound and exit-zero oracle match the original customer. Formation now uses ordinary nested machines with explicit contracts and reach, an ordinary zero-argument entry owning Main storage, and explicit providers/bindings for all four hosted targets. Main and Build differ from the selected-provider fact root only in the application name.
+
+The optimized f05563028b845d01eb24c53f040ff4226164a111 producer observed native and Terminal exits 0 and canonical reload on macos_arm64. Canonical reload checks representation foundations, not complete proof/lifetime validity. The full nine-place qualification remains tracked in [the fact README](../../../../../samples/cli/facts/selected_provider_issuance/README.md). This witness does not close the parent's remaining geometry, live-supply, replay, Extent or Cathedral requirements.

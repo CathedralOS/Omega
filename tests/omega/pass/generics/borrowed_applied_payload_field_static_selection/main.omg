@@ -2,7 +2,7 @@ machine count<T, machine Predicate>(values: &[T]) -> u64
 where machine Predicate(value: &T) -> bool;
 {
     transition { _ -> next(values, 0, 0) }
-    state next(values: &[T], position: u64, matched: u64) -> u64
+    machine next(values: &[T], position: u64, matched: u64) -> u64
     requires matched <= position && position <= values.len
     {
         transition position < values.len {
@@ -10,7 +10,7 @@ where machine Predicate(value: &T) -> bool;
             false -> (matched)
         }
     }
-    state inspect(values: &[T], position: u64, matched: u64) -> u64
+    machine inspect(values: &[T], position: u64, matched: u64) -> u64
     requires matched <= position && position < values.len
     {
         transition Predicate(&values[position]) {
@@ -30,7 +30,7 @@ where machine Predicate(value: &T) -> bool;
   Payload::Present -> count_present(payload)
   Payload::Absent -> 0
  }
- state count_present(payload: &Payload<T>) -> u64
+ machine count_present(payload: &Payload<T>) -> u64
  requires payload in Payload::Present {
   let matched: u64 = count<Predicate>(&payload.values);
   matched
@@ -40,5 +40,5 @@ machine main() crashes Trap {
  let payload: Payload<i32> = Payload::Present { values: [-1,3,7] };
  let selected: u64 = scan_payload<positive>(&payload);
  transition selected == 2 { true -> done() false -> wrong() }
- state done() {} state wrong() { crash Trap; }
+ machine done() {} machine wrong() { crash Trap; }
 }

@@ -8,7 +8,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.count = 3;
     main.j = 6;
     transition main.j == 6 { true -> read(main, main.j) _ -> read(main, 0) }
-    state read(main: &mut Main, i: u32) requires i <= main.count {
+    machine read(main: &mut Main, i: u32) requires i <= main.count {
         main.out = main.items[i] as i32;
         Console::exit_process(main.out);
     }

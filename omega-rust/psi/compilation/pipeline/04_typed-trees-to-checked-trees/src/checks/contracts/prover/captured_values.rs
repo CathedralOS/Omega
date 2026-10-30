@@ -6,6 +6,9 @@
 
 use checked_trees::{CheckFacts, FlowConstraintRef, FlowOperandFact, FlowStateFact};
 
+mod read_cuts;
+pub(in crate::checks::contracts) use read_cuts::{retain_reads, scalar_preserved_at_values};
+
 /// `consumer_statement` is the first statement frontier after this completed
 /// consumption, including its nested calls. Its constraints exclude the goal.
 #[allow(clippy::too_many_arguments)]
@@ -24,7 +27,7 @@ pub(in crate::checks::contracts) fn scalar_at_path(
         &facts.flow,
         &facts.semantic,
         state,
-        capture,
+        crate::flow::CapturedOperand::unrecorded(capture),
         capture.type_reference,
         path,
     )?;
@@ -57,7 +60,7 @@ pub(in crate::checks::contracts) fn scalar_at_path(
                 &facts.flow.contexts,
                 &facts.flow.control,
                 &facts.semantic,
-                operand,
+                &operand,
                 reference,
                 invocation,
             );

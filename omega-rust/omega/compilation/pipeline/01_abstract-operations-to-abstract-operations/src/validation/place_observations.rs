@@ -11,7 +11,8 @@ use super::invariant_operations::{
     admissible_invariant_place_read, admissible_invariant_subslice,
 };
 use super::member_blocks::{
-    member_scalar_operand_substitution, shared_entry_source, value_definition_sites,
+    MemberParameterResolution, member_scalar_operand_substitution, resolve_member_parameters,
+    shared_entry_source, value_definition_sites,
 };
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
@@ -960,6 +961,22 @@ pub(crate) fn invariant_subslice_admission(
     .then_some((root, substitution))
 }
 
+/// The block and node `value`'s definition site names, when that site is a
+/// block node: the producer a descriptor or length operand is read from.
+/// `None` for a parameter, or a node index the block does not hold.
+fn defining_node(
+    function: &PsiOptimizationFunction,
+    value: ValueId,
+) -> Option<(BlockId, &OptimizationNode)> {
+    let sites = value_definition_sites(function);
+    let ValueDefinitionSite::Node { block, node } = sites.get(&value)? else {
+        return None;
+    };
+    let block = function.block(*block)?;
+    let defining = block.nodes.get(usize::try_from(*node).ok()?)?;
+    Some((block.id, defining))
+}
+
 /// A subrange retains the exact descriptor selected by its count, including
 /// access and captured selector identities. Root relocation alone cannot
 /// identify a sibling descriptor or a byte extent as an element count.
@@ -976,15 +993,7 @@ fn descriptor_length_operand_matches(
         O::ElementViewSubslice { source, .. } => (source, true),
         _ => return false,
     };
-    let sites = value_definition_sites(function);
-    let Some(ValueDefinitionSite::Node { block, node }) = sites.get(&length) else {
-        return false;
-    };
-    let Some(producing) = function.block(*block).and_then(|block| {
-        usize::try_from(*node)
-            .ok()
-            .and_then(|node| block.nodes.get(node))
-    }) else {
+    let Some((block, producing)) = defining_node(function, length) else {
         return false;
     };
     let measured = match &producing.operation {
@@ -995,7 +1004,7 @@ fn descriptor_length_operand_matches(
     let mut rebound = source.clone();
     rebound.place = root;
     let mut measured = measured.clone();
-    if component.members.contains(block) {
+    if component.members.contains(&block) {
         let Some(place) =
             invariant_observation_root(function, component, measured.place, relocating_roots)
         else {
@@ -1022,21 +1031,13 @@ fn byte_length_operand_measures_root(
     relocating_roots: &BTreeSet<PlaceId>,
 ) -> bool {
     let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
-    let sites = value_definition_sites(function);
-    let Some(ValueDefinitionSite::Node { block, node }) = sites.get(&rebound_length) else {
-        return false;
-    };
-    let Some(producing) = function.block(*block).and_then(|block| {
-        usize::try_from(*node)
-            .ok()
-            .and_then(|node| block.nodes.get(node))
-    }) else {
+    let Some((block, producing)) = defining_node(function, rebound_length) else {
         return false;
     };
     match &producing.operation {
         O::ByteSequenceLength {
             source: measured, ..
-        } if members.contains(block) => {
+        } if members.contains(&block) => {
             measured.path.is_empty()
                 && invariant_observation_root(function, component, measured.place, relocating_roots)
                     == Some(root)
@@ -1066,15 +1067,7 @@ fn field_byte_length_operand_measures_root(
     field: semantic_vocabulary::StructuralFieldId,
 ) -> bool {
     let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
-    let sites = value_definition_sites(function);
-    let Some(ValueDefinitionSite::Node { block, node }) = sites.get(&length) else {
-        return false;
-    };
-    let Some(producing) = function.block(*block).and_then(|block| {
-        usize::try_from(*node)
-            .ok()
-            .and_then(|node| block.nodes.get(node))
-    }) else {
+    let Some((block, producing)) = defining_node(function, length) else {
         return false;
     };
     match &producing.operation {
@@ -1083,7 +1076,7 @@ fn field_byte_length_operand_measures_root(
             path: measured_path,
             field: measured_field,
             ..
-        } if members.contains(block) => {
+        } if members.contains(&block) => {
             measured_path == path
                 && *measured_field == field
                 && invariant_observation_root(function, component, *measured, relocating_roots)
@@ -1124,27 +1117,14 @@ fn field_byte_length_operand_measures_root(
 /// the resolved representative carries at least the access the member
 /// observation used.
 ///
-/// The map is a fixed point over the structural bindings on edges reaching
-/// member blocks, so a parameter carried across a member-to-member edge
-/// resolves to the root its chain anchors on. Parameters whose bindings
-/// never anchor outside the roster — pure self-carried cycles — stay
-/// unresolved and are absent from the result.
+/// The place analog of [`invariant_member_parameters`]: the same
+/// [`resolve_member_parameters`] convergence, over structural root bindings
+/// and with the place classification beneath it.
 pub(crate) fn invariant_member_place_parameters(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
     relocating_roots: &BTreeSet<PlaceId>,
 ) -> BTreeMap<PlaceId, PlaceId> {
-    /// Resolution states during the fixed point. `Unresolved` may promote once
-    /// its deferred dependencies resolve; `Representative` can still degrade
-    /// to `LoopCarried` when a deferred dependency resolves to a conflicting
-    /// or carried root, and `LoopCarried` is final.
-    #[derive(Clone, Copy, PartialEq, Eq)]
-    enum Resolution {
-        Unresolved,
-        Representative(PlaceId),
-        LoopCarried,
-    }
-
     let member_blocks: Vec<&OptimizationBlock> = component
         .members
         .iter()
@@ -1181,93 +1161,40 @@ pub(crate) fn invariant_member_place_parameters(
                 .map(|parameter| (parameter.place, block.id))
         })
         .collect();
-    let mut resolutions: BTreeMap<PlaceId, Resolution> = parameters
-        .iter()
-        .map(|(parameter, _)| (*parameter, Resolution::Unresolved))
-        .collect();
-    loop {
-        let mut progressed = false;
-        for (parameter, block) in &parameters {
-            if resolutions[parameter] == Resolution::LoopCarried {
-                continue;
-            }
-            let mut anchor = None;
-            let mut loop_carried = false;
-            for edge in function.block_edges().filter(|edge| edge.target == *block) {
-                let Some(binding) = edge.structural_binding(*parameter) else {
-                    loop_carried = true;
-                    break;
-                };
-                let argument = &binding.argument;
-                if argument.place == *parameter && argument.path.is_empty() {
-                    // A root binding that re-spells the parameter preserves
-                    // whatever the other edges establish.
-                    continue;
-                }
-                let contribution = if !argument.path.is_empty() {
-                    // A projected argument names a sub-place, not a root the
-                    // relocated observation could spell.
-                    Resolution::LoopCarried
-                } else if member_parameters.contains(&argument.place) {
-                    // A member parameter contributes its own resolution; an
-                    // unresolved dependency defers to a later pass.
-                    resolutions
-                        .get(&argument.place)
-                        .copied()
-                        .unwrap_or(Resolution::LoopCarried)
-                } else if member_produced(argument.place)
-                    && !relocating_roots.contains(&argument.place)
-                {
-                    // A member-produced root the run does not cover is
-                    // re-established fresh every traversal — loop-carried.
-                    // A covered root's producer lands in the preheader ahead
-                    // of the run's consumers, so the root persists like any
-                    // outside-established place and can anchor the
-                    // representative.
-                    Resolution::LoopCarried
-                } else {
-                    Resolution::Representative(argument.place)
-                };
-                match contribution {
-                    Resolution::Unresolved => {}
-                    Resolution::Representative(place) => match anchor {
-                        None => anchor = Some(place),
-                        Some(anchor) if anchor == place => {}
-                        Some(_) => {
-                            loop_carried = true;
-                            break;
-                        }
-                    },
-                    Resolution::LoopCarried => {
-                        loop_carried = true;
-                        break;
-                    }
-                }
-            }
-            let next = if loop_carried {
-                Resolution::LoopCarried
-            } else {
-                match anchor {
-                    Some(place) => Resolution::Representative(place),
-                    None => Resolution::Unresolved,
-                }
-            };
-            if resolutions[parameter] != next {
-                resolutions.insert(*parameter, next);
-                progressed = true;
-            }
+    resolve_member_parameters(function, &parameters, |edge, parameter, resolutions| {
+        let Some(binding) = edge.structural_binding(parameter) else {
+            return MemberParameterResolution::LoopCarried;
+        };
+        let argument = &binding.argument;
+        if argument.place == parameter && argument.path.is_empty() {
+            // A root binding that re-spells the parameter preserves
+            // whatever the other edges establish.
+            return MemberParameterResolution::Unresolved;
         }
-        if !progressed {
-            break;
+        if !argument.path.is_empty() {
+            // A projected argument names a sub-place, not a root the
+            // relocated observation could spell.
+            return MemberParameterResolution::LoopCarried;
         }
-    }
-    resolutions
-        .into_iter()
-        .filter_map(|(parameter, resolution)| match resolution {
-            Resolution::Representative(representative) => Some((parameter, representative)),
-            Resolution::Unresolved | Resolution::LoopCarried => None,
-        })
-        .collect()
+        if member_parameters.contains(&argument.place) {
+            // A member parameter contributes its own resolution; an
+            // unresolved dependency defers to a later pass.
+            return resolutions
+                .get(&argument.place)
+                .copied()
+                .unwrap_or(MemberParameterResolution::LoopCarried);
+        }
+        if member_produced(argument.place) && !relocating_roots.contains(&argument.place) {
+            // A member-produced root the run does not cover is
+            // re-established fresh every traversal — loop-carried.
+            // A covered root's producer lands in the preheader ahead
+            // of the run's consumers, so the root persists like any
+            // outside-established place and can anchor the
+            // representative.
+            return MemberParameterResolution::LoopCarried;
+        }
+        MemberParameterResolution::Representative(argument.place)
+    })
 }
 
 /// The place roots `operation` hands a callee through a `structural`

@@ -17,8 +17,13 @@
 //! observe consumed storage; and each output names an existing payload claim.
 //! Derived membership must not already exist on that payload. The result retains
 //! exactly the inherited memberships plus the new derivations, without merging
-//! independently owned accounts. Qualification owners and algebras cannot be
-//! interchanged. Guarded declaration rows count only for an established active
+//! independently owned accounts. Ordinary derivation cannot interchange
+//! qualification owners or algebras. A conditional checked boundary-body
+//! correspondence instead transports debt into the raw payload without adding
+//! output membership. It retains the exact public law/candidate mapping and a
+//! complete typed address correspondence proved at the same source completion;
+//! later selected invocation still owes its independent establishment route.
+//! Guarded declaration rows count only for an established active
 //! case; unknown membership never proves absence.
 //!
 //! The retained `owns_linear_claim` declaration property preserves a carrier's
@@ -26,13 +31,12 @@
 //! do not own their referents, and empty arrays have no element debt. A whole
 //! accounted parent does not authorize discarding its active obligated children.
 //!
-//! Each derivation starts at one owned root and replaces consumed claims with
-//! the exact descendants of completed producers. Reunion consumes that entire
-//! live frontier. At external ingress, producer operations and callee returns
-//! authenticate each edge; equal geometry cannot substitute for this lineage.
-//! Several independently anchored derivations may commit together, but unrelated
-//! roots never become one account. Independent formal inputs still need an
-//! explicit shared-lineage contract before they can be reunited.
+//! Each derivation starts at the complete roster of owned roots and replaces
+//! consumed claims with the exact descendants of completed producers. Reunion
+//! consumes that entire live frontier. At external ingress, producer operations
+//! and callee returns authenticate every edge and exact actual input roster;
+//! numeric equality cannot substitute for this correspondence. Library contracts
+//! supply any additional backing compatibility requirements.
 //!
 //! The interpreter stages checks and result construction before retiring parents.
 //! Native lowering preserves parent consumption as an ownership effect while
@@ -53,6 +57,7 @@ use terminal_psi::{
 };
 
 mod ancestry;
+mod boundary_correspondence;
 
 /// Resolve a content term's static path in the same carrier namespace used by
 /// runtime ownership. Case spellings are local to their exact parent carrier.
@@ -195,6 +200,9 @@ pub fn validate_shape(
         result,
     )?;
     ancestry::validate_producers(module, machine, operation, derivations)?;
+    for derived in derivations {
+        boundary_correspondence::validate_authority(module, machine, derived)?;
+    }
     let position = machine
         .blocks
         .iter()
@@ -363,6 +371,12 @@ pub fn validate_contract(
     let mut covered_parents = vec![false; parents.len()];
     for derived in derivations {
         let mut qualification_owner = None;
+        let ordinary = matches!(
+            derived.custody,
+            terminal_psi::ContentTransformationCustody::Derived
+        );
+        boundary_correspondence::validate_relation(derived)?;
+        boundary_correspondence::validate_backing(types, identities, carrier_of, result, derived)?;
         let equation = semantic_vocabulary::ContentConservation::new(
             derived.conservation.algebra().clone(),
             claim_term(&derived.inputs)?,
@@ -413,7 +427,7 @@ pub fn validate_contract(
                 // Equal algebras describe compatible arithmetic, not permission
                 // to exchange one owner's qualification for another owner's.
                 let owner = (domain.id, domain.semantic_domain, binding.projection);
-                if qualification_owner.is_some_and(|previous| previous != owner) {
+                if ordinary && qualification_owner.is_some_and(|previous| previous != owner) {
                     return Err("content equation combines different qualification owners");
                 }
                 qualification_owner = Some(owner);
@@ -433,14 +447,16 @@ pub fn validate_contract(
                     {
                         return Err("content output differs from the existing result claim");
                     }
-                    if if path.is_empty() {
-                        !result.qualifications.contains(&domain.id)
-                    } else {
-                        !result
-                            .projected_qualifications
-                            .iter()
-                            .any(|row| row.path == path && row.domain == domain.id)
-                    } {
+                    if ordinary
+                        && if path.is_empty() {
+                            !result.qualifications.contains(&domain.id)
+                        } else {
+                            !result
+                                .projected_qualifications
+                                .iter()
+                                .any(|row| row.path == path && row.domain == domain.id)
+                        }
+                    {
                         return Err("content output membership is absent from the result");
                     }
                 }
@@ -472,6 +488,12 @@ pub fn validate_memberships(
     let mut whole = inherited.to_vec();
     let mut projected = inherited_projected.to_vec();
     for derived in derivations {
+        if !matches!(
+            derived.custody,
+            terminal_psi::ContentTransformationCustody::Derived
+        ) {
+            continue;
+        }
         for output in &derived.outputs {
             if output.subject.root != result.place {
                 return Err("content output names another occurrence");

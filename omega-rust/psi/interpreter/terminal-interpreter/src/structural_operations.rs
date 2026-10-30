@@ -13,7 +13,7 @@ use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::{OperationFlow, TerminalExecution};
+use crate::execution::{OperationFlow, TerminalExecution, dispatched_operation, operation_kind};
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
 use crate::runtime_rows::RuntimeRows;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
@@ -33,13 +33,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::EstablishScalarCase {
-            result_case,
-            ref fields,
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_establish_scalar_case")
-        };
+        dispatched_operation!(operation => EstablishScalarCase { result_case, ref fields });
         let terminal_psi::OperationResult::Structural(result) = &operation.result else {
             return Err(malformed());
         };
@@ -48,7 +42,6 @@ impl TerminalExecution<'_> {
                 result.multiplicity,
                 terminal_psi::nonlinear_multiplicity_pair_pattern!()
             )
-            || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
         {
@@ -59,7 +52,14 @@ impl TerminalExecution<'_> {
             result_case: Some(result_case),
             fields: fields
                 .iter()
-                .map(|binding| Ok((binding.field, self.scalar_value(binding.value)?)))
+                .map(|binding| {
+                    Ok((
+                        vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                            binding.field,
+                        )],
+                        self.scalar_value(binding.value)?,
+                    ))
+                })
                 .collect::<Result<Vec<_>, TerminalInterpretError>>()?,
         };
         self.publish_scalar_aggregate(result, value)?;
@@ -69,6 +69,9 @@ impl TerminalExecution<'_> {
     /// Import scalar aggregate contents into ordinary placed record/sum storage.
     /// The external payload supplies no identity,
     /// so publication allocates one home only after validating all contents.
+    /// The caller owns custody admission: source case construction checks its
+    /// bare result, while boundary completion rejoins the admitted issuer and
+    /// result declaration before publishing fields or binding its live claims.
     pub(crate) fn publish_scalar_aggregate(
         &mut self,
         result: &terminal_psi::StructuralOperationResult,
@@ -77,13 +80,8 @@ impl TerminalExecution<'_> {
         if aggregate.structural_type != result.structural_type
             || self.structural_values.contains_key(&result.place)
             || self.scalar_array_values.contains_key(&result.place)
-            || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
-            || !result.claims.is_empty()
-            || !matches!(
-                result.multiplicity,
-                terminal_psi::nonlinear_multiplicity_pair_pattern!()
-            )
+            || (!result.claims.is_empty() && result.multiplicity != StructuralMultiplicity::Linear)
         {
             return Err(malformed());
         }
@@ -92,29 +90,16 @@ impl TerminalExecution<'_> {
                 .structural_types()
                 .get(&result.structural_type)
                 .ok_or_else(malformed)?,
+            |identity| self.program.structural_types().get(&identity),
         )?;
         let value = TerminalStructuralValue::minted(
             self.local_structural_identities.allocate()?,
             result.structural_type,
-            Vec::new(),
+            result.qualifications.clone(),
         );
         let root = StructuralRuntimePlace::from(&value);
         let mut storage = ConstructorStorage::new(self.account.as_ref());
-        if let Some(selected) = aggregate.result_case {
-            storage.stage_case(root.clone(), aggregate.structural_type, selected)?;
-        }
-        for (field, scalar) in aggregate.fields {
-            storage.stage_scalar_endpoint(
-                &crate::primitive_storage::PrimitiveStorageEndpoint::ScalarField(
-                    if aggregate.result_case.is_some() {
-                        StructuralScalarRuntimeField::case_payload(root.clone(), field)
-                    } else {
-                        StructuralScalarRuntimeField::member(root.clone(), field)
-                    },
-                ),
-                scalar,
-            )?;
-        }
+        storage.stage_scalar_aggregate(self, &aggregate, &root)?;
         storage.publish(self)?;
         self.structural_values.insert(result.place, value)?;
         self.track_affine_result(result);
@@ -122,7 +107,7 @@ impl TerminalExecution<'_> {
     }
 
     /// Record the affine debt a fresh affine result owes the live frontier.
-    fn track_affine_result(&mut self, result: &terminal_psi::StructuralOperationResult) {
+    pub(crate) fn track_affine_result(&mut self, result: &terminal_psi::StructuralOperationResult) {
         if result.multiplicity == StructuralMultiplicity::Affine {
             self.live_affine_frontier.insert(StructuralAffineDiscard {
                 place: result.place,
@@ -136,13 +121,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::EstablishStructuralCase {
-            result_case,
-            ref fields,
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_establish_structural_case")
-        };
+        dispatched_operation!(operation => EstablishStructuralCase { result_case, ref fields });
         let terminal_psi::OperationResult::Structural(result) = &operation.result else {
             return Err(malformed());
         };
@@ -168,7 +147,7 @@ impl TerminalExecution<'_> {
         result_case: semantic_vocabulary::StructuralCaseId,
         fields: &[terminal_psi::RecordFieldInitializer],
     ) -> Result<(), TerminalInterpretError> {
-        if self.structural_values.contains_key(&result.place) || !result.qualifications.is_empty() {
+        if self.structural_values.contains_key(&result.place) {
             return Err(malformed());
         }
         let (common, cases) = match self
@@ -202,13 +181,11 @@ impl TerminalExecution<'_> {
         if roster.len() != fields.len() {
             return Err(malformed());
         }
-        let mut value = TerminalStructuralValue {
-            opaque_identity: self.local_structural_identities.allocate()?,
-            structural_type: result.structural_type,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            path: Vec::new(),
-        };
+        let mut value = TerminalStructuralValue::minted(
+            self.local_structural_identities.allocate()?,
+            result.structural_type,
+            result.qualifications.clone(),
+        );
         let member_root = StructuralRuntimePlace::from(&value);
         let mut storage = ConstructorStorage::new(self.account.as_ref());
         let mut consumed = Vec::new();
@@ -302,38 +279,51 @@ impl TerminalExecution<'_> {
         let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
         storage.publish(self)?;
         self.structural_values.insert(result.place, value)?;
-        retirement.commit(self);
+        retirement.commit(self)?;
         Ok(())
     }
 
     /// Retire precisely the consumed subtree after its cells have been staged.
-    pub(crate) fn prune_subtree(&mut self, from: &StructuralRuntimePlace) {
+    pub(crate) fn prepare_subtree_retirement(
+        &self,
+        from: &StructuralRuntimePlace,
+    ) -> Result<crate::scalar_array::empty_storage::EmptyArrayRetirement, TerminalInterpretError>
+    {
+        self.empty_array_storage.prepare_retirement(
+            &self.program.structural_types(),
+            self.account.as_ref(),
+            from,
+        )
+    }
+
+    pub(crate) fn prune_subtree(
+        &mut self,
+        retirement: crate::scalar_array::empty_storage::EmptyArrayRetirement,
+    ) -> Result<(), TerminalInterpretError> {
+        let from = retirement.root();
+        crate::structural_storage::prune_rows(&mut self.original_storage_roots, from);
         crate::structural_storage::prune_rows(&mut self.provider_storage.descriptors, from);
         crate::structural_storage::prune_rows(&mut self.activation_storage.claim_descriptors, from);
         self.invalidate_stored_provenance(from);
         crate::structural_storage::prune_rows(&mut self.structural_host_atoms, from);
-        crate::structural_storage::prune_rows(&mut self.structural_scalar_fields, from);
+        self.structural_scalar_fields.prune(from);
         crate::structural_storage::prune_rows(&mut self.structural_byte_sequence_fields, from);
         crate::structural_storage::prune_rows(&mut self.structural_byte_descriptors, from);
         crate::structural_storage::prune_rows(&mut self.structural_byte_storage, from);
         crate::structural_storage::prune_rows(&mut self.structural_cases, from);
         crate::structural_storage::prune_rows(&mut self.reference_referents, from);
         crate::structural_storage::prune_rows(&mut self.structural_element_view_fields, from);
-        crate::structural_storage::prune_rows(&mut self.structural_primitive_storage, from);
+        self.structural_primitive_storage.prune(from);
+        self.empty_array_storage.retire(retirement)
     }
 
     pub(crate) fn execute_establish_byte_sequence_literal(
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::EstablishByteSequenceLiteral {
-            destination,
-            ref bytes,
-            ..
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_establish_byte_sequence_literal")
-        };
+        dispatched_operation!(operation => EstablishByteSequenceLiteral {
+            destination, ref bytes, ..
+        });
         if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
             return Err(malformed());
         }
@@ -377,13 +367,7 @@ impl TerminalExecution<'_> {
             }
             self.structural_values.insert(
                 destination,
-                TerminalStructuralValue {
-                    opaque_identity: destination.get(),
-                    structural_type: *structural_type,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    path: Vec::new(),
-                },
+                TerminalStructuralValue::minted(destination.get(), *structural_type, Vec::new()),
             )?;
         }
         Ok(OperationFlow::Advance)
@@ -396,19 +380,14 @@ impl TerminalExecution<'_> {
     pub(crate) fn result_place_in_use(&self, place: semantic_vocabulary::PlaceId) -> bool {
         self.structural_values.contains_key(&place)
             || self.scalar_array_values.contains_key(&place)
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(place))
+            || crate::custody::place_is_claimed(&self.live_claims, place)
     }
 
     pub(crate) fn execute_establish_zeroed_structural(
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::EstablishZeroedStructural {} = operation.kind else {
-            unreachable!("dispatched execute_establish_zeroed_structural")
-        };
+        dispatched_operation!(operation => EstablishZeroedStructural {});
         let result = operation.result.structural().ok_or_else(malformed)?;
         if !matches!(
             result.multiplicity,
@@ -537,6 +516,19 @@ impl TerminalExecution<'_> {
                         zero(*scalar_type).ok_or_else(malformed)?,
                     )?;
                 }
+                terminal_semantics::ZeroedStructuralLeaf::EmptyScalarArray {
+                    structural_type,
+                    ..
+                } => {
+                    self.empty_array_storage.establish(
+                        &self.program.structural_types(),
+                        StructuralRuntimePlace {
+                            opaque_identity: value.opaque_identity,
+                            path: storage_path(),
+                        },
+                        *structural_type,
+                    )?;
+                }
                 terminal_semantics::ZeroedStructuralLeaf::ByteArray { length, .. } => {
                     // Byte views and scalar indexing must share one backing.
                     // Storing these bytes as separate scalar cells would make
@@ -549,10 +541,13 @@ impl TerminalExecution<'_> {
                     if !self.structural_byte_storage.contains_key(&home) {
                         self.structural_byte_storage.insert(
                             home,
-                            ByteSequenceView::new(ByteSequenceStorage::zeroed(
-                                length,
+                            crate::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage::new(
+                                crate::structural_inputs::byte_arrays::array_path_type(
+                                    &self.program.structural_types(), value.structural_type, leaf.path(),
+                                ).ok_or_else(malformed)?,
+                                ByteSequenceView::new(ByteSequenceStorage::zeroed(length, self.account.as_ref())?),
                                 self.account.as_ref(),
-                            )?),
+                            ),
                         )?;
                     }
                 }
@@ -596,9 +591,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::EstablishStructuralLocal {} = operation.kind else {
-            unreachable!("dispatched execute_establish_structural_local")
-        };
+        dispatched_operation!(operation => EstablishStructuralLocal {});
         let result = operation.result.structural().ok_or_else(malformed)?;
         // A descriptor home may declare byte qualifications its stores prove.
         let descriptor_home = matches!(
@@ -617,13 +610,11 @@ impl TerminalExecution<'_> {
         }
         self.structural_values.insert(
             result.place,
-            TerminalStructuralValue {
-                opaque_identity: self.local_structural_identities.allocate()?,
-                structural_type: result.structural_type,
-                qualifications: result.qualifications.clone(),
-                projected_qualifications: Vec::new(),
-                path: Vec::new(),
-            },
+            TerminalStructuralValue::minted(
+                self.local_structural_identities.allocate()?,
+                result.structural_type,
+                result.qualifications.clone(),
+            ),
         )?;
         self.track_affine_result(result);
         Ok(OperationFlow::Advance)
@@ -633,9 +624,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::EstablishTrivialAffineLocal { destination } = operation.kind else {
-            unreachable!("dispatched execute_establish_trivial_affine_local")
-        };
+        dispatched_operation!(operation => EstablishTrivialAffineLocal { destination });
         if !matches!(operation.result, terminal_psi::OperationResult::Unit)
             || self.structural_values.contains_key(&destination)
         {
@@ -654,13 +643,7 @@ impl TerminalExecution<'_> {
         };
         self.structural_values.insert(
             destination,
-            TerminalStructuralValue {
-                opaque_identity: destination.get(),
-                structural_type: *structural_type,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                path: Vec::new(),
-            },
+            TerminalStructuralValue::minted(destination.get(), *structural_type, Vec::new()),
         )?;
         self.live_affine_frontier.insert(StructuralAffineDiscard {
             place: destination,
@@ -674,9 +657,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::EstablishRecord { ref fields } = operation.kind else {
-            unreachable!("dispatched execute_establish_record")
-        };
+        dispatched_operation!(operation => EstablishRecord { ref fields });
         self.establish_record(operation.result.structural().ok_or(malformed())?, fields)?;
         Ok(OperationFlow::Advance)
     }
@@ -685,16 +666,9 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::StructuralScalarFieldStore {
-            destination,
-            ref path,
-            field,
-            value,
-            ..
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_structural_scalar_field_store")
-        };
+        dispatched_operation!(operation => StructuralScalarFieldStore {
+            destination, ref path, field, value, ..
+        });
         if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
             return Err(malformed());
         }
@@ -963,20 +937,14 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::MoveStructuralField {
-            source,
-            ref path,
-            field,
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_move_structural_field")
-        };
+        dispatched_operation!(operation => MoveStructuralField { source, ref path, field });
         let result = operation.result.structural().ok_or_else(malformed)?;
         if self.structural_values.contains_key(&result.place) {
             return Err(malformed());
         }
         let storage = self.structural_values.get(&source).ok_or_else(malformed)?;
         let selected = self.structural_window_hole(
+            operation,
             source,
             storage,
             path,
@@ -1039,16 +1007,9 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::StoreStructuralField {
-            disposition,
-            destination,
-            ref path,
-            field,
-            ref value,
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_store_structural_field")
-        };
+        dispatched_operation!(operation => StoreStructuralField {
+            disposition, destination, ref path, field, ref value
+        });
         if !matches!(operation.result, terminal_psi::OperationResult::Unit)
             || value.access != StructuralAccess::Owned
             || !value.path.is_empty()
@@ -1101,6 +1062,7 @@ impl TerminalExecution<'_> {
             .map_err(|error| failure("destination home", error))?;
         let selected = self
             .structural_window_hole(
+                operation,
                 destination,
                 &storage,
                 path,
@@ -1232,9 +1194,16 @@ impl TerminalExecution<'_> {
                 ConstructorValue::Placed(child) => Some(StructuralRuntimePlace::from(&child)),
                 ConstructorValue::PackedScalars { .. } => None,
             };
-            self.prune_subtree(&hole);
-            if !copies_storage && let Some(source) = source {
-                self.prune_subtree(&source);
+            storage.preserve_replaced_residents(self, &hole)?;
+            let hole_retirement = self.prepare_subtree_retirement(&hole)?;
+            let source_retirement = source
+                .as_ref()
+                .filter(|_| !copies_storage)
+                .map(|source| self.prepare_subtree_retirement(source))
+                .transpose()?;
+            self.prune_subtree(hole_retirement)?;
+            if let Some(retirement) = source_retirement {
+                self.prune_subtree(retirement)?;
             }
             storage.publish(self)?;
         }
@@ -1283,15 +1252,9 @@ impl TerminalExecution<'_> {
         // Type geometry still uses the authored operation's captured selector
         // coordinates: a concrete index alone cannot establish a view's extent.
         let declared = machine.operation(operation.id).ok_or_else(malformed)?;
-        let OperationKind::StoreStructuralField {
-            destination,
-            path: declared_path,
-            field: declared_field,
-            ..
-        } = &declared.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(*declared => StoreStructuralField {
+            destination, path: declared_path, field: declared_field, ..
+        });
         if *destination != root || *declared_field != field || declared_path.len() != path.len() {
             return Err(malformed());
         }
@@ -1345,12 +1308,49 @@ impl TerminalExecution<'_> {
     /// or the element a mutable view selects in its collection.
     fn structural_window_hole(
         &self,
+        operation: &terminal_psi::Operation,
         root: semantic_vocabulary::PlaceId,
         storage: &TerminalStructuralValue,
         path: &[StructuralPathSegment],
         field: Option<semantic_vocabulary::StructuralFieldId>,
         required_access: StructuralAccess,
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+        // A Case names a payload namespace, not a runtime value to project.
+        // Complete the operation's declared field path before following live
+        // storage. Use authored indexes for geometry and only then substitute
+        // the dispatcher's already bounded concrete coordinates.
+        let machine = self.program.verified_machine(self.current_machine)?;
+        let declared = machine.operation(operation.id).ok_or_else(malformed)?;
+        let (declared_root, declared_path, declared_field) = match &declared.kind {
+            OperationKind::MoveStructuralField {
+                source,
+                path,
+                field,
+            } => (*source, path, *field),
+            OperationKind::StoreStructuralField {
+                destination,
+                path,
+                field,
+                ..
+            } => (*destination, path, *field),
+            _ => return Err(malformed()),
+        };
+        if declared_root != root || declared_field != field || declared_path.len() != path.len() {
+            return Err(malformed());
+        }
+        let projection = terminal_semantics::structural_window_projection(
+            self.program.structural_types().values(),
+            self.live_structural_type(root)?,
+            declared_path,
+            field,
+        )
+        .ok_or_else(malformed)?;
+        let mut complete_path = projection.path;
+        complete_path
+            .get_mut(..path.len())
+            .ok_or_else(malformed)?
+            .clone_from_slice(path);
+        let path = complete_path.as_slice();
         // Resolve a reference crossing against its live runtime referent first;
         // the shared window geometry receives storage, never carrier ownership.
         let prefix_length = path
@@ -1450,19 +1450,10 @@ impl TerminalExecution<'_> {
             )?
             .value
         };
-        let projection = terminal_semantics::structural_window_projection(
-            self.program.structural_types().values(),
-            selected.structural_type,
-            &[],
-            field,
-        )
-        .ok_or_else(malformed)?;
-        let hole = crate::custody::project_structural_value(
-            &self.program.structural_types(),
-            &selected,
-            &projection.path,
-        )?;
-        Ok(hole)
+        if selected.structural_type != projection.structural_type {
+            return Err(malformed());
+        }
+        Ok(selected)
     }
 
     /// Stage every runtime cell under `from` at the same subtree suffix under
@@ -1474,113 +1465,24 @@ impl TerminalExecution<'_> {
         to: &StructuralRuntimePlace,
         vacate: bool,
     ) -> Result<(), TerminalInterpretError> {
-        let retarget = |parent: &StructuralRuntimePlace| {
-            (parent.opaque_identity == from.opaque_identity && parent.path.starts_with(&from.path))
-                .then(|| StructuralRuntimePlace {
-                    opaque_identity: to.opaque_identity,
-                    path: to
-                        .path
-                        .iter()
-                        .chain(&parent.path[from.path.len()..])
-                        .cloned()
-                        .collect(),
-                })
-        };
-        let mut staged_scalars = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.structural_scalar_fields, from).filter_map(
-                |(cell, scalar)| {
-                    retarget(&cell.parent).map(|parent| (cell.relocated(parent), *scalar))
-                },
-            ),
-        )?;
-        let mut staged_byte_fields = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.structural_byte_sequence_fields, from)
-                .filter_map(|(cell, view)| {
-                    retarget(&cell.parent).map(|parent| (cell.relocated(parent), view.clone()))
-                }),
-        )?;
-        let mut staged_arrays = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.structural_byte_storage, from)
-                .filter_map(|(carrier, view)| retarget(carrier).map(|place| (place, view.clone()))),
-        )?;
-        let mut staged_byte_descriptors =
-            crate::runtime_rows::RuntimeRows::new(self.account.as_ref());
-        for (home, binding) in
-            crate::structural_storage::cells(&self.structural_byte_descriptors, from)
-        {
-            if !vacate && !matches!(binding, ByteSequenceBinding::Immutable(_)) {
-                return Err(malformed());
-            }
-            let target = retarget(home).ok_or_else(malformed)?;
-            let binding = binding.relocated_descriptor(home, &target)?;
-            staged_byte_descriptors.insert(target, binding)?;
+        // Leaf moves/copies and constructors must transport the same complete
+        // typed storage. A second row-by-row inventory lost original allocation
+        // seals while retaining scalar residents, detaching their provenance.
+        // The shared constructor transaction stages and funds every cell before
+        // pruning, snapshots copies, and retains whole allocation custody only
+        // on an authorized move.
+        let mut storage = crate::record::storage::ConstructorStorage::new(self.account.as_ref());
+        storage.stage_subtree(self, from, to, vacate)?;
+        storage.preserve_replaced_residents(self, to)?;
+        let destination_retirement = self.prepare_subtree_retirement(to)?;
+        let source_retirement = vacate
+            .then(|| self.prepare_subtree_retirement(from))
+            .transpose()?;
+        self.prune_subtree(destination_retirement)?;
+        if let Some(retirement) = source_retirement {
+            self.prune_subtree(retirement)?;
         }
-        let mut staged_atoms = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.structural_host_atoms, from)
-                .filter_map(|(home, atom)| retarget(home).map(|home| (home, *atom))),
-        )?;
-        let mut staged_cases = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.structural_cases, from).filter_map(
-                |(carrier, contents)| retarget(carrier).map(|place| (place, *contents)),
-            ),
-        )?;
-        let mut staged_element_views = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.structural_element_view_fields, from)
-                .filter_map(|(carrier, descriptor)| {
-                    retarget(carrier).map(|place| (place, descriptor.clone()))
-                }),
-        )?;
-        let mut staged_referents = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.reference_referents, from).filter_map(
-                |(carrier, referent)| retarget(carrier).map(|place| (place, referent.clone())),
-            ),
-        )?;
-        let mut staged_primitives = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.structural_primitive_storage, from)
-                .filter_map(|(carrier, scalar)| retarget(carrier).map(|place| (place, *scalar))),
-        )?;
-        self.structural_scalar_fields
-            .validate_append(&staged_scalars)?;
-        self.structural_primitive_storage
-            .validate_append(&staged_primitives)?;
-        self.structural_byte_sequence_fields
-            .validate_append(&staged_byte_fields)?;
-        self.structural_byte_storage
-            .validate_append(&staged_arrays)?;
-        self.structural_byte_descriptors
-            .validate_append(&staged_byte_descriptors)?;
-        self.structural_cases.validate_append(&staged_cases)?;
-        self.structural_host_atoms.validate_append(&staged_atoms)?;
-        self.reference_referents
-            .validate_append(&staged_referents)?;
-        self.structural_element_view_fields
-            .validate_append(&staged_element_views)?;
-        self.prune_subtree(to);
-        if vacate {
-            self.prune_subtree(from);
-        }
-        self.structural_scalar_fields.append(&mut staged_scalars)?;
-        self.structural_byte_sequence_fields
-            .append(&mut staged_byte_fields)?;
-        self.structural_byte_storage.append(&mut staged_arrays)?;
-        self.structural_byte_descriptors
-            .append(&mut staged_byte_descriptors)?;
-        self.structural_cases.append(&mut staged_cases)?;
-        self.structural_host_atoms.append(&mut staged_atoms)?;
-        self.reference_referents.append(&mut staged_referents)?;
-        self.structural_element_view_fields
-            .append(&mut staged_element_views)?;
-        self.structural_primitive_storage
-            .append(&mut staged_primitives)?;
-        Ok(())
+        storage.publish(self)
     }
 
     /// Move every runtime cell under `from` to the same subtree suffix under
@@ -1655,17 +1557,15 @@ impl TerminalExecution<'_> {
             // Snapshot the live byte value before publishing its independent
             // identity. Later indexed writes detach the immutable backing.
             let bytes = bytes.clone();
-            let copied = TerminalStructuralValue {
-                opaque_identity: self.local_structural_identities.allocate()?,
-                structural_type: result.structural_type,
-                qualifications: result.qualifications.clone(),
-                projected_qualifications: Vec::new(),
-                path: Vec::new(),
-            };
+            let copied = TerminalStructuralValue::minted(
+                self.local_structural_identities.allocate()?,
+                result.structural_type,
+                result.qualifications.clone(),
+            );
             self.byte_sequence_values.insert(
                 result.place,
                 crate::byte_sequences::binding::ByteSequenceBinding::Immutable(
-                    bytes.detached_descriptor(),
+                    bytes.owned_snapshot(),
                 ),
             )?;
             self.structural_values.insert(result.place, copied)?;
@@ -1694,16 +1594,24 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
+        let scalar_array_result = terminal_semantics::scalar_array_leaf_shape(
+            self.program.structural_types().values(),
+            result.structural_type,
+        )
+        .is_some();
+        let primitive_result = self
+            .program
+            .structural_types()
+            .get(&result.structural_type)
+            .is_some_and(|declaration| {
+                matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_))
+            });
         if let OperationKind::StructuralLeafCopy { source, path } = &operation.kind
-            && terminal_semantics::scalar_array_leaf_shape(
-                self.program.structural_types().values(),
-                result.structural_type,
-            )
-            .is_some()
+            && (scalar_array_result || primitive_result)
         {
             // Copy through the original source, not its opaque metadata alone:
-            // a borrowed array's payload can live in a suspended caller frame.
-            // Packed, placed and borrowed arrays establish independent completed
+            // a borrowed scalar tree can live in a suspended caller frame.
+            // Packed and placed scalar leaves establish independent completed
             // payloads; none transfers or fabricates source ownership.
             let argument = StructuralArgument {
                 place: *source,
@@ -1722,21 +1630,21 @@ impl TerminalExecution<'_> {
                 if self.scalar_array_values.contains_key(&result.place) {
                     return Err(malformed());
                 }
-                // Plain results retain the completed row-major batch. Besides
+                // Plain arrays retain the completed row-major batch. Besides
                 // avoiding a cell map per scalar, this makes a huge outer
                 // dimension with zero inner extent constant-size storage.
-                // Evidence-bearing results retain their placed metadata below.
-                if result.is_unrestricted_plain() {
+                // Primitive endpoints and evidence-bearing arrays retain typed placed metadata below.
+                if scalar_array_result && result.is_unrestricted_plain() {
                     let mut copied =
                         self.scalar_array_snapshot(&argument, result.structural_type)?;
                     copied.qualifications.clone_from(&result.qualifications);
-                    self.scalar_array_values.insert(result.place, copied)?;
+                    self.scalar_array_values.publish(result.place, copied)?;
                     return Ok(OperationFlow::Advance);
                 }
                 let mut elements = Vec::new();
                 value
                     .visit_scalar_leaves(self, &argument, |_, _, scalar| {
-                        elements.push(scalar);
+                        elements.push(crate::scalar_storage::ScalarCell::Local(scalar));
                         Ok(())
                     })?
                     .ok_or_else(malformed)?;
@@ -1770,7 +1678,7 @@ impl TerminalExecution<'_> {
                 return Ok(OperationFlow::Advance);
             }
         }
-        let (leaf, source, endpoint_field, copy_path) = match &operation.kind {
+        let (leaf, source, _, copy_path) = match &operation.kind {
             OperationKind::StructuralLeafCopy { source, path } => {
                 let (leaf, field) =
                     self.resolve_live_leaf_copy(*source, path, result.structural_type)?;
@@ -1904,54 +1812,22 @@ impl TerminalExecution<'_> {
                 matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
             })
         {
-            let root = self.structural_values.get(&source).ok_or_else(malformed)?;
-            let bytes = if StructuralRuntimePlace::from(root) == StructuralRuntimePlace::from(&leaf)
-                && root.structural_type == leaf.structural_type
-            {
-                let bytes = self
-                    .byte_sequence_values
-                    .get(&source)
-                    .ok_or_else(malformed)?
-                    .immutable()?;
-                if !bytes.matches_descriptor_home(root) {
-                    return Err(malformed());
-                }
-                bytes.clone()
-            } else if let Some(bytes) = self
-                .structural_byte_storage
-                .get(&StructuralRuntimePlace::from(&leaf))
-            {
-                bytes.clone()
-            } else {
-                let mut parent = StructuralRuntimePlace::from(&leaf);
-                parent.path.pop().ok_or_else(malformed)?;
-                let namespace = match &operation.kind {
-                    OperationKind::StructuralLeafCopy { path, .. } => {
-                        StructuralFieldNamespace::for_carrier(&path[..path.len().saturating_sub(1)])
-                    }
-                    OperationKind::StructuralCaseLeafCopy { path, .. } => {
-                        if matches!(
-                            path.iter().rev().nth(1),
-                            Some(semantic_vocabulary::CanonicalStructuralPathSegment::Case(_))
-                        ) {
-                            StructuralFieldNamespace::CasePayload
-                        } else {
-                            StructuralFieldNamespace::Member
-                        }
-                    }
-                    _ => return Err(malformed()),
-                };
-                let cell = StructuralByteSequenceRuntimeField {
-                    parent,
-                    namespace,
-                    field: endpoint_field.ok_or_else(malformed)?,
-                };
-                self.structural_byte_sequence_fields
-                    .get(&cell)
-                    .ok_or_else(malformed)?
-                    .immutable()?
-                    .clone()
+            // Resolve the exact selected descriptor through the same custody
+            // owner as calls and byte observations. Aggregate constructors store
+            // descriptors separately from inline byte cells; descriptor copying
+            // retains their existing backing and window, not the source home.
+            let argument = StructuralArgument {
+                place: source,
+                path: copy_path.clone(),
+                access: StructuralAccess::SharedBorrow,
             };
+            self.validate_descriptor_borrow(&argument, StructuralAccess::SharedBorrow)?;
+            let binding = self.byte_descriptor_binding(&argument, &leaf)?;
+            self.byte_descriptor_length(&binding, &leaf)?;
+            let bytes = self
+                .reborrow_byte_sequence_binding(&binding, &leaf, StructuralAccess::SharedBorrow)?
+                .immutable()?
+                .clone();
             // ByteSequenceView clones its backing handle and exact window.
             // This copies the descriptor, not octets; replacing the source
             // slot cannot retarget this completed value's retained backing.
@@ -2026,7 +1902,7 @@ impl TerminalExecution<'_> {
         let mut copied = self.scalar_array_snapshot(source, result.structural_type)?;
         self.validate_scalar_array_qualifications(&copied, &result.qualifications)?;
         copied.qualifications = result.qualifications.clone();
-        self.scalar_array_values.insert(result.place, copied)?;
+        self.scalar_array_values.publish(result.place, copied)?;
         Ok(OperationFlow::Advance)
     }
     /// Mint the copied record a byte-carrier leaf copy names: the resolved
@@ -2071,13 +1947,11 @@ impl TerminalExecution<'_> {
                 _ => return Err(malformed()),
             })
             .map_err(|_| malformed())?;
-            let bytes = bytes
-                .bytes()
-                .get(offset..offset.checked_add(size).ok_or_else(malformed)?)
-                .ok_or_else(malformed)?;
+            let end = offset.checked_add(size).ok_or_else(malformed)?;
+            let window = bytes.read_window(offset, end)?;
             let mut value = 0u128;
-            for (position, byte) in bytes.iter().enumerate() {
-                value |= u128::from(*byte) << (8 * position);
+            for position in 0..size {
+                value |= u128::from(window.read(position)?) << (8 * position);
             }
             let scalar = match member.scalar_type {
                 ScalarType::Boolean => crate::primitive_storage::encoding::boolean_bits(value)?,
@@ -2100,13 +1974,11 @@ impl TerminalExecution<'_> {
             };
             leaves.push((member.field, scalar));
         }
-        let copied = TerminalStructuralValue {
-            opaque_identity: self.local_structural_identities.allocate()?,
-            structural_type: result.structural_type,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            path: Vec::new(),
-        };
+        let copied = TerminalStructuralValue::minted(
+            self.local_structural_identities.allocate()?,
+            result.structural_type,
+            Vec::new(),
+        );
         let parent = StructuralRuntimePlace::from(&copied);
         for (field, scalar) in leaves {
             self.structural_scalar_fields.insert(
@@ -2122,14 +1994,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::StructuralCaseMembership {
-            source,
-            ref path,
-            case,
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_structural_case_membership")
-        };
+        dispatched_operation!(operation => StructuralCaseMembership { source, ref path, case });
         let active_case = self.observe_structural_case(source, path)?;
         self.store_scalar(operation, TerminalScalarValue::Boolean(active_case == case))
     }
@@ -2210,14 +2075,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::BooleanStructuralField {
-            source,
-            ref path,
-            field,
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_boolean_structural_field")
-        };
+        dispatched_operation!(operation => BooleanStructuralField { source, ref path, field });
         self.require_boolean_result(operation)?;
         let value = self.read_observed_field(source, path, field, ScalarType::Boolean)?;
         self.store_scalar(operation, value)
@@ -2227,14 +2085,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::ScalarStructuralField {
-            source,
-            ref path,
-            field,
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_scalar_structural_field")
-        };
+        dispatched_operation!(operation => ScalarStructuralField { source, ref path, field });
         let scalar_type = operation.result.expect_scalar().scalar_type;
         let value = self.read_observed_field(source, path, field, scalar_type)?;
         self.store_scalar(operation, value)
@@ -2267,6 +2118,20 @@ impl TerminalExecution<'_> {
         .ok_or_else(malformed)?;
         if declaration.field_type.scalar_type() != Some(scalar_type) {
             return Err(malformed());
+        }
+        if path.contains(&semantic_vocabulary::CanonicalStructuralPathSegment::Referent) {
+            let mut selected = path.to_vec();
+            selected.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                field,
+            ));
+            let physical = terminal_semantics::canonical_structural_storage_path(
+                self.program.structural_types().values(),
+                declared_root,
+                &selected,
+            )
+            .ok_or_else(malformed)?;
+            let (storage, actual, shared) = self.primitive_access(source, false, &physical)?;
+            return self.read_primitive_storage(source, storage, actual, scalar_type, shared);
         }
         if let Some(view) = view {
             let carrier = terminal_semantics::record_field_carrier(
@@ -2308,13 +2173,16 @@ impl TerminalExecution<'_> {
                 );
             }
         }
-        let value = self.structural_scalar_fields.get(&cell).copied().ok_or(
-            if scalar_type == ScalarType::Boolean {
+        let value = self
+            .structural_scalar_fields
+            .get(&cell)
+            .map(crate::scalar_storage::ScalarCell::read)
+            .transpose()?
+            .ok_or(if scalar_type == ScalarType::Boolean {
                 TerminalInterpretError::StructuralBooleanFieldMissing { source, field }
             } else {
                 TerminalInterpretError::StructuralScalarFieldMissing { source, field }
-            },
-        )?;
+            })?;
         if value.scalar_type() != scalar_type {
             return Err(malformed());
         }
@@ -2325,15 +2193,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::ByteSequenceRead {
-            source,
-            index,
-            length,
-            ..
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_byte_sequence_read")
-        };
+        dispatched_operation!(operation => ByteSequenceRead { source, index, length, .. });
         let result = operation.result.expect_scalar();
         let byte_type =
             IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8).expect("u8 is valid");

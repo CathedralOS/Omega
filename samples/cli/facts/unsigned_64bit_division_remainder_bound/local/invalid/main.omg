@@ -15,8 +15,8 @@ machine remainder_local(dividend: u64, divisor: u64) -> i32
         true -> pass()
         _ -> fail()
     }
-    state pass() -> i32 { 0 }
-    state fail() -> i32 { 1 }
+    machine pass() -> i32 { 0 }
+    machine fail() -> i32 { 1 }
 }
 
 machine main() crashes Trap {
@@ -25,6 +25,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

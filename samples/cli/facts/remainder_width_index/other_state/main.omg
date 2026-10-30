@@ -7,7 +7,7 @@ machine pick(value: u64, buckets: &[u8], width: u64) -> u8
 requires buckets.len > 0 && width == buckets.len as u64
 {
     transition { _ -> land(value, buckets, width) }
-    state land(value: u64, buckets: &[u8], width: u64) -> u8
+    machine land(value: u64, buckets: &[u8], width: u64) -> u8
     requires buckets.len > 0 && width == buckets.len as u64
     {
         buckets[value % width]
@@ -20,6 +20,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

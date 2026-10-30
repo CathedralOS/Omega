@@ -13,7 +13,7 @@ machine consume(receipt: Receipt) -> i32 {
 machine main() {
     transition { _ -> holding(2) }
 
-    state holding(code: i32) {
+    machine holding(code: i32) {
         let observed: i32 = consume(Receipt { code: code });
         let carried: Receipt = Receipt { code: observed };
         transition observed == 2 {
@@ -22,9 +22,9 @@ machine main() {
         }
     }
 
-    state finishing(last: Receipt) {
+    machine finishing(last: Receipt) {
         Receipt::ack(last);
     }
 
-    state skipping() {}
+    machine skipping() {}
 }

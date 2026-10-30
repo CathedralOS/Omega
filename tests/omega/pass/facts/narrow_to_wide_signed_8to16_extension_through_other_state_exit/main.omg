@@ -19,10 +19,10 @@ ensures result == 0i32
         true -> ok()
         _ -> bad()
     }
-    state ok() {
+    machine ok() -> i32 {
         0i32
     }
-    state bad() {
+    machine bad() -> i32 {
         crash Trap;
     }
 }
@@ -34,7 +34,7 @@ ensures result == 0i32
     transition {
         _ -> step(wide)
     }
-    state step(wide: i16) -> i32
+    machine step(wide: i16) -> i32
     requires wide >= 30i16 && wide <= 100i16
     {
         verify_wide(wide)
@@ -46,6 +46,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

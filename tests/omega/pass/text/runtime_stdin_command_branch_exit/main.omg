@@ -34,38 +34,38 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // Normalize this command/echo protocol explicitly; the reader preserves raw bytes.
-    state bounded_input(main: &mut Main, count: u64, complete: bool) {
+    machine bounded_input(main: &mut Main, count: u64, complete: bool) {
         transition count <= main.line.len {
             true -> normal_input(main, count, complete)
             false -> invalid(main)
         }
     }
-    state normal_input(main: &mut Main, count: u64, complete: bool) {
+    machine normal_input(main: &mut Main, count: u64, complete: bool) {
         transition complete {
             true -> completed_input(main, count)
             false -> parsed_input(main, count)
         }
     }
-    state completed_input(main: &mut Main, count: u64) {
+    machine completed_input(main: &mut Main, count: u64) {
         transition count > 0 && count <= main.line.len {
             true -> trim_carriage_return(main, count - 1)
             false -> invalid(main)
         }
     }
-    state trim_carriage_return(main: &mut Main, count: u64) {
+    machine trim_carriage_return(main: &mut Main, count: u64) {
         transition count > 0 && count <= main.line.len {
             true -> inspect_carriage_return(main, count, count - 1)
             false -> parsed_input(main, count)
         }
     }
-    state inspect_carriage_return(main: &mut Main, count: u64, byte_index: u64) {
+    machine inspect_carriage_return(main: &mut Main, count: u64, byte_index: u64) {
         transition byte_index < main.line.len && main.line[byte_index] == 13 {
             true -> parsed_input(main, byte_index)
             false -> parsed_input(main, count)
         }
     }
 
-    state parsed_input(main: &mut Main, count: u64) {
+    machine parsed_input(main: &mut Main, count: u64) {
         main.command = Parser::resolve(&main.line, count);
 
         transition main.command {
@@ -76,17 +76,17 @@ machine Main::main(main: &mut Main) reaches Console {
 
     }
 
-    state look(main: &mut Main) {
+    machine look(main: &mut Main) {
         Console::write_line("look");
         Console::exit_process(0);
     }
 
-    state quit(main: &mut Main) {
+    machine quit(main: &mut Main) {
         Console::write_line("quit");
         Console::exit_process(0);
     }
 
-    state invalid(main: &mut Main) {
+    machine invalid(main: &mut Main) {
         Console::write_line("invalid");
         Console::exit_process(1);
     }

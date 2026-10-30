@@ -23,12 +23,12 @@ machine main() crashes Trap {
         ReadOutcome::Full { count } -> done()
         ReadOutcome::Invalid -> done()
     }
-    state later(line: &[u8; 64], count: u64) {
+    machine later(line: &[u8; 64], count: u64) {
         transition observe(line, count) == 42 {
             true -> done()
             false -> wrong()
         }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

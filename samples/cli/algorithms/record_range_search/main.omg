@@ -5,7 +5,7 @@ data Record { key: u64; address: u64; }
 
 machine bound(records: &[Record], key: u64, after_equal: bool) -> u64 {
     transition { _ -> search(records, key, after_equal, 0, records.len) }
-    state search(records: &[Record], key: u64, after_equal: bool,
+    machine search(records: &[Record], key: u64, after_equal: bool,
                  lower: u64, upper: u64) -> u64
     requires lower <= upper && upper <= records.len
     {
@@ -14,7 +14,7 @@ machine bound(records: &[Record], key: u64, after_equal: bool) -> u64 {
             false -> (lower)
         }
     }
-    state probe(records: &[Record], key: u64, after_equal: bool,
+    machine probe(records: &[Record], key: u64, after_equal: bool,
                 lower: u64, upper: u64) -> u64
     requires lower < upper && upper <= records.len
     {
@@ -49,6 +49,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

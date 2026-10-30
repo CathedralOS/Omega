@@ -20,10 +20,10 @@ invokes Console;
         true -> emit(event)
         false -> corrupt()
     }
-    state emit(event: u64) {
+    machine emit(event: u64) {
         number((event as i32 in Saturating) + 1);
     }
-    state corrupt() {
+    machine corrupt() {
         Console::write_line("INTERNAL: route event outside 0..3");
         Console::exit_process(70);
     }
@@ -62,11 +62,11 @@ invokes Console;
         true -> optimal(certificate)
         false -> infeasible()
     }
-    state infeasible() {
+    machine infeasible() {
         Console::write_line("INFEASIBLE");
         Console::exit_process(2);
     }
-    state optimal(certificate: &Certificate) {
+    machine optimal(certificate: &Certificate) {
         let head: RouteSpan = chosen_span(&certificate.best.route, 0);
         let head_length: u64 = head.events.len;
         let nested: Shelf = Shelf { span: chosen_span(&certificate.best.route, 1) };
@@ -81,11 +81,11 @@ invokes Console;
             false -> corrupt_span()
         }
     }
-    state corrupt_span() {
+    machine corrupt_span() {
         Console::write_line("INTERNAL: route window");
         Console::exit_process(70);
     }
-    state emit_optimal(certificate: &Certificate) {
+    machine emit_optimal(certificate: &Certificate) {
         Console::write_line("OPTIMAL distance_then_completion lexicographic_route");
         Console::write_line("distance"); number(certificate.best.distance);
         Console::write_line("completion"); number(certificate.best.time);

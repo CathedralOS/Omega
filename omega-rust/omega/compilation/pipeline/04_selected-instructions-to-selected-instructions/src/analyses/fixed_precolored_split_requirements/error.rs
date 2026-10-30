@@ -62,5 +62,3 @@ failed_display!(
     FixedPrecoloredSplitRequirementError,
     "fixed/precolored split-requirement analysis failed"
 );
-
-impl std::error::Error for FixedPrecoloredSplitRequirementError {}

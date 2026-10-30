@@ -26,6 +26,16 @@
 
 use super::*;
 
+/// Identity alone can join different source presentations. Memoize only an
+/// already admitted exact request, retaining its declaration telescope and
+/// substitutions; another presentation still checks its complete shape.
+#[derive(PartialEq, Eq)]
+struct TypeShapeRequest {
+    reference: TypeReferenceHandle,
+    binders: Vec<(SymbolHandle, String)>,
+    substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+}
+
 pub(crate) struct ShapeCollector<'program> {
     pub(in crate::execution::terminal_unit) program: &'program dyn ::validation::CheckingInput,
     pub(in crate::execution::terminal_unit) types:
@@ -33,7 +43,12 @@ pub(crate) struct ShapeCollector<'program> {
     pub(in crate::execution::terminal_unit) domains: Vec<CheckedUnitStructuralDomainPlan>,
     pub(in crate::execution::terminal_unit) cleanup_control:
         checked_trees::CheckedCleanupControlPlans,
+    // Compiler-owned handles select arena slots; the small bucket retains
+    // exact generation/telescope/substitution contexts for that source row.
+    // This is a collector-local query memo, never a semantic type identity.
+    completed_requests: Vec<Vec<(TypeShapeRequest, typed_trees::type_identity::TypeIdentityId)>>,
     in_progress: BTreeSet<typed_trees::type_identity::TypeIdentityId>,
+    domains_in_progress: BTreeSet<(u32, typed_trees::type_identity::TypeIdentityId)>,
     /// The element rows registered beside borrowed byte views. A byte
     /// carrier's plan keeps no element field, so `retain_transitive` follows
     /// this edge where it follows a `BorrowedSliceView`'s element identity.
@@ -52,7 +67,9 @@ impl<'program> ShapeCollector<'program> {
             types: BTreeMap::new(),
             domains: Vec::new(),
             cleanup_control: Default::default(),
+            completed_requests: Vec::new(),
             in_progress: BTreeSet::new(),
+            domains_in_progress: BTreeSet::new(),
             byte_view_elements: BTreeSet::new(),
             unselected_opaque: None,
         }
@@ -122,7 +139,11 @@ impl<'program> ShapeCollector<'program> {
         binders: &[(SymbolHandle, String)],
         stored_carrier: bool,
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
-        let definition = typed_trees::domain::domain_by_symbol(self.program, application.symbol)?;
+        let definition = self
+            .program
+            .typed_program()
+            .domain_definition_for_instance(application.symbol, application.semantic_id)
+            .or_else(|| typed_trees::domain::domain_by_symbol(self.program, application.symbol))?;
         let predicate = if application.arguments.is_empty()
             || validation::field_domains::domain_requires_provenance(
                 self.program,
@@ -180,7 +201,11 @@ impl<'program> ShapeCollector<'program> {
         binders: &[(SymbolHandle, String)],
         stored_carrier: bool,
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
-        let definition = typed_trees::domain::domain_by_symbol(self.program, selected_symbol)?;
+        let definition = self
+            .program
+            .typed_program()
+            .domain_definition_for_instance(selected_symbol, domain)
+            .or_else(|| typed_trees::domain::domain_by_symbol(self.program, selected_symbol))?;
         self.add_domain_definition(
             domain,
             carrier,
@@ -206,6 +231,25 @@ impl<'program> ShapeCollector<'program> {
             } else {
                 self.add_type(carrier, binders, &[])?
             };
+        let key = (domain.0, carrier_type_identity);
+        if self.domains_in_progress.contains(&key) {
+            return Some(carrier_type_identity);
+        }
+        let requirements = definition.and_then(|definition| {
+            typed_trees::domain::required_subject_memberships(
+                self.program.typed_program(),
+                definition,
+            )
+        });
+        let required_memberships = requirements.as_ref().map(|requirements| {
+            let mut domains = requirements
+                .iter()
+                .map(|membership| membership.semantic_domain)
+                .collect::<Vec<_>>();
+            domains.sort_by_key(|domain| domain.0);
+            domains.dedup();
+            domains
+        });
         let identity = self.program.semantic_domains.name(domain)?.to_owned();
         let establishment_routes = definition
             .map(|definition| definition.establishment_routes.clone())
@@ -220,7 +264,16 @@ impl<'program> ShapeCollector<'program> {
             .and_then(|definition| {
                 typed_trees::byte_predicates::domain_byte_predicate(self.program, definition.symbol)
             });
+        // A cross-artifact consumer cannot infer omitted source policies from
+        // an equal nominal name or an Inert carrier. Describe only a complete
+        // directly declared predicate/issuer theory; richer normalized theories
+        // keep their independent source owner until that vocabulary is retained.
+        let complete_predicate_theory = definition.is_some_and(|definition| {
+            validation::field_domains::domain_predicate_theory_is_complete(self.program, definition)
+        });
         let plan = CheckedUnitStructuralDomainPlan {
+            required_memberships,
+            complete_predicate_theory,
             predicate,
             byte_predicate,
             domain,
@@ -232,12 +285,13 @@ impl<'program> ShapeCollector<'program> {
         // contents under distinct access-bearing identities. Register the
         // selected theory for both presentations; this creates no membership
         // evidence and never applies a referent's theory to a stored pointer.
-        let stored_carrier = if validation::slice_view_shell(self.program, carrier, &[]).is_some() {
-            self.add_stored_type(carrier, binders, &[])?
-        } else {
-            carrier_type_identity
-        };
-        for identity in [carrier_type_identity, stored_carrier] {
+        let stored_carrier_identity =
+            if validation::slice_view_shell(self.program, carrier, &[]).is_some() {
+                self.add_stored_type(carrier, binders, &[])?
+            } else {
+                carrier_type_identity
+            };
+        for identity in [carrier_type_identity, stored_carrier_identity] {
             let mut presented = plan.clone();
             presented.carrier_type_identity = identity;
             if let Some(existing) = self.domains.iter().find(|existing| {
@@ -250,7 +304,21 @@ impl<'program> ShapeCollector<'program> {
                 self.domains.push(presented);
             }
         }
-        Some(carrier_type_identity)
+        self.domains_in_progress.insert(key);
+        let collected = requirements.as_ref().is_none_or(|requirements| {
+            requirements.iter().all(|membership| {
+                self.add_selected_domain(
+                    membership.semantic_domain,
+                    membership.domain_symbol,
+                    carrier,
+                    binders,
+                    stored_carrier,
+                )
+                .is_some()
+            })
+        });
+        self.domains_in_progress.remove(&key);
+        collected.then_some(carrier_type_identity)
     }
 
     pub(in crate::execution::terminal_unit) fn add_attached_data(
@@ -346,32 +414,10 @@ impl<'program> ShapeCollector<'program> {
         Some(identity)
     }
 
-    /// Read a const actual bound through a substitution as a usize array
-    /// length. Literal spellings are `Named` rows whose identity is the
-    /// decimal text; const-evaluated applications keep a `ConstExpression`.
-    fn const_length_reference_value(&self, reference: TypeReferenceHandle) -> Option<usize> {
-        match self.program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Named { name, .. } => name.as_str().parse::<usize>().ok(),
-            TypeReferenceNode::ConstExpression(expression) => usize::try_from(
-                self.program
-                    .expression_table
-                    .constant_integer_value(*expression)?,
-            )
-            .ok(),
-            _ => None,
-        }
-    }
-
     /// A const actual's extent: its literal, or the recipe a still-pending
     /// const-generic argument retains for the target closure.
     fn const_length_extent(&self, reference: TypeReferenceHandle) -> Option<CheckedExtent> {
-        if let Some(value) = self.const_length_reference_value(reference) {
-            return u64::try_from(value).ok().map(CheckedExtent::Literal);
-        }
-        let recipe = self
-            .program
-            .constant_recipe_for_const_application(reference);
-        recipe.is_valid().then_some(CheckedExtent::Recipe(recipe))
+        self.program.declared_constant_extent(reference)
     }
 
     /// Register an admitted reference carrier with its declared access.
@@ -388,11 +434,10 @@ impl<'program> ShapeCollector<'program> {
     /// A shared, mutable or write-only view spells
     /// its own type reference: the reference shell is the loan custody the
     /// plan carries, so unlike `add_type` it is retained as a `Reference`
-    /// shape over the peeled referee rather than peeled away. The accesses
-    /// admit different referees. An exclusive shell lends whatever it
-    /// borrows — a `&mut u8`, a `&mut Record` or a `&mut [T]` — while a
-    /// shared shell registers here only over a named or generic referee;
-    /// Stored slice descriptors register through `add_stored_type`.
+    /// shape over its exact stored referee rather than peeled away. Each
+    /// reference edge retains its own access; shape collection grants neither
+    /// a pointee read nor its ownership. Stored slice descriptors register
+    /// through `add_stored_type`.
     pub(in crate::execution::terminal_unit) fn add_view_type(
         &mut self,
         reference: TypeReferenceHandle,
@@ -404,7 +449,7 @@ impl<'program> ShapeCollector<'program> {
         // shape is distinct from the pointer carrier recorded above; stored
         // reference fields do not recursively demand their targets' storage.
         let shell = validation::reference_shell(self.program, reference)?;
-        self.add_type(shell.referee, binders, &[])?;
+        self.add_stored_type(shell.referee, binders, &[])?;
         Some(identity)
     }
 
@@ -415,6 +460,9 @@ impl<'program> ShapeCollector<'program> {
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
         access: language_semantics::ReferenceAccess,
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
+        if !validation::structural_storage_type(self.program, reference, substitutions).is_valid() {
+            return None;
+        }
         let shell = validation::reference_shell(self.program, reference)?;
         if shell.access != access {
             return None;
@@ -422,9 +470,32 @@ impl<'program> ShapeCollector<'program> {
         // A stored pointer does not depend on the referent's source family.
         // Storage demands collect that referent independently; classifying it
         // as a named view here would reject fixed-array backing during cleanup.
-        let referee = shell.referee;
-        let referent_identity =
-            validation::structural_type_identity(self.program, referee, binders, substitutions);
+        let referee = substituted_formal_type(self.program, shell.referee, substitutions);
+        let referent_identity = validation::stored_structural_type_identity(
+            self.program,
+            referee,
+            binders,
+            substitutions,
+        );
+        // A pointer to another pointer preserves that descriptor edge. Do not
+        // recursively expand nominal pointees: only the finite reference chain
+        // is required by this physical carrier. Repeated identities fail closed.
+        if validation::reference_shell(self.program, referee).is_some() {
+            let identity = validation::stored_structural_type_identity(
+                self.program,
+                reference,
+                binders,
+                substitutions,
+            );
+            if !self.in_progress.insert(identity) {
+                return None;
+            }
+            let collected = self.add_stored_type(referee, binders, substitutions);
+            self.in_progress.remove(&identity);
+            if collected != Some(referent_identity) {
+                return None;
+            }
+        }
         self.add_reference_shape(
             reference,
             binders,
@@ -550,18 +621,7 @@ impl<'program> ShapeCollector<'program> {
             return Some(identity);
         }
         if validation::stores_reference_shape(self.program, reference, substitutions) {
-            structural_access_for_type_reference(self.program, reference)?;
             let shell = validation::reference_shell(self.program, reference)?;
-            let referee = substituted_formal_type(self.program, shell.referee, substitutions);
-            if matches!(
-                self.program.type_reference_table.type_reference(referee),
-                TypeReferenceNode::Reference { .. }
-            ) {
-                // Nested reference shells must not collapse after substitution.
-                // Referent domains belong to occurrence-relative Referent
-                // qualification rows, not the descriptor's type or root.
-                return None;
-            }
             return self.add_view_type_for_substitutions(
                 reference,
                 binders,
@@ -572,19 +632,93 @@ impl<'program> ShapeCollector<'program> {
         self.add_type(reference, binders, substitutions)
     }
 
+    /// Demand a source root's logical presentation without treating a view
+    /// descriptor as by-value unsized backing. Stored pointers contribute
+    /// physical crossings; a view already presents its elements implicitly.
+    /// The finite type graph bounds this geometry walk and grants no access.
+    pub(in crate::execution::terminal_unit) fn add_logical_type(
+        &mut self,
+        mut reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
+        if !validation::structural_storage_type(self.program, reference, substitutions).is_valid() {
+            return None;
+        }
+        for _ in 0..=self.program.type_reference_table.type_reference_count() {
+            reference = substituted_formal_type(self.program, reference, substitutions);
+            let Some(shell) = validation::reference_shell(self.program, reference) else {
+                return self.add_type(reference, binders, substitutions);
+            };
+            if !validation::stores_reference_shape(self.program, reference, substitutions) {
+                return self.add_type(reference, binders, substitutions);
+            }
+            reference = shell.referee;
+        }
+        None
+    }
+
     pub(in crate::execution::terminal_unit) fn add_type(
         &mut self,
         type_reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
+        let slot = type_reference.arena_index() as usize;
+        if let Some(identity) = self.completed_requests.get(slot).and_then(|contexts| {
+            contexts.iter().find_map(|(candidate, identity)| {
+                (candidate.reference == type_reference
+                    && candidate.binders == binders
+                    && candidate.substitutions == substitutions)
+                    .then_some(*identity)
+            })
+        }) && self.types.contains_key(&identity)
+        {
+            return (!self.in_progress.contains(&identity)).then_some(identity);
+        }
+        let identity = self.collect_type(type_reference, binders, substitutions)?;
+        let request = TypeShapeRequest {
+            reference: type_reference,
+            binders: binders.to_vec(),
+            substitutions: substitutions.to_vec(),
+        };
+        // Only an admitted request can grow the arena slots: an invalid
+        // source handle must decline without allocating its numeric index.
+        if self.completed_requests.len() <= slot {
+            self.completed_requests.resize_with(slot + 1, Vec::new);
+        }
+        self.completed_requests[slot].push((request, identity));
+        Some(identity)
+    }
+
+    fn collect_type(
+        &mut self,
+        type_reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
+        // A borrowed occurrence erases its outer access edge once. Its storage
+        // may itself be a reference, which occupies a descriptor rather than
+        // inline backing. Register the same stored shape used by fields/results.
+        let storage =
+            validation::structural_storage_type(self.program, type_reference, substitutions);
+        if !storage.is_valid() {
+            return None;
+        }
+        if validation::reference_shell(self.program, storage).is_some() {
+            let identity = self.add_stored_type(storage, binders, substitutions)?;
+            // A root demand also retains the final backing's independent
+            // geometry; this does not expand every stored nominal pointer.
+            self.add_logical_type(storage, binders, substitutions)?;
+            return Some(identity);
+        }
         // Usage multiplicity permits repeated exclusive-reference access; it
         // does not permit copying that descriptor, including inside an array.
         // Ask the same declared-property owner as stored-value copy planning.
         let copyable = validation::type_satisfies_declared_property(
             self.program,
             &[],
-            validation::structural_identity_type(self.program, type_reference, substitutions),
+            validation::structural_storage_type(self.program, type_reference, substitutions),
             validation::DeclaredPropertyRequirement::Copy,
         );
         // One identity names one plan for the whole module, and lowering
@@ -600,13 +734,13 @@ impl<'program> ShapeCollector<'program> {
         );
         let no_code_affine_cleanup = validation::has_contents(
             self.program,
-            validation::structural_identity_type(self.program, type_reference, substitutions),
+            validation::structural_storage_type(self.program, type_reference, substitutions),
             substitutions,
             validation::ContentsRequirement::RepresentedOwned,
         );
         let descriptor_cleanup = validation::has_contents(
             self.program,
-            validation::structural_identity_type(self.program, type_reference, substitutions),
+            validation::structural_storage_type(self.program, type_reference, substitutions),
             substitutions,
             validation::ContentsRequirement::DescriptorCleanup,
         );
@@ -710,7 +844,7 @@ impl<'program> ShapeCollector<'program> {
         // loan. Scalar receiving restrictions retain their own identity and
         // declaration; membership-only qualifications remain separate.
         let type_reference =
-            validation::structural_identity_type(self.program, type_reference, substitutions);
+            validation::structural_storage_type(self.program, type_reference, substitutions);
         // The same nonconstructible carrier can be a field, a parameter or
         // reference backing. Storage collection must not depend on which
         // owner first demanded its shape. Occurrence closure and established
@@ -773,7 +907,9 @@ impl<'program> ShapeCollector<'program> {
                     substitution_for(substitutions, *symbol)
                         .and_then(|replacement| self.const_length_extent(replacement))
                 }
-                typed_trees::types::FixedArrayLength::Expression(_) => None,
+                typed_trees::types::FixedArrayLength::Expression(argument) => {
+                    self.const_length_extent(*argument)
+                }
                 typed_trees::types::FixedArrayLength::ConstCall { .. } => {
                     let recipe = self
                         .program
@@ -1240,13 +1376,18 @@ impl<'program> ShapeCollector<'program> {
         // shell, not reach add_type's referent-oriented fallback as plain T.
         let field_type_reference =
             substituted_formal_type(self.program, field.type_reference, substitutions);
+        let receiving_type_identity = self.program.type_identity(TypeIdentityRequest {
+            binders,
+            substitutions,
+            ..TypeIdentityRequest::ordinary(field_type_reference)
+        });
+        if !receiving_type_identity.is_valid() {
+            return None;
+        }
+        let mut byte_sequence_type_identity = Default::default();
         let field_type = if field.relevance.is_erased() {
             CheckedUnitStructuralFieldType::Erased {
-                type_identity: self.program.type_identity(TypeIdentityRequest {
-                    binders,
-                    substitutions,
-                    ..TypeIdentityRequest::ordinary(field_type_reference)
-                }),
+                type_identity: receiving_type_identity,
             }
         } else if let Some((binding_carrier, provider_node)) =
             provider_backed_field(self.program, field_type_reference)
@@ -1277,7 +1418,8 @@ impl<'program> ShapeCollector<'program> {
                 )
             })
         {
-            self.add_type(field_type_reference, binders, substitutions)?;
+            byte_sequence_type_identity =
+                self.add_type(field_type_reference, binders, substitutions)?;
             let declared = typed_trees::byte_predicates::type_reference_domain_predicates(
                 self.program,
                 field_type_reference,
@@ -1348,6 +1490,8 @@ impl<'program> ShapeCollector<'program> {
             && matches!(
                 field_type,
                 CheckedUnitStructuralFieldType::Structural { .. }
+                    | CheckedUnitStructuralFieldType::BoundedInteger(_)
+                    | CheckedUnitStructuralFieldType::RefinedScalar { .. }
                     | CheckedUnitStructuralFieldType::ByteSequence(_)
                     | CheckedUnitStructuralFieldType::PredicateByteSequence { .. }
             )
@@ -1358,29 +1502,28 @@ impl<'program> ShapeCollector<'program> {
                 field_type_reference,
                 binders,
             )?;
-            // A structural field's carrier is its own retained type; a byte
-            // field names none, so its plan carries the carriers instead.
-            if field_type.byte_sequence_carrier().is_some() {
+            // Structural children retain their own type. Inline scalar and
+            // byte restrictions keep the exact qualification carrier here,
+            // independently of their physical scalar/byte representation.
+            if !matches!(
+                field_type,
+                CheckedUnitStructuralFieldType::Structural { .. }
+            ) {
                 for (_, carrier) in carriers {
-                    if !qualification_carriers.contains(&carrier) {
-                        qualification_carriers.push(carrier);
-                    }
+                    crate::collections::push_unique(&mut qualification_carriers, carrier);
                 }
             }
         }
         Some(CheckedUnitStructuralFieldPlan {
             type_reference: field_type_reference,
-            receiving_type_identity: self.program.type_identity(TypeIdentityRequest {
-                binders,
-                substitutions,
-                ..TypeIdentityRequest::ordinary(field_type_reference)
-            }),
+            receiving_type_identity,
             identity: checked_trees::CheckedMemberIdentity::of_member(
                 field.identity,
                 field.name.clone(),
             ),
             relevance: field.relevance,
             field_type,
+            byte_sequence_type_identity,
             storage: None,
             qualification_carriers,
         })
@@ -1543,6 +1686,10 @@ impl<'program> ShapeCollector<'program> {
                 break;
             }
         }
+        // A completed request may also have registered logical backing and
+        // domain rows beyond its stored identity. Pruning ends that collection
+        // epoch; a later demand must re-establish its complete footprint.
+        self.completed_requests.clear();
         self.types.retain(|identity, _| retained.contains(identity));
         self.domains
             .retain(|domain| retained.contains(&domain.carrier_type_identity));

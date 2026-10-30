@@ -102,6 +102,9 @@ impl IdentityMap {
                 for case in cases {
                     case.target = self.target(case.edge, case.target);
                     case.edge = self.edge(case.edge);
+                    for argument in &mut case.structural_arguments {
+                        self.argument(argument);
+                    }
                     self.cleanup(&mut case.cleanup_actions);
                 }
             }
@@ -153,6 +156,40 @@ impl IdentityMap {
                     *claim = self.claim(*claim);
                 }
                 frontier_lower_bound.sort();
+            }
+            Terminator::InvokeNoNormal {
+                edge,
+                arguments,
+                erased_arguments,
+                erased_proof_arguments,
+                structural_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+                ..
+            } => {
+                *edge = self.edge(*edge);
+                for argument in arguments {
+                    *argument = self.value(*argument);
+                }
+                for argument in erased_arguments {
+                    self.scalar_term(argument);
+                }
+                for argument in erased_proof_arguments {
+                    self.proof_term(argument);
+                }
+                for argument in structural_arguments {
+                    self.argument(argument);
+                }
+                for transfer in claim_transfers.iter_mut() {
+                    transfer.claim = self.claim(transfer.claim);
+                    self.path(&mut transfer.path);
+                }
+                claim_transfers.sort();
+                for obligation in requirement_obligations {
+                    *obligation = self.obligation(*obligation);
+                }
+                self.crash_routes(crash_continuations)?;
             }
             Terminator::ExternalCompletion {
                 edge,

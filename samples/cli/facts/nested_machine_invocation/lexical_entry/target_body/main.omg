@@ -1,0 +1,51 @@
+// Every call to entry names the visible machine and supplies all three declared parameters.
+// Expected exit: 0
+data Note { value: u64; tag: u64; nonce: u64; }
+windows_x86_64 machine probe(value: u64, select: bool) -> Note {
+    next(value, select)
+    machine next(value: u64, select: bool) -> Note {
+        transition { _ -> entry(value, select, 17) }
+    }
+    machine entry(value: u64, select: bool, nonce: u64) -> Note {
+        let tag: u64 = match select { true -> 11, false -> 13 };
+        Note { value: value, tag: tag, nonce: nonce }
+    }
+}
+linux_x86_64 machine probe(value: u64, select: bool) -> Note {
+    next(value, select)
+    machine next(value: u64, select: bool) -> Note {
+        transition { _ -> entry(value, select, 17) }
+    }
+    machine entry(value: u64, select: bool, nonce: u64) -> Note {
+        let tag: u64 = match select { true -> 11, false -> 13 };
+        Note { value: value, tag: tag, nonce: nonce }
+    }
+}
+linux_arm64 machine probe(value: u64, select: bool) -> Note {
+    next(value, select)
+    machine next(value: u64, select: bool) -> Note {
+        transition { _ -> entry(value, select, 17) }
+    }
+    machine entry(value: u64, select: bool, nonce: u64) -> Note {
+        let tag: u64 = match select { true -> 11, false -> 13 };
+        Note { value: value, tag: tag, nonce: nonce }
+    }
+}
+macos_arm64 machine probe(value: u64, select: bool) -> Note {
+    next(value, select)
+    machine next(value: u64, select: bool) -> Note {
+        transition { _ -> entry(value, select, 17) }
+    }
+    machine entry(value: u64, select: bool, nonce: u64) -> Note {
+        let tag: u64 = match select { true -> 11, false -> 13 };
+        Note { value: value, tag: tag, nonce: nonce }
+    }
+}
+machine main() crashes Trap {
+    let first: Note = probe(7, true);
+    let second: Note = probe(9, false);
+    transition first.value == 7 && first.tag == 11 && first.nonce == 17 && second.value == 9 && second.tag == 13 && second.nonce == 17 {
+        true -> done() false -> bad()
+    }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}

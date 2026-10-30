@@ -46,10 +46,10 @@ public machine valid(assembly: &Assembly) -> bool {
         true -> scan(assembly, 0)
         false -> (false)
     }
-    state scan(assembly: &Assembly, index: u32) -> bool {
+    machine scan(assembly: &Assembly, index: u32) -> bool {
         transition index < 3 { true -> item(assembly, index) false -> (true) }
     }
-    state item(assembly: &Assembly, index: u32) -> bool requires index < 3 {
+    machine item(assembly: &Assembly, index: u32) -> bool requires index < 3 {
         let value: Contributor = assembly.contributors[index];
         transition bounded(value.nominal, 1000) && value.tolerance >= 0 && value.tolerance <= 100
             && bounded(value.thermal, 10) && bounded(value.gauge_a, 10) && bounded(value.gauge_b, 10) {
@@ -83,7 +83,7 @@ public machine upper_choice(coefficient: i32 in Saturating, low: i32 in Saturati
 public machine calculate(assembly: &Assembly, audit: &mut Audit) {
     let span: u32 = contributor_span(&assembly.contributors);
     transition span == 3 { true -> begin(assembly, audit) false -> uncounted(audit) }
-    state begin(assembly: &Assembly, audit: &mut Audit) {
+    machine begin(assembly: &Assembly, audit: &mut Audit) {
         audit.nominal = 0;
         audit.radius = 0;
         audit.thermal = 0;
@@ -91,11 +91,11 @@ public machine calculate(assembly: &Assembly, audit: &mut Audit) {
         audit.gauge_b = 0;
         transition { _ -> scan(assembly, audit, 0) }
     }
-    state uncounted(audit: &mut Audit) { audit.status = 0; }
-    state scan(assembly: &Assembly, audit: &mut Audit, index: u32) {
+    machine uncounted(audit: &mut Audit) { audit.status = 0; }
+    machine scan(assembly: &Assembly, audit: &mut Audit, index: u32) {
         transition index < 3 { true -> add(assembly, audit, index) false -> endpoints(assembly, audit) }
     }
-    state add(assembly: &Assembly, audit: &mut Audit, index: u32) requires index < 3 {
+    machine add(assembly: &Assembly, audit: &mut Audit, index: u32) requires index < 3 {
         let value: Contributor = assembly.contributors[index];
         audit.nominal = audit.nominal + value.nominal;
         audit.radius = audit.radius + value.tolerance;
@@ -104,7 +104,7 @@ public machine calculate(assembly: &Assembly, audit: &mut Audit) {
         audit.gauge_b = audit.gauge_b + value.gauge_b;
         transition { _ -> scan(assembly, audit, index + 1) }
     }
-    state endpoints(assembly: &Assembly, audit: &mut Audit) {
+    machine endpoints(assembly: &Assembly, audit: &mut Audit) {
         let temperature_low: i32 in Saturating = lower_choice(audit.thermal, assembly.temperature_low, assembly.temperature_high);
         let temperature_high: i32 in Saturating = upper_choice(audit.thermal, assembly.temperature_low, assembly.temperature_high);
         let a_low: i32 in Saturating = lower_choice(audit.gauge_a, assembly.gauge_a_low, assembly.gauge_a_high);
@@ -118,13 +118,13 @@ public machine calculate(assembly: &Assembly, audit: &mut Audit) {
             false -> overlap(assembly, audit)
         }
     }
-    state guaranteed(audit: &mut Audit) { audit.status = 1; }
-    state overlap(assembly: &Assembly, audit: &mut Audit) {
+    machine guaranteed(audit: &mut Audit) { audit.status = 1; }
+    machine overlap(assembly: &Assembly, audit: &mut Audit) {
         transition audit.high < assembly.fit_low || audit.low > assembly.fit_high {
             true -> impossible(audit)
             false -> conditional(audit)
         }
     }
-    state impossible(audit: &mut Audit) { audit.status = 3; }
-    state conditional(audit: &mut Audit) { audit.status = 2; }
+    machine impossible(audit: &mut Audit) { audit.status = 3; }
+    machine conditional(audit: &mut Audit) { audit.status = 2; }
 }

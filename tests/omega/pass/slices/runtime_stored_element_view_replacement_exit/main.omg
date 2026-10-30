@@ -8,7 +8,7 @@ machine replace<'input>(window: &'input mut Window<'input>, position: u64, repla
         true -> store(window, position, replacement)
         false -> (&mut window.values[..0])
     }
-    state store(window: &'input mut Window<'input>, position: u64, replacement: Cell)
+    machine store(window: &'input mut Window<'input>, position: u64, replacement: Cell)
         -> &'input mut [Cell]
     requires position < window.values.len {
         window.values[position] = replacement;
@@ -21,7 +21,7 @@ machine observe(values: &[Cell]) -> bool {
         true -> inspect(values)
         false -> false
     }
-    state inspect(values: &[Cell]) -> bool requires values.len == 2 {
+    machine inspect(values: &[Cell]) -> bool requires values.len == 2 {
         values[0].value == 7 && values[0].tag == 17
             && values[1].value == 42 && values[1].tag == 9223372036854775808
     }
@@ -42,6 +42,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -234,16 +234,30 @@ pub fn schema_binds_exact_boundary_requirement(
     requirement: &checked_trees::typed_trees::machine::Machine,
 ) -> bool {
     let program = context.typed;
-    context.contains(requirement.symbol)
-        && requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-        && program.symbols.symbol_package_identity(requirement.symbol)
-            == schema.trait_package_identity
-        && from_typed_boundary_requirement(context, requirement).is_some_and(|candidate| {
-            // Ids only carry meaning inside the table that minted them;
-            // the candidate interns in its own table, so compare the
-            // resolved text, never the raw ids.
-            candidate.identity_text(candidate.trait_name) == schema.identity_text(schema.trait_name)
-        })
+    if !context.contains(requirement.symbol)
+        || !requirement.symbol.is_valid()
+        || requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
+        || requirement.body_is_present
+        || program.symbols.symbol_package_identity(requirement.symbol)
+            != schema.trait_package_identity
+    {
+        return false;
+    }
+    let schema_trait_name = schema.identity_text(schema.trait_name);
+    if requirement.spelling.is_some() {
+        let target_id = program.callable_identity_by_text(schema_trait_name);
+        if !target_id.is_valid() || program.machine_callable_identity(requirement) != target_id {
+            return false;
+        }
+    } else if program.symbols.display_path(requirement.symbol, "::") != schema_trait_name {
+        return false;
+    }
+    from_typed_boundary_requirement(context, requirement).is_some_and(|candidate| {
+        // Ids only carry meaning inside the table that minted them;
+        // the candidate interns in its own table, so compare the
+        // resolved text, never the raw ids.
+        candidate.identity_text(candidate.trait_name) == schema_trait_name
+    })
 }
 
 /// Reify one exact explicit top-level boundary requirement as a
@@ -721,7 +735,7 @@ fn append_bodyless_result_claims(
         boundary_trait,
         requirement,
         &mut |_, domain| {
-            if domain.predicate_body != language_semantics::DomainPredicateBody::Bodyless {
+            if domain.predicate_presence != language_semantics::DomainPredicatePresence::Absent {
                 return;
             }
             claims.push(ServiceResultClaim {
@@ -755,7 +769,7 @@ fn append_routed_entry_claims(
                         .unwrap_or_default(),
                 ),
                 domain: domain_claim_name(program, domain),
-                predicate_body: domain.predicate_body,
+                predicate_presence: domain.predicate_presence,
                 effective_carry: language_semantics::CarryPolicy::STRICT,
                 authority_flow: ServiceEntryAuthorityFlow::Accepts,
             });

@@ -5,6 +5,7 @@ mod validation;
 use super::{
     PackagePolicyCallbacks, PackagePolicyCallingOpaqueUse, PackagePolicyPhysicalCallingContract,
 };
+use crate::record::accessors::field_projection_accessors;
 use crate::record::{
     PackagePolicyTypeParameter, PackageReviewBoundaryShapeGraph, PackageReviewNominalIdentity,
     PackageReviewRepresentationTarget, PackageReviewTypeIdentity,
@@ -64,60 +65,26 @@ pub(crate) enum PackagePolicyNativeParameterOrigin {
 }
 
 impl PackagePolicyCallingPlan {
-    pub const fn boundary_trait(&self) -> &PackageReviewNominalIdentity {
-        &self.boundary_trait
-    }
-    pub fn boundary_arguments(&self) -> &[PackageReviewTypeIdentity] {
-        &self.boundary_arguments
-    }
-    pub fn boundary_lifetime_arguments(&self) -> &[u32] {
-        &self.boundary_lifetime_arguments
-    }
-    pub const fn application_lifetime_parameter_count(&self) -> u32 {
-        self.application_lifetime_parameter_count
-    }
-    pub const fn boundary_lifetime_parameter_count(&self) -> u32 {
-        self.boundary_lifetime_parameter_count
-    }
-    pub const fn requirement(&self) -> &PackageReviewNominalIdentity {
-        &self.requirement
-    }
-    pub const fn requirement_trait(&self) -> &PackageReviewNominalIdentity {
-        &self.requirement_trait
-    }
-    pub fn requirement_arguments(&self) -> &[PackageReviewTypeIdentity] {
-        &self.requirement_arguments
-    }
-    pub fn requirement_lifetime_arguments(&self) -> &[u32] {
-        &self.requirement_lifetime_arguments
-    }
-    pub const fn requirement_lifetime_parameter_count(&self) -> u32 {
-        self.requirement_lifetime_parameter_count
-    }
-    pub fn static_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.static_parameters
-    }
-    pub const fn target(&self) -> &PackageReviewRepresentationTarget {
-        &self.target
-    }
-    pub const fn shape_graph(&self) -> &PackageReviewBoundaryShapeGraph {
-        &self.shape_graph
-    }
-    pub const fn semantic_result(&self) -> Option<&PackageReviewTypeIdentity> {
-        self.semantic_result.as_ref()
-    }
-    pub fn native_parameters(&self) -> &[PackagePolicyNativeParameter] {
-        &self.native_parameters
-    }
-    pub const fn callbacks(&self) -> &PackagePolicyCallbacks {
-        &self.callbacks
-    }
+    field_projection_accessors!(sliced static_parameters: &[PackagePolicyTypeParameter]);
+    field_projection_accessors!(borrowed boundary_trait: &PackageReviewNominalIdentity);
+    field_projection_accessors!(sliced boundary_arguments: &[PackageReviewTypeIdentity]);
+    field_projection_accessors!(sliced boundary_lifetime_arguments: &[u32]);
+    field_projection_accessors!(copied application_lifetime_parameter_count: u32);
+    field_projection_accessors!(copied boundary_lifetime_parameter_count: u32);
+    field_projection_accessors!(borrowed requirement: &PackageReviewNominalIdentity);
+    field_projection_accessors!(borrowed requirement_trait: &PackageReviewNominalIdentity);
+    field_projection_accessors!(sliced requirement_arguments: &[PackageReviewTypeIdentity]);
+    field_projection_accessors!(sliced requirement_lifetime_arguments: &[u32]);
+    field_projection_accessors!(copied requirement_lifetime_parameter_count: u32);
+    field_projection_accessors!(borrowed target: &PackageReviewRepresentationTarget);
+    field_projection_accessors!(borrowed shape_graph: &PackageReviewBoundaryShapeGraph);
+    field_projection_accessors!(optional semantic_result: Option<&PackageReviewTypeIdentity>);
+    field_projection_accessors!(sliced native_parameters: &[PackagePolicyNativeParameter]);
+    field_projection_accessors!(borrowed callbacks: &PackagePolicyCallbacks);
     pub(crate) fn opaque_uses(&self) -> &[PackagePolicyCallingOpaqueUse] {
         &self.opaque_uses
     }
-    pub const fn physical(&self) -> &PackagePolicyPhysicalCallingContract {
-        &self.physical
-    }
+    field_projection_accessors!(borrowed physical: &PackagePolicyPhysicalCallingContract);
 }
 
 impl PackagePolicyCallingParameter {}

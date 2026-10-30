@@ -26,7 +26,7 @@ requires
     n < 1000,
 {
     transition { _ -> store(bound, n) }
-    state store(bound [erased]: i32, n: i32) -> i32
+    machine store(bound [erased]: i32, n: i32) -> i32
     requires
         n < bound,
         n >= 0,
@@ -46,6 +46,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -83,12 +83,12 @@ machine scope(mut room: Room, mut tag: Tag)
 requires room.count == 10
 reaches Console crashes Trap {
  transition { _ -> observe(&mut room, &mut tag) }
- state observe(room: &mut Room, tag: &mut Tag) {
+ machine observe(room: &mut Room, tag: &mut Tag) {
   let newest: Tag = Tag { byte: 67 };
   Console::write_byte(79);
   transition room.count == 10 && tag.byte == 69 { true -> done() false -> bad() }
  }
- state done() {} state bad() { crash Trap; }
+ machine done() {} machine bad() { crash Trap; }
 }
 data Main {} machine Main::main(main: &mut Main) reaches Console crashes Trap { scope(Room { count: 10 }, Tag { byte: 69 }); }
 

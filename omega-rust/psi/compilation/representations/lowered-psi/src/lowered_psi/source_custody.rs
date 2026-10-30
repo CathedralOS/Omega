@@ -1,6 +1,6 @@
 //! Ephemeral source joins retained alongside, never inside, portable Terminal artifacts.
 
-pub use semantic_vocabulary::BoundaryInvocationSite as LoweredSourceCallSite;
+pub use semantic_vocabulary::InvocationSite as LoweredSourceCallSite;
 use semantic_vocabulary::{BlockId, MachineId, OperationId};
 use terminal_psi::ValueDeclaration;
 
@@ -174,6 +174,9 @@ pub struct LoweredSourceCallOccurrence {
     pub statement_index: usize,
     pub call_ordinal: usize,
     pub terminal_site: LoweredSourceCallSite,
+    /// Ordinary direct-module calls retain the selected checked state for this
+    /// coordinate. Authored/public identities remain in the checked flow row.
+    /// Boundary and dynamic calls retain their own selected declaration identity.
     pub source_target: symbols::SymbolHandle,
     /// Exact storage bindings and claim identities immediately before this call.
     /// A missing source position has no storage join, never a shifted or fabricated value.

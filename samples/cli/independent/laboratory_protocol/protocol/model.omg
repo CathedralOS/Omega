@@ -19,7 +19,7 @@ public machine Laboratory::apply(laboratory: &mut Laboratory, operation: i32, ar
         true -> dispatch(laboratory, operation, argument)
         false -> invalid()
     }
-    state dispatch(laboratory: &mut Laboratory, operation: i32, argument: i32 in Saturating) -> i32 {
+    machine dispatch(laboratory: &mut Laboratory, operation: i32, argument: i32 in Saturating) -> i32 {
         transition operation {
             79 -> lid(laboratory, argument)
             84 -> tick(laboratory, argument)
@@ -32,37 +32,37 @@ public machine Laboratory::apply(laboratory: &mut Laboratory, operation: i32, ar
             _ -> invalid()
         }
     }
-    state acquire(laboratory: &mut Laboratory, argument: i32 in Saturating) -> i32 {
+    machine acquire(laboratory: &mut Laboratory, argument: i32 in Saturating) -> i32 {
         transition argument == 1 || argument == 2 {
             true -> available(laboratory, argument)
             false -> invalid()
         }
     }
-    state available(laboratory: &mut Laboratory, argument: i32 in Saturating) -> i32 {
+    machine available(laboratory: &mut Laboratory, argument: i32 in Saturating) -> i32 {
         transition laboratory.owner == 0 {
             true -> reserve(laboratory, argument)
             false -> conflict()
         }
     }
-    state reserve(laboratory: &mut Laboratory, argument: i32 in Saturating) -> i32 {
+    machine reserve(laboratory: &mut Laboratory, argument: i32 in Saturating) -> i32 {
         laboratory.owner = argument as i32;
         laboratory.phase = 1;
         laboratory.elapsed = 0;
         transition { _ -> 0 }
     }
-    state owned(laboratory: &mut Laboratory, operation: i32, argument: i32 in Saturating) -> i32 {
+    machine owned(laboratory: &mut Laboratory, operation: i32, argument: i32 in Saturating) -> i32 {
         transition argument == 1 || argument == 2 {
             true -> owner_check(laboratory, operation, argument)
             false -> invalid()
         }
     }
-    state owner_check(laboratory: &mut Laboratory, operation: i32, argument: i32 in Saturating) -> i32 {
+    machine owner_check(laboratory: &mut Laboratory, operation: i32, argument: i32 in Saturating) -> i32 {
         transition laboratory.owner == argument {
             true -> action(laboratory, operation)
             false -> conflict()
         }
     }
-    state action(laboratory: &mut Laboratory, operation: i32) -> i32 {
+    machine action(laboratory: &mut Laboratory, operation: i32) -> i32 {
         transition operation {
             76 -> load(laboratory)
             83 -> start(laboratory)
@@ -71,109 +71,109 @@ public machine Laboratory::apply(laboratory: &mut Laboratory, operation: i32, ar
             _ -> recover(laboratory)
         }
     }
-    state load(laboratory: &mut Laboratory) -> i32 {
+    machine load(laboratory: &mut Laboratory) -> i32 {
         transition laboratory.phase == 1 {
             true -> loaded(laboratory)
             false -> wrong_phase()
         }
     }
-    state loaded(laboratory: &mut Laboratory) -> i32 {
+    machine loaded(laboratory: &mut Laboratory) -> i32 {
         laboratory.phase = 2;
         transition { _ -> 1 }
     }
-    state start(laboratory: &mut Laboratory) -> i32 {
+    machine start(laboratory: &mut Laboratory) -> i32 {
         transition laboratory.phase == 2 {
             true -> interlock(laboratory)
             false -> wrong_phase()
         }
     }
-    state interlock(laboratory: &mut Laboratory) -> i32 {
+    machine interlock(laboratory: &mut Laboratory) -> i32 {
         transition laboratory.closed {
             true -> running(laboratory)
             false -> open_interlock()
         }
     }
-    state running(laboratory: &mut Laboratory) -> i32 {
+    machine running(laboratory: &mut Laboratory) -> i32 {
         laboratory.phase = 3;
         laboratory.elapsed = 0;
         transition { _ -> 2 }
     }
-    state finish(laboratory: &mut Laboratory) -> i32 {
+    machine finish(laboratory: &mut Laboratory) -> i32 {
         transition laboratory.phase == 3 {
             true -> completed(laboratory)
             false -> wrong_phase()
         }
     }
-    state completed(laboratory: &mut Laboratory) -> i32 {
+    machine completed(laboratory: &mut Laboratory) -> i32 {
         laboratory.phase = 5;
         laboratory.owner = 0;
         laboratory.completed = laboratory.completed + 1;
         transition { _ -> 4 }
     }
-    state cancel(laboratory: &mut Laboratory) -> i32 {
+    machine cancel(laboratory: &mut Laboratory) -> i32 {
         transition laboratory.phase >= 1 && laboratory.phase <= 3 {
             true -> abort(laboratory, 5)
             false -> wrong_phase()
         }
     }
-    state recover(laboratory: &mut Laboratory) -> i32 {
+    machine recover(laboratory: &mut Laboratory) -> i32 {
         transition laboratory.phase == 4 {
             true -> recovered(laboratory)
             false -> wrong_phase()
         }
     }
-    state recovered(laboratory: &mut Laboratory) -> i32 {
+    machine recovered(laboratory: &mut Laboratory) -> i32 {
         laboratory.owner = 0;
         laboratory.phase = 0;
         laboratory.elapsed = 0;
         transition { _ -> 6 }
     }
-    state tick(laboratory: &mut Laboratory, argument: i32 in Saturating) -> i32 {
+    machine tick(laboratory: &mut Laboratory, argument: i32 in Saturating) -> i32 {
         transition argument >= 1 && argument <= 9 {
             true -> ticking(laboratory, argument)
             false -> invalid()
         }
     }
-    state ticking(laboratory: &mut Laboratory, argument: i32 in Saturating) -> i32 {
+    machine ticking(laboratory: &mut Laboratory, argument: i32 in Saturating) -> i32 {
         transition laboratory.phase == 3 {
             true -> advance(laboratory, argument)
             false -> wrong_phase()
         }
     }
-    state advance(laboratory: &mut Laboratory, argument: i32 in Saturating) -> i32 {
+    machine advance(laboratory: &mut Laboratory, argument: i32 in Saturating) -> i32 {
         laboratory.elapsed = laboratory.elapsed + argument;
         transition laboratory.elapsed >= 5 {
             true -> expire(laboratory)
             false -> advanced()
         }
     }
-    state expire(laboratory: &mut Laboratory) -> i32 {
+    machine expire(laboratory: &mut Laboratory) -> i32 {
         // Time is clipped at the exact deadline, even for a nine-tick command.
         laboratory.elapsed = 5;
         transition { _ -> abort(laboratory, 11) }
     }
-    state lid(laboratory: &mut Laboratory, argument: i32 in Saturating) -> i32 {
+    machine lid(laboratory: &mut Laboratory, argument: i32 in Saturating) -> i32 {
         transition argument == 0 || argument == 1 {
             true -> set_lid(laboratory, argument)
             false -> invalid()
         }
     }
-    state set_lid(laboratory: &mut Laboratory, argument: i32 in Saturating) -> i32 {
+    machine set_lid(laboratory: &mut Laboratory, argument: i32 in Saturating) -> i32 {
         laboratory.closed = argument == 1;
         transition argument == 0 && laboratory.phase == 3 {
             true -> abort(laboratory, 13)
             false -> lid_changed()
         }
     }
-    state abort(laboratory: &mut Laboratory, decision: i32) -> i32 {
+    machine abort(laboratory: &mut Laboratory, decision: i32) -> i32 {
         laboratory.phase = 4;
         laboratory.aborted = laboratory.aborted + 1;
         transition { _ -> decision }
     }
-    state advanced() -> i32 { 3 }
-    state lid_changed() -> i32 { 7 }
-    state conflict() -> i32 { 8 }
-    state wrong_phase() -> i32 { 9 }
-    state open_interlock() -> i32 { 10 }
-    state invalid() -> i32 { 12 }
+    machine advanced() -> i32 { 3 }
+    machine lid_changed() -> i32 { 7 }
+    machine conflict() -> i32 { 8 }
+    machine wrong_phase() -> i32 { 9 }
+    machine open_interlock() -> i32 { 10 }
+    machine invalid() -> i32 { 12 }
 }

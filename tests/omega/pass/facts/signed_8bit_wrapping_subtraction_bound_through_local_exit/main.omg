@@ -23,10 +23,10 @@ ensures result == 0i8
         true -> ok()
         _ -> bad()
     }
-    state ok() {
+    machine ok() -> i8 {
         0i8
     }
-    state bad() {
+    machine bad() -> i8 {
         crash Trap;
     }
 }
@@ -43,6 +43,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

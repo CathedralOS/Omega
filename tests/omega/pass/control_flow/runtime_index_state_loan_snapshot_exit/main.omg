@@ -20,12 +20,12 @@ machine pack(prefix:u32 in Wrapping,value:u32 in Wrapping)->u32 in Wrapping {pre
 machine advance(cursor:&mut Cursor)->u32 in Wrapping {cursor.calls=cursor.calls+10;cursor.position=1;99}
 machine update(cells:&[Cell;2],cursor:&mut Cursor)->u32 in Wrapping {
  transition {_ -> audit(&cells[select(cursor)],advance(cursor))}
- state audit(cell:&Cell,ignored:u32 in Wrapping)->u32 in Wrapping {cell.value*100+ignored}
+ machine audit(cell:&Cell,ignored:u32 in Wrapping)->u32 in Wrapping {cell.value*100+ignored}
 }
 machine main() crashes Trap {
  let mut cells:[Cell;2]=[Cell{value:7},Cell{value:3}];
  let mut cursor:Cursor=Cursor{position:0,calls:0};
  let observed:u32 in Wrapping=update(&cells,&mut cursor);
  transition observed==799 && cells[0].value==7 && cells[1].value==3 && cursor.calls==11 && cursor.position==1 {true->done() _->bad()}
- state done(){} state bad(){crash Trap;}
+ machine done(){} machine bad(){crash Trap;}
 }

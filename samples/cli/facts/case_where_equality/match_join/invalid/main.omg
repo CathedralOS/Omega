@@ -12,8 +12,8 @@ machine Main::main(main: &mut Main) {
         Interval::Point { lo, hi } -> take(lo, hi, main)
         Interval::Empty -> done()
     }
-    state take(lo: u64, hi: u64, main: &mut Main) {
+    machine take(lo: u64, hi: u64, main: &mut Main) {
         main.width = hi - lo;
     }
-    state done() { }
+    machine done() { }
 }

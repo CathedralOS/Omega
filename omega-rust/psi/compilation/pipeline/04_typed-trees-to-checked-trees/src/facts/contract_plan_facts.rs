@@ -1,7 +1,9 @@
 //! Contract plans, resource envelope coverage, mutation facts and closed
 //! scalar value contract plans.
 
-use crate::facts::crash_plan_facts::{build_crash_contract_capsules, build_published_crash_plan};
+use crate::facts::crash_plan_facts::{
+    build_crash_contract_capsules, build_published_crash_plan, machine_entry_parameter_names,
+};
 use crate::facts::{crash_calls, operator_crashes};
 use validation::contract_structure::{
     callable_binders, declared_callable, declared_contracts, declared_termination, generic_binders,
@@ -116,157 +118,183 @@ pub(crate) fn build_contract_plans(
     exact_integer_casts: &[validation::ExactIntegerCastFact],
     scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
     scalar_computations: &checked_trees::CheckedScalarComputationPlans,
-) -> Result<checked_trees::MachineContractPlans, Vec<diagnostics::Diagnostic>> {
-    let mut machines = Vec::with_capacity(program.machines().len());
-    let mut publications = Vec::with_capacity(program.machines().len());
+    structural_values: &checked_trees::CheckedStructuralValuePlans,
+) -> Result<
+    (
+        checked_trees::MachineContractPlans,
+        crash_calls::CompletedBodyCrashSummaries,
+    ),
+    Vec<diagnostics::Diagnostic>,
+> {
     let content_conservation = validation::content_conservation_plans(program);
-    let mut trapping_index =
-        PrecomputedTrappingSites::build(scalar_expressions, scalar_computations, operators);
-    for (machine_index, machine) in program.machines().iter().enumerate() {
-        let service_fact = service_reaches
-            .machines()
-            .get(machine_index)
-            .filter(|fact| fact.machine == machine.symbol)
-            .or_else(|| service_reaches.for_machine(machine.symbol));
-        let published_service_row = service_fact
-            .map(|fact| fact.published_ceiling)
-            .unwrap_or(language_semantics::ServiceReachRowTable::EMPTY_ROW);
-        let published_service_names = service_reaches
-            .rows
-            .services(published_service_row)
-            .iter()
-            .filter_map(|service| service_reaches.services.definition(*service))
-            .map(|definition| definition.name.clone())
-            .collect::<Vec<_>>();
-        let synchronous_invocation = synchronous_invocations
-            .machines
-            .get(machine_index)
-            .filter(|fact| fact.machine == machine.symbol)
-            .map(|fact| &fact.plan)
-            .or_else(|| synchronous_invocations.for_machine(machine.symbol))
-            .expect("every checked machine must publish synchronous invocation facts");
-        let suspension = suspensions
-            .machines
-            .get(machine_index)
-            .filter(|fact| fact.machine == machine.symbol)
-            .map(|fact| fact.plan)
-            .or_else(|| suspensions.for_machine(machine.symbol))
-            .expect("every checked machine must publish suspension facts");
-        let blocking = blocking
-            .machines
-            .get(machine_index)
-            .filter(|fact| fact.machine == machine.symbol)
-            .map(|fact| fact.plan)
-            .or_else(|| blocking.for_machine(machine.symbol))
-            .expect("every checked machine must publish blocking facts");
-        let termination = termination
-            .machines
-            .get(machine_index)
-            .filter(|fact| fact.machine == machine.symbol)
-            .map(|fact| &fact.plan)
-            .or_else(|| termination.for_machine(machine.symbol))
-            .expect("every checked machine must publish termination facts");
-        let generics = generic_binders(program.machine_type_parameters(machine));
-        let mut callables = program
-            .machine_states(machine)
-            .iter()
-            .map(|state| {
-                declared_callable(
-                    program,
-                    program.state_parameters(state),
-                    state.return_type,
-                    program.state_contracts(state),
-                    &generics,
-                    &content_conservation,
-                    true,
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|diagnostic| vec![diagnostic])?;
-        callables.sort();
-        // Positional parameter normalization: a contract fact naming the
-        // machine's Nth parameter encodes as P<N>, so RENAMES never change
-        // the identity (the substitutable contract is positional).
-        let parameter_names: Vec<String> = program
-            .machine_states(machine)
-            .first()
-            .map(|entry| {
-                program
-                    .state_parameters(entry)
-                    .iter()
-                    .map(|parameter| parameter.name.as_str().to_owned())
-                    .collect()
-            })
-            .unwrap_or_default();
-        let crash = build_published_crash_plan(
-            program,
-            machine,
-            &parameter_names,
-            &content_conservation,
+    let trapping_index = phase_profile::scope("05.d.3.c.5c.1.trapping_index", || {
+        PrecomputedTrappingSites::build(
+            scalar_expressions,
+            scalar_computations,
+            structural_values,
             operators,
-            exact_integer_casts,
         )
-        .map_err(|diagnostic| vec![diagnostic])?
-        .with_trapping_sites(trapping_index.sites_for_machine(program, machine)?);
-        let binders = program
-            .machine_states(machine)
-            .first()
-            .map(|entry| callable_binders(&generics, program.state_parameters(entry)))
-            .unwrap_or_else(|| generics.clone());
-        let declaration = checked_trees::DeclaredContractStructure {
-            callables,
-            clauses: declared_contracts(
-                program,
-                program.machine_contracts(machine),
-                &binders,
-                &content_conservation,
-                true,
-            )
-            .map_err(|diagnostic| vec![diagnostic])?,
-        };
-        let published_termination = declared_termination(program, &termination.interface, &binders);
-        let closed_scalar_values =
-            build_closed_scalar_value_contract_plan(program, machine, operators);
-        let external_binding = match machine.supply_mode {
-            language_semantics::MachineSupplyMode::ExternalRealization {
-                binding: Some(binding),
-                ..
-            } => Some(
+    });
+    let (mut machines, mut publications) = phase_profile::scope(
+        "05.d.3.c.5c.2.per_machine_plans",
+        || {
+            use rayon::prelude::*;
+            let results: Result<
+                Vec<(checked_trees::MachineContractPlan, ContractPublication<'_>)>,
+                Vec<diagnostics::Diagnostic>,
+            > = validation::checking_thread_pool().install(|| {
                 program
-                    .external_bindings
-                    .identity(binding)
-                    .cloned()
-                    .ok_or_else(|| {
-                        vec![diagnostics::Diagnostic::error(
-                            "checked external supply lost its owning binding identity",
-                        )]
-                    })?,
-            ),
-            _ => None,
-        };
-        publications.push(ContractPublication {
-            type_identities: &program.type_identities,
-            supply: machine.supply_mode,
-            external_binding,
-            services: published_service_names,
-            invocations: synchronous_invocation.interface,
-            published_invocations: synchronous_invocation.published.clone(),
-            suspension: suspension.interface,
-            blocking: blocking.interface,
-            termination: published_termination,
-            declaration,
-        });
-        machines.push(checked_trees::MachineContractPlan {
-            machine: machine.symbol,
-            closed_scalar_values,
-            crash,
-            // No consumer observes these construction coordinates. Family
-            // envelopes settle before each final contract identity is minted.
-            report_fingerprint: 0,
-            commitment: checked_trees::MachineContractCommitment::from_digest([0; 32]),
-        });
-    }
-    let operator_crashes = operator_crashes::build(program, operators, flow, semantic)?;
+                    .machines()
+                    .par_iter()
+                    .enumerate()
+                    .map(|(machine_index, machine)| {
+                        let service_fact = service_reaches
+                            .machines()
+                            .get(machine_index)
+                            .filter(|fact| fact.machine == machine.symbol)
+                            .or_else(|| service_reaches.for_machine(machine.symbol));
+                        let published_service_row = service_fact
+                            .map(|fact| fact.published_ceiling)
+                            .unwrap_or(language_semantics::ServiceReachRowTable::EMPTY_ROW);
+                        let published_service_names = service_reaches
+                            .rows
+                            .services(published_service_row)
+                            .iter()
+                            .filter_map(|service| service_reaches.services.definition(*service))
+                            .map(|definition| definition.name.clone())
+                            .collect::<Vec<_>>();
+                        let synchronous_invocation = synchronous_invocations
+                            .machines
+                            .get(machine_index)
+                            .filter(|fact| fact.machine == machine.symbol)
+                            .map(|fact| &fact.plan)
+                            .or_else(|| synchronous_invocations.for_machine(machine.symbol))
+                            .expect(
+                                "every checked machine must publish synchronous invocation facts",
+                            );
+                        let suspension = suspensions
+                            .machines
+                            .get(machine_index)
+                            .filter(|fact| fact.machine == machine.symbol)
+                            .map(|fact| fact.plan)
+                            .or_else(|| suspensions.for_machine(machine.symbol))
+                            .expect("every checked machine must publish suspension facts");
+                        let blocking = blocking
+                            .machines
+                            .get(machine_index)
+                            .filter(|fact| fact.machine == machine.symbol)
+                            .map(|fact| fact.plan)
+                            .or_else(|| blocking.for_machine(machine.symbol))
+                            .expect("every checked machine must publish blocking facts");
+                        let termination = termination
+                            .machines
+                            .get(machine_index)
+                            .filter(|fact| fact.machine == machine.symbol)
+                            .map(|fact| &fact.plan)
+                            .or_else(|| termination.for_machine(machine.symbol))
+                            .expect("every checked machine must publish termination facts");
+                        let generics = generic_binders(program.machine_type_parameters(machine));
+                        let mut callables = program
+                            .machine_states(machine)
+                            .iter()
+                            .map(|state| {
+                                declared_callable(
+                                    program,
+                                    program.state_parameters(state),
+                                    state.return_type,
+                                    program.state_contracts(state),
+                                    &generics,
+                                    &content_conservation,
+                                    true,
+                                )
+                            })
+                            .collect::<Result<Vec<_>, _>>()
+                            .map_err(|diagnostic| vec![diagnostic])?;
+                        callables.sort();
+                        // Positional parameter normalization: a contract fact naming the
+                        // machine's Nth parameter encodes as P<N>, so RENAMES never change
+                        // the identity (the substitutable contract is positional).
+                        let parameter_names = machine_entry_parameter_names(program, machine);
+                        let crash = build_published_crash_plan(
+                            program,
+                            machine,
+                            &parameter_names,
+                            &content_conservation,
+                            operators,
+                            exact_integer_casts,
+                        )
+                        .map_err(|diagnostic| vec![diagnostic])?
+                        .with_trapping_sites(trapping_index.sites_for_machine(program, machine)?);
+                        let binders = program
+                            .machine_states(machine)
+                            .first()
+                            .map(|entry| callable_binders(&generics, program.state_parameters(entry)))
+                            .unwrap_or_else(|| generics.clone());
+                        let declaration = checked_trees::DeclaredContractStructure {
+                            callables,
+                            clauses: declared_contracts(
+                                program,
+                                program.machine_contracts(machine),
+                                &binders,
+                                &content_conservation,
+                                true,
+                            )
+                            .map_err(|diagnostic| vec![diagnostic])?,
+                        };
+                        let published_termination =
+                            declared_termination(program, &termination.interface, &binders);
+                        let closed_scalar_values =
+                            build_closed_scalar_value_contract_plan(program, machine, operators);
+                        let external_binding = match machine.supply_mode {
+                            language_semantics::MachineSupplyMode::ExternalRealization {
+                                binding: Some(binding),
+                                ..
+                            } => Some(
+                                program
+                                    .external_bindings
+                                    .identity(binding)
+                                    .cloned()
+                                    .ok_or_else(|| {
+                                        vec![diagnostics::Diagnostic::error(
+                                            "checked external supply lost its owning binding identity",
+                                        )]
+                                    })?,
+                            ),
+                            _ => None,
+                        };
+                        let publication = ContractPublication {
+                            type_identities: &program.type_identities,
+                            supply: machine.supply_mode,
+                            external_binding,
+                            services: published_service_names,
+                            invocations: synchronous_invocation.interface,
+                            published_invocations: synchronous_invocation.published.clone(),
+                            suspension: suspension.interface,
+                            blocking: blocking.interface,
+                            termination: published_termination,
+                            declaration,
+                        };
+                        let plan = checked_trees::MachineContractPlan {
+                            machine: machine.symbol,
+                            closed_scalar_values,
+                            crash,
+                            // No consumer observes these construction coordinates. Family
+                            // envelopes settle before each final contract identity is minted.
+                            report_fingerprint: 0,
+                            commitment: checked_trees::MachineContractCommitment::from_digest(
+                                [0; 32],
+                            ),
+                        };
+                        Ok((plan, publication))
+                    })
+                    .collect()
+            });
+            results.map(|pairs| pairs.into_iter().unzip::<_, _, Vec<_>, Vec<_>>())
+        },
+    )?;
+    let operator_crashes = phase_profile::scope("05.d.3.c.5c.3.operator_crashes", || {
+        operator_crashes::build(program, operators, flow, semantic)
+    })?;
     let mut operator_crashes_by_machine = symbols::SymbolKeyMap::<
         symbols::SymbolHandle,
         Vec<checked_trees::CheckedCrashOperatorSite>,
@@ -296,36 +324,50 @@ pub(crate) fn build_contract_plans(
             "selected operator crash invocation has no owning machine contract",
         )]);
     }
-    let crash_capsules = build_crash_contract_capsules(program, &content_conservation, operators)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    let summary_graph = crash_calls::prepare_crash_summary_graph(
-        program,
-        operators,
-        flow,
-        &crash_capsules,
-        &machines,
-    )?;
+    let crash_capsules = phase_profile::scope("05.d.3.c.5c.4.crash_capsules", || {
+        build_crash_contract_capsules(program, &content_conservation, operators)
+            .map_err(|diagnostic| vec![diagnostic])
+    })?;
+    let summary_graph = phase_profile::scope("05.d.3.c.5c.5.summary_graph", || {
+        crash_calls::prepare_crash_summary_graph(
+            program,
+            operators,
+            flow,
+            &crash_capsules,
+            &machines,
+        )
+    })?;
     publish_family_crash_envelopes(
         &mut machines,
         &mut publications,
         summary_graph.family_potential_crash_causes(),
     )?;
-    for (contract, publication) in machines.iter_mut().zip(&publications) {
-        let identity = publication.identity(contract.crash.interface());
-        contract.report_fingerprint = identity.report_fingerprint;
-        contract.commitment = identity.commitment;
-    }
-    crash_calls::attach_checked_crash_calls(
-        program,
-        operators,
-        exact_integer_casts,
-        semantic,
-        flow,
-        &content_conservation,
-        &crash_capsules,
-        &mut machines,
-        &summary_graph,
-    );
+    phase_profile::scope("05.d.3.c.5c.6.identities", || {
+        use rayon::prelude::*;
+        validation::checking_thread_pool().install(|| {
+            machines
+                .par_iter_mut()
+                .zip(publications.par_iter())
+                .for_each(|(contract, publication)| {
+                    let identity = publication.identity(contract.crash.interface());
+                    contract.report_fingerprint = identity.report_fingerprint;
+                    contract.commitment = identity.commitment;
+                });
+        });
+    });
+    let completed_crashes = phase_profile::scope("05.d.3.c.5c.7.attach_crash_calls", || {
+        crash_calls::attach_checked_crash_calls(
+            program,
+            operators,
+            exact_integer_casts,
+            semantic,
+            flow,
+            &content_conservation,
+            &crash_capsules,
+            &mut machines,
+            &summary_graph,
+        )
+    });
     let mut capabilities_by_machine = symbols::SymbolKeyMap::<
         symbols::SymbolHandle,
         Vec<flow_effects::CapabilityFlowFact>,
@@ -442,7 +484,7 @@ pub(crate) fn build_contract_plans(
         ))]
     })?;
     validate_checked_resource_envelope_coverage(program, &plans)?;
-    Ok(plans)
+    Ok((plans, completed_crashes))
 }
 
 /// Reconstruct the complete per-entry resource roster from typed ownership
@@ -811,9 +853,9 @@ pub(crate) fn build_callable_scalar_value_contract_plan(
 /// operator plans so per-machine contract assembly performs O(1) lookups.
 struct PrecomputedTrappingSites {
     expressions_by_state:
-        symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<checked_trees::CrashSiteLocation>>,
+        symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<checked_trees::CheckedTrappingSite>>,
     computations_by_machine:
-        symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<checked_trees::CrashSiteLocation>>,
+        symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<checked_trees::CheckedTrappingSite>>,
     float_adapters_by_machine:
         symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<(symbols::SymbolHandle, usize)>>,
 }
@@ -822,31 +864,48 @@ impl PrecomputedTrappingSites {
     fn build(
         scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
         scalar_computations: &checked_trees::CheckedScalarComputationPlans,
+        structural_values: &checked_trees::CheckedStructuralValuePlans,
         operators: &checked_trees::CheckedOperatorFacts,
     ) -> Self {
         let mut expressions_by_state = symbols::SymbolKeyMap::<
             symbols::SymbolHandle,
-            Vec<checked_trees::CrashSiteLocation>,
+            Vec<checked_trees::CheckedTrappingSite>,
         >::default();
         for located in &scalar_expressions.expressions {
             if located.expression.contains_trapping_operation() {
                 expressions_by_state.entry(located.state).or_default().push(
-                    checked_trees::CrashSiteLocation::new(located.state, located.statement_ordinal),
+                    checked_trees::CheckedTrappingSite::new(
+                        checked_trees::CrashSiteLocation::new(
+                            located.state,
+                            located.statement_ordinal,
+                        ),
+                        located.expression.contains_possible_trapping_operation(),
+                    ),
                 );
             }
         }
         let mut computations_by_machine = symbols::SymbolKeyMap::<
             symbols::SymbolHandle,
-            Vec<checked_trees::CrashSiteLocation>,
+            Vec<checked_trees::CheckedTrappingSite>,
         >::default();
         for (_, root) in scalar_computations.roots.iter() {
-            if computation_contains_trapping_operation(scalar_computations, root.root) {
+            if computation_contains_trapping_operation(
+                scalar_computations,
+                structural_values,
+                root.root,
+                TrapObservation::Physical,
+            ) {
                 computations_by_machine
                     .entry(root.machine)
                     .or_default()
-                    .push(checked_trees::CrashSiteLocation::new(
-                        root.state,
-                        root.statement_ordinal,
+                    .push(checked_trees::CheckedTrappingSite::new(
+                        checked_trees::CrashSiteLocation::new(root.state, root.statement_ordinal),
+                        computation_contains_trapping_operation(
+                            scalar_computations,
+                            structural_values,
+                            root.root,
+                            TrapObservation::Possible,
+                        ),
                     ));
             }
         }
@@ -883,10 +942,10 @@ impl PrecomputedTrappingSites {
     }
 
     fn sites_for_machine(
-        &mut self,
+        &self,
         program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
-    ) -> Result<Vec<checked_trees::CrashSiteLocation>, Vec<diagnostics::Diagnostic>> {
+    ) -> Result<Vec<checked_trees::CheckedTrappingSite>, Vec<diagnostics::Diagnostic>> {
         let states = program.machine_states(machine);
         let mut sites = Vec::new();
         for state in states {
@@ -894,23 +953,23 @@ impl PrecomputedTrappingSites {
                 sites.extend_from_slice(state_sites);
             }
         }
-        if let Some(comp_sites) = self.computations_by_machine.remove(&machine.symbol) {
-            sites.extend(comp_sites);
+        if let Some(comp_sites) = self.computations_by_machine.get(&machine.symbol) {
+            sites.extend_from_slice(comp_sites);
         }
-        if let Some(adapters) = self.float_adapters_by_machine.remove(&machine.symbol) {
+        if let Some(adapters) = self.float_adapters_by_machine.get(&machine.symbol) {
             let invalid_site = || {
                 vec![diagnostics::Diagnostic::error(
                     "selected float result policy has no representable owning statement",
                 )]
             };
-            for (state_symbol, statement_index) in adapters {
+            for &(state_symbol, statement_index) in adapters {
                 if !states.iter().any(|state| state.symbol == state_symbol) {
                     return Err(invalid_site());
                 }
                 let statement = u32::try_from(statement_index).map_err(|_| invalid_site())?;
-                sites.push(checked_trees::CrashSiteLocation::new(
-                    state_symbol,
-                    statement,
+                sites.push(checked_trees::CheckedTrappingSite::new(
+                    checked_trees::CrashSiteLocation::new(state_symbol, statement),
+                    true,
                 ));
             }
         }
@@ -918,11 +977,28 @@ impl PrecomputedTrappingSites {
     }
 }
 
+#[derive(Clone, Copy)]
+enum TrapObservation {
+    Physical,
+    Possible,
+}
+
+impl TrapObservation {
+    fn scalar(self, expression: &checked_trees::CheckedScalarExpression) -> bool {
+        match self {
+            Self::Physical => expression.contains_trapping_operation(),
+            Self::Possible => expression.contains_possible_trapping_operation(),
+        }
+    }
+}
+
 /// Whether evaluating one computation tree executes a Trapping primitive in
 /// any of its pure expressions, operands, arms, or constructed arguments.
 fn computation_contains_trapping_operation(
     plans: &checked_trees::CheckedScalarComputationPlans,
+    values: &checked_trees::CheckedStructuralValuePlans,
     root: checked_trees::CheckedScalarComputationHandle,
+    query: TrapObservation,
 ) -> bool {
     use checked_trees::{
         CheckedScalarComputationKind as Kind,
@@ -931,11 +1007,12 @@ fn computation_contains_trapping_operation(
     };
     fn push_argument(
         plans: &checked_trees::CheckedScalarComputationPlans,
+        query: TrapObservation,
         argument: &Argument,
         pending: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
     ) -> bool {
         match argument {
-            Argument::Place(place) => return push_place(place, pending),
+            Argument::Place(place) => return push_place(plans, query, place, pending),
             Argument::Case(case) => pending.extend(
                 plans
                     .case_fields
@@ -947,16 +1024,154 @@ fn computation_contains_trapping_operation(
         false
     }
     fn push_place(
+        plans: &checked_trees::CheckedScalarComputationPlans,
+        query: TrapObservation,
         place: &checked_trees::CheckedUnitStructuralArgumentPlan,
         pending: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
     ) -> bool {
-        pending.extend(place.computation_operands());
+        pending.extend(place.computation_operands(&plans.operands));
         place.scalar_operands().any(|operand| match operand {
-            checked_trees::CheckedCallScalarArgument::Pure(value) => {
-                value.contains_trapping_operation()
-            }
+            checked_trees::CheckedCallScalarArgument::Pure(value) => query.scalar(value),
             checked_trees::CheckedCallScalarArgument::Computation(_) => false,
         })
+    }
+    fn push_structural(
+        plans: &checked_trees::CheckedScalarComputationPlans,
+        values: &checked_trees::CheckedStructuralValuePlans,
+        query: TrapObservation,
+        root: checked_trees::CheckedStructuralValueHandle,
+        pending: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
+    ) -> bool {
+        use checked_trees::{
+            CheckedStructuralRecordFieldValue as Field, CheckedStructuralValueKind as Value,
+        };
+        let Some(mut dependencies) = values.value_dependencies(root) else {
+            // Stale value graphs have no executable admission. This inventory
+            // grants no route from a missing producer or its unexecuted types.
+            return false;
+        };
+        let mut position = 0;
+        while position < dependencies.len() {
+            let value = dependencies[position];
+            position += 1;
+            // Calls retain their prepared actual scalar operands, independently
+            // of their callee's own propagated crash contract.
+            for call in values
+                .call_schedule(value)
+                .map_or(&[][..], |(_, calls)| calls)
+            {
+                for operation in call
+                    .operands()
+                    .iter()
+                    .chain(call.operation())
+                    .flat_map(checked_trees::CheckedUnitEffectOperationPlan::with_value_calls)
+                {
+                    if let checked_trees::CheckedUnitEffectOperationPlan::EstablishLocal(
+                        checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+                            value, ..
+                        },
+                    )
+                    | checked_trees::CheckedUnitEffectOperationPlan::EvaluateStructuralValue {
+                        value,
+                        ..
+                    } = operation
+                        && let Some(children) = values.value_dependencies(*value)
+                    {
+                        for child in children {
+                            crate::collections::push_unique(&mut dependencies, child);
+                        }
+                    }
+                    if let Some(call) = operation.call() {
+                        for argument in call.scalar_operands() {
+                            match argument {
+                                checked_trees::CheckedCallScalarArgument::Pure(expression) => {
+                                    if query.scalar(expression) {
+                                        return true;
+                                    }
+                                }
+                                checked_trees::CheckedCallScalarArgument::Computation(value) => {
+                                    pending.push(*value);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            match &values.nodes.get(value).kind {
+                Value::Record { fields, .. } | Value::StructuralCase { fields, .. } => {
+                    for field in values.record_fields.span_or_empty(*fields) {
+                        if let Field::Scalar(value) = field.value {
+                            pending.push(value);
+                        }
+                    }
+                }
+                Value::Case(case) => pending.extend(
+                    plans.case_fields.span_or_empty(case.fields).iter().map(|field| field.value),
+                ),
+                Value::ScalarArray { elements } => pending.extend(elements),
+                Value::Scalar { value } | Value::ZeroedScalarArray { element: value, .. } => {
+                    pending.push(*value);
+                }
+                Value::Reference { source, selectors, .. } => {
+                    pending.extend(plans.operands.span_or_empty(*selectors));
+                    if push_place(plans, query, source, pending) {
+                        return true;
+                    }
+                }
+                Value::Projection { path, projection_evaluations, .. } => pending.extend(
+                    checked_trees::CheckedUnitStructuralArgumentPlan::projection_computation_operands(
+                        path, *projection_evaluations, &plans.operands,
+                    ),
+                ),
+                Value::ViewSubslice { start, end, .. } => {
+                    // value_dependencies already includes the completed source
+                    // descriptor. Both authored endpoints can independently
+                    // trap or execute calls after that source completes.
+                    for endpoint in start.iter().chain(end.iter()) {
+                        match endpoint {
+                            checked_trees::CheckedCallScalarArgument::Pure(expression) => {
+                                if query.scalar(expression) {
+                                    return true;
+                                }
+                            }
+                            checked_trees::CheckedCallScalarArgument::Computation(value) => {
+                                pending.push(*value);
+                            }
+                        }
+                    }
+                }
+                Value::Dispatch { subject, arms } => {
+                    pending.extend(subject.scalar_operands(&plans.operands));
+                    for arm in values.dispatch_arms.span_or_empty(*arms) {
+                        if let Pattern::Value(pattern) = arm.pattern {
+                            pending.push(pattern);
+                        }
+                    }
+                }
+                Value::Place(source) | Value::CopiedStructuralPlace { source, .. } => {
+                    if push_place(plans, query, source, pending) {
+                        return true;
+                    }
+                }
+                Value::BorrowedSliceView { source, region }
+                | Value::MutableSliceView { source, region } => {
+                    if push_place(plans, query, source, pending) {
+                        return true;
+                    }
+                    if let checked_trees::CheckedElementViewRegion::RepresentationBytes { start, .. } = region {
+                        pending.push(*start);
+                    }
+                }
+                Value::NativeCodeLayout { .. }
+                | Value::QuotientCall { .. }
+                | Value::QuotientAdaptation { .. }
+                | Value::Call { .. }
+                | Value::FixedArray { .. }
+                | Value::ByteLiteralView { .. }
+                | Value::ZeroedStructural { .. } => {}
+            }
+        }
+        false
     }
     let mut pending = vec![root];
     while let Some(handle) = pending.pop() {
@@ -966,7 +1181,7 @@ fn computation_contains_trapping_operation(
         match &plans.nodes.get(handle).kind {
             Kind::RetainedConstant { .. } => {}
             Kind::Value(expression) => {
-                if expression.contains_trapping_operation() {
+                if query.scalar(expression) {
                     return true;
                 }
             }
@@ -980,7 +1195,7 @@ fn computation_contains_trapping_operation(
                 operands,
                 ..
             } => {
-                if expression.contains_trapping_operation() {
+                if query.scalar(expression) {
                     return true;
                 }
                 pending.extend(plans.operands.span_or_empty(*operands).iter().copied());
@@ -988,14 +1203,31 @@ fn computation_contains_trapping_operation(
             Kind::StorageAddress { subject, .. }
             | Kind::ByteSequenceLiteralComparison { subject, .. }
             | Kind::ByteSequencePredicate { subject, .. } => {
-                if push_place(subject, &mut pending) {
+                if push_place(plans, query, subject, &mut pending) {
                     return true;
                 }
             }
             Kind::StructuralField { .. } => {}
             Kind::CaseMembership { subject, .. } => {
-                if push_argument(plans, subject, &mut pending) {
+                if push_argument(plans, query, subject, &mut pending) {
                     return true;
+                }
+            }
+            Kind::WithOperands {
+                operands, operand, ..
+            } => {
+                pending.push(*operand);
+                for dependency in plans.evaluation_operands.span_or_empty(*operands) {
+                    match dependency {
+                        checked_trees::CheckedScalarEvaluationOperand::Scalar(value) => {
+                            pending.push(*value);
+                        }
+                        checked_trees::CheckedScalarEvaluationOperand::Structural(value) => {
+                            if push_structural(plans, values, query, *value, &mut pending) {
+                                return true;
+                            }
+                        }
+                    }
                 }
             }
             Kind::SelectedComparison { left, right, .. } => pending.extend([*left, *right]),
@@ -1003,7 +1235,7 @@ fn computation_contains_trapping_operation(
             | Kind::BooleanToInteger { operand, .. }
             | Kind::AuthoredCast { operand, .. } => pending.push(*operand),
             Kind::Dispatch { subject, arms, .. } => {
-                pending.extend(subject.scalar_operands());
+                pending.extend(subject.scalar_operands(&plans.operands));
                 for arm in plans.dispatch_arms.span_or_empty(*arms) {
                     pending.push(arm.value);
                     if let Some(value) = arm.pattern.computation() {
@@ -1029,7 +1261,7 @@ fn computation_contains_trapping_operation(
                     .structural_arguments
                     .span_or_empty(*structural_arguments)
                 {
-                    if push_argument(plans, structural, &mut pending) {
+                    if push_argument(plans, query, structural, &mut pending) {
                         return true;
                     }
                 }

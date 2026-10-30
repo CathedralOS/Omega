@@ -21,7 +21,7 @@ machine try_transform<'storage>(token: Token<'storage>, succeed: bool) -> Attemp
         true -> success(token)
         false -> Attempt::Failure { token: token }
     }
-    state success(token: Token<'storage>) -> Attempt<'storage> {
+    machine success(token: Token<'storage>) -> Attempt<'storage> {
         let value: u64 = token.value;
         let reference: &'storage i32 = token.reference;
         drop(token);
@@ -76,7 +76,7 @@ machine main() crashes Trap {
         true -> later(holder)
         _ -> bad(holder)
     }
-    state later(mut holder: Holder) {
+    machine later(mut holder: Holder) {
         let failed: u64 = apply(&mut holder, false);
         let after_failure: i32 = holder.token.reference;
         let succeeded: u64 = apply(&mut holder, true);
@@ -90,11 +90,11 @@ machine main() crashes Trap {
             _ -> bad_empty()
         }
     }
-    state done() {}
-    state bad(holder: Holder) {
+    machine done() {}
+    machine bad(holder: Holder) {
         let remaining: Token = holder.token;
         drop(remaining);
         crash Trap;
     }
-    state bad_empty() { crash Trap; }
+    machine bad_empty() { crash Trap; }
 }

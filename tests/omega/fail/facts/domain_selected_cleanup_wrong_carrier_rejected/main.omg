@@ -1,0 +1,4 @@
+data First dropped by finish { value: u64; }
+data Second dropped by finish { value: u64; }
+machine finish(value: &mut First) {}
+machine main() { let value: Second = Second { value: 0 }; }

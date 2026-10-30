@@ -1,0 +1,25 @@
+// Expected exit: 0
+data Cell { value: u64; }
+data View<'storage> { cell: &'storage mut Cell; }
+machine replace<'storage>(slot: &mut View<'storage>, incoming: View<'storage>, scratch: View<'storage>, spare: View<'storage>) {
+    let mut local: View = scratch;
+    transition { _ -> finish(slot, incoming, &mut local, spare) }
+    machine finish(slot: &mut View<'storage>, incoming: View<'storage>, scratch: &mut View<'storage>, spare: View<'storage>) {
+        slot = incoming;
+        scratch = spare;
+    }
+}
+machine main() crashes Trap {
+    let mut a: Cell = Cell { value: 1 };
+    let mut b: Cell = Cell { value: 2 };
+    let mut c: Cell = Cell { value: 3 };
+    let mut d: Cell = Cell { value: 4 };
+    let mut view: View = View { cell: &mut a };
+    replace(&mut view, View { cell: &mut b }, View { cell: &mut c }, View { cell: &mut d });
+    a.value = 5;
+    transition view.cell.value == 2 && a.value == 5 && c.value == 3 && d.value == 4 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

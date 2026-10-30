@@ -13,7 +13,7 @@ machine multiply_other_state(lhs: i32, rhs: i32) -> i32
     transition {
         _ -> check_state(prod)
     }
-    state check_state(p: i32) -> i32
+    machine check_state(p: i32) -> i32
         requires p >= 50i32 && p <= 200i32;
     {
         let headroom: i32 = 200i32 - p;
@@ -25,8 +25,8 @@ machine multiply_other_state(lhs: i32, rhs: i32) -> i32
             _ -> fail()
         }
     }
-    state pass() -> i32 { 0 }
-    state fail() -> i32 { 1 }
+    machine pass() -> i32 { 0 }
+    machine fail() -> i32 { 1 }
 }
 
 machine main() crashes Trap {
@@ -35,6 +35,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

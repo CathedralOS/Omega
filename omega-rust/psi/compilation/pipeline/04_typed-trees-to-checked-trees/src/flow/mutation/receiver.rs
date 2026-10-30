@@ -117,13 +117,23 @@ fn receiver_place_for_call_site(
         // 01 can no longer satisfy; the explicit operand below is the whole
         // answer, and a successor's data record is matched to its argument by
         // position in `instantiate_call_relative_places`.
-        CallSite::Expression { call, .. } => call
-            .receiver
-            .is_valid()
-            .then(|| canonical_place_from_expression(program, call.receiver))
-            .flatten(),
+        CallSite::Expression { call, .. } => {
+            // A declaration qualifier is not storage. The selected call
+            // already records whether this is a runtime receiver; lexical
+            // calls use the exact explicit data actual below.
+            if call.receiver.is_valid() && !program.call_has_no_runtime_receiver_for_target(call) {
+                return canonical_place_from_expression(program, call.receiver);
+            }
+            let argument = call_data_argument(program, caller_machine_symbol, call_site)?;
+            canonical_place_from_expression_in_state(
+                program,
+                caller_state_symbol,
+                statement_index,
+                argument,
+            )
+        }
         CallSite::TransitionNamed { .. } => {
-            let argument = local_jump_data_argument(program, caller_machine_symbol, call_site)?;
+            let argument = call_data_argument(program, caller_machine_symbol, call_site)?;
             canonical_place_from_expression_in_state(
                 program,
                 caller_state_symbol,
@@ -134,24 +144,56 @@ fn receiver_place_for_call_site(
     }
 }
 
-/// A local successor's explicit data operand, at its actual positional ordinal.
+/// The record a machine's transfers carry: its own declared attachment, or the
+/// enclosing machine family's attachment reached through machine ancestors. A
+/// machine nested inside an attached host shares that host's data binding.
+pub(crate) fn family_attached_data_symbol(
+    program: &dyn ::validation::CheckingInput,
+    machine_symbol: SymbolHandle,
+) -> SymbolHandle {
+    let mut scope = machine_symbol;
+    loop {
+        let Some(machine) = program.machine_by_symbol(scope) else {
+            return SymbolHandle::invalid();
+        };
+        if machine.attached_data_symbol.is_valid() {
+            return machine.attached_data_symbol;
+        }
+        let parent = program.symbols.get(scope).parent;
+        if !parent.is_valid() || program.symbols.get(parent).kind != symbols::SymbolKind::Machine {
+            return SymbolHandle::invalid();
+        }
+        scope = parent;
+    }
+}
+
+/// Inherited declaration scope selects a type; the current signature must
+/// still contain exactly one explicit parameter of that type. An absent or
+/// ambiguous parameter supplies no storage and no ambient parent argument.
+pub(crate) fn family_data_binding_parameter<'parameters>(
+    program: &dyn ::validation::CheckingInput,
+    machine: SymbolHandle,
+    parameters: &'parameters [typed_trees::signature::StateParameter],
+) -> Option<&'parameters typed_trees::signature::StateParameter> {
+    program
+        .data_binding_position(family_attached_data_symbol(program, machine), parameters)
+        .map(|ordinal| &parameters[ordinal])
+}
+
+/// A selected call's explicit data operand, at its actual positional ordinal.
 /// The declaration qualifier supplies no storage: retain the actual root and
 /// projection, including when a different record is supplied to the successor.
-pub(in crate::flow) fn local_jump_data_argument(
+pub(in crate::flow) fn call_data_argument(
     program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     call_site: &CallSite<'_>,
 ) -> Option<typed_trees::expression::ExpressionHandle> {
-    let CallSite::TransitionNamed { path, .. } = call_site else {
-        return None;
-    };
-    if path.members.count() != 1 {
-        return None;
-    }
-    let machine = program.machine_by_symbol(caller_machine_symbol)?;
-    let target = find_state_in_machine(program, caller_machine_symbol, path.head_symbol)?;
+    let target = program.state_by_symbol(validation::call_target_entry_symbol(
+        program,
+        call_site.target_symbol(program),
+    ))?;
     let parameters = program.state_parameters(target);
-    let subject = program.data_binding_parameter(machine, parameters)?;
+    let subject = family_data_binding_parameter(program, caller_machine_symbol, parameters)?;
     let ordinal = typed_trees::signature::state_parameter_position(parameters, subject.symbol)?;
     call_site_argument_expressions(program, call_site)
         .get(ordinal)

@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct DataDefinition {
     pub name: Identifier,
     pub is_public: bool,
@@ -22,11 +22,13 @@ pub struct DataDefinition {
     /// any number of facts, holding at every observation. Parsed and
     /// stored; the syntax->resolved lowering refuses them loudly until R2
     /// rung 2 consumes the model (never a silent drop).
+    /// Owner-authored exact independent cleanup application.
+    pub cleanup_selection: Option<crate::expression::StaticMachineArgument>,
     pub where_facts: HandleSpan<ProofFact>,
     pub members: HandleSpan<DataMember>,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct QuotientDefinition {
     pub carrier: crate::types::TypeReferenceHandle,
     pub relation: HandleSpan<Identifier>,
@@ -35,7 +37,7 @@ pub struct QuotientDefinition {
     pub equivalence: Option<QuotientEquivalenceSelection>,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct QuotientEquivalenceSelection {
     pub relation: HandleSpan<Identifier>,
     pub trait_name: Identifier,
@@ -48,7 +50,9 @@ pub struct QuotientEquivalenceSelection {
 /// trait's types are ordinary arguments of its application. Every declaration
 /// carries its complete member block, so no row is discovered from machines
 /// attached elsewhere.
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct ConformanceItem {
     /// Source visibility for the complete name-first conformance declaration.
     /// Exact machine requirement-satisfier edges own no standalone visibility.
@@ -68,7 +72,7 @@ pub struct ConformanceItem {
     pub members: HandleSpan<ConformanceMember>,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub enum ConformanceMember {
     /// A machine declared lexically inside the block. Its declaration name is
     /// the requirement slot it fills; later normalization retains an internal
@@ -117,7 +121,14 @@ impl Default for ConformanceMember {
 /// resolved properties rather than spellings. `sized` is computed from the
 /// shape and may not be declared.
 #[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent,
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
 )]
 pub struct DataProperties {
     /// Usage multiplicity. Ordinary data defaults to affine; `[copy]` selects
@@ -131,7 +142,9 @@ pub struct DataProperties {
     pub carry: Option<language_core::CarryPolicy>,
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct TypeParameter {
     pub name: Identifier,
     pub kind: TypeParameterKind,
@@ -141,7 +154,9 @@ pub struct TypeParameter {
     pub bounds: DataProperties,
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub enum TypeParameterKind {
     #[default]
     Type,
@@ -184,7 +199,7 @@ impl TypeParameterKind {
 /// Structural contracts own their complete signature locally. Nominal
 /// contracts retain only the exact signature-free requirement path; symbol
 /// resolution binds that path once declarations and trait requirements exist.
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub enum MachineParameterContract {
     /// A trait-level static parameter whose arguments must name one exact
     /// signature-free trait requirement. This is declaration identity, not an
@@ -201,13 +216,15 @@ pub enum MachineParameterContract {
     },
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct PropositionParameterSignature {
     pub name: Identifier,
     pub parameters: HandleSpan<StateParameterHandle>,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub enum DataMember {
     Field(DataField),
     Variant(DataVariant),
@@ -220,7 +237,9 @@ impl Default for DataMember {
     }
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct DataField {
     pub identity: Option<u64>,
     pub name: Identifier,
@@ -229,7 +248,9 @@ pub struct DataField {
     pub type_reference: crate::types::TypeReferenceHandle,
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct DataVariant {
     pub identity: Option<u64>,
     pub name: Identifier,
@@ -243,11 +264,9 @@ pub struct DataVariant {
     pub retired_payload_identities: Vec<u64>,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct DomainDefinition {
     pub name: Identifier,
-    /// Lexical name of the classified value, not a runtime or generic parameter.
-    pub subject: Option<Identifier>,
     /// Generic carrier binder followed by proof-static const binders. Empty
     /// for an ordinary monomorphic domain.
     pub type_parameters: HandleSpan<TypeParameter>,
@@ -262,17 +281,27 @@ pub struct DomainDefinition {
     pub alias: Option<DomainAliasDefinition>,
     /// Exact trait-requirement paths authored by `established by`. These
     /// are establishment alternatives, independent from predicate facts.
+    /// Owner-authored exact independent cleanup application.
+    pub cleanup_selection: Option<crate::expression::StaticMachineArgument>,
     pub authored_routes: Vec<Vec<Identifier>>,
     /// Closed compiler-owned semantics selected by `satisfies` immediately
     /// after the domain head. This is independent from ordinary conformances.
     pub classification: Option<language_core::DomainClassification>,
-    pub predicate_body: language_core::DomainPredicateBody,
+    pub predicate_presence: language_core::DomainPredicatePresence,
     pub facts: HandleSpan<ProofFact>,
     pub operators: HandleSpan<OperatorDefinition>,
     pub semantic_clause_token_count: usize,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct DomainAliasDefinition {
     /// Nonempty by grammar. Each constituent is an authored domain-name path.
     pub constituents: Vec<HandleSpan<Identifier>>,
@@ -282,15 +311,15 @@ impl Default for DomainDefinition {
     fn default() -> Self {
         Self {
             name: Identifier::generated(""),
-            subject: None,
             type_parameters: HandleSpan::empty(),
             target_type: crate::types::TypeReferenceHandle::invalid(),
             index_arguments: HandleSpan::empty(),
             is_public: false,
             alias: None,
+            cleanup_selection: None,
             authored_routes: Vec::new(),
             classification: None,
-            predicate_body: language_core::DomainPredicateBody::Bodyless,
+            predicate_presence: language_core::DomainPredicatePresence::Absent,
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),
             semantic_clause_token_count: 0,

@@ -10,13 +10,13 @@ machine Main::main(main: &mut Main) reaches Console {
         ByteRead::Eof -> execute(main, 0)
         ByteRead::Byte { value } -> command(main, value)
     }
-    state command(main: &mut Main, value: i32) {
+    machine command(main: &mut Main, value: i32) {
         transition value >= 48 && value <= 55 {
             true -> execute(main, (value - 48) as u64 in Wrapping)
             false -> invalid(main)
         }
     }
-    state execute(main: &mut Main, variant: u64 in Wrapping) {
+    machine execute(main: &mut Main, variant: u64 in Wrapping) {
         let mut problem: Problem;
         Problem::load(&mut problem, variant);
         let mut search: Search;
@@ -26,7 +26,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Main::report(main, &search, &problem);
         Console::exit_process(0);
     }
-    state invalid(main: &mut Main) {
+    machine invalid(main: &mut Main) {
         Console::write_line("invalid command: expected one byte 0..7 or EOF");
         Console::exit_process(64);
     }
@@ -40,13 +40,13 @@ machine Main::number(main: &mut Main, value: u64 in Wrapping) reaches Console {
 }
 machine Main::report(main: &mut Main, search: &Search, problem: &Problem) reaches Console {
     transition { _ -> row(main, search, problem, 0) }
-    state row(main: &mut Main, search: &Search, problem: &Problem, mask: u64 in Wrapping) {
+    machine row(main: &mut Main, search: &Search, problem: &Problem, mask: u64 in Wrapping) {
         transition mask < 8 {
             true -> emit(main, search, problem, mask)
             false -> placement(main, search, problem)
         }
     }
-    state emit(main: &mut Main, search: &Search, problem: &Problem, mask: u64 in Wrapping) {
+    machine emit(main: &mut Main, search: &Search, problem: &Problem, mask: u64 in Wrapping) {
         Console::write("certificate mask="); Main::number(main, mask);
         Console::write(" cost="); Main::number(main, search.rows[mask].cost);
         Console::write(" score="); Main::number(main, search.rows[mask].score);
@@ -55,7 +55,7 @@ machine Main::report(main: &mut Main, search: &Search, problem: &Problem) reache
         Console::write_byte(10);
         transition { _ -> row(main, search, problem, mask + 1) }
     }
-    state placement(main: &mut Main, search: &Search, problem: &Problem) {
+    machine placement(main: &mut Main, search: &Search, problem: &Problem) {
         Console::write("placement mask="); Main::number(main, search.mask);
         Console::write(" cost="); Main::number(main, search.cost);
         Console::write(" score="); Main::number(main, search.score);
@@ -67,22 +67,22 @@ machine Main::report(main: &mut Main, search: &Search, problem: &Problem) reache
             false -> status(main, search, 0)
         }
     }
-    state status(main: &mut Main, search: &Search, accepted: u64 in Wrapping) {
+    machine status(main: &mut Main, search: &Search, accepted: u64 in Wrapping) {
         Main::number(main, accepted); Console::write_byte(10);
         transition { _ -> demand(main, search.code, 0) }
     }
-    state demand(main: &mut Main, remaining: u64 in Wrapping, position: u64 in Wrapping) {
+    machine demand(main: &mut Main, remaining: u64 in Wrapping, position: u64 in Wrapping) {
         transition position < 4 {
             true -> coverage(main, remaining, position)
             false -> done()
         }
     }
-    state coverage(main: &mut Main, remaining: u64 in Wrapping, position: u64 in Wrapping) {
+    machine coverage(main: &mut Main, remaining: u64 in Wrapping, position: u64 in Wrapping) {
         Console::write("demand="); Main::number(main, position);
         Console::write(" site="); Main::number(main, remaining % 4); Console::write_byte(10);
         transition { _ -> demand(main, remaining / 4, position + 1) }
     }
-    state done() { }
+    machine done() { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -20,7 +20,7 @@ requires 7i32 == 7i32
 ensures 7i32 == 7i32
 {
     transition { _ -> pass(7i32) }
-    state pass(value: i32) -> i32 { 7i32 }
+    machine pass(value: i32) -> i32 { 7i32 }
 }
 machine terminal_direct_integer_constant() -> u8
 requires 42u8 == 42u8
@@ -42,7 +42,7 @@ ensures 0u8 == 0u8
         true -> finish(value as u8)
         _ -> finish(0u8)
     }
-    state finish(v: u8) -> u8 { v }
+    machine finish(v: u8) -> u8 { v }
 }
 
 data Main {}

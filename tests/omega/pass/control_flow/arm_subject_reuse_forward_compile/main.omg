@@ -13,6 +13,6 @@ machine Main::main(main: &mut Main) {
         _ -> other(main)
     }
 
-    state three(main: &mut Main, kept: u64) { main.answer = kept; }
-    state other(main: &mut Main) { main.answer = 0; }
+    machine three(main: &mut Main, kept: u64) { main.answer = kept; }
+    machine other(main: &mut Main) { main.answer = 0; }
 }

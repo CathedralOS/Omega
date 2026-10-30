@@ -1,5 +1,6 @@
 use super::{
-    data, deeply_nested_layout, entry, nested_layout, post_handoff_context, record_interior,
+    data, deeply_nested_layout, entry, layout_field_entry, nested_layout,
+    numbered_layout_field_entry, post_handoff_context, record_interior,
     recursive_record_array_report, recursive_sum_report, reject_inner_layout_materialization,
     sum_array_layout, sum_field_layout, sum_layout, symbolic_path, writer_field_offsets,
 };
@@ -7,9 +8,9 @@ use crate::{
     CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalRecordSumChildHop,
     ConventionalRecordSumChildInterior, ConventionalRecordSumChildLayoutReport,
     ConventionalRecursiveRecordSumPathsLayoutReport, ConventionalSumLayoutReport,
-    LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, MaterializationAction,
-    SymbolicFieldInnerLayout, SymbolicFieldPathSegment, SymbolicFieldValue,
-    derive_symbolic_materialization, derive_symbolic_materialization_with_inner_layouts,
+    LayoutPlacementReport, LayoutPlanReport, MaterializationAction, SymbolicFieldInnerLayout,
+    SymbolicFieldPathSegment, SymbolicFieldValue, derive_symbolic_materialization,
+    derive_symbolic_materialization_with_inner_layouts,
 };
 
 #[test]
@@ -80,11 +81,10 @@ fn empty_interiors_preserve_geometry_without_requiring_a_write_path() {
 
     let interior = LayoutPlanReport {
         schema_report_fingerprint: 2,
-        entries: vec![LayoutFieldEntryReport {
-            field: "choice".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::At { offset: 0 },
-        }],
+        entries: vec![layout_field_entry(
+            "choice".into(),
+            LayoutPlacementReport::At { offset: 0 },
+        )],
         offsets: Some(vec![0]),
         size: Some(24),
         align: 8,
@@ -156,11 +156,10 @@ fn symbolic_inner_materialization_bounds_record_path_depth() {
             "slot",
             LayoutPlanReport {
                 schema_report_fingerprint: 2,
-                entries: vec![LayoutFieldEntryReport {
-                    field: "slot".into(),
-                    member_identity: None,
-                    placement: LayoutPlacementReport::At { offset: 0 },
-                }],
+                entries: vec![layout_field_entry(
+                    "slot".into(),
+                    LayoutPlacementReport::At { offset: 0 },
+                )],
                 offsets: Some(vec![0]),
                 size: Some(8),
                 align: 8,
@@ -195,16 +194,16 @@ fn symbolic_sum_materialization_joins_case_and_payload_by_identity() {
     let numbered_layout = LayoutPlanReport {
         schema_report_fingerprint: 1,
         entries: vec![
-            LayoutFieldEntryReport {
-                field: "header".into(),
-                member_identity: Some(4),
-                placement: LayoutPlacementReport::At { offset: 0 },
-            },
-            LayoutFieldEntryReport {
-                field: "choice".into(),
-                member_identity: Some(5),
-                placement: LayoutPlacementReport::At { offset: 8 },
-            },
+            numbered_layout_field_entry(
+                "header".into(),
+                4,
+                LayoutPlacementReport::At { offset: 0 },
+            ),
+            numbered_layout_field_entry(
+                "choice".into(),
+                5,
+                LayoutPlacementReport::At { offset: 8 },
+            ),
         ],
         offsets: Some(vec![0, 8]),
         size: Some(32),
@@ -546,12 +545,13 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
     // placement spells.
     let mut per_element = layout.clone();
     per_element.entries = (0..2)
-        .map(|index| LayoutFieldEntryReport {
-            field: "sums".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::At {
-                offset: 8 + index * 24,
-            },
+        .map(|index| {
+            layout_field_entry(
+                "sums".into(),
+                LayoutPlacementReport::At {
+                    offset: 8 + index * 24,
+                },
+            )
         })
         .collect();
     let indexed = SymbolicFieldValue::new_indexed("sums", 1, 64, entry())
@@ -573,12 +573,13 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
     // element offset composes.
     let mut surplus = layout.clone();
     surplus.entries = (0..3)
-        .map(|index| LayoutFieldEntryReport {
-            field: "sums".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::At {
-                offset: 8 + index * 16,
-            },
+        .map(|index| {
+            layout_field_entry(
+                "sums".into(),
+                LayoutPlacementReport::At {
+                    offset: 8 + index * 16,
+                },
+            )
         })
         .collect();
     let error = reject_inner_layout_materialization(
@@ -597,16 +598,8 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
     // drift: one of the two pieces of evidence is stale.
     let mut drifted = layout.clone();
     drifted.entries = vec![
-        LayoutFieldEntryReport {
-            field: "sums".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::At { offset: 8 },
-        },
-        LayoutFieldEntryReport {
-            field: "sums".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::At { offset: 30 },
-        },
+        layout_field_entry("sums".into(), LayoutPlacementReport::At { offset: 8 }),
+        layout_field_entry("sums".into(), LayoutPlacementReport::At { offset: 30 }),
     ];
     let error = reject_inner_layout_materialization(
         &drifted,
@@ -770,11 +763,10 @@ fn symbolic_recursive_sum_fold_bounds_report_depth() {
     let wrap = |inner| ConventionalRecursiveRecordSumPathsLayoutReport {
         outer_layout: LayoutPlanReport {
             schema_report_fingerprint: 9,
-            entries: vec![LayoutFieldEntryReport {
-                field: "sub".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset: 0 },
-            }],
+            entries: vec![layout_field_entry(
+                "sub".into(),
+                LayoutPlacementReport::At { offset: 0 },
+            )],
             offsets: Some(vec![0]),
             size: Some(8),
             align: 8,

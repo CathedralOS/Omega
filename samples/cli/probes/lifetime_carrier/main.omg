@@ -23,10 +23,10 @@ machine transform<'storage>(carrier: Carrier<'storage>) -> Carrier<'storage> {
         true -> increment(carrier)
         false -> preserve(carrier)
     }
-    state increment(carrier: Carrier<'storage>) -> Carrier<'storage> {
+    machine increment(carrier: Carrier<'storage>) -> Carrier<'storage> {
         Carrier { marker: ((carrier.marker as i32 in Wrapping) + 1) as i32, reference: carrier.reference }
     }
-    state preserve(carrier: Carrier<'storage>) -> Carrier<'storage> { carrier }
+    machine preserve(carrier: Carrier<'storage>) -> Carrier<'storage> { carrier }
 }
 
 machine repair<'storage>(holder: &mut Holder<'storage>) -> i32 {
@@ -51,8 +51,8 @@ machine run<'storage>(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

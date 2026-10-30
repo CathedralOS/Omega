@@ -222,12 +222,39 @@ pub fn closed_constant_array_elements(
     closed_literal_array_elements(program, selected, reference)
 }
 
+/// One row-major scalar leaf of a closed primitive array construction.
+/// Authored leaves evaluate their own expression; projected leaves are the
+/// element reads a runtime subvalue row contributes, `row[indices]` evaluated
+/// once through the row's ordinary structural value.
+pub enum ScalarArrayElement {
+    Authored {
+        expression: ExpressionHandle,
+        primitive_type: typed_trees::types::PrimitiveType,
+    },
+    Projected {
+        row: ExpressionHandle,
+        indices: Vec<u32>,
+        leaf_type: TypeReferenceHandle,
+        primitive_type: typed_trees::types::PrimitiveType,
+    },
+}
+
 /// Temporary source-shape result; expressions remain owned by the typed tree.
 pub struct ScalarArrayElements {
-    pub elements: Vec<(ExpressionHandle, typed_trees::types::PrimitiveType)>,
+    pub elements: Vec<ScalarArrayElement>,
     /// Array-valued projections eliminated only after closed literal validation.
     /// Scalar-valued indexing remains with each ordinary scalar operand owner.
     pub projections: Vec<ExpressionHandle>,
+}
+
+impl ScalarArrayElements {
+    /// Pure-expression lowering rewrites each leaf from its authored
+    /// occurrence; a projected leaf has no authored expression to lower.
+    pub fn all_authored(&self) -> bool {
+        self.elements
+            .iter()
+            .all(|element| matches!(element, ScalarArrayElement::Authored { .. }))
+    }
 }
 
 /// Resolve the exact shape and authored row-major scalar operands of an array.
@@ -246,8 +273,8 @@ pub fn scalar_array_elements(
     let mut leaves = Vec::new();
     let mut projections = Vec::new();
     let mut active = Vec::new();
-    let mut pending = vec![(expression, expected, false)];
-    while let Some((expression, reference, exiting)) = pending.pop() {
+    let mut pending = vec![(expression, expected, false, false)];
+    while let Some((expression, reference, exiting, is_row)) = pending.pop() {
         if exiting {
             active.pop();
             continue;
@@ -257,25 +284,65 @@ pub fn scalar_array_elements(
             return None;
         }
         active.push(expression);
-        pending.push((expression, reference, true));
+        pending.push((expression, reference, true, is_row));
         let peeled = array_carrier_type(program, reference);
         match program.type_reference_table.type_reference(peeled) {
             TypeReferenceNode::FixedArray {
                 element_type,
                 length: typed_trees::types::FixedArrayLength::Literal(length),
             } => {
-                if matches!(
+                let indexed_row = matches!(
                     program.expression_table.expression(expression),
                     ExpressionNode::Indexed(_)
-                ) || program
-                    .expression_table
-                    .authored_selection_occurrences(expression)
-                    .next()
-                    .is_some()
+                );
+                if indexed_row
+                    || program
+                        .expression_table
+                        .authored_selection_occurrences(expression)
+                        .next()
+                        .is_some()
                 {
-                    leaves.extend(closed_constant_array_elements(
-                        program, machine, expression, reference,
-                    )?);
+                    let Some(closed) =
+                        closed_constant_array_elements(program, machine, expression, reference)
+                    else {
+                        // Indexing or member access into a runtime row selects a
+                        // stored subvalue; it contributes projected element reads
+                        // like any runtime row. Indexed projections stay in the
+                        // roster so a non-builtin selector still rejects, and the
+                        // row's own canonical place keeps field identity.
+                        if is_row
+                            && (indexed_row
+                                || matches!(
+                                    program.expression_table.expression(expression),
+                                    ExpressionNode::Member(_)
+                                ))
+                        {
+                            projected_row_leaves(
+                                program,
+                                expression,
+                                reference,
+                                &mut Vec::new(),
+                                &mut leaves,
+                            )?;
+                            let mut selected = expression;
+                            let mut selected_projections = Vec::new();
+                            while let Some(indexed) =
+                                program.expression_table.indexed_node(selected)
+                            {
+                                selected_projections.push(selected);
+                                selected = indexed.collection;
+                            }
+                            projections.extend(selected_projections.into_iter().rev());
+                            continue;
+                        }
+                        return None;
+                    };
+                    leaves.extend(closed.into_iter().map(|(expression, primitive_type)| {
+                        ScalarArrayElement::Authored {
+                            expression,
+                            primitive_type,
+                        }
+                    }));
                     let mut selected = expression;
                     let mut selected_projections = Vec::new();
                     while let Some(indexed) = program.expression_table.indexed_node(selected) {
@@ -285,19 +352,38 @@ pub fn scalar_array_elements(
                     projections.extend(selected_projections.into_iter().rev());
                     continue;
                 }
-                let elements = program.expression_table.array_literal_node(expression)?;
-                if !extend_fixed_array_elements(
-                    program,
-                    &mut pending,
-                    elements,
-                    element_type,
-                    *length,
-                ) {
-                    return None;
+                match program.expression_table.array_literal_node(expression) {
+                    Some(elements) => {
+                        if !extend_fixed_array_elements(
+                            program,
+                            &mut pending,
+                            elements,
+                            element_type,
+                            *length,
+                            true,
+                        ) {
+                            return None;
+                        }
+                    }
+                    // A runtime subvalue row contributes one projected read per
+                    // scalar element; its path restarts at the row expression.
+                    None if is_row => {
+                        projected_row_leaves(
+                            program,
+                            expression,
+                            reference,
+                            &mut Vec::new(),
+                            &mut leaves,
+                        )?;
+                    }
+                    None => return None,
                 }
             }
             TypeReferenceNode::Named { .. } => {
-                leaves.push((expression, program.primitive_type_reference(reference)?))
+                leaves.push(ScalarArrayElement::Authored {
+                    expression,
+                    primitive_type: program.primitive_type_reference(reference)?,
+                })
             }
             _ => return None,
         }
@@ -318,9 +404,9 @@ pub fn closed_literal_array_elements(
     reference: TypeReferenceHandle,
 ) -> Option<Vec<(ExpressionHandle, typed_trees::types::PrimitiveType)>> {
     let mut leaves = Vec::new();
-    let mut pending = vec![(expression, reference, false)];
+    let mut pending = vec![(expression, reference, false, false)];
     let mut active = Vec::new();
-    while let Some((expression, reference, exiting)) = pending.pop() {
+    while let Some((expression, reference, exiting, _)) = pending.pop() {
         if exiting {
             active.pop();
             continue;
@@ -329,7 +415,7 @@ pub fn closed_literal_array_elements(
             return None;
         }
         active.push(expression);
-        pending.push((expression, reference, true));
+        pending.push((expression, reference, true, false));
         match (
             program.expression_table.expression(expression),
             program
@@ -349,6 +435,7 @@ pub fn closed_literal_array_elements(
                     elements,
                     element_type,
                     *length,
+                    false,
                 ) {
                     return None;
                 }
@@ -554,12 +641,10 @@ pub(crate) fn validate_constant_projection_destination(
 ) -> bool {
     let mut pending = vec![(value, destination)];
     let mut conflict = false;
-    while let Some((value, mut destination)) = pending.pop() {
-        while let TypeReferenceNode::Constrained { base_type, .. } =
-            program.type_reference_table.type_reference(destination)
-        {
-            destination = *base_type;
-        }
+    while let Some((value, destination)) = pending.pop() {
+        let destination = program
+            .type_reference_table
+            .unconstrained_type_reference(destination);
         let shared_lending = matches!(
             program.type_reference_table.type_reference(destination),
             TypeReferenceNode::Reference {
@@ -627,12 +712,54 @@ pub(crate) fn validate_constant_projection_destination(
 /// Push a fixed array's literal elements onto the pending walk when the
 /// literal count matches the declared length; `false` rejects a mismatched
 /// literal.
+/// A runtime subvalue row contributes its scalar leaves as projected element
+/// reads `row[indices]`; the path restarts at the row expression itself, so
+/// `[a, b]` of `[[u64; 2]; 2]` yields `a[0]`, `a[1]`, `b[0]`, `b[1]` in
+/// row-major order. The type supplies the geometry; the row expression keeps
+/// its single ordinary structural evaluation.
+fn projected_row_leaves(
+    program: &dyn crate::CheckingInput,
+    row: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    indices: &mut Vec<u32>,
+    leaves: &mut Vec<ScalarArrayElement>,
+) -> Option<()> {
+    match program
+        .type_reference_table
+        .type_reference(array_carrier_type(program, reference))
+    {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: typed_trees::types::FixedArrayLength::Literal(length),
+        } => {
+            for index in 0..*length {
+                indices.push(u32::try_from(index).ok()?);
+                projected_row_leaves(program, row, *element_type, indices, leaves)?;
+                indices.pop();
+            }
+            Some(())
+        }
+        TypeReferenceNode::Named { .. } => {
+            let primitive_type = program.primitive_type_reference(reference)?;
+            leaves.push(ScalarArrayElement::Projected {
+                row,
+                indices: indices.clone(),
+                leaf_type: reference,
+                primitive_type,
+            });
+            Some(())
+        }
+        _ => None,
+    }
+}
+
 fn extend_fixed_array_elements(
     program: &dyn crate::CheckingInput,
-    pending: &mut Vec<(ExpressionHandle, TypeReferenceHandle, bool)>,
+    pending: &mut Vec<(ExpressionHandle, TypeReferenceHandle, bool, bool)>,
     elements: &arena::HandleSpan<ExpressionHandle>,
     element_type: &TypeReferenceHandle,
     length: usize,
+    is_row: bool,
 ) -> bool {
     let elements = program.expression_table.expression_handles(*elements);
     if elements.len() != length {
@@ -642,7 +769,7 @@ fn extend_fixed_array_elements(
         elements
             .iter()
             .rev()
-            .map(|element| (*element, *element_type, false)),
+            .map(|element| (*element, *element_type, false, is_row)),
     );
     true
 }

@@ -18,7 +18,7 @@ machine Main::main(main: &mut Main) reaches Console {
     let token_value: Token;
     main.held = Main::relay(token_value);
     transition { _ -> finish(main, 72) }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

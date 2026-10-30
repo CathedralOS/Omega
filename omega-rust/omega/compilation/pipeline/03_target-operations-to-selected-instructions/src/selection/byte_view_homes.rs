@@ -213,14 +213,8 @@ fn bound_view_roots_recurse(
             if target != block {
                 continue;
             }
-            // Case edges carry no structural bindings; only jump and
-            // conditional successors can bind a block parameter.
-            let Some(successor) = successor else {
-                unbound_edges += 1;
-                continue;
-            };
             let mut bound = false;
-            for binding in &successor.structural_bindings {
+            for binding in successor {
                 let binding = &binding.semantic;
                 if binding.parameter != parameter {
                     continue;
@@ -249,30 +243,29 @@ fn bound_view_roots_recurse(
     Ok(roots)
 }
 
-/// Every edge leaving `terminator`, as `(target, bindings)`: `Some` for the
-/// jump/conditional successors that can bind structural parameters, `None`
-/// for case successors that carry only scalar payloads.
+/// Every edge's exact structural telescope, independent of scalar payload capture.
 fn edge_successors(
     terminator: &LegalizedScalarTerminator,
 ) -> Vec<(
     semantic_vocabulary::BlockId,
-    Option<&legalized_operations::LegalizedScalarSuccessor>,
+    &[legalized_operations::LegalizedStructuralBinding],
 )> {
     match terminator {
         LegalizedScalarTerminator::Jump { successor, .. } => {
-            vec![(successor.target, Some(successor))]
+            vec![(successor.target, &successor.structural_bindings)]
         }
         LegalizedScalarTerminator::Conditional {
             when_true,
             when_false,
             ..
         } => vec![
-            (when_true.target, Some(when_true)),
-            (when_false.target, Some(when_false)),
+            (when_true.target, &when_true.structural_bindings),
+            (when_false.target, &when_false.structural_bindings),
         ],
-        LegalizedScalarTerminator::StructuralCase { cases, .. } => {
-            cases.iter().map(|case| (case.target, None)).collect()
-        }
+        LegalizedScalarTerminator::StructuralCase { cases, .. } => cases
+            .iter()
+            .map(|case| (case.target, case.structural_bindings.as_slice()))
+            .collect(),
         _ => Vec::new(),
     }
 }

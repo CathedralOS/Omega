@@ -227,13 +227,12 @@ pub(super) fn admit<'source>(
     let producer_row = environment
         .constraint(producer_instruction.constraint)
         .ok_or(CopiedCallOperandError::ConstraintMismatch)?;
-    if producer_row.operands.len() != 2
-        || producer_row.operands[0].operand != 0
-        || producer_row.operands[0].access != RegisterOperandAccess::Use
-        || producer_row.operands[0].class != source_operand.class
+    if !crate::rewrites::declares_pair(
+        producer_row,
+        RegisterOperandAccess::Use,
+        RegisterOperandAccess::Def,
+    ) || producer_row.operands[0].class != source_operand.class
         || producer_row.operands[0].class != source_register.class
-        || producer_row.operands[1].operand != 1
-        || producer_row.operands[1].access != RegisterOperandAccess::Def
         || producer_row.operands[1].class != destination_operand.class
         || producer_row.operands[0].class != producer_row.operands[1].class
         || !rule.admits_producer_row(producer_row)

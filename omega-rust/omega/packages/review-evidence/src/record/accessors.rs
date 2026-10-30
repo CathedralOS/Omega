@@ -106,3 +106,27 @@ macro_rules! signature_parameter_accessors {
     };
 }
 pub(crate) use signature_parameter_accessors;
+
+/// The single-field projection forms a record accessor can take: a value
+/// copied out of a shared borrow, a value copied out of a by-value receiver,
+/// a borrowed field, a borrowed slice field, and a borrowed optional field.
+/// Declared once so each record names only the fields it exposes and never
+/// restates the projection body.
+macro_rules! field_projection_accessors {
+    (valued $($name:ident : $type:ty),+ $(,)?) => {
+        $( pub const fn $name(self) -> $type { self.$name } )+
+    };
+    (copied $($name:ident : $type:ty),+ $(,)?) => {
+        $( pub const fn $name(&self) -> $type { self.$name } )+
+    };
+    (borrowed $($name:ident : $type:ty),+ $(,)?) => {
+        $( pub const fn $name(&self) -> $type { &self.$name } )+
+    };
+    (sliced $($name:ident : $type:ty),+ $(,)?) => {
+        $( pub fn $name(&self) -> $type { &self.$name } )+
+    };
+    (optional $($name:ident : $type:ty),+ $(,)?) => {
+        $( pub const fn $name(&self) -> $type { self.$name.as_ref() } )+
+    };
+}
+pub(crate) use field_projection_accessors;

@@ -50,8 +50,18 @@ pub(crate) struct LinearPlace {
     pub(crate) case_excluded: bool,
 }
 
+impl LinearPlace {
+    pub(crate) fn unconsumed_scope_exit(&self) -> Diagnostic {
+        Diagnostic::error(format!(
+            "linear value `{}` reaches scope exit without being consumed or transferred",
+            self.name
+        ))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct WrittenLinearTarget {
+    pub(crate) value: typed_trees::expression::ExpressionHandle,
     pub(crate) root: facts::PlaceRoot,
     pub(crate) destination_path: Vec<facts::PlaceSegment>,
     pub(crate) place_index: usize,
@@ -131,9 +141,15 @@ pub(crate) fn check_linear_obligations(
     // cleanup fixed point; recording them again here reproduced the same
     // events. Only the crash-frontier projection needs the incoming guard
     // index, which exists only now.
-    record_crash_frontier_lower_bounds(program, facts, incoming_guards);
-    validate_linear_permission_events(program, facts)?;
-    borrowed_windows::check_recorded_invocations(program, facts)
+    phase_profile::scope("05.d.7.4.a.crash_frontiers", || {
+        record_crash_frontier_lower_bounds(program, facts, incoming_guards)
+    });
+    phase_profile::scope("05.d.7.4.b.validate_linear", || {
+        validate_linear_permission_events(program, facts)
+    })?;
+    phase_profile::scope("05.d.7.4.c.borrowed_windows", || {
+        borrowed_windows::check_recorded_invocations(program, facts)
+    })
 }
 
 /// A nominal cleanup machine is entitled to one whole valid value. Reject a
@@ -170,6 +186,7 @@ pub(super) fn prepare_storage_deaths(
             // Restoration debt cannot enter a state. A replacement can still
             // kill a live old referent when this body contains no extraction.
             let statements = program.statement_table.statements(state.statement_nodes);
+            let walk = borrowed_windows::StorageWalk::new(program, machine, state, statements);
             let state_calls = facts.flow.control.calls.span_or_empty(flow.calls);
             borrowed_windows::check_call_occurrences(
                 program,
@@ -223,17 +240,9 @@ pub(super) fn prepare_storage_deaths(
                         {
                             continue;
                         }
-                        arm_plan.add_borrowed_move(
-                            program,
-                            machine,
-                            state,
-                            statements,
-                            statement_index,
-                            event,
-                            path,
-                        );
+                        arm_plan.add_borrowed_move(&walk, statement_index, event, path);
                     }
-                    arm_plan.seal(program);
+                    arm_plan.seal(&walk);
                 }
                 for step in crate::checks::ownership_occurrences::statement_steps(
                     program,
@@ -249,20 +258,9 @@ pub(super) fn prepare_storage_deaths(
                             place,
                             expression,
                         } => {
-                            windows.check_use(
-                                program,
-                                machine,
-                                state,
-                                statements,
-                                statement_index,
-                                &place,
-                                &mut diagnostics,
-                            );
+                            windows.check_use(&walk, statement_index, &place, &mut diagnostics);
                             arm_plan.check_edge_use(
-                                program,
-                                machine,
-                                state,
-                                statements,
+                                &walk,
                                 statement_index,
                                 expression,
                                 &place,
@@ -306,10 +304,7 @@ pub(super) fn prepare_storage_deaths(
                             for pending in arm_plan.commit_pending(expression) {
                                 let event = &moves[pending];
                                 if let Some(diagnostic) = windows.open(
-                                    program,
-                                    machine,
-                                    state,
-                                    statements,
+                                    &walk,
                                     statement_index,
                                     event,
                                     segments.span_or_empty(event.segments),
@@ -382,16 +377,7 @@ pub(super) fn prepare_storage_deaths(
                             ));
                             continue;
                         }
-                        match arm_plan.verdict(
-                            program,
-                            machine,
-                            state,
-                            statements,
-                            statement_index,
-                            event_index,
-                            event,
-                            path,
-                        ) {
+                        match arm_plan.verdict(&walk, statement_index, event_index, event, path) {
                             // The agreed hole is recorded against this arm's
                             // edge already; the joined window commits at the
                             // match's `Invoke` step, after sibling arms ran.
@@ -410,23 +396,15 @@ pub(super) fn prepare_storage_deaths(
                                             event_statement_index(event.source).unwrap_or(0),
                                         ),
                                     );
-                                } else if let Some(diagnostic) = windows.open(
-                                    program,
-                                    machine,
-                                    state,
-                                    statements,
-                                    statement_index,
-                                    event,
-                                    path,
-                                ) {
+                                } else if let Some(diagnostic) =
+                                    windows.open(&walk, statement_index, event, path)
+                                {
                                     diagnostics.push(diagnostic);
                                 }
                             }
                             Some(borrowed_windows::ArmWindowVerdict::SiblingRoute) => {
                                 if !borrowed_windows::authored_route_exclusive(
-                                    program,
-                                    machine,
-                                    state,
+                                    &walk,
                                     statement_index,
                                     event.root,
                                     path,
@@ -474,10 +452,7 @@ pub(super) fn prepare_storage_deaths(
                     // Even an ordinary whole-owner move may not carry away a
                     // place with an absent borrowed subtree.
                     windows.refuse_move_over_open(
-                        program,
-                        machine,
-                        state,
-                        statements,
+                        &walk,
                         statement_index,
                         event,
                         path,
@@ -500,25 +475,12 @@ pub(super) fn prepare_storage_deaths(
                 // Replacement evaluation and destination selectors must both
                 // finish before the store discharges restoration debt.
                 if let Some(assignment) = statement.as_assignment() {
-                    if let Some(death) = windows.replacement_death(
-                        program,
-                        machine,
-                        state,
-                        statements,
-                        statement_index,
-                        assignment,
-                    ) {
+                    if let Some(death) =
+                        windows.replacement_death(&walk, statement_index, assignment)
+                    {
                         deaths.push((machine.symbol, state.symbol, statement_index, death));
                     }
-                    windows.check_repair(
-                        program,
-                        machine,
-                        state,
-                        statements,
-                        statement_index,
-                        assignment,
-                        &mut diagnostics,
-                    );
+                    windows.check_repair(&walk, statement_index, assignment, &mut diagnostics);
                     consumed.check_store(
                         program,
                         machine,
@@ -561,9 +523,12 @@ pub(super) fn prepare_storage_deaths(
         let path = facts.flow.ownership.segments.insert_many(place.segments);
         let exclusions = excluded
             .into_iter()
-            .map(|segments| facts::Place {
+            .map(|segments| checked_trees::ContextualCleanupExcludedRegion {
                 root: place.root,
                 segments: facts.contextual_cleanup.segments.insert_many(segments),
+                // This window owns exclusion geometry, not a receiving
+                // establishment proving that the selected value never existed.
+                cause: checked_trees::ContextualCleanupExclusionCause::Unknown,
             })
             .collect::<Vec<_>>();
         facts

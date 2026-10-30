@@ -7,5 +7,5 @@ machine Main::main(main: &mut Main) {
         (Pair { left as value, right as _ }, Pair { left as value, right as _ }) -> done(value)
         _ -> done(0)
     }
-    state done(value: i32) {}
+    machine done(value: i32) {}
 }

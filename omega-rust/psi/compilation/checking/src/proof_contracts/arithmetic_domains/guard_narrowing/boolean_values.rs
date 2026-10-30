@@ -5,7 +5,7 @@
 //! without changing the Boolean's saved value.
 
 use super::super::ordered_values::{Operand, Relation, rebind_relations};
-use super::super::value_environment::IeeeConditionalFacts;
+use super::super::value_environment::{IeeeConditionalFacts, rebound_paths};
 use super::{ExpressionHandle, Machine, State, ValueEnvironment};
 use typed_trees::types::PrimitiveType;
 
@@ -46,20 +46,7 @@ impl BooleanValue {
         if targets.is_empty() {
             return Vec::new();
         }
-        let paths = |path: &str| -> Vec<String> {
-            bindings
-                .iter()
-                .filter_map(|(source, target)| {
-                    if path == source {
-                        Some(target.clone())
-                    } else {
-                        path.strip_prefix(source)
-                            .filter(|suffix| suffix.starts_with('.') || suffix.starts_with('['))
-                            .map(|suffix| format!("{target}{suffix}"))
-                    }
-                })
-                .collect()
-        };
+        let paths = |path: &str| rebound_paths(path, bindings);
         let alternatives = self.alternatives.each_ref().map(|evidence| {
             let relations = rebind_relations(&evidence.relations, exact_bindings);
             ConditionalEvidence {

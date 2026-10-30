@@ -2,7 +2,7 @@
 //! Inputs survive; early-clobber cursor and byte temporaries own every write.
 
 use super::{Aarch64SelectedFormEncodingError, ValidatedAarch64SelectedFormEncoding};
-use crate::selected_form_encoding::selected_forms::resolve_registers;
+use crate::selected_form_encoding::selected_forms::request_registers;
 use register_model::RegisterViewId;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::MachineAlternativeFamily;
@@ -13,25 +13,15 @@ fn request(
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<[u8; 5], Aarch64SelectedFormEncodingError> {
-    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
-        || alternative
-            != (MachineAlternativeKey {
-                family: MachineAlternativeFamily::CopyBytes,
-                variant: 0,
-            })
-    {
-        return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
-    }
-    let registers: [u8; 5] = resolve_registers(physical, operands)?
-        .try_into()
-        .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-    if registers[3] == registers[4]
-        || registers[..3].contains(&registers[3])
-        || registers[..3].contains(&registers[4])
-    {
-        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-    }
-    Ok(registers)
+    // The cursor and the loaded byte are written before the inputs are read,
+    // so neither may share a home with an input or with the other.
+    request_registers(
+        physical,
+        alternative,
+        MachineAlternativeFamily::CopyBytes,
+        operands,
+        3,
+    )
 }
 
 pub(super) fn encode(
@@ -116,6 +106,7 @@ pub(super) fn validate(
 mod tests {
     use super::{encode, validate};
     use crate::aarch64_physical_register_model;
+    use crate::test_support::reject_every_bit_flip;
     use selected_instructions::MachineAlternativeFamily;
     use selected_instructions::MachineAlternativeKey;
 
@@ -131,14 +122,9 @@ mod tests {
             variant: 0,
         };
         let encoded = encode(&physical, alternative, &operands).unwrap();
-        for position in 0..encoded.bytes.len() * 8 {
-            let mut changed = encoded.bytes.clone();
-            changed[position / 8] ^= 1 << (position % 8);
-            assert!(
-                validate(&physical, alternative, &operands, &changed).is_err(),
-                "bit {position}"
-            );
-        }
+        reject_every_bit_flip(&encoded.bytes, "copy word stream", |changed| {
+            validate(&physical, alternative, &operands, &changed).is_err()
+        });
         for scratch in 3..5 {
             for input in 0..5 {
                 if input == scratch {

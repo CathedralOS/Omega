@@ -11,10 +11,7 @@ pub(crate) fn encode_synchronous_invocation(
     match invocation {
         PackageReviewSynchronousInvocation::Parameter(position) => {
             encoder.tag("parameter", 0);
-            encoder.field("position", |encoder| {
-                encoder.u32(*position);
-                Ok(())
-            })?;
+            encoder.u32_field("position", *position)?;
         }
         PackageReviewSynchronousInvocation::Service(service) => {
             encoder.tag("service", 1);
@@ -27,9 +24,7 @@ pub(crate) fn encode_installation_reach(
     encoder: &mut Encoder,
     reach: &PackageReviewInstallationReach,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("requirement", |encoder| {
-        encode_nominal(encoder, &reach.requirement)
-    })?;
+    encoder.field_by("requirement", &reach.requirement, encode_nominal)?;
     encoder.field("upper_bound", |encoder| {
         encoder.sequence(&reach.upper_bound, encode_nominal)
     })

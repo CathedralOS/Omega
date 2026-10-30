@@ -1,4 +1,4 @@
-domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8]::Utf8 requires valid_utf8(self);
 // `SelectedAddressOffsetFoldV1` fires on real source code here: passing the
 // bounded byte field `context.out` as a shared `[u8]` view stages its call
 // descriptor by projecting the field with `AddressOffset`, then reading its
@@ -7,7 +7,7 @@ domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 // each consumer's displacement with the producer's, so the staged descriptor
 // still reads `out`'s true length and bytes. A misfold reads the wrong
 // record bytes and the observed value misses the authored oracle.
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 8]::Utf8 requires valid_utf8(self);
 
 data Context {
     flag: u64;
@@ -21,7 +21,7 @@ machine measure(bytes: &[u8]) -> u64 crashes Trap {
         _ -> (0)
     }
 
-    state read(bytes: &[u8]) -> u64 {
+    machine read(bytes: &[u8]) -> u64 {
         transition { _ -> (bytes.len) }
     }
 }
@@ -36,8 +36,8 @@ machine main(context: &mut Context) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 
@@ -50,8 +50,8 @@ machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
         true -> checked(bytes)
         false -> bad()
     }
-    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
-    state bad() { crash Trap; }
+    machine checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    machine bad() -> &[u8] in Utf8 { crash Trap; }
 }
 machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
     let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);

@@ -13,7 +13,7 @@ machine replacement(cursor: &mut Cursor) -> i32 in Wrapping {
 machine store(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { value = incoming; }
 machine visit(rows: &mut [Row; 3], cursor: &mut Cursor) {
     transition { _ -> apply(&mut rows[choose_row(cursor)].data[choose_column(cursor)], replacement(cursor)) }
-    state apply(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { store(value, incoming); }
+    machine apply(value: &mut i32 in Wrapping, incoming: i32 in Wrapping) { store(value, incoming); }
 }
 machine main() crashes Trap {
     let mut rows: [Row; 3];
@@ -24,6 +24,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

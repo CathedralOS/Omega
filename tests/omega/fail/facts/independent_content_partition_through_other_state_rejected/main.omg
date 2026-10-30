@@ -32,7 +32,7 @@ ensures
 }
 machine exercise(select: bool) -> Parts {
     transition { _ -> next(issue()) }
-    state next(whole: Region in First & Second) -> Parts
+    machine next(whole: Region in First & Second) -> Parts
     requires whole.base == 10 && whole.length == 48
     { partition(whole, 16) }
 }
@@ -49,6 +49,6 @@ machine main() crashes Trap {
     let first: bool = inspect(exercise(true));
     let second: bool = inspect(exercise(false));
     transition first && second { true -> done() _ -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

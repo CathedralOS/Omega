@@ -9,7 +9,7 @@ machine ordinary(holder: &mut Holder) reaches ProcessExit {
 }
 machine composed(holder: &mut Holder) reaches ProcessExit {
     transition { _ -> finish(holder) }
-    state finish(holder: &mut Holder) {
+    machine finish(holder: &mut Holder) {
         let detached: Token = holder.token;
         ProcessExit::exit_process(0);
     }

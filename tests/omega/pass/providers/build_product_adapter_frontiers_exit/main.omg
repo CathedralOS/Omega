@@ -5,6 +5,6 @@ use support::values;
 machine main() crashes Trap {
     let value: u64 = Value::read();
     transition value == 42 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

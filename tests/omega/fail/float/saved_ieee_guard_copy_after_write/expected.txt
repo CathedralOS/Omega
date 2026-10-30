@@ -1,0 +1,1 @@
+cannot prove unqualified `I32::from_f64` operand

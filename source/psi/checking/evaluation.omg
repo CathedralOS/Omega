@@ -52,12 +52,12 @@ public machine Value::truth(flag: bool) -> Value {
         _ -> zero()
     }
 
-    state one() -> Value {
+    machine one() -> Value {
         let value: Value = Value::constant(ExactInteger { negative: false, magnitude: 1 });
         value
     }
 
-    state zero() -> Value {
+    machine zero() -> Value {
         let value: Value = Value::constant(ExactInteger { negative: false, magnitude: 0 });
         value
     }
@@ -131,7 +131,7 @@ machine Value::pick(first: bool, when: Bound, otherwise: Bound) -> Bound {
         _ -> chosen(otherwise)
     }
 
-    state chosen(bound: Bound) -> Bound {
+    machine chosen(bound: Bound) -> Bound {
         bound
     }
 }
@@ -162,7 +162,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    state offset(checker: &Checker, offset: u64 in Trapping) -> Value {
+    machine offset(checker: &Checker, offset: u64 in Trapping) -> Value {
         let index: u64 in Trapping = checker.tree_base + offset;
         transition offset < checker.tree_size && index < 4096 {
             true -> read(checker, index)
@@ -170,7 +170,7 @@ crashes Trap
         }
     }
 
-    state read(checker: &Checker, index: u64 in Trapping) -> Value
+    machine read(checker: &Checker, index: u64 in Trapping) -> Value
     requires index < 4096
     {
         let stored: Value = checker.values[index];
@@ -180,16 +180,16 @@ crashes Trap
         }
     }
 
-    state current(checker: &Checker, stored: Value) -> Value {
+    machine current(checker: &Checker, stored: Value) -> Value {
         let value: Value = Checker::term_value(checker, stored.place, stored.subject, stored.offset);
         value
     }
 
-    state kept(stored: Value) -> Value {
+    machine kept(stored: Value) -> Value {
         stored
     }
 
-    state invalid() -> Value {
+    machine invalid() -> Value {
         crash Trap;
     }
 }
@@ -209,12 +209,12 @@ crashes Trap
         _ -> answer(value)
     }
 
-    state carried(value: Value, row: TypeRow) -> Value {
+    machine carried(value: Value, row: TypeRow) -> Value {
         let range: Value = Value::carrier(row.builtin);
         Value { place: value.place, known: false, subject: 0, offset: range.offset, ceiling: range.ceiling, floor: range.floor }
     }
 
-    state answer(value: Value) -> Value {
+    machine answer(value: Value) -> Value {
         value
     }
 }
@@ -226,7 +226,7 @@ crashes Trap
 {
     transition { _ -> layer(typing, handle, handle, 0) }
 
-    state layer(typing: &Typing, written: u64 in Trapping, current: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
+    machine layer(typing: &Typing, written: u64 in Trapping, current: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
         let row: TypeRow = TypeTable::row(&typing.types, current);
         let builtin: bool = row.kind == TypeKind::Builtin;
         transition row.kind == TypeKind::Reference && depth < 8 {
@@ -235,14 +235,14 @@ crashes Trap
         }
     }
 
-    state settled(written: u64 in Trapping, current: u64 in Trapping, builtin: bool) -> u64 in Trapping {
+    machine settled(written: u64 in Trapping, current: u64 in Trapping, builtin: bool) -> u64 in Trapping {
         transition builtin {
             true -> answer(current)
             _ -> answer(written)
         }
     }
 
-    state answer(handle: u64 in Trapping) -> u64 in Trapping {
+    machine answer(handle: u64 in Trapping) -> u64 in Trapping {
         handle
     }
 }
@@ -255,7 +255,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    state offset(checker: &mut Checker, offset: u64 in Trapping, value: Value) {
+    machine offset(checker: &mut Checker, offset: u64 in Trapping, value: Value) {
         let index: u64 in Trapping = checker.tree_base + offset;
         transition offset < checker.tree_size && index < 4096 {
             true -> write(checker, index, value)
@@ -263,13 +263,13 @@ crashes Trap
         }
     }
 
-    state write(checker: &mut Checker, index: u64 in Trapping, value: Value)
+    machine write(checker: &mut Checker, index: u64 in Trapping, value: Value)
     requires index < 4096
     {
         checker.values[index] = value;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -308,7 +308,7 @@ public machine Value::product(left: Value, right: Value) -> Value {
         _ -> unbounded()
     }
 
-    state nonnegative(left: Value, right: Value) -> Value {
+    machine nonnegative(left: Value, right: Value) -> Value {
         let least_left: Bound = Value::least(left);
         let least_right: Bound = Value::least(right);
         let lower: ExactResult = ExactInteger::multiply(least_left.value, least_right.value);
@@ -321,7 +321,7 @@ public machine Value::product(left: Value, right: Value) -> Value {
         Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: ceiling, floor: floor }
     }
 
-    state unbounded() -> Value {
+    machine unbounded() -> Value {
         let unknown: Value = Value::unknown();
         unknown
     }
@@ -338,7 +338,7 @@ public machine Value::quotient(left: Value, right: Value) -> Value {
         _ -> unbounded()
     }
 
-    state divided(left: Value, right: Value, least_divisor: u64 in Wrapping) -> Value {
+    machine divided(left: Value, right: Value, least_divisor: u64 in Wrapping) -> Value {
         let unknown: Value = Value::unknown();
         let ceiling: Bound = Value::divided_ceiling(left.ceiling, least_divisor);
         let least_left: Bound = Value::least(left);
@@ -346,7 +346,7 @@ public machine Value::quotient(left: Value, right: Value) -> Value {
         Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: ceiling, floor: floor }
     }
 
-    state unbounded() -> Value {
+    machine unbounded() -> Value {
         let unknown: Value = Value::unknown();
         unknown
     }
@@ -358,11 +358,11 @@ machine Value::divided_ceiling(ceiling: Bound, divisor: u64 in Wrapping) -> Boun
         _ -> unbounded()
     }
 
-    state divided(magnitude: u64 in Wrapping) -> Bound {
+    machine divided(magnitude: u64 in Wrapping) -> Bound {
         Bound { finite: true, value: ExactInteger { negative: false, magnitude: magnitude } }
     }
 
-    state unbounded() -> Bound {
+    machine unbounded() -> Bound {
         Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0 } }
     }
 }
@@ -375,11 +375,11 @@ machine Value::divided_floor(least: u64 in Wrapping, ceiling: Bound) -> Bound {
         _ -> zero()
     }
 
-    state divided(magnitude: u64 in Wrapping) -> Bound {
+    machine divided(magnitude: u64 in Wrapping) -> Bound {
         Bound { finite: true, value: ExactInteger { negative: magnitude > 0, magnitude: magnitude } }
     }
 
-    state zero() -> Bound {
+    machine zero() -> Bound {
         Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0 } }
     }
 }
@@ -395,7 +395,7 @@ public machine Value::remainder(left: Value, right: Value) -> Value {
         _ -> interval(left, right)
     }
 
-    state folded(left: Value, right: Value) -> Value {
+    machine folded(left: Value, right: Value) -> Value {
         let result: ExactResult = ExactInteger::remainder(left.offset, right.offset);
         transition result.valid {
             true -> constant(result.value)
@@ -403,13 +403,13 @@ public machine Value::remainder(left: Value, right: Value) -> Value {
         }
     }
 
-    state constant(value: ExactInteger) -> Value {
+    machine constant(value: ExactInteger) -> Value {
         let folded: Value = Value::constant(value);
         folded
     }
 
     // A floor is stored negated: `least` is the divisor's lower bound.
-    state interval(left: Value, right: Value) -> Value {
+    machine interval(left: Value, right: Value) -> Value {
         let least: Bound = Value::least(right);
         let finite: bool = least.finite && right.ceiling.finite;
         let positive: bool = finite && !least.value.negative && least.value.magnitude > 0;
@@ -420,14 +420,14 @@ public machine Value::remainder(left: Value, right: Value) -> Value {
         }
     }
 
-    state negative_divisor(left: Value, least: Bound, negative: bool) -> Value {
+    machine negative_divisor(left: Value, least: Bound, negative: bool) -> Value {
         transition negative {
             true -> bounded(left, least.value.magnitude - 1)
             _ -> unbounded()
         }
     }
 
-    state bounded(left: Value, below_divisor: u64 in Wrapping) -> Value {
+    machine bounded(left: Value, below_divisor: u64 in Wrapping) -> Value {
         let nonnegative: bool = Value::nonnegative(left);
         let nonpositive: bool = left.ceiling.finite && (left.ceiling.value.negative || left.ceiling.value.magnitude == 0);
         transition nonnegative {
@@ -436,7 +436,7 @@ public machine Value::remainder(left: Value, right: Value) -> Value {
         }
     }
 
-    state natural(left: Value, below_divisor: u64 in Wrapping) -> Value {
+    machine natural(left: Value, below_divisor: u64 in Wrapping) -> Value {
         let unknown: Value = Value::unknown();
         let divisor_bound: Bound = Bound { finite: true, value: ExactInteger { negative: false, magnitude: below_divisor } };
         let tighter: bool = Bound::at_most(left.ceiling, divisor_bound);
@@ -446,7 +446,7 @@ public machine Value::remainder(left: Value, right: Value) -> Value {
     }
 
     // At least the divisor's negated bound, stored negated as the floor.
-    state signed(below_divisor: u64 in Wrapping, nonpositive: bool) -> Value {
+    machine signed(below_divisor: u64 in Wrapping, nonpositive: bool) -> Value {
         let unknown: Value = Value::unknown();
         let zero: Bound = Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0 } };
         let magnitude: Bound = Bound { finite: true, value: ExactInteger { negative: false, magnitude: below_divisor } };
@@ -454,7 +454,7 @@ public machine Value::remainder(left: Value, right: Value) -> Value {
         Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: ceiling, floor: magnitude }
     }
 
-    state unbounded() -> Value {
+    machine unbounded() -> Value {
         let unknown: Value = Value::unknown();
         unknown
     }
@@ -469,7 +469,7 @@ public machine Value::conjunction(left: Value, right: Value) -> Value {
         _ -> unbounded()
     }
 
-    state bounded(left: Value, right: Value) -> Value {
+    machine bounded(left: Value, right: Value) -> Value {
         let unknown: Value = Value::unknown();
         let tighter: bool = Bound::at_most(left.ceiling, right.ceiling);
         let ceiling: Bound = Value::pick(tighter, left.ceiling, right.ceiling);
@@ -477,7 +477,7 @@ public machine Value::conjunction(left: Value, right: Value) -> Value {
         Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: ceiling, floor: floor }
     }
 
-    state unbounded() -> Value {
+    machine unbounded() -> Value {
         let unknown: Value = Value::unknown();
         unknown
     }
@@ -494,26 +494,26 @@ public machine Value::shifted_right(left: Value, right: Value) -> Value {
         _ -> narrowed(left, nonnegative)
     }
 
-    state folded(magnitude: u64 in Wrapping, count: u64 in Wrapping) -> Value {
+    machine folded(magnitude: u64 in Wrapping, count: u64 in Wrapping) -> Value {
         let shifted: u64 in Wrapping = magnitude >> count;
         let value: Value = Value::constant(ExactInteger { negative: false, magnitude: shifted });
         value
     }
 
-    state narrowed(left: Value, nonnegative: bool) -> Value {
+    machine narrowed(left: Value, nonnegative: bool) -> Value {
         transition nonnegative {
             true -> bounded(left)
             _ -> unbounded()
         }
     }
 
-    state bounded(left: Value) -> Value {
+    machine bounded(left: Value) -> Value {
         let unknown: Value = Value::unknown();
         let floor: Bound = Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0 } };
         Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: left.ceiling, floor: floor }
     }
 
-    state unbounded() -> Value {
+    machine unbounded() -> Value {
         let unknown: Value = Value::unknown();
         unknown
     }
@@ -528,14 +528,14 @@ public machine Value::offset_sum(left: Value, right: Value, interval: Value) -> 
         _ -> other(left, right, left_constant, interval)
     }
 
-    state other(left: Value, right: Value, left_constant: bool, interval: Value) -> Value {
+    machine other(left: Value, right: Value, left_constant: bool, interval: Value) -> Value {
         transition right.known && left_constant {
             true -> shifted(right.subject, right.offset, left.offset, interval)
             _ -> plain(interval)
         }
     }
 
-    state shifted(subject: u64 in Trapping, offset: ExactInteger, by: ExactInteger, interval: Value) -> Value {
+    machine shifted(subject: u64 in Trapping, offset: ExactInteger, by: ExactInteger, interval: Value) -> Value {
         let moved: ExactResult = ExactInteger::add(offset, by);
         transition moved.valid {
             true -> linear(subject, moved.value, interval)
@@ -543,11 +543,11 @@ public machine Value::offset_sum(left: Value, right: Value, interval: Value) -> 
         }
     }
 
-    state linear(subject: u64 in Trapping, offset: ExactInteger, interval: Value) -> Value {
+    machine linear(subject: u64 in Trapping, offset: ExactInteger, interval: Value) -> Value {
         Value { place: 0, known: true, subject: subject, offset: offset, ceiling: interval.ceiling, floor: interval.floor }
     }
 
-    state plain(interval: Value) -> Value {
+    machine plain(interval: Value) -> Value {
         interval
     }
 }
@@ -560,7 +560,7 @@ public machine Value::offset_difference(left: Value, right: Value, interval: Val
         _ -> plain(interval)
     }
 
-    state shifted(subject: u64 in Trapping, offset: ExactInteger, by: ExactInteger, interval: Value) -> Value {
+    machine shifted(subject: u64 in Trapping, offset: ExactInteger, by: ExactInteger, interval: Value) -> Value {
         let moved: ExactResult = ExactInteger::subtract(offset, by);
         transition moved.valid {
             true -> linear(subject, moved.value, interval)
@@ -568,11 +568,11 @@ public machine Value::offset_difference(left: Value, right: Value, interval: Val
         }
     }
 
-    state linear(subject: u64 in Trapping, offset: ExactInteger, interval: Value) -> Value {
+    machine linear(subject: u64 in Trapping, offset: ExactInteger, interval: Value) -> Value {
         Value { place: 0, known: true, subject: subject, offset: offset, ceiling: interval.ceiling, floor: interval.floor }
     }
 
-    state plain(interval: Value) -> Value {
+    machine plain(interval: Value) -> Value {
         interval
     }
 }
@@ -587,7 +587,7 @@ crashes Trap
         _ -> unbounded()
     }
 
-    state related(checker: &Checker, left: Value, right: Value) -> Bound {
+    machine related(checker: &Checker, left: Value, right: Value) -> Bound {
         let between: Bound = Zone::bound(&checker.zone, left.subject, right.subject);
         let offsets: ExactResult = ExactInteger::subtract(right.offset, left.offset);
         let shift: Bound = Bound { finite: offsets.valid, value: offsets.value };
@@ -595,7 +595,7 @@ crashes Trap
         bound
     }
 
-    state unbounded() -> Bound {
+    machine unbounded() -> Bound {
         Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0 } }
     }
 }
@@ -652,12 +652,12 @@ public machine Value::typed(row: TypeRow) -> Value {
         _ -> unbounded()
     }
 
-    state ranged(builtin: BuiltinType) -> Value {
+    machine ranged(builtin: BuiltinType) -> Value {
         let range: Value = Value::carrier(builtin);
         range
     }
 
-    state unbounded() -> Value {
+    machine unbounded() -> Value {
         let value: Value = Value::unknown();
         value
     }

@@ -1,6 +1,8 @@
 use super::replay::Origin;
 use super::*;
 
+mod call_origins;
+
 /// Disposable current-body analysis. Snapshots and summaries are shared across
 /// queries; every source observation denotes the state before its operation.
 pub struct DescriptorAnalysis<'a> {
@@ -41,6 +43,9 @@ impl<'a> DescriptorAnalysis<'a> {
             })
             .flatten()
             .collect::<Vec<_>>();
+        if slots.is_empty() {
+            return BTreeMap::new();
+        }
         machine
             .flow
             .iter()
@@ -53,7 +58,7 @@ impl<'a> DescriptorAnalysis<'a> {
                     .chain(
                         step.successors
                             .iter()
-                            .flat_map(|edge| edge.bindings.iter().map(|(source, _)| source)),
+                            .flat_map(|edge| edge.derivations().map(|(source, _)| source)),
                     )
                     .collect::<Vec<_>>();
                 let current = slots
@@ -83,6 +88,136 @@ impl<'a> DescriptorAnalysis<'a> {
             replay: Replay::new(types, machines),
         }
     }
+    /// Classify the complete actual graph after typed case-edge replay. A
+    /// disconnected or unavailable graph is Unknown, never a dead-code proof.
+    pub fn flow_feasibility(
+        &mut self,
+        identity: MachineId,
+    ) -> BTreeMap<DescriptorPosition, FlowFeasibility> {
+        let Some(machine) = self.replay.machine(identity) else {
+            return BTreeMap::new();
+        };
+        // prepare_states validates complete syntactic reachability before
+        // executing any case filter; an absent prepared position is then a
+        // positive exclusion, never merely a disconnected catalog row.
+        let usable = self.replay.prepare_states(identity).is_some();
+        let states = self
+            .replay
+            .snapshots
+            .get(&identity)
+            .and_then(Option::as_ref);
+        machine
+            .flow
+            .keys()
+            .map(|position| {
+                (
+                    *position,
+                    if !usable {
+                        FlowFeasibility::Unknown
+                    } else if states.is_some_and(|states| states.contains_key(position)) {
+                        FlowFeasibility::Possible
+                    } else {
+                        FlowFeasibility::ProvedImpossible
+                    },
+                )
+            })
+            .collect()
+    }
+    /// The successor ordinal belongs to the adapter's authenticated actual
+    /// flow row. This query never equates a missing snapshot with dead flow.
+    pub fn edge_feasibility(
+        &mut self,
+        identity: MachineId,
+        position: DescriptorPosition,
+        ordinal: usize,
+    ) -> FlowFeasibility {
+        if self.replay.prepare_states(identity).is_none() {
+            return FlowFeasibility::Unknown;
+        }
+        let Some(machine) = self.replay.machine(identity) else {
+            return FlowFeasibility::Unknown;
+        };
+        let Some(step) = machine.flow.get(&position) else {
+            return FlowFeasibility::Unknown;
+        };
+        if step.successors.get(ordinal).is_none() {
+            return FlowFeasibility::Unknown;
+        }
+        let Some(before) = self
+            .replay
+            .snapshots
+            .get(&identity)
+            .and_then(Option::as_ref)
+            .and_then(|states| states.get(&position))
+        else {
+            return FlowFeasibility::ProvedImpossible;
+        };
+        // Case predicates are terminators and observe the same pre-operation
+        // state as their subject; they cannot hide writes or constructors.
+        let Some((predicate, truth)) = machine
+            .case_successors
+            .get(&position)
+            .and_then(|cases| cases.get(ordinal))
+        else {
+            return FlowFeasibility::Possible;
+        };
+        let mut state = before.clone();
+        match super::case_flow::select(&self.replay, machine, &mut state, predicate, *truth) {
+            Some(false) => FlowFeasibility::ProvedImpossible,
+            Some(true) => FlowFeasibility::Possible,
+            None => FlowFeasibility::Unknown,
+        }
+    }
+    /// Membership concerns the current typed tag, independently of whether a
+    /// descriptor payload happens to be resident. Missing facts stay unknown.
+    pub fn case_feasibility(
+        &mut self,
+        identity: MachineId,
+        position: DescriptorPosition,
+        predicate: &DescriptorCasePredicate,
+    ) -> FlowFeasibility {
+        if self.replay.prepare_states(identity).is_none() {
+            return FlowFeasibility::Unknown;
+        }
+        let Some(machine) = self.replay.machine(identity) else {
+            return FlowFeasibility::Unknown;
+        };
+        let Some(before) = self
+            .replay
+            .snapshots
+            .get(&identity)
+            .and_then(Option::as_ref)
+            .and_then(|states| states.get(&position))
+        else {
+            return FlowFeasibility::Unknown;
+        };
+        super::case_flow::membership(&self.replay, machine, before, predicate)
+    }
+    /// Exactly one current selected tag at the complete observation cut.
+    /// Unknown, missing and alternative rosters never establish the guard.
+    pub fn case_is_established(
+        &mut self,
+        identity: MachineId,
+        position: DescriptorPosition,
+        predicate: &DescriptorCasePredicate,
+    ) -> bool {
+        if self.replay.prepare_states(identity).is_none() {
+            return false;
+        }
+        let Some(machine) = self.replay.machine(identity) else {
+            return false;
+        };
+        let Some(state) = self
+            .replay
+            .snapshots
+            .get(&identity)
+            .and_then(Option::as_ref)
+            .and_then(|states| states.get(&position))
+        else {
+            return false;
+        };
+        super::case_flow::established(&self.replay, machine, state, predicate)
+    }
     /// Ordinary reference-slot contents use the same replay without adopting
     /// shared-view copy or observation rules. Pair with a reference-slot graph.
     pub fn with_reference_slots(
@@ -91,6 +226,17 @@ impl<'a> DescriptorAnalysis<'a> {
     ) -> Self {
         Self {
             replay: Replay::with_slot_kind(types, machines, DescriptorSlotKind::References),
+        }
+    }
+
+    /// Storage-origin consumers need the complete borrowed carrier inventory;
+    /// ordinary pointer contents and view backing retain their distinct roles.
+    pub fn with_borrowed_storage_slots(
+        types: &'a [StructuralTypeDeclaration],
+        machines: &'a [DescriptorMachine],
+    ) -> Self {
+        Self {
+            replay: Replay::with_slot_kind(types, machines, DescriptorSlotKind::BorrowedStorage),
         }
     }
     /// Formation provenance follows value/borrow transport, independently of
@@ -267,10 +413,33 @@ impl<'a> DescriptorAnalysis<'a> {
         position: DescriptorPosition,
         origin: &DescriptorSourceOrigin,
     ) -> Option<Vec<DescriptorSourceOrigin>> {
+        self.substitute_call_source_with_target(identity, position, origin, false)
+    }
+    /// A selected body's resource demands retain their own formal namespace;
+    /// this cannot expose its private returned-origin or scalar guarantees.
+    pub fn substitute_stored_effect_source(
+        &mut self,
+        identity: MachineId,
+        position: DescriptorPosition,
+        origin: &DescriptorSourceOrigin,
+    ) -> Option<Vec<DescriptorSourceOrigin>> {
+        self.substitute_call_source_with_target(identity, position, origin, true)
+    }
+    fn substitute_call_source_with_target(
+        &mut self,
+        identity: MachineId,
+        position: DescriptorPosition,
+        origin: &DescriptorSourceOrigin,
+        stored_effects: bool,
+    ) -> Option<Vec<DescriptorSourceOrigin>> {
         self.replay.prepare_states(identity)?;
         let machine = self.replay.machine(identity)?;
         let call = machine.calls.get(&position)?;
-        let callee = self.replay.machine(call.callee()?)?;
+        let callee = self.replay.machine(if stored_effects {
+            call.stored_effects_callee()?
+        } else {
+            call.callee()?
+        })?;
         let exported = match origin {
             DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Invocation {
                 carrier_type,
@@ -371,7 +540,7 @@ impl<'a> DescriptorAnalysis<'a> {
         self.replay.prepare_states(identity)?;
         let machine = self.replay.machine(identity)?;
         let call = machine.calls.get(&position)?;
-        let callee = self.replay.machine(call.callee()?)?;
+        let callee = self.replay.machine(call.stored_effects_callee()?)?;
         let (parameter, _, ty) = self.replay.parameter(callee, *source)?;
         let relative = crate::descriptor_lifetimes::descriptor_location(
             self.replay.types,
@@ -417,41 +586,6 @@ impl<'a> DescriptorAnalysis<'a> {
             }
         }
         self.replay.storage_projection(machine, &actual)
-    }
-    pub fn call_origins(
-        &mut self,
-        identity: MachineId,
-        result: PlaceId,
-    ) -> Option<Vec<DescriptorCallOrigin>> {
-        self.replay.prepare_states(identity)?;
-        let machine = self.replay.machine(identity)?;
-        let mut calls = machine.calls.iter().filter(|(_, call)| {
-            call.result
-                .as_ref()
-                .is_some_and(|location| *location == DescriptorLocation::whole(result))
-        });
-        let (position, call) = calls.next()?;
-        if calls.next().is_some() || call.argument_contents.iter().any(Option::is_none) {
-            return None;
-        }
-        let states = self.replay.snapshots.get(&identity)?.as_ref()?;
-        let summary = self.replay.cached_invocation_summary(call)?;
-        let mut origins = BTreeSet::new();
-        // A call can return a descriptor inside a record, case, or array.
-        // Its complete result summary already distinguishes every slot and
-        // inactive case. Memory reach is their backing union, not the owned
-        // carrier home; a root-only lookup discards all aggregate descriptors.
-        for slot in summary.result.as_ref()? {
-            for origin in &slot.origins {
-                origins.extend(self.replay.substitute_result(
-                    machine,
-                    states.get(position)?,
-                    call,
-                    origin,
-                )?);
-            }
-        }
-        self.replay.resolved(machine, origins)
     }
     /// Complete private result-slot summary from current executable bodies.
     /// A caller may compare it to a public contract, never select one slot as
@@ -549,6 +683,35 @@ impl<'a> DescriptorAnalysis<'a> {
         &mut self,
         identity: MachineId,
     ) -> Option<BTreeMap<DescriptorPosition, DescriptorFlowStep>> {
+        self.prepare_flow(identity, None)
+    }
+
+    /// Reuse the exact current flow while retaining physical address captures
+    /// independently of ordinary descriptor-value transport.
+    pub fn residence_flow(
+        &mut self,
+        identity: MachineId,
+        rules: &mut crate::descriptor_lifetimes::DescriptorResidenceRules,
+    ) -> Option<BTreeMap<DescriptorPosition, DescriptorFlowStep>> {
+        rules.captures = rules
+            .captures
+            .iter()
+            .map(|(position, source, destination)| {
+                Some((
+                    *position,
+                    self.location(identity, *position, source)?,
+                    self.location(identity, *position, destination)?,
+                ))
+            })
+            .collect::<Option<_>>()?;
+        self.prepare_flow(identity, Some(rules))
+    }
+
+    fn prepare_flow(
+        &mut self,
+        identity: MachineId,
+        mut residence_rules: Option<&mut crate::descriptor_lifetimes::DescriptorResidenceRules>,
+    ) -> Option<BTreeMap<DescriptorPosition, DescriptorFlowStep>> {
         self.replay.prepare_states(identity)?;
         let machine = self.replay.machine(identity)?;
         let states = self.replay.snapshots.get(&identity)?.as_ref()?;
@@ -609,6 +772,20 @@ impl<'a> DescriptorAnalysis<'a> {
                 .iter()
                 .map(|(source, destination)| Some((canonical(source)?, canonical(destination)?)))
                 .collect::<Option<_>>()?;
+            if residence_rules.is_some() {
+                // Borrowed arrivals alias the actual pre-edge storage. Their
+                // receiving names stay declared formals; simultaneous binding
+                // never reopens them as pre-operation source addresses.
+                for edge in &mut step.successors {
+                    for binding in &mut edge.bindings {
+                        if let crate::descriptor_lifetimes::DescriptorFlowSource::Location(source) =
+                            &mut binding.source
+                        {
+                            *source = canonical(source)?;
+                        }
+                    }
+                }
+            }
             let Some(call) = machine
                 .calls
                 .get(position)
@@ -773,6 +950,23 @@ impl<'a> DescriptorAnalysis<'a> {
                         self.replay.canonical_storage(machine, before, &source)?,
                         destination.clone(),
                     );
+                    if matches!(origin, DescriptorStoredOrigin::Parameter { .. })
+                        && let Some(rules) = residence_rules.as_deref_mut()
+                    {
+                        let source_type = crate::descriptor_lifetimes::descriptor_location_type(
+                            self.replay.types,
+                            *machine.place_types.get(&pair.0.root)?,
+                            &pair.0.path,
+                        )?;
+                        // A view's formal backing is its captured payload.
+                        // An ordinary carrier formal denotes actual storage,
+                        // including a pointer slot borrowed through &pointer.
+                        if !DescriptorSlotKind::Views.is_slot(self.replay.types, source_type) {
+                            rules
+                                .captures
+                                .insert((*position, pair.0.clone(), pair.1.clone()));
+                        }
+                    }
                     step.derivations.push(pair.clone());
                     if strong
                         && match origin {

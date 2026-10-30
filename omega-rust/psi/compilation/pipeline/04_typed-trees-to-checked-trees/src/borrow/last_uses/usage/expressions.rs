@@ -80,6 +80,7 @@ pub(super) fn expression_uses_local_name(
         | typed_trees::expression::ExpressionNode::UndeterminedNaN(_)
         | typed_trees::expression::ExpressionNode::Integer(_)
         | typed_trees::expression::ExpressionNode::String(_)
+        | typed_trees::expression::ExpressionNode::TypeExpression(_)
         | typed_trees::expression::ExpressionNode::ZeroValue(_) => false,
     }
 }

@@ -39,22 +39,22 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> wrong_extent(main)
     }
 
-    state contents(main: &mut Main) {
+    machine contents(main: &mut Main) {
         transition main.name == "Door" && main.room.label == "Gate keeper" {
             true -> good(main)
             false -> wrong_bytes(main)
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state wrong_extent(main: &mut Main) {
+    machine wrong_extent(main: &mut Main) {
         Console::exit_process(71);
     }
 
-    state wrong_bytes(main: &mut Main) {
+    machine wrong_bytes(main: &mut Main) {
         Console::exit_process(72);
     }
 }

@@ -1,6 +1,9 @@
 //! Selected normal-edge custody, expressed in the ordinary state value namespace.
 //! The shared ownership selection supplies order and exact outgoing coordinates;
 //! hook requirements remain obligations at that edge, never new unconditional facts.
+mod exits;
+pub(in crate::execution::terminal_unit) use exits::state_exits;
+
 use crate::execution::terminal_unit::types::ShapeCollector;
 use checked_trees::{
     CheckFacts, CheckedComposedUnitControlStatePlan, CheckedUnitCallableEntry,
@@ -9,6 +12,22 @@ use checked_trees::{
 use facts::PlaceRoot;
 use language_semantics::PermissionEventSource;
 use symbols::SymbolHandle;
+
+/// The producing layer joins source invocation reachability with its completed
+/// physical control. Unknown source outcomes remain potentially normal.
+pub(in crate::execution::terminal_unit) fn completed_body_outcome(
+    program: &dyn validation::CheckingInput,
+    state: &typed_trees::state::State,
+    physical_continuation: bool,
+) -> checked_trees::CheckedNormalCompletion {
+    if physical_continuation
+        && validation::normal_completion_possible(program, state) != Some(false)
+    {
+        checked_trees::CheckedNormalCompletion::Possible
+    } else {
+        checked_trees::CheckedNormalCompletion::NoNormal
+    }
+}
 
 /// Mutable construction scratch; only the shared cleanup arena is published.
 struct NormalExitConstruction {
@@ -20,7 +39,8 @@ struct NormalExitConstruction {
 fn retain_normal_exits(
     shapes: &mut ShapeCollector<'_>,
     rows: Vec<NormalExitConstruction>,
-) -> arena::HandleSpan<checked_trees::CheckedNormalExitCleanupPlan> {
+    completion: checked_trees::CheckedNormalCompletion,
+) -> checked_trees::CheckedNormalExitCleanups {
     let owner = &mut shapes.cleanup_control;
     let retained = rows
         .into_iter()
@@ -30,7 +50,10 @@ fn retain_normal_exits(
             actions: owner.actions.insert_many(row.actions),
         })
         .collect::<Vec<_>>();
-    owner.normal_exit_rows.insert_many(retained)
+    checked_trees::CheckedNormalExitCleanups {
+        completion,
+        rows: owner.normal_exit_rows.insert_many(retained),
+    }
 }
 
 pub(in crate::execution::terminal_unit) fn state_cleanups(
@@ -39,12 +62,42 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
     targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
     state_plan: &CheckedComposedUnitControlStatePlan,
-) -> Option<arena::HandleSpan<checked_trees::CheckedNormalExitCleanupPlan>> {
-    let (machine, state) = program.machines().iter().find_map(|machine| {
-        program
-            .state_in_machine(machine, state_plan.state)
-            .map(|state| (machine, state))
-    })?;
+) -> Result<checked_trees::CheckedNormalExitCleanups, &'static str> {
+    let (machine, state) = program
+        .machines()
+        .iter()
+        .find_map(|machine| {
+            program
+                .state_in_machine(machine, state_plan.state)
+                .map(|state| (machine, state))
+        })
+        .ok_or("normal cleanup state has no owning machine")?;
+    let completion = state_plan.normal_exit_cleanups.completion;
+    let exits = state_exits(program, facts, machine.symbol, state)?;
+    // No normal return does not erase an authored transfer's cleanup. Only
+    // the absent source exit roster permits an unreachable physical edge to
+    // carry no transaction.
+    if completion == checked_trees::CheckedNormalCompletion::NoNormal && exits.is_empty() {
+        return Ok(checked_trees::CheckedNormalExitCleanups {
+            completion,
+            ..Default::default()
+        });
+    }
+    // A statically selected abnormal completion has no normal cleanup edge.
+    // Source flow remains complete; this grants no normal-return disposition.
+    if state_plan.selected_exit.is_some()
+        && matches!(
+            state_plan.terminator,
+            checked_trees::CheckedComposedUnitControlTerminatorPlan::Crash { .. }
+                | checked_trees::CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal { .. }
+                | checked_trees::CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal
+        )
+    {
+        return Ok(checked_trees::CheckedNormalExitCleanups {
+            completion: checked_trees::CheckedNormalCompletion::NoNormal,
+            ..Default::default()
+        });
+    }
     let rows = cleanup_rows(
         program,
         facts,
@@ -52,9 +105,11 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
         shapes,
         machine.symbol,
         state,
+        exits,
+        state_plan.selected_exit,
         |root| owner_source(program, facts, state, state_plan, root).map(Some),
     )?;
-    Some(retain_normal_exits(shapes, rows))
+    Ok(retain_normal_exits(shapes, rows, completion))
 }
 
 /// Sequence completion disposes current named storage through the same checked
@@ -66,9 +121,23 @@ pub(in crate::execution::terminal_unit) fn sequence_cleanups(
     targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
     plan: &checked_trees::CheckedUnitEffectMachinePlan,
-) -> Option<arena::HandleSpan<checked_trees::CheckedNormalExitCleanupPlan>> {
+) -> Option<checked_trees::CheckedNormalExitCleanups> {
     let machine = program.machine_by_symbol(plan.machine)?;
     let state = program.state_in_machine(machine, plan.state)?;
+    let completion = completed_body_outcome(
+        program,
+        state,
+        plan.operations
+            .iter()
+            .all(|operation| operation.has_normal_continuation()),
+    );
+    let exits = state_exits(program, facts, plan.machine, state).ok()?;
+    if completion == checked_trees::CheckedNormalCompletion::NoNormal && exits.is_empty() {
+        return Some(checked_trees::CheckedNormalExitCleanups {
+            completion,
+            ..Default::default()
+        });
+    }
     let rows = cleanup_rows(
         program,
         facts,
@@ -76,6 +145,8 @@ pub(in crate::execution::terminal_unit) fn sequence_cleanups(
         shapes,
         plan.machine,
         state,
+        exits,
+        None,
         |root| {
             let operations = &plan.operations;
             if root.as_expression().is_some() {
@@ -104,8 +175,9 @@ pub(in crate::execution::terminal_unit) fn sequence_cleanups(
                 parameter_index: u32::try_from(index).ok()?,
             }))
         },
-    )?;
-    Some(retain_normal_exits(shapes, rows))
+    )
+    .ok()?;
+    Some(retain_normal_exits(shapes, rows, completion))
 }
 
 fn cleanup_rows(
@@ -115,46 +187,30 @@ fn cleanup_rows(
     shapes: &mut ShapeCollector<'_>,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
+    source_exits: Vec<checked_trees::FlowClaimJoinExit>,
+    selected_exit: Option<checked_trees::FlowClaimJoinExit>,
     mut source_for_owner: impl FnMut(
         PlaceRoot,
     ) -> Option<Option<CheckedUnitStructuralArgumentSourcePlan>>,
-) -> Option<Vec<NormalExitConstruction>> {
-    let flow_state = facts.flow.control.state(machine, state.symbol)?;
-    let mut rows = Vec::<NormalExitConstruction>::new();
-    for outgoing in facts
+) -> Result<Vec<NormalExitConstruction>, &'static str> {
+    let flow_state = facts
         .flow
         .control
-        .outgoing
-        .span_or_empty(flow_state.outgoing)
-    {
-        let kind = if !outgoing.transition_target.is_valid() {
-            checked_trees::FlowClaimJoinExitKind::FinalExpression
-        } else {
-            let transition = program
-                .statement_table
-                .statement_at(state, outgoing.statement_index)?
-                .as_transition()?;
-            if transition.target == outgoing.transition_target {
-                checked_trees::FlowClaimJoinExitKind::TransitionTarget
-            } else if transition.continuation == outgoing.transition_target {
-                checked_trees::FlowClaimJoinExitKind::TransitionContinuation
-            } else {
-                return None;
-            }
-        };
-        let exit = checked_trees::FlowClaimJoinExit {
-            state_symbol: state.symbol,
-            statement_index: outgoing.statement_index,
-            kind,
-        };
-        if !rows.iter().any(|row| row.exit == exit) {
-            rows.push(NormalExitConstruction {
-                exit,
-                selected_regions: Vec::new(),
-                actions: Vec::new(),
-            });
-        }
+        .state(machine, state.symbol)
+        .ok_or("normal cleanup state has no retained control flow")?;
+    if selected_exit.is_some_and(|selected| !source_exits.contains(&selected)) {
+        return Err("selected normal cleanup has no exact source exit");
     }
+    let mut rows = source_exits
+        .iter()
+        .copied()
+        .filter(|exit| selected_exit.is_none_or(|selected| selected == *exit))
+        .map(|exit| NormalExitConstruction {
+            exit,
+            selected_regions: Vec::new(),
+            actions: Vec::new(),
+        })
+        .collect::<Vec<_>>();
     let mut retirements = Vec::new();
     let mut establishment_ordered = Vec::new();
     for disposition_handle in facts
@@ -169,7 +225,16 @@ fn cleanup_rows(
             continue;
         }
         if disposition.exit.state_symbol != state.symbol {
-            return None;
+            return Err("normal cleanup disposition belongs to another state");
+        }
+        if selected_exit.is_some_and(|selected| disposition.exit != selected) {
+            // Preserve the full authored receipt roster. Only a different,
+            // validated source exit is absent from this executable completion;
+            // malformed or missing coordinates must not disappear here.
+            if !source_exits.contains(&disposition.exit) {
+                return Err("normal cleanup disposition has no matching exit");
+            }
+            continue;
         }
         // Capture authority belongs to the selected receipt, not a mutable
         // declaration namespace or a re-resolved prefix of its operation list.
@@ -180,7 +245,7 @@ fn cleanup_rows(
                 .owned_selections
                 .get(disposition.selection);
             if receipt.state != state.symbol || receipt.machine != machine {
-                return None;
+                return Err("normal cleanup receipt belongs to another state or machine");
             }
             let mut sources = facts
                 .flow
@@ -190,20 +255,24 @@ fn cleanup_rows(
                 .iter()
                 .enumerate()
                 .filter(|(_, source)| Some(source.symbol) == disposition.root.as_symbol());
-            let (ordinal, _) = sources.next()?;
+            let (ordinal, _) = sources
+                .next()
+                .ok_or("normal cleanup receipt has no source for its root")?;
             if sources.next().is_some() {
-                return None;
+                return Err("normal cleanup receipt has multiple sources for its root");
             }
             Some(CheckedUnitStructuralArgumentSourcePlan::CapturedStorage {
                 selection: disposition.selection,
-                source_ordinal: u32::try_from(ordinal).ok()?,
+                source_ordinal: u32::try_from(ordinal)
+                    .map_err(|_| "normal cleanup source ordinal exceeds u32")?,
             })
         } else {
             None
         };
         let source = match captured {
             Some(source) => Some(source),
-            None => source_for_owner(disposition.root)?,
+            None => source_for_owner(disposition.root)
+                .ok_or("normal cleanup owner has no retained structural storage")?,
         };
         let Some(source) = source else {
             continue;
@@ -220,7 +289,8 @@ fn cleanup_rows(
         ) {
             retirements.push((
                 disposition.exit,
-                super::actions::home_retirement(program, shapes, disposition, source.clone())?,
+                super::actions::home_retirement(program, shapes, disposition, source.clone())
+                    .ok_or("normal cleanup cannot realize the retiring home")?,
                 disposition.root,
             ));
         }
@@ -245,18 +315,35 @@ fn cleanup_rows(
                     disposition_handle,
                     source.clone(),
                     None,
-                )?;
-                if !row.selected_regions.contains(&region) {
-                    row.selected_regions.push(region);
-                }
+                )
+                .ok_or("normal cleanup cannot realize its selected region")?;
+                crate::collections::push_unique(&mut row.selected_regions, region);
             }
             row.actions.extend(actions);
         } else {
-            return None;
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE normal-cleanup-unmatched machine={machine:?} state={:?} disposition={disposition:?} exits={:?} outgoing={:?}",
+                    state.symbol,
+                    rows.iter().take(8).map(|row| row.exit).collect::<Vec<_>>(),
+                    facts
+                        .flow
+                        .control
+                        .outgoing
+                        .span_or_empty(flow_state.outgoing)
+                        .iter()
+                        .take(8)
+                        .collect::<Vec<_>>(),
+                );
+            }
+            return Err("normal cleanup disposition has no matching exit");
         }
     }
     for (exit, retirement, root) in retirements {
-        let row = rows.iter_mut().find(|row| row.exit == exit)?;
+        let row = rows
+            .iter_mut()
+            .find(|row| row.exit == exit)
+            .ok_or("normal cleanup retirement has no matching exit")?;
         // A root still under construction keeps the producer's reverse
         // establishment order; the declared order below is for a completed
         // aggregate whose candidate regions join its residual partition.
@@ -273,11 +360,12 @@ fn cleanup_rows(
                 root,
                 &mut row.actions,
                 retirement.source(),
-            )?;
+            )
+            .ok_or("normal cleanup cannot order the selected region actions")?;
         }
         super::actions::finish_home(&mut row.actions, retirement);
     }
-    Some(rows)
+    Ok(rows)
 }
 
 fn owner_source(

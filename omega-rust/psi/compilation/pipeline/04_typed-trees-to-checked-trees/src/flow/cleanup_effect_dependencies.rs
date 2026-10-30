@@ -336,6 +336,9 @@ fn visit(
     if removed.iter().any(|path| path.is_empty()) {
         return Some(());
     }
+    // Carrier traversal may peel qualifications; selecting its disposition
+    // must still use the owned occurrence's exact semantic interface.
+    let selected_reference = reference;
     reference = resolve_peeled_type_reference(program, reference, substitutions);
     if matches!(
         program.type_reference_table.type_reference(reference),
@@ -370,11 +373,7 @@ fn visit(
             // whole array still owes no cleanup when one element owes none
             // and no custody endpoint names an element; any leaf would carry
             // an extent the shared judgment cannot spell.
-            None if program
-                .constant_recipe_for_array_length(reference)
-                .is_valid()
-                && removed.is_empty() =>
-            {
+            None if program.declared_array_extent(reference).is_some() && removed.is_empty() => {
                 let mut element_leaves = Vec::new();
                 let mut element_erased = false;
                 path.push(PlaceSegment::FixedIndex { index: 0 });
@@ -397,7 +396,7 @@ fn visit(
         TypeReferenceNode::Named { symbol, .. } => visit_owner(
             program,
             *symbol,
-            reference,
+            selected_reference,
             substitutions,
             removed,
             active,
@@ -429,7 +428,7 @@ fn visit(
             visit_owner(
                 program,
                 *base_symbol,
-                reference,
+                selected_reference,
                 &nested,
                 removed,
                 active,

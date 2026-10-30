@@ -25,6 +25,8 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug, Clone, Copy)]
 struct ProjectionSubject {
+    machine: SymbolHandle,
+    state: SymbolHandle,
     symbol: SymbolHandle,
     qualified: TypeReferenceHandle,
     carrier: TypeReferenceHandle,
@@ -39,6 +41,7 @@ struct ProjectionDomainCandidate<'program> {
 pub(crate) fn validate_content_projection_conformances(
     program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let mut published: Vec<(language_semantics::SemanticDomainId, SymbolHandle, String)> =
         Vec::new();
@@ -136,6 +139,19 @@ pub(crate) fn validate_content_projection_conformances(
                 )));
                 continue;
             };
+            // Formation precedes algebra normalization: cancellation cannot
+            // erase a selected operation's precondition or carrier obligation.
+            if let Some(expression) = projection_result_expression(program, machine) {
+                let before = diagnostics.len();
+                crate::proof_contracts::contract_entailment::specification_calls::validate_proof_body_formation(
+                    program, machine, expression, diagnostics,
+
+    formation_obligations,
+);
+                if diagnostics.len() != before {
+                    continue;
+                }
+            }
             if projection_result_expression(program, machine).is_none_or(|expression| {
                 normalize_projection_expression(program, subject, &algebra, expression).is_none()
             }) {
@@ -426,7 +442,7 @@ fn normalize_projection_scalar_context(
             if matches!(
                 binary.operator,
                 BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
-            ) =>
+            ) && projection_arithmetic_has_integer_meaning(program, subject, expression) =>
         {
             Some(ContentScalarExpression::Arithmetic {
                 operator: match binary.operator {
@@ -477,6 +493,57 @@ fn normalize_projection_scalar_context(
             }
         }
         _ => None,
+    }
+}
+
+/// A projection plan stores mathematical arithmetic, not a source token or
+/// an executable call. Only an actually selected integer operation with that
+/// denotation can enter it. Exact carrier formation is checked independently;
+/// an outer Nat conversion cannot erase wrapping, saturation or control flow.
+/// Declared operators need their own proved value law, not a spelling match.
+fn projection_arithmetic_has_integer_meaning(
+    program: &dyn crate::CheckingInput,
+    subject: ProjectionSubject,
+    expression: ExpressionHandle,
+) -> bool {
+    use crate::value_custody::expression_types::{BuiltinBinaryResult, builtin_binary_result};
+    use numerics::arithmetic::ArithmeticDomain;
+
+    let Some(machine) = program.machine_by_symbol(subject.machine) else {
+        return false;
+    };
+    let Some(state) = program.state_by_symbol(subject.state) else {
+        return false;
+    };
+    let Some(binary) = program.expression_table.binary_node(expression) else {
+        return false;
+    };
+    let mut expression_type =
+        |operand| crate::expression_result_type_reference(program, machine, state, operand);
+    let operands = [binary.left, binary.right].map(&mut expression_type);
+    if !crate::proof_contracts::bound_expression_meaning::builtin_arithmetic_for_operand_types(
+        program,
+        machine.symbol,
+        expression,
+        &operands,
+    ) {
+        return false;
+    }
+    if [binary.left, binary.right].into_iter().all(|operand| {
+        crate::value_custody::literals::has_anonymous_numeric_results(program, operand)
+    }) {
+        return true;
+    }
+    match builtin_binary_result(program, binary, operands, &mut expression_type) {
+        Some(BuiltinBinaryResult::ProofInteger) => true,
+        Some(BuiltinBinaryResult::Arithmetic {
+            symbol,
+            policy: ArithmeticDomain::Exact,
+        }) => program
+            .symbols
+            .builtin_type_atom(symbol)
+            .is_some_and(symbols::BuiltinTypeAtom::is_fixed_integer),
+        _ => false,
     }
 }
 
@@ -601,6 +668,8 @@ fn projection_subject(
         TypeReferenceNode::Reference {
             referee, access, ..
         } if access.is_readable() && !access.is_exclusive() => Some(ProjectionSubject {
+            machine: machine.symbol,
+            state: state.symbol,
             symbol: parameter.symbol,
             qualified: *referee,
             carrier: program

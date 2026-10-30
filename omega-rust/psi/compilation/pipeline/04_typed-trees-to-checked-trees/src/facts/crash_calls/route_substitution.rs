@@ -210,7 +210,7 @@ pub(crate) fn call_argument_substitution<'program>(
                             program,
                             parameters: program.state_parameters(state),
                             symbols: &caller_symbols,
-                            value_at_place: |place: &validation::CanonicalPlace| {
+                            value_at_place: |place: &validation::CanonicalPlace, _observation| {
                                 if containing_statement.is_none_or(|statement| {
                                     crate::facts::crash_entry_values::statement_may_overwrite_place(
                                         program,
@@ -493,13 +493,7 @@ fn boolean_view_observation(
     }
     match program.expression_table.expression(expression) {
         typed_trees::expression::ExpressionNode::Name(path) => {
-            if program
-                .expression_table
-                .name_path_members(path.members)
-                .len()
-                != 1
-                || path.head_symbol != path.symbol
-            {
+            if !program.expression_table.name_path_is_single_member(path) {
                 return None;
             }
             // Writable locals retain their initial observation only across an
@@ -577,7 +571,7 @@ fn boolean_view_observation(
                     program,
                     parameters: program.state_parameters(state),
                     symbols: caller_symbols,
-                    value_at_place: |place: &validation::CanonicalPlace| {
+                    value_at_place: |place: &validation::CanonicalPlace, _observation| {
                         if let Some(statement) = program
                             .statement_table
                             .statement_at(state, before_statement)
@@ -787,7 +781,8 @@ fn scalar_evidence_is_crash_lane_lowerable(
 ) -> bool {
     use checked_trees::CheckedScalarExpression;
     match expression {
-        CheckedScalarExpression::StructuralSequenceLength { .. }
+        CheckedScalarExpression::ConstantApplication { .. }
+        | CheckedScalarExpression::StructuralSequenceLength { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => false,
         CheckedScalarExpression::RepresentationView {
             primitive_type,
@@ -1006,6 +1001,7 @@ pub(crate) fn substitute_checked_boolean_expression(
         CheckedBooleanExpression::StructuralParameterField {
             parameter_position,
             path,
+            ..
         } => {
             let leaf = substitute_structural_parameter_field(
                 &checked_trees::CheckedStructuralParameterField {
@@ -1015,6 +1011,7 @@ pub(crate) fn substitute_checked_boolean_expression(
                 fields,
             )?;
             CheckedBooleanExpression::StructuralParameterField {
+                observation: Default::default(),
                 parameter_position: leaf.parameter_position,
                 path: leaf.path,
             }
@@ -1092,6 +1089,7 @@ fn substitute_checked_scalar_expression(
     use checked_trees::CheckedScalarExpression;
 
     Some(match expression {
+        CheckedScalarExpression::ConstantApplication { .. } => expression.clone(),
         CheckedScalarExpression::Parameter {
             position,
             primitive_type,
@@ -1124,6 +1122,7 @@ fn substitute_checked_scalar_expression(
             parameter_position,
             path,
             primitive_type,
+            ..
         } => {
             let leaf = substitute_structural_parameter_field(
                 &checked_trees::CheckedStructuralParameterField {
@@ -1133,6 +1132,7 @@ fn substitute_checked_scalar_expression(
                 fields,
             )?;
             CheckedScalarExpression::StructuralParameterField {
+                observation: Default::default(),
                 parameter_position: leaf.parameter_position,
                 path: leaf.path,
                 primitive_type: *primitive_type,
@@ -1164,6 +1164,7 @@ fn substitute_checked_scalar_expression(
             )?),
             // A substituted callee term is a different occurrence.
             formation_decided: false,
+            trap_free: false,
         },
         CheckedScalarExpression::IntegerBitwiseNot {
             primitive_type,

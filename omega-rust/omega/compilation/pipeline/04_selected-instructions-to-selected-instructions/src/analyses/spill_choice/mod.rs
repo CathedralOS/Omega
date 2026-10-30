@@ -9,7 +9,6 @@ use register_model::{
 };
 
 pub(crate) mod compute;
-pub(crate) mod validate;
 
 use optimization_core::OptimizationWorkUsage;
 use register_homes::{
@@ -43,8 +42,22 @@ pub fn choose_spill_victims(
         policy,
         budget,
     )?;
-    validate::seal_spill_choices(plan)
+    seal_spill_choices(plan)
 }
+
+seal_plan!(
+    seal_spill_choices(SpillChoicePlan)
+        -> ValidatedSpillChoices: SpillChoiceValidationReceipt
+        = register_homes::spill_choice_identity, SpillChoiceError
+    {
+        legality,
+        ranges,
+        register_environment,
+        allocator_availability,
+        policy,
+        usage
+    }
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpillChoiceValidationReceipt {
@@ -69,20 +82,7 @@ impl SpillChoiceValidationReceipt {
     });
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedSpillChoices {
-    pub(crate) plan: SpillChoicePlan,
-    pub(crate) receipt: SpillChoiceValidationReceipt,
-}
-
-impl ValidatedSpillChoices {
-    pub const fn plan(&self) -> &SpillChoicePlan {
-        &self.plan
-    }
-    receipt_accessor_rows!(ref ValidatedSpillChoices {
-        receipt: SpillChoiceValidationReceipt,
-    });
-}
+validated_plan_carrier!(ValidatedSpillChoices: SpillChoicePlan, SpillChoiceValidationReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SpillChoiceError {
@@ -136,5 +136,3 @@ pub enum SpillChoiceError {
 }
 
 failed_display!(SpillChoiceError, "Terminal recovery-victim choice failed");
-
-impl std::error::Error for SpillChoiceError {}

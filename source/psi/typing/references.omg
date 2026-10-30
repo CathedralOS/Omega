@@ -16,14 +16,14 @@ crashes Trap
     typer.output.reference_count = syntax.type_reference_count;
     transition { _ -> next(typer, sources, syntax, resolution, 0) }
 
-    state next(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+    machine next(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         transition index < typer.output.reference_count && index < 65536 && typer.output.accepted {
             true -> row(typer, sources, syntax, resolution, index)
             _ -> done()
         }
     }
 
-    state row(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping)
+    machine row(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping)
     requires index < 65536
     {
         let reference: TypeReference = SyntaxTrees::type_reference(syntax, index);
@@ -49,13 +49,13 @@ crashes Trap
     // machine are not types: the row takes none, and an application's
     // arguments' rows intern as ever. Every argument must occupy the slot
     // of its declared kind, in the order the trait wrote its telescope.
-    state trait_application(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: u64 in Trapping) {
+    machine trait_application(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: u64 in Trapping) {
         Typing::set_reference_type(&mut typer.output, index, 0);
         Typer::check_trait_telescope(typer, syntax, resolution, index, item);
         transition { _ -> next(typer, sources, syntax, resolution, index + 1) }
     }
 
-    state application(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+    machine application(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         Typing::set_reference_type(&mut typer.output, index, 0);
         transition { _ -> next(typer, sources, syntax, resolution, index + 1) }
     }
@@ -64,7 +64,7 @@ crashes Trap
     // application lists it. A call's static argument naming a conformance
     // stays unsupported: this typer does not yet bind a machine's separate
     // evidence telescope.
-    state conformance_argument(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, reference: TypeReference) {
+    machine conformance_argument(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, reference: TypeReference) {
         let admitted: bool = Typer::trait_slot_argument(syntax, resolution, index);
         transition admitted {
             true -> application(typer, sources, syntax, resolution, index)
@@ -72,7 +72,7 @@ crashes Trap
         }
     }
 
-    state builtin(
+    machine builtin(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -96,7 +96,7 @@ crashes Trap
     // A data type's arguments are its argument rows' types; their count must
     // match the declaration's generic parameters, lifetimes aside, which an
     // application does not spell.
-    state data(
+    machine data(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -113,7 +113,7 @@ crashes Trap
         }
     }
 
-    state data_arity(
+    machine data_arity(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -130,7 +130,7 @@ crashes Trap
         }
     }
 
-    state data_argument(
+    machine data_argument(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -147,7 +147,7 @@ crashes Trap
         }
     }
 
-    state data_argument_push(
+    machine data_argument_push(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -167,7 +167,7 @@ crashes Trap
         }
     }
 
-    state data_row(
+    machine data_row(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -186,7 +186,7 @@ crashes Trap
         transition { _ -> intern(typer, sources, syntax, resolution, index, reference, row) }
     }
 
-    state generic(
+    machine generic(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -204,7 +204,7 @@ crashes Trap
         }
     }
 
-    state referenced(
+    machine referenced(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -218,7 +218,7 @@ crashes Trap
         transition { _ -> intern(typer, sources, syntax, resolution, index, reference, row) }
     }
 
-    state array(
+    machine array(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -237,7 +237,7 @@ crashes Trap
         }
     }
 
-    state array_length(
+    machine array_length(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -259,7 +259,7 @@ crashes Trap
         }
     }
 
-    state slice(
+    machine slice(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -279,7 +279,7 @@ crashes Trap
         }
     }
 
-    state literal(
+    machine literal(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -296,7 +296,7 @@ crashes Trap
         }
     }
 
-    state intern(
+    machine intern(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -313,31 +313,31 @@ crashes Trap
         }
     }
 
-    state unsupported(typer: &mut Typer, reference: TypeReference) {
+    machine unsupported(typer: &mut Typer, reference: TypeReference) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::UnsupportedTypeForm, reference.source_span);
     }
 
-    state domain_rejected(typer: &mut Typer, reference: TypeReference) {
+    machine domain_rejected(typer: &mut Typer, reference: TypeReference) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::UnsupportedDomain, reference.source_span);
     }
 
-    state arity_rejected(typer: &mut Typer, reference: TypeReference) {
+    machine arity_rejected(typer: &mut Typer, reference: TypeReference) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::GenericArgumentCount, reference.source_span);
     }
 
-    state length_rejected(typer: &mut Typer, length_row: TypeReference) {
+    machine length_rejected(typer: &mut Typer, length_row: TypeReference) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::UnsupportedArrayLength, length_row.source_span);
     }
 
-    state literal_rejected(typer: &mut Typer, reference: TypeReference) {
+    machine literal_rejected(typer: &mut Typer, reference: TypeReference) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::UnsupportedLiteral, reference.source_span);
     }
 
-    state full(typer: &mut Typer, reference: TypeReference) {
+    machine full(typer: &mut Typer, reference: TypeReference) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::TypeCapacityExceeded, reference.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Whether `domain` may qualify `builtin`: an arithmetic policy qualifies a
@@ -355,20 +355,20 @@ machine Typer::domain_admitted(builtin: BuiltinType, domain: DomainBinding) -> b
         _ -> integer(builtin)
     }
 
-    state no() -> bool {
+    machine no() -> bool {
         false
     }
 
-    state float(builtin: BuiltinType) -> bool {
+    machine float(builtin: BuiltinType) -> bool {
         builtin == BuiltinType::F32 || builtin == BuiltinType::F64
     }
 
-    state integer(builtin: BuiltinType) -> bool {
+    machine integer(builtin: BuiltinType) -> bool {
         let fixed: bool = Typer::fixed_integer(builtin);
         fixed
     }
 
-    state yes() -> bool {
+    machine yes() -> bool {
         true
     }
 }
@@ -388,14 +388,14 @@ crashes Trap
     let data_item: DataItem = SyntaxTrees::data_item(syntax, item);
     transition { _ -> count(syntax, data_item, 0, 0) }
 
-    state count(syntax: &SyntaxTrees, data_item: DataItem, offset: u64 in Trapping, applied: u64 in Trapping) -> u64 in Trapping {
+    machine count(syntax: &SyntaxTrees, data_item: DataItem, offset: u64 in Trapping, applied: u64 in Trapping) -> u64 in Trapping {
         transition offset < data_item.generic_parameter_count {
             true -> parameter(syntax, data_item, offset, applied)
             _ -> result(applied)
         }
     }
 
-    state parameter(syntax: &SyntaxTrees, data_item: DataItem, offset: u64 in Trapping, applied: u64 in Trapping) -> u64 in Trapping {
+    machine parameter(syntax: &SyntaxTrees, data_item: DataItem, offset: u64 in Trapping, applied: u64 in Trapping) -> u64 in Trapping {
         let generic: GenericParameter = SyntaxTrees::generic_parameter(syntax, data_item.first_generic_parameter + offset);
         transition generic.kind == GenericParameterKind::Lifetime {
             true -> count(syntax, data_item, offset + 1, applied)
@@ -403,7 +403,7 @@ crashes Trap
         }
     }
 
-    state result(applied: u64 in Trapping) -> u64 in Trapping {
+    machine result(applied: u64 in Trapping) -> u64 in Trapping {
         applied
     }
 }
@@ -419,12 +419,12 @@ crashes Trap
         _ -> no()
     }
 
-    state declared(syntax: &SyntaxTrees, parameter: u64 in Trapping) -> bool {
+    machine declared(syntax: &SyntaxTrees, parameter: u64 in Trapping) -> bool {
         let generic: GenericParameter = SyntaxTrees::generic_parameter(syntax, parameter);
         generic.kind == GenericParameterKind::Const
     }
 
-    state no() -> bool {
+    machine no() -> bool {
         false
     }
 }
@@ -442,11 +442,11 @@ public machine Typer::collection_qualifier(domain: DomainBinding) -> bool {
         _ -> no()
     }
 
-    state yes() -> bool {
+    machine yes() -> bool {
         true
     }
 
-    state no() -> bool {
+    machine no() -> bool {
         false
     }
 }
@@ -459,14 +459,14 @@ crashes Trap
 {
     transition { _ -> parent(syntax, resolution, row, 0) }
 
-    state parent(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine parent(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping, index: u64 in Trapping) -> bool {
         transition index < syntax.type_reference_count {
             true -> kind(syntax, resolution, row, index)
             _ -> no()
         }
     }
 
-    state kind(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine kind(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping, index: u64 in Trapping) -> bool {
         let binding: TypeBinding = NameResolution::type_binding_at(resolution, index);
         transition binding {
             TypeBinding::Trait { item } -> arguments(syntax, resolution, row, index)
@@ -474,19 +474,19 @@ crashes Trap
         }
     }
 
-    state arguments(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine arguments(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping, index: u64 in Trapping) -> bool {
         let reference: TypeReference = SyntaxTrees::type_reference(syntax, index);
         transition { _ -> argument(syntax, resolution, row, index, reference, 0) }
     }
 
-    state argument(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping, index: u64 in Trapping, reference: TypeReference, offset: u64 in Trapping) -> bool {
+    machine argument(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping, index: u64 in Trapping, reference: TypeReference, offset: u64 in Trapping) -> bool {
         transition offset < reference.argument_count {
             true -> listed(syntax, resolution, row, index, reference, offset)
             _ -> parent(syntax, resolution, row, index + 1)
         }
     }
 
-    state listed(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping, index: u64 in Trapping, reference: TypeReference, offset: u64 in Trapping) -> bool {
+    machine listed(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping, index: u64 in Trapping, reference: TypeReference, offset: u64 in Trapping) -> bool {
         let handle: u64 in Trapping = SyntaxTrees::type_argument(syntax, reference.first_argument + offset);
         transition handle == row {
             true -> yes()
@@ -494,11 +494,11 @@ crashes Trap
         }
     }
 
-    state yes() -> bool {
+    machine yes() -> bool {
         true
     }
 
-    state no() -> bool {
+    machine no() -> bool {
         false
     }
 }
@@ -509,14 +509,14 @@ crashes Trap
 {
     transition { _ -> next(syntax, first, count, 0, 0) }
 
-    state next(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, counted: u64 in Trapping) -> u64 in Trapping {
+    machine next(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, counted: u64 in Trapping) -> u64 in Trapping {
         transition offset < count {
             true -> one(syntax, first, count, offset, counted)
             _ -> result(counted)
         }
     }
 
-    state one(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, counted: u64 in Trapping) -> u64 in Trapping {
+    machine one(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, counted: u64 in Trapping) -> u64 in Trapping {
         let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, first + offset);
         transition parameter.kind == GenericParameterKind::Lifetime {
             true -> next(syntax, first, count, offset + 1, counted)
@@ -524,7 +524,7 @@ crashes Trap
         }
     }
 
-    state result(counted: u64 in Trapping) -> u64 in Trapping {
+    machine result(counted: u64 in Trapping) -> u64 in Trapping {
         counted
     }
 }
@@ -546,7 +546,7 @@ crashes Trap
         _ -> no()
     }
 
-    state evidence(syntax: &SyntaxTrees, binding: TypeBinding) -> bool {
+    machine evidence(syntax: &SyntaxTrees, binding: TypeBinding) -> bool {
         transition binding {
             TypeBinding::Conformance { item } -> yes()
             TypeBinding::GenericParameter { parameter } -> generic_kind(syntax, parameter, GenericParameterKind::Evidence)
@@ -554,7 +554,7 @@ crashes Trap
         }
     }
 
-    state type_slot(syntax: &SyntaxTrees, binding: TypeBinding) -> bool {
+    machine type_slot(syntax: &SyntaxTrees, binding: TypeBinding) -> bool {
         transition binding {
             TypeBinding::Builtin { builtin } -> yes()
             TypeBinding::Data { item } -> yes()
@@ -566,7 +566,7 @@ crashes Trap
         }
     }
 
-    state const_slot(syntax: &SyntaxTrees, binding: TypeBinding) -> bool {
+    machine const_slot(syntax: &SyntaxTrees, binding: TypeBinding) -> bool {
         transition binding {
             TypeBinding::Literal -> yes()
             TypeBinding::GenericParameter { parameter } -> generic_kind(syntax, parameter, GenericParameterKind::Const)
@@ -574,7 +574,7 @@ crashes Trap
         }
     }
 
-    state machine_slot(syntax: &SyntaxTrees, binding: TypeBinding) -> bool {
+    machine machine_slot(syntax: &SyntaxTrees, binding: TypeBinding) -> bool {
         transition binding {
             TypeBinding::Machine { handle } -> yes()
             TypeBinding::GenericParameter { parameter } -> generic_kind(syntax, parameter, GenericParameterKind::Machine)
@@ -582,7 +582,7 @@ crashes Trap
         }
     }
 
-    state value_slot(syntax: &SyntaxTrees, binding: TypeBinding) -> bool {
+    machine value_slot(syntax: &SyntaxTrees, binding: TypeBinding) -> bool {
         transition binding {
             TypeBinding::Literal -> yes()
             TypeBinding::GenericParameter { parameter } -> value_parameter(syntax, parameter)
@@ -590,21 +590,21 @@ crashes Trap
         }
     }
 
-    state value_parameter(syntax: &SyntaxTrees, parameter: u64 in Trapping) -> bool {
+    machine value_parameter(syntax: &SyntaxTrees, parameter: u64 in Trapping) -> bool {
         let declared: GenericParameter = SyntaxTrees::generic_parameter(syntax, parameter);
         declared.kind == GenericParameterKind::Value || declared.kind == GenericParameterKind::Const
     }
 
-    state generic_kind(syntax: &SyntaxTrees, parameter: u64 in Trapping, expected: GenericParameterKind) -> bool {
+    machine generic_kind(syntax: &SyntaxTrees, parameter: u64 in Trapping, expected: GenericParameterKind) -> bool {
         let declared: GenericParameter = SyntaxTrees::generic_parameter(syntax, parameter);
         declared.kind == expected
     }
 
-    state yes() -> bool {
+    machine yes() -> bool {
         true
     }
 
-    state no() -> bool {
+    machine no() -> bool {
         false
     }
 }
@@ -624,14 +624,14 @@ crashes Trap
         _ -> count_rejected(typer, reference)
     }
 
-    state parameter(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, declared: TraitItem, reference: TypeReference, offset: u64 in Trapping, position: u64 in Trapping) {
+    machine parameter(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, declared: TraitItem, reference: TypeReference, offset: u64 in Trapping, position: u64 in Trapping) {
         transition offset < declared.generic_parameter_count && typer.output.accepted {
             true -> kind(typer, syntax, resolution, declared, reference, offset, position)
             _ -> done()
         }
     }
 
-    state kind(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, declared: TraitItem, reference: TypeReference, offset: u64 in Trapping, position: u64 in Trapping) {
+    machine kind(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, declared: TraitItem, reference: TypeReference, offset: u64 in Trapping, position: u64 in Trapping) {
         let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, declared.first_generic_parameter + offset);
         transition parameter.kind {
             GenericParameterKind::Lifetime -> parameter(typer, syntax, resolution, declared, reference, offset + 1, position)
@@ -639,14 +639,14 @@ crashes Trap
         }
     }
 
-    state slot(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, declared: TraitItem, reference: TypeReference, offset: u64 in Trapping, position: u64 in Trapping, parameter: GenericParameter) {
+    machine slot(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, declared: TraitItem, reference: TypeReference, offset: u64 in Trapping, position: u64 in Trapping, parameter: GenericParameter) {
         transition position < reference.argument_count {
             true -> classify(typer, syntax, resolution, declared, reference, offset, position, parameter)
             _ -> count_rejected(typer, reference)
         }
     }
 
-    state classify(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, declared: TraitItem, reference: TypeReference, offset: u64 in Trapping, position: u64 in Trapping, parameter: GenericParameter) {
+    machine classify(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, declared: TraitItem, reference: TypeReference, offset: u64 in Trapping, position: u64 in Trapping, parameter: GenericParameter) {
         let argument: u64 in Trapping = SyntaxTrees::type_argument(syntax, reference.first_argument + position);
         let binding: TypeBinding = NameResolution::type_binding_at(resolution, argument);
         let fits: bool = Typer::slot_accepts(syntax, parameter.kind, binding);
@@ -656,14 +656,14 @@ crashes Trap
         }
     }
 
-    state slot_rejected(typer: &mut Typer, syntax: &SyntaxTrees, argument: u64 in Trapping) {
+    machine slot_rejected(typer: &mut Typer, syntax: &SyntaxTrees, argument: u64 in Trapping) {
         let row: TypeReference = SyntaxTrees::type_reference(syntax, argument);
         Typing::reject(&mut typer.output, TypeDiagnosticCode::UnsupportedTypeForm, row.source_span);
     }
 
-    state count_rejected(typer: &mut Typer, reference: TypeReference) {
+    machine count_rejected(typer: &mut Typer, reference: TypeReference) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::GenericArgumentCount, reference.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }

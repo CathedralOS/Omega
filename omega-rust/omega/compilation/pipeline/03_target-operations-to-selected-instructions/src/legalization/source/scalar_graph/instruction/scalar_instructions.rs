@@ -3,6 +3,9 @@
 
 use super::super::{Error, PsiOptimizationUnit};
 use crate::LegalizationError;
+use crate::legalization::accepted_fact;
+use crate::legalization::facts;
+use crate::legalization::references_obligation;
 use crate::legalization::scalar_graph_input;
 use abstract_operations::{
     AbstractOperation, IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
@@ -29,25 +32,15 @@ pub(super) fn project_integer_exact_cast(
         unreachable!("dispatched project_integer_exact_cast")
     };
     let kind = {
-        let fact = unit
-            .accepted_obligation_facts
-            .iter()
-            .find(|fact| {
-                fact.machine == optimized.machine
-                    && fact.owner == optimization_unit::PsiProvenance::Operation(*psi_operation)
-                    && fact.obligation == *obligation
-            })
-            .ok_or(Error::custody())?;
-        if !optimized.facts.iter().any(|fact| matches!(fact,
-        optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
-        if referenced == obligation && support == psi_operation)) {
-        return Err(Error::custody());
-    }
+        let accepted_fact = accepted_fact(unit, optimized, *psi_operation, *obligation)?;
+        if !references_obligation(optimized, *psi_operation, *obligation) {
+            return Err(Error::custody());
+        }
         LegalizedScalarInstructionKind::IntegerExactCast {
             operand: *operand,
             source_type: *source_type,
             obligation: *obligation,
-            accepted_fact: fact.identity,
+            accepted_fact,
         }
     };
     Ok(kind)
@@ -237,17 +230,9 @@ fn accepted_nonzero_divisor_fact(
     psi_operation: semantic_vocabulary::OperationId,
     obligation: semantic_vocabulary::ObligationId,
 ) -> Result<optimization_core::AcceptedObligationFactIdentity, LegalizationError> {
-    let mut facts = unit.accepted_obligation_facts.iter().filter(|fact| {
-        fact.machine == optimized.machine
-            && fact.owner == optimization_unit::PsiProvenance::Operation(psi_operation)
-            && fact.obligation == obligation
-    });
-    let fact = facts.next().ok_or(Error::custody())?;
-    if facts.next().is_some()
-        || !optimized.facts.iter().any(|fact| matches!(fact,
-            optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
-            if *referenced == obligation && *support == psi_operation))
-    {
+    let mut facts = facts(unit, optimized, psi_operation, obligation);
+    let fact = facts.next().ok_or_else(Error::custody)?;
+    if facts.next().is_some() || !references_obligation(optimized, psi_operation, obligation) {
         return Err(Error::custody());
     }
     Ok(fact.identity)
@@ -352,21 +337,11 @@ pub(super) fn project_shift(
         });
     };
     let accepted_fact = {
-        let fact = unit
-            .accepted_obligation_facts
-            .iter()
-            .find(|fact| {
-                fact.machine == optimized.machine
-                    && fact.owner == optimization_unit::PsiProvenance::Operation(psi_operation)
-                    && fact.obligation == obligation
-            })
-            .ok_or(Error::custody())?;
-        if !optimized.facts.iter().any(|fact| matches!(fact,
-                optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
-                if *referenced == obligation && *support == psi_operation)) {
+        let accepted_fact = accepted_fact(unit, optimized, psi_operation, obligation)?;
+        if !references_obligation(optimized, psi_operation, obligation) {
             return Err(Error::custody());
         }
-        fact.identity
+        accepted_fact
     };
     Ok(match direction {
         IntegerShiftDirection::Left => LegalizedScalarInstructionKind::ExactShiftLeft {
@@ -397,18 +372,8 @@ fn project_exact_integer_arithmetic(
         ..
     } = node;
     let obligation = arithmetic.obligation().ok_or(Error::custody())?;
-    let fact = unit
-        .accepted_obligation_facts
-        .iter()
-        .find(|fact| {
-            fact.machine == optimized.machine
-                && fact.owner == optimization_unit::PsiProvenance::Operation(psi_operation)
-                && fact.obligation == obligation
-        })
-        .ok_or(Error::custody())?;
-    if !optimized.facts.iter().any(|fact| matches!(fact,
-            optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
-            if *referenced == obligation && *support == psi_operation)) {
+    let accepted_fact = accepted_fact(unit, optimized, psi_operation, obligation)?;
+    if !references_obligation(optimized, psi_operation, obligation) {
         return Err(Error::custody());
     }
     Ok(LegalizedScalarInstructionKind::ExactBinary {
@@ -422,7 +387,7 @@ fn project_exact_integer_arithmetic(
         left,
         right,
         obligation,
-        accepted_fact: fact.identity,
+        accepted_fact,
     })
 }
 

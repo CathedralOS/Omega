@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "linear_computed_requirement_argument_exit");
-    Build::select_provider<Settlement, Settler>(builder);
+    Build::select_provider<Settlement, Settler>(builder, linux_arm64);
+    Build::select_provider<Settlement, Settler>(builder, linux_x86_64);
+    Build::select_provider<Settlement, Settler>(builder, macos_arm64);
+    Build::select_provider<Settlement, Settler>(builder, macos_x86_64);
+    Build::select_provider<Settlement, Settler>(builder, windows_x86_64);
+    Build::select_provider<Settlement, Settler>(builder, uefi_x86_64);
+    Build::select_provider<Settlement, Settler>(builder, cross_platform_cli);
+    Build::select_provider<Settlement, Settler>(builder, local_unchecked);
+    Build::select_provider<Settlement, Settler>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);

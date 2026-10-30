@@ -33,10 +33,12 @@ pub struct GenericOriginIndex {
     pub malformed: bool,
 }
 
-/// Position map for one statement-prefix or parameter slice. The watermark
-/// pattern fits stamped prefixes: a state's `prior_statements` strictly
-/// appends as statements resolve, so entries indexed below the watermark
-/// stay valid for any longer prefix of the same backing slice.
+/// Position map for one roster slice. The watermark pattern fits stamped
+/// prefixes: a roster whose rows resolve in order only ever appends, so
+/// entries indexed below the watermark stay valid for any longer prefix of
+/// the same backing slice. `samples` identify the slice by content, because
+/// an address has no identity of its own and a recycled one must not answer
+/// for a foreign roster.
 #[derive(Clone, Default)]
 struct PrefixPositions {
     watermark: usize,
@@ -44,13 +46,51 @@ struct PrefixPositions {
     by_symbol: SymbolKeyMap<SymbolHandle, u32>,
 }
 
-/// Position maps keyed by slice start. Each entry keeps its watermark and
-/// content samples: `as_ptr` has no identity of its own, so the samples are
-/// what discriminate a prefix of one state's statements from a recycled
-/// address or a foreign fixture slice.
+/// Position maps keyed by slice start, filled by [`PrefixPositions::position`].
 #[derive(Clone, Default)]
 struct PrefixPositionMaps {
     by_start: HashMap<usize, PrefixPositions>,
+}
+
+impl PrefixPositionMaps {
+    /// The first position in `rows` whose `key` is `symbol`, indexing the
+    /// roster once per distinct backing slice. `sample` names the rows the
+    /// freshness check reads; rows below a fresh watermark are already
+    /// indexed and only the appended tail is scanned. `None` rows carry no
+    /// symbol and are skipped.
+    fn position<S>(
+        &mut self,
+        rows: &[S],
+        symbol: SymbolHandle,
+        sample: impl Fn(&S) -> usize,
+        key: impl Fn(&S) -> Option<SymbolHandle>,
+    ) -> Option<u32> {
+        let start = rows.as_ptr() as usize;
+        let length = rows.len();
+        let samples = |watermark: usize| {
+            [
+                sample(&rows[0]),
+                sample(&rows[watermark / 2]),
+                sample(&rows[watermark - 1]),
+            ]
+        };
+        let fresh = self.by_start.get(&start).is_some_and(|entry| {
+            entry.watermark <= length
+                && (entry.watermark == 0 || samples(entry.watermark) == entry.samples)
+        });
+        if !fresh {
+            self.by_start.insert(start, PrefixPositions::default());
+        }
+        let entry = self.by_start.get_mut(&start).expect("entry just populated");
+        for (position, row) in rows.iter().enumerate().skip(entry.watermark) {
+            if let Some(row_symbol) = key(row) {
+                entry.by_symbol.entry(row_symbol).or_insert(position as u32);
+            }
+        }
+        entry.watermark = length;
+        entry.samples = if length == 0 { [0; 3] } else { samples(length) };
+        entry.by_symbol.get(&symbol).copied()
+    }
 }
 
 /// The resolution indexes owned by one `SymbolResolvedTrees`.
@@ -106,96 +146,6 @@ fn statement_sample(statement: &statement::Statement) -> usize {
     hasher.finish() as usize
 }
 
-fn prefix_samples(statements: &[statement::Statement], watermark: usize) -> [usize; 3] {
-    [
-        statement_sample(&statements[0]),
-        statement_sample(&statements[watermark / 2]),
-        statement_sample(&statements[watermark - 1]),
-    ]
-}
-
-/// Returns the first `Statement::LocalData` position naming `symbol` within
-/// `statements[..len]`; positions below the watermark are already indexed
-/// and stay valid for any shorter prefix of the same backing slice.
-fn local_statement_position(
-    maps: &Mutex<PrefixPositionMaps>,
-    statements: &[statement::Statement],
-    symbol: SymbolHandle,
-) -> Option<u32> {
-    let mut maps = maps.lock().unwrap_or_else(|error| error.into_inner());
-    let start = statements.as_ptr() as usize;
-    let fresh = match maps.by_start.get(&start) {
-        Some(entry) => {
-            entry.watermark <= statements.len()
-                && (entry.watermark == 0
-                    || prefix_samples(statements, entry.watermark) == entry.samples)
-        }
-        None => false,
-    };
-    if !fresh {
-        maps.by_start.insert(start, PrefixPositions::default());
-    }
-    let entry = maps.by_start.get_mut(&start).expect("entry just populated");
-    for (position, statement) in statements.iter().enumerate().skip(entry.watermark) {
-        if let statement::Statement::LocalData(local) = statement {
-            entry
-                .by_symbol
-                .entry(local.symbol)
-                .or_insert(position as u32);
-        }
-    }
-    entry.watermark = statements.len();
-    entry.samples = if entry.watermark == 0 {
-        [0; 3]
-    } else {
-        prefix_samples(statements, entry.watermark)
-    };
-    entry.by_symbol.get(&symbol).copied()
-}
-
-/// Returns `symbol`'s position within `parameters`, indexing the roster
-/// once per distinct parameter slice.
-fn parameter_position(
-    maps: &Mutex<PrefixPositionMaps>,
-    parameters: &[signature::StateParameter],
-    symbol: SymbolHandle,
-) -> Option<u32> {
-    let mut maps = maps.lock().unwrap_or_else(|error| error.into_inner());
-    let start = parameters.as_ptr() as usize;
-    let len = parameters.len();
-    let sample = |index: usize| -> usize {
-        if index < len {
-            parameters[index].symbol.arena_index() as usize
-        } else {
-            0
-        }
-    };
-    let fingerprint =
-        sample(0).rotate_left(11) ^ sample(len / 2).rotate_left(23) ^ sample(len.saturating_sub(1));
-    let fresh = matches!(maps.by_start.get(&start), Some(entry)
-        if entry.watermark == len && entry.samples == [fingerprint, 0, 0]);
-    if !fresh {
-        let mut positions = SymbolKeyMap::default();
-        for (position, parameter) in parameters.iter().enumerate() {
-            positions.entry(parameter.symbol).or_insert(position as u32);
-        }
-        maps.by_start.insert(
-            start,
-            PrefixPositions {
-                watermark: len,
-                samples: [fingerprint, 0, 0],
-                by_symbol: positions,
-            },
-        );
-    }
-    maps.by_start
-        .get(&start)
-        .expect("entry just populated")
-        .by_symbol
-        .get(&symbol)
-        .copied()
-}
-
 impl ResolvedIndexes {
     /// The generic-origin roster index the typing stage consumes. `revision`
     /// is the summed revision of the arenas the builder reads; `build` fills
@@ -241,23 +191,41 @@ impl ResolvedIndexes {
     }
 
     /// First `LocalData` position naming `symbol` inside a state's stamped
-    /// statement prefix; see [`local_statement_position`].
+    /// statement prefix.
     pub fn local_statement_position(
         &self,
         statements: &[statement::Statement],
         symbol: SymbolHandle,
     ) -> Option<u32> {
-        local_statement_position(&self.statements, statements, symbol)
+        self.statements
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .position(
+                statements,
+                symbol,
+                statement_sample,
+                |statement| match statement {
+                    statement::Statement::LocalData(local) => Some(local.symbol),
+                    _ => None,
+                },
+            )
     }
 
-    /// `symbol`'s position inside a state's parameter roster; see
-    /// [`parameter_position`].
+    /// `symbol`'s position inside a state's parameter roster.
     pub fn parameter_position(
         &self,
         parameters: &[signature::StateParameter],
         symbol: SymbolHandle,
     ) -> Option<u32> {
-        parameter_position(&self.parameters, parameters, symbol)
+        self.parameters
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .position(
+                parameters,
+                symbol,
+                |parameter| parameter.symbol.arena_index() as usize,
+                |parameter| Some(parameter.symbol),
+            )
     }
 }
 
@@ -279,5 +247,21 @@ impl super::SymbolResolvedTrees {
             .wrapping_add(self.roots.data_definitions.revision());
         self.resolution_indexes
             .with_generic_origin_index(revision, build, run)
+    }
+}
+
+// These pointer-keyed maps describe only this in-memory arena owner. Persisting
+// them would give restored allocations another process's addresses and verdicts.
+impl compiler_storage::Record for ResolvedIndexes {
+    fn write(
+        &self,
+        _: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        Ok(())
+    }
+    fn read<Context>(
+        _: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        Ok(Self::default())
     }
 }

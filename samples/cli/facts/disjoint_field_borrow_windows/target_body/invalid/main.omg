@@ -18,47 +18,76 @@ crashes Trap
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
-linux_x86_64 machine exercise(pair: &mut Pair)
-requires pair.right <= 76u64
-crashes Trap
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedProbe {
+    machine exercise(pair: &mut Pair)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        requires pair.right <= 76u64
+    crashes Trap;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine exercise(pair: &mut Pair)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        requires pair.right <= 76u64
+    crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        touch_left(&mut pair.left);
+        let diff: u64 = 75u64 - pair.right;
+        verify(diff);
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine exercise(pair: &mut Pair)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        requires pair.right <= 76u64
+    crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        touch_left(&mut pair.left);
+        let diff: u64 = 75u64 - pair.right;
+        verify(diff);
+    }
+}
+
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
 {
-    touch_left(&mut pair.left);
-    let diff: u64 = 75u64 - pair.right;
-    verify(diff);
-}
-
-linux_arm64 machine exercise(pair: &mut Pair)
-requires pair.right <= 76u64
-crashes Trap
-{
-    touch_left(&mut pair.left);
-    let diff: u64 = 75u64 - pair.right;
-    verify(diff);
-}
-
-macos_arm64 machine exercise(pair: &mut Pair)
-requires pair.right <= 76u64
-crashes Trap
-{
-    touch_left(&mut pair.left);
-    let diff: u64 = 75u64 - pair.right;
-    verify(diff);
-}
-
-windows_x86_64 machine exercise(pair: &mut Pair)
-requires pair.right <= 76u64
-crashes Trap
-{
-    touch_left(&mut pair.left);
-    let diff: u64 = 75u64 - pair.right;
-    verify(diff);
-}
-
-machine main() crashes Trap {
     let mut pair: Pair = Pair { left: 10u64, right: 76u64 };
-    exercise(&mut pair);
+    SelectedProbe::exercise(&mut pair);
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

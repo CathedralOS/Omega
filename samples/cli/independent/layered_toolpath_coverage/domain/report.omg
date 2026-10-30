@@ -16,12 +16,12 @@ machine segment(kind: bool, x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wr
         true -> deposition(x, y, z, end_x, end_y, end_z)
         _ -> travel(x, y, z, end_x, end_y, end_z)
     }
-    state deposition(x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
+    machine deposition(x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
         end_x: i32 in Wrapping, end_y: i32 in Wrapping, end_z: i32 in Wrapping) {
         Console::write("D ");
         coordinate(x, y, z); Console::write(" "); coordinate(end_x, end_y, end_z); Console::write_line("");
     }
-    state travel(x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
+    machine travel(x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
         end_x: i32 in Wrapping, end_y: i32 in Wrapping, end_z: i32 in Wrapping) {
         Console::write("T ");
         coordinate(x, y, z); Console::write(" "); coordinate(end_x, end_y, end_z); Console::write_line("");

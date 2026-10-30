@@ -1,0 +1,3 @@
+// Expected exit: 0
+machine missing(ready: bool) -> u8 { transition ready { true -> 19u8 } }
+machine main() {}

@@ -67,8 +67,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> passed(main)
         false -> failed(main)
     }
-    state passed(main: &mut Main) { Console::exit_process(70); }
-    state failed(main: &mut Main) { Console::exit_process(71); }
+    machine passed(main: &mut Main) { Console::exit_process(70); }
+    machine failed(main: &mut Main) { Console::exit_process(71); }
 }
 
 // Scalar-returning callers retain the same constructed argument occurrences

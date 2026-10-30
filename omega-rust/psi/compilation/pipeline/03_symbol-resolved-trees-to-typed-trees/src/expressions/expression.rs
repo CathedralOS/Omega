@@ -129,6 +129,28 @@ pub(crate) fn lower_static_machine_argument(
             .as_ref()
             .map(|application| {
                 Ok::<_, Diagnostic>(Box::new(typed::expression::StaticSymbolApplication {
+                    member: if application.member.is_valid() {
+                        let owner = program.ok_or_else(|| {
+                            Diagnostic::error(
+                                "qualified static member requires its resolved source program",
+                            )
+                        })?;
+                        let source = owner
+                            .tables
+                            .bodies
+                            .expressions
+                            .static_member(application.member)
+                            .ok_or_else(|| {
+                                Diagnostic::error(
+                                    "qualified static member has no owning resolved record",
+                                )
+                            })?;
+                        let member =
+                            lower_static_machine_argument(program, target, exposure, source)?;
+                        target.expression_table.insert_static_member(member)
+                    } else {
+                        arena::Handle::invalid()
+                    },
                     lifetime_arguments: application
                         .lifetime_arguments
                         .iter()
@@ -155,10 +177,27 @@ pub(crate) fn lower_static_machine_argument(
         }),
         symbol: argument.symbol,
     };
+    let mut captured =
+        crate::signatures::lexical_context::captured_arguments(program, selected.symbol);
+    if !captured.is_empty() {
+        let application = selected.application.get_or_insert_with(|| {
+            Box::new(typed::expression::StaticSymbolApplication {
+                member: arena::Handle::invalid(),
+                lifetime_arguments: Box::default(),
+                arguments: Box::default(),
+            })
+        });
+        captured.extend(std::mem::take(&mut application.arguments));
+        application.arguments = captured.into_boxed_slice();
+    }
     // Nominal type selections retain the whole operand. Looking up a bare
     // named carrier later would erase its lifetime/type application before
     // both ordinary call admission and contextual provider formation.
     if !selected.type_reference.is_valid()
+        && selected
+            .application
+            .as_ref()
+            .is_none_or(|application| !application.member.is_valid())
         && selected.symbol.is_valid()
         && target.symbols.get(selected.symbol).kind == symbols::SymbolKind::Data
         && selected.application.is_some()

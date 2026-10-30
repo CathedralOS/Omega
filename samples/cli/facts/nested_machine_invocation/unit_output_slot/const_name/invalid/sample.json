@@ -1,0 +1,6 @@
+{
+  "rejection_contains": [
+    "mutates `old.value`"
+  ],
+  "notes": "Removing only the final slot replacement preserves the old backing loan; the caller cannot mutate old storage while the old view remains live."
+}

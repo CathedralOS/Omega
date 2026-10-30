@@ -11,7 +11,7 @@ crashes Trap
         true -> invalid(input)
         _ -> (input as i32)
     }
-    state invalid(input: addr) -> i32
+    machine invalid(input: addr) -> i32
     requires input > 2147483647
     { crash Trap; }
 }

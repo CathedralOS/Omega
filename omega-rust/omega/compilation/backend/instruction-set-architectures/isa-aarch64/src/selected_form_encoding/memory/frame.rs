@@ -13,7 +13,7 @@ use super::{
     MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
     RegisterViewId, SelectedInstructionKind, ValidatedAarch64SelectedFormEncoding,
-    ValidatedPhysicalRegisterModel, resolve_registers,
+    ValidatedPhysicalRegisterModel, resolve_registers, word_stream,
 };
 use crate::immediate_offset::{
     ADD_IMMEDIATE, address_words, append_page_steps, decode_address_words,
@@ -140,14 +140,7 @@ pub fn validate(
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
     let (register, scratch) = request(physical, kind, alternative, operands, displacement)?;
-    let (chunks, tail) = bytes.as_chunks::<4>();
-    if !tail.is_empty() {
-        return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
-    }
-    let words = chunks
-        .iter()
-        .map(|word| u32::from_le_bytes(*word))
-        .collect::<Vec<_>>();
+    let words = word_stream(bytes).ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
     if alignment_bytes != 1 {
         let member = match kind {
             SelectedInstructionKind::FrameAddress { byte_offset, .. }
@@ -248,6 +241,7 @@ mod tests {
         MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind, encode, validate,
     };
     use crate::aarch64_physical_register_model;
+    use crate::test_support::reject_every_bit_flip;
     use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
     use semantic_vocabulary::{OperationId, PlaceId};
 
@@ -319,22 +313,18 @@ mod tests {
                         assert!(home >= reserved_start);
                         assert!(home - reserved_start <= u64::from(alignment - 16));
                     }
-                    for bit in 0..encoded.bytes().len() * 8 {
-                        let mut corrupt = encoded.bytes().to_vec();
-                        corrupt[bit / 8] ^= 1 << (bit % 8);
-                        assert!(
-                            validate(
-                                &physical,
-                                kind,
-                                alternative,
-                                &[value],
-                                frame_offset,
-                                alignment,
-                                &corrupt
-                            )
-                            .is_err()
-                        );
-                    }
+                    reject_every_bit_flip(encoded.bytes(), "frame form", |corrupt| {
+                        validate(
+                            &physical,
+                            kind,
+                            alternative,
+                            &[value],
+                            frame_offset,
+                            alignment,
+                            &corrupt,
+                        )
+                        .is_err()
+                    });
                     let store = SelectedInstructionKind::Store64 {
                         slot,
                         byte_offset: member,
@@ -460,22 +450,18 @@ mod tests {
                     );
                 }
                 assert!(!encoded.footprint.writes_nzcv);
-                for bit in 0..(encoded.bytes().len() * 8) {
-                    let mut corrupt = encoded.bytes().to_vec();
-                    corrupt[bit / 8] ^= 1 << (bit % 8);
-                    assert!(
-                        validate(
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            displacement,
-                            1,
-                            &corrupt
-                        )
-                        .is_err()
-                    );
-                }
+                reject_every_bit_flip(encoded.bytes(), "frame round trip", |corrupt| {
+                    validate(
+                        &physical,
+                        kind,
+                        alternative,
+                        &operands,
+                        displacement,
+                        1,
+                        &corrupt,
+                    )
+                    .is_err()
+                });
                 assert!(
                     validate(
                         &physical,

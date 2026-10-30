@@ -6,7 +6,7 @@ machine nested_difference(value: u64) -> u64 requires value < 10 - 2 - 3 { value
 machine nested_call(value: u64) -> u64 requires value <= endpoint(endpoint(256) + 1) { value }
 data Holder [copy] where value <= 4 * 8 - 2 { value: u64; }
 data Wrap<T [copy]> [copy] { value: T; }
-domain u64::Bound(value) requires value <= 2 * 64 + 128;
+domain u64::Bound requires self <= 2 * 64 + 128;
 machine wrapped() -> u64 {
     let held: Wrap<u64 in Bound> = Wrap { value: 7 };
     held.value
@@ -19,8 +19,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> passed(main)
         false -> failed(main)
     }
-    state passed(main: &mut Main) { Console::exit_process(70); }
-    state failed(main: &mut Main) { Console::exit_process(71); }
+    machine passed(main: &mut Main) { Console::exit_process(70); }
+    machine failed(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

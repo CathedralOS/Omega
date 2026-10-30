@@ -1,0 +1,2 @@
+cannot prove assignment value `2`
+expected 0..=1

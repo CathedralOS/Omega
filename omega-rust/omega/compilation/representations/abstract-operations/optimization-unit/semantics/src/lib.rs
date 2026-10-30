@@ -29,6 +29,20 @@ mod unit_validation;
 
 pub use error::{OperationSite, OptimizationUnitValidationError};
 
+/// The empty-block threads' shared binding composition: substitute the
+/// threaded edge's parameters through its incoming bindings and forward that
+/// replacement into the outgoing bindings. Proposing rules and the replay
+/// checkers below share this predicate; it decides values only, so it grants
+/// neither acceptance nor the provenance accounting a rewrite still owes.
+pub use candidates::rewrite_accounting::threading::reconstruct_linear_thread_bindings;
+
+/// The empty-block threads' shared ownership predicate: the six frontier sites
+/// the thread touches must carry one snapshot at the unit's identity. Proposing
+/// rules and the replay checkers share it, so neither restates the site list;
+/// like the bindings predicate it decides only, granting neither acceptance nor
+/// the provenance accounting a rewrite still owes.
+pub use candidates::rewrite_accounting::threading::reconstruct_linear_thread_ownership_is_identity;
+
 // Declaration custody shared by validation and target realization. This query
 // grants neither current availability nor permission for a particular access.
 pub use unit_validation::function_structure::{byte_field_root, declared_descriptor_home};
@@ -39,6 +53,15 @@ pub use unit_validation::structural_catalog::{
     StructuralStorageProjection, structural_borrowed_storage_projection,
     structural_storage_projection,
 };
+
+/// Every structural place consumed by an operation, including its ordered
+/// cleanup operands. Current-graph analyses share the exhaustive inventory;
+/// this query establishes no availability, custody, or permission.
+pub fn operation_place_inputs(
+    operation: &abstract_operations::AbstractOperation,
+) -> Vec<semantic_vocabulary::PlaceId> {
+    unit_validation::function_structure::operation_place_inputs(operation)
+}
 
 /// Current declaration and producer authority for one structural place.
 /// Availability, the selected projection and use-site loan compatibility are
@@ -66,7 +89,36 @@ pub fn descriptor_argument_accessible(
         return false;
     };
     requested.admits(argument.access)
+        && source.backing_access(types.iter()).is_some()
         && terminal_semantics::descriptor_source_projection_accessible(
+            types.iter(),
+            source.structural_type,
+            source.multiplicity,
+            source.access,
+            &argument.path,
+            requested,
+        )
+}
+
+/// Descriptor extent is metadata, not payload. A write-only source still
+/// resolves its selected descriptor's geometry under its own authority: the
+/// path must traverse without a stored-referent crossing, and the selected
+/// descriptor's backing admission stays the payload contract this observation
+/// never reaches.
+pub fn descriptor_metadata_argument_accessible(
+    function: &optimization_unit::PsiOptimizationFunction,
+    argument: &terminal_psi::StructuralArgument,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    requested: terminal_psi::StructuralAccess,
+) -> bool {
+    let Some(source) =
+        unit_validation::operation_contracts::structural_source_contract(function, argument.place)
+    else {
+        return false;
+    };
+    requested.admits(argument.access)
+        && source.backing_access(types.iter()).is_some()
+        && terminal_semantics::reference_source_projection_accessible(
             types.iter(),
             source.structural_type,
             source.multiplicity,
@@ -84,8 +136,19 @@ pub fn structural_place_backing_access<'types>(
     place: semantic_vocabulary::PlaceId,
     types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
 ) -> Option<terminal_psi::StructuralAccess> {
+    // An arrival retains outer storage access separately from its contained
+    // descriptor ceiling. Query the actual row; absent contained permission
+    // cannot become a readable grant from the outer storage loan.
+    if let Some(parameter) = function.arrival_parameter(place)
+        && terminal_semantics::descriptor_results::is_descriptor(
+            types.clone(),
+            parameter.structural_type,
+        )
+    {
+        return terminal_semantics::descriptor_parameter_access(parameter, types);
+    }
     unit_validation::operation_contracts::structural_source_contract(function, place)
-        .map(|source| source.backing_access(types))
+        .and_then(|source| source.backing_access(types))
 }
 
 /// Check a write against the current root's complete membership roster. The

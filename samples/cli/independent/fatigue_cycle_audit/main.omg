@@ -17,13 +17,13 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> calculate(main)
         false -> invalid(main)
     }
-    state calculate(main: &mut Main) {
+    machine calculate(main: &mut Main) {
         Audit::prepare(&mut main.audit, &main.input);
         Audit::count(&mut main.audit);
         Report::write(&mut main.audit);
         Console::exit_process(0);
     }
-    state invalid(main: &mut Main) {
+    machine invalid(main: &mut Main) {
         Console::write_line("ERROR: expected exponent(1|2) C(1..1000) count(2..16) and count loads(0..9), at most 256 bytes");
         Console::exit_process(64);
     }

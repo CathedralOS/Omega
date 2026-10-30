@@ -1,0 +1,1 @@
+requires `narrow_pair(first, second) == true`, which the requirement does not imply

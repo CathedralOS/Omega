@@ -1,0 +1,13 @@
+// The same rootless library cannot select a same-signature external leaf
+// whose valid satisfaction edge names another requirement.
+use omega::language::core::float_operations;
+
+public data UnusedNumericProvider {}
+
+public machine UnusedNumericProvider::negate(value: f32) -> f32
+    satisfies F32::square_root
+    via ForeignBinding::CompilerIntrinsic;
+
+public machine is_nan(value: f32) -> bool {
+    F32::is_nan(value)
+}

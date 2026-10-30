@@ -9,14 +9,14 @@ machine replace<'storage>(windows: &mut [Window<'storage>], selected: u64, posit
         true -> inspect(windows, selected, position)
         false -> -1
     }
-    state inspect(windows: &mut [Window<'storage>], selected: u64, position: u64) -> i32
+    machine inspect(windows: &mut [Window<'storage>], selected: u64, position: u64) -> i32
     requires selected < windows.len {
         transition position < windows[selected].tokens.len {
             true -> restore(windows, selected, position)
             false -> -1
         }
     }
-    state restore(windows: &mut [Window<'storage>], selected: u64, position: u64) -> i32
+    machine restore(windows: &mut [Window<'storage>], selected: u64, position: u64) -> i32
     requires selected < windows.len && position < windows[selected].tokens.len {
         let displaced: Token = windows[selected].tokens[position];
         windows[selected].tokens[position] = mint(73);
@@ -33,6 +33,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -8,28 +8,28 @@ machine Main::main(main: &mut Main) {
     main.text = "abcdefgh";
     main.i = 0;
     transition { _ -> step(main) }
-    state step(main: &mut Main) {
+    machine step(main: &mut Main) {
         transition main.i < main.text.len {
             true -> guarded(main)
             _ -> done(main)
         }
     }
-    state guarded(main: &mut Main) {
+    machine guarded(main: &mut Main) {
         transition main.i >= 0 && main.i < 8 {
             true -> bump(main)
             _ -> done(main)
         }
     }
-    state bump(main: &mut Main) {
+    machine bump(main: &mut Main) {
         main.i = main.i + 1;
         transition { _ -> step(main) }
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         transition main.i == 8 {
             true -> correct()
             _ -> incorrect()
         }
     }
-    state correct() {}
-    state incorrect() {}
+    machine correct() {}
+    machine incorrect() {}
 }

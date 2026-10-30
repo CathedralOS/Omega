@@ -23,17 +23,17 @@ machine emit_case(main: &mut Main, reply: &Reply) reaches Console {
         Reply::Values { row } -> selected(main, row)
         Reply::Empty -> none(main)
     }
-    state selected(main: &mut Main, values: [i32; 2]) {
+    machine selected(main: &mut Main, values: [i32; 2]) {
         let copied: [i32; 2] = values;
         emit(main, copied);
     }
-    state none(main: &mut Main) { emit(main, [0, 0]); }
+    machine none(main: &mut Main) { emit(main, [0, 0]); }
 }
 machine emit_later(main: &mut Main, rows: &[[i32; 2]; 2], index: u64) reaches Console
 requires index < 2;
 {
     transition { _ -> selected(main, rows, index) }
-    state selected(main: &mut Main, rows: &[[i32; 2]; 2], index: u64)
+    machine selected(main: &mut Main, rows: &[[i32; 2]; 2], index: u64)
     requires index < 2
     {
         let copied: [i32; 2] = rows[index];
@@ -70,8 +70,8 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         && main.rows[1][1] == 4 && empty.len == 0 {
         true -> good(main) _ -> bad(main)
     }
-    state good(main: &mut Main) { Console::exit_process(0); }
-    state bad(main: &mut Main) { Console::exit_process(9); }
+    machine good(main: &mut Main) { Console::exit_process(0); }
+    machine bad(main: &mut Main) { Console::exit_process(9); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

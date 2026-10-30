@@ -1,0 +1,9 @@
+// Invalid: a value binder cannot become a same-named global equation element type.
+data Count [copy] { value: u64; }
+machine selected<Length [copy], Count: u64, const Capacity: u64>(items: Length) -> u64
+where Length == [Count; Capacity]
+{ Capacity }
+machine main() {
+    let items: [Count; 2] = [Count { value: 7 }, Count { value: 11 }];
+    let observed: u64 = selected<[Count; 2], 7>(items);
+}

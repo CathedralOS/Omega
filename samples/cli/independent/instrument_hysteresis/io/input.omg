@@ -7,37 +7,37 @@ data Input {
 }
 machine parse_line(text: &[u8]) -> Input {
     transition { _ -> stimulus(text, 0, false) }
-    state stimulus(text: &[u8], value: i32 in Wrapping, seen: bool) -> Input {
+    machine stimulus(text: &[u8], value: i32 in Wrapping, seen: bool) -> Input {
         transition text.len > 0 {
             true -> stimulus_byte(text[0], text[1..], value, seen)
             false -> (Input::Invalid)
         }
     }
-    state stimulus_byte(byte: u8, rest: &[u8], value: i32 in Wrapping, seen: bool) -> Input {
+    machine stimulus_byte(byte: u8, rest: &[u8], value: i32 in Wrapping, seen: bool) -> Input {
         transition byte >= 48 && byte <= 57 && value <= 20000 {
             true -> stimulus(rest, value * 10 + (byte as i32 in Wrapping) - 48, true)
             false -> separator(byte, rest, value, seen)
         }
     }
-    state separator(byte: u8, rest: &[u8], value: i32 in Wrapping, seen: bool) -> Input {
+    machine separator(byte: u8, rest: &[u8], value: i32 in Wrapping, seen: bool) -> Input {
         transition byte == 32 && seen {
             true -> observed(rest, value, 0, false)
             false -> (Input::Invalid)
         }
     }
-    state observed(text: &[u8], stimulus: i32 in Wrapping, value: i32 in Wrapping, seen: bool) -> Input {
+    machine observed(text: &[u8], stimulus: i32 in Wrapping, value: i32 in Wrapping, seen: bool) -> Input {
         transition text.len > 0 {
             true -> observed_byte(text[0], text[1..], stimulus, value, seen)
             false -> (Input::Invalid)
         }
     }
-    state observed_byte(byte: u8, rest: &[u8], stimulus: i32 in Wrapping, value: i32 in Wrapping, seen: bool) -> Input {
+    machine observed_byte(byte: u8, rest: &[u8], stimulus: i32 in Wrapping, value: i32 in Wrapping, seen: bool) -> Input {
         transition byte >= 48 && byte <= 57 && value <= 20000 {
             true -> observed(rest, stimulus, value * 10 + (byte as i32 in Wrapping) - 48, true)
             false -> finish(byte, rest, stimulus, value, seen)
         }
     }
-    state finish(byte: u8, rest: &[u8], stimulus: i32 in Wrapping, value: i32 in Wrapping, seen: bool) -> Input {
+    machine finish(byte: u8, rest: &[u8], stimulus: i32 in Wrapping, value: i32 in Wrapping, seen: bool) -> Input {
         transition byte == 10 && rest.len == 0 && seen {
             true -> (Input::Sample { stimulus: stimulus, observed: value })
             false -> (Input::Invalid)

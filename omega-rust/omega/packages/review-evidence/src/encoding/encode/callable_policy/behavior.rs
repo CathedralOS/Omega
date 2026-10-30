@@ -17,9 +17,7 @@ pub(super) fn capability(
     encoder: &mut Encoder,
     flow: &PackagePolicyCapabilityFlow,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("capability", |encoder| {
-        encode_nominal(encoder, &flow.capability)
-    })?;
+    encoder.field_by("capability", &flow.capability, encode_nominal)?;
     encoder.field("kind", |encoder| {
         match flow.kind {
             flow_effects::CapabilityFlowKind::Uses => encoder.tag("uses", 0),
@@ -89,9 +87,7 @@ pub(in crate::encoding) fn crash_route(
                 PackagePolicyCrashGuard::Truth => encoder.tag("truth", 0),
                 PackagePolicyCrashGuard::Expression(expression) => {
                     encoder.tag("expression", 1);
-                    encoder.field("expression", |encoder| {
-                        encode_contract_expression(encoder, expression)
-                    })?;
+                    encoder.field_by("expression", expression, encode_contract_expression)?;
                 }
             }
             Ok(())

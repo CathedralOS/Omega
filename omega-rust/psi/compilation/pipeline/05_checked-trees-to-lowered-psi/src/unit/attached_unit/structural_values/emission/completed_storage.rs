@@ -9,6 +9,7 @@ use super::{
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
     StructuralPlaceKind, unsupported,
 };
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 
 impl Emission<'_, '_, '_> {
     /// A private value edge changes storage identity, not membership.
@@ -228,10 +229,60 @@ impl Emission<'_, '_, '_> {
     /// Both explicit fields and omitted-field zero provisioning use this join.
     pub(super) fn complete_construction(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         place: PlaceId,
         decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
+        completion: super::CompletionOccurrence,
         continuation: Option<&mut super::ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
+        // Transparent containers transport their children's completed names.
+        // Array multiplicity inherits its element's usage rule, but its exact
+        // claim frontier still has indexed children, not a fresh whole root.
+        // Only a whole claim in the checked type frontier introduces a root
+        // at this construction, even beneath a selected expression.
+        let node = self.structural_value_node(completion.value);
+        // A zero image provisions storage without establishing the declared
+        // linear value. Its operation is deliberately affine and carries no
+        // claim; the later checked assignment introduces that obligation.
+        if !matches!(
+            &node.kind,
+            checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
+        ) && validation::linear_claim_frontier(&self.checked.typed, node.type_reference)
+            .iter()
+            .any(|claim| claim.path.is_empty())
+        {
+            let mut prepared = crate::emission::claim_bindings::prepare_establishment_claims(
+                identities,
+                self.checked,
+                self.machine,
+                self.state,
+                self.statement as usize,
+                facts::PlaceRoot::Expression(node.expression),
+                node.type_reference,
+                self.structural_type,
+                self.structural_types,
+            )?;
+            prepared.retain(|claim| claim.path.is_empty());
+            if prepared.len() != 1 {
+                return Err(LoweringError::MissingConstructionClaim {
+                    machine: self.machine,
+                    state: self.state,
+                    statement_index: self.statement,
+                    expression: node.expression,
+                    structural_type: self.structural_type,
+                    root_candidates: prepared.len(),
+                });
+            }
+            let claims = crate::emission::claim_bindings::emit_establishment_claims(
+                &prepared,
+                &mut self.calls.claims,
+            )?;
+            let introductions = crate::emission::claim_bindings::direct_establishment_claims(
+                &prepared,
+                &self.calls.claims,
+            )?;
+            Self::bind_completion_claims(self.operations, place, &claims, &introductions)?;
+        }
         let domains = self.checked_membership_domains(decisions, self.structural_type)?;
         crate::emission::formation_memberships::publish(
             self.operations,
@@ -239,7 +290,7 @@ impl Emission<'_, '_, '_> {
             self.structural_type,
             domains,
         )?;
-        self.completed(place, continuation)
+        self.completed(identities, place, completion, continuation)
     }
 
     /// Publish checked operand facts without relabeling its producer's ABI
@@ -255,6 +306,7 @@ impl Emission<'_, '_, '_> {
         expression: typed_trees::expression::ExpressionHandle,
         first_new_place: u64,
     ) -> Result<StructuralArgument, LoweringError> {
+        let source = self.refresh_memberships(identities, source, expression, first_new_place)?;
         let memberships = self
             .checked
             .facts
@@ -278,22 +330,47 @@ impl Emission<'_, '_, '_> {
             .ok_or(LoweringError::Unsupported(
             "completed operand membership source is missing",
         ))?;
-        let (qualifications, _) = terminal_psi::StructuralPathQualification::select(
+        let (mut qualifications, _) = terminal_psi::StructuralPathQualification::select(
             qualifications,
             projected_qualifications,
             &membership_path,
         );
+        // A stored field and its completed descriptor can present the same
+        // value on different carrier rows. Rebind existing memberships through
+        // the common unchanged-referent/identical-theory judgment before asking
+        // for prerequisites on the receiving subject. Raw source row IDs are
+        // not memberships on that other carrier, even when names coincide.
+        terminal_semantics::present_structural_memberships(
+            self.structural_types.iter(),
+            self.domain_declarations.iter(),
+            membership_carrier,
+            &mut qualifications,
+            &mut Vec::new(),
+        )
+        .map_err(LoweringError::Unsupported)?;
         let mut established = Vec::new();
         for decision in memberships {
             let domain = self.checked_membership_domain(decision, membership_carrier)?;
             if !qualifications.contains(&domain) {
-                // Direct Terminal routes do not include every inherited or
-                // aliased restriction. Consult the resolved source declaration,
-                // never its spelling or an empty route roster in the catalog.
-                if validation::field_domains::domain_requires_provenance(
-                    &self.checked.typed,
-                    decision.domain_symbol,
-                ) {
+                let declaration = self
+                    .domain_declarations
+                    .iter()
+                    .find(|row| row.id == domain)
+                    .ok_or(LoweringError::Unsupported(
+                        "owned membership declaration is absent",
+                    ))?;
+                let missing = declaration
+                    .missing_membership_requirements(self.domain_declarations, &qualifications)
+                    .ok_or(LoweringError::Unsupported(
+                        "owned membership transport has unknown prerequisites",
+                    ))?;
+                // Checked formation supplies the erased predicate proof. Only
+                // actual memberships on this source path can supply an issuer;
+                // the desired receiving roster cannot authorize itself.
+                if missing
+                    .iter()
+                    .any(|row| !row.establishment_routes.is_empty())
+                {
                     return unsupported(
                         "owned membership transport cannot establish routed authority",
                     );
@@ -338,58 +415,66 @@ impl Emission<'_, '_, '_> {
                 projected_qualifications,
             );
         }
-        self.copied_leaf_place(&source, decisions, None)
+        self.copied_leaf_place(identities, &source, decisions, expression)
             .map(|place| StructuralArgument {
                 place,
                 path: Vec::new(),
                 access: StructuralAccess::Owned,
             })
     }
-
-    /// Transfer the captured occurrence and its exact claims to a fresh home.
-    /// Projection results and membership transport use the same owned operation;
-    /// the original owner's unselected complement retains its checked death.
+    /// Separate an owned subtree from its original home before that home's
+    /// checked complement dies. Membership transport and projections use the
+    /// same move; neither a new annotation nor cleanup can mint source claims.
     pub(super) fn move_completed_operand(
         &mut self,
         completed: super::super::operand_claims::CompletedOperand,
         qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
         projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
     ) -> Result<StructuralArgument, LoweringError> {
-        if completed.argument.access != StructuralAccess::Owned
-            || self.multiplicity == StructuralMultiplicity::Unrestricted
-        {
-            return unsupported("value transfer requires restricted owned custody");
+        let source = completed.argument;
+        if source.access != StructuralAccess::Owned {
+            return unsupported("owned subtree move requires exact source custody");
         }
+        let source_place = source.place;
+        let source_path = source.path.clone();
+        let transported_claims = completed.claims;
         let place = super::place_id(super::allocate_dense(self.environment.next_place)?);
         let operation = self.operations.allocate();
-        self.operations.push(terminal_psi::Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: operation,
-            result: terminal_psi::OperationResult::Structural(
-                terminal_psi::StructuralOperationResult {
-                    place,
-                    structural_type: self.structural_type,
-                    multiplicity: self.multiplicity,
-                    qualifications,
-                    projected_qualifications,
-                    qualification_establishments: Vec::new(),
-                    claims: completed.claims,
-                },
-            ),
-            kind: terminal_psi::OperationKind::MoveStructuralValue {
-                source: completed.argument,
-            },
-        });
-        self.environment
-            .private_places
-            .push(super::operation_result_declaration(
+        self.operations.push(terminal_psi::Operation::unsuspended(
+            operation,
+            terminal_psi::OperationResult::Structural(terminal_psi::StructuralOperationResult {
                 place,
-                operation,
-                self.structural_type,
-            ));
+                structural_type: self.structural_type,
+                multiplicity: self.multiplicity,
+                qualifications,
+                projected_qualifications,
+                qualification_establishments: Vec::new(),
+                claims: transported_claims.clone(),
+            }),
+            terminal_psi::OperationKind::MoveStructuralValue { source },
+        ));
+        self.evaluation
+            .retire_structural_operation_operands(operation, self.operations)?;
+        self.environment.private_places.push(operation_result_place(
+            place,
+            operation,
+            self.structural_type,
+        ));
         self.operations
             .register_structural_materialization(place, self.state, self.statement)?;
+        // This is the exact owned transfer just emitted, not a new
+        // establishment. Retain its source-relative names at the fresh
+        // result and remove only the moved source subtree's associations.
+        // An absent historical home stays absent rather than inventing a
+        // whole-home namespace from a projected consuming receipt.
+        if self.evaluation.current_claims.contains(source_place) {
+            self.evaluation
+                .current_claims
+                .replace(source_place, &source_path, &[])?;
+        }
+        self.evaluation
+            .current_claims
+            .publish(place, transported_claims)?;
         Ok(StructuralArgument {
             place,
             path: Vec::new(),

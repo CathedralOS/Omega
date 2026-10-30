@@ -1,0 +1,22 @@
+// Expected exit: 0
+machine accumulate(mut remaining: u64, mut accumulator: u64, total: u64) -> u64
+requires remaining > 0 && remaining <= 1000 && accumulator <= 1000 && total <= 1000
+requires remaining + accumulator == total
+terminates by remaining -> Nat::Descending;
+ensures result == total
+{
+    remaining = remaining - 1;
+    accumulator = accumulator + 1;
+    transition remaining > 0 {
+        true -> accumulate(remaining, accumulator, total)
+        false -> accumulator
+    }
+}
+
+
+machine main() crashes Trap {
+    let result: u64 = accumulate(3, 4, 7);
+    transition result == 7 { true -> done() false -> wrong() }
+}
+machine done() {}
+machine wrong() crashes Trap { crash Trap; }

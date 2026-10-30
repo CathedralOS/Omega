@@ -62,6 +62,12 @@ pub enum ZeroedStructuralLeaf {
         path: Vec<StructuralPathSegment>,
         length: u64,
     },
+    /// An explicitly initialized scalar-array subtree with no primitive
+    /// payload. Its type retains every logical dimension and restriction.
+    EmptyScalarArray {
+        path: Vec<StructuralPathSegment>,
+        structural_type: StructuralTypeId,
+    },
     /// The case-tag cell of a sum whose zeroed image selects its first
     /// declared case — the tag stores the case ordinal and all-zero bits
     /// name ordinal 0. `structural_type` retains the sum's own identity so
@@ -111,6 +117,7 @@ impl ZeroedStructuralLeaf {
             | ZeroedStructuralLeaf::CaseField { path, .. }
             | ZeroedStructuralLeaf::ArrayScalar { path, .. }
             | ZeroedStructuralLeaf::ByteArray { path, .. }
+            | ZeroedStructuralLeaf::EmptyScalarArray { path, .. }
             | ZeroedStructuralLeaf::SumSelection { path, .. } => path,
         }
     }
@@ -195,7 +202,7 @@ fn zeroed_declaration_graph(
                 // Empty arrays retain their declared element schema but
                 // instantiate no payload. Requiring its zero validity would
                 // manufacture an element that neither consumer materializes.
-                if *length != 0 {
+                if length.literal() != Some(0) {
                     pending.push((*element, false));
                 } else if !declarations
                     .iter()
@@ -388,23 +395,37 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
                     scalar_type: *scalar_type,
                 });
             }
-            StructuralTypeShape::FixedArray { element, length }
-                if *length != 0
-                    && declarations.iter().any(|declaration| {
-                        declaration.id == *element
-                            && matches!(declaration.shape,
+            StructuralTypeShape::FixedArray { .. }
+                if crate::scalar_array_leaf_shape(declarations.iter().copied(), current)
+                    .is_some_and(|(_, count)| count == 0) =>
+            {
+                leaves.push(ZeroedStructuralLeaf::EmptyScalarArray {
+                    path,
+                    structural_type: current,
+                });
+            }
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } if *length != 0
+                && declarations.iter().any(|declaration| {
+                    declaration.id == *element
+                        && matches!(declaration.shape,
                                 StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
                                     if integer.sign() == IntegerSign::Unsigned
                                         && integer.bits() == 8
                                         && !integer.is_address())
-                    }) =>
+                }) =>
             {
                 leaves.push(ZeroedStructuralLeaf::ByteArray {
                     path,
                     length: *length,
                 });
             }
-            StructuralTypeShape::FixedArray { element, length } => {
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
                 let extent = usize::try_from(*length).ok()?;
                 if leaves
                     .len()
@@ -484,7 +505,7 @@ pub fn zeroed_projected_byte_qualifications_hold<'a>(
             }
         }
         let Some(carrier) = crate::runtime_structural_path_tip(types.clone(), root, &row.path) else { return false; };
-        let StructuralTypeShape::FixedArray { element, length } = carrier.shape else { return false; };
+        let StructuralTypeShape::FixedArray { element, length: terminal_psi::ArrayExtent::Literal(length) } = carrier.shape else { return false; };
         if !types.clone().any(|ty| ty.id == element && matches!(ty.shape,
             StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
                 if integer.sign() == IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address())) {
@@ -494,6 +515,7 @@ pub fn zeroed_projected_byte_qualifications_hold<'a>(
         domain.carrier == carrier.id
             && domain.content_projection.is_none()
             && domain.establishment_routes.is_empty()
+            && domain.has_no_required_memberships()
             && domain.byte_predicate.is_some_and(|predicate| match predicate {
                 terminal_psi::ByteSequencePredicate::ValidUtf8 | terminal_psi::ByteSequencePredicate::AsciiOnly => true,
                 terminal_psi::ByteSequencePredicate::NoNul => length == 0,

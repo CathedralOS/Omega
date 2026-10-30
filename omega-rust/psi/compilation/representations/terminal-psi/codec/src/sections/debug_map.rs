@@ -7,7 +7,7 @@
 
 use terminal_psi::{SemanticFingerprint, TerminalModule, TerminalPsiIdentity, VocabularyMarker};
 
-use crate::sections::semantic_module::wire::{Reader, Writer, bounded_count};
+use crate::sections::semantic_module::wire::{Reader, Writer, bounded_count, strictly_increasing};
 use crate::{CodecError, terminal_psi_identity};
 pub use terminal_psi::{
     DebugFileId, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan,
@@ -285,20 +285,6 @@ fn subject_exists(module: &TerminalModule, subject: DebugSubject) -> bool {
                     .any(|composition| composition.input_claims.contains(&claim))
         }),
     }
-}
-
-fn strictly_increasing<T: Ord>(values: impl IntoIterator<Item = T>) -> bool {
-    let mut values = values.into_iter();
-    let Some(mut prior) = values.next() else {
-        return true;
-    };
-    for value in values {
-        if value <= prior {
-            return false;
-        }
-        prior = value;
-    }
-    true
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

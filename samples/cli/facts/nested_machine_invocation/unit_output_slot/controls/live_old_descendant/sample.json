@@ -1,0 +1,5 @@
+{
+  "rejection_contains": [
+    "mutates `old.value` while local borrow `child` is still active"
+  ]
+}

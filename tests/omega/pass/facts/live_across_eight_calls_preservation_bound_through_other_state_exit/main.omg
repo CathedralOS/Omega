@@ -69,7 +69,7 @@ machine compute_other_state(saved: u64) -> i32
     let c7: u64 = step7(c6);
     let c8: u64 = step8(c7);
     transition { _ -> step(saved, c8) }
-    state step(res: u64, c8: u64) -> i32
+    machine step(res: u64, c8: u64) -> i32
     requires res >= 40 && res <= 80
     {
         let head: u64 = 80 - res;
@@ -79,8 +79,8 @@ machine compute_other_state(saved: u64) -> i32
             _ -> bad()
         }
     }
-    state done() -> i32 { 0 }
-    state bad() -> i32 { 1 }
+    machine done() -> i32 { 0 }
+    machine bad() -> i32 { 1 }
 }
 
 machine evaluate() -> i32 {
@@ -93,6 +93,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

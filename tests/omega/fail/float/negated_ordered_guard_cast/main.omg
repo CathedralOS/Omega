@@ -8,6 +8,6 @@ machine Guarded::convert(guarded: &mut Guarded) {
         true -> bounded(guarded)
         _ -> done()
     }
-    state bounded(guarded: &mut Guarded) { guarded.converted = guarded.value as i32; }
-    state done() {}
+    machine bounded(guarded: &mut Guarded) { guarded.converted = guarded.value as i32; }
+    machine done() {}
 }

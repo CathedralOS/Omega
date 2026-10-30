@@ -5,13 +5,13 @@ machine main() crashes Trap {
     let saved: u64 = items[0];
     let held: u64 = expose(&mut items[0]);
     transition { _ -> check(saved, items[0], held) }
-    state check(observed: u64, current: u64, held: u64)
+    machine check(observed: u64, current: u64, held: u64)
     requires observed == current && observed == 7
     {
         transition observed == 7 && held == held { true -> done() _ -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine expose(slot: &mut u64) -> u64 {

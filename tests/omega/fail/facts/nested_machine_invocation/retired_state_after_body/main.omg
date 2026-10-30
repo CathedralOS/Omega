@@ -1,0 +1,4 @@
+machine main() {
+    old_helper();
+    state old_helper() {}
+}

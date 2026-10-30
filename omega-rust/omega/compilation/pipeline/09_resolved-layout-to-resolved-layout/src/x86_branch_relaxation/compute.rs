@@ -1,14 +1,15 @@
-//! Producer/replay computation join for x86 branch relaxation.
+//! Producer computation join for x86 branch relaxation.
 //!
-//! Production and independent replay retain separate scans, inspection, work
-//! charging, and reflow mechanics. This coordinator exposes those two routes
-//! and gives both traces to the single canonical artifact finalizer.
+//! One production route scans, inspects, charges work and reflows; the
+//! canonical artifact finalizer takes its trace. The stage does not re-derive
+//! the relaxation it just produced (verification placement,
+//! `omega-rust/pipeline.md`).
 
 mod artifact;
 mod branch_inspection;
+mod lane;
 mod production;
 mod reflow;
-mod replay;
 #[cfg(test)]
 mod tests;
 mod work;
@@ -31,9 +32,29 @@ struct RelaxationTrace {
     functions: Vec<ResolvedSelectedFunctionLayout>,
 }
 
-/// The roots every revision and artifact identity is bound to. Both trace
-/// routes take them as data, so neither driver needs the staged carrier and
-/// both are exercisable on a bare function roster.
+/// The conditional evidence a row carries: every relaxation site reads the
+/// branch through this one projection, and a row without one is malformed.
+pub(super) fn conditional_evidence(
+    row: &machine_code::ResolvedSelectedFormRow,
+) -> Result<&machine_code::ResolvedConditionalBranchEvidence, OptimizedX86BranchRelaxationError> {
+    row.branch
+        .as_deref()
+        .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+        .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
+            row.instruction,
+        ))
+}
+
+/// The malformed-row refusal: every relaxation site names the row it refused.
+pub(super) fn malformed(
+    instruction: selected_instructions::SelectedInstructionId,
+) -> OptimizedX86BranchRelaxationError {
+    OptimizedX86BranchRelaxationError::MalformedBranch(instruction)
+}
+
+/// The roots every revision and artifact identity is bound to. The producer
+/// takes them as data, so it needs no staged carrier and is exercisable on a
+/// bare function roster.
 fn revision_roots(source: &StagedOptimizedResolvedSelectedFormLayout) -> RevisionRoots {
     RevisionRoots {
         source: source.identity(),
@@ -51,14 +72,5 @@ pub(super) fn compute_relaxation(
 ) -> Result<StagedOptimizedX86BranchRelaxation, OptimizedX86BranchRelaxationError> {
     let trace =
         production::compute_trace(revision_roots(source), source.functions(), physical, budget)?;
-    artifact::finish_artifact(source, budget, trace)
-}
-
-pub(super) fn replay_relaxation(
-    source: &StagedOptimizedResolvedSelectedFormLayout,
-    physical: &ValidatedPhysicalRegisterModel,
-    budget: OptimizationWorkBudget,
-) -> Result<StagedOptimizedX86BranchRelaxation, OptimizedX86BranchRelaxationError> {
-    let trace = replay::replay_trace(revision_roots(source), source.functions(), physical, budget)?;
     artifact::finish_artifact(source, budget, trace)
 }

@@ -4,24 +4,32 @@
 //!
 //! The carriers a caller binds live in `bindings`; `construction` builds
 //! and revalidates the reconciled graph; `dependency_graph` answers edge,
-//! closure, and cycle questions over it; `generated_sources` attaches the
-//! checked generated-source handoffs of dependency builds; `errors` names
+//! closure, and cycle questions over it; `build_handoffs` attaches the
+//! complete source and Product-selection handoffs of dependency builds; `errors` names
 //! every construction and attachment rejection.
 
 mod bindings;
+mod build_handoffs;
 mod construction;
 mod dependency_graph;
 mod errors;
-mod generated_sources;
+mod native_bindings;
+mod native_evaluation;
+pub mod native_output_codec;
+pub mod provider_selection_codec;
+mod provider_selections;
+pub use native_bindings::{
+    NativeBindingProducer, NativeBindingProduction, PackageNativeBindingOrigin,
+};
+pub use native_evaluation::NativeBuildEvaluation;
 
 pub use bindings::{
-    BuildDependencyOccurrence, IndependentComponentDescription, PackageDependencyBinding,
-    PackageSourceBinding,
+    IndependentComponentDescription, PackageDependencyBinding, PackageSourceBinding,
 };
+pub use build_handoffs::PackageBuildHandoff;
 pub(crate) use construction::canonical_source_root;
 pub use dependency_graph::PackageDependencyClosure;
 pub use errors::PackageCompilationInputError;
-pub use generated_sources::PackageGeneratedSourceBundle;
 
 use crate::{AcceptedSemanticBinding, AcceptedSemanticBindingRole, BuildDeclarationKind};
 use build_declarations::DependencyPurpose;
@@ -47,22 +55,53 @@ pub struct PackageCompilationInputs {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageCompilationTargetInputs {
     purpose: DependencyPurpose,
-    dependency_generated_sources:
-        BTreeMap<(PackageKeyIdentity, DependencyPurpose), PackageGeneratedSourceBundle>,
+    dependency_build_handoffs:
+        BTreeMap<(PackageKeyIdentity, DependencyPurpose), PackageBuildHandoff>,
     accepted_semantic_bindings: BTreeMap<AcceptedSemanticBindingRole, AcceptedSemanticBinding>,
     semantic_role_discovery: bool,
     independent_component_descriptions:
         BTreeMap<PackageKeyIdentity, IndependentComponentDescription>,
+    native_product_retention: Option<CompilerProductRetention>,
+}
+
+/// Optional compiler-private storage coordinates selected after ordinary
+/// package admission. The key binds compiler, source closure and snapshot;
+/// carrying it grants no checking, provider or execution authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompilerProductRetention {
+    directory: PathBuf,
+    input_key: [u8; 32],
+    compiler_identity: [u8; 32],
+}
+
+impl CompilerProductRetention {
+    pub fn new(directory: PathBuf, input_key: [u8; 32], compiler_identity: [u8; 32]) -> Self {
+        Self {
+            directory,
+            input_key,
+            compiler_identity,
+        }
+    }
+    pub fn directory(&self) -> &Path {
+        &self.directory
+    }
+    pub const fn input_key(&self) -> &[u8; 32] {
+        &self.input_key
+    }
+    pub const fn compiler_identity(&self) -> &[u8; 32] {
+        &self.compiler_identity
+    }
 }
 
 impl Default for PackageCompilationTargetInputs {
     fn default() -> Self {
         Self {
             purpose: DependencyPurpose::Product,
-            dependency_generated_sources: BTreeMap::new(),
+            dependency_build_handoffs: BTreeMap::new(),
             accepted_semantic_bindings: BTreeMap::new(),
             semantic_role_discovery: false,
             independent_component_descriptions: BTreeMap::new(),
+            native_product_retention: None,
         }
     }
 }
@@ -76,12 +115,22 @@ impl Default for PackageCompilationTargetInputs {
 /// being reused with a child whose source-routing inputs differ. Exact-target
 /// generated sources and accepted semantic bindings are excluded because they
 /// join only after that shared checkpoint forks.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PackageCompilationSourceInputs {
     filesystem: source::SourceFileSystem,
     root: PackageKeyIdentity,
     root_role: BuildDeclarationKind,
     packages: BTreeMap<PackageKeyIdentity, PackageCompilationSourceRecord>,
+    dependency_acquisitions: Vec<PackageDependencyAcquisition>,
+}
+
+/// A package-owned acquisition for an exact, purpose-local dependency request.
+/// The request is inert data, not an issued execution receipt or a host grant.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct PackageDependencyAcquisition {
+    pub request_ordinal: usize,
+    pub request: build_declarations::BuildRequest,
+    pub package: PackageKeyIdentity,
 }
 
 /// Source custody and requester-local routing owned by one package identity.
@@ -90,7 +139,7 @@ pub struct PackageCompilationSourceInputs {
 /// may bind different packages in each. Only the compilation root may hold
 /// build-scope edges — the compiled program executes exactly one package's
 /// build entry, and dependency build files never join it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 struct PackageCompilationSourceRecord {
     source_root: PathBuf,
     canonical_name: String,
@@ -102,6 +151,144 @@ struct PackageCompilationSourceRecord {
 }
 
 impl PackageCompilationInputs {
+    pub fn with_native_product_retention(mut self, retention: CompilerProductRetention) -> Self {
+        self.target.native_product_retention = Some(retention);
+        self
+    }
+
+    pub fn native_product_retention(&self) -> Option<&CompilerProductRetention> {
+        self.target.native_product_retention.as_ref()
+    }
+
+    pub(crate) fn require_same_shared_product_sources(&self, other: &Self) -> Result<(), String> {
+        for (identity, record) in &self.source.packages {
+            if let Some(previous) = other.source.packages.get(identity) {
+                if record.source_root != previous.source_root
+                    || record.canonical_name != previous.canonical_name
+                    || record.captured_source != previous.captured_source
+                    || record.captured_build_source != previous.captured_build_source
+                    || record.dependencies != previous.dependencies
+                {
+                    return Err(
+                        "Product query graphs disagree about a shared package source".into(),
+                    );
+                }
+            }
+            if other
+                .source
+                .packages
+                .iter()
+                .any(|(other_identity, other_record)| {
+                    other_identity != identity && other_record.source_root == record.source_root
+                })
+            {
+                return Err("Product query source root has different package owners".into());
+            }
+        }
+        Ok(())
+    }
+
+    /// Retain source acquisition's exact requests and selected package custody.
+    /// A later Build must issue these same values before the sources can settle
+    /// its ledger. Merely supplying an alias graph is not that evidence.
+    pub fn with_dependency_acquisitions(
+        mut self,
+        acquisitions: Vec<PackageDependencyAcquisition>,
+    ) -> Result<Self, Vec<PackageCompilationInputError>> {
+        let invalid = |reason: &str| {
+            vec![PackageCompilationInputError::InvalidDependencyAcquisition {
+                root: self.root(),
+                reason: reason.to_owned(),
+            }]
+        };
+        let mut counts = [0usize; 2];
+        for acquisition in &acquisitions {
+            let build_declarations::BuildRequest::Dependency { purpose, alias, .. } =
+                &acquisition.request
+            else {
+                return Err(invalid(
+                    "acquisition does not describe a dependency request",
+                ));
+            };
+            let position = if purpose.is_product() { 0 } else { 1 };
+            if acquisition.request_ordinal != counts[position] {
+                return Err(invalid(
+                    "acquisitions do not retain purpose-local request order",
+                ));
+            }
+            let selected_name = self
+                .package_name(acquisition.package)
+                .ok_or_else(|| invalid("selected dependency has no acquired source"))?;
+            let alias = alias.as_ref().map_or(selected_name, |name| name.as_str());
+            if self.dependency_target_for_purpose(self.root(), *purpose, alias)
+                != Some(acquisition.package)
+            {
+                return Err(invalid(
+                    "acquisition differs from its requester-local alias and purpose",
+                ));
+            }
+            counts[position] += 1;
+        }
+        if counts[0] != self.direct_dependencies(DependencyPurpose::Product).count()
+            || counts[1] != self.direct_dependencies(DependencyPurpose::Build).count()
+        {
+            return Err(invalid(
+                "acquisitions do not cover the exact direct source graph",
+            ));
+        }
+        Arc::make_mut(&mut self.source).dependency_acquisitions = acquisitions;
+        Ok(self)
+    }
+
+    pub fn dependency_acquisitions(&self) -> &[PackageDependencyAcquisition] {
+        &self.source.dependency_acquisitions
+    }
+
+    /// Admit the purpose and generated-source attachments of one compiler
+    /// occurrence, whether supplied initially or acquired during its Build.
+    pub fn validate_execution_context(
+        &self,
+        selected_target: Option<target::TargetProfile>,
+        build_profile: Option<target::TargetProfile>,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        use diagnostics::Diagnostic;
+        if self.compilation_purpose() == DependencyPurpose::Build
+            && (build_profile.is_none() || selected_target != build_profile)
+        {
+            return Err(vec![Diagnostic::error(
+                "build-purpose package compilation requires its target to equal the admitted build execution profile",
+            )]);
+        }
+        let diagnostics = |errors: Vec<PackageCompilationInputError>| {
+            errors
+                .into_iter()
+                .map(|error| Diagnostic::error(error.to_string()))
+                .collect::<Vec<_>>()
+        };
+        self.validate_dependency_build_handoff_execution_profile(build_profile)
+            .map_err(diagnostics)?;
+        self.validate_dependency_build_handoff_target(selected_target)
+            .map_err(diagnostics)
+    }
+
+    /// Retain the original root bytes when final ownership joins. Executed
+    /// request settlement is checked by the Build continuation before assembly.
+    pub(crate) fn validate_unbound_source_join(
+        &self,
+        root: &Path,
+        capture: &source::CapturedSourceTree,
+    ) -> Result<(), String> {
+        let record = self
+            .source
+            .packages
+            .get(&self.source.root)
+            .ok_or("joined package inputs lost their root")?;
+        if record.source_root != root || record.captured_source.as_deref() != Some(capture) {
+            return Err("joined package source differs from the original Build capture".into());
+        }
+        Ok(())
+    }
+
     pub(crate) fn source_filesystem(&self) -> &source::SourceFileSystem {
         &self.source.filesystem
     }
@@ -182,24 +369,26 @@ impl PackageCompilationInputs {
     ) -> Result<Self, Vec<PackageCompilationInputError>> {
         let PackageCompilationTargetInputs {
             purpose,
-            dependency_generated_sources,
+            dependency_build_handoffs,
             accepted_semantic_bindings,
             semantic_role_discovery,
             independent_component_descriptions,
+            native_product_retention,
         } = target;
         let mut inputs = Self {
             source,
             target: PackageCompilationTargetInputs {
                 purpose,
                 semantic_role_discovery,
+                native_product_retention,
                 ..PackageCompilationTargetInputs::default()
             },
         };
         inputs = inputs
             .with_accepted_semantic_bindings(accepted_semantic_bindings.into_values().collect())?;
-        if !dependency_generated_sources.is_empty() {
-            inputs = inputs.with_complete_dependency_generated_sources(
-                dependency_generated_sources.into_values().collect(),
+        if !dependency_build_handoffs.is_empty() {
+            inputs = inputs.with_complete_dependency_build_handoffs(
+                dependency_build_handoffs.into_values().collect(),
             )?;
         }
         inputs = inputs.with_independent_component_descriptions(
@@ -342,13 +531,35 @@ impl PackageCompilationInputs {
 
     #[doc(hidden)]
     pub fn package_for_source(&self, source: &Path) -> Option<PackageKeyIdentity> {
-        self.source.packages.iter().find_map(|(identity, record)| {
-            source.starts_with(&record.source_root).then_some(*identity)
-        })
+        self.source
+            .packages
+            .iter()
+            .filter(|(_, record)| source.starts_with(&record.source_root))
+            .max_by_key(|(_, record)| record.source_root.components().count())
+            .map(|(identity, _)| *identity)
     }
 }
 
 impl build_time_evaluation::BuildTimeSelectionAuthority for PackageCompilationInputs {
+    fn declaration_selection_scope(
+        &self,
+    ) -> Option<BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>> {
+        Some(
+            self.source
+                .packages
+                .iter()
+                .map(|(requester, record)| {
+                    let mut owners = vec![*requester];
+                    owners.extend(record.dependencies.values().copied());
+                    owners.extend(record.build_dependencies.values().copied());
+                    owners.sort_unstable();
+                    owners.dedup();
+                    (*requester, owners)
+                })
+                .collect(),
+        )
+    }
+
     fn allows_declaration_selection(
         &self,
         requester: PackageKeyIdentity,
@@ -364,4 +575,92 @@ impl build_time_evaluation::BuildTimeSelectionAuthority for PackageCompilationIn
 
 fn display_identity(identity: PackageKeyIdentity) -> String {
     crate::digest_encoder::hex(&identity.digest())
+}
+
+#[cfg(test)]
+mod acquisition_tests {
+    use super::*;
+    use build_declarations::{BuildDependencySource, BuildRequest, ProjectName};
+
+    #[test]
+    fn acquisition_order_and_aliases_are_scoped_by_purpose() {
+        let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "acquisition-inputs",
+            false,
+        )
+        .unwrap();
+        let root = PackageKeyIdentity::from_digest([1; 32]).unwrap();
+        let child = PackageKeyIdentity::from_digest([2; 32]).unwrap();
+        let root_path = temporary.path().join("root");
+        let child_path = temporary.path().join("child");
+        std::fs::create_dir(&root_path).unwrap();
+        std::fs::create_dir(&child_path).unwrap();
+        let purposes = [DependencyPurpose::Build, DependencyPurpose::Product];
+        let inputs = PackageCompilationInputs::new(
+            root,
+            BuildDeclarationKind::Application,
+            vec![
+                PackageSourceBinding::new(root, "root", root_path),
+                PackageSourceBinding::new(child, "child", child_path),
+            ],
+            purposes
+                .iter()
+                .map(|purpose| {
+                    PackageDependencyBinding::for_purpose(root, "shared", child, *purpose)
+                })
+                .collect(),
+        )
+        .unwrap();
+        let acquisitions = purposes
+            .iter()
+            .map(|purpose| PackageDependencyAcquisition {
+                request_ordinal: 0,
+                request: BuildRequest::Dependency {
+                    purpose: *purpose,
+                    alias: Some(ProjectName::parse("shared").unwrap()),
+                    source: BuildDependencySource::Path("../child".into()),
+                },
+                package: child,
+            })
+            .collect::<Vec<_>>();
+        let valid = inputs
+            .clone()
+            .with_dependency_acquisitions(acquisitions.clone())
+            .unwrap();
+        assert_eq!(valid.dependency_acquisitions(), acquisitions);
+        let mut missing = acquisitions.clone();
+        missing.pop();
+        assert!(inputs.clone().with_dependency_acquisitions(missing).unwrap_err().iter().any(|error| matches!(error,
+            PackageCompilationInputError::InvalidDependencyAcquisition { reason, .. } if reason.contains("exact direct source graph"))));
+        let mut wrong_order = acquisitions.clone();
+        wrong_order[1].request_ordinal = 1;
+        assert!(inputs.clone().with_dependency_acquisitions(wrong_order).unwrap_err().iter().any(|error| matches!(error,
+            PackageCompilationInputError::InvalidDependencyAcquisition { reason, .. } if reason.contains("purpose-local request order"))));
+        let mut wrong_package = acquisitions;
+        wrong_package[0].package = root;
+        assert!(inputs.with_dependency_acquisitions(wrong_package).unwrap_err().iter().any(|error| matches!(error,
+            PackageCompilationInputError::InvalidDependencyAcquisition { reason, .. } if reason.contains("alias and purpose"))));
+    }
+}
+
+impl PackageCompilationSourceInputs {
+    /// Captured namespaces are immutable values. A metadata-only physical
+    /// package must reproduce its committed bytes now; location and old index
+    /// equality alone cannot attest unchanged source across invocations.
+    pub fn matches_current_source_identity(&self) -> Result<bool, String> {
+        for package in self.packages.values() {
+            if package.captured_source.is_some()
+                || self.filesystem.has_captured_namespace(&package.source_root)
+            {
+                continue;
+            }
+            let Some(expected) = &package.canonical_source_metadata else {
+                return Ok(false);
+            };
+            if crate::source_snapshot::capture(&package.source_root)? != *expected {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
 }

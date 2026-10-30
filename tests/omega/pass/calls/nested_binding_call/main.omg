@@ -23,6 +23,6 @@ machine read() -> u64 reaches Reading {
 machine Main::main(main: &mut Main) reaches Reading crashes Trap {
     let value: u64 = read();
     transition value == 42 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

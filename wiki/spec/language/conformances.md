@@ -47,12 +47,16 @@ data Counter { value: i32; }
 
 public SaturatingIncrement satisfies Incrementable<Counter> {
     machine increment(counter: &mut Counter) {
-        if counter.value < i32::Maximum {
+        if counter.value < integer::max<i32>() {
             counter.value = counter.value + 1;
         }
     }
 }
 ```
+
+The endpoint query is ordinary core library vocabulary under
+[numeric values](numeric_values.md#core-integer-and-float-apis); its implementation
+remains `CORE-INTEGER-FLOAT-APIS` work, not a primitive-member alias.
 
 `SaturatingIncrement` is the implementation name, `Incrementable<Counter>`
 is the contract, and `Counter` is an ordinary type argument. The named
@@ -89,6 +93,13 @@ cannot fill a generic evidence binder, select a trait-backed token, or make one
 visible conformance implicit. When a proof-static binder selects a token-bearing
 requirement, specialization retains that exact implementation map and provider
 planning may later realize its boundary rows without changing the selection.
+
+A package-local [native binding](../build/foreign_bindings.md#build-owned-native-binding)
+supplies one exact boundary requirement's backing without a bodyless
+`machine ... satisfies ... via ...` forwarding declaration. It does not invent
+a named implementation map, discharge laws, or license `dyn`. Complete provider
+schema coverage and exact requirement contracts still apply; checked adapters
+remain ordinary named implementations with real bodies.
 
 This same selection supplies operation and law requirements for computed static
 indices. A generic consumer requiring commutativity takes an ordinary conformance

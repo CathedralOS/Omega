@@ -13,9 +13,10 @@ use super::{
     CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedTrees, LoweringError,
     StructuralDomainRequirement, StructuralTypeId, UnitPlans, boundary_machine_id,
     checked_unit_boundary_identity, dense_identity, lookup_type_id,
-    lower_boundary_content_guarantees, lower_boundary_crash_routes, lower_boundary_parameter_order,
-    lower_fixed_boundary_service_reach, lower_published_service_ceiling, lower_unit_parameters,
-    terminal_scalar_type, unique_unit_boundary, unsupported,
+    lower_boundary_content_guarantees, lower_boundary_crash_routes,
+    lower_fixed_boundary_service_reach, lower_published_service_ceiling,
+    lower_runtime_parameter_order, lower_unit_parameters, terminal_scalar_type,
+    unique_unit_boundary, unsupported,
 };
 use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::terminal_identities::value_id;
@@ -32,6 +33,7 @@ mod reference_outputs;
 pub(crate) fn lower_declarations(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    scalar_applications: &super::scalar_applications::SourceScalarApplications,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     boundaries: &[(&CheckedBoundaryMachinePlan, BoundaryIdentity)],
     scalar_qualifications: &crate::expression_preparation::qualifications::PreparedScalarQualifications,
@@ -61,7 +63,20 @@ pub(crate) fn lower_declarations(
             .iter()
             .map(|parameter| terminal_scalar_type(parameter.primitive_type))
             .collect::<Result<Vec<_>, _>>()?;
-        let requires = lower_requirements(plan, &parameters, domain_ids)?;
+        let requires = lower_requirements(
+            identities,
+            &plan.domain_requirements,
+            &parameters,
+            structural_types,
+            domain_ids,
+        )?;
+        let normal_qualifications = lower_requirements(
+            identities,
+            &plan.normal_qualifications,
+            &parameters,
+            structural_types,
+            domain_ids,
+        )?;
         // Terminal call operands use packed structural positions; checked
         // predicates retain authored positions across interleaved scalar lanes.
         // Reuse the allocated places and types, changing only predicate lookup.
@@ -83,13 +98,12 @@ pub(crate) fn lower_declarations(
             .iter()
             .map(|parameter| (parameter.position, parameter.clone()))
             .collect::<Vec<_>>();
-        let element_views =
-            crate::expression_preparation::bindings::element_views(&view_roster, structural_types);
         let views = crate::scalar_lowering::contracts::ContractViewNamespace {
+            scalar_applications,
+            constant_values: &checked.typed.constant_recipe_closure.values,
             parameters: &view_roster,
             result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
             structural_types,
-            element_views: &element_views,
         };
         let scalar_requires = lower_scalar_requires(identities, plan, &scalar_parameters, &views)?;
         // The boundary format publishes scalar results, not a structural
@@ -148,14 +162,16 @@ pub(crate) fn lower_declarations(
             domain_ids,
         )?;
         declarations.push(BoundaryMachineDeclaration {
+            numeric_intrinsic: checked.typed.numeric_intrinsic_execution(plan.machine),
             scalar_domain_requirements,
+            normal_qualifications,
             declaration: crate::machine_lowering::declarations::boundary_identity(
                 identities,
                 checked,
                 exact_toolchain_sources,
                 plan.machine,
             )
-            .map_err(LoweringError::Unsupported)?
+            .map_err(LoweringError::InvalidDeclarationIdentity)?
             .map(|source| {
                 Ok::<_, LoweringError>(terminal_psi::CheckedBoundaryCallable {
                     source,
@@ -193,7 +209,7 @@ pub(crate) fn lower_declarations(
                 &parameters,
                 structural_types,
             )?,
-            parameter_order: lower_boundary_parameter_order(
+            parameter_order: lower_runtime_parameter_order(
                 &plan.scalar_parameters,
                 &plan.structural_parameters,
             )?,
@@ -279,7 +295,7 @@ pub(crate) fn validate_requirement_kind(
                     && definition.symbol == plan.contract_owner
                     && checked
                         .typed
-                        .trait_machine_instances(definition)
+                        .executable_trait_machine_instances(definition)
                         .any(|signature| {
                             signature.symbol == plan.machine && plan.state == signature.symbol
                         })
@@ -310,6 +326,9 @@ fn lower_scalar_requires(
     scalar_types: &[ScalarType],
     views: &crate::scalar_lowering::contracts::ContractViewNamespace<'_>,
 ) -> Result<Vec<Proposition>, LoweringError> {
+    if !plan.pending_scalar_requires.is_empty() || !plan.pending_scalar_recipes.is_empty() {
+        return unsupported("boundary scalar contract clauses remain pending");
+    }
     lower_scalar_contract(identities, &plan.scalar_requires, scalar_types, views)
 }
 
@@ -431,12 +450,13 @@ fn canonical_scalar_contract_rows(
 /// A boundary's structural domain requirements, each naming one of its
 /// structural parameters, in canonical order and without repetition.
 fn lower_requirements(
-    plan: &CheckedBoundaryMachinePlan,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    requirements: &[checked_trees::CheckedUnitStructuralDomainRequirementPlan],
     parameters: &[terminal_psi::StructuralParameterDeclaration],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
     domain_ids: &[StructuralDomainBinding],
 ) -> Result<Vec<StructuralDomainRequirement>, LoweringError> {
-    let mut requires = plan
-        .domain_requirements
+    let mut requires = requirements
         .iter()
         .map(|requirement| {
             let parameter = parameters.get(requirement.argument_index as usize).ok_or(
@@ -444,13 +464,35 @@ fn lower_requirements(
                     "boundary structural requirement has an invalid argument index",
                 ),
             )?;
+            let (path, domain) = if requirement.path.is_empty() {
+                (
+                    Vec::new(),
+                    lookup_domain_id_for_carrier(
+                        domain_ids,
+                        requirement.domain,
+                        parameter.structural_type,
+                    )?,
+                )
+            } else {
+                let mut rows = super::parameters::lower_projected_qualifications(
+                    identities,
+                    &[checked_trees::CheckedStructuralPathQualification {
+                        path: requirement.path.clone(),
+                        domain: requirement.domain,
+                    }],
+                    domain_ids,
+                    parameter.structural_type,
+                    structural_types,
+                )?;
+                let row = rows.pop().ok_or(LoweringError::Unsupported(
+                    "boundary normal qualification lost its exact subject",
+                ))?;
+                (row.path, row.domain)
+            };
             Ok(StructuralDomainRequirement {
                 argument_index: requirement.argument_index,
-                domain: lookup_domain_id_for_carrier(
-                    domain_ids,
-                    requirement.domain,
-                    parameter.structural_type,
-                )?,
+                path,
+                domain,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;

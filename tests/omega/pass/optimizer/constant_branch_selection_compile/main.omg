@@ -15,8 +15,8 @@ machine decide(value: i64) -> i64 {
         _ -> untaken()
     }
 
-    state taken() -> i64 { 41i64 }
-    state untaken() -> i64 { 43i64 }
+    machine taken() -> i64 { 41i64 }
+    machine untaken() -> i64 { 43i64 }
 }
 
 machine main() crashes Trap {
@@ -26,6 +26,6 @@ machine main() crashes Trap {
         _ -> bad()
     }
 
-    state done() { }
-    state bad() { crash Trap; }
+    machine done() { }
+    machine bad() { crash Trap; }
 }

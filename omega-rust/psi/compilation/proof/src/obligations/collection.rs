@@ -35,7 +35,7 @@ use typed_trees::statement::{
     StatementNode, TableAssignment, TableLocalData, TransitionGuardNode, TransitionTargetHandle,
     TransitionTargetNode,
 };
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 /// The caller's argument for the SIBLING a sibling-length atom names --
 /// `None`/invalid when the parameter's constraints carry no such atom or the
@@ -270,46 +270,63 @@ pub(crate) fn estimated_proof_obligation_capacity(
     capacity
 }
 
-fn collect_bounded_value_obligation(
+/// Walk one type the way both bounded collectors do. Generic arguments each
+/// receive a clone of `context`; a constrained node is the only place an
+/// obligation is recorded.
+fn walk_bounded_type<Context: Clone>(
     program: &dyn ::validation::CheckingInput,
-    owner: ProofObligationOwner,
     type_reference: TypeReferenceHandle,
-    proof_plan: &mut ProofPlan<'_>,
+    context: Context,
+    on_constrained: &mut impl FnMut(Context, TypeReferenceHandle, HandleSpan<TypeConstraintNode>),
 ) {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
-            collect_bounded_value_obligation(program, owner, *referee, proof_plan);
+            walk_bounded_type(program, *referee, context, on_constrained);
         }
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
-        } => {
-            let constraints = proof_plan.store_constraint_nodes(program, *base_type, *constraints);
-            proof_plan.push_obligation(ProofObligation::BoundedValue(BoundedValueObligation {
-                owner,
-                base_type: *base_type,
-                constraints,
-            }));
-        }
+        } => on_constrained(context, *base_type, *constraints),
         TypeReferenceNode::FixedArray { element_type, .. } => {
-            collect_bounded_value_obligation(program, owner, *element_type, proof_plan);
+            walk_bounded_type(program, *element_type, context, on_constrained);
         }
         TypeReferenceNode::Slice { element_type } => {
-            collect_bounded_value_obligation(program, owner, *element_type, proof_plan);
+            walk_bounded_type(program, *element_type, context, on_constrained);
         }
         TypeReferenceNode::Generic { arguments, .. } => {
             for argument in program
                 .type_reference_table
                 .type_reference_handles(*arguments)
             {
-                collect_bounded_value_obligation(program, owner.clone(), *argument, proof_plan);
+                walk_bounded_type(program, *argument, context.clone(), on_constrained);
             }
         }
-        TypeReferenceNode::DynamicTrait { .. } => {}
-        TypeReferenceNode::Named { .. } => {}
-        TypeReferenceNode::ConstExpression(_) => {}
-        TypeReferenceNode::Unit => {}
+        TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::Unit => {}
     }
+}
+
+fn collect_bounded_value_obligation(
+    program: &dyn ::validation::CheckingInput,
+    owner: ProofObligationOwner,
+    type_reference: TypeReferenceHandle,
+    proof_plan: &mut ProofPlan<'_>,
+) {
+    walk_bounded_type(
+        program,
+        type_reference,
+        owner,
+        &mut |owner, base_type, constraints| {
+            let constraints = proof_plan.store_constraint_nodes(program, base_type, constraints);
+            proof_plan.push_obligation(ProofObligation::BoundedValue(BoundedValueObligation {
+                owner,
+                base_type,
+                constraints,
+            }));
+        },
+    );
 }
 
 fn collect_bounded_initializer_obligation(
@@ -319,62 +336,23 @@ fn collect_bounded_initializer_obligation(
     value: ExpressionHandle,
     proof_plan: &mut ProofPlan<'_>,
 ) {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            collect_bounded_initializer_obligation(program, owner, *referee, value, proof_plan);
-        }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            let constraints = proof_plan.store_constraint_nodes(program, *base_type, *constraints);
+    walk_bounded_type(
+        program,
+        type_reference,
+        owner,
+        &mut |owner, base_type, constraints| {
+            let constraints = proof_plan.store_constraint_nodes(program, base_type, constraints);
             proof_plan.push_obligation(ProofObligation::BoundedInitializer(
                 BoundedInitializerObligation {
                     owner,
                     value,
                     value_constraints: HandleSpan::empty(),
-                    base_type: *base_type,
+                    base_type,
                     constraints,
                 },
             ));
-        }
-        TypeReferenceNode::FixedArray { element_type, .. } => {
-            collect_bounded_initializer_obligation(
-                program,
-                owner,
-                *element_type,
-                value,
-                proof_plan,
-            );
-        }
-        TypeReferenceNode::Slice { element_type } => {
-            collect_bounded_initializer_obligation(
-                program,
-                owner,
-                *element_type,
-                value,
-                proof_plan,
-            );
-        }
-        TypeReferenceNode::Generic { arguments, .. } => {
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-            {
-                collect_bounded_initializer_obligation(
-                    program,
-                    owner.clone(),
-                    *argument,
-                    value,
-                    proof_plan,
-                );
-            }
-        }
-        TypeReferenceNode::DynamicTrait { .. } => {}
-        TypeReferenceNode::Named { .. } => {}
-        TypeReferenceNode::ConstExpression(_) => {}
-        TypeReferenceNode::Unit => {}
-    }
+        },
+    );
 }
 
 fn collect_bounded_assignment_obligation(

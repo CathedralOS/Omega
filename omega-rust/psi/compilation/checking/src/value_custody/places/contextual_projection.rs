@@ -30,7 +30,12 @@ pub fn contextual_canonical_place_from_expression(
             inner.target,
         ),
         // A borrow recast denotes the operand's storage, not a fresh rvalue.
-        ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+        // Same-carrier qualification and erasure casts preserve the operand's
+        // storage place.
+        ExpressionNode::Cast(cast)
+            if cast.form.is_recast()
+                || super::canonical_projection::cast_preserves_place(program, cast) =>
+        {
             contextual_canonical_place_from_expression(
                 program,
                 state_symbol,
@@ -184,7 +189,9 @@ pub(super) fn resolve_member_symbol_from_place(
         facts::PlaceRoot::TypeReference(reference) => {
             member_resolution::MemberPosition::Reference(reference)
         }
-        facts::PlaceRoot::Unknown | facts::PlaceRoot::InvocationReferent { .. } => return None,
+        facts::PlaceRoot::Unknown
+        | facts::PlaceRoot::InvocationReferent { .. }
+        | facts::PlaceRoot::InvocationOutput(_) => return None,
     };
 
     // The segment hops are the shared fold `member_position_after_segments`

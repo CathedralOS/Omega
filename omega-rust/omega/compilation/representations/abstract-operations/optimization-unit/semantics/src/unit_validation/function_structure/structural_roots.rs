@@ -16,6 +16,46 @@ mod primitive_locals;
 pub(crate) use availability::validate_structural_place_availability;
 pub(crate) use availability::{operation_place_accesses, operation_place_inputs};
 
+/// Whether the place catalog's row for `result.place` is exactly the
+/// operation-result placement `producer` declares with `result`'s structural
+/// type. The catalog is built once per function from the same roster
+/// [`optimization_unit::operation_result_placement`] queries; both answer the
+/// one question, so a producer that admits a fresh result asks it here rather
+/// than spelling the kind comparison again.
+pub(crate) fn place_kinds_operation_result(
+    place_kinds: &BTreeMap<PlaceId, StructuralPlaceKind>,
+    result: &terminal_psi::StructuralOperationResult,
+    producer: semantic_vocabulary::OperationId,
+) -> bool {
+    matches!(
+        place_kinds.get(&result.place),
+        Some(StructuralPlaceKind::OperationResult {
+            producer: recorded,
+            structural_type,
+        }) if *recorded == producer && *structural_type == result.structural_type
+    )
+}
+
+/// One disposable declared-reference replay for an entire validation
+/// invocation. Callers own the immutable current graph; functions share its
+/// pre-operation snapshots without cloning the whole unit per function.
+pub(crate) struct ReferenceMembershipValidation<'a> {
+    graph: &'a [terminal_semantics::descriptor_results::DescriptorMachine],
+    analysis: terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
+}
+
+impl<'a> ReferenceMembershipValidation<'a> {
+    pub(crate) fn new(
+        types: &'a [terminal_psi::StructuralTypeDeclaration],
+        graph: &'a [terminal_semantics::descriptor_results::DescriptorMachine],
+    ) -> Self {
+        Self {
+            graph,
+            analysis: terminal_semantics::descriptor_results::DescriptorAnalysis::new(types, graph),
+        }
+    }
+}
+
 pub(crate) fn validate_structural_root_uniqueness(
     function: &PsiOptimizationFunction,
 ) -> Result<(), OptimizationUnitValidationError> {
@@ -43,6 +83,8 @@ pub(crate) fn validate_structural_root_operations(
     structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     structural_domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
     predecessors: &BTreeMap<semantic_vocabulary::BlockId, BTreeSet<semantic_vocabulary::BlockId>>,
+    mut reference_memberships: Option<&mut ReferenceMembershipValidation<'_>>,
+    view_graph: Option<&[terminal_semantics::descriptor_results::DescriptorMachine]>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let shared_descriptor_result = function.result.structural().is_some_and(|result| {
         result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
@@ -65,21 +107,19 @@ pub(crate) fn validate_structural_root_operations(
         Some(None) => false,
         Some(Some(slots)) => {
             slots.is_empty()
-                || crate::descriptor_results::owned_aggregate_descriptor_returns(
+                || crate::descriptor_results::owned_aggregate_descriptor_returns_with_graph(
                     function,
-                    unit.functions.iter(),
-                    &unit.boundary_machines,
+                    view_graph,
                     &unit.structural_types,
-                    &unit.dynamic_dispatch,
                 )
         }
     };
     let descriptor_origins_valid = aggregate_origins_valid
         && (!shared_descriptor_result
-            || crate::descriptor_results::optimized_graph(unit).is_some_and(|graph| {
+            || view_graph.is_some_and(|graph| {
                 terminal_semantics::descriptor_results::reconstruct_result_origins(
                     &unit.structural_types,
-                    &graph,
+                    graph,
                     function.machine,
                 )
                 .is_some()
@@ -120,11 +160,7 @@ pub(crate) fn validate_structural_root_operations(
                 producer,
                 result,
             } => {
-                place_kinds.get(&result.place)
-                    == Some(&StructuralPlaceKind::OperationResult {
-                        producer: *producer,
-                        structural_type: result.structural_type,
-                    })
+                place_kinds_operation_result(&place_kinds, result, *producer)
                     && function.block_nodes().any(|node| {
                         node.operation
                             .structural_result()
@@ -159,7 +195,20 @@ pub(crate) fn validate_structural_root_operations(
     for (block_position, block) in function.blocks.iter().enumerate() {
         for (node_index, node) in block.nodes.iter().enumerate() {
             let node_index = u32::try_from(node_index).expect("unit node index fits u32");
-            if !view_memberships_match(unit, function, block.id, node_index, &node.operation) {
+            if !view_memberships_match(
+                unit,
+                function,
+                block.id,
+                node_index,
+                &node.operation,
+                view_graph,
+            ) || !reference_result_memberships_match(
+                unit,
+                function,
+                block.id,
+                node_index,
+                &node.operation,
+            ) {
                 return Err(catalog_mismatch(function));
             }
             primitive_locals::validate(
@@ -197,9 +246,7 @@ pub(crate) fn validate_structural_root_operations(
                         &operation,
                     )
                     .map_err(|_| catalog_mismatch(function))?;
-                    if !matches!(place_kinds.get(&result.place), Some(StructuralPlaceKind::OperationResult { producer, structural_type })
-                        if *producer == *psi_operation && *structural_type == result.structural_type)
-                    {
+                    if !place_kinds_operation_result(&place_kinds, result, *psi_operation) {
                         return Err(catalog_mismatch(function));
                     }
                 }
@@ -421,14 +468,8 @@ pub(crate) fn validate_structural_root_operations(
                             || (!path.is_empty()
                                 && destination.multiplicity()
                                     == terminal_psi::StructuralMultiplicity::Affine))
-                        && function
-                            .entry_claim_declarations
-                            .iter()
-                            .all(|claim| claim.input != destination.place())
-                        && function
-                            .content_entry_claims
-                            .iter()
-                            .all(|claim| claim.input.root != destination.place())
+                        && !function.entry_claim_declared(destination.place())
+                        && !function.content_entry_claim_declared(destination.place())
                         && terminal_semantics::primitive_projection_type(
                             structural_types.values().copied(),
                             destination.structural_type(),
@@ -600,9 +641,7 @@ pub(crate) fn validate_structural_root_operations(
                     .is_ok();
                     if !exact
                         || !result.is_affine_plain()
-                        || !matches!(place_kinds.get(&result.place),
-                            Some(StructuralPlaceKind::OperationResult { producer, structural_type })
-                                if *producer == *psi_operation && *structural_type == result.structural_type)
+                        || !place_kinds_operation_result(&place_kinds, result, *psi_operation)
                         || !matches!(
                             source.access,
                             terminal_psi::StructuralAccess::SharedBorrow
@@ -729,12 +768,22 @@ pub(crate) fn validate_structural_root_operations(
                             ) else {
                                 return false;
                             };
+                            if let Some(context) = reference_memberships.as_deref_mut()
+                                && let Ok(backing) = terminal_semantics::descriptor_results::reference_backing_memberships(
+                                    &unit.structural_types, &unit.structural_domains, &unit.identities,
+                                    &mut context.analysis, function.machine, (block.id, node_index), source, storage.as_ref(), result,
+                                    |place| crate::unit_validation::operation_contracts::structural_source_contract(function, place)
+                                        .map(|contract| contract.payload_contract()),
+                                )
+                            {
+                                captured.extend(backing);
+                            }
                             if source.access == terminal_psi::StructuralAccess::SharedBorrow
                                 && result.projected_qualifications.iter().any(|row| !captured.contains(row))
                             {
-                                let Some(graph) = crate::descriptor_results::optimized_graph(unit) else { return false; };
+                                let Some(context) = reference_memberships.as_deref_mut() else { return false; };
                                 let Ok(current) = terminal_semantics::descriptor_results::current_selected_payload_contract(
-                                    &unit.structural_types, &unit.structural_domains, &graph,
+                                    &unit.structural_types, &unit.structural_domains, context.graph,
                                     function.machine, (block.id, node_index), source.place, path,
                                     &|place| crate::unit_validation::operation_contracts::structural_source_contract(function, place)
                                         .map(|contract| contract.payload_contract()),
@@ -754,14 +803,7 @@ pub(crate) fn validate_structural_root_operations(
                                         .all(|row| result.projected_qualifications.contains(row)))
                         }))
                         && result.claims.is_empty()
-                        && matches!(
-                            place_kinds.get(&result.place),
-                            Some(StructuralPlaceKind::OperationResult {
-                                producer,
-                                structural_type,
-                            }) if *producer == *psi_operation
-                                && *structural_type == result.structural_type
-                        )
+                        && place_kinds_operation_result(&place_kinds, result, *psi_operation)
                         && matches!(
                             source.access,
                             terminal_psi::StructuralAccess::MutableBorrow
@@ -868,14 +910,7 @@ pub(crate) fn validate_structural_root_operations(
                                     && result.projected_qualifications == projected
                                     && result.qualification_establishments.is_empty()
                             })
-                        && matches!(
-                            place_kinds.get(&result.place),
-                            Some(StructuralPlaceKind::OperationResult {
-                                producer,
-                                structural_type,
-                            }) if *producer == *psi_operation
-                                && *structural_type == result.structural_type
-                        );
+                        && place_kinds_operation_result(&place_kinds, result, *psi_operation);
                     if !valid {
                         return Err(catalog_mismatch(function));
                     }
@@ -928,9 +963,7 @@ pub(crate) fn validate_structural_root_operations(
                                                 .chain(&function.block_entry_claims)
                                                 .any(|claim| claim.input == value.place)
                                                 || function
-                                                    .content_entry_claims
-                                                    .iter()
-                                                    .any(|claim| claim.input.root == value.place)
+                                                    .content_entry_claim_declared(value.place)
                                                 || signature.operation_result().is_some_and(
                                                     |result| !result.claims.is_empty(),
                                                 ),
@@ -1002,18 +1035,16 @@ pub(crate) fn validate_structural_root_operations(
                         || (!source.path.is_empty()
                             && result.multiplicity != terminal_psi::StructuralMultiplicity::Linear
                             && result.claims.iter().any(|claim| claim.path.is_empty()))
-                        || !matches!(place_kinds.get(&result.place),
-                            Some(StructuralPlaceKind::OperationResult { producer, structural_type })
-                                if *producer == *psi_operation && *structural_type == result.structural_type)
+                        || !place_kinds_operation_result(&place_kinds, result, *psi_operation)
                     {
                         return Err(invalid(
                             "transfer requires the same owned carrier, multiplicity and fresh result without issuance",
                         ));
                     }
-                    let graph = crate::descriptor_results::optimized_graph(unit)
-                        .ok_or_else(|| invalid("descriptor flow graph is malformed"))?;
+                    let graph =
+                        view_graph.ok_or_else(|| invalid("descriptor flow graph is malformed"))?;
                     let contract = terminal_semantics::descriptor_results::current_selected_payload_contract(
-                        &unit.structural_types, &unit.structural_domains, &graph,
+                        &unit.structural_types, &unit.structural_domains, graph,
                         function.machine, (block.id, node_index), source.place, &source.path,
                         &|place| crate::unit_validation::operation_contracts::structural_source_contract(function, place)
                             .map(|contract| contract.payload_contract()),
@@ -1085,27 +1116,39 @@ pub(crate) fn validate_structural_root_operations(
                         }
                         continue;
                     }
-                    // Predicate establishment was checked by Psi. The native
-                    // contract still rejects direct routed issuance here;
-                    // absence of direct routes does not re-prove source admission.
-                    for domain in result
+                    // Psi checked the predicates before erasure. Introduction
+                    // still owes every unsupplied issuer in the retained graph,
+                    // selected from this occurrence's actual source memberships.
+                    let additions = result
                         .qualifications
                         .iter()
-                        .filter(|domain| !contract.qualifications.contains(domain))
+                        .map(|domain| (&[][..], domain))
                         .chain(
                             result
                                 .projected_qualifications
                                 .iter()
-                                .filter(|row| !contract.projected_qualifications.contains(row))
-                                .map(|row| &row.domain),
-                        )
-                    {
-                        if structural_domains
-                            .get(domain)
-                            .is_none_or(|declaration| !declaration.establishment_routes.is_empty())
-                        {
+                                .map(|row| (row.path.as_slice(), &row.domain)),
+                        );
+                    for (path, domain) in additions {
+                        let (supplied, _) = terminal_psi::StructuralPathQualification::select(
+                            &contract.qualifications,
+                            &contract.projected_qualifications,
+                            path,
+                        );
+                        if structural_domains.get(domain).is_none_or(|declaration| {
+                            declaration
+                                .missing_membership_requirements(
+                                    &unit.structural_domains,
+                                    &supplied,
+                                )
+                                .is_none_or(|missing| {
+                                    missing
+                                        .iter()
+                                        .any(|node| !node.establishment_routes.is_empty())
+                                })
+                        }) {
                             return Err(invalid(
-                                "transfer adds an unknown or directly routed membership",
+                                "transfer adds a membership with unknown or unsupplied issuer requirements",
                             ));
                         }
                     }
@@ -1201,16 +1244,18 @@ pub(crate) fn validate_structural_root_operations(
                             == terminal_psi::StructuralMultiplicity::Unrestricted
                             || owned_case_copy
                             || shared_descriptor_copy)
-                            && copy_memberships_match(unit, function, block.id, node_index, *source, path, result)
+                            && copy_memberships_match(
+                                unit,
+                                function,
+                                block.id,
+                                node_index,
+                                *source,
+                                path,
+                                result,
+                                view_graph,
+                            )
                             && result.claims.is_empty()
-                            && matches!(
-                                place_kinds.get(&result.place),
-                                Some(StructuralPlaceKind::OperationResult {
-                                    producer,
-                                    structural_type,
-                                }) if *producer == *psi_operation
-                                    && *structural_type == result.structural_type
-                            );
+                            && place_kinds_operation_result(&place_kinds, result, *psi_operation);
                     if !valid {
                         return Err(catalog_mismatch(function));
                     }
@@ -1340,14 +1385,13 @@ pub(crate) fn validate_structural_root_operations(
                                             .iter()
                                             .filter(|domain| !minted.contains(domain))
                                             .all(|domain| signature.qualifications.contains(domain))
-                                            || projected
-                                                .iter()
-                                                .filter(|projection| {
-                                                    !minted.contains(&projection.domain)
-                                                })
-                                                .cloned()
-                                                .collect::<Vec<_>>()
-                                                != signature.projected_qualifications
+                                            || !terminal_semantics::reference_result_memberships_weaken(
+                                                unit.structural_types.iter(), signature.structural_type,
+                                                &projected.iter()
+                                                    .filter(|projection| !minted.contains(&projection.domain))
+                                                    .cloned().collect::<Vec<_>>(),
+                                                &signature.projected_qualifications,
+                                            )
                                     }
                             },
                         )
@@ -1453,10 +1497,7 @@ fn readable_field_type(
         || (!signature.is_unqualified()
             && !structural_types.get(&signature.structural_type)
                 .is_some_and(|declaration| declaration.shape.is_composite_shape()))
-        || function
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == place)
+        || function.content_entry_claim_declared(place)
     {
         return None;
     }
@@ -1471,10 +1512,7 @@ fn readable_field_type(
         return Some((signature.structural_type, signature.access));
     }
     if signature.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || function
-            .entry_claim_declarations
-            .iter()
-            .any(|claim| claim.input == place)
+        || function.entry_claim_declared(place)
         || function.block_nodes().any(|node| {
             let result = match &node.operation {
                 O::EstablishRecord { result, .. }
@@ -1539,14 +1577,8 @@ fn borrowed_window_root(
                     terminal_psi::StructuralMultiplicity::Unrestricted
                         | terminal_psi::StructuralMultiplicity::Affine
                 )
-                && function
-                    .entry_claim_declarations
-                    .iter()
-                    .all(|claim| claim.input != parameter.place)
-                && function
-                    .content_entry_claims
-                    .iter()
-                    .all(|claim| claim.input.root != parameter.place)
+                && !function.entry_claim_declared(parameter.place)
+                && !function.content_entry_claim_declared(parameter.place)
                 && match place_kinds.get(&parameter.place) {
                     Some(StructuralPlaceKind::Parameter { position }) => {
                         *position == parameter.position
@@ -1578,14 +1610,7 @@ fn borrowed_window_root(
                                     && source.operation_result() == Some(result)
                             })
                     });
-            producer_admits
-                && matches!(
-                    place_kinds.get(&result.place),
-                    Some(StructuralPlaceKind::OperationResult {
-                        producer: recorded,
-                        structural_type,
-                    }) if *recorded == *producer && *structural_type == result.structural_type
-                )
+            producer_admits && place_kinds_operation_result(&place_kinds, result, *producer)
         }
     }
 }
@@ -1664,6 +1689,84 @@ fn window_memberships(
     source.restorable_qualifications(&projection.path)
 }
 
+/// Independently replay caller preservation after transformations. Surface
+/// call checks require the public floor; this body owner proves every extra row
+/// from the current origin relation and current normal-completion payload cut.
+fn reference_result_memberships_match(
+    unit: &optimization_unit::PsiOptimizationUnit,
+    function: &PsiOptimizationFunction,
+    block: semantic_vocabulary::BlockId,
+    node: u32,
+    operation: &O,
+) -> bool {
+    let O::CallStructural {
+        callee,
+        structural_arguments,
+        result: AbstractStructuralCallResult::Structural { result, .. },
+        ..
+    } = operation
+    else {
+        return true;
+    };
+    let Some(callee) = callee.machine().and_then(|machine| {
+        unit.functions
+            .iter()
+            .find(|function| function.machine == machine)
+    }) else {
+        return true;
+    };
+    let Some(signature) = callee.result.structural() else {
+        return false;
+    };
+    if result
+        .projected_qualifications
+        .iter()
+        .all(|row| signature.projected_qualifications.contains(row))
+    {
+        return true;
+    }
+    let preserved = (|| {
+        let graph = crate::descriptor_results::optimized_borrowed_storage_catalog_graph(
+            unit.functions.iter(),
+            &unit.boundary_machines,
+            &unit.structural_types,
+            &unit.dynamic_dispatch,
+        )?;
+        let mappings = terminal_semantics::bind_reference_call_results(
+            unit.structural_types.iter(),
+            terminal_semantics::ReferenceCallContract::Machine {
+                parameters: &callee.structural_parameters,
+                sources: &signature.reference_sources,
+            },
+            structural_arguments,
+        )
+        .ok()?;
+        terminal_semantics::reference_call_preserved_memberships(
+            &unit.structural_types,
+            &unit.structural_domains,
+            &graph,
+            function.machine,
+            (block, node),
+            result,
+            signature,
+            &mappings,
+            &|place| {
+                crate::unit_validation::operation_contracts::structural_source_contract(
+                    function, place,
+                )
+                .map(|contract| contract.payload_contract())
+            },
+        )
+        .ok()
+    })();
+    preserved.is_some_and(|preserved| {
+        result
+            .projected_qualifications
+            .iter()
+            .all(|row| signature.projected_qualifications.contains(row) || preserved.contains(row))
+    })
+}
+
 /// Reconstruct the current copied payload independently of producer rosters.
 fn view_memberships_match(
     unit: &optimization_unit::PsiOptimizationUnit,
@@ -1671,6 +1774,7 @@ fn view_memberships_match(
     block: semantic_vocabulary::BlockId,
     node: u32,
     operation: &O,
+    view_graph: Option<&[terminal_semantics::descriptor_results::DescriptorMachine]>,
 ) -> bool {
     let (source, result) = match operation {
         O::EstablishElementView { source, result, .. }
@@ -1689,10 +1793,10 @@ fn view_memberships_match(
         else {
             return None;
         };
-        let graph = crate::descriptor_results::optimized_graph(unit)?;
+        let graph = view_graph?;
         let mut analysis = terminal_semantics::descriptor_results::DescriptorAnalysis::new(
             &unit.structural_types,
-            &graph,
+            graph,
         );
         terminal_semantics::descriptor_results::element_payload_memberships_in(
             &unit.structural_types,
@@ -1748,6 +1852,7 @@ fn copy_memberships_match(
     source: PlaceId,
     path: &abstract_operations::StructuralCopyPath,
     result: &terminal_psi::StructuralOperationResult,
+    view_graph: Option<&[terminal_semantics::descriptor_results::DescriptorMachine]>,
 ) -> bool {
     if result.qualifications.is_empty() && result.projected_qualifications.is_empty() {
         return true;
@@ -1756,10 +1861,10 @@ fn copy_memberships_match(
         return false;
     };
     let memberships = (|| {
-        let graph = crate::descriptor_results::optimized_graph(unit)?;
+        let graph = view_graph?;
         let mut analysis = terminal_semantics::descriptor_results::DescriptorAnalysis::new(
             &unit.structural_types,
-            &graph,
+            graph,
         );
         let root = crate::unit_validation::operation_contracts::structural_source_contract(
             function, source,

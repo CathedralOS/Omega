@@ -264,10 +264,10 @@ impl TerminalExecution<'_> {
                     let frame = self.call_stack.get(home.depth).ok_or_else(malformed)?;
                     (frame.current_machine, &frame.scalar_array_values)
                 };
-                let array = arrays.get(&home.place).ok_or_else(malformed)?;
+                let array = arrays.backing(&home.place).ok_or_else(malformed)?;
                 if machine != home.machine
                     || array.structural_type != home.structural_type
-                    || array.elements().get(start..end).is_none_or(|bytes| {
+                    || array.cells().get(start..end).is_none_or(|bytes| {
                         bytes
                             .iter()
                             .any(|byte| byte.scalar_type() != loan.scalar_type)
@@ -419,8 +419,8 @@ impl TerminalExecution<'_> {
             }
             _ => return Err(malformed()),
         }
-        .copied()
-        .ok_or(crate::errors::TerminalInterpretError::StructuralPrimitiveStorageMissing(source))?;
+        .ok_or(crate::errors::TerminalInterpretError::StructuralPrimitiveStorageMissing(source))?
+        .read()?;
         if !terminal_scalar_belongs_to_type(value) {
             return Err(malformed());
         }

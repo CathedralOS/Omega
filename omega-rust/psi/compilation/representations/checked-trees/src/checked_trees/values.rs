@@ -29,21 +29,22 @@ use typed_trees::types::TypeReferenceHandle;
 use super::keyed_rows::KeyedRows;
 
 pub use facts::{
-    CheckedBooleanExpression, CheckedByteSequenceOperand, CheckedIeeeFloatComparisonKind,
-    CheckedIntegerBinaryKind, CheckedIntegerComparisonKind, CheckedIntegerMathExpression,
-    CheckedIntegerMathTerm, CheckedScalarExpression, CheckedScalarReadProjection,
-    CheckedScalarSelector, CheckedStorageRoot, CheckedStructuralCaseRoot,
-    CheckedStructuralCaseSubject, CheckedStructuralParameterField,
-    CheckedStructuralPredicatePathSegment,
+    CheckedBooleanExpression, CheckedByteSequenceOperand, CheckedEntryIndexBound,
+    CheckedEntryIndexSelector, CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind,
+    CheckedIntegerComparisonKind, CheckedIntegerMathExpression, CheckedIntegerMathTerm,
+    CheckedScalarExpression, CheckedScalarReadProjection, CheckedScalarSelector,
+    CheckedStorageRoot, CheckedStructuralCaseRoot, CheckedStructuralCaseSubject,
+    CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment,
 };
 
 mod computations;
 pub use computations::{
-    CheckedDispatchSubject, CheckedScalarCallee, CheckedScalarCaseComputationField,
-    CheckedScalarCaseConstruction, CheckedScalarComputation, CheckedScalarComputationHandle,
-    CheckedScalarComputationKind, CheckedScalarComputationPlans, CheckedScalarComputationRoot,
-    CheckedScalarComputationStructuralArgument, CheckedScalarComputationTemporaryCleanup,
-    CheckedScalarDispatchArm, CheckedScalarDispatchPattern,
+    CheckedDispatchSubject, CheckedProjectionSelectorRoot, CheckedScalarCallee,
+    CheckedScalarCaseComputationField, CheckedScalarCaseConstruction, CheckedScalarComputation,
+    CheckedScalarComputationHandle, CheckedScalarComputationKind, CheckedScalarComputationPlans,
+    CheckedScalarComputationRoot, CheckedScalarComputationStructuralArgument,
+    CheckedScalarComputationTemporaryCleanup, CheckedScalarDispatchArm,
+    CheckedScalarDispatchPattern, CheckedScalarEvaluationOperand,
 };
 mod proof_terms;
 pub use proof_terms::{
@@ -55,7 +56,7 @@ pub use structural_values::{
     CheckedElementViewRegion, CheckedQuotientAdaptationLicense, CheckedStructuralDispatchArm,
     CheckedStructuralRecordField, CheckedStructuralRecordFieldValue, CheckedStructuralValue,
     CheckedStructuralValueHandle, CheckedStructuralValueKind, CheckedStructuralValuePlans,
-    CheckedStructuralValueRoot,
+    CheckedStructuralValueRoot, CheckedValueCompletion,
 };
 mod array_construction_source;
 pub use array_construction_source::CheckedArrayConstructionSource;
@@ -67,7 +68,7 @@ pub type CheckedValueHandle = Handle<CheckedValueFact>;
 /// use site. Big integers preserve the full `u64` proof domain.
 pub use facts::IntegerRange as CheckedIntegerRange;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum CheckedValueOrigin {
     MachineDecrease {
         machine_symbol: SymbolHandle,
@@ -107,7 +108,7 @@ impl CheckedValueOrigin {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum CheckedValueStatementRole {
     #[default]
     Expression,
@@ -120,7 +121,7 @@ pub enum CheckedValueStatementRole {
     TransitionTargetValue,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedValueFact {
     pub expression: ExpressionHandle,
     pub origin: CheckedValueOrigin,
@@ -139,7 +140,7 @@ pub struct CheckedValueFact {
     pub integer_range: Option<CheckedIntegerRange>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedValueFacts {
     pub values: Arena<CheckedValueFact>,
     /// Complete value refinements in the exact source type's subject-zero
@@ -211,13 +212,32 @@ impl CheckedValueFacts {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 struct CheckedScalarTypeRefinement {
     type_reference: TypeReferenceHandle,
     predicates: HandleSpan<CheckedBooleanExpression>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default)]
+pub struct SealedExpressionStateIndex {
+    sealed: Option<(usize, symbols::SymbolKeyMap<SymbolHandle, Vec<usize>>)>,
+}
+
+impl std::fmt::Debug for SealedExpressionStateIndex {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("SealedExpressionStateIndex")
+    }
+}
+
+impl PartialEq for SealedExpressionStateIndex {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for SealedExpressionStateIndex {}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarExpressionPlans {
     pub expressions: Vec<CheckedLocatedScalarExpression>,
     /// Source custody for selected scalar plans consumed by proof and lowering.
@@ -226,9 +246,11 @@ pub struct CheckedScalarExpressionPlans {
     pub binding_symbols: Arena<SymbolHandle>,
     #[doc(hidden)]
     pub state_index: KeyedRows<SymbolHandle, CheckedScalarExpressionBindings>,
+    #[doc(hidden)]
+    pub sealed_expression_index: SealedExpressionStateIndex,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarExpressionBindings {
     /// Exact local, bare assignment destination, or target state parameter;
     /// zero for a returned value, other argument, or projected store.
@@ -257,6 +279,17 @@ impl Default for CheckedScalarExpressionBindings {
 }
 
 impl CheckedScalarExpressionPlans {
+    pub fn seal_expressions(&mut self) {
+        let mut by_state: symbols::SymbolKeyMap<SymbolHandle, Vec<usize>> =
+            symbols::SymbolKeyMap::default();
+        for (index, expression) in self.expressions.iter().enumerate() {
+            by_state.entry(expression.state).or_default().push(index);
+        }
+        self.sealed_expression_index.sealed = Some((self.expressions.len(), by_state));
+        self.state_index
+            .seal(&self.source_bindings, |binding| binding.state);
+    }
+
     fn with_state_index<R>(
         &self,
         run: impl FnOnce(
@@ -290,6 +323,24 @@ impl CheckedScalarExpressionPlans {
             if bindings.next().is_some() {
                 return None;
             }
+            if let Some((sealed_len, by_state)) = &self.sealed_expression_index.sealed
+                && *sealed_len == self.expressions.len()
+            {
+                let mut expressions = by_state
+                    .get(&state)?
+                    .iter()
+                    .filter_map(|index| self.expressions.get(*index))
+                    .filter(|expression| {
+                        expression.state == state
+                            && expression.statement_ordinal == statement_ordinal
+                            && expression.role == role
+                    });
+                let expression = &expressions.next()?.expression;
+                if expressions.next().is_some() {
+                    return None;
+                }
+                return Some((binding, expression));
+            }
             // This public vector has no mutation revision; query its current rows.
             let mut expressions = self.expressions.iter().filter(|expression| {
                 expression.state == state
@@ -310,6 +361,20 @@ impl CheckedScalarExpressionPlans {
         statement_ordinal: u32,
         role: CheckedScalarExpressionRole,
     ) -> Option<&CheckedScalarExpression> {
+        if let Some((sealed_len, by_state)) = &self.sealed_expression_index.sealed
+            && *sealed_len == self.expressions.len()
+        {
+            return by_state
+                .get(&state)?
+                .iter()
+                .filter_map(|index| self.expressions.get(*index))
+                .find(|expression| {
+                    expression.state == state
+                        && expression.statement_ordinal == statement_ordinal
+                        && expression.role == role
+                })
+                .map(|expression| &expression.expression);
+        }
         self.expressions
             .iter()
             .find(|expression| {
@@ -321,7 +386,7 @@ impl CheckedScalarExpressionPlans {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedLocatedScalarExpression {
     pub state: SymbolHandle,
     pub statement_ordinal: u32,
@@ -329,7 +394,7 @@ pub struct CheckedLocatedScalarExpression {
     pub expression: CheckedScalarExpression,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarExpressionRole {
     /// Arrival observation of the independently checked natural rank, before
     /// the state prefix. Its root uses this state's exact formal telescope.
@@ -496,7 +561,7 @@ pub enum CheckedScalarExpressionRole {
 /// all narrow a view with the same builtin range; only where the range sits
 /// differs, so their endpoints share `SubsliceStart`/`SubsliceEnd` and this
 /// one coordinate rather than a role pair per site.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedSubsliceSite {
     /// A computed operand at its exact expression occurrence. It has no call
     /// formal or source local, but its endpoints use the same scalar namespace.
@@ -558,5 +623,21 @@ mod index_tests {
         plans.source_bindings.get_mut(binding).state = moved;
         assert!(plans.bound_expression_at(moved, 0, role).is_some());
         assert!(plans.expression_at(original, 0, role).is_none());
+    }
+}
+
+// Sealing describes this owner, not source semantics. Its indexes rebuild from
+// the restored plans before use and cannot carry another process's revisions.
+impl compiler_storage::Record for SealedExpressionStateIndex {
+    fn write(
+        &self,
+        _: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        Ok(())
+    }
+    fn read<Context>(
+        _: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        Ok(Self::default())
     }
 }

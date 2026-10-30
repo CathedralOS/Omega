@@ -17,7 +17,7 @@ machine compute_other_state(lhs: u16, rhs: u16) -> u16
     let wrapped: u16 in Wrapping = a - b;
     let diff: u16 = wrapped as u16;
     transition { _ -> step(diff) }
-    state step(d: u16) -> u16 {
+    machine step(d: u16) -> u16 {
         verify_diff(d)
     }
 }
@@ -32,6 +32,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

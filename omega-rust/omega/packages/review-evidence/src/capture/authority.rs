@@ -128,25 +128,33 @@ pub(crate) fn dangerous_authority_class(
             }
         }
     }
-    if compilation
-        .custody
-        .execution()
-        .resolved_semantic_binding(
+    for (role, class) in [
+        (
             package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
-        )
-        .is_some_and(|binding| binding.declaration_symbol() == definition.symbol)
-    {
-        return Ok(Some(PackageReviewDangerousAuthorityClass::Process));
-    }
-    if compilation
-        .custody
-        .execution()
-        .resolved_semantic_binding(
+            PackageReviewDangerousAuthorityClass::Process,
+        ),
+        (
             package_compilation::AcceptedSemanticBindingRole::FilesystemHostService,
-        )
-        .is_some_and(|binding| binding.declaration_symbol() == definition.symbol)
-    {
-        return Ok(Some(PackageReviewDangerousAuthorityClass::Filesystem));
+            PackageReviewDangerousAuthorityClass::Filesystem,
+        ),
+    ] {
+        if let Some(binding) = compilation
+            .custody
+            .execution()
+            .resolved_semantic_binding(role)
+        {
+            let services = compilation.service_declarations.ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "authority review has no independent service declaration projection",
+                )]
+            })?;
+            if services
+                .identifies(definition.symbol, binding.declaration())
+                .map_err(|diagnostic| vec![diagnostic])?
+            {
+                return Ok(Some(class));
+            }
+        }
     }
 
     Ok(None)

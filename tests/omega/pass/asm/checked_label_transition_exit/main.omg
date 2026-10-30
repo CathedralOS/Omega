@@ -11,11 +11,11 @@ machine Main::main(main: &mut Main) crashes Trap {
     entry ensures main.ready:
         jmp done(establish(main))
     }
-    state done(value: u64) {
+    machine done(value: u64) {
         transition value == 17 { true -> good() _ -> bad() }
     }
-    state good() {}
-    state bad() { crash Trap; }
+    machine good() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

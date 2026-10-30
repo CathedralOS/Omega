@@ -22,6 +22,9 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
     if let Some((result, _)) = operation.discardable_structural_result() {
         roots.push(result.type_identity);
     }
+    if let Some((value, _)) = operation.structural_value_evaluation() {
+        collect_value_roots(checked, value, roots)?;
+    }
     match operation {
         CheckedUnitEffectOperationPlan::AtomicAccess(access) => {
             if let Some(result) = &access.structural_result {
@@ -65,7 +68,6 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
             // names only borrowed backing. A formal's ingress type cannot
             // substitute for this stored descriptor's type.
             roots.push(result.type_identity);
-            collect_value_roots(checked, *value, roots)?;
             if establishes_byte_element_view(checked, plans, result.type_identity, *value)? {
                 if let Some(identity) =
                     crate::terminal_identities::byte_view_element_identity(plans.structural_types())

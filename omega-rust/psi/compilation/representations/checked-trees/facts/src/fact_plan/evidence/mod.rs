@@ -13,7 +13,7 @@ pub use float_predicate::FloatPredicate;
 /// definition. The ordinary semantic fact remains the flow-facing row; this
 /// record binds that row back to its typed fact and retains every structural
 /// expression place used to interpret the public predicate.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DomainDefinitionFactRecord {
     pub domain_symbol: SymbolHandle,
     pub fact: Handle<ProofFact>,
@@ -21,7 +21,7 @@ pub struct DomainDefinitionFactRecord {
     pub dependencies: Vec<DomainDefinitionFactDependency>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DomainDefinitionFactDependency {
     pub expression: ExpressionHandle,
     pub place: PlaceHandle,
@@ -31,7 +31,7 @@ pub struct DomainDefinitionFactDependency {
 /// definition. The semantic fact remains the flow-facing row; this record
 /// binds it to the exact data declaration and typed proof fact while retaining
 /// every structural field place needed to interpret the invariant.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DataDefinitionFactRecord {
     pub data_symbol: SymbolHandle,
     pub fact: Handle<ProofFact>,
@@ -39,12 +39,12 @@ pub struct DataDefinitionFactRecord {
     pub dependencies: Vec<DataDefinitionFactDependency>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DataDefinitionFactDependency {
     pub expression: ExpressionHandle,
     pub place: PlaceHandle,
 }
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum FactOrigin {
     #[default]
     Unknown,
@@ -112,11 +112,22 @@ pub enum FactOrigin {
 /// These identities describe source establishment, independently of a target's
 /// provider selection. Execution authority belongs to the selected provider
 /// plans; binding those plans must not rewrite portable qualification evidence.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct QualificationEvidence {
     pub origin: language_semantics::QualificationEvidenceOrigin,
     pub source_symbol: SymbolHandle,
     pub requirement_symbol: SymbolHandle,
+    pub issuer: Handle<BoundaryQualificationIssuerRecord>,
+}
+
+/// Prepared once with declaration contracts, before flow workers share pages.
+/// Every occurrence of this exact issuer uses the same handle, preserving
+/// evidence equality through worker forks, joins and page adoption.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct BoundaryQualificationIssuerRecord {
+    pub source_symbol: SymbolHandle,
+    pub requirement_symbol: SymbolHandle,
+    pub issuer: language_semantics::BoundaryQualificationIssuer,
 }
 
 impl QualificationEvidence {
@@ -128,22 +139,25 @@ impl QualificationEvidence {
             origin,
             source_symbol,
             requirement_symbol: SymbolHandle::invalid(),
+            issuer: Handle::invalid(),
         }
     }
 
     pub const fn from_admitted_requirement(
         source_symbol: SymbolHandle,
         requirement_symbol: SymbolHandle,
+        issuer: Handle<BoundaryQualificationIssuerRecord>,
     ) -> Self {
         Self {
             origin: language_semantics::QualificationEvidenceOrigin::AdmittedReceipt,
             source_symbol,
             requirement_symbol,
+            issuer,
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum ContractFactKind {
     #[default]
     Requires,
@@ -154,12 +168,12 @@ pub enum ContractFactKind {
 /// expression handles remain owned by the immutable checked program, so flow
 /// elaboration records the canonical caller-term label in this fact-owned
 /// arena instead of pretending the callee expression handle changed meaning.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct InstantiatedExpression {
     pub label: String,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProofObligationKind {
     #[default]
     BoundedAssignment,
@@ -174,13 +188,13 @@ pub enum ProofObligationKind {
 /// Performed events consumed by the checked effect proof. An operation names
 /// neither a storage authority nor a resource disposal; the captured flow
 /// occurrence supplies operands and the ordinary claim ledger owns discharge.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum InstructionEffectOperation {
     Register(language_core::inline_assembly::AsmRegisterOperation),
     AtomicReleaseStore,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum FactPayload {
     /// One completed catalog operation. `Fact::point` names its exact flow
     /// invocation; operands keep their independently captured completion facts.
@@ -199,11 +213,13 @@ pub enum FactPayload {
     BooleanPredicate {
         predicate: Handle<crate::BooleanPredicate>,
     },
-    /// The nominal tag installed at this place by a completed construction.
+    /// A signed nominal tag observation on the value at this place. Construction
+    /// and guarantees publish true; a rejected case guard publishes false.
     /// Payload expressions are not retained or reevaluated. Ordinary storage
     /// invalidation retires the observation when the sum is replaced.
-    AssignedCase {
+    CaseValue {
         variant: SymbolHandle,
+        value: bool,
     },
     /// Inclusive bounds on the value captured at this program point, not a
     /// deferred expression or a claim that any particular value was produced.
@@ -442,7 +458,7 @@ impl Default for FactPayload {
 /// statement transfer. Expression operands and contract wrappers identify the
 /// source occurrence, not the carried qualification, so they do not enter
 /// correspondence identity.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum QualificationPayloadIdentity {
     DomainMembership {
         domain: HandleSpan<Identifier>,
@@ -465,51 +481,25 @@ impl QualificationPayloadIdentity {
                 semantic_domain,
             });
         }
-        match payload {
-            FactPayload::CarryPermission { permission, .. }
-            | FactPayload::ContractCarryPermission { permission, .. } => {
-                Some(Self::CarryPermission { permission })
-            }
-            FactPayload::CarryOrigin { .. } => Some(Self::CarryOrigin),
-            FactPayload::InstructionEffect { .. }
-            | FactPayload::CallCompletion { .. }
-            | FactPayload::DomainMembership { .. }
-            | FactPayload::ContractDomainMembership { .. }
-            | FactPayload::BooleanPredicate { .. }
-            | FactPayload::AssignedCase { .. }
-            | FactPayload::AssignedValue { .. }
-            | FactPayload::AssignedIntegerBounds { .. }
-            | FactPayload::FloatPredicate { .. }
-            | FactPayload::AssignedScalarValue { .. }
-            | FactPayload::AssignedValueCapture { .. }
-            | FactPayload::StorageDependency { .. }
-            | FactPayload::BytePredicate { .. }
-            | FactPayload::BooleanValue { .. }
-            | FactPayload::MatchPattern { .. }
-            | FactPayload::BooleanExpression(_)
-            | FactPayload::PropositionApplication { .. }
-            | FactPayload::TypeConstraint { .. }
-            | FactPayload::ProofObligation { .. }
-            | FactPayload::Contract { .. }
-            | FactPayload::ContractBooleanExpression { .. }
-            | FactPayload::ContractPropositionApplication { .. } => None,
+        // The pair accessor owns which payloads carry a permission; this reader
+        // only decides what the permission means for correspondence identity.
+        if let Some(permission) = payload.carry_permission() {
+            return Some(Self::CarryPermission { permission });
         }
+        if matches!(payload, FactPayload::CarryOrigin { .. }) {
+            return Some(Self::CarryOrigin);
+        }
+        // Every other payload records something else about the fact; the
+        // Some arms above are what carry qualification identity.
+        None
     }
 }
 
-/// Target-neutral mathematical value of an already-rendered scalar. Unknown
-/// is the zero arena entry and never supplies a proof premise.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub enum ScalarValue {
-    #[default]
-    Unknown,
-    Integer(numerics::bignum::BigInt),
-    Boolean(bool),
-}
+pub use numerics::scalar_predicates::ScalarValue;
 
 /// Inclusive mathematical integer bounds. The consumer must establish both
 /// endpoint ordering and the source of the bounds before using this vocabulary.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct IntegerRange {
     pub minimum: numerics::bignum::BigInt,
     pub maximum: numerics::bignum::BigInt,
@@ -518,7 +508,7 @@ pub struct IntegerRange {
 /// Checked-only proof ledger row for one qualification-preserving statement
 /// transfer. This is separate from ordinary flow facts and grants no
 /// qualification by itself.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct QualificationCorrespondence {
     pub source_fact: FactHandle,
     pub destination_fact: FactHandle,
@@ -533,7 +523,7 @@ pub struct QualificationCorrespondence {
     pub evidence: QualificationEvidence,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct Fact {
     pub place: FactPlace,
     pub point: ProgramPoint,
@@ -542,48 +532,15 @@ pub struct Fact {
     pub payload: FactPayload,
 }
 
-/// The domain-membership pair binding only the domain symbol: most fact
-/// consumers discriminate the plain and contract spellings only by which
-/// declaration's contract the membership came through.
+/// The plain and contract spellings of one domain-membership payload, binding
+/// exactly the fields the caller names. Every reader that discriminates the two
+/// spellings only by which declaration's contract the membership came through
+/// takes this one alternation instead of restating it per bound-field subset.
 #[macro_export]
-macro_rules! domain_membership_symbol_pattern {
-    ($domain_symbol:ident) => {
-        $crate::FactPayload::DomainMembership { $domain_symbol, .. }
-            | $crate::FactPayload::ContractDomainMembership { $domain_symbol, .. }
-    };
-}
-
-/// The domain-membership pair binding the symbol and the semantic domain.
-#[macro_export]
-macro_rules! domain_membership_symbol_and_instance_pattern {
-    ($domain_symbol:ident, $semantic_domain:ident) => {
-        $crate::FactPayload::DomainMembership {
-            $domain_symbol,
-            $semantic_domain,
-            ..
-        } | $crate::FactPayload::ContractDomainMembership {
-            $domain_symbol,
-            $semantic_domain,
-            ..
-        }
-    };
-}
-
-/// The domain-membership pair binding the full membership triple.
-#[macro_export]
-macro_rules! domain_membership_fields_pattern {
-    ($domain:ident, $domain_symbol:ident, $semantic_domain:ident) => {
-        $crate::FactPayload::DomainMembership {
-            $domain,
-            $domain_symbol,
-            $semantic_domain,
-            ..
-        } | $crate::FactPayload::ContractDomainMembership {
-            $domain,
-            $domain_symbol,
-            $semantic_domain,
-            ..
-        }
+macro_rules! domain_membership_pattern {
+    ($($field:ident),+ $(,)?) => {
+        $crate::FactPayload::DomainMembership { $($field,)+ .. }
+            | $crate::FactPayload::ContractDomainMembership { $($field,)+ .. }
     };
 }
 

@@ -201,12 +201,23 @@ impl ExpressionTable {
             ExpressionNode::Call(call) => {
                 let receiver = self.copy_optional_subtree(source, call.receiver, copies);
                 let arguments = self.copy_expression_span(source, call.arguments, copies);
+                let machine_arguments = call
+                    .machine_arguments
+                    .iter()
+                    .map(|argument| match source {
+                        ExpressionSource::Own => self.copy_static_argument_from_self(argument),
+                        ExpressionSource::Table(table) => {
+                            self.copy_static_argument_from(table, argument)
+                        }
+                    })
+                    .collect();
                 self.insert(ExpressionNode::Call(TableCallExpression {
+                    authored_call_binding: call.authored_call_binding,
                     receiver,
                     target_symbol: call.target_symbol,
                     target: call.target,
                     requirement_application: call.requirement_application,
-                    machine_arguments: call.machine_arguments,
+                    machine_arguments,
                     arguments,
                     evidence_arguments: call.evidence_arguments,
                     operational_acknowledgement: call.operational_acknowledgement,
@@ -289,6 +300,9 @@ impl ExpressionTable {
                     operator: unary.operator,
                     operand,
                 }))
+            }
+            ExpressionNode::TypeExpression(type_reference) => {
+                self.insert(ExpressionNode::TypeExpression(type_reference))
             }
             ExpressionNode::ZeroValue(type_reference) => {
                 self.insert(ExpressionNode::ZeroValue(type_reference))

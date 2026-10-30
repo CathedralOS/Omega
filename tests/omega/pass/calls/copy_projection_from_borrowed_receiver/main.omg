@@ -16,7 +16,7 @@ machine Target::initialize(target: &mut Target, id: SourceId, length: u64 in Tra
 data Main { holder: Holder; target: Target; }
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> parse(main) }
-    state parse(main: &mut Main) {
+    machine parse(main: &mut Main) {
         main.holder.source.id.value = 7;
         main.holder.source.length = 3;
         Target::initialize(&mut main.target, main.holder.source.id,
@@ -24,25 +24,25 @@ machine Main::main(main: &mut Main) reaches Console {
         );
         transition { _ -> done(main) }
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         transition main.target.seen == 7 {
             true -> source_ok(main)
             _ -> bad_seen(main)
         }
     }
-    state source_ok(main: &mut Main) {
+    machine source_ok(main: &mut Main) {
         transition main.holder.source.id.value == 7 {
             true -> pass(main)
             _ -> bad_source(main)
         }
     }
-    state pass(main: &mut Main) {
+    machine pass(main: &mut Main) {
         Console::exit_process(70);
     }
-    state bad_seen(main: &mut Main) {
+    machine bad_seen(main: &mut Main) {
         Console::exit_process(71);
     }
-    state bad_source(main: &mut Main) {
+    machine bad_source(main: &mut Main) {
         Console::exit_process(72);
     }
 }

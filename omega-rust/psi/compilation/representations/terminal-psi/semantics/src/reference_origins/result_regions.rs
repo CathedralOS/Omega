@@ -89,7 +89,7 @@ pub fn validate_dynamic_reference_regions<'types>(
     Ok(())
 }
 
-fn validate_input_region<'types>(
+pub(super) fn validate_input_region<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     access: StructuralAccess,
@@ -219,7 +219,10 @@ pub fn reference_leaves<'types>(
                 .flat_map(|case| case.fields.iter().map(move |field| (Some(case.id), field)))
                 .chain(fields.iter().map(|field| (None, field)))
                 .collect(),
-            terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
+            terminal_psi::StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
                 // Each pending subtree owes at least one live leaf. Empty
                 // arrays owe none; contains_reference already excludes them.
                 // Bound the worklist before expanding nested array products.

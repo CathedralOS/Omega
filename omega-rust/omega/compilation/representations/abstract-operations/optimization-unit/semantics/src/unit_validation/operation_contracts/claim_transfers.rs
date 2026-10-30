@@ -95,14 +95,8 @@ pub(crate) fn validate_internal_claim_transfers(
             }
         }
         if !argument.path.is_empty()
-            && (caller
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == argument.place)
-                || callee
-                    .content_entry_claims
-                    .iter()
-                    .any(|claim| claim.input.root == parameter.place))
+            && (caller.content_entry_claim_declared(argument.place)
+                || callee.content_entry_claim_declared(parameter.place))
         {
             return false;
         }
@@ -162,11 +156,7 @@ pub(crate) fn validate_internal_claim_transfers(
             .entry_claim_declarations
             .iter()
             .any(|claim| claim.input == parameter.place && claim.path == transfer.path)
-            && !(transfer.path.is_empty()
-                && callee
-                    .content_entry_claims
-                    .iter()
-                    .any(|claim| claim.input.root == parameter.place))
+            && !(transfer.path.is_empty() && callee.content_entry_claim_declared(parameter.place))
         {
             return false;
         }

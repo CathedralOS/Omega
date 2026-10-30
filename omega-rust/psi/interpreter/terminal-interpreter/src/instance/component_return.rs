@@ -85,7 +85,11 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
                         .structural_types()
                         .get(&returned.value.structural_type)
                         .ok_or("component return lost its structural declaration")?;
-                    if !returned.value.qualifications.is_empty()
+                    if returned
+                        .value
+                        .qualifications
+                        .iter()
+                        .any(|domain| selected.result_membership(*domain).is_none())
                         || !returned.value.projected_qualifications.is_empty()
                         || !returned.value.path.is_empty()
                         || (!declaration.owns_linear_claim && !declaration.no_code_affine_cleanup)

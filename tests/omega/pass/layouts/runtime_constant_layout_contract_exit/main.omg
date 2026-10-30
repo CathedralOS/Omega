@@ -17,5 +17,5 @@ machine program() {
     casted();
     arithmetic();
     transition { _ -> later() }
-    state later() { composed(); }
+    machine later() { composed(); }
 }

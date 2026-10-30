@@ -1,5 +1,5 @@
 //! Publish a source local only after its exact initializer result exists.
-use super::super::{CheckedUnitEffectOperationPlan, LoweringError};
+use super::super::CheckedUnitEffectOperationPlan;
 use checked_trees::CheckedArrayConstructionSource;
 
 /// Bind only the local whose initializer owns this exact published result.
@@ -7,13 +7,12 @@ use checked_trees::CheckedArrayConstructionSource;
 /// must never replace its payload merely because their types happen to match.
 /// The dense result route registers the bound local in the view roster beside
 /// this join when its produced type names a view family.
-pub(crate) fn bind_local(
+pub(crate) fn local_binding(
     operation: &CheckedUnitEffectOperationPlan,
     declaration: terminal_psi::StructuralPlaceDeclaration,
     structural_type: semantic_vocabulary::StructuralTypeId,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
-    locals: &mut Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
-) -> Result<(), LoweringError> {
+) -> Option<crate::expression_preparation::bindings::StructuralLocalBinding> {
     let result = match operation {
         CheckedUnitEffectOperationPlan::EstablishLocal(
             checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
@@ -29,11 +28,11 @@ pub(crate) fn bind_local(
         {
             result
         }
-        _ => return Ok(()),
+        _ => return None,
     };
     let local = result.local;
     if !local.is_named() {
-        return Ok(());
+        return None;
     }
     // Every readable returned reference publishes the same exact local-to-place
     // join. Its binding custody distinguishes shared from mutable permission;
@@ -47,7 +46,7 @@ pub(crate) fn bind_local(
     // fields it contains. Reclassifying the type here omits otherwise valid
     // owners (for example a record carrying shared descriptors), leaving later
     // observations without the home the call actually produced.
-    locals.push(
+    Some(
         crate::expression_preparation::bindings::StructuralLocalBinding {
             result_binding_ordinal: Some(result.binding_ordinal),
             root: facts::PlaceRoot::Symbol(local.symbol),
@@ -68,6 +67,5 @@ pub(crate) fn bind_local(
                 path: Vec::new(),
             },
         },
-    );
-    Ok(())
+    )
 }

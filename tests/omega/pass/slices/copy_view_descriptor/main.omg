@@ -3,9 +3,9 @@
 // the receiver into the successor's owned parameter — the view field
 // travels as its two-word descriptor (image backing + extent) beside
 // the scalar; each state reads its own copy.
-domain [u8]::Utf8(bytes)
+domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 data Badge [copy] {
     label: &[u8] in Utf8;
     rank: u64;
@@ -17,17 +17,17 @@ machine Main::main(main: &mut Main) {
     main.badge.label = "north";
     main.badge.rank = 9;
     transition { _ -> inspect(main, main.badge) }
-    state inspect(main: &mut Main, badge: Badge) {
+    machine inspect(main: &mut Main, badge: Badge) {
         transition badge.label.len == 5 && badge.rank == 9 {
             true -> confirm(main, badge)
             _ -> done(main)
         }
     }
-    state confirm(main: &mut Main, badge: Badge) {
+    machine confirm(main: &mut Main, badge: Badge) {
         transition badge.label == "north" {
             true -> done(main)
             _ -> done(main)
         }
     }
-    state done(main: &mut Main) { }
+    machine done(main: &mut Main) { }
 }

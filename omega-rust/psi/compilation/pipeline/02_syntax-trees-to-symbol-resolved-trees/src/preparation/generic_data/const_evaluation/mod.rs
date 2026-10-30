@@ -24,7 +24,8 @@ pub(crate) use fact_values::{
 };
 pub(in crate::preparation::generic_data) use facts::prove_const_leaf_domain_constraints;
 pub(crate) use facts::{
-    evaluate_const_fact_expression, evaluate_const_membership_fact, prove_const_literal_predicates,
+    const_type_requires_declaration_proof, evaluate_const_fact_expression,
+    evaluate_const_membership_fact, prove_const_literal_predicates,
 };
 use remainder::validate_anonymous_remainder;
 pub(in crate::preparation) use templates::collect_type_positions;
@@ -37,8 +38,9 @@ pub(super) use templates::{
 pub(in crate::preparation) use values::canonicalize_selected_const_definition;
 pub(crate) use values::closed_fixed_array_length;
 pub(super) use values::{
-    canonicalize_const_definition, canonicalize_const_expression,
-    canonicalize_selected_declaration_value, canonicalize_selected_index_expression,
+    ConstPredicateAdmission, canonicalize_const_definition, canonicalize_const_expression,
+    canonicalize_selected_declaration_value,
+    canonicalize_selected_declaration_value_with_admission, canonicalize_selected_index_expression,
     checked_fact_integer, const_integer_in_envelope, syntax_type_identity,
     validate_const_index_type, validate_syntax_integer_range,
 };

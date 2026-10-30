@@ -18,10 +18,62 @@ use terminal_psi::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PreparedLoanCompletion {
-    place: PlaceId,
-    path: Vec<StructuralPathSegment>,
-    multiplicity: StructuralMultiplicity,
-    claims: Vec<(PermissionClaimIdentity, Vec<StructuralPathSegment>, bool)>,
+    pub(crate) place: PlaceId,
+    pub(crate) path: Vec<StructuralPathSegment>,
+    pub(crate) multiplicity: StructuralMultiplicity,
+    pub(crate) claims: Vec<(PermissionClaimIdentity, Vec<StructuralPathSegment>, bool)>,
+    pub(crate) qualifications: Vec<(
+        language_semantics::SemanticDomainId,
+        Vec<StructuralPathSegment>,
+        StructuralTypeId,
+    )>,
+}
+
+/// The returned region's checked field qualifications are catalog dependencies
+/// as well as publications. Selection and emission must use the same roster.
+pub(crate) fn qualification_facts<'a>(
+    checked: &'a CheckedTrees,
+    region: &'a checked_trees::FlowLoanCompletionFact,
+) -> impl Iterator<Item = &'a facts::Fact> {
+    checked
+        .facts
+        .semantic
+        .facts
+        .iter()
+        .filter_map(move |(_, fact)| {
+            let facts::ProgramPoint::CallEnsures {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                call_ordinal,
+            } = fact.point
+            else {
+                return None;
+            };
+            if fact.origin != facts::FactOrigin::CallEnsures
+                || machine_symbol != region.machine
+                || state_symbol != region.state
+                || !matches!(region.source, PermissionEventSource::Call {
+                statement_index: source_statement, call_ordinal: source_ordinal, ..
+            } if source_statement == statement_index && source_ordinal == call_ordinal)
+                || fact.payload.domain_membership().is_none()
+            {
+                return None;
+            }
+            let place = checked.facts.semantic.places.get(fact.place.as_place()?);
+            let segments = checked
+                .facts
+                .semantic
+                .place_segments
+                .span_or_empty(place.segments);
+            let region_segments = checked
+                .facts
+                .flow
+                .ownership
+                .segments
+                .span_or_empty(region.segments);
+            (place.root == region.root && segments.starts_with(region_segments)).then_some(fact)
+        })
 }
 
 pub(crate) fn prepare(
@@ -77,7 +129,13 @@ pub(crate) fn prepare(
             )?,
         );
         let mut claims = Vec::new();
-        for (_, event) in checked.facts.flow.ownership.permissions.iter() {
+        let state_permissions = checked
+            .facts
+            .flow
+            .ownership
+            .with_state_permissions(coordinate.state, |handles| handles.to_vec());
+        for handle in state_permissions {
+            let event = checked.facts.flow.ownership.permissions.get(handle);
             let event_path = checked
                 .facts
                 .flow
@@ -107,10 +165,72 @@ pub(crate) fn prepare(
             );
             claims.push((event.claim_identity, terminal_path, introduces));
         }
+        let mut qualifications = Vec::new();
+        for fact in qualification_facts(checked, region) {
+            if super::call_qualifications::declaration_represents(identities, checked, fact)? {
+                continue;
+            }
+            let Some(place_handle) = fact.place.as_place() else {
+                continue;
+            };
+            let place = checked.facts.semantic.places.get(place_handle);
+            let segments = checked
+                .facts
+                .semantic
+                .place_segments
+                .span_or_empty(place.segments);
+            let Some((_, _, domain_symbol, semantic_domain)) = fact.payload.domain_membership()
+            else {
+                continue;
+            };
+            // The checked completion publishes a membership in existing
+            // storage. Observing through a stored reference grants no owned
+            // claim to its referent; those claims were prepared separately.
+            let mut fact_path =
+                validation::qualification_storage_path(&checked.typed, reference, segments)
+                    .map_err(LoweringError::Unsupported)?;
+            let selected = validation::project_type_reference_from_segments(
+                &checked.typed,
+                reference,
+                segments,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "loan completion qualification lost its selected source type",
+            ))?;
+            let (membership_path, _) =
+                validation::result_membership_carrier(&checked.typed, selected, domain_symbol)
+                    .ok_or(LoweringError::Unsupported(
+                        "loan completion qualification has no matching domain carrier",
+                    ))?;
+            fact_path.extend(membership_path);
+            let mut full_path = owner.path.clone();
+            full_path.extend(
+                crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+                    identities,
+                    &fact_path,
+                    structural_type,
+                    types,
+                )?,
+            );
+            let carrier = if full_path.is_empty() {
+                structural_type
+            } else {
+                terminal_semantics::qualification_path_carrier(
+                    types.iter(),
+                    structural_type,
+                    &full_path,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "loan completion qualification has no exact projected carrier",
+                ))?
+            };
+            qualifications.push((semantic_domain, full_path, carrier));
+        }
         completions.push(PreparedLoanCompletion {
             place: owner.place,
             path: completed_path,
             claims,
+            qualifications,
             multiplicity: match region.multiplicity {
                 language_semantics::Multiplicity::Unrestricted => {
                     StructuralMultiplicity::Unrestricted
@@ -128,6 +248,7 @@ pub(crate) fn emit(
     coordinate: SourceCallCoordinate,
     operations: &mut OperationBuffer,
     calls: &mut CallEmissionContext<'_>,
+    current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
 ) -> Result<(), LoweringError> {
     if prepared.is_empty() {
         return Ok(());
@@ -164,6 +285,19 @@ pub(crate) fn emit(
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
         claims.sort();
+        let relative = claims
+            .iter()
+            .map(|claim| {
+                let path = claim.path.strip_prefix(completion.path.as_slice()).ok_or(
+                    LoweringError::Unsupported("loan completion claim escapes its exact region"),
+                )?;
+                Ok(StructuralResultClaimBinding {
+                    claim: claim.claim,
+                    path: path.to_vec(),
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        current_claims.replace(completion.place, &completion.path, &relative)?;
         operations.loan_completions.push(LoanCompletion {
             operation,
             place: completion.place,
@@ -171,6 +305,35 @@ pub(crate) fn emit(
             multiplicity: completion.multiplicity,
             claims,
         });
+
+        let mut qualifications = Vec::new();
+        let mut projected_qualifications = Vec::new();
+        for (semantic_domain, path, carrier) in &completion.qualifications {
+            let domain = crate::terminal_identities::lookup_domain_id_for_carrier(
+                calls.domain_ids,
+                *semantic_domain,
+                *carrier,
+            )?;
+            if path.is_empty() {
+                qualifications.push(domain);
+            } else {
+                projected_qualifications.push(terminal_psi::StructuralPathQualification {
+                    path: path.clone(),
+                    domain,
+                });
+            }
+        }
+        qualifications.sort();
+        qualifications.dedup();
+        projected_qualifications.sort();
+        projected_qualifications.dedup();
+        if !qualifications.is_empty() || !projected_qualifications.is_empty() {
+            operations.add_structural_qualifications(
+                completion.place,
+                &qualifications,
+                &projected_qualifications,
+            );
+        }
     }
     operations.loan_completions.sort_by(|left, right| {
         (left.operation, left.place, &left.path).cmp(&(right.operation, right.place, &right.path))

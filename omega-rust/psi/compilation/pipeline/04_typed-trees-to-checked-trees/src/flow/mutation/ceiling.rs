@@ -87,9 +87,7 @@ pub(crate) fn signature_ceiling_regions(
                 resolver,
             );
             for region in residents? {
-                if !places.contains(&region) {
-                    places.push(region);
-                }
+                crate::collections::push_unique(&mut places, region);
             }
             if !is_exclusive_reference(program, parameter.type_reference) {
                 // Declared reference-free storage cannot reach the caller. A
@@ -138,14 +136,10 @@ pub(crate) fn signature_ceiling_regions(
                                         granted: owner.granted,
                                         resident: owner.resident,
                                     };
-                                    if !places.contains(&content) {
-                                        places.push(content);
-                                    }
+                                    crate::collections::push_unique(&mut places, content);
                                 }
                             }
-                            if !places.contains(&region) {
-                                places.push(region);
-                            }
+                            crate::collections::push_unique(&mut places, region);
                         }
                     }
                 }
@@ -182,13 +176,22 @@ pub(crate) fn signature_ceiling_regions(
             )
         })?;
         for storage in storage {
-            if !places.contains(&storage) {
-                places.push(storage);
-            }
+            crate::collections::push_unique(&mut places, storage);
         }
         // Access routes belong to borrow checking and observation aliases.
         // Lending a captured view does not lend replacement of its descriptor
         // or the owner descriptor anchoring the content loan.
+    }
+    if let Some(borrow) = borrow {
+        for region in retained_loan_write_regions(
+            program,
+            caller_machine_symbol,
+            caller_state_symbol,
+            borrow,
+            borrow_call,
+        )? {
+            crate::collections::push_unique(&mut places, region);
+        }
     }
     Some(places)
 }
@@ -342,9 +345,7 @@ fn resident_owners_in_type(
     }
     let mut paths = vec![Vec::new()];
     for (path, _, _) in roster.identities {
-        if !paths.contains(&path) {
-            paths.push(path);
-        }
+        crate::collections::push_unique(&mut paths, path);
     }
     for path in paths {
         let projected =
@@ -474,7 +475,7 @@ fn carried_exclusive_referents(
                     .collect(),
             };
             referents.push(CarriedStorage {
-                region: StorageRegion::Declared(CanonicalPlace {
+                region: loan_write_region(CanonicalPlace {
                     root: loan.root,
                     segments: borrow.loan_segments(loan).to_vec(),
                 }),
@@ -491,6 +492,78 @@ fn carried_exclusive_referents(
         }
     }
     Some(referents)
+}
+
+/// Ending an exclusive retained debt exposes storage that its opaque provider
+/// could modify during the loan. Expire old observations at that boundary,
+/// independently of the carrier's reference-free representation or the final
+/// callee's visible descriptor frame. These are invalidation coordinates only.
+pub(super) fn retained_loan_write_regions(
+    program: &dyn validation::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    borrow: &BorrowFacts,
+    call: &BorrowCallFact,
+) -> Option<Vec<StorageRegion>> {
+    let source_state = program.state_by_symbol(state_symbol)?;
+    let order = program
+        .statement_table
+        .admitted_execution_order(source_state.statement_nodes);
+    let (_, state) = borrow
+        .states
+        .iter()
+        .find(|(_, row)| row.state_symbol == state_symbol)?;
+    let site = validation::find_call_site(
+        program,
+        machine_symbol,
+        state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    )?;
+    let arguments = validation::call_site_argument_expressions(program, &site);
+    let mut regions = Vec::new();
+    for (_, loan) in borrow.state_loans(state) {
+        if loan.lineage != checked_trees::BorrowLoanLineage::LifetimeDependency
+            || !loan.kind.is_exclusive()
+            || loan.last_use_statement_index != call.statement_index
+        {
+            continue;
+        }
+        // A later operand can form a debt in this same statement. Its future
+        // effects cannot invalidate facts before that formation. A completed
+        // nested producer is available to the enclosing invocation.
+        let formed = order.precedes(loan.statement_index, call.statement_index)
+            || (loan.formation_expression.is_valid()
+                && arguments.iter().any(|argument| {
+                    validation::expression_owners::expression_contains(
+                        program,
+                        *argument,
+                        loan.formation_expression,
+                    )
+                }));
+        if !formed {
+            continue;
+        }
+        if !loan.root.is_valid() {
+            return None;
+        }
+        let region = loan_write_region(CanonicalPlace {
+            root: loan.root,
+            segments: borrow.loan_segments(loan).to_vec(),
+        });
+        crate::collections::push_unique(&mut regions, region);
+    }
+    Some(regions)
+}
+
+/// A checked provider-output loan retains its performed identity but names no
+/// declaration-relative backing. It cannot restore a caller ownership home.
+fn loan_write_region(place: CanonicalPlace) -> StorageRegion {
+    if matches!(place.root, facts::PlaceRoot::InvocationOutput(_)) {
+        StorageRegion::UnresolvedContent { carrier: place }
+    } else {
+        StorageRegion::Declared(place)
+    }
 }
 
 /// Whether a recorded loan's owner path and a place's field path overlap.

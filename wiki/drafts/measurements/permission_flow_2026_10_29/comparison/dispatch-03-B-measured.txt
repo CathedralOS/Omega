@@ -1,0 +1,18 @@
+    17.100 ms  prepare: project -> prepared sources
+  1401.647 ms  compile: sources -> requested product
+     2.876 ms  publish: retained product -> published product
+    11.382 ms  Source ingress: SourceFiles -> SyntaxTrees
+     2.384 ms  Step: assemble: PreparedSources -> AssembledSyntax
+    15.819 ms  Stage 03: SyntaxTrees -> SymbolResolvedTrees
+    33.985 ms  Stage 04: SymbolResolvedTrees -> TypedTrees
+   250.736 ms  Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)
+  1067.976 ms  Stage 05: TypedTrees -> CheckedTrees
+    42.414 ms  Step: settle: CheckedTrees -> SelectedExecution
+     4.919 ms  terminal-production: CheckedTrees -> CanonicalTerminalArtifact
+     4.575 ms  terminal-production/lowering: CheckedTrees -> LoweredPsi
+     0.000 ms  terminal-production/machine-selection: CheckedTrees -> TerminalMachine
+     0.201 ms  terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi
+     0.021 ms  terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt
+     0.060 ms  terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact
+  1927.387 ms  total elapsed
+published native output to \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\build\permission-flow\comparison\dispatch-03-B-measured\build\omega-program.exe

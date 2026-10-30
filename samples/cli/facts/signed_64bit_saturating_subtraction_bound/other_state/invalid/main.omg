@@ -14,7 +14,7 @@ machine subtract_other_state(lhs: i64, rhs: i64) -> i32
     transition {
         _ -> check_state(diff)
     }
-    state check_state(d: i64) -> i32
+    machine check_state(d: i64) -> i32
         requires d >= 40i64 && d <= 105i64;
     {
         let headroom: i64 = 100i64 - d;
@@ -26,8 +26,8 @@ machine subtract_other_state(lhs: i64, rhs: i64) -> i32
             _ -> fail()
         }
     }
-    state pass() -> i32 { 0 }
-    state fail() -> i32 { 1 }
+    machine pass() -> i32 { 0 }
+    machine fail() -> i32 { 1 }
 }
 
 machine main() crashes Trap {
@@ -36,6 +36,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

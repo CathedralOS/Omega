@@ -2,10 +2,9 @@
 //! The call owns a separate result slot; floating controls retain their own
 //! slot. Rematerialize the address after the call so its volatile ABI pointer
 //! need not survive counterparty clobbers. Loads retain the exact scalar width.
-use super::super::{
-    Builder, SelectedInstructionKind, SelectedInstructionProvenance, VirtualRegisterId,
-};
+use super::super::{Builder, SelectedInstructionProvenance, VirtualRegisterId};
 use crate::SelectedInstructionError;
+use crate::selection::scalar_call_abi::load_transfer;
 use calling_conventions::ValueLocation;
 use legalized_operations::{LegalizedNormalizedForeignCall, LegalizedScalarInstruction};
 use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot};
@@ -94,25 +93,8 @@ pub(super) fn load(
         .ok_or_else(SelectedInstructionError::custody)?;
     let pointer = address(operation, builder)?;
     let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
-    let (kind, key) = match home.shape.byte_size {
-        1 => (
-            SelectedInstructionKind::Load8 { byte_offset: 0 },
-            builder.constraints.keys.load8,
-        ),
-        2 => (
-            SelectedInstructionKind::Load16 { byte_offset: 0 },
-            builder.constraints.keys.load16,
-        ),
-        4 => (
-            SelectedInstructionKind::Load32 { byte_offset: 0 },
-            builder.constraints.keys.load32,
-        ),
-        8 => (
-            SelectedInstructionKind::Load64 { byte_offset: 0 },
-            builder.constraints.keys.load64,
-        ),
-        _ => return Err(SelectedInstructionError::custody()),
-    };
+    let (kind, key) = load_transfer(&builder.constraints.keys, home.shape.byte_size, 0)
+        .ok_or_else(SelectedInstructionError::custody)?;
     builder.emit(
         kind,
         key.ok_or_else(SelectedInstructionError::custody)?,

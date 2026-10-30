@@ -11,13 +11,13 @@ machine Worker::clone(source: &Cell) -> Cell {
     let mut copied: Cell = Worker::new();
     copied.count = source.count;
     transition { _ -> each(&mut copied, source, 0) }
-    state each(copied: &mut Cell, source: &Cell, position: u64) -> Cell {
+    machine each(copied: &mut Cell, source: &Cell, position: u64) -> Cell {
         transition position < 2 {
             true -> store(copied, source, position)
             false -> (Worker::copy(copied))
         }
     }
-    state store(copied: &mut Cell, source: &Cell, position: u64) -> Cell
+    machine store(copied: &mut Cell, source: &Cell, position: u64) -> Cell
         requires position < 2;
     {
         copied.values[position] = source.values[position];

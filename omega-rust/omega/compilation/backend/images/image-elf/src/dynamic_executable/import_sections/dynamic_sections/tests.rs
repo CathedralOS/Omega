@@ -6,6 +6,7 @@ use super::{
     derive_contents, elf_hash, gnu_hash, plan_elf_dynamic_sections, validate_candidate,
     validate_contents, validate_gnu_hash_reachability, validate_hash_reachability,
 };
+use crate::bytes::name_at;
 use crate::test_support::{SINGLE_SITE_IMPORTS as IMPORTS, SingleSiteImportFixture};
 use target::TargetProfile;
 
@@ -43,12 +44,7 @@ fn candidate(target: TargetProfile) -> Candidate {
 }
 
 fn string_at(dynstr: &[u8], offset: u32) -> &[u8] {
-    let suffix = &dynstr[offset as usize..];
-    let end = suffix
-        .iter()
-        .position(|byte| *byte == 0)
-        .expect("NUL-terminated dynamic string");
-    &suffix[..end]
+    name_at(dynstr, offset, "dynamic string").expect("NUL-terminated dynamic string")
 }
 
 #[test]
@@ -251,6 +247,22 @@ fn independent_validation_rejects_every_cross_table_corruption() {
             "validation rejection retains exact input custody",
         );
     }
+}
+
+#[test]
+fn pure_component_import_tables_have_no_lookup_candidates() {
+    let contents = super::derive_shared_import_contents(&[]).expect("pure component tables");
+    assert_eq!(contents.dynstr, [0]);
+    assert_eq!(contents.dynsym, [ElfDynamicSymbol::default()]);
+    assert!(contents.needed.is_empty());
+    assert!(contents.bindings.is_empty());
+    assert_eq!(contents.gnu_hash.bloom, [0]);
+    assert_eq!(contents.gnu_hash.buckets, [0]);
+    assert!(contents.gnu_hash.chains.is_empty());
+    validate_gnu_hash_reachability(&contents.gnu_hash, &[]).unwrap();
+    let mut invalid = contents.gnu_hash;
+    invalid.buckets[0] = 1;
+    assert!(validate_gnu_hash_reachability(&invalid, &[]).is_err());
 }
 
 #[test]

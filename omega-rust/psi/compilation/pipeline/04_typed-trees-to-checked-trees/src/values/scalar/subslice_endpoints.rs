@@ -106,17 +106,16 @@ pub(crate) fn sites(
         }
     }
     if let Some(transition) = statement.as_transition()
-        && transition.target.is_valid()
-        && let typed_trees::statement::TransitionTargetNode::Named {
-            path, arguments, ..
-        } = program.statement_table.transition_target(transition.target)
-        && let Some(parameters) = validation::call_target_parameters(program, path.symbol)
+        && let Some(transfer) =
+            validation::completing_transition_transfer(program, transition.target)
+        && let Some(parameters) = validation::call_target_parameters(program, transfer.target)
     {
-        for (argument, (position, parameter)) in program
-            .statement_table
-            .expression_handles(*arguments)
-            .iter()
-            .zip(parameters.iter().enumerate())
+        // Endpoint identity follows the resolved transfer's authored argument,
+        // exactly as scalar transition operands do. Canonical machine calls
+        // may be expression targets; a Named-only match drops their endpoints
+        // when SCC realization later consumes the call as an internal edge.
+        for (argument, (position, parameter)) in
+            transfer.arguments.iter().zip(parameters.iter().enumerate())
         {
             if !parameter.relevance.is_erased()
                 && program

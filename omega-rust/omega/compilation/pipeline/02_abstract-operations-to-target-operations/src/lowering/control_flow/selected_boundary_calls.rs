@@ -154,8 +154,7 @@ pub(super) fn retain_origin(
             boundary: installed.boundary,
         });
     };
-    if semantic_vocabulary::BoundaryInvocationSite::Operation(*psi_operation)
-        != installed.invocation_site
+    if semantic_vocabulary::InvocationSite::Operation(*psi_operation) != installed.invocation_site
         || *target != target_operations::NativeCallTarget::Machine(installed.callee)
         || *actual != target_operations::NativeCallOrigin::Authored
     {

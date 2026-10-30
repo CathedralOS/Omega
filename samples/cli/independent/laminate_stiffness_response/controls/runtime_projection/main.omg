@@ -12,8 +12,8 @@ machine Main::main(main: &mut Main) reaches Console {
     storage.cells[1][0][1] = 41.0;
     let observed: f64 = read(&storage,1,0,1);
     transition observed == 41.0 { true -> yes(main) false -> no(main) }
-    state yes(main: &mut Main) { Console::write_line("PROJECTION OK"); Console::exit_process(0); }
-    state no(main: &mut Main) { Console::write_line("PROJECTION WRONG"); Console::exit_process(4); }
+    machine yes(main: &mut Main) { Console::write_line("PROJECTION OK"); Console::exit_process(0); }
+    machine no(main: &mut Main) { Console::write_line("PROJECTION WRONG"); Console::exit_process(4); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
