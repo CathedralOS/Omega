@@ -21,7 +21,7 @@ use terminal_interpreter::{
     TerminalScalarValue,
 };
 
-pub(super) fn rejection(reason: impl Into<String>) -> TerminalEffectRejection {
+pub(in super::super) fn rejection(reason: impl Into<String>) -> TerminalEffectRejection {
     TerminalEffectRejection::new(reason)
 }
 

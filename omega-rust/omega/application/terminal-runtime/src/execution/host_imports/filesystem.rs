@@ -47,6 +47,8 @@ enum Formal {
     Signed(u16),
     Unsigned(u16),
     Bytes(u64, StructuralAccess),
+    ByteView(StructuralAccess),
+    SignedReference(u16, StructuralAccess),
 }
 
 impl FilesystemContext {
@@ -72,7 +74,7 @@ impl FilesystemContext {
             return Ok(None);
         }
         use DescriptorEffect::{Acquire, Close, Duplicate, None as NoDescriptor, OpenAt, Use};
-        use Formal::{Bytes, Signed, Unsigned};
+        use Formal::{ByteView, Bytes, Signed, SignedReference, Unsigned};
         use StructuralAccess::{MutableBorrow, SharedBorrow};
         // The SDK declares full fixed-array extents. These are exact C ABI
         // contracts, not a license to widen a one-byte loan into an allocation.
@@ -204,6 +206,19 @@ impl FilesystemContext {
                 },
             ),
             (b"dup", &[Signed(32)], Signed(32), Duplicate),
+            (
+                b"__getdirentries64",
+                &[
+                    Signed(32),
+                    ByteView(MutableBorrow),
+                    SignedReference(64, MutableBorrow),
+                ],
+                Signed(64),
+                Use {
+                    scalar: 0,
+                    current_directory: false,
+                },
+            ),
         ];
         let mut selected = None;
         for &(symbol, parameters, result, descriptor) in candidates {
@@ -283,11 +298,15 @@ impl FilesystemContext {
         let mut structural = 0;
         let mut paths = Vec::new();
         for formal in parameters.into_iter().flatten() {
-            if let Bytes(count, access) = formal {
-                if *count == 4096 && *access == SharedBorrow {
-                    paths.push(structural);
+            match formal {
+                Bytes(count, access) => {
+                    if *count == 4096 && *access == SharedBorrow {
+                        paths.push(structural);
+                    }
+                    structural += 1;
                 }
-                structural += 1;
+                ByteView(_) | SignedReference(_, _) => structural += 1,
+                _ => {}
             }
         }
         Ok(Some(FilesystemCall {
@@ -331,6 +350,16 @@ fn matches_signature(
                 let value = declaration.structural_parameters.get(structural);
                 structural += 1;
                 match (value, expected) {
+                    (Some(value), Formal::ByteView(access)) if value.access == *access => {
+                        matches!(program.structural_type(value.structural_type).map(|row| &row.shape),
+                            Some(StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { access: ceiling })) if ceiling.is_none_or(|ceiling| ceiling == *access))
+                    }
+                    (Some(value), Formal::SignedReference(bits, access))
+                        if value.access == *access =>
+                    {
+                        matches!(program.structural_type(value.structural_type).map(|row| &row.shape),
+                            Some(StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))) if integer.sign() == IntegerSign::Signed && integer.bits() == *bits)
+                    }
                     (Some(value), Formal::Bytes(count, access)) if value.access == *access => {
                         match program
                             .structural_type(value.structural_type)
@@ -428,6 +457,11 @@ impl FilesystemCall {
         };
         let guest_descriptor = i32::try_from(*guest)
             .map_err(|_| rejection("filesystem descriptor exceeds its carrier"))?;
+        if (0..=2).contains(&guest_descriptor) {
+            return Err(rejection(
+                "filesystem operation has no supplied standard-stream contract",
+            ));
+        }
         // Darwin AT_FDCWD is an explicitly supplied current-directory root.
         // Other unknown integers reach the actual OS as an invalid descriptor,
         // so errno comes from the selected native call, never an invented code.
