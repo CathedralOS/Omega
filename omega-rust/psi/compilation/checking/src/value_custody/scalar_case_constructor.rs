@@ -23,6 +23,10 @@ pub struct StructuralCaseConstructor {
     pub type_reference: TypeReferenceHandle,
     pub case: SymbolHandle,
     pub fields: Vec<(SymbolHandle, ExpressionHandle, TypeReferenceHandle)>,
+    /// Missing runtime operands, in declaration order. This roster is not
+    /// permission to initialize them: checking proves zero validity and the
+    /// structural producer must materialize each declared carrier.
+    pub omitted_fields: Vec<(SymbolHandle, TypeReferenceHandle)>,
 }
 
 /// Classify value sequencing before permission checking. A named source is not
@@ -181,7 +185,7 @@ fn case_constructor_parts(
     // it does not require the whole carrier to be copyable or borrow-free.
     // An exclusive descriptor keeps its own formation and transfer obligations.
     // This classifier only pairs exact declarations with authored operands;
-    // structural producers establish each field and omitted common zero.
+    // structural producers establish each field and omitted zero operand.
     // The scalar-only interface still requires numeric-owned payloads and has
     // no vocabulary for common fields or structural children.
     if (!erased_member_owner
@@ -257,10 +261,9 @@ fn case_constructor_parts(
             declared.relevance.is_erased(),
         ));
     }
-    // The runtime payload declarations keep their authored-exactly-once shape:
-    // every one answered one operand. Erased owner and payload members and
-    // named common fields never enter the count; an omitted erased payload
-    // member is determined by its nullary constructor, which checking proved.
+    // The scalar-only interface requires an authored operand for every runtime
+    // payload. Structural construction instead carries an explicit omitted
+    // roster to its zero producer. Erased members never enter the runtime count.
     let payload_operands = operands
         .iter()
         .filter(|(symbol, ..)| {
@@ -273,7 +276,11 @@ fn case_constructor_parts(
         .iter()
         .filter(|declaration| !(erased_member_owner && declaration.relevance.is_erased()))
         .count();
-    (payload_operands == runtime_payload).then_some((reference, case.symbol, operands))
+    (erased_member_owner || payload_operands == runtime_payload).then_some((
+        reference,
+        case.symbol,
+        operands,
+    ))
 }
 
 pub fn scalar_case_constructor(
@@ -311,9 +318,25 @@ pub fn structural_case_constructor(
         }
         fields.push((symbol, value, declared));
     }
+    let owner = program.closed_data_definition(reference)?;
+    let omitted_fields = program
+        .data_members(owner)
+        .iter()
+        .flat_map(|member| match member {
+            DataMember::Field(field) => std::slice::from_ref(field),
+            DataMember::Variant(case) if case.symbol == selected => {
+                program.data_payload_fields(case)
+            }
+            DataMember::Variant(_) => &[],
+        })
+        .filter(|field| !field.relevance.is_erased())
+        .filter(|field| fields.iter().all(|(symbol, ..)| *symbol != field.symbol))
+        .map(|field| (field.symbol, field.type_reference))
+        .collect();
     Some(StructuralCaseConstructor {
         type_reference: reference,
         case: selected,
         fields,
+        omitted_fields,
     })
 }

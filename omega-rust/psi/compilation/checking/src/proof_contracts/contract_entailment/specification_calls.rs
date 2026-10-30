@@ -1837,6 +1837,10 @@ fn term_has_complete_substitution(
     let term = term.semantic_value();
     match term {
         StructuralTerm::ObservedValue { .. } => unreachable!("semantic_value strips observations"),
+        StructuralTerm::RepeatedArray { length, element } => match element {
+            Some(element) => *length > 0 && term_has_complete_substitution(program, element),
+            None => *length == 0,
+        },
         StructuralTerm::BoundValue(_)
         | StructuralTerm::CapturedValue { .. }
         | StructuralTerm::BoundProjection { .. }

@@ -804,6 +804,11 @@ fn case_literal_field_store(
     }
     let constructor =
         validation::structural_case_constructor(program, assignment.value, field.type_reference)?;
+    // The scalar store vocabulary has no zero-initialization operation.
+    // Omitted operands belong to the ordinary structural value producer.
+    if !constructor.omitted_fields.is_empty() {
+        return None;
+    }
     if program.normalized_type_identity(constructor.type_reference)
         != program.normalized_type_identity(field.type_reference)
     {
