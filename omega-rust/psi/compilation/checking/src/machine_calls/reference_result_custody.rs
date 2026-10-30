@@ -33,6 +33,8 @@ pub use stored_carrier_sources::{StoredCarrierSource, stored_carrier_sources};
 mod call_reception;
 pub use call_reception::{RecordCallReception, record_call_reception};
 mod captured_returns;
+#[cfg(test)]
+mod declared_frontier_tests;
 mod declared_returns;
 mod source_paths;
 pub use captured_returns::call_sources as call_return_sources;
@@ -992,13 +994,42 @@ pub fn declared_carrier_references(
             length: typed_trees::types::FixedArrayLength::Literal(length),
         } = program.type_reference_table.type_reference(reference)
         {
+            if *length == 0 {
+                return Some(());
+            }
+            // This declaration query has no element-value or selected-place
+            // input. Discover the exact scoped element frontier once, then
+            // retain every original index and its ordered descriptor leaves.
+            let mut element_leaves = Vec::new();
+            visit(
+                program,
+                *element_type,
+                &mut Vec::new(),
+                &mut element_leaves,
+                scopes,
+                scope,
+            )?;
+            // Preserve index representability even for an empty frontier.
+            u64::try_from(*length - 1).ok()?;
+            if element_leaves.is_empty() {
+                return Some(());
+            }
             for element_index in 0..*length {
                 path.push(Exact(
                     checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
                         u64::try_from(element_index).ok()?,
                     ),
                 ));
-                visit(program, *element_type, path, output, scopes, scope)?;
+                for leaf in &element_leaves {
+                    let mut leaf_path = path.clone();
+                    leaf_path.extend_from_slice(&leaf.path);
+                    output.push(DeclaredCarrierReference {
+                        path: leaf_path,
+                        type_identity: leaf.type_identity,
+                        access: leaf.access,
+                        crosses_reference: leaf.crosses_reference,
+                    });
+                }
                 path.pop();
             }
             return Some(());
