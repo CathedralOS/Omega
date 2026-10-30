@@ -16,8 +16,91 @@
 use super::adapter_conformance::exact_checked_adapter;
 use super::requirement_identities::satisfied_row_requirement;
 use crate::provider_planning::ProviderBinding;
+use checked_trees::typed_trees::machine::Machine;
+use diagnostics::Diagnostic;
+use effects::provider_plan::{ProviderPlan, ProviderPlanRow};
 
 mod trait_requirements;
+
+struct CheckedAdapterDeclaration<'typed, 'plan> {
+    plan: &'plan ProviderPlan,
+    row: &'plan ProviderPlanRow,
+    machine: Result<&'typed Machine, Diagnostic>,
+}
+
+/// Invocation scratch: one immutable source judgment per original selected row.
+/// Errors remain data until each existing expansion site consumes that row.
+struct CheckedAdapterDeclarations<'typed, 'plan> {
+    rows: Vec<CheckedAdapterDeclaration<'typed, 'plan>>,
+}
+
+impl<'typed, 'plan> CheckedAdapterDeclarations<'typed, 'plan> {
+    fn prepare(
+        typed: &'typed checked_trees::typed_trees::TypedTrees,
+        selected: &'plan effects::SelectedProviderPlanFacts,
+    ) -> Self {
+        let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
+        let mut rows = Vec::new();
+        for plan in selected.plans() {
+            for row in &plan.rows {
+                if matches!(row.binding, ProviderBinding::CheckedAdapter { .. }) {
+                    rows.push(CheckedAdapterDeclaration {
+                        plan,
+                        row,
+                        machine: exact_checked_adapter(context, plan, row),
+                    });
+                }
+            }
+        }
+        Self { rows }
+    }
+
+    fn machine(
+        &self,
+        plan: &ProviderPlan,
+        row: &ProviderPlanRow,
+    ) -> Result<&'typed Machine, Diagnostic> {
+        self.rows
+            .iter()
+            .find(|prepared| std::ptr::eq(prepared.plan, plan) && std::ptr::eq(prepared.row, row))
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "checked provider instance lost its original prepared plan/row custody",
+                )
+            })?
+            .machine
+            .clone()
+    }
+
+    fn callback_declarations(&self) -> Vec<provider_selection::SelectedCallbackRow<'plan>> {
+        self.rows.iter().map(|prepared| provider_selection::SelectedCallbackRow {
+            plan: prepared.plan,
+            row: prepared.row,
+            checked_adapter_body: prepared.machine.as_ref()
+                .map(|machine| machine.supplies_checked_body())
+                .map_err(|diagnostic| format!("callback forwarding provider is not its exact checked adapter: {diagnostic:?}")),
+        }).collect()
+    }
+}
+
+/// Complete source-only instance preparation, then return only whole plans,
+/// exact row facts and closed applications. The result borrows selected-plan
+/// custody, not the checked program. Callback policy runs in provider-selection.
+pub fn prepare_callback_providers<'plan>(
+    program: &checked_trees::CheckedTrees,
+    selected: &'plan effects::SelectedProviderPlanFacts,
+    declarations: &terminal_psi::CallbackDeclarationRoster,
+) -> Result<provider_selection::CallbackProviderDeclarations<'plan>, Vec<Diagnostic>> {
+    if declarations.uses.is_empty() {
+        return Ok(provider_selection::CallbackProviderDeclarations::unused());
+    }
+    let adapters = CheckedAdapterDeclarations::prepare(&program.typed, selected);
+    let instances = project_with_adapters(&program.typed, &program.facts, selected, &adapters)?;
+    Ok(provider_selection::CallbackProviderDeclarations::prepared(
+        instances,
+        adapters.callback_declarations(),
+    ))
+}
 
 /// Source-only consumers request this projection at their boundary. Ordinary
 /// native production must not reconstruct checked instances just to discard
@@ -27,18 +110,29 @@ pub fn project_checked_provider_instances(
     check_facts: &checked_trees::CheckFacts,
     selected: &effects::SelectedProviderPlanFacts,
 ) -> Result<effects::SelectedProviderPlanFacts, Vec<diagnostics::Diagnostic>> {
+    let adapters = CheckedAdapterDeclarations::prepare(typed, selected);
+    project_with_adapters(typed, check_facts, selected, &adapters)
+}
+
+fn project_with_adapters(
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
+    selected: &effects::SelectedProviderPlanFacts,
+    adapters: &CheckedAdapterDeclarations<'_, '_>,
+) -> Result<effects::SelectedProviderPlanFacts, Vec<diagnostics::Diagnostic>> {
     let (rows, identities) =
-        derive_selected_requirement_specializations(typed, check_facts, selected)?;
+        derive_selected_requirement_specializations(typed, check_facts, selected, adapters)?;
     selected
         .clone()
         .with_specialized_requirement_rows(rows, &identities)
         .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])
 }
 
-pub(crate) fn derive_selected_requirement_specializations(
+fn derive_selected_requirement_specializations(
     typed: &checked_trees::typed_trees::TypedTrees,
     check_facts: &checked_trees::CheckFacts,
     selected: &effects::SelectedProviderPlanFacts,
+    adapters: &CheckedAdapterDeclarations<'_, '_>,
 ) -> Result<
     (
         Vec<effects::SelectedRequirementSpecialization>,
@@ -71,6 +165,7 @@ pub(crate) fn derive_selected_requirement_specializations(
             typed,
             check_facts,
             plan,
+            adapters,
             &mut rows,
             &mut identities,
             &mut diagnostics,
@@ -108,7 +203,7 @@ pub(crate) fn derive_selected_requirement_specializations(
                 )));
                 continue;
             }
-            let provider = match exact_checked_adapter(provider_context, plan, row) {
+            let provider = match adapters.machine(plan, row) {
                 Ok(provider) => provider,
                 Err(diagnostic) => {
                     diagnostics.push(diagnostic);

@@ -973,9 +973,16 @@ and refinement contracts, and checked entry-resource report axes. Dormant and
 symbolic uses remain present; unavailable declaration projection stays deferred.
 Calling declarations close through the product's authenticated owner/member
 correspondence, preserving exact empty-argument matching and duplicate counts
-without ABI publication. The source adapter still prepares selected-row body
-evidence and whole-selected-instance validation before per-use policy, but does
-not reconstruct use classifications or selected signatures. Registration failures
+without ABI publication. Source preparation freezes exact adapter results once
+per original selected plan/row. Trait and top-level instance expansion consume
+those same results at their original diagnostic sites, including repeated error
+reports. The returned callback-provider product owns projected instance metadata
+and borrows source-free plan/row custody only. Callback admission itself runs in
+`provider-selection` without checked source: use iteration, exact selected-row
+lookup, calling counts and entry policy share one visible loop. Full plan/row
+equality rejoins the projection's clone; report hashes or source pointers cannot
+replace it. Missing preparation refuses a nonempty use roster, while a completed
+empty selection remains valid. Registration failures
 suppress only that occurrence's plan diagnostics. Selected roots borrow the same
 identity table in occurrence order. The application carries exact declarations,
 not callback source symbols. Composition rejoins each complete

@@ -1377,8 +1377,8 @@ fn executable_callback_placement_is_owned_by_terminal_settlement() {
         "../../pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal/codec.rs"
     );
     assert!(selection.contains("callback_roots"));
-    let roots = include_str!("../../realization/provider-planning/src/callback_roots.rs");
-    assert!(roots.contains("provider_selection::select_callback_roots(candidates)"));
+    let binding = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
+    assert!(binding.contains("provider_selection::select_callback_declarations("));
     for source in [selection, source, persisted] {
         assert!(!source.contains("NativeCallbackPlacement"));
         assert!(!source.contains("SelectedCallbackPlacement"));
@@ -1389,17 +1389,35 @@ fn executable_callback_placement_is_owned_by_terminal_settlement() {
 
 #[test]
 fn callback_root_policy_consumes_prepared_source_correspondence() {
-    let preparation = include_str!("../../realization/provider-planning/src/callback_roots.rs");
-    assert!(preparation.contains("project_checked_provider_instances("));
+    let preparation = include_str!(
+        "../../realization/provider-planning/src/provider_planning/provenance_replay/specialization_rows.rs"
+    );
+    assert!(preparation.contains("pub fn prepare_callback_providers"));
+    assert!(preparation.contains("project_with_adapters("));
     assert!(!preparation.contains("program.callback_declaration(usage)"));
     assert!(!preparation.contains("program.facts.nominal_machine_uses"));
-    assert!(preparation.contains("declarations.declaration(usage)"));
-    assert!(preparation.contains("selected_instances.selected_requirement_row(identity)"));
-    assert!(preparation.contains("crate::exact_checked_adapter(context, plan, row)"));
+    assert_eq!(
+        preparation
+            .matches("exact_checked_adapter(context, plan, row)")
+            .count(),
+        1
+    );
+    assert!(preparation.contains("machine: exact_checked_adapter(context, plan, row)"));
+    let trait_expansion = include_str!(
+        "../../realization/provider-planning/src/provider_planning/provenance_replay/specialization_rows/trait_requirements.rs"
+    );
+    assert!(!trait_expansion.contains("exact_checked_adapter("));
+    assert!(trait_expansion.contains("adapters.machine(plan, row)"));
+    assert!(preparation.contains("adapters.machine(plan, row)"));
     let binding = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
     assert!(binding.contains("realization.boundary_arguments.is_empty()"));
     assert!(binding.contains("external_providers.callbacks.calling_requirements("));
     let policy = include_str!("../../realization/provider-selection/src/callback_roots.rs");
+    assert!(policy.contains("declarations.declaration(usage)"));
+    assert!(policy.contains("self.selected.as_ref()?.selected_requirement_row(identity)"));
+    assert!(policy.contains("prepared.plan == plan && prepared.row == row"));
+    assert!(policy.contains("providers.selected.is_none()"));
+    assert!(!policy.contains("CallbackRootCandidate"));
     for forbidden in [
         "TypedTrees",
         "CheckFacts",

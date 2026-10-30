@@ -11,6 +11,7 @@ pub(super) fn append(
     typed: &checked_trees::typed_trees::TypedTrees,
     check_facts: &checked_trees::CheckFacts,
     plan: &ProviderPlan,
+    adapters: &super::CheckedAdapterDeclarations<'_, '_>,
     rows: &mut Vec<effects::SelectedRequirementSpecialization>,
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
@@ -35,14 +36,13 @@ pub(super) fn append(
         else {
             continue;
         };
-        let provider =
-            match super::super::adapter_conformance::exact_checked_adapter(context, plan, row) {
-                Ok(provider) => provider,
-                Err(diagnostic) => {
-                    diagnostics.push(diagnostic);
-                    continue;
-                }
-            };
+        let provider = match adapters.machine(plan, row) {
+            Ok(provider) => provider,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                continue;
+            }
+        };
         let applications = typed
             .closed_requirement_applications()
             .filter(|application| {
