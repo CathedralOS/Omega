@@ -9,7 +9,6 @@ use super::StoredLocalOrigins;
 use super::storage_projection::{projected_storage_type, projected_type};
 use facts::{FactPlan, PlaceSegment};
 use symbols::SymbolKind;
-use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;

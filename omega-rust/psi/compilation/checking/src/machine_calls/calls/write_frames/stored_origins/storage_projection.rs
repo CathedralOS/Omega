@@ -64,9 +64,6 @@ impl<'program> StorageProjectionCursor<'program> {
         else {
             return None;
         };
-        if !access.is_readable() {
-            return None;
-        }
         self.reference = *referee;
         Some(())
     }

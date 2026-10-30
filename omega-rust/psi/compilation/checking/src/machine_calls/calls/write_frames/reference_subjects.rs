@@ -1071,7 +1071,7 @@ fn validate_declaration_source_projection(
 ) -> Option<()> {
     // Declaration validation authenticates current load availability without
     // changing an initializer owner's already captured source association.
-    read_projection::capture(program, state, index, source, &[], stored).map(|_| ())
+    read_projection::validate_address(program, state, index, source, stored)
 }
 
 pub(super) fn source_root_type(
