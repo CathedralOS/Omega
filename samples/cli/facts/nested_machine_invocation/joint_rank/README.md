@@ -209,3 +209,8 @@ stale-result controls.
 carry the same rank through all nine places while later arguments replace the
 original carrier. The row retains the complete conditional bound and shared
 reference inventory, and checks intrinsic snapshot death before backing cleanup.
+
+[Runtime-indexed case payloads](local/case_value/indexed_payload/README.md)
+carry the same fact through a separately captured selector and a case-bearing
+array element across all nine places. Both selectors execute with counter and
+neighbor-canary oracles; exact zero-decrement twins reject strict non-descent.

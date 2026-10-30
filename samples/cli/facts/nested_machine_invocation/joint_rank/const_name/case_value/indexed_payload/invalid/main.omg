@@ -1,0 +1,57 @@
+// A private helper preserves the invocation rank on a tail edge, and every complete cycle strictly descends while advancing the explicit counter once.
+// Expected exit: 0
+data Cell [copy] { stamp: u64; case Pending(count: u64); case Empty; }
+data Remaining { canary: u64; values: [Cell; 2]; tail: u64; }
+const Limit: u64 = 7;
+machine count(counter: &mut u64, remaining: &mut Remaining, slot: u64) crashes Trap
+terminates;
+terminates by remaining.values[slot].count;
+requires slot < 2, remaining.values[slot] in Cell::Pending, remaining.values[slot].count <= 7;
+{
+    transition remaining.values[slot].count > 0 {
+        true -> forward(remaining, slot, counter)
+        false -> finish(remaining.canary)
+    }
+    machine forward(pending: &mut Remaining, selected: u64, counter: &mut u64) crashes Trap
+    requires selected < 2, pending.values[selected] in Cell::Pending, pending.values[selected].count > 0 && pending.values[selected].count <= 7;
+    {
+        counter = ((counter as u64 in Wrapping) + 1) as u64;
+        pending.values[selected].count = pending.values[selected].count - 0;
+        transition { _ -> count(counter, pending, selected) }
+    }
+    machine finish(canary: u64) crashes Trap {
+        transition canary == 641 { true -> done() false -> bad() }
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+machine perform(counter: &mut u64, active: bool, second: bool) crashes Trap {
+    let amount: u64 = match active { true -> Limit false -> 0 };
+    let slot: u64 = match second { true -> 1 false -> 0 };
+    let mut remaining: Remaining = Remaining { canary: 641, values: [Cell::Pending { stamp: 413, count: amount }, Cell::Pending { stamp: 919, count: amount }], tail: 967 };
+    count(counter, &mut remaining, slot);
+    let preserved: bool = match second {
+        true -> remaining.values[0].count == amount && remaining.values[1].count == 0
+        false -> remaining.values[0].count == 0 && remaining.values[1].count == amount
+    };
+    transition preserved && (remaining.values[0] in Cell::Pending) && (remaining.values[1] in Cell::Pending) && remaining.canary == 641 && remaining.values[0].stamp == 413 && remaining.values[1].stamp == 919 && remaining.tail == 967 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+machine main() crashes Trap {
+    let mut first_count: u64 = 3;
+    perform(&mut first_count, true, false);
+    let first: bool = first_count == 10;
+    perform(&mut first_count, false, false);
+    let mut second_count: u64 = 3;
+    perform(&mut second_count, true, true);
+    let second: bool = second_count == 10;
+    perform(&mut second_count, false, true);
+    transition first && second && first_count == 10 && second_count == 10 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
