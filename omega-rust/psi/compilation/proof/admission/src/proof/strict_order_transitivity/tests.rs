@@ -1,5 +1,5 @@
 use crate::proof::{assumption_proof, semantic_axiom_proof};
-use crate::{ProofNode, ProofRule, check_certificate, lift_fixed_integer_relation};
+use crate::{ProofNode, ProofRule, check_certificate, lift_fixed_integer_relation, value_context};
 use semantic_vocabulary::{
     IntegerSign, IntegerType, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
@@ -9,10 +9,7 @@ fn fixture(
     mathematical: bool,
 ) -> (PropositionContext, [Proposition; 2], ProofNode) {
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
-    let context = PropositionContext::from_value_types(
-        (1..=4).map(|identity| (ValueId::new(identity).unwrap(), scalar_type)),
-    )
-    .unwrap();
+    let context = value_context(scalar_type, 4);
     let value = |identity| ScalarTerm::value(ValueId::new(identity).unwrap(), scalar_type);
     let order = |left, right, strict| {
         let proposition = if strict {
@@ -148,10 +145,7 @@ fn order_composition_preserves_scalar_carriers_without_arithmetic_conversion() {
         IntegerType::address(64).unwrap(),
     ] {
         let scalar_type = ScalarType::Integer(integer);
-        let context = PropositionContext::from_value_types(
-            (1..=3).map(|identity| (ValueId::new(identity).unwrap(), scalar_type)),
-        )
-        .unwrap();
+        let context = value_context(scalar_type, 3);
         let value = |identity| ScalarTerm::value(ValueId::new(identity).unwrap(), scalar_type);
         let premises = [
             Proposition::LessThan(value(1), value(2)),

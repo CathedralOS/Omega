@@ -5,6 +5,7 @@ use crate::integer_rules::integer_affine::{
     IntegerAffineWitnessError, check_integer_affine_bound_conversion, check_integer_affine_witness,
     integer_affine_truth_bounds, map_integer_affine_bound,
 };
+use crate::value_context;
 use semantic_vocabulary::IntegerMathTerm;
 use semantic_vocabulary::IntegerType;
 use semantic_vocabulary::IntegerValue;
@@ -378,10 +379,7 @@ fn bitwise_and_mask_maps_every_root_endpoint_to_the_mask_image() {
     let root = value(1, integer_type);
     let target = value(2, integer_type);
     let literal = |value| literal(integer_type, value);
-    let context = PropositionContext::from_value_types(
-        (1..=2).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
-    )
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer_type), 2);
     let definition = Proposition::Equal(
         target.clone(),
         ScalarTerm::integer_bitwise_and(integer_type, root.clone(), literal(15)).unwrap(),
@@ -449,10 +447,7 @@ fn bitwise_and_mask_maps_every_root_endpoint_to_the_mask_image() {
     // The same step inside a longer chain keeps mapping through later
     // translations: `v = c & 15; w = v - 3` sends `c <= 259` to `w <= 12`.
     let widened = value(3, integer_type);
-    let context = PropositionContext::from_value_types(
-        (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
-    )
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer_type), 3);
     let axioms = [
         definition,
         Proposition::Equal(
@@ -498,10 +493,7 @@ fn saturating_endpoints_cover_every_byte_input_and_reject_plateau_strictness() {
         };
         let root = value(1, integer_type);
         let target = value(2, integer_type);
-        let context = PropositionContext::from_value_types(
-            (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
-        )
-        .unwrap();
+        let context = value_context(ScalarType::Integer(integer_type), 3);
         // Include both carrier edges, signed negative literals, subtraction,
         // and commuted addition. Check actual byte semantics independently of
         // the certificate's endpoint implementation.

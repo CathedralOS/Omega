@@ -3,6 +3,7 @@ use crate::integer_rules::integer_affine::{
     IntegerAffineBoundConversionError, IntegerAffineWitness, IntegerAffineWitnessError,
     check_integer_affine_witness, integer_affine_wrapping_evidence, map_integer_affine_bound,
 };
+use crate::value_context;
 use semantic_vocabulary::IntegerType;
 use semantic_vocabulary::Proposition;
 use semantic_vocabulary::PropositionContext;
@@ -228,10 +229,7 @@ fn wrapping_add_backward_lands_a_sibling_literal_and_rejects_ambiguity() {
     let operand = value(1, integer_type);
     let defined = value(2, integer_type);
     let sibling = value(3, integer_type);
-    let context = PropositionContext::from_value_types(
-        (1..=4).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
-    )
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer_type), 4);
     // `sibling == 3` lands before `defined == operand + sibling`, so the
     // backward traversal resolves `operand` uniquely.
     let landing = Proposition::Equal(sibling.clone(), unsigned_literal(integer_type, 3));

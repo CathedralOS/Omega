@@ -18,10 +18,7 @@ fn correlated_add_bound_replays_exact_complement_identity_and_relation() {
     let redirected = value(4, integer_type);
     let target = ScalarTerm::exact_integer_add(integer_type, left.clone(), right.clone())
         .expect("exact add");
-    let context = PropositionContext::from_value_types(
-        (1..=5).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
-    )
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer_type), 5);
     for (endpoint, evidence, expected) in [
         (
             127,
@@ -204,10 +201,7 @@ fn correlated_subtract_replays_complement_definition_and_endpoint_landing() {
     let landed_endpoint = value(4, integer_type);
     let target =
         ScalarTerm::exact_integer_subtract(integer_type, left.clone(), right.clone()).unwrap();
-    let context = PropositionContext::from_value_types(
-        (1..=5).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
-    )
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer_type), 5);
     let landing = Proposition::Equal(landed_endpoint.clone(), literal(integer_type, -128));
     let complement = Proposition::Equal(
         correlated.clone(),
@@ -265,10 +259,7 @@ fn correlated_negative_multiply_uses_target_endpoint_and_sign_orientation() {
     let left = value(1, integer_type);
     let right = value(2, integer_type);
     let quotient = value(3, integer_type);
-    let context = PropositionContext::from_value_types(
-        (1..=5).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
-    )
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer_type), 5);
     let target =
         ScalarTerm::exact_integer_multiply(integer_type, left.clone(), right.clone()).unwrap();
     let negative = Proposition::LessOrEqual(right.clone(), literal(integer_type, -2));

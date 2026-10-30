@@ -4,6 +4,7 @@ use crate::integer_rules::integer_affine::{
     integer_affine_wrapping_evidence, map_integer_affine_bound,
 };
 use crate::proof::assumption_proof;
+use crate::value_context;
 use crate::{ProofNode, ProofRule, check_certificate};
 use semantic_vocabulary::IntegerType;
 use semantic_vocabulary::Proposition;
@@ -285,10 +286,7 @@ fn checks_ordered_add_subtract_multiply_normalization() {
                 .unwrap(),
         ),
     ];
-    let context = PropositionContext::from_value_types(
-        (1..=4).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
-    )
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer_type), 4);
     let checked = check_integer_affine_witness(
         &context,
         &axioms,
@@ -312,10 +310,7 @@ fn checks_landed_literal_sibling_and_rejects_stale_or_unused_custody() {
     let root = value(1, integer_type);
     let sibling = value(2, integer_type);
     let target = value(3, integer_type);
-    let context = PropositionContext::from_value_types(
-        (1..=5).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
-    )
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer_type), 5);
     let landing = Proposition::Equal(sibling.clone(), literal(integer_type, 7));
     let definition = Proposition::Equal(
         target.clone(),
@@ -386,10 +381,7 @@ fn exact_add_backward_maps_bounds_and_rejects_ambiguity() {
     let operand = value(1, integer_type);
     let defined = value(2, integer_type);
     let sibling = value(3, integer_type);
-    let context = PropositionContext::from_value_types(
-        (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
-    )
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer_type), 3);
     let landing = Proposition::Equal(sibling.clone(), literal(integer_type, 1));
     let definition = Proposition::Equal(
         defined.clone(),
@@ -551,10 +543,7 @@ fn rejects_non_value_roots_stale_unsigned_words_and_checked_overflow() {
     let root = value(1, i128_type);
     let intermediate = value(2, i128_type);
     let target = value(3, i128_type);
-    let context = PropositionContext::from_value_types(
-        (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(i128_type))),
-    )
-    .unwrap();
+    let context = value_context(ScalarType::Integer(i128_type), 3);
     let axioms = [
         Proposition::Equal(
             intermediate.clone(),
@@ -592,10 +581,7 @@ fn bitwise_and_mask_witness_rejects_negative_and_unlanded_masks() {
     let root = value(1, integer_type);
     let sibling = value(2, integer_type);
     let target = value(3, integer_type);
-    let context = PropositionContext::from_value_types(
-        (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
-    )
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer_type), 3);
     let witness = || IntegerAffineWitness {
         root: root.clone(),
         target: target.clone(),

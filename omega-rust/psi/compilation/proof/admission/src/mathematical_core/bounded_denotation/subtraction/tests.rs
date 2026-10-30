@@ -8,7 +8,8 @@ use semantic_vocabulary::{
 
 use crate::proof::assumption_proof;
 use crate::{
-    Budget, ProofNode, ProofRule, verify_bounded_certificate, verify_mathematical_certificate,
+    Budget, ProofNode, ProofRule, value_context, verify_bounded_certificate,
+    verify_mathematical_certificate,
 };
 
 fn fixture(
@@ -32,10 +33,7 @@ fn fixture(
             positive: Box::new(assumption_proof(positive, 1)),
         },
     };
-    let context = PropositionContext::from_value_types(
-        (1..=3).map(|value| (ValueId::new(value).unwrap(), scalar)),
-    )
-    .unwrap();
+    let context = value_context(scalar, 3);
     (context, assumptions, proof)
 }
 

@@ -127,6 +127,19 @@ pub(crate) fn correlated_step(
     }
 }
 
+/// The `1..=values` context whose value ids all carry `scalar` — the fixture
+/// preamble the denotation, affine and order suites each stated by hand.
+#[cfg(test)]
+pub(crate) fn value_context(
+    scalar: semantic_vocabulary::ScalarType,
+    values: u64,
+) -> semantic_vocabulary::PropositionContext {
+    semantic_vocabulary::PropositionContext::from_value_types(
+        (1..=values).map(|id| (semantic_vocabulary::ValueId::new(id).unwrap(), scalar)),
+    )
+    .unwrap()
+}
+
 macro_rules! debug_display {
     ($type:ty) => {
         impl std::fmt::Display for $type {
