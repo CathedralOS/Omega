@@ -1423,3 +1423,26 @@ fn callback_root_policy_consumes_prepared_source_correspondence() {
         );
     }
 }
+
+#[test]
+fn selected_callback_custody_carries_declarations_not_source_symbols() {
+    let selection = include_str!("../../realization/selected-dispatch/src/selected_execution.rs");
+    assert!(
+        selection.contains("pub callback_roots: psi_terminal_production::PreparedTerminalRoots")
+    );
+    let custody =
+        include_str!("../../../../psi/compilation/driver/terminal-production/src/custody.rs");
+    assert!(custody.contains("pub callback_roots: Option<&'a crate::PreparedTerminalRoots>"));
+    assert!(!custody.contains("pub admission_roots: &'a [symbols::SymbolHandle]"));
+    let preparation = include_str!(
+        "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/prepared_terminal_roots.rs"
+    );
+    assert!(preparation.contains("crate::machine_lowering::declarations::identity("));
+    assert!(preparation.contains("declaration.same_identity_as("));
+    assert!(preparation.contains("RootDeclaration::Unavailable(reason)"));
+    let admission = include_str!(
+        "../../../../psi/compilation/driver/terminal-production/src/composition_admission.rs"
+    );
+    assert!(admission.contains("entry.chain(callbacks).chain(adapter)"));
+    assert!(admission.contains("roots.retained_roots(&lowered.semantic_module)"));
+}
