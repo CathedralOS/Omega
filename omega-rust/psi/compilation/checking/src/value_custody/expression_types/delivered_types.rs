@@ -56,6 +56,18 @@ pub(super) fn delivered_value_type(
     program: &dyn crate::CheckingInput,
     value: ExpressionHandle,
 ) -> Option<DeliveredType> {
+    // Constant substitution changes the payload syntax, not the complete type
+    // selected by this authored value use. Preserve its application operands
+    // before contextual literal formation can choose another destination.
+    if let Some(declaration) = program.expression_const_declaration(value) {
+        return declaration
+            .declared_type
+            .is_valid()
+            .then_some(DeliveredType {
+                reference: declaration.declared_type,
+                substitutions: Vec::new(),
+            });
+    }
     let mut substitutions = Vec::new();
     let reference = match program.expression_table.expression(value) {
         ExpressionNode::Call(_) => program
@@ -126,6 +138,7 @@ pub(super) fn application_form(
 enum Carrier {
     Parameter(SymbolHandle),
     Data(SymbolHandle),
+    Implementation(SymbolHandle),
     Primitive(PrimitiveType),
 }
 
@@ -138,8 +151,11 @@ fn carrier(program: &dyn crate::CheckingInput, reference: TypeReferenceHandle) -
         return None;
     }
     match program.symbols.get(symbol).kind {
-        symbols::SymbolKind::TypeParameter => Some(Carrier::Parameter(symbol)),
+        symbols::SymbolKind::TypeParameter | symbols::SymbolKind::ConformanceParameter => {
+            Some(Carrier::Parameter(symbol))
+        }
         symbols::SymbolKind::Data => Some(Carrier::Data(symbol)),
+        symbols::SymbolKind::Conformance => Some(Carrier::Implementation(symbol)),
         _ => None,
     }
 }

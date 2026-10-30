@@ -597,6 +597,19 @@ impl TypedTrees {
         reference: TypeReferenceHandle,
         authored: SymbolHandle,
     ) -> Option<&crate::data::DataDefinition> {
+        if !self.type_reference_table.contains_type_reference(reference) {
+            return None;
+        }
+        // A representation's field view keeps T's constructor authority and
+        // complete generic application. Its physical application and policy
+        // remain the value's type; they are not the origin of T's constructor.
+        if let Some(storage) = self.layout_storage_arguments(reference) {
+            return self.data_constructor_definition(
+                self.type_reference_table
+                    .unconstrained_type_reference(storage.semantic_type),
+                authored,
+            );
+        }
         let instance = self
             .data_application_definition(reference)
             .or_else(|| self.closed_data_definition(reference))?;
