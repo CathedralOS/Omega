@@ -18,16 +18,12 @@ fn atomic_exit_admission_binds_memory_width_operands_and_control() {
             family: MachineAlternativeFamily::AtomicAccess(form),
             variant: 0,
         };
-        let encoded = isa_aarch64::encode_aarch64_selected_form(
-            &physical,
+        let instruction = SelectedInstructionId(1);
+        let (store, encoding, layout) = super::form_fixture(
             kind,
             alternative,
             &registers[..usize::from(form.operand_count())],
-        )
-        .unwrap();
-        let instruction = SelectedInstructionId(1);
-        let (store, encoding, layout) =
-            super::validated_aarch64_form_fixture(&encoded, instruction, alternative, kind);
+        );
         for mutation in 0..8 {
             let mut changed = store.clone();
             let footprint = changed.footprint_mut(encoding.footprint).unwrap();

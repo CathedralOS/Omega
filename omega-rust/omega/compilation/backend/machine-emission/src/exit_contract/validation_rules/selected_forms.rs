@@ -124,6 +124,29 @@ pub(in crate::exit_contract) fn aarch64_physical_register_model()
         .unwrap()
 }
 
+/// Encode one AArch64 selected form and admit it through
+/// [`validated_aarch64_form_fixture`], so an admission case names only the
+/// form and the registers it reads.
+#[cfg(test)]
+pub(in crate::exit_contract) fn form_fixture(
+    kind: SelectedInstructionKind,
+    alternative: selected_instructions::MachineAlternativeKey,
+    registers: &[RegisterViewId],
+) -> (
+    machine_code::SelectedFormEncodedRowStore,
+    machine_code::SelectedFormEncodingRow,
+    machine_code::ResolvedSelectedFormRow,
+) {
+    let encoded = isa_aarch64::encode_aarch64_selected_form(
+        &aarch64_physical_register_model(),
+        kind,
+        alternative,
+        registers,
+    )
+    .unwrap();
+    validated_aarch64_form_fixture(&encoded, SelectedInstructionId(1), alternative, kind)
+}
+
 /// The address-bearing sibling of [`validated_aarch64_form_fixture`]: the
 /// same interned footprint and happy-path admission, for the forms whose row
 /// records a resolved physical address.
