@@ -129,6 +129,7 @@ pub(super) struct ActivatedSource {
     pub pre_checks: Vec<PreCheckEvaluation>,
     sources: Arc<SourceMap>,
     template_context: Arc<SyntaxTrees>,
+    declaration_context: Arc<SyntaxTrees>,
 }
 
 impl ActivatedSource {
@@ -233,6 +234,44 @@ impl ActivatedSource {
             .collect::<Vec<_>>();
         let mut context = SyntaxTrees::new(prepared.source_id);
         context.extend_selected_roots_from(prepared, &items, &mathematics);
+        // A prepared cohort owns newly materialized instances, while its
+        // predecessor may own their original generic declarations. Keep those
+        // exact parsed headers in lookup context as well: an instance's source
+        // origin cannot be rederived from its generated display name.
+        let declarations = self.declaration_context.as_ref();
+        let mut headers = context
+            .root_items()
+            .filter_map(|item| {
+                let syntax_trees::item::Item::Data(definition) = item else {
+                    return None;
+                };
+                definition.generic_instance.is_none().then(|| {
+                    (
+                        definition.name.source_span(),
+                        definition.name.as_str(&context).to_owned(),
+                    )
+                })
+            })
+            .collect::<HashSet<_>>();
+        for item in declarations.root_items() {
+            let syntax_trees::item::Item::Data(definition) = item else {
+                continue;
+            };
+            if definition.generic_instance.is_some()
+                || !self
+                    .sources
+                    .source_is_selected(definition.name.source_span().source_id)
+            {
+                continue;
+            }
+            if headers.insert((
+                definition.name.source_span(),
+                definition.name.as_str(declarations).to_owned(),
+            )) {
+                let copied = context.copy_item_from(declarations, item);
+                context.push_root_item(copied);
+            }
+        }
         context
     }
 }
@@ -288,6 +327,7 @@ pub(super) fn select_retained_source(
     candidates.sort_unstable_by_key(|(count, _, _)| std::cmp::Reverse(*count));
     for (count, source, sources) in candidates {
         let template_context = source.pending_bodies.generic_normalization_context();
+        let declaration_context = Arc::clone(&source.context.declaration_syntax);
         let (typing, pending_pre_checks) = super::SourceContinuation::complete_selected(
             source,
             Arc::clone(&sources),
@@ -370,6 +410,7 @@ pub(super) fn select_retained_source(
             pre_checks,
             sources,
             template_context,
+            declaration_context,
         }));
     }
     Ok(None)
