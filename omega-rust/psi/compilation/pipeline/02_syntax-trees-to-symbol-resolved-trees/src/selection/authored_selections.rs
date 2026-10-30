@@ -66,12 +66,11 @@ fn reconcile_copy_targets(
         (CandidateTarget::Resolved(_), CandidateTarget::LateBound(_)) => Ok(retained),
         (CandidateTarget::LateBound(_), CandidateTarget::Resolved(_)) => Ok(candidate),
         // Const/type specialization copies declaration symbols as well as the
-        // authored expression. Equal source-backed declaration coordinates
-        // and symbol kinds therefore identify one authored declaration even
-        // when the executable copy has a distinct arena handle. Retain the
-        // earliest symbol, which is the unspecialized authored declaration.
+        // authored expression. Compare the authored declaration, including an
+        // implicit entry's exact owning machine, rather than requiring every
+        // executable coordinate to carry a source token of its own.
         (CandidateTarget::Resolved(left), CandidateTarget::Resolved(right))
-            if resolved_symbols_share_authored_declaration(program, left, right) =>
+            if resolved_symbols_share_authored_declaration(program, kind, left, right) =>
         {
             Ok(CandidateTarget::Resolved(earlier_symbol(left, right)))
         }
@@ -147,11 +146,19 @@ pub(crate) fn original_call_target(
 
 fn resolved_symbols_share_authored_declaration(
     program: &SymbolResolvedTrees,
+    kind: Kind,
     left: SymbolHandle,
     right: SymbolHandle,
 ) -> bool {
-    program.symbols.get(left).kind == program.symbols.get(right).kind
-        && program.symbols.symbol_source_span(left).is_some()
+    if program.symbols.get(left).kind != program.symbols.get(right).kind {
+        return false;
+    }
+    if kind == Kind::Call {
+        let left = super::call_identity::call_declaration_source(program, left);
+        let right = super::call_identity::call_declaration_source(program, right);
+        return matches!((left, right), (Ok(left), Ok(right)) if left == right);
+    }
+    program.symbols.symbol_source_span(left).is_some()
         && program.symbols.symbol_source_span(left) == program.symbols.symbol_source_span(right)
 }
 

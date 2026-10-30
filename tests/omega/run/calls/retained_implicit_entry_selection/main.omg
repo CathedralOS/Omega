@@ -1,0 +1,16 @@
+// Expected exit: 42.
+// Repeated package preparation retains calls to implicit entries even when
+// the predecessor's machine is no longer in the active declaration roster.
+use omega::language::core::numeric_conversion;
+use omega_language_std::console;
+
+machine main() reaches Console crashes Trap {
+    let widened: u64 = widen_u8_to_u64(42u8);
+    transition widened {
+        42 -> finish()
+        _ -> wrong()
+    }
+
+    machine finish() reaches Console { Console::exit_process(42); }
+    machine wrong() { crash Trap; }
+}
