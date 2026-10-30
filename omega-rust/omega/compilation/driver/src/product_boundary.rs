@@ -687,7 +687,7 @@ fn checked_operator_choice_consumes_retained_candidates() {
 
 #[test]
 fn qualification_grants_consume_prepared_issuer_evidence() {
-    let binding = include_str!("../../realization/provider-planning/src/provider_planning.rs");
+    let binding = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
     assert!(binding.contains(".admitted_qualification_issuers()"));
     let policy = include_str!("../../realization/provider-selection/src/qualification_grants.rs");
     for forbidden in [
