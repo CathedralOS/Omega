@@ -1178,6 +1178,24 @@ pub(super) fn selected_requirement_judgment(
         None,
         depth + 1,
     ) else {
+        if super::super::struct_trace() {
+            let node = program.expression_table.expression(expression);
+            eprintln!(
+                "STRUCT unbound-contract owner={callable:?} expression={expression:?} node={node:?} parameters={parameters:?} bindings={bindings:?}"
+            );
+            if let ExpressionNode::Binary(binary) = node {
+                for operand in [binary.left, binary.right] {
+                    let reference = crate::parameter_expression_result_type_reference(
+                        program, callable, parameters, operand,
+                    );
+                    eprintln!(
+                        "STRUCT unbound-contract operand={operand:?} node={:?} reference={reference:?} primitive={:?}",
+                        program.expression_table.expression(operand),
+                        reference.and_then(|reference| program.primitive_type_reference(reference)),
+                    );
+                }
+            }
+        }
         return StructuralJudgment::Unknown;
     };
     let judgment = judge.judge_observed_predicate(required.clone(), depth);
