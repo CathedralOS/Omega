@@ -136,6 +136,7 @@ pub(crate) fn evidence_requirement_rewrites(
                 ),
                 dispatch: typed_trees::typed_trees::StaticRequirementDispatch {
                     selection_application: Default::default(),
+                    evidence_parameter: binder,
                     application_report_fingerprint: application.report_fingerprint,
                     application_commitment: application.commitment,
                     declaring_trait: row.declaring_trait,
