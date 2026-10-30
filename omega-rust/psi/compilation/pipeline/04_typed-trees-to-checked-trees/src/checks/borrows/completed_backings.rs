@@ -609,9 +609,12 @@ impl Resolver<'_> {
             StoredOperand::Value {
                 capture,
                 projection,
+                slot,
                 ..
             } => {
-                if let Some(formed) = self.current_formation(capture, &projection, operand)? {
+                if let Some(formed) =
+                    self.current_formation(capture, &projection, slot.as_ref(), operand)?
+                {
                     Ok(formed)
                 } else {
                     self.retained_descriptor(capture, &projection, ancestors, forwarded_inputs)
@@ -643,8 +646,12 @@ impl Resolver<'_> {
         &self,
         capture: Handle<FlowOperandFact>,
         projection: &[PlaceSegment],
+        slot: Option<&validation::CanonicalPlace>,
         observation: &FlowOperandFact,
     ) -> Result<Option<BackingFrontier>, &'static str> {
+        let Some(slot) = slot else {
+            return Ok(None);
+        };
         let control = &self.facts.flow.control;
         if !control.operands.is_valid(capture) {
             return Err("the installed descriptor has no completed formation");
@@ -658,6 +665,30 @@ impl Resolver<'_> {
             .borrow
             .first_state_borrow(self.state.machine_symbol, self.state.state_symbol)
             .ok_or("the installed descriptor has no owning borrow state")?;
+        let sources = validation::completed_storage::descriptor_formation_sources(
+            self.program,
+            control,
+            capture,
+            projection,
+            self.state.statements,
+        )
+        .ok_or("the installed descriptor has no complete formation graph")?;
+        let typed_state = self
+            .program
+            .state_by_symbol(self.state.state_symbol)
+            .ok_or("the installed descriptor has no state declaration")?;
+        let order = self
+            .program
+            .statement_table
+            .admitted_execution_order(typed_state.statement_nodes);
+        let homes = validation::completed_storage::InstalledLoanHomes {
+            control,
+            semantic: &self.facts.semantic,
+            borrow: &self.facts.borrow,
+            statements: self.state.statements,
+            order: &order,
+            state: self.state.state_symbol,
+        };
         let mut candidates = Vec::new();
         for handle in self
             .facts
@@ -669,8 +700,7 @@ impl Resolver<'_> {
             }
             let loan = self.facts.borrow.loans.get(handle);
             if loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency
-                || loan.formation_expression != source.expression
-                || loan.statement_index != source.statement_index
+                || loan.storage_owner != slot.root
             {
                 continue;
             }
@@ -684,7 +714,26 @@ impl Resolver<'_> {
                 .span(formed)
                 .ok_or("the installed descriptor formation has an incomplete leaf path")?;
             if path.contains(&checked_trees::BorrowLoanOwnerSegment::DynamicIndex)
-                || !crate::borrow::owner_path_selects_leaf(self.program, path, projection)
+                || !sources.iter().any(|formed| {
+                    let value = control.operands.get(formed.capture);
+                    value.expression == loan.formation_expression
+                        && value.statement_index == loan.statement_index
+                        && crate::borrow::owner_path_selects_leaf(
+                            self.program,
+                            path,
+                            &formed.projection,
+                        )
+                })
+                || crate::checks::storage_path_compatibility(
+                    self.program,
+                    crate::checks::StorageSelectorFacts {
+                        flow: &self.facts.flow,
+                        semantic: &self.facts.semantic,
+                    },
+                    &crate::borrow::owner_place_segments(&homes.owner_path(self.program, loan)),
+                    &slot.segments,
+                )
+                .1 != checked_trees::CapturedPlaceContainment::Same
             {
                 continue;
             }
@@ -706,13 +755,7 @@ impl Resolver<'_> {
         if candidates.is_empty() {
             return Ok(None);
         }
-        let coordinate = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state.state_symbol,
-            observation.statement_index,
-            observation.expression,
-        )
-        .ok_or("the installed descriptor observation has no captured storage coordinate")?;
+        let coordinate = slot.clone();
         // The completed storage query selected one owned descriptor from one
         // installed value. Matching formation rows are its alternative input
         // debts, even when its receiving owner uses a dynamic index. This does

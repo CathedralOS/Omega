@@ -317,11 +317,13 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             &mut build.contexts.constraint_refs,
             entry_constraints,
             borrow,
-            super::borrow_lifetimes::LoanStorageHomes {
+            validation::completed_storage::InstalledLoanHomes {
                 control: &build.control,
                 semantic,
                 statements: previous_statements,
                 order: execution_order,
+                borrow,
+                state: state.symbol,
             },
             program,
             machine,

@@ -91,6 +91,7 @@ fn stored_selection(selection: Selection) -> StoredOperand {
         capture: value.capture,
         reference: value.reference,
         projection: value.projection,
+        slot: value.slot,
     }));
     match alternatives.len() {
         0 => StoredOperand::Unavailable,
@@ -208,6 +209,7 @@ impl Resolver<'_> {
                     capture: value,
                     reference: capture.type_reference,
                     projection: Vec::new(),
+                    slot: None,
                 }],
             };
         }
@@ -590,6 +592,7 @@ impl Resolver<'_> {
                 capture: value,
                 reference: capture.type_reference,
                 projection: path.to_vec(),
+                slot: None,
             }],
         }
     }
@@ -615,6 +618,7 @@ impl Resolver<'_> {
             StoredOperand::Value {
                 capture,
                 mut projection,
+                slot,
                 ..
             } => {
                 projection.extend_from_slice(suffix);
@@ -635,6 +639,7 @@ impl Resolver<'_> {
                             capture,
                             reference,
                             projection,
+                            slot,
                         }],
                     }
                 } else {
@@ -668,10 +673,11 @@ fn join(selections: Vec<Selection>) -> Selection {
             }
         }
         for value in selected {
-            if !values
-                .iter()
-                .any(|prior| prior.capture == value.capture && prior.projection == value.projection)
-            {
+            if !values.iter().any(|prior| {
+                prior.capture == value.capture
+                    && prior.projection == value.projection
+                    && prior.slot == value.slot
+            }) {
                 values.push(value);
             }
         }

@@ -1266,6 +1266,17 @@ pub fn storage_place_loans(
         .borrow
         .storage_loans(borrowing, owner, statement_index as usize)?;
     let flow = state_flow(facts, machine, state.symbol)?;
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    let homes = crate::completed_storage::InstalledLoanHomes {
+        control: &facts.flow.control,
+        semantic: &facts.semantic,
+        borrow: &facts.borrow,
+        statements: flow.statements,
+        order: &order,
+        state: state.symbol,
+    };
     let activations = facts
         .flow
         .borrow_lifetimes
@@ -1273,9 +1284,8 @@ pub fn storage_place_loans(
         .span(flow.borrow_activations)?;
     let mut captured = Vec::new();
     for (handle, loan) in facts.borrow.loan_group(loans)? {
-        if !facts
-            .borrow
-            .loan_owner_path(loan)
+        if !homes
+            .owner_path(program, loan)
             .starts_with(&selected_owner_path)
         {
             continue;
@@ -1293,7 +1303,9 @@ pub fn storage_place_loans(
         }
         captured.push(handle);
     }
-    record_leaf_loan_groups(program, facts, reference, owner, &captured, selection)
+    record_leaf_loan_groups(
+        program, facts, reference, owner, &captured, selection, homes,
+    )
 }
 
 /// A borrowed formal has an ingress permission, not an installed owned
@@ -1389,6 +1401,14 @@ fn replaced_stored_reference_carrier(
     )?;
     let owner_path = loan_owner_path(program, reference, selection)?;
     let flow = state_flow(facts, machine, state.symbol)?;
+    let homes = crate::completed_storage::InstalledLoanHomes {
+        control: &facts.flow.control,
+        semantic: &facts.semantic,
+        borrow: &facts.borrow,
+        statements: flow.statements,
+        order: &order,
+        state: state.symbol,
+    };
     let mut formation = None;
     for weakening in facts
         .flow
@@ -1405,7 +1425,7 @@ fn replaced_stored_reference_carrier(
             continue;
         }
         let loan = facts.borrow.loans.get(weakening.loan);
-        if loan.storage_owner != owner || facts.borrow.loan_owner_path(loan) != owner_path {
+        if loan.storage_owner != owner || homes.owner_path(program, loan).as_ref() != owner_path {
             continue;
         }
         if !order.precedes(loan.statement_index, statement_index as usize)
@@ -1466,6 +1486,7 @@ fn record_leaf_loan_groups(
     owner: facts::PlaceRoot,
     loans: &[arena::Handle<checked_trees::BorrowLoanFact>],
     selection: &[checked_trees::CheckedUnitStructuralPathSegment],
+    homes: crate::completed_storage::InstalledLoanHomes<'_>,
 ) -> Option<Vec<RecordLeafLoans>> {
     let source = match owner {
         facts::PlaceRoot::Symbol(symbol) => {
@@ -1491,7 +1512,7 @@ fn record_leaf_loan_groups(
         let mut formation = None;
         for handle in loans.iter().copied() {
             let loan = facts.borrow.loans.get(handle);
-            if facts.borrow.loan_owner_path(loan) != owner_path {
+            if homes.owner_path(program, loan).as_ref() != owner_path {
                 continue;
             }
             if loan.storage_owner != owner
@@ -1768,6 +1789,7 @@ fn active_record_loans(
     }) {
         return None;
     }
+    let flow = state_flow(facts, machine, state.symbol)?;
     record_leaf_loan_groups(
         program,
         facts,
@@ -1775,6 +1797,14 @@ fn active_record_loans(
         facts::PlaceRoot::Symbol(local.symbol),
         &loans,
         &[],
+        crate::completed_storage::InstalledLoanHomes {
+            control: &facts.flow.control,
+            semantic: &facts.semantic,
+            borrow: &facts.borrow,
+            statements: flow.statements,
+            order: &order,
+            state: state.symbol,
+        },
     )
 }
 
