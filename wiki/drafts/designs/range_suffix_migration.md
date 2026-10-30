@@ -705,3 +705,29 @@ Producer: optimized `867738eb9535b2fba0b8300eeaccd64d2c2e6474` on macOS
 ARM64. The original positive also ran 0/0 and the original negative rejected
 before migration. This closes only these three source positions, not the
 historical audit, parser retirement, a new fact row or the parent task.
+
+## Audited bootstrap parser customer
+
+The two accepted `data R` inputs in
+`tests/bootstrap/omega-parser/main.epsilon` declared `b: u32 [0..=9]`.
+Both now retain `b: u32` with complete-data `requires b <= 9`; the unsigned
+carrier supplies the zero floor. Their array, shared reference and named-domain
+neighbors and the repeated-invocation `Exit(0)` / stdout `A` oracle remain.
+The former hexadecimal endpoint controls instead refuse the retired suffix at
+its opening bracket, before an endpoint can be parsed. Independent hexadecimal
+array, expression and transition controls retain their original obligations.
+
+The Epsilon implementation records repeated data requirements as ordered roots
+in its ordinary expression arena, associated with the enclosing data row. The
+existing customer checks those roots, exact operand/operator spans, grouping,
+precedence and ownership across adjacent declarations with and without clauses.
+Missing and unfinished predicates refuse, and the same receiver rebuilds its
+live rows after failures. The obsolete suffix parser, range discriminator,
+endpoint payloads, scratch and diagnostics are removed together. Named-domain
+qualification retains its exact path; array and slice expressions are separate.
+
+This maps the bootstrap customer's original declarations and syntax controls.
+Epsilon execution of that customer is not Omega native/Terminal evidence and
+does not close the historical declaration audit, Rust Range retirement or the
+parent task. The existing qualification records distinguish model observations
+from actual lower-chain execution and retain their exact compiler subjects.

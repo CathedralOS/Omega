@@ -11,7 +11,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.parser.parse_view("data R { a: [u8; 2]; b: u32 [0..=9]; c: &u8; d: u32 in Domain; }");
+    self.parser.parse_view("data R requires b <= 9 { a: [u8; 2]; b: u32; c: &u8; d: u32 in Domain; }");
     self.check_data_rows();
 
     self.parser.parse_view("machine p() { x = 7; y = Packet { tag: 1 }; z = value as u32 in Trapping; transition 1 { 1 -> done() } state done() {} }");
@@ -31,10 +31,10 @@ machine Main::main(&mut self) {
     self.check_incomplete(17, 20);
 
     self.parser.parse_view("data R { a: u32 [0x0..=9]; }");
-    self.check_incomplete(17, 20);
+    self.check_suffix_refused(16, 17);
 
     self.parser.parse_view("data R { a: u32 [0..=0x9]; }");
-    self.check_incomplete(21, 24);
+    self.check_suffix_refused(16, 17);
 
     self.parser.parse_view("machine p() { transition 1 { 0x1 -> done() } state done() {} }");
     self.check_incomplete(29, 32);
@@ -45,8 +45,18 @@ machine Main::main(&mut self) {
     self.parser.parse_view("machine p() { x = value as &u8; }");
     self.check_incomplete(27, 28);
 
+    self.parser.parse_view("data Bound [copy] requires self.b > 0 requires b <= (3 + 6) || false { b: u32; } data Plain { value: u32; } data Flag requires ready { ready: bool; }");
+    self.check_requirement_owners();
+
+    self.parser.parse_view("data Missing requires { value: u32; }");
+    self.check_requirement_refused(22, 23);
+    self.parser.parse_view("data Missing requires");
+    self.check_requirement_refused(21, 21);
+    self.parser.parse_view("data Missing requires value <=");
+    self.check_requirement_refused(30, 30);
+
     // Reusing the same receiver after failures must rebuild the same live rows.
-    self.parser.parse_view("data R { a: [u8; 2]; b: u32 [0..=9]; c: &u8; d: u32 in Domain; }");
+    self.parser.parse_view("data R requires b <= 9 { a: [u8; 2]; b: u32; c: &u8; d: u32 in Domain; }");
     self.check_data_rows();
     self.console.write_byte(65);
 }
@@ -76,13 +86,97 @@ machine Main::check_data_rows(&mut self) {
     assert self.parser.data_count == 1;
     assert self.parser.machine_count == 0;
     assert self.parser.data_field_count == 4;
-    assert self.parser.type_reference_count == 8;
-    assert self.parser.type_constraint_count == 2;
+    assert self.parser.type_reference_count == 7;
+    assert self.parser.type_constraint_count == 1;
     assert self.parser.statement_count == 0;
     assert self.parser.data_fields[0].type_reference == 1;
-    assert self.parser.data_fields[1].type_reference == 3;
-    assert self.parser.data_fields[2].type_reference == 5;
-    assert self.parser.data_fields[3].type_reference == 7;
+    assert self.parser.data_fields[1].type_reference == 2;
+    assert self.parser.data_fields[2].type_reference == 4;
+    assert self.parser.data_fields[3].type_reference == 6;
+    assert self.parser.type_references[1].payload0 == 0;
+    assert self.parser.type_references[2].payload0 == 40;
+    assert self.parser.type_references[2].payload1 == 43;
+    assert self.parser.type_references[4].payload0 == 3;
+    assert self.parser.type_references[4].payload1 == 0;
+    assert self.parser.type_references[6].payload0 == 5;
+    assert self.parser.type_references[6].payload1 == 0;
+    assert self.parser.type_references[6].payload2 == 1;
+    assert self.parser.type_constraints[0].path_member_count == 1;
+    assert self.parser.members[self.parser.type_constraints[0].first_path_member].start == 63;
+    assert self.parser.members[self.parser.type_constraints[0].first_path_member].end == 69;
+    assert self.parser.data_requirement_count == 1;
+    assert self.parser.data_items[0].first_requirement == 0;
+    assert self.parser.data_items[0].requirement_count == 1;
+    assert self.parser.data_requirements[0].expression == 2;
+    assert self.parser.data_requirements[0].start == 7;
+    assert self.parser.data_requirements[0].end == 22;
+    assert self.parser.expression_count == 3;
+    assert self.parser.binary_expression_count == 1;
+    assert self.parser.binary_expressions[0].left == 0;
+    assert self.parser.binary_expressions[0].right == 1;
+    assert self.parser.binary_expressions[0].operator_start == 18;
+    assert self.parser.binary_expressions[0].operator_end == 20;
+    assert self.parser.expressions[0].payload1 == 1;
+    assert self.parser.members[self.parser.expressions[0].payload0].start == 16;
+    assert self.parser.members[self.parser.expressions[0].payload0].end == 17;
+    assert self.parser.expressions[1].payload0 == 21;
+    assert self.parser.expressions[1].payload1 == 22;
+    transition self.parser.binary_expressions[0].operator {
+        OmegaBinaryOperatorKind::LessEqual -> return
+        _ -> self.console.exit_process(1)
+    }
+}
+
+machine Main::check_requirement_owners(&mut self) {
+    self.check_complete();
+    assert self.parser.root_count == 3;
+    assert self.parser.data_count == 3;
+    assert self.parser.data_requirement_count == 3;
+    assert self.parser.data_items[0].first_requirement == 0;
+    assert self.parser.data_items[0].requirement_count == 2;
+    assert self.parser.data_items[1].first_requirement == 2;
+    assert self.parser.data_items[1].requirement_count == 0;
+    assert self.parser.data_items[2].first_requirement == 2;
+    assert self.parser.data_items[2].requirement_count == 1;
+    assert self.parser.expression_count == 11;
+    assert self.parser.binary_expression_count == 4;
+    assert self.parser.data_requirements[0].expression == 2;
+    assert self.parser.data_requirements[1].expression == 9;
+    assert self.parser.data_requirements[2].expression == 10;
+    assert self.parser.binary_expressions[2].right == 6;
+    assert self.parser.binary_expressions[3].left == 7;
+    assert self.parser.binary_expressions[3].right == 8;
+}
+
+machine Main::check_suffix_refused(&mut self, start: i32, end: i32) {
+    transition self.parser.diagnostic_code {
+        OmegaParseDiagnosticCode::UnexpectedTypeSuffix -> coordinates()
+        _ -> self.console.exit_process(1)
+    }
+    state coordinates() {
+        self.check_syntax_refused(start, end);
+    }
+}
+
+machine Main::check_requirement_refused(&mut self, start: i32, end: i32) {
+    transition self.parser.diagnostic_code {
+        OmegaParseDiagnosticCode::ExpectedDataRequirement -> coordinates()
+        _ -> self.console.exit_process(1)
+    }
+    state coordinates() {
+        self.check_syntax_refused(start, end);
+    }
+}
+
+machine Main::check_syntax_refused(&mut self, start: i32, end: i32) {
+    transition self.parser.status {
+        OmegaParserStatus::SyntaxFailure -> coordinates()
+        _ -> self.console.exit_process(1)
+    }
+    state coordinates() {
+        assert self.parser.diagnostic_start == start;
+        assert self.parser.diagnostic_end == end;
+    }
 }
 
 machine Main::check_machine_rows(&mut self) {

@@ -56,10 +56,10 @@ members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current eight-member
-manifest materializes 16,482 lines / 569,920 bytes with SHA-256
-`f5f051fba1ac62322cc1b0af9f3dc8e5fb1951feef24e44a627f1d9e4c28f842`.
+manifest materializes 16,498 lines / 571,647 bytes with SHA-256
+`895fee46c73c1bad33b366eac40d029f939f475d59b84302eaa0ae681ac30e47`.
 The manifest itself is 1,338 bytes, SHA-256
-`1d3208356faf8eea788f05cb2ee629da80ecd79b1900a803fe26cc866b792f5f`;
+`aff7b1cfc715518634237a1a2ba00b70d84614baec76f7f14dd0956e252e4db5`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers the refusals.
 A digest is an identity check on the bytes being compiled, not a proof that
@@ -359,7 +359,8 @@ while `bytes[1..]` owns an open-ended range index. Closing the current root
 census does not imply that the parser implements unexercised Omega syntax or
 that `D` has semantic, lowering, or emission closure.
 
-Data syntax retains an optional `[copy]` property, bare named fields,
+Data syntax retains an optional `[copy]` property, repeated `requires`
+predicates, bare named fields,
 payload-free cases, contextual `case: Type` fields, structured case payloads
 over the same bare named type leaf, one unqualified `Base in Domain`
 constraint, recursively nested fixed arrays `[Type; length]`
@@ -374,11 +375,14 @@ shared/mutable/write-only access plus an optional exact lifetime span.
 FixedArray and Slice nodes point backward to their element; FixedArray also
 retains the exact length span. SelfType and Unit need no payload.
 Domain constraints point into the general path arena; array lengths retain exact
-spans without interpreting their values. D also still parses the scalar
-range-annotation suffix and retains its literal endpoint spans. That is migration
-debt under `CANONICALIZE-SCALAR-RANGE-CONTRACTS` in [the board](../../TASKS.md):
-the replacement must use the owning `where`/`requires`/`ensures` clause, not an
-automatically generated nominal domain. Bracket syntax
+spans without interpreting their values. Data predicates retain source-ordered
+ordinary expression roots and clause spans; each data row owns its exact
+requirement span, including an empty span for a declaration with no predicates.
+The common expression builder owns precedence, groups, paths, literals and
+operators. Completing a predicate leaves the next `requires` or body-opening
+brace to the data-header parser. These are retained syntax, not an assertion
+that D already proves the data's default-domain obligations. Scalar range type
+suffixes are syntax failures at their opening bracket. Bracket syntax
 uses a bounded invocation-local frame stack and emits named, array, and slice
 nodes in postorder, so every child index points backward.
 Compact kind/index ledgers reach the use/data/machine rows and field/case child
@@ -391,7 +395,7 @@ stop as implementation-incomplete rather than becoming false Omega rejections.
 
 The provisional backing tables hold 4,096 root/use/data/machine/state rows and
 16,384 path-member/data-member/direct-field/payload-field/case/machine-parameter/
-machine-clause/type-node/constraint/statement/call-statement/call-expression/
+machine-clause/data-requirement/type-node/constraint/statement/call-statement/call-expression/
 cast-expression/assignment/local-data/transition/expression/binary-expression/
 unary-expression/
 indexed-expression/
