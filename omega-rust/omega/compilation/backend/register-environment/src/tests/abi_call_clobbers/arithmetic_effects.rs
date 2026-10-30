@@ -333,6 +333,12 @@ fn expected_size(
     }
 }
 
+/// Flag custody on one rule's ISA: every x86-64 form in this table clobbers
+/// the condition codes, and the AArch64 form states its own custody.
+const fn flag_custody(x86: bool, aarch64: FlagsCustody) -> FlagsCustody {
+    if x86 { FlagsCustody::Clobber } else { aarch64 }
+}
+
 /// The declared arithmetic contract one selected semantic must carry on each
 /// ISA. The two ISAs share operand shapes but own different flag custody:
 /// x86-64 realizes flag-writing forms as clobbers and pins the divide and
@@ -380,19 +386,11 @@ fn arithmetic_contract(
             ArithmeticContract::plain(&[Use, Def], one(&[0], &[1]))
         }
         BitwiseAndI64 | BitwiseXorI64 => ArithmeticContract {
-            flags: if x86 {
-                FlagsCustody::Clobber
-            } else {
-                FlagsCustody::None
-            },
+            flags: flag_custody(x86, FlagsCustody::None),
             ..ArithmeticContract::plain(&[Use, Use, Def], one(&[0, 1], &[2]))
         },
         ExactSubtractI64 => ArithmeticContract {
-            flags: if x86 {
-                FlagsCustody::Clobber
-            } else {
-                FlagsCustody::None
-            },
+            flags: flag_custody(x86, FlagsCustody::None),
             alternatives: if x86 {
                 vec![
                     // The alias-safe realization family: `xor` when both
@@ -451,11 +449,7 @@ fn arithmetic_contract(
         // shares one view, so the fully-aliased variant still reads both
         // logical operands — unlike the `xor`-realized subtract.
         ExactMultiplyI64 => ArithmeticContract {
-            flags: if x86 {
-                FlagsCustody::Clobber
-            } else {
-                FlagsCustody::None
-            },
+            flags: flag_custody(x86, FlagsCustody::None),
             alternatives: if x86 {
                 vec![
                     AlternativeContract {
@@ -515,11 +509,7 @@ fn arithmetic_contract(
             | SaturatingCarrier::U64,
         ) => ArithmeticContract {
             early_clobbers: if x86 { &[2] } else { &[] },
-            flags: if x86 {
-                FlagsCustody::Clobber
-            } else {
-                FlagsCustody::Def
-            },
+            flags: flag_custody(x86, FlagsCustody::Def),
             ..ArithmeticContract::plain(&[Use, Use, Def], one(&[0, 1], &[2]))
         },
         ExactDivideU64
@@ -534,11 +524,7 @@ fn arithmetic_contract(
             } else {
                 &[]
             },
-            flags: if x86 {
-                FlagsCustody::Clobber
-            } else {
-                FlagsCustody::None
-            },
+            flags: flag_custody(x86, FlagsCustody::None),
             extra_clobbers: if x86 { &["rdx"] } else { &[] },
             faulting: x86,
             alternatives: if x86 {
@@ -566,11 +552,7 @@ fn arithmetic_contract(
             } else {
                 &[]
             },
-            flags: if x86 {
-                FlagsCustody::Clobber
-            } else {
-                FlagsCustody::None
-            },
+            flags: flag_custody(x86, FlagsCustody::None),
             faulting: x86,
             alternatives: if x86 {
                 one(&[0, 1], &[2, 3])
@@ -597,11 +579,7 @@ fn arithmetic_contract(
             } else {
                 &[]
             },
-            flags: if x86 {
-                FlagsCustody::Clobber
-            } else {
-                FlagsCustody::None
-            },
+            flags: flag_custody(x86, FlagsCustody::None),
             faulting: x86,
             alternatives: if x86 {
                 one(&[0, 1], &[2, 3])
@@ -622,11 +600,7 @@ fn arithmetic_contract(
         // additionally accumulates in an early-clobber result.
         SaturatingAdd(_) | SaturatingSubtract(_) => ArithmeticContract {
             early_clobbers: &[2, 3],
-            flags: if x86 {
-                FlagsCustody::Clobber
-            } else {
-                FlagsCustody::Def
-            },
+            flags: flag_custody(x86, FlagsCustody::Def),
             ..ArithmeticContract::plain(&[Use, Use, Def, Def], one(&[0, 1], &[2, 3]))
         },
         // x86-64 keeps the unsigned-division operand shape (an explicit RDX
@@ -641,11 +615,7 @@ fn arithmetic_contract(
             } else {
                 &[]
             },
-            flags: if x86 {
-                FlagsCustody::Clobber
-            } else {
-                FlagsCustody::Def
-            },
+            flags: flag_custody(x86, FlagsCustody::Def),
             extra_clobbers: if x86 { &["rdx"] } else { &[] },
             faulting: x86,
             alternatives: if x86 {
@@ -674,11 +644,7 @@ fn arithmetic_contract(
         // an early-clobber scratch, like the clamped add.
         SaturatingMultiply(_) => ArithmeticContract {
             early_clobbers: &[2, 3],
-            flags: if x86 {
-                FlagsCustody::Clobber
-            } else {
-                FlagsCustody::Def
-            },
+            flags: flag_custody(x86, FlagsCustody::Def),
             ..ArithmeticContract::plain(&[Use, Use, Def, Def], one(&[0, 1], &[2, 3]))
         },
         CompareI64Zero | CompareI64Immediate => ArithmeticContract {
