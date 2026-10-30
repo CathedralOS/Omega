@@ -23,6 +23,7 @@ use crate::custody::resolve_structural_path_type;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::SuspendedCall;
 use crate::execution::TerminalExecution;
+use crate::execution::frame_field_mut;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::{
     StructuralFieldNamespace, StructuralRuntimePlace, StructuralScalarRuntimeField,
@@ -2438,15 +2439,7 @@ impl TerminalExecution<'_> {
         // storage topology changes between preparation and this commit.
         match endpoint {
             PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => {
-                let arrays = if home.depth == self.call_stack.len() {
-                    &mut self.scalar_array_values
-                } else {
-                    &mut self
-                        .call_stack
-                        .get_mut(home.depth)
-                        .ok_or(malformed())?
-                        .scalar_array_values
-                };
+                let arrays = frame_field_mut!(self, home.depth, scalar_array_values);
                 let array = arrays.backing_mut(&home.place).ok_or(
                     TerminalInterpretError::StructuralPrimitiveStorageMissing(destination),
                 )?;
