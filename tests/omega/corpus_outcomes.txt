@@ -22920,6 +22920,14 @@ fail/ranges/correlated_store_selector_retires_bound rejected 766ms expected @a92
 	machine `write` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/ranges/correlated_store_unsafe_intermediate rejected 568ms expected @a92f16431042
 	exact arithmetic in machine `write` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/ranges/guarded_case_payload_other_bound rejected 1456ms expected @2c185c80180f
+	cannot prove subslice range end bound `0..__transition_subject#13.length` is within slice length 4
+fail/ranges/guarded_case_payload_other_subject rejected 701ms expected @2c185c80180f
+	cannot form specification operator `<=` in machine `read` requires contract: no exact selected meaning
+fail/ranges/guarded_case_payload_self_justifying rejected 701ms expected @2c185c80180f
+	cannot form specification operator `<=` in data `Text` default-domain predicate: no exact selected meaning
+fail/ranges/guarded_case_payload_sibling_guard rejected 701ms expected @2c185c80180f
+	cannot form specification operator `<=` in data `Text` default-domain predicate: no exact selected meaning
 fail/ranges/index_signed_guard_below_zero rejected 3293ms expected @a92f16431042
 	cannot prove index `main.j` is non-negative (>= 0)
 fail/ranges/loop_increment_index_unbounded rejected 3213ms expected @a92f16431042
@@ -35027,6 +35035,8 @@ run/providers/target_applicable_provider_closure checked 10979ms check-target:ma
 run/providers/target_family_provider_boundary_identity_exit checked 10510ms check-target:macos_arm64 @a92f16431042
 run/ranges/borrowed_case_payload_alias checked 2774ms check-target:macos_arm64 @02f650a3c5b1
 run/ranges/borrowed_case_payload_bound checked 2823ms check-target:macos_arm64 @02f650a3c5b1
+run/ranges/guarded_case_payload_identity checked 2333ms check-target:macos_arm64 @2c185c80180f
+run/ranges/guarded_case_payload_types checked 2294ms check-target:macos_arm64 @2c185c80180f
 run/ranges/refuted_boolean_alias_dispatch checked 2899ms check-target:macos_arm64 @aab8b8443f04
 run/ranges/refuted_boolean_alias_local checked 2971ms check-target:macos_arm64 @aab8b8443f04
 run/slices/call_result_mutable_window_exit incomplete 8836ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042

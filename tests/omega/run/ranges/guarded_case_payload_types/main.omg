@@ -1,0 +1,27 @@
+// Expected exit: 0.
+// Case identity selects the field's type, not a same-named sibling's type.
+data Number
+    requires ((self in Number::Signed) && self.value == -3i32)
+        || ((self in Number::Unsigned) && self.value == 7u64)
+{
+    case Signed(value: i32);
+    case Unsigned(value: u64);
+}
+machine matches(number: &Number) -> bool {
+    transition number {
+        Number::Signed { value } -> signed_value(value)
+        Number::Unsigned { value } -> unsigned_value(value)
+    }
+    machine signed_value(value: i32) -> bool { value == -3i32 }
+    machine unsigned_value(value: u64) -> bool { value == 7u64 }
+}
+machine main() crashes Trap {
+    let signed: Number = Number::Signed { value: -3i32 };
+    let unsigned: Number = Number::Unsigned { value: 7u64 };
+    transition matches(&signed) && matches(&unsigned) {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
