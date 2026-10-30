@@ -1,0 +1,33 @@
+// Recursive helpers retain every actual boundary requirement independently of their published invocation ceilings.
+// Expected exit: 0
+boundary trait First { machine value() -> u64 reaches; }
+boundary trait Second { machine value() -> u64 reaches; }
+boundary trait Third { machine value() -> u64 reaches; }
+FirstSelected satisfies First { machine value() -> u64 { 1 } }
+SecondSelected satisfies Second { machine value() -> u64 { 2 } }
+ThirdSelected satisfies Third { machine value() -> u64 { 4 } }
+public machine a(remaining: u64) -> u64
+invokes First;
+invokes Second;
+invokes Third;
+{
+    transition remaining > 0 { true -> b(remaining - 1) false -> first() }
+}
+machine b(remaining: u64) -> u64 {
+    transition remaining > 0 { true -> c(remaining - 1) false -> second() }
+}
+machine c(remaining: u64) -> u64 {
+    transition remaining > 0 { true -> a(remaining - 1) false -> third() }
+}
+machine first() -> u64 { First::value() }
+machine second() -> u64 { Second::value() }
+machine third() -> u64 { Third::value() }
+machine main() crashes Trap {
+    let from_a: u64 = a(1);
+    let from_b: u64 = b(1);
+    let from_c: u64 = c(1);
+    transition from_a == 2 && from_b == 4 && from_c == 1 {
+        true -> {} false -> bad()
+    }
+    machine bad() crashes Trap { crash Trap; }
+}
