@@ -76,10 +76,18 @@ fn capture_projection(
     let borrowed_root = program
         .state_parameter_by_symbol(state, source.root)
         .is_some();
+    // The prefix alias owner has already captured this reference value. Its
+    // former descriptor home must not be loaded again. Current standalone
+    // slot rows shadow older aliases before this query, including unknown
+    // replacements; ordinary stored locals still owe their root slot load.
+    let captured_root = aliases
+        .iter()
+        .any(|(name, _)| program.symbols.name(source.root) == name);
     let mut carrier_readable = true;
     if let Some(access) = cursor.reference_access()
         && (usage == ProjectionUse::Address
             || borrowed_root
+            || captured_root
             || !crate::stores_reference_shape(program, reference, &[]))
     {
         if usage == ProjectionUse::Contents && !access.is_readable() {
