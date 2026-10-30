@@ -636,6 +636,38 @@ pub struct AppliedDomainApplication {
 }
 
 impl TypedTrees {
+    /// Read the ordered obligations of a conjunctive fact roster without
+    /// replacing its authored expressions. Formation and operator selection
+    /// still inspect the original clauses; consumers share the exact leaves.
+    /// Disjunction, negation, membership and proposition rows remain whole.
+    pub fn conjunctive_proof_facts(
+        &self,
+        facts: HandleSpan<ProofFact>,
+    ) -> impl Iterator<Item = ProofFact> + '_ {
+        let mut pending = self
+            .proof_facts
+            .span_or_empty(facts)
+            .iter()
+            .rev()
+            .cloned()
+            .collect::<Vec<_>>();
+        std::iter::from_fn(move || {
+            while let Some(fact) = pending.pop() {
+                if let Some(expression) = fact.as_expression()
+                    && let Some(binary) = self.expression_table.binary_node(*expression)
+                    && binary.operator == crate::expression::BinaryOperator::And
+                {
+                    pending.extend([binary.right, binary.left].map(ProofFact::Expression));
+                } else {
+                    return Some(fact);
+                }
+            }
+            None
+        })
+    }
+}
+
+impl TypedTrees {
     pub fn domain_arguments_for_instance(
         &self,
         symbol: SymbolHandle,

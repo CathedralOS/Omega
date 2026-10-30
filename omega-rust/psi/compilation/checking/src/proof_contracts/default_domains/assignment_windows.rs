@@ -375,37 +375,16 @@ pub(crate) fn handle_assignment<'program>(
     // A collection-predicate fact over other fields is untouched by this
     // store; its element windows are tracked separately.
     let written_field = selected_field.map(|field| field.symbol);
-    // Conjunction owns independent obligations regardless of their arithmetic
-    // spelling. Keep the exact original conjuncts, then let the declaration's
-    // read-set owner below identify what this write can invalidate. The closed
-    // region check is what preserves an untouched sibling, not recognition as
-    // an interval (which misses, for example, the bound `0 - 10 <= delta`).
-    // Fresh roots and open windows still owe every conjunct. Disjunctions and
-    // other predicates remain whole; no necessary bound replaces their converse.
-    let mut pending = if store_checked {
+    // Read the same ordered obligation roster as establishment and handback.
+    // Closed storage preserves untouched rows; a fresh root or open window
+    // still owes every conjunct, including field-free false obligations.
+    let declared_facts = if store_checked {
         Vec::new()
     } else {
         program
-            .proof_facts
-            .span_or_empty(definition.where_facts)
-            .iter()
-            .rev()
-            .cloned()
-            .collect::<Vec<_>>()
+            .conjunctive_proof_facts(definition.where_facts)
+            .collect()
     };
-    let mut declared_facts = Vec::new();
-    while let Some(fact) = pending.pop() {
-        if let Some(expression) = fact.as_expression()
-            && let Some(binary) = program.expression_table.binary_node(*expression)
-            && binary.operator == typed_trees::expression::BinaryOperator::And
-        {
-            pending.extend(
-                [binary.right, binary.left].map(typed_trees::domain::ProofFact::Expression),
-            );
-        } else {
-            declared_facts.push(fact);
-        }
-    }
     let type_facts = declared_facts.iter().filter(|fact| {
         if !region_was_established {
             return true;

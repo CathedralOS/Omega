@@ -265,9 +265,7 @@ fn definition_own_facts_carried(
         return true;
     }
     program
-        .proof_facts
-        .span_or_empty(definition.where_facts)
-        .iter()
+        .conjunctive_proof_facts(definition.where_facts)
         .all(|fact| {
             let Some(expression) = fact.as_expression() else {
                 return false;
@@ -401,11 +399,7 @@ impl RowEmitter<'_, '_> {
             prefix,
             definition,
         };
-        for fact in self
-            .program
-            .proof_facts
-            .span_or_empty(definition.where_facts)
-        {
+        for fact in self.program.conjunctive_proof_facts(definition.where_facts) {
             let Some(expression) = fact.as_expression() else {
                 continue;
             };
