@@ -1,0 +1,25 @@
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs
+index d3b5582387c..faf24597128 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs
+@@ -82,7 +82,7 @@ struct IntegerObservations<'program> {
+     carrier_bounds: Vec<ObservedCarrierBounds>,
+     installed_carrier_bounds: usize,
+     next_operation_id: usize,
+-    // Only one immutable judge's goal batch may share resolved operand payloads.
++    // Answers belong to one immutable judge's query or goal batch.
+     operand_resolutions: Option<Vec<(StructuralTerm, StructuralTerm)>>,
+ }
+ 
+@@ -1449,7 +1449,10 @@ impl<'program> StructuralJudge<'program> {
+             carrier_bounds: Vec::new(),
+             installed_carrier_bounds: 0,
+             next_operation_id: 0,
+-            operand_resolutions: None,
++            // Goal and premise projection use the same immutable judge. Reuse
++            // only exact operand payloads within this query; formation and
++            // operation registration still run for every occurrence.
++            operand_resolutions: Some(Vec::new()),
+         };
+         let comparison = self.integer_comparison(predicate, &mut observations)?;
+         let goal_operations = 0..observations.operations.len();

@@ -1,0 +1,3 @@
+cannot compile admitted project: checked compilation failed for package `closed_constructor_requires_restricted_nested_call_rejected` with 1 diagnostic(s)
+  error: machine `outer` state `entry` value call to `restricted` violates required fact `false`: the instantiated fact is structurally false
+    in package `closed_constructor_requires_restricted_nested_call_rejected`, \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\build\preparation-convergence\cases\candidate-closed_constructor_requires_restricted_nested_call_rejected\input\main.omg:7:49

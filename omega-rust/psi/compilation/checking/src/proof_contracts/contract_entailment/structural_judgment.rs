@@ -118,6 +118,10 @@ pub(crate) enum StructuralTerm {
         callable: SymbolHandle,
         occurrence: usize,
         result_type: TypeReferenceHandle,
+        // Immutable producer evidence for this exact completed observation.
+        // Snapshot comparisons include this evidence so joins cannot retain
+        // one predecessor's bounds. It never authorizes a storage reread.
+        integer_range: Option<Arc<checked_trees::IntegerRangeRecipe>>,
     },
     /// A field path on the same completed value, never a callee-local spelling.
     BoundProjection {
@@ -239,6 +243,26 @@ mod rewrite_table;
 mod term_identity;
 
 impl StructuralTerm {
+    /// Every contributing completed value must carry a recipe. The result
+    /// describes the union of those values, never one chosen predecessor.
+    pub(super) fn joined_integer_ranges<'a>(
+        values: impl IntoIterator<Item = Option<&'a StructuralTerm>>,
+    ) -> Option<Arc<checked_trees::IntegerRangeRecipe>> {
+        let mut joined: Option<checked_trees::IntegerRangeRecipe> = None;
+        for value in values {
+            let StructuralTerm::CapturedValue {
+                integer_range: Some(recipe),
+                ..
+            } = value?.semantic_value()
+            else {
+                return None;
+            };
+            joined =
+                Some(joined.map_or_else(|| recipe.as_ref().clone(), |prior| prior.union(recipe)));
+        }
+        joined.map(Arc::new)
+    }
+
     pub(super) fn is_mathematical_predicate(&self) -> bool {
         if let Self::MathematicalBinary {
             operator: BinaryOperator::And,
@@ -491,6 +515,7 @@ pub(super) struct StructuralJudge<'program> {
     // A recurrent call consumes its checked contract instead of unfolding again.
     body_invocations: Arc<Vec<SymbolHandle>>,
     active_application: Option<Arc<resolution_queries::ApplicationResolution<'program>>>,
+    resolution_results: Option<Arc<resolution_queries::ResolutionResults<'program>>>,
     normal_memberships: Arc<Vec<MembershipGuarantee>>,
     pub(super) normal_content_guarantees:
         Arc<Vec<super::content_conservation::ObservedContentEquation>>,
@@ -562,6 +587,7 @@ impl Clone for StructuralJudge<'_> {
             returned_field_trace: self.returned_field_trace.clone(),
             body_invocations: Arc::clone(&self.body_invocations),
             active_application: self.active_application.clone(),
+            resolution_results: self.resolution_results.clone(),
             normal_memberships: Arc::clone(&self.normal_memberships),
             normal_content_guarantees: Arc::clone(&self.normal_content_guarantees),
             invalidated_storage: Arc::clone(&self.invalidated_storage),
@@ -760,18 +786,21 @@ impl<'program> StructuralJudge<'program> {
                                 expression: e1,
                                 callable: c1,
                                 result_type: t1,
+                                integer_range: r1,
                                 ..
                             }),
                             Some(StructuralTerm::CapturedValue {
                                 expression: e2,
                                 callable: c2,
                                 result_type: t2,
+                                integer_range: r2,
                                 ..
                             }),
                         ) = (matched_current.as_ref(), other.current.as_ref())
                             && e1 == e2
                             && c1 == c2
                             && t1 == t2
+                            && r1 == r2
                         {
                             // Keep matched_current (same expression/callable/type).
                         } else {
@@ -818,6 +847,7 @@ impl<'program> StructuralJudge<'program> {
                     expression: e1,
                     callable: c1,
                     result_type: t1,
+                    integer_range: r1,
                     ..
                 } = val
                     && outcomes[1..].iter().all(|judge| {
@@ -829,8 +859,9 @@ impl<'program> StructuralJudge<'program> {
                                         expression: e2,
                                         callable: c2,
                                         result_type: t2,
+                                        integer_range: r2,
                                         ..
-                                    } if e1 == e2 && c1 == c2 && t1 == t2
+                                    } if e1 == e2 && c1 == c2 && t1 == t2 && r1 == r2
                                 )
                         })
                     })
@@ -1018,6 +1049,7 @@ impl<'program> StructuralJudge<'program> {
             returned_field_trace: None,
             body_invocations: Arc::new(Vec::new()),
             active_application: None,
+            resolution_results: None,
             normal_memberships: Arc::new(Vec::new()),
             normal_content_guarantees: Arc::new(Vec::new()),
             invalidated_storage: Arc::new(Vec::new()),
@@ -1542,13 +1574,13 @@ impl<'program> StructuralJudge<'program> {
     /// fields resolve recursively under the same budget.
     /// Semantic term equality deliberately ignores observation authority and
     /// literal landing metadata. Resolution preserves those payloads, so an
-    /// equal term is not an interchangeable memoized result. Keep one general
-    /// resolver until a complete representation key and state custody exist.
+    /// equal term is not an interchangeable memoized result. Resolution reuse
+    /// retains the complete payload, context, depth and active question history.
     pub(super) fn resolve(&self, term: StructuralTerm) -> StructuralTerm {
         self.resolve_at(term, 0)
     }
 
-    fn resolve_at(&self, mut term: StructuralTerm, depth: usize) -> StructuralTerm {
+    fn resolve_uncached(&self, mut term: StructuralTerm, depth: usize) -> StructuralTerm {
         // A call-premise traversal also extracts locals and state arguments.
         // Keep its entire environment free of name-selected unfolding, not
         // just the final argument: a projected local could otherwise hide

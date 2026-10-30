@@ -77,14 +77,21 @@ fn spatial_origins(sources: Vec<Option<SlotSource>>) -> Vec<Option<FramePlaceOri
 struct ReferenceStep {
     source: SlotSource,
     backing_depth: Option<usize>,
-    loaded_slot: Option<FramePlaceOrigin>,
+    loaded_slot: Option<CapturedReferenceLoad>,
 }
 
 /// One resolution retains the slot which supplied its pointer beside the
 /// resulting backing. Slot coordinates are invalidation evidence only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::machine_calls::calls::write_frames) struct CapturedReferenceLoad {
+    pub place: FramePlaceOrigin,
+    pub access: language_semantics::ReferenceAccess,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::machine_calls::calls::write_frames) struct CapturedReferenceRead {
     pub source: SlotSource,
-    pub slots: Vec<FramePlaceOrigin>,
+    pub slots: Vec<CapturedReferenceLoad>,
 }
 
 pub(in crate::machine_calls::calls::write_frames) fn captured_reference_reads(
@@ -157,33 +164,59 @@ pub(in crate::machine_calls::calls::write_frames) fn completed_reference_project
     projected: &FramePlaceOrigin,
     stored: &[StoredLocalOrigins],
 ) -> Option<Vec<SlotSource>> {
-    if !captured.origin.source.same_namespace(&projected.source)
+    let captured = CapturedReferenceRead {
+        source: captured.clone(),
+        slots: Vec::new(),
+    };
+    completed_reference_projection_reads(program, &captured, projected, stored)
+        .map(|reads| reads.into_iter().map(|read| read.source).collect())
+}
+
+/// Continue the same completed descriptor projection while retaining every
+/// matched load. Spatial consumers deliberately discard this roster; a value
+/// observation keeps it so any replaced carrier can retire its correspondence.
+pub(in crate::machine_calls::calls::write_frames) fn completed_reference_projection_reads(
+    program: &dyn crate::CheckingInput,
+    captured: &CapturedReferenceRead,
+    projected: &FramePlaceOrigin,
+    stored: &[StoredLocalOrigins],
+) -> Option<Vec<CapturedReferenceRead>> {
+    let source = &captured.source;
+    if !source.origin.source.same_namespace(&projected.source)
         || !projected
             .source
             .segments
-            .starts_with(&captured.origin.source.segments)
+            .starts_with(&source.origin.source.segments)
     {
         return None;
     }
     let mut pending = vec![(
-        SlotSource {
-            origin: projected.clone(),
-            carrier_backing: captured.carrier_backing.clone().or_else(|| {
-                captured
-                    .lifetime_access
-                    .is_none()
-                    .then(|| captured.origin.clone())
-            }),
-            ..captured.clone()
+        CapturedReferenceRead {
+            source: SlotSource {
+                origin: projected.clone(),
+                carrier_backing: source.carrier_backing.clone().or_else(|| {
+                    source
+                        .lifetime_access
+                        .is_none()
+                        .then(|| source.origin.clone())
+                }),
+                ..source.clone()
+            },
+            slots: captured.slots.clone(),
         },
-        captured.origin.source.segments.len(),
+        source.origin.source.segments.len(),
         Vec::new(),
     )];
     let mut completed = Vec::new();
-    while let Some((source, crossed, mut ancestors)) = pending.pop() {
+    while let Some((read, crossed, mut ancestors)) = pending.pop() {
+        let source = read.source;
         if source.origin.source.segments.len() == crossed || source.lifetime_access.is_some() {
-            if !completed.contains(&source) {
-                completed.push(source);
+            let read = CapturedReferenceRead {
+                source,
+                slots: read.slots,
+            };
+            if !completed.contains(&read) {
+                completed.push(read);
             }
             continue;
         }
@@ -200,17 +233,34 @@ pub(in crate::machine_calls::calls::write_frames) fn completed_reference_project
             Some(crossed),
         ) {
             let mut step = step?;
+            let mut slots = read.slots.clone();
+            if let Some(slot) = step.loaded_slot
+                && !slots.contains(&slot)
+            {
+                slots.push(slot);
+            }
             if let Some(depth) = step.backing_depth {
                 step.source.lifetime_access =
                     step.source.lifetime_access.or(source.lifetime_access);
-                pending.push((step.source, depth, ancestors.clone()));
+                pending.push((
+                    CapturedReferenceRead {
+                        source: step.source,
+                        slots,
+                    },
+                    depth,
+                    ancestors.clone(),
+                ));
             } else {
                 if step.source.lifetime_access.is_none() {
                     step.source.carrier = source.carrier.clone();
                     step.source.carrier_backing = source.carrier_backing.clone();
                 }
-                if !completed.contains(&step.source) {
-                    completed.push(step.source);
+                let read = CapturedReferenceRead {
+                    source: step.source,
+                    slots,
+                };
+                if !completed.contains(&read) {
+                    completed.push(read);
                 }
             }
         }
@@ -390,10 +440,16 @@ fn resolve_steps(
             recast.root != carrier.root || recast.segments.len() <= carrier.segments.len()
         });
         let backing_depth = captured.source.segments.len();
-        let loaded_slot = FramePlaceOrigin {
-            path: leaf.local_path.clone(),
-            precision: origin.precision,
-            source: carrier.clone(),
+        let super::StoredOriginKind::Reference(access) = leaf.kind else {
+            return vec![None];
+        };
+        let loaded_slot = CapturedReferenceLoad {
+            place: FramePlaceOrigin {
+                path: leaf.local_path.clone(),
+                precision: origin.precision,
+                source: carrier.clone(),
+            },
+            access,
         };
         let step = ReferenceStep {
             source: SlotSource {

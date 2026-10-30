@@ -10,7 +10,8 @@ use crate::const_evaluation::{const_applications, const_lengths, range_endpoints
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::constant_recipes::{
-    RetainedConstantPosition, RetainedConstantRecipe, retain_constant_recipes,
+    ConstantExpressionContext, RetainedConstantPosition, RetainedConstantRecipe,
+    retain_constant_recipes,
 };
 use typed_trees::name::Identifier;
 
@@ -86,20 +87,35 @@ pub(crate) fn retain_deferred_constant_recipes(
         });
     }
     let plan = const_applications::const_application_plan(typed, domain);
+    let owners = typed_trees::references::collect_program_operand_owners(typed);
     for application in &plan.applications {
         // The application's executable dependency is the first authored call
         // inside its argument expression; a bare operator token argument
         // names no machine and keeps the invalid handle.
         let call = plan.calls.iter().find(|call| call.site == application.site);
         let machine = call.map(|call| call.machine).unwrap_or_default();
+        let destination = application.destination.ok_or_else(|| {
+            vec![
+                Diagnostic::error("const-generic application has no declared const destination")
+                    .with_source_span(typed.expression_table.source_span(application.root)),
+            ]
+        })?;
+        let contexts = owners
+            .type_owners(application.site)
+            .map(|owner| ConstantExpressionContext::new(owner, destination));
         recipes.push(RetainedConstantRecipe {
             position: RetainedConstantPosition::ConstApplication {
                 site: application.site,
                 root: application.root,
             },
-            contexts: Default::default(),
+            contexts: typed.constant_expression_contexts.insert_many(contexts),
             machine,
-            invocations: Default::default(),
+            invocations: typed.expression_table.insert_expression_handles(
+                plan.calls
+                    .iter()
+                    .filter(|call| call.site == application.site)
+                    .map(|call| call.expression),
+            ),
             name: Identifier::generated(if machine.is_valid() {
                 typed.symbols.name(machine)
             } else {

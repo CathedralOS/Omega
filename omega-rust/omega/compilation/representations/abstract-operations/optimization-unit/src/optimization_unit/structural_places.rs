@@ -225,6 +225,18 @@ pub fn shape(
         .map(|entry| &entry.shape)
 }
 
+/// The `Record`/`Mixed` common-field roster of `current`, or `None` when the
+/// shape carries no roster.
+fn record_fields(
+    unit: &PsiOptimizationUnit,
+    current: StructuralTypeId,
+) -> Option<&[StructuralFieldDeclaration]> {
+    match shape(unit, current)? {
+        terminal_psi::record_or_mixed_shape_pattern!(fields) => Some(fields),
+        _ => None,
+    }
+}
+
 /// The field `identity` names inside `current`'s `Record`/`Mixed`
 /// common-field roster, with the structural type the field declares.
 /// `None` when the shape has no common-field roster, the name is absent, or
@@ -256,10 +268,7 @@ pub(crate) fn descended_field_matching(
     current: StructuralTypeId,
     matching: impl Fn(&StructuralFieldDeclaration) -> bool,
 ) -> Option<(StructuralFieldId, StructuralTypeId)> {
-    let fields = match shape(unit, current)? {
-        terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
-        _ => return None,
-    };
+    let fields = record_fields(unit, current)?;
     let field = fields.iter().find(|field| matching(field))?;
     match field.field_type {
         StructuralFieldType::Structural(next) => Some((field.id, next)),
@@ -285,10 +294,7 @@ pub(crate) fn canonicalize_ordinary_path(
         match segment {
             StructuralPathSegment::AllElements => return None,
             StructuralPathSegment::Field(identity) => {
-                let fields = match shape(unit, current)? {
-                    terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
-                    _ => return None,
-                };
+                let fields = record_fields(unit, current)?;
                 let field = terminal_psi::live_field_by_identity(fields, *identity)?;
                 let next = field.field_type.as_structural()?;
                 canonical.push(CanonicalStructuralPathSegment::Field(field.id));
@@ -402,10 +408,7 @@ impl<'a> Position<'a> {
                 }
             }
             (Self::Type(current), CanonicalStructuralPathSegment::Field(identity)) => {
-                let fields = match shape(unit, current)? {
-                    terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
-                    _ => return None,
-                };
+                let fields = record_fields(unit, current)?;
                 match fields
                     .iter()
                     .find(|field| field.id == *identity)?
@@ -455,11 +458,8 @@ impl<'a> Position<'a> {
         field: StructuralFieldId,
     ) -> Option<&'a StructuralFieldDeclaration> {
         let fields = match self {
-            Self::Type(current) => match shape(unit, current)? {
-                terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
-                _ => return None,
-            },
-            Self::CasePayload(case) => &case.fields,
+            Self::Type(current) => record_fields(unit, current)?,
+            Self::CasePayload(case) => case.fields.as_slice(),
         };
         fields.iter().find(|declaration| declaration.id == field)
     }
@@ -746,10 +746,7 @@ pub(crate) fn descended_type(
         )
         .map(|declaration| declaration.id),
         StructuralPathSegment::Field(identity) => {
-            let fields = match shape {
-                terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
-                _ => return None,
-            };
+            let fields = record_fields(unit, current)?;
             match terminal_psi::field_by_identity(fields, *identity)?.field_type {
                 StructuralFieldType::Structural(next) => Some(next),
                 _ => None,

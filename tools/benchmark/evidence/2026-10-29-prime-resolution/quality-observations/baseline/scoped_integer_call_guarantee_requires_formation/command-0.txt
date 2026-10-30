@@ -1,0 +1,3 @@
+package candidate checking failed: checked compilation failed for package `quality` with 1 diagnostic(s)
+  error: cannot prove requires contract for specification call `restricted` in machine `caller` ensures contract: establish its selected precondition in an independently formed prior requires fact
+    in package `quality`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-49576224b0ec93384bf61fc418c74184f6db3f3f4395de6d872e95adbdcbca09\source\main.omg:4:9

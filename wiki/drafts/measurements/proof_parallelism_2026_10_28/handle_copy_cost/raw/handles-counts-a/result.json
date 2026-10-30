@@ -1,0 +1,369 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\handle-cost\\omega.exe",
+    "--timings",
+    "--target",
+    "windows_x86_64",
+    "--build-dir",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\handles-counts-a\\native",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+  ],
+  "wall_seconds": 21.29049479999958,
+  "exit_code": 0,
+  "cpu_seconds": 27.890625,
+  "peak_working_set_bytes": 2135609344,
+  "peak_commit_bytes": 3530211328,
+  "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+  "runtime_wall_seconds": 0.09066629999870202,
+  "producer": "handle-cost",
+  "compiler_sha256": "3dcfcb91ac95359240552237dbff28427cc20176db6abc210202dc7ca46356f5",
+  "mode": "off",
+  "workers": 0,
+  "phase_profile": false,
+  "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+  "accepted_lock_sha256": "6baa0564304b112bdd0e4420e981b790d4f6d8a8c0ee38fa36c7e1cf2f9a760d",
+  "cache_mode": "fresh private cache",
+  "reconciliation_mode": "counts",
+  "reconciliation": [
+    {
+      "operation": "places",
+      "machines": 7,
+      "wall_ns": 21300,
+      "metrics": {
+        "declarations_added": 0,
+        "leaf_copy_results": 26,
+        "operations_scanned": 55
+      }
+    },
+    {
+      "operation": "residences",
+      "machines": 7,
+      "wall_ns": 11300,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 7,
+      "wall_ns": 100,
+      "metrics": {}
+    },
+    {
+      "operation": "places",
+      "machines": 2,
+      "wall_ns": 4700,
+      "metrics": {
+        "declarations_added": 0,
+        "leaf_copy_results": 2,
+        "operations_scanned": 5
+      }
+    },
+    {
+      "operation": "residences",
+      "machines": 2,
+      "wall_ns": 5300,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 2,
+      "wall_ns": 100,
+      "metrics": {}
+    },
+    {
+      "operation": "places",
+      "machines": 202,
+      "wall_ns": 349000,
+      "metrics": {
+        "declarations_added": 0,
+        "leaf_copy_results": 281,
+        "operations_scanned": 2702
+      }
+    },
+    {
+      "operation": "residences",
+      "machines": 202,
+      "wall_ns": 56100,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 202,
+      "wall_ns": 2118275800,
+      "metrics": {
+        "analysis_constructions": 1,
+        "analysis_drop_ns": 2090700,
+        "candidate_machines": 109,
+        "changing_rounds": 18,
+        "discovery_ns": 73100,
+        "eligible_operations": 418,
+        "fixed_point_rounds": 127,
+        "graph_drop_ns": 1728200,
+        "graph_preparation_ns": 210865900,
+        "history_creation_ns": 23000,
+        "history_drop_ns": 13105000,
+        "leaf_query_formation_ns": 30600,
+        "leaf_root_lookup_ns": 169900,
+        "merge_ns": 1197200,
+        "operand_queries_ns": 31603700,
+        "operations_scanned": 3313,
+        "payload_contract_queries_ns": 4179900,
+        "payload_target_queries": 173,
+        "payload_target_queries_ns": 3668900,
+        "proposed_updates": 439,
+        "reachability_drop_ns": 0,
+        "reference_context_constructions": 127,
+        "reference_context_drop_ns": 4856400,
+        "reference_queries": 418,
+        "reference_queries_ns": 440863200,
+        "source_contract_queries_ns": 1399065700,
+        "types_drop_ns": 12200,
+        "view_queries_ns": 4025100
+      }
+    }
+  ],
+  "copy_profile": "counts",
+  "scans": [
+    {
+      "mode": "counts",
+      "machines": 7,
+      "summary": {
+        "roots": 0,
+        "replays": 0,
+        "wall_ns": 0
+      },
+      "entries": {},
+      "queries": []
+    },
+    {
+      "mode": "counts",
+      "machines": 2,
+      "summary": {
+        "roots": 0,
+        "replays": 0,
+        "wall_ns": 0
+      },
+      "entries": {},
+      "queries": []
+    },
+    {
+      "mode": "counts",
+      "machines": 202,
+      "summary": {
+        "roots": 418,
+        "replays": 173,
+        "wall_ns": 0
+      },
+      "entries": {
+        "source": {
+          "calls": 418,
+          "inclusive_ns": 0,
+          "exclusive_ns": 0,
+          "rows_a": 0,
+          "rows_b": 0,
+          "rows_c": 0,
+          "visited": 0,
+          "compared": 0,
+          "advanced": 0,
+          "cloned": 0,
+          "removed": 0,
+          "detached": 0,
+          "changed": 0,
+          "rosters": 0,
+          "shrinks": 0,
+          "same": 0,
+          "alias": 0
+        },
+        "replay": {
+          "calls": 173,
+          "inclusive_ns": 0,
+          "exclusive_ns": 0,
+          "rows_a": 0,
+          "rows_b": 0,
+          "rows_c": 0,
+          "visited": 0,
+          "compared": 0,
+          "advanced": 0,
+          "cloned": 0,
+          "removed": 0,
+          "detached": 0,
+          "changed": 0,
+          "rosters": 0,
+          "shrinks": 0,
+          "same": 0,
+          "alias": 0
+        },
+        "meet": {
+          "calls": 14270,
+          "inclusive_ns": 0,
+          "exclusive_ns": 0,
+          "rows_a": 0,
+          "rows_b": 0,
+          "rows_c": 0,
+          "visited": 0,
+          "compared": 0,
+          "advanced": 0,
+          "cloned": 0,
+          "removed": 0,
+          "detached": 0,
+          "changed": 0,
+          "rosters": 0,
+          "shrinks": 0,
+          "same": 0,
+          "alias": 0
+        },
+        "retain_snapshot": {
+          "calls": 28540,
+          "inclusive_ns": 0,
+          "exclusive_ns": 0,
+          "rows_a": 8267548,
+          "rows_b": 8136904,
+          "rows_c": 0,
+          "visited": 0,
+          "compared": 0,
+          "advanced": 0,
+          "cloned": 0,
+          "removed": 311696,
+          "detached": 0,
+          "changed": 0,
+          "rosters": 0,
+          "shrinks": 0,
+          "same": 4760,
+          "alias": 0
+        },
+        "cow_shared": {
+          "calls": 14456,
+          "inclusive_ns": 0,
+          "exclusive_ns": 0,
+          "rows_a": 5076178,
+          "rows_b": 0,
+          "rows_c": 0,
+          "visited": 0,
+          "compared": 0,
+          "advanced": 0,
+          "cloned": 5076178,
+          "removed": 0,
+          "detached": 14456,
+          "changed": 0,
+          "rosters": 0,
+          "shrinks": 0,
+          "same": 0,
+          "alias": 0
+        },
+        "cow_unique": {
+          "calls": 9324,
+          "inclusive_ns": 0,
+          "exclusive_ns": 0,
+          "rows_a": 2109502,
+          "rows_b": 0,
+          "rows_c": 0,
+          "visited": 0,
+          "compared": 0,
+          "advanced": 0,
+          "cloned": 0,
+          "removed": 0,
+          "detached": 0,
+          "changed": 0,
+          "rosters": 0,
+          "shrinks": 0,
+          "same": 0,
+          "alias": 0
+        },
+        "snapshot_filter": {
+          "calls": 23780,
+          "inclusive_ns": 0,
+          "exclusive_ns": 0,
+          "rows_a": 7185680,
+          "rows_b": 0,
+          "rows_c": 0,
+          "visited": 0,
+          "compared": 0,
+          "advanced": 0,
+          "cloned": 0,
+          "removed": 0,
+          "detached": 0,
+          "changed": 0,
+          "rosters": 0,
+          "shrinks": 0,
+          "same": 0,
+          "alias": 0
+        }
+      },
+      "queries": [
+        {
+          "machine": 8,
+          "block": 0,
+          "operation": 0,
+          "wall_ns": 0,
+          "steps": 0,
+          "edges": 0,
+          "meets": 0
+        },
+        {
+          "machine": 9,
+          "block": 0,
+          "operation": 0,
+          "wall_ns": 0,
+          "steps": 0,
+          "edges": 0,
+          "meets": 0
+        },
+        {
+          "machine": 39,
+          "block": 3,
+          "operation": 1,
+          "wall_ns": 0,
+          "steps": 0,
+          "edges": 0,
+          "meets": 0
+        },
+        {
+          "machine": 43,
+          "block": 1,
+          "operation": 1,
+          "wall_ns": 0,
+          "steps": 0,
+          "edges": 0,
+          "meets": 0
+        },
+        {
+          "machine": 44,
+          "block": 1,
+          "operation": 0,
+          "wall_ns": 0,
+          "steps": 0,
+          "edges": 0,
+          "meets": 0
+        },
+        {
+          "machine": 45,
+          "block": 0,
+          "operation": 1,
+          "wall_ns": 0,
+          "steps": 0,
+          "edges": 0,
+          "meets": 0
+        },
+        {
+          "machine": 48,
+          "block": 1,
+          "operation": 0,
+          "wall_ns": 0,
+          "steps": 0,
+          "edges": 0,
+          "meets": 0
+        },
+        {
+          "machine": 51,
+          "block": 0,
+          "operation": 0,
+          "wall_ns": 0,
+          "steps": 0,
+          "edges": 0,
+          "meets": 0
+        }
+      ]
+    }
+  ],
+  "copy_histograms": [],
+  "copy_calibrations": []
+}

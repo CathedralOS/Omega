@@ -1,0 +1,2 @@
+package candidate checking failed: checked compilation failed for package `selected_synchronous_helper_cycle` with 1 diagnostic(s)
+  error: selected providers realize a cyclic synchronous `invokes` graph: Alpha -> Beta -> Alpha; break one edge with a mailbox, queue, scheduler handoff, or other new activation

@@ -1,0 +1,18 @@
+published native output to \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\build\operand-order-overflow\cases\candidate-copied_call_argument_snapshot_through_match_join_exit\native\omega-program.exe
+     9.015 ms  prepare: project -> prepared sources
+  1364.532 ms  compile: sources -> requested product
+     3.583 ms  publish: retained product -> published product
+    11.922 ms  Source ingress: SourceFiles -> SyntaxTrees
+     2.798 ms  Step: assemble: PreparedSources -> AssembledSyntax
+    17.608 ms  Stage 03: SyntaxTrees -> SymbolResolvedTrees
+    38.535 ms  Stage 04: SymbolResolvedTrees -> TypedTrees
+   253.317 ms  Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)
+  1085.543 ms  Stage 05: TypedTrees -> CheckedTrees
+    61.449 ms  Step: settle: CheckedTrees -> SelectedExecution
+     7.717 ms  terminal-production: CheckedTrees -> CanonicalTerminalArtifact
+     7.234 ms  terminal-production/lowering: CheckedTrees -> LoweredPsi
+     0.000 ms  terminal-production/machine-selection: CheckedTrees -> TerminalMachine
+     0.139 ms  terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi
+     0.028 ms  terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt
+     0.096 ms  terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact
+  1611.842 ms  total elapsed

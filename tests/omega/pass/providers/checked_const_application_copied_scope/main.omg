@@ -1,0 +1,47 @@
+// Expected exit: 70.
+// A selected constant extent keeps its owner through generic body copying.
+use omega::language::core::process_exit;
+use omega_language_std::process_exit;
+
+data Math {}
+boundary machine % Math::remainder(left: u64, right: u64) -> u64;
+data Provider {}
+machine Provider::remainder(left: u64, right: u64) -> u64
+satisfies Math::remainder { left | right }
+data AltProvider {}
+machine AltProvider::remainder(left: u64, right: u64) -> u64
+satisfies Math::remainder { 9 }
+machine limit() -> u64 {
+    let left: u64 = 7;
+    let right: u64 = 2;
+    left % right
+}
+
+data Buffer<T, const N: u64> {
+    before: u64;
+    values: [T; N];
+    after: u64;
+}
+
+machine store<T [copy]>(value: T) -> T crashes Trap {
+    let mut buffer: Buffer<T, limit()>;
+    buffer.before = 17;
+    buffer.after = 23;
+    buffer.values[8] = value;
+    transition buffer.before == 17u64 && buffer.after == 23u64 {
+        true -> (buffer.values[8])
+        false -> damaged()
+    }
+    machine damaged() -> T crashes Trap { crash Trap; }
+}
+
+machine entry_start() reaches ProcessExit crashes Trap {
+    let first: u8 = store<u8>(70u8);
+    let second: u64 = store<u64>(11u64);
+    transition first == 70u8 && second == 11u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() reaches ProcessExit { ProcessExit::exit_process(70); }
+    machine bad() reaches ProcessExit { ProcessExit::exit_process(1); }
+}

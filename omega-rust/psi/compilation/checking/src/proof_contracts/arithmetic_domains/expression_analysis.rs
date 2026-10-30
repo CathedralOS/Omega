@@ -171,6 +171,7 @@ pub(super) fn analyze(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> CheckedAnalysis {
     let mut decisions = ArithmeticDecisions::default();
+    let return_ranges = super::ReturnInference::default();
     let value = ExpressionWalk {
         program,
         machine: Some(machine),
@@ -182,7 +183,7 @@ pub(super) fn analyze(
         target_primitive,
         target_domain,
         owner,
-        infer_call_bodies,
+        return_ranges: infer_call_bodies.then_some(&return_ranges),
         checks_trap_coverage: true,
         checks_occurrence_fit: true,
         retain_trap_receipts,
@@ -218,7 +219,7 @@ pub(super) fn analyze_declaration(
         target_primitive,
         target_domain,
         owner,
-        infer_call_bodies: false,
+        return_ranges: None,
         checks_trap_coverage: true,
         checks_occurrence_fit: false,
         retain_trap_receipts: false,
@@ -245,7 +246,7 @@ pub(super) fn analyze_arrival(
     target_primitive: Option<PrimitiveType>,
     target_domain: ArithmeticDomain,
     owner: &str,
-    infer_call_bodies: bool,
+    return_ranges: Option<&super::ReturnInference>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> CheckedAnalysis {
     let mut decisions = ArithmeticDecisions::default();
@@ -260,7 +261,7 @@ pub(super) fn analyze_arrival(
         target_primitive,
         target_domain,
         owner,
-        infer_call_bodies,
+        return_ranges,
         checks_trap_coverage: false,
         checks_occurrence_fit: false,
         retain_trap_receipts: false,
@@ -297,7 +298,7 @@ pub(super) fn analyze_meaning(
         target_primitive: None,
         target_domain: ArithmeticDomain::Exact,
         owner,
-        infer_call_bodies: false,
+        return_ranges: None,
         checks_trap_coverage: false,
         checks_occurrence_fit: false,
         retain_trap_receipts: false,
@@ -326,11 +327,10 @@ struct ExpressionWalk<'a> {
     target_primitive: Option<PrimitiveType>,
     target_domain: ArithmeticDomain,
     owner: &'a str,
-    /// Body inference captures one callee only. Descendant calls retain their
-    /// declared guarantees without recursively deriving another body bound.
-    /// Carrier-only queries also decline body inference: a range is not type
-    /// selection authority, and their re-entry must not restart that capture.
-    infer_call_bodies: bool,
+    /// An outer request owns recursion and complete return joins. Meaning-only
+    /// queries carry no body-inference authority; every ordinary/terminal
+    /// descendant of a value query shares the same invocation context.
+    return_ranges: Option<&'a super::ReturnInference>,
     /// Whether a Trapping operation must prove its trap fits the machine's
     /// published Trap ceiling. A coverage re-analysis under the route
     /// complement only asks whether one node forms; its nested operations

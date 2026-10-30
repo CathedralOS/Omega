@@ -1,0 +1,169 @@
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
+index 4cf1d7a6c50..5c1faf20502 100644
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
+@@ -8,7 +8,7 @@ mod entry_snapshots;
+ use super::contents::select_payload_memberships;
+ use super::*;
+ use crate::descriptor_lifetimes::descriptor_path;
+-use std::borrow::Borrow;
++use std::borrow::{Borrow, Cow};
+ use std::collections::VecDeque;
+ use std::sync::Arc;
+ 
+@@ -1040,7 +1040,8 @@ fn payload_contract_at_cut(
+                         // The transform retains its normalization path even
+                         // without substitutions, sharing only unchanged trees.
+                         if !contains_rebound_premises(&arrival.scalar_requirements, &rebound) {
+-                            Arc::make_mut(&mut arrival.scalar_requirements).extend(rebound);
++                            Arc::make_mut(&mut arrival.scalar_requirements)
++                                .extend(rebound.into_iter().map(Cow::into_owned));
+                         }
+                         canonicalize_snapshot(&mut arrival.scalar_requirements);
+                     }
+@@ -1142,27 +1143,30 @@ fn payload_contract_at_cut(
+ /// binary-search path. Equal duplicates reuse one retained row; no input moves.
+ fn contains_rebound_premises(
+     retained: &[Arc<semantic_vocabulary::Proposition>],
+-    rebound: &[Arc<semantic_vocabulary::Proposition>],
++    rebound: &[Cow<'_, Arc<semantic_vocabulary::Proposition>>],
+ ) -> bool {
+     if rebound.windows(2).any(|pair| pair[0] > pair[1]) {
+         return rebound.iter().all(|premise| {
+             retained
+-                .binary_search_by(|stored| stored.as_ref().cmp(premise.as_ref()))
++                .binary_search_by(|stored| stored.as_ref().cmp(premise.as_ref().as_ref()))
+                 .is_ok()
+         });
+     }
+     let mut remaining = retained.iter().map(Arc::as_ref).peekable();
+-    rebound.iter().map(Arc::as_ref).all(|premise| {
+-        while remaining
+-            .peek()
+-            .is_some_and(|candidate| *candidate < premise)
+-        {
+-            remaining.next();
+-        }
+-        remaining
+-            .peek()
+-            .is_some_and(|candidate| *candidate == premise)
+-    })
++    rebound
++        .iter()
++        .map(|row| row.as_ref().as_ref())
++        .all(|premise| {
++            while remaining
++                .peek()
++                .is_some_and(|candidate| *candidate < premise)
++            {
++                remaining.next();
++            }
++            remaining
++                .peek()
++                .is_some_and(|candidate| *candidate == premise)
++        })
+ }
+ 
+ /// Union two sorted, unique premise rosters without cloning and then discarding
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/scalar_contracts.rs b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/scalar_contracts.rs
+index f46aab05699..feca7a9d849 100644
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/scalar_contracts.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/scalar_contracts.rs
+@@ -4,6 +4,7 @@
+ //! Call adapters supply exact typed formal/result bindings from the current
+ //! checked signature, never implementation-private facts or receiving domains.
+ use semantic_vocabulary::{Proposition, ScalarTerm, ValueId};
++use std::borrow::Cow;
+ use std::collections::BTreeMap;
+ use std::sync::Arc;
+ 
+@@ -22,11 +23,11 @@ pub(super) fn scalar_conjuncts(propositions: &[Proposition]) -> Vec<Proposition>
+ 
+ /// Rebind facts simultaneously. A retired incoming value may only survive as
+ /// the new formal receiving it; numeric SSA reuse never equates two iterations.
+-pub(super) fn arrival_requirements(
+-    requirements: &[Arc<Proposition>],
++pub(super) fn arrival_requirements<'incoming>(
++    requirements: &'incoming [Arc<Proposition>],
+     bindings: &[(ValueId, ScalarTerm)],
+     parameters: &[ValueId],
+-) -> Vec<Arc<Proposition>> {
++) -> Vec<Cow<'incoming, Arc<Proposition>>> {
+     let mut substitutions = BTreeMap::new();
+     for (parameter, actual) in bindings {
+         if let ScalarTerm::Value { id, scalar_type } = actual {
+@@ -47,11 +48,11 @@ pub(super) fn arrival_requirements(
+             }) {
+                 None
+             } else if !affected && !crate::substitution::value_substitution_may_normalize(premise) {
+-                Some(premise.clone())
++                Some(Cow::Borrowed(premise))
+             } else {
+-                Some(Arc::new(
++                Some(Cow::Owned(Arc::new(
+                     crate::substitution::substitute_proposition_values(premise, &substitutions),
+-                ))
++                )))
+             }
+         })
+         .collect::<Vec<_>>();
+@@ -60,16 +61,16 @@ pub(super) fn arrival_requirements(
+             continue;
+         }
+         let value = crate::substitution::substitute_scalar_term_values(actual, &substitutions);
+-        result.push(Arc::new(Proposition::Equal(
++        result.push(Cow::Owned(Arc::new(Proposition::Equal(
+             ScalarTerm::value(*parameter, value.scalar_type()),
+             value,
+-        )));
++        ))));
+         // Non-rebound names still denote the same captured incoming value.
+         if !actual.any_value_id(|value| parameters.contains(&value)) {
+-            result.push(Arc::new(Proposition::Equal(
++            result.push(Cow::Owned(Arc::new(Proposition::Equal(
+                 ScalarTerm::value(*parameter, actual.scalar_type()),
+                 actual.clone(),
+-            )));
++            ))));
+         }
+     }
+     result
+@@ -473,20 +474,32 @@ mod tests {
+                 let actual = arrival_requirements(&requirements, bindings, &parameters);
+                 let expected = original_arrival(&requirements, bindings, &parameters);
+                 assert_eq!(
+-                    actual.iter().map(Arc::as_ref).collect::<Vec<_>>(),
++                    actual
++                        .iter()
++                        .map(|row| row.as_ref().as_ref())
++                        .collect::<Vec<_>>(),
+                     expected.iter().collect::<Vec<_>>()
+                 );
+             }
+         }
+         let untouched = vec![Arc::new(condition)];
+-        assert!(Arc::ptr_eq(
+-            &arrival_requirements(&untouched, &[], &[])[0],
+-            &untouched[0]
+-        ));
++        let borrowed = arrival_requirements(&untouched, &[], &[]);
++        assert!(matches!(borrowed[0], Cow::Borrowed(_)));
++        assert_eq!(Arc::strong_count(&untouched[0]), 1);
++        assert!(Arc::ptr_eq(borrowed[0].as_ref(), &untouched[0]));
++        let appended = borrowed
++            .into_iter()
++            .map(Cow::into_owned)
++            .collect::<Vec<_>>();
++        assert!(Arc::ptr_eq(&appended[0], &untouched[0]));
++        assert_eq!(Arc::strong_count(&untouched[0]), 2);
++        drop(appended);
++        assert_eq!(Arc::strong_count(&untouched[0]), 1);
+         for normalizing in [math, ieee] {
+             let input = vec![Arc::new(normalizing)];
+             let result = arrival_requirements(&input, &[], &[]);
+-            assert!(!Arc::ptr_eq(&input[0], &result[0]));
++            assert!(matches!(result[0], Cow::Owned(_)));
++            assert!(!Arc::ptr_eq(&input[0], result[0].as_ref()));
+         }
+         assert!(arrival_requirements(&[], &[], &[]).is_empty());
+     }

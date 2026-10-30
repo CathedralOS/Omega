@@ -1,0 +1,5 @@
+{
+  "source": "af8309e4bd017f15097ca7fc78e6a1d06a3e0119",
+  "candidate.patch": "git apply --cached --check passed in isolated scratch index",
+  "instrumented-candidate.patch": "git apply --cached --check passed in isolated scratch index"
+}

@@ -772,9 +772,9 @@ pub struct TableMemberExpression {
     pub receiver: ExpressionHandle,
     pub member_symbol: SymbolHandle,
     pub member: DiagnosticName,
-    /// The case variant a destructure-bound payload field came from, so symbol
-    /// resolution binds `member_symbol` to THAT variant's field rather than a
-    /// same-named field in another variant. `None` for ordinary field access.
+    /// The case selected by destructuring or a preceding predicate guard, so
+    /// `member_symbol` identifies that variant's field rather than a same-named
+    /// sibling. Selection does not itself establish permission to project it.
     pub case_variant: Option<DiagnosticName>,
 }
 

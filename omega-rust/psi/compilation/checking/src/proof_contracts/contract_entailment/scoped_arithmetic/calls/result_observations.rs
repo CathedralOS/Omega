@@ -59,6 +59,7 @@ pub(in crate::proof_contracts::contract_entailment::scoped_arithmetic) fn result
         .filter_map(|fact| fact.as_expression().copied())
         .collect::<Vec<_>>();
     let mut observations: Vec<ScopedCallResultObservation> = Vec::new();
+    let frames = std::cell::OnceCell::new();
     let mut visited = Vec::new();
     while let Some(selected) = pending.pop() {
         if visited.contains(&selected) {
@@ -82,6 +83,7 @@ pub(in crate::proof_contracts::contract_entailment::scoped_arithmetic) fn result
                         checked_trees::CheckedUnitStructuralPathSegment::Field(_)
                             | checked_trees::CheckedUnitStructuralPathSegment::Case(_)
                             | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
+                            | checked_trees::CheckedUnitStructuralPathSegment::Referent
                     )
                 )
             })
@@ -96,6 +98,38 @@ pub(in crate::proof_contracts::contract_entailment::scoped_arithmetic) fn result
                 },
             )
         {
+            let loads_pointer = geometry.projections.iter().any(|step| {
+                matches!(
+                    step,
+                    crate::ScalarCoordinateProjection::Storage(
+                        checked_trees::CheckedUnitStructuralPathSegment::Referent
+                    )
+                )
+            });
+            let backing = if loads_pointer {
+                let Some(frames) = frames
+                    .get_or_init(|| crate::CallFrameResolver::new(program))
+                    .as_ref()
+                else {
+                    continue;
+                };
+                let Some(backing) =
+                    frames.completed_result_read_backing(machine, expression, &place.segments)
+                else {
+                    continue;
+                };
+                Some(backing)
+            } else {
+                None
+            };
+            let mut read_dependencies = Vec::new();
+            if let Some(backing) = &backing {
+                for path in backing.values.iter().chain(&backing.bindings) {
+                    if !read_dependencies.contains(path) {
+                        read_dependencies.push(path.clone());
+                    }
+                }
+            }
             let value = observations
                 .iter()
                 .find(|existing| existing.path == place.segments)
@@ -115,6 +149,8 @@ pub(in crate::proof_contracts::contract_entailment::scoped_arithmetic) fn result
                 path: place.segments,
                 primitive_type: geometry.primitive_type,
                 value,
+                read_dependencies,
+                backing,
             });
         }
         children(

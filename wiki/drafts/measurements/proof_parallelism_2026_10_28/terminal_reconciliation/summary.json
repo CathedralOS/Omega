@@ -1,0 +1,939 @@
+{
+  "term-cold-a": {
+    "producer": "terminal-breakdown",
+    "wall_seconds": 29.701355699995474,
+    "cpu_seconds": 35.9375,
+    "peak_working_set_bytes": 1912573952,
+    "cache_mode": "fresh private cache",
+    "reconciliation_mode": "timing",
+    "entry_detail": false,
+    "totals_ns": {
+      "places": 324800,
+      "residences": 125000,
+      "memberships": 3617726900
+    },
+    "parts": {
+      "analysis_drop_ns": 5005300,
+      "discovery_ns": 126500,
+      "graph_drop_ns": 3856100,
+      "graph_preparation_ns": 252703800,
+      "history_creation_ns": 41600,
+      "history_drop_ns": 22802700,
+      "leaf_query_formation_ns": 79000,
+      "leaf_root_lookup_ns": 344000,
+      "merge_ns": 2556400,
+      "operand_queries_ns": 48583100,
+      "payload_contract_queries_ns": 7436100,
+      "payload_target_queries_ns": 6693600,
+      "reachability_drop_ns": 100,
+      "reference_context_drop_ns": 9454600,
+      "reference_queries_ns": 728501000,
+      "source_contract_queries_ns": 2504973800,
+      "types_drop_ns": 25800,
+      "view_queries_ns": 7347000,
+      "residual_ns": 17196400,
+      "reference_graph_ns": 728041900,
+      "reference_other_ns": 459100
+    },
+    "graphs": [
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 245515000
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 243141800
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 239385100
+      }
+    ],
+    "cache": {
+      "cold": 1
+    },
+    "replay_details": {
+      "SOURCE": {},
+      "REFERENCE": {},
+      "unscoped": {}
+    }
+  },
+  "term-cold-b": {
+    "producer": "terminal-breakdown",
+    "wall_seconds": 30.737640399995144,
+    "cpu_seconds": 37.265625,
+    "peak_working_set_bytes": 1895231488,
+    "cache_mode": "fresh private cache",
+    "reconciliation_mode": "timing",
+    "entry_detail": true,
+    "totals_ns": {
+      "places": 335700,
+      "residences": 114100,
+      "memberships": 3100903900
+    },
+    "parts": {
+      "analysis_drop_ns": 2107900,
+      "discovery_ns": 119500,
+      "graph_drop_ns": 2000800,
+      "graph_preparation_ns": 459041400,
+      "history_creation_ns": 40800,
+      "history_drop_ns": 17692500,
+      "leaf_query_formation_ns": 86500,
+      "leaf_root_lookup_ns": 539200,
+      "merge_ns": 2289400,
+      "operand_queries_ns": 47223800,
+      "payload_contract_queries_ns": 7368400,
+      "payload_target_queries_ns": 6661700,
+      "reachability_drop_ns": 100,
+      "reference_context_drop_ns": 8184300,
+      "reference_queries_ns": 572291000,
+      "source_contract_queries_ns": 1936287400,
+      "types_drop_ns": 14500,
+      "view_queries_ns": 6606500,
+      "residual_ns": 32348200,
+      "reference_graph_ns": 571840100,
+      "reference_other_ns": 450900
+    },
+    "graphs": [
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 181688500
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 183672900
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 206478700
+      }
+    ],
+    "cache": {
+      "cold": 1
+    },
+    "replay_details": {
+      "SOURCE": {
+        "ENTRY_PREVIOUS_DROP_calls": 96,
+        "ENTRY_PREVIOUS_DROP_ns": 5700,
+        "ENTRY_INIT_calls": 96,
+        "ENTRY_INIT_ns": 18011700,
+        "queries": 173,
+        "setup": 26777900,
+        "clone": 101256400,
+        "close": 18975800,
+        "publish": 125679200,
+        "join": 411933400,
+        "observe": 3874600,
+        "retire": 206215300,
+        "transfer": 42018200,
+        "canonical": 43617700,
+        "edges_inclusive": 1450157200,
+        "steps": 15219,
+        "edges": 17444,
+        "disjoint_remainder_ns": 44352700
+      },
+      "REFERENCE": {},
+      "unscoped": {
+        "ENTRY_PREVIOUS_DROP_calls": 3,
+        "ENTRY_PREVIOUS_DROP_ns": 100,
+        "ENTRY_INIT_calls": 3,
+        "ENTRY_INIT_ns": 11200,
+        "queries": 9,
+        "setup": 3663400,
+        "clone": 761700,
+        "close": 35200,
+        "publish": 78800,
+        "join": 194200,
+        "observe": 347100,
+        "retire": 198600,
+        "transfer": 343600,
+        "canonical": 30600,
+        "edges_inclusive": 1665100,
+        "steps": 137,
+        "edges": 135
+      }
+    }
+  },
+  "term-cold-c": {
+    "producer": "terminal-breakdown",
+    "wall_seconds": 17.59378470000229,
+    "cpu_seconds": 23.8125,
+    "peak_working_set_bytes": 2120777728,
+    "cache_mode": "fresh private cache",
+    "reconciliation_mode": "timing",
+    "entry_detail": true,
+    "totals_ns": {
+      "places": 156000,
+      "residences": 65900,
+      "memberships": 2181855100
+    },
+    "parts": {
+      "analysis_drop_ns": 1763500,
+      "discovery_ns": 65600,
+      "graph_drop_ns": 1405000,
+      "graph_preparation_ns": 147132900,
+      "history_creation_ns": 32500,
+      "history_drop_ns": 13517500,
+      "leaf_query_formation_ns": 54200,
+      "leaf_root_lookup_ns": 367100,
+      "merge_ns": 1450000,
+      "operand_queries_ns": 33495800,
+      "payload_contract_queries_ns": 5036600,
+      "payload_target_queries_ns": 4308500,
+      "reachability_drop_ns": 0,
+      "reference_context_drop_ns": 5871300,
+      "reference_queries_ns": 565626100,
+      "source_contract_queries_ns": 1370875200,
+      "types_drop_ns": 9800,
+      "view_queries_ns": 6040500,
+      "residual_ns": 24803000,
+      "reference_graph_ns": 565227600,
+      "reference_other_ns": 398500
+    },
+    "graphs": [
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 162515200
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 182347200
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 220365200
+      }
+    ],
+    "cache": {
+      "cold": 1
+    },
+    "replay_details": {
+      "SOURCE": {
+        "ENTRY_PREVIOUS_DROP_calls": 96,
+        "ENTRY_PREVIOUS_DROP_ns": 4500,
+        "ENTRY_INIT_calls": 96,
+        "ENTRY_INIT_ns": 12387000,
+        "queries": 173,
+        "setup": 18973500,
+        "clone": 47033200,
+        "close": 12334200,
+        "publish": 87182600,
+        "join": 280660200,
+        "observe": 2552400,
+        "retire": 149138300,
+        "transfer": 19671800,
+        "canonical": 32201200,
+        "edges_inclusive": 1056291800,
+        "steps": 15219,
+        "edges": 17444,
+        "disjoint_remainder_ns": 32621500
+      },
+      "REFERENCE": {},
+      "unscoped": {
+        "ENTRY_PREVIOUS_DROP_calls": 3,
+        "ENTRY_PREVIOUS_DROP_ns": 100,
+        "ENTRY_INIT_calls": 3,
+        "ENTRY_INIT_ns": 8300,
+        "queries": 9,
+        "setup": 3199900,
+        "clone": 697700,
+        "close": 33800,
+        "publish": 66100,
+        "join": 244800,
+        "observe": 244100,
+        "retire": 145700,
+        "transfer": 283300,
+        "canonical": 23100,
+        "edges_inclusive": 1428200,
+        "steps": 137,
+        "edges": 135
+      }
+    }
+  },
+  "term-counts-cold": {
+    "producer": "terminal-breakdown",
+    "wall_seconds": 18.339810500001477,
+    "cpu_seconds": 25.625,
+    "peak_working_set_bytes": 2025230336,
+    "cache_mode": "fresh private cache",
+    "reconciliation_mode": "counts",
+    "entry_detail": false,
+    "totals_ns": {
+      "places": 304000,
+      "residences": 78200,
+      "memberships": 1982254700
+    },
+    "parts": {
+      "analysis_constructions": 1,
+      "analysis_drop_ns": 1862800,
+      "candidate_machines": 109,
+      "changing_rounds": 18,
+      "discovery_ns": 76100,
+      "eligible_operations": 418,
+      "fixed_point_rounds": 127,
+      "graph_drop_ns": 1588900,
+      "graph_preparation_ns": 152248100,
+      "history_creation_ns": 25100,
+      "history_drop_ns": 13883900,
+      "leaf_query_formation_ns": 36400,
+      "leaf_root_lookup_ns": 207300,
+      "merge_ns": 1483600,
+      "operand_queries_ns": 29636400,
+      "operations_scanned": 3313,
+      "payload_contract_queries_ns": 4840600,
+      "payload_target_queries": 173,
+      "payload_target_queries_ns": 3552300,
+      "proposed_updates": 439,
+      "reachability_drop_ns": 0,
+      "reference_context_constructions": 127,
+      "reference_context_drop_ns": 4696000,
+      "reference_queries": 418,
+      "reference_queries_ns": 429734600,
+      "source_contract_queries_ns": 1321267100,
+      "types_drop_ns": 10400,
+      "view_queries_ns": 4270500,
+      "residual_ns": 12834600,
+      "reference_graph_ns": 429422800,
+      "reference_other_ns": 311800
+    },
+    "graphs": [
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 149792100
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 135365900
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 144264800
+      }
+    ],
+    "cache": {
+      "cold": 1
+    },
+    "replay_details": {
+      "SOURCE": {},
+      "REFERENCE": {},
+      "unscoped": {}
+    }
+  },
+  "term-counts-warm": {
+    "producer": "terminal-breakdown",
+    "wall_seconds": 7.398235000000568,
+    "cpu_seconds": 7.234375,
+    "peak_working_set_bytes": 1023270912,
+    "cache_mode": "warm reuse of own private cache",
+    "reconciliation_mode": "counts",
+    "entry_detail": false,
+    "totals_ns": {
+      "places": 247600,
+      "residences": 58800,
+      "memberships": 2174862700
+    },
+    "parts": {
+      "analysis_constructions": 1,
+      "analysis_drop_ns": 2154900,
+      "candidate_machines": 109,
+      "changing_rounds": 18,
+      "discovery_ns": 58000,
+      "eligible_operations": 418,
+      "fixed_point_rounds": 127,
+      "graph_drop_ns": 1694900,
+      "graph_preparation_ns": 369051600,
+      "history_creation_ns": 24800,
+      "history_drop_ns": 13230000,
+      "leaf_query_formation_ns": 37100,
+      "leaf_root_lookup_ns": 158100,
+      "merge_ns": 1285500,
+      "operand_queries_ns": 28825100,
+      "operations_scanned": 3313,
+      "payload_contract_queries_ns": 4141800,
+      "payload_target_queries": 173,
+      "payload_target_queries_ns": 3414300,
+      "proposed_updates": 439,
+      "reachability_drop_ns": 100,
+      "reference_context_constructions": 127,
+      "reference_context_drop_ns": 4162300,
+      "reference_queries": 418,
+      "reference_queries_ns": 408551700,
+      "source_contract_queries_ns": 1321687200,
+      "types_drop_ns": 9800,
+      "view_queries_ns": 4062100,
+      "residual_ns": 12313400,
+      "reference_graph_ns": 408279800,
+      "reference_other_ns": 271900
+    },
+    "graphs": [
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 136342000
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 137483000
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 134454800
+      }
+    ],
+    "cache": {
+      "loaded": 1,
+      "prepared_hit": 2
+    },
+    "replay_details": {
+      "SOURCE": {},
+      "REFERENCE": {},
+      "unscoped": {}
+    }
+  },
+  "term-demand-cold": {
+    "producer": "terminal-demand",
+    "wall_seconds": 20.088177600002382,
+    "cpu_seconds": 26.03125,
+    "peak_working_set_bytes": 1915367424,
+    "cache_mode": "fresh private cache",
+    "reconciliation_mode": "counts",
+    "entry_detail": false,
+    "totals_ns": {
+      "places": 253100,
+      "residences": 62700,
+      "memberships": 3255070000
+    },
+    "parts": {
+      "analysis_constructions": 1,
+      "analysis_drop_ns": 2757300,
+      "candidate_machines": 109,
+      "changing_rounds": 18,
+      "discovery_ns": 60200,
+      "eligible_operations": 418,
+      "fixed_point_rounds": 127,
+      "graph_drop_ns": 2087800,
+      "graph_preparation_ns": 204387500,
+      "history_creation_ns": 30400,
+      "history_drop_ns": 18021600,
+      "leaf_query_formation_ns": 49300,
+      "leaf_root_lookup_ns": 208800,
+      "merge_ns": 1606700,
+      "operand_queries_ns": 36248000,
+      "operations_scanned": 3313,
+      "payload_contract_queries_ns": 6425900,
+      "payload_target_queries": 173,
+      "payload_target_queries_ns": 4385800,
+      "proposed_updates": 439,
+      "reachability_drop_ns": 0,
+      "reference_context_constructions": 127,
+      "reference_context_drop_ns": 6668400,
+      "reference_queries": 418,
+      "reference_queries_ns": 664884200,
+      "source_contract_queries_ns": 2282890600,
+      "types_drop_ns": 9900,
+      "view_queries_ns": 6025600,
+      "residual_ns": 18322000,
+      "reference_graph_ns": 664378400,
+      "reference_other_ns": 505800
+    },
+    "graphs": [
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 181474900
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 248512300
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 234391200
+      }
+    ],
+    "cache": {
+      "cold": 1
+    },
+    "replay_details": {
+      "SOURCE": {},
+      "REFERENCE": {},
+      "unscoped": {}
+    },
+    "demands": [
+      {
+        "scope": "REFERENCE",
+        "mappings": 1,
+        "shared_leaves": 0,
+        "projected_candidates": 0
+      },
+      {
+        "scope": "REFERENCE",
+        "mappings": 1,
+        "shared_leaves": 0,
+        "projected_candidates": 0
+      },
+      {
+        "scope": "REFERENCE",
+        "mappings": 1,
+        "shared_leaves": 0,
+        "projected_candidates": 0
+      }
+    ]
+  },
+  "term-demand-verified": {
+    "producer": "terminal-demand",
+    "wall_seconds": 16.88155359999655,
+    "cpu_seconds": 22.1875,
+    "peak_working_set_bytes": 4098600960,
+    "cache_mode": "shared user cache",
+    "reconciliation_mode": "off",
+    "entry_detail": false
+  },
+  "term-demand-warm": {
+    "producer": "terminal-demand",
+    "wall_seconds": 6.97063640000124,
+    "cpu_seconds": 6.921875,
+    "peak_working_set_bytes": 1019392000,
+    "cache_mode": "warm reuse of own private cache",
+    "reconciliation_mode": "counts",
+    "entry_detail": false,
+    "totals_ns": {
+      "places": 242100,
+      "residences": 54200,
+      "memberships": 2122201100
+    },
+    "parts": {
+      "analysis_constructions": 1,
+      "analysis_drop_ns": 1832200,
+      "candidate_machines": 109,
+      "changing_rounds": 18,
+      "discovery_ns": 60700,
+      "eligible_operations": 418,
+      "fixed_point_rounds": 127,
+      "graph_drop_ns": 1519000,
+      "graph_preparation_ns": 142840400,
+      "history_creation_ns": 29100,
+      "history_drop_ns": 14228000,
+      "leaf_query_formation_ns": 42700,
+      "leaf_root_lookup_ns": 187200,
+      "merge_ns": 1421000,
+      "operand_queries_ns": 31372200,
+      "operations_scanned": 3313,
+      "payload_contract_queries_ns": 4930600,
+      "payload_target_queries": 173,
+      "payload_target_queries_ns": 3806600,
+      "proposed_updates": 439,
+      "reachability_drop_ns": 200,
+      "reference_context_constructions": 127,
+      "reference_context_drop_ns": 5135800,
+      "reference_queries": 418,
+      "reference_queries_ns": 479098200,
+      "source_contract_queries_ns": 1414256900,
+      "types_drop_ns": 8900,
+      "view_queries_ns": 5752000,
+      "residual_ns": 15679400,
+      "reference_graph_ns": 478628800,
+      "reference_other_ns": 469400
+    },
+    "graphs": [
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 135847400
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 133230700
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 209550700
+      }
+    ],
+    "cache": {
+      "loaded": 1,
+      "prepared_hit": 2
+    },
+    "replay_details": {
+      "SOURCE": {},
+      "REFERENCE": {},
+      "unscoped": {}
+    },
+    "demands": [
+      {
+        "scope": "REFERENCE",
+        "mappings": 1,
+        "shared_leaves": 0,
+        "projected_candidates": 0
+      },
+      {
+        "scope": "REFERENCE",
+        "mappings": 1,
+        "shared_leaves": 0,
+        "projected_candidates": 0
+      },
+      {
+        "scope": "REFERENCE",
+        "mappings": 1,
+        "shared_leaves": 0,
+        "projected_candidates": 0
+      }
+    ]
+  },
+  "term-off-a": {
+    "producer": "terminal-breakdown",
+    "wall_seconds": 29.174773300001107,
+    "cpu_seconds": 34.640625,
+    "peak_working_set_bytes": 1908809728,
+    "cache_mode": "fresh private cache",
+    "reconciliation_mode": "off",
+    "entry_detail": false
+  },
+  "term-off-b": {
+    "producer": "terminal-breakdown",
+    "wall_seconds": 17.171677599995746,
+    "cpu_seconds": 23.515625,
+    "peak_working_set_bytes": 2137174016,
+    "cache_mode": "fresh private cache",
+    "reconciliation_mode": "off",
+    "entry_detail": false
+  },
+  "term-original-a": {
+    "producer": "baseline",
+    "wall_seconds": 31.60051409999869,
+    "cpu_seconds": 40.25,
+    "peak_working_set_bytes": 2128007168,
+    "cache_mode": "fresh private cache",
+    "reconciliation_mode": "off",
+    "entry_detail": false
+  },
+  "term-original-b": {
+    "producer": "baseline",
+    "wall_seconds": 19.670012100003078,
+    "cpu_seconds": 26.359375,
+    "peak_working_set_bytes": 2128211968,
+    "cache_mode": "fresh private cache",
+    "reconciliation_mode": "off",
+    "entry_detail": false
+  },
+  "term-verified": {
+    "producer": "terminal-breakdown",
+    "wall_seconds": 17.423167100001592,
+    "cpu_seconds": 24.421875,
+    "peak_working_set_bytes": 2126118912,
+    "cache_mode": "shared user cache",
+    "reconciliation_mode": "off",
+    "entry_detail": false
+  },
+  "term-warm-a": {
+    "producer": "terminal-breakdown",
+    "wall_seconds": 14.358990100001392,
+    "cpu_seconds": 13.734375,
+    "peak_working_set_bytes": 1017135104,
+    "cache_mode": "warm reuse of own private cache",
+    "reconciliation_mode": "timing",
+    "entry_detail": false,
+    "totals_ns": {
+      "places": 865500,
+      "residences": 112800,
+      "memberships": 3822705400
+    },
+    "parts": {
+      "analysis_drop_ns": 4614100,
+      "discovery_ns": 99100,
+      "graph_drop_ns": 4278400,
+      "graph_preparation_ns": 270743600,
+      "history_creation_ns": 44000,
+      "history_drop_ns": 22154400,
+      "leaf_query_formation_ns": 78200,
+      "leaf_root_lookup_ns": 339700,
+      "merge_ns": 2390500,
+      "operand_queries_ns": 49454300,
+      "payload_contract_queries_ns": 7622200,
+      "payload_target_queries_ns": 6613300,
+      "reachability_drop_ns": 100,
+      "reference_context_drop_ns": 10370100,
+      "reference_queries_ns": 770933200,
+      "source_contract_queries_ns": 2648776700,
+      "types_drop_ns": 24700,
+      "view_queries_ns": 6937400,
+      "residual_ns": 17231400,
+      "reference_graph_ns": 770455900,
+      "reference_other_ns": 477300
+    },
+    "graphs": [
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 260525800
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 253849200
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 256080900
+      }
+    ],
+    "cache": {
+      "loaded": 1,
+      "prepared_hit": 2
+    },
+    "replay_details": {
+      "SOURCE": {},
+      "REFERENCE": {},
+      "unscoped": {}
+    }
+  },
+  "term-warm-b": {
+    "producer": "terminal-breakdown",
+    "wall_seconds": 7.483755599998403,
+    "cpu_seconds": 7.421875,
+    "peak_working_set_bytes": 1020448768,
+    "cache_mode": "warm reuse of own private cache",
+    "reconciliation_mode": "timing",
+    "entry_detail": true,
+    "totals_ns": {
+      "places": 191000,
+      "residences": 71400,
+      "memberships": 2126963900
+    },
+    "parts": {
+      "analysis_drop_ns": 1692200,
+      "discovery_ns": 75800,
+      "graph_drop_ns": 1571500,
+      "graph_preparation_ns": 173553600,
+      "history_creation_ns": 27900,
+      "history_drop_ns": 13124700,
+      "leaf_query_formation_ns": 43000,
+      "leaf_root_lookup_ns": 232500,
+      "merge_ns": 1334600,
+      "operand_queries_ns": 35695100,
+      "payload_contract_queries_ns": 4462200,
+      "payload_target_queries_ns": 3931500,
+      "reachability_drop_ns": 100,
+      "reference_context_drop_ns": 5140200,
+      "reference_queries_ns": 466724400,
+      "source_contract_queries_ns": 1391726500,
+      "types_drop_ns": 10900,
+      "view_queries_ns": 5386200,
+      "residual_ns": 22231000,
+      "reference_graph_ns": 466431400,
+      "reference_other_ns": 293000
+    },
+    "graphs": [
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 135232500
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 193645200
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 137553700
+      }
+    ],
+    "cache": {
+      "loaded": 1,
+      "prepared_hit": 2
+    },
+    "replay_details": {
+      "SOURCE": {
+        "ENTRY_PREVIOUS_DROP_calls": 96,
+        "ENTRY_PREVIOUS_DROP_ns": 3400,
+        "ENTRY_INIT_calls": 96,
+        "ENTRY_INIT_ns": 11303600,
+        "queries": 173,
+        "setup": 18483400,
+        "clone": 49961600,
+        "close": 12623400,
+        "publish": 91189600,
+        "join": 289850800,
+        "observe": 2413000,
+        "retire": 149191400,
+        "transfer": 21132100,
+        "canonical": 32337500,
+        "edges_inclusive": 1076288300,
+        "steps": 15219,
+        "edges": 17444,
+        "disjoint_remainder_ns": 30612200
+      },
+      "REFERENCE": {},
+      "unscoped": {
+        "ENTRY_PREVIOUS_DROP_calls": 3,
+        "ENTRY_PREVIOUS_DROP_ns": 100,
+        "ENTRY_INIT_calls": 3,
+        "ENTRY_INIT_ns": 6000,
+        "queries": 9,
+        "setup": 2701400,
+        "clone": 520800,
+        "close": 36200,
+        "publish": 68800,
+        "join": 167700,
+        "observe": 236400,
+        "retire": 155600,
+        "transfer": 229600,
+        "canonical": 28200,
+        "edges_inclusive": 1154800,
+        "steps": 137,
+        "edges": 135
+      }
+    }
+  },
+  "term-warm-c": {
+    "producer": "terminal-breakdown",
+    "wall_seconds": 7.661014699995576,
+    "cpu_seconds": 7.53125,
+    "peak_working_set_bytes": 1020342272,
+    "cache_mode": "warm reuse of own private cache",
+    "reconciliation_mode": "timing",
+    "entry_detail": true,
+    "totals_ns": {
+      "places": 168200,
+      "residences": 76000,
+      "memberships": 2044602500
+    },
+    "parts": {
+      "analysis_drop_ns": 1724600,
+      "discovery_ns": 69300,
+      "graph_drop_ns": 1434800,
+      "graph_preparation_ns": 149849800,
+      "history_creation_ns": 25500,
+      "history_drop_ns": 14170000,
+      "leaf_query_formation_ns": 47300,
+      "leaf_root_lookup_ns": 270300,
+      "merge_ns": 1339800,
+      "operand_queries_ns": 30863900,
+      "payload_contract_queries_ns": 4757900,
+      "payload_target_queries_ns": 4009600,
+      "reachability_drop_ns": 100,
+      "reference_context_drop_ns": 4896300,
+      "reference_queries_ns": 467321700,
+      "source_contract_queries_ns": 1338904400,
+      "types_drop_ns": 10700,
+      "view_queries_ns": 4600300,
+      "residual_ns": 20306200,
+      "reference_graph_ns": 467036200,
+      "reference_other_ns": 285500
+    },
+    "graphs": [
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 179868300
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 147819600
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 139348300
+      }
+    ],
+    "cache": {
+      "loaded": 1,
+      "prepared_hit": 2
+    },
+    "replay_details": {
+      "SOURCE": {
+        "ENTRY_PREVIOUS_DROP_calls": 96,
+        "ENTRY_PREVIOUS_DROP_ns": 4100,
+        "ENTRY_INIT_calls": 96,
+        "ENTRY_INIT_ns": 10769000,
+        "queries": 173,
+        "setup": 18228900,
+        "clone": 46081200,
+        "close": 12184700,
+        "publish": 87894600,
+        "join": 280915000,
+        "observe": 2499600,
+        "retire": 145759100,
+        "transfer": 20940800,
+        "canonical": 31990800,
+        "edges_inclusive": 1032853100,
+        "steps": 15219,
+        "edges": 17444,
+        "disjoint_remainder_ns": 29777800
+      },
+      "REFERENCE": {},
+      "unscoped": {
+        "ENTRY_PREVIOUS_DROP_calls": 3,
+        "ENTRY_PREVIOUS_DROP_ns": 200,
+        "ENTRY_INIT_calls": 3,
+        "ENTRY_INIT_ns": 6600,
+        "queries": 9,
+        "setup": 2647400,
+        "clone": 423300,
+        "close": 26000,
+        "publish": 56700,
+        "join": 128000,
+        "observe": 218300,
+        "retire": 125200,
+        "transfer": 170500,
+        "canonical": 18900,
+        "edges_inclusive": 979000,
+        "steps": 137,
+        "edges": 135
+      }
+    }
+  }
+}

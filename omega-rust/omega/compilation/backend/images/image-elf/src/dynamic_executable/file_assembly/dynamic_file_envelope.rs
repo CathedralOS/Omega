@@ -154,25 +154,12 @@ struct DecodedElf64ProgramHeader {
 pub(crate) fn serialize_elf_dynamic_file_envelope(
     resolved_dynamic_table: ValidatedElfResolvedDynamicTable,
 ) -> Result<ValidatedElfDynamicFileEnvelope, Box<ElfDynamicFileEnvelopeSerializationError>> {
-    checked::plan_candidate(
-        resolved_dynamic_table,
-        derive_contents,
-        |resolved_dynamic_table, contents| {
-            non_authoritative_envelope_compatibility_fingerprint(&resolved_dynamic_table, &contents)
-        },
-        |resolved_dynamic_table, contents, fingerprint| Candidate {
-            resolved_dynamic_table: resolved_dynamic_table,
-            contents: contents,
-            non_authoritative_envelope_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.resolved_dynamic_table,
-        |resolved_dynamic_table, diagnostic| {
-            Box::new(ElfDynamicFileEnvelopeSerializationError {
-                resolved_dynamic_table: resolved_dynamic_table,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: resolved_dynamic_table,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_envelope_compatibility_fingerprint,
+        error: ElfDynamicFileEnvelopeSerializationError,
     )
 }
 

@@ -451,6 +451,7 @@ pub fn captured_operand_children_at_path(
             capture: child,
             reference,
             projection,
+            slot: None,
         });
     }
     (!output.is_empty()).then_some(output)

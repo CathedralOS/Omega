@@ -552,6 +552,21 @@ pub(crate) fn selected_float_operation_retains_argument_policy(
         is_sealed_toolchain_float_operator(program, operator)
 }
 
+/// The carrier correspondence an argument roster requires, as the closure
+/// `validate_call_arguments` accepts: `scope` is the checked machine whose
+/// argument positions are read and `required_substitutions` the call's exact
+/// type bindings. Every roster caller admits the same correspondence, so it is
+/// named once here instead of spelled at each site.
+pub(crate) fn call_carrier_matcher<'a>(
+    program: &'a dyn crate::CheckingInput,
+    scope: symbols::SymbolHandle,
+    required_substitutions: &'a [(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> impl Fn(ExpressionHandle, TypeReferenceHandle) -> bool + 'a {
+    move |argument, required| {
+        argument_matches_call_carrier(program, scope, argument, required, required_substitutions)
+    }
+}
+
 /// The selected requirement owns type substitution; permission and value/domain
 /// validation remain common to ordinary and bounded calls.
 /// `argument_scope` retains the resolved callee's diagnostic qualification;
@@ -880,15 +895,7 @@ fn validate_value_call_arguments(
         prior_statements,
         selected_float_operation_retains_argument_policy(program, callee_machine.symbol),
         &[],
-        |argument, required| {
-            crate::value_custody::expression_types::argument_matches_call_carrier(
-                program,
-                current_machine.symbol,
-                argument,
-                required,
-                &type_bindings,
-            )
-        },
+        call_carrier_matcher(program, current_machine.symbol, &type_bindings),
         diagnostics,
         formation_obligations,
     );

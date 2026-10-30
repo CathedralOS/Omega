@@ -1,0 +1,1686 @@
+diff --git a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/descriptor_residences.rs b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/descriptor_residences.rs
+index 118aa389c02..41427a30787 100644
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/descriptor_residences.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/descriptor_residences.rs
+@@ -35,6 +35,7 @@ struct Residence {
+ /// Ordinary reference slots and byte/element view slots share one inventory;
+ /// an address to the carrier itself must remain an observation of its home.
+ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError> {
++    let mut probe = crate::reconciliation_probe::Probe::new("residences", module.machines.len());
+     let copyable_types =
+         super::affine_cleanup::copyable_descriptor_type_ids(&module.structural_types);
+     if copyable_types.is_empty() {
+@@ -48,6 +49,11 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
+     if machine_residences.iter().all(Vec::is_empty) {
+         return Ok(());
+     }
++    probe.count(
++        "candidate_residences",
++        machine_residences.iter().map(Vec::len).sum(),
++    );
++    let graph_started = probe.clock();
+     let graph = terminal_semantics::descriptor_results::terminal_borrowed_storage_graph(module);
+     let rules = module
+         .machines
+@@ -63,6 +69,8 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
+         .collect::<Vec<_>>();
+     let mut analysis =
+         DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
++    probe.elapsed("graph_preparation_ns", graph_started);
++    probe.count("analysis_constructions", 1);
+     for ((machine, residences), rules) in module
+         .machines
+         .iter_mut()
+@@ -75,10 +83,16 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
+         let Some(mut rules) = rules else {
+             continue;
+         };
+-        let Some(flow) = analysis.residence_flow(machine.id, &mut rules) else {
++        probe.count("candidate_machines", 1);
++        let flow_started = probe.clock();
++        let flow = analysis.residence_flow(machine.id, &mut rules);
++        probe.elapsed("residence_flow_ns", flow_started);
++        probe.count("residence_flow_queries", 1);
++        let Some(flow) = flow else {
+             // Incomplete return/effect coverage is not a dead-lifetime proof.
+             continue;
+         };
++        let normal_started = probe.clock();
+         let normal = NormalEdges::new(
+             machine,
+             &module.structural_types,
+@@ -86,11 +100,15 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
+             flow,
+             residences.len(),
+         )?;
++        probe.elapsed("normal_edges_ns", normal_started);
++        let solve_started = probe.clock();
+         let mut motions = Vec::<Motion>::new();
+         loop {
++            probe.count("fixed_point_rounds", 1);
+             let scheduled = normal.scheduled_flow(&motions);
+             let mut additions = Vec::new();
+             for residence in &residences {
++                probe.count("residence_plan_queries", 1);
+                 if let Some(motion) =
+                     plan_residence(machine, &normal, &scheduled, &rules, residence, &motions)?
+                 {
+@@ -111,10 +129,12 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
+                 break;
+             }
+             for motion in additions {
++                probe.count("motion_updates", 1);
+                 motions.retain(|previous| previous.place != motion.place);
+                 motions.push(motion);
+             }
+         }
++        probe.elapsed("planning_ns", solve_started);
+         normal.install(machine, &residences, &motions);
+     }
+     Ok(())
+diff --git a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/place_declarations.rs b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/place_declarations.rs
+index 7d5d3ec78c0..11f3fb56b75 100644
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/place_declarations.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/place_declarations.rs
+@@ -20,11 +20,13 @@ use semantic_vocabulary::StructuralPlaceKind;
+ use terminal_psi::{StructuralPlaceDeclaration, TerminalModule};
+ 
+ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule) {
++    let mut probe = crate::reconciliation_probe::Probe::new("places", module.machines.len());
+     for machine in &mut module.machines {
+         let mut declared: Option<BTreeSet<_>> = None;
+         let mut additions = Vec::new();
+         for block in &machine.blocks {
+             for operation in &block.operations {
++                probe.count("operations_scanned", 1);
+                 if !matches!(
+                     operation.kind,
+                     terminal_psi::structural_leaf_copy_pair_pattern!()
+@@ -34,6 +36,7 @@ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule
+                 let Some(result) = operation.result.structural() else {
+                     continue;
+                 };
++                probe.count("leaf_copy_results", 1);
+                 let declared = declared.get_or_insert_with(|| {
+                     machine
+                         .structural_places
+@@ -53,8 +56,10 @@ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule
+                 });
+             }
+         }
++        probe.count("declarations_added", additions.len());
+         machine.structural_places.extend(additions);
+         if !machine.structural_places.is_sorted_by_key(|place| place.id) {
++            probe.count("place_rosters_sorted", 1);
+             machine.structural_places.sort_by_key(|place| place.id);
+         }
+     }
+diff --git a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lib.rs b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lib.rs
+index 80a49bf885b..7000c16e876 100644
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lib.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lib.rs
+@@ -53,6 +53,7 @@
+ pub(crate) use optimization::digest_encoder;
+ mod machine_lowering;
+ mod program_roots;
++mod reconciliation_probe;
+ pub use program_roots::TerminalProgramRoots;
+ 
+ // The plan families `machine_dispatch` selects between, in their dependency
+diff --git a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs
+index 36057700012..f8f77b66c7f 100644
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs
+@@ -22,9 +22,12 @@ use terminal_psi::{OperationKind, OperationResult, TerminalModule};
+ use terminal_semantics::descriptor_results::{self as descriptors, PayloadMembershipContract};
+ 
+ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
++    let _scan_batch = terminal_semantics::descriptor_results::replay_probe::Batch::begin(module.machines.len());
++    let mut probe = crate::reconciliation_probe::Probe::new("memberships", module.machines.len());
+     if module.structural_domains.is_empty() {
+         return Ok(());
+     }
++    let discovery_started = probe.clock();
+     let memberships = membership_reachability::MembershipReachability::new(
+         &module.structural_types,
+         module
+@@ -51,40 +54,58 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+     if !candidate_machines.iter().any(|&has| has) {
+         return Ok(());
+     }
++    probe.count(
++        "candidate_machines",
++        candidate_machines.iter().filter(|&&has| has).count(),
++    );
++    probe.elapsed("discovery_ns", discovery_started);
++    let graph_started = probe.clock();
+     let types = module.structural_types.clone();
+     let graph = descriptors::terminal_graph(module);
+     let mut analysis = descriptors::DescriptorAnalysis::new(&types, &graph);
++    probe.elapsed("graph_preparation_ns", graph_started);
++    probe.count("analysis_constructions", 1);
+     for (machine_index, has_candidate) in candidate_machines.into_iter().enumerate() {
+         if !has_candidate {
+             continue;
+         }
+         loop {
++            probe.count("fixed_point_rounds", 1);
+             let mut copies = Vec::new();
+             let reference_memberships = terminal_semantics::ReferenceResultMemberships::new(module);
++            probe.count("reference_context_constructions", 1);
+             {
+                 let machine = &module.machines[machine_index];
++                let history_started = probe.clock();
+                 let mut history = descriptors::PayloadMembershipHistory::new(
+                     &types,
+                     &module.structural_domains,
+                     &graph,
+                     machine,
+                 );
++                probe.elapsed("history_creation_ns", history_started);
+                 for (block_index, block) in machine.blocks.iter().enumerate() {
+                     for (ordinal, operation) in block.operations.iter().enumerate() {
++                        probe.count("operations_scanned", 1);
+                         let Some(result) = operation.result.structural() else {
+                             continue;
+                         };
+                         if !memberships.may_contain(result.structural_type) {
+                             continue;
+                         }
++                        probe.count("eligible_operations", 1);
+                         let position = (
+                             block.id,
+                             u32::try_from(ordinal).map_err(|_| {
+                                 LoweringError::Unsupported("membership operation ordinal overflow")
+                             })?,
+                         );
+-                        if let Ok(projected_qualifications) =
+-                            reference_memberships.for_operation(machine, operation)
++                        let reference_started = probe.clock();
++                        let reference_result =
++                            reference_memberships.for_operation(machine, operation);
++                        probe.elapsed("reference_queries_ns", reference_started);
++                        probe.count("reference_queries", 1);
++                        if let Ok(projected_qualifications) = reference_result
+                             && !projected_qualifications.is_empty()
+                         {
+                             copies.push((
+@@ -99,17 +120,21 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+                                 },
+                             ));
+                         }
+-                        if let Some(contract) = view_memberships::retained(
++                        let view_started = probe.clock();
++                        let view_contract = view_memberships::retained(
+                             module,
+                             machine,
+                             operation,
+                             position,
+                             &mut analysis,
+                             &memberships,
+-                        ) {
++                        );
++                        probe.elapsed("view_queries_ns", view_started);
++                        if let Some(contract) = view_contract {
+                             copies.push((block_index, ordinal, contract));
+                         }
+-                        if let Some(contract) = operand_memberships::retained(
++                        let operand_started = probe.clock();
++                        let operand_contract = operand_memberships::retained(
+                             module,
+                             machine,
+                             operation,
+@@ -117,12 +142,16 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+                             &mut analysis,
+                             &mut history,
+                             &memberships,
+-                        ) {
++                        );
++                        probe.elapsed("operand_queries_ns", operand_started);
++                        if let Some(contract) = operand_contract {
+                             copies.push((block_index, ordinal, contract));
+                         }
+                         // Every value transfer observes its source at this operation,
+                         // including copies emitted directly by control-flow edges.
+                         // Declaration-time metadata alone can miss preceding stores.
++                        let source_started = probe.clock();
++                        let scan_source = terminal_semantics::descriptor_results::replay_probe::Source::begin(machine.id.get(), block_index, ordinal);
+                         let selected_source = match &operation.kind {
+                             OperationKind::MoveStructuralValue { source } => {
+                                 Some((source.place, source.path.as_slice()))
+@@ -161,33 +190,46 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+                                 ));
+                             }
+                         }
++                        drop(scan_source);
++                        probe.elapsed("source_contract_queries_ns", source_started);
+                         let OperationKind::StructuralLeafCopy { source, path } = &operation.kind
+                         else {
+                             continue;
+                         };
+-                        let Some(root) = descriptors::terminal_payload_contract(machine, *source)
+-                        else {
++                        let root_started = probe.clock();
++                        let root = descriptors::terminal_payload_contract(machine, *source);
++                        probe.elapsed("leaf_root_lookup_ns", root_started);
++                        let Some(root) = root else {
+                             continue;
+                         };
+-                        let Some(query) = descriptors::descriptor_contents_query(
++                        let query_started = probe.clock();
++                        let query = descriptors::descriptor_contents_query(
+                             &types,
+                             *source,
+                             root.carrier,
+                             path,
+                             None,
+-                        ) else {
++                        );
++                        probe.elapsed("leaf_query_formation_ns", query_started);
++                        let Some(query) = query else {
+                             continue;
+                         };
+-                        let Some(targets) = analysis.payload_targets(machine.id, position, &query)
+-                        else {
++                        probe.count("payload_target_queries", 1);
++                        let targets_started = probe.clock();
++                        let targets = analysis.payload_targets(machine.id, position, &query);
++                        probe.elapsed("payload_target_queries_ns", targets_started);
++                        let Some(targets) = targets else {
+                             continue;
+                         };
+-                        let Some(contract) = descriptors::payload_memberships(
++                        let memberships_started = probe.clock();
++                        let contract = descriptors::payload_memberships(
+                             &types,
+                             &module.structural_domains,
+                             targets,
+                             |place| descriptors::terminal_payload_contract(machine, place),
+-                        ) else {
++                        );
++                        probe.elapsed("payload_contract_queries_ns", memberships_started);
++                        let Some(contract) = contract else {
+                             continue;
+                         };
+                         if contract.carrier == result.structural_type
+@@ -198,9 +240,16 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+                         }
+                     }
+                 }
++                let drop_started = probe.clock();
++                drop(history);
++                probe.elapsed("history_drop_ns", drop_started);
+             }
++            let reference_drop_started = probe.clock();
+             drop(reference_memberships);
++            probe.elapsed("reference_context_drop_ns", reference_drop_started);
++            let merge_started = probe.clock();
+             let mut changed = false;
++            probe.count("proposed_updates", copies.len());
+             let machine = &mut module.machines[machine_index];
+             for (block, operation, contract) in copies {
+                 let OperationResult::Structural(result) =
+@@ -214,11 +263,25 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+                     contract.projected_qualifications,
+                 );
+             }
++            probe.elapsed("merge_ns", merge_started);
+             if !changed {
+                 break;
+             }
++            probe.count("changing_rounds", 1);
+         }
+     }
++    let drop_started = probe.clock();
++    drop(analysis);
++    probe.elapsed("analysis_drop_ns", drop_started);
++    let drop_started = probe.clock();
++    drop(graph);
++    probe.elapsed("graph_drop_ns", drop_started);
++    let drop_started = probe.clock();
++    drop(types);
++    probe.elapsed("types_drop_ns", drop_started);
++    let drop_started = probe.clock();
++    drop(memberships);
++    probe.elapsed("reachability_drop_ns", drop_started);
+     Ok(())
+ }
+ 
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results.rs b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results.rs
+index eb9c0bf433c..59c997842e1 100644
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results.rs
+@@ -26,6 +26,7 @@ mod contents;
+ mod payload_entry;
+ pub(crate) use payload_entry::prove as prove_payload_predicate;
+ mod payload_history;
++pub mod replay_probe;
+ pub(crate) use payload_history::completed_payload_contract;
+ mod payload_predicates;
+ mod payload_reachability;
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
+index 44565c76071..d88a6dc2bdc 100644
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
+@@ -6,6 +6,7 @@
+ mod entry_snapshots;
+ 
+ use super::contents::select_payload_memberships;
++use super::replay_probe::{Label, Metric, Scope};
+ use super::*;
+ use crate::descriptor_lifetimes::descriptor_path;
+ use std::borrow::Borrow;
+@@ -41,19 +42,42 @@ impl State {
+     /// Newly produced or rebound payloads remain raw until this publication;
+     /// their transfer suffix has no premise reader before this point.
+     fn publish_requirements(&mut self) {
++        let mut scan = Scope::coarse(Label::Publish);
++        scan.add(Metric::A, self.scalar_requirements.len());
++        scan.add(Metric::Rosters, self.values.len());
+         for contract in self.values.values_mut() {
++            let previous = contract.scalar_requirements.len();
++            let capacity = contract.scalar_requirements.capacity();
++            scan.add(Metric::B, previous);
+             let mut common = self
+                 .scalar_requirements
+                 .iter()
+                 .map(Borrow::<semantic_vocabulary::Proposition>::borrow)
+                 .peekable();
+             contract.scalar_requirements.retain(|premise| {
+-                while common.peek().is_some_and(|candidate| *candidate < premise) {
++                scan.add(Metric::Visited, 1);
++                while common.peek().is_some_and(|candidate| {
++                    scan.add(Metric::Compared, 1);
++                    *candidate < premise
++                }) {
+                     common.next();
++                    scan.add(Metric::Advanced, 1);
+                 }
+-                !common.peek().is_some_and(|candidate| *candidate == premise)
++                !common.peek().is_some_and(|candidate| {
++                    scan.add(Metric::Compared, 1);
++                    *candidate == premise
++                })
+             });
++            scan.add(
++                Metric::Removed,
++                previous - contract.scalar_requirements.len(),
++            );
++            scan.add(Metric::Shrinks, 1);
+             contract.scalar_requirements.shrink_to_fit();
++            scan.add(
++                Metric::Changed,
++                usize::from(capacity != contract.scalar_requirements.capacity()),
++            );
+         }
+         self.shared_requirements = self.scalar_requirements.clone();
+     }
+@@ -66,24 +90,46 @@ impl State {
+         root: PlaceId,
+         predicate: Option<&semantic_vocabulary::Proposition>,
+     ) -> Option<PayloadMembershipContract> {
++        let mut scan = Scope::coarse(Label::Contract);
++        if scan.counting() {
++            if let Some(input) = self.values.get(&root) {
++                scan.add(Metric::A, input.scalar_requirements.len());
++                scan.add(Metric::B, self.shared_requirements.len());
++                scan.add(Metric::Cloned, input.scalar_requirements.len());
++                scan.add(Metric::Rosters, 1);
++            }
++        }
++        let cloning = Scope::fine(Label::ContractClone);
+         let mut contract = self.values.get(&root)?.clone();
++        drop(cloning);
+         extend_canonical_premises(&mut contract.scalar_requirements, &self.shared_requirements);
+         if let Some(predicate) = predicate
+             && !contract.scalar_requirements.contains(predicate)
+         {
+             contract.scalar_requirements.push(predicate.clone());
+         }
++        scan.add(Metric::C, contract.scalar_requirements.len());
+         Some(contract)
+     }
+ 
+     fn meet(&mut self, mut arrival: State) -> bool {
++        let mut scan = Scope::coarse(Label::Meet);
++        if scan.counting() {
++            scan.add(Metric::Same, usize::from(*self == arrival));
++        }
++        scan.add(Metric::A, self.values.len());
++        scan.add(Metric::B, arrival.values.len());
++        let headers = Scope::fine(Label::MeetHeaders);
+         let previous_shared = std::mem::take(&mut self.shared_requirements);
+         let mut shared = previous_shared.clone();
+         retain_common_snapshot(&mut shared, &arrival.shared_requirements);
+         let mut changed =
+             retain_common_snapshot(&mut self.scalar_requirements, &arrival.scalar_requirements);
+         let previous_values = self.values.len();
++        drop(headers);
++        let payloads = Scope::fine(Label::MeetPayloads);
+         self.values.retain(|place, contract| {
++            scan.add(Metric::Rosters, 1);
+             let Some(mut incoming) = arrival.values.remove(place) else {
+                 return false;
+             };
+@@ -128,10 +174,13 @@ impl State {
+                 );
+             true
+         });
++        drop(payloads);
+         self.shared_requirements = shared;
+         // All logical changes are losses. Moving a fact between local and
+         // shared storage alone must not enqueue another worklist iteration.
+-        changed || self.values.len() != previous_values
++        let changed = changed || self.values.len() != previous_values;
++        scan.add(Metric::Changed, usize::from(changed));
++        changed
+     }
+ }
+ 
+@@ -558,8 +607,10 @@ fn payload_contract_at_cut(
+     cached: &mut Option<CachedHistory>,
+     cut: PayloadMembershipCut,
+ ) -> Result<PayloadMembershipContract, &'static str> {
++    let _replay = Scope::coarse(Label::Replay);
+     let mut failure = "descriptor machine is absent";
+     let result = (|| {
++        let setup = Scope::coarse(Label::Setup);
+         let machine = descriptor?;
+         let identity = machine.id;
+         failure = "payload query reachability is invalid or exceeds its finite budget";
+@@ -621,17 +672,37 @@ fn payload_contract_at_cut(
+         };
+         let mut completed = None;
+         let mut remaining = 65_536usize;
++        drop(setup);
+         while let Some(current) = pending.pop_front() {
+             failure = "payload history worklist exceeded its finite budget";
+             remaining = remaining.checked_sub(1)?;
+             if !relevant.contains(current) {
+                 continue;
+             }
++            let _position = Scope::coarse(Label::Position);
+             failure = "payload history flow position is absent";
++            let mut cloning = Scope::coarse(Label::BeforeClone);
++            if cloning.counting() {
++                if let Some(state) = snapshots.get(&current) {
++                    cloning.add(Metric::Rosters, state.values.len());
++                    cloning.add(
++                        Metric::Cloned,
++                        state
++                            .values
++                            .values()
++                            .map(|contract| contract.scalar_requirements.len())
++                            .sum(),
++                    );
++                }
++            }
+             let mut before = snapshots.get(&current)?.clone();
++            drop(cloning);
++            let retiring = Scope::coarse(Label::BeforeRetire);
+             if let Some(definitions) = machine.payload_scalar_definitions.get(&current) {
+                 retire_scalar_instances(&mut before, definitions);
+             }
++            drop(retiring);
++            let operation = Scope::coarse(Label::Operation);
+             let step = machine.flow.get(&current)?;
+             // Only derivation actuals read the pre-write payloads below. Keep
+             // one immutable copy of each such root, not a second full state.
+@@ -876,8 +947,12 @@ fn payload_contract_at_cut(
+             }
+             // Reads can add equations even when this step has no postcondition.
+             // Normalize at publication, after all local append operations.
++            drop(operation);
++            let normalizing = Scope::coarse(Label::NormalizeAfter);
+             canonicalize_snapshot(&mut after.scalar_requirements);
++            drop(normalizing);
+             after.publish_requirements();
++            let closing = Scope::coarse(Label::CloseAfter);
+             for contract in after.values.values_mut() {
+                 super::payload_predicates::close_with_shared_requirements(
+                     types,
+@@ -887,6 +962,7 @@ fn payload_contract_at_cut(
+                     None,
+                 );
+             }
++            drop(closing);
+             if cut == PayloadMembershipCut::NormalCompletion && current == position {
+                 // The worklist may revisit a loop cut. Replace this observation
+                 // only after all incoming rows have met and this transfer has
+@@ -896,6 +972,7 @@ fn payload_contract_at_cut(
+             // Only distinct arrivals need independent state. Move the completed
+             // transfer into the last relevant edge instead of cloning every
+             // payload's full scalar theory even on a straight-line step.
++            let successor_setup = Scope::coarse(Label::Successors);
+             let mut successors = step
+                 .successors
+                 .iter()
+@@ -907,12 +984,17 @@ fn payload_contract_at_cut(
+                             .is_some_and(|previous| previous.contains(edge.target))
+                 })
+                 .peekable();
++            drop(successor_setup);
+             while let Some((ordinal, edge)) = successors.next() {
++                let _edge = Scope::coarse(Label::Edge);
++                let cloning = Scope::coarse(Label::EdgeClone);
+                 let mut arrival = if successors.peek().is_some() {
+                     after.clone()
+                 } else {
+                     std::mem::take(&mut after)
+                 };
++                drop(cloning);
++                let predicates = Scope::coarse(Label::EdgePredicate);
+                 let edge_predicate = machine
+                     .payload_edge_predicates
+                     .get(&current)
+@@ -935,6 +1017,8 @@ fn payload_contract_at_cut(
+                         );
+                     }
+                 }
++                drop(predicates);
++                let capturing = Scope::coarse(Label::EdgeCapture);
+                 // Snapshot only actual binding results before retiring any
+                 // formal. Loop edges can read and rebind the same root, so the
+                 // entire binding batch must observe the pre-arrival state.
+@@ -991,6 +1075,8 @@ fn payload_contract_at_cut(
+                         bindings.push((binding.parameter.root, contract));
+                     }
+                 }
++                drop(capturing);
++                let mut retaining_predicate = Scope::coarse(Label::PredicateRetention);
+                 // Readers above see exactly the old ordered union plus its
+                 // unsorted predicate tail. Retain only that tail in old locals,
+                 // before replacing formals, so subsequent retirement still
+@@ -998,7 +1084,8 @@ fn payload_contract_at_cut(
+                 // every unrelated payload. Captured RHS contracts already own
+                 // their complete pre-rebinding theory.
+                 if let Some(predicate) = edge_predicate {
+-                    for contract in arrival.values.values_mut() {
++                    let mut reference_values = arrival.values.clone();
++                    for contract in reference_values.values_mut() {
+                         if !contract.scalar_requirements.contains(predicate)
+                             && !arrival
+                                 .shared_requirements
+@@ -1008,7 +1095,31 @@ fn payload_contract_at_cut(
+                             contract.scalar_requirements.push(predicate.clone());
+                         }
+                     }
++                    retaining_predicate.add(Metric::Rosters, arrival.values.len());
++                    retaining_predicate.add(Metric::B, arrival.shared_requirements.len());
++                    let shared_contains_predicate =
++                        arrival.shared_requirements.iter().any(|premise| {
++                            retaining_predicate.add(Metric::Compared, 1);
++                            premise.as_ref() == predicate
++                        });
++                    retaining_predicate.add(Metric::Same, usize::from(shared_contains_predicate));
++                    if !shared_contains_predicate {
++                        for contract in arrival.values.values_mut() {
++                            retaining_predicate.add(Metric::Visited, 1);
++                            retaining_predicate.add(Metric::A, contract.scalar_requirements.len());
++                            if !contract.scalar_requirements.contains(predicate) {
++                                contract.scalar_requirements.push(predicate.clone());
++                            }
++                        }
++                    }
++                    assert_eq!(
++                        arrival.values, reference_values,
++                        "hoisted edge predicate changed payload facts"
++                    );
++                    retaining_predicate.add(Metric::Alias, 1);
+                 }
++                drop(retaining_predicate);
++                let values = Scope::coarse(Label::EdgeValues);
+                 for parameter in &edge.parameters {
+                     arrival.values.remove(&parameter.root);
+                 }
+@@ -1017,35 +1128,50 @@ fn payload_contract_at_cut(
+                     // retired and published before another premise read.
+                     arrival.values.insert(parameter, contract);
+                 }
++                drop(values);
+                 // Only an actual block arrival rebinds its formals. Ordinary
+                 // operation steps within the block keep that same SSA instance.
+                 if edge.target.1 == 0
+                     && let Some(parameters) = machine.payload_scalar_parameters.get(&edge.target.0)
+                 {
+-                    let incoming_requirements = arrival.scalar_requirements.clone();
+-                    retire_scalar_instances(&mut arrival, parameters);
++                    let incoming_requirements = {
++                        let _retiring = Scope::coarse(Label::EdgeRetire);
++                        let incoming = arrival.scalar_requirements.clone();
++                        retire_scalar_instances(&mut arrival, parameters);
++                        incoming
++                    };
+                     if let Some(bindings) = machine
+                         .payload_scalar_bindings
+                         .get(&current)
+                         .and_then(|edges| edges.get(ordinal))
+                     {
++                        let mut transforming = Scope::coarse(Label::EdgeTransform);
++                        transforming.add(Metric::A, incoming_requirements.len());
+                         let rebound = super::scalar_contracts::arrival_requirements(
+                             &incoming_requirements,
+                             bindings,
+                             parameters,
+                         );
++                        transforming.add(Metric::B, rebound.len());
++                        drop(transforming);
++                        let mut appending = Scope::coarse(Label::EdgeAppend);
+                         // Rebinding can return the complete incoming theory
+                         // unchanged. Appending it would detach and deep-clone
+                         // a snapshot only to deduplicate it immediately below.
+                         // Still compute every substitution: even an empty map
+                         // can normalize a proposition into a genuinely new row.
+                         if !contains_rebound_premises(&arrival.scalar_requirements, &rebound) {
++                            appending.add(Metric::Changed, 1);
++                            appending.add(Metric::Cloned, rebound.len());
+                             Arc::make_mut(&mut arrival.scalar_requirements)
+                                 .extend(rebound.into_iter().map(Arc::new));
+                         }
++                        drop(appending);
++                        let _normalizing = Scope::coarse(Label::EdgeNormalize);
+                         canonicalize_snapshot(&mut arrival.scalar_requirements);
+                     }
+                 }
++                let normalizing = Scope::coarse(Label::EdgeNormalize);
+                 for contract in arrival.values.values_mut() {
+                     // Only the edge predicate can append to a payload roster
+                     // since the canonical post-step publication. Selection,
+@@ -1058,6 +1184,8 @@ fn payload_contract_at_cut(
+                         contract.scalar_requirements.dedup();
+                     }
+                 }
++                drop(normalizing);
++                let finishing = Scope::coarse(Label::EdgeFinish);
+                 arrival.publish_requirements();
+                 for contract in arrival.values.values_mut() {
+                     super::payload_predicates::close_with_shared_requirements(
+@@ -1068,17 +1196,21 @@ fn payload_contract_at_cut(
+                         None,
+                     );
+                 }
++                drop(finishing);
++                let mut joining = Scope::coarse(Label::Join);
+                 let changed = if let Some(snapshot) = snapshots.get_mut(&edge.target) {
+                     snapshot.meet(arrival)
+                 } else {
+                     snapshots.insert(edge.target, arrival);
+                     true
+                 };
++                joining.add(Metric::Changed, usize::from(changed));
+                 if changed && !pending.contains(&edge.target) {
+                     pending.push_back(edge.target);
+                 }
+             }
+         }
++        let _result = Scope::coarse(Label::Result);
+         if let Some(previous) = previous_relevant {
+             relevant.merge(previous);
+         }
+@@ -1145,24 +1277,34 @@ fn contains_rebound_premises(
+     retained: &[Arc<semantic_vocabulary::Proposition>],
+     rebound: &[semantic_vocabulary::Proposition],
+ ) -> bool {
++    let mut scan = Scope::fine(Label::Contains);
++    scan.add(Metric::A, retained.len());
++    scan.add(Metric::B, rebound.len());
+     if rebound.windows(2).any(|pair| pair[0] > pair[1]) {
+         return rebound.iter().all(|premise| {
++            scan.add(Metric::Visited, 1);
+             retained
+-                .binary_search_by(|stored| stored.as_ref().cmp(premise))
++                .binary_search_by(|stored| {
++                    scan.add(Metric::Compared, 1);
++                    stored.as_ref().cmp(premise)
++                })
+                 .is_ok()
+         });
+     }
+     let mut remaining = retained.iter().map(Arc::as_ref).peekable();
+     rebound.iter().all(|premise| {
+-        while remaining
+-            .peek()
+-            .is_some_and(|candidate| *candidate < premise)
+-        {
++        scan.add(Metric::Visited, 1);
++        while remaining.peek().is_some_and(|candidate| {
++            scan.add(Metric::Compared, 1);
++            *candidate < premise
++        }) {
+             remaining.next();
++            scan.add(Metric::Advanced, 1);
+         }
+-        remaining
+-            .peek()
+-            .is_some_and(|candidate| *candidate == premise)
++        remaining.peek().is_some_and(|candidate| {
++            scan.add(Metric::Compared, 1);
++            *candidate == premise
++        })
+     })
+ }
+ 
+@@ -1175,22 +1317,29 @@ pub(super) fn extend_canonical_premises<Additional: Borrow<semantic_vocabulary::
+     retained: &mut Vec<semantic_vocabulary::Proposition>,
+     additional: &[Additional],
+ ) {
++    let mut scan = Scope::fine(Label::Union);
++    scan.add(Metric::A, retained.len());
++    scan.add(Metric::B, additional.len());
+     let mut existing = retained.iter().peekable();
+     let introduces_premise = additional
+         .iter()
+         .map(Borrow::<semantic_vocabulary::Proposition>::borrow)
+         .any(|premise| {
+-            while existing
+-                .peek()
+-                .is_some_and(|candidate| *candidate < premise)
+-            {
++            scan.add(Metric::Visited, 1);
++            while existing.peek().is_some_and(|candidate| {
++                scan.add(Metric::Compared, 1);
++                *candidate < premise
++            }) {
+                 existing.next();
++                scan.add(Metric::Advanced, 1);
+             }
+-            !existing
+-                .peek()
+-                .is_some_and(|candidate| *candidate == premise)
++            !existing.peek().is_some_and(|candidate| {
++                scan.add(Metric::Compared, 1);
++                *candidate == premise
++            })
+         });
+     if !introduces_premise {
++        scan.add(Metric::Same, 1);
+         return;
+     }
+     let mut combined = Vec::with_capacity(retained.len() + additional.len());
+@@ -1200,9 +1349,13 @@ pub(super) fn extend_canonical_premises<Additional: Borrow<semantic_vocabulary::
+         .map(Borrow::<semantic_vocabulary::Proposition>::borrow)
+         .peekable();
+     while let (Some(left), Some(right)) = (existing.peek(), additional.peek()) {
++        scan.add(Metric::Compared, 1);
+         match left.cmp(right) {
+             std::cmp::Ordering::Less => combined.extend(existing.next()),
+-            std::cmp::Ordering::Greater => combined.extend(additional.next().cloned()),
++            std::cmp::Ordering::Greater => combined.extend(additional.next().map(|premise| {
++                scan.add(Metric::Cloned, 1);
++                premise.clone()
++            })),
+             std::cmp::Ordering::Equal => {
+                 combined.extend(existing.next());
+                 additional.next();
+@@ -1210,8 +1363,9 @@ pub(super) fn extend_canonical_premises<Additional: Borrow<semantic_vocabulary::
+         }
+     }
+     combined.extend(existing);
+-    combined.extend(additional.cloned());
++    combined.extend(additional.inspect(|_| scan.add(Metric::Cloned, 1)).cloned());
+     *retained = combined;
++    scan.add(Metric::C, retained.len());
+ }
+ 
+ /// Intersect canonical premise rosters without searching the whole arrival for
+@@ -1220,28 +1374,53 @@ fn retain_common_snapshot(
+     retained: &mut Arc<Vec<Arc<semantic_vocabulary::Proposition>>>,
+     incoming: &[Arc<semantic_vocabulary::Proposition>],
+ ) -> bool {
++    let mut scan = Scope::fine(Label::RetainSnapshot);
++    scan.add(Metric::A, retained.len());
++    scan.add(Metric::B, incoming.len());
++    if scan.counting() && !retained.is_empty() && std::ptr::eq(retained.as_slice(), incoming) {
++        scan.add(Metric::Alias, 1);
++        scan.add(Metric::C, retained.len());
++    }
+     let mut remaining = incoming.iter().peekable();
+     let unchanged = retained.iter().all(|premise| {
+-        while remaining
+-            .peek()
+-            .is_some_and(|candidate| *candidate < premise)
+-        {
++        scan.add(Metric::Visited, 1);
++        while remaining.peek().is_some_and(|candidate| {
++            scan.add(Metric::Compared, 1);
++            *candidate < premise
++        }) {
+             remaining.next();
++            scan.add(Metric::Advanced, 1);
+         }
+-        remaining
+-            .peek()
+-            .is_some_and(|candidate| *candidate == premise)
++        remaining.peek().is_some_and(|candidate| {
++            scan.add(Metric::Compared, 1);
++            *candidate == premise
++        })
+     });
+     if unchanged {
++        scan.add(Metric::Same, 1);
+         return false;
+     }
++    if scan.counting() && Arc::strong_count(retained) > 1 {
++        scan.add(Metric::Detached, 1);
++        scan.add(Metric::Cloned, retained.len());
++    }
+     retain_common_premises(Arc::make_mut(retained), incoming)
+ }
+ 
+ /// Preserve a published allocation when normalization would change no row.
+ /// The check uses the same complete proposition ordering as sort/dedup.
+ fn canonicalize_snapshot(premises: &mut Arc<Vec<Arc<semantic_vocabulary::Proposition>>>) {
+-    if premises.windows(2).any(|pair| pair[0] >= pair[1]) {
++    let mut scan = Scope::fine(Label::Canonicalize);
++    scan.add(Metric::A, premises.len());
++    if premises.windows(2).any(|pair| {
++        scan.add(Metric::Visited, 1);
++        pair[0] >= pair[1]
++    }) {
++        scan.add(Metric::Changed, 1);
++        if scan.counting() && Arc::strong_count(premises) > 1 {
++            scan.add(Metric::Detached, 1);
++            scan.add(Metric::Cloned, premises.len());
++        }
+         let premises = Arc::make_mut(premises);
+         premises.sort();
+         premises.dedup();
+@@ -1255,23 +1434,30 @@ fn retain_common_premises<
+     retained: &mut Vec<Retained>,
+     incoming: &[Incoming],
+ ) -> bool {
++    let mut scan = Scope::fine(Label::RetainPremises);
++    scan.add(Metric::A, retained.len());
++    scan.add(Metric::B, incoming.len());
+     let previous = retained.len();
+     let mut remaining = incoming
+         .iter()
+         .map(Borrow::<semantic_vocabulary::Proposition>::borrow)
+         .peekable();
+     retained.retain(|premise| {
++        scan.add(Metric::Visited, 1);
+         let premise: &semantic_vocabulary::Proposition = premise.borrow();
+-        while remaining
+-            .peek()
+-            .is_some_and(|candidate| *candidate < premise)
+-        {
++        while remaining.peek().is_some_and(|candidate| {
++            scan.add(Metric::Compared, 1);
++            *candidate < premise
++        }) {
+             remaining.next();
++            scan.add(Metric::Advanced, 1);
+         }
+-        remaining
+-            .peek()
+-            .is_some_and(|candidate| *candidate == premise)
++        remaining.peek().is_some_and(|candidate| {
++            scan.add(Metric::Compared, 1);
++            *candidate == premise
++        })
+     });
++    scan.add(Metric::Removed, previous - retained.len());
+     retained.len() != previous
+ }
+ 
+@@ -1286,6 +1472,11 @@ fn retain_captured_premises<
+     local: &[Local],
+     common: &[Common],
+ ) {
++    let mut scan = Scope::fine(Label::RetainCaptured);
++    scan.add(Metric::A, incoming.len());
++    scan.add(Metric::B, local.len());
++    scan.add(Metric::C, common.len());
++    let previous = incoming.len();
+     let mut local = local
+         .iter()
+         .map(Borrow::<semantic_vocabulary::Proposition>::borrow)
+@@ -1295,15 +1486,30 @@ fn retain_captured_premises<
+         .map(Borrow::<semantic_vocabulary::Proposition>::borrow)
+         .peekable();
+     incoming.retain(|premise| {
+-        while local.peek().is_some_and(|candidate| *candidate < premise) {
++        scan.add(Metric::Visited, 1);
++        while local.peek().is_some_and(|candidate| {
++            scan.add(Metric::Compared, 1);
++            *candidate < premise
++        }) {
+             local.next();
++            scan.add(Metric::Advanced, 1);
+         }
+-        while common.peek().is_some_and(|candidate| *candidate < premise) {
++        while common.peek().is_some_and(|candidate| {
++            scan.add(Metric::Compared, 1);
++            *candidate < premise
++        }) {
+             common.next();
++            scan.add(Metric::Advanced, 1);
+         }
+-        local.peek().is_some_and(|candidate| *candidate == premise)
+-            || common.peek().is_some_and(|candidate| *candidate == premise)
++        local.peek().is_some_and(|candidate| {
++            scan.add(Metric::Compared, 1);
++            *candidate == premise
++        }) || common.peek().is_some_and(|candidate| {
++            scan.add(Metric::Compared, 1);
++            *candidate == premise
++        })
+     });
++    scan.add(Metric::Removed, previous - incoming.len());
+ }
+ 
+ /// A large qualified aggregate can carry thousands of projected memberships.
+@@ -1316,6 +1522,9 @@ fn retain_common_memberships<Membership: Ord>(
+     retained: &mut Vec<Membership>,
+     incoming: &[Membership],
+ ) {
++    let mut scan = Scope::fine(Label::MembershipMeet);
++    scan.add(Metric::A, retained.len());
++    scan.add(Metric::B, incoming.len());
+     if retained.is_empty() {
+         return;
+     }
+@@ -1323,9 +1532,13 @@ fn retain_common_memberships<Membership: Ord>(
+         retained.clear();
+         return;
+     }
++    scan.add(Metric::Rosters, 1);
+     let mut incoming_memberships: Vec<_> = incoming.iter().collect();
+     incoming_memberships.sort_unstable();
+-    retained.retain(|membership| incoming_memberships.binary_search(&membership).is_ok());
++    retained.retain(|membership| {
++        scan.add(Metric::Visited, 1);
++        incoming_memberships.binary_search(&membership).is_ok()
++    });
+ }
+ 
+ fn retire(
+@@ -1428,26 +1641,57 @@ fn append_scalar_observations(
+ /// payload memberships survive; observations and premises naming old instances
+ /// must not classify newly read values or rebound block formals.
+ fn retire_scalar_instances(state: &mut State, definitions: &[semantic_vocabulary::ValueId]) {
++    let mut total = Scope::coarse(Label::Retire);
++    total.add(Metric::A, definitions.len());
++    total.add(Metric::Rosters, state.values.len());
+     if definitions.is_empty() {
+         return;
+     }
+-    if state
+-        .scalar_requirements
+-        .iter()
+-        .any(|premise| premise.any_value_id(|value| definitions.contains(&value)))
+-    {
+-        Arc::make_mut(&mut state.scalar_requirements)
+-            .retain(|premise| !premise.any_value_id(|value| definitions.contains(&value)));
++    let mut ambient = Scope::fine(Label::RetireAmbient);
++    let ambient_rows = state.scalar_requirements.len();
++    ambient.add(Metric::A, ambient_rows);
++    if state.scalar_requirements.iter().any(|premise| {
++        ambient.add(Metric::Compared, 1);
++        premise.any_value_id(|value| definitions.contains(&value))
++    }) {
++        if ambient.counting() && Arc::strong_count(&state.scalar_requirements) > 1 {
++            ambient.add(Metric::Detached, 1);
++            ambient.add(Metric::Cloned, state.scalar_requirements.len());
++        }
++        Arc::make_mut(&mut state.scalar_requirements).retain(|premise| {
++            ambient.add(Metric::Visited, 1);
++            !premise.any_value_id(|value| definitions.contains(&value))
++        });
+     }
+-    if state
+-        .shared_requirements
+-        .iter()
+-        .any(|premise| !survives_payload_retirement(premise, definitions))
+-    {
++    ambient.add(
++        Metric::Removed,
++        ambient_rows - state.scalar_requirements.len(),
++    );
++    drop(ambient);
++    let mut shared = Scope::fine(Label::RetireShared);
++    let shared_rows = state.shared_requirements.len();
++    shared.add(Metric::A, shared_rows);
++    if state.shared_requirements.iter().any(|premise| {
++        shared.add(Metric::Compared, 1);
++        !survives_payload_retirement(premise, definitions)
++    }) {
++        if shared.counting() && Arc::strong_count(&state.shared_requirements) > 1 {
++            shared.add(Metric::Detached, 1);
++            shared.add(Metric::Cloned, state.shared_requirements.len());
++        }
+         retire_payload_premises(Arc::make_mut(&mut state.shared_requirements), definitions);
+     }
++    shared.add(
++        Metric::Removed,
++        shared_rows - state.shared_requirements.len(),
++    );
++    drop(shared);
++    let mut locals = Scope::fine(Label::RetireLocals);
+     for contract in state.values.values_mut() {
++        locals.add(Metric::Rosters, 1);
++        locals.add(Metric::A, contract.scalar_observations.len());
+         contract.scalar_observations.retain_mut(|observation| {
++            locals.add(Metric::Visited, 1);
+             if observation
+                 .value
+                 .as_ref()
+@@ -1465,9 +1709,17 @@ fn retire_payload_premises<Premise: Borrow<semantic_vocabulary::Proposition>>(
+     premises: &mut Vec<Premise>,
+     definitions: &[semantic_vocabulary::ValueId],
+ ) {
++    let mut scan = Scope::fine(Label::PayloadRetire);
++    scan.add(Metric::A, premises.len());
++    scan.add(Metric::B, definitions.len());
+     // Payloads also forget unknown/unclosed premises. The ambient filter is
+     // deliberately different; applying it here would preserve stale theory.
+-    premises.retain(|premise| survives_payload_retirement(premise.borrow(), definitions));
++    let previous = premises.len();
++    premises.retain(|premise| {
++        scan.add(Metric::Visited, 1);
++        survives_payload_retirement(premise.borrow(), definitions)
++    });
++    scan.add(Metric::Removed, previous - premises.len());
+ }
+ 
+ fn survives_payload_retirement(
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_predicates.rs b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_predicates.rs
+index 26146f6bd59..4348a813fd4 100644
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_predicates.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_predicates.rs
+@@ -5,6 +5,7 @@
+ //! this query uses the existing predicate-denotation owner to check the theory.
+ //! Neither Content nor establishment-route authority can be introduced here.
+ use super::PayloadMembershipContract;
++use super::replay_probe::{Label, Metric, Scope};
+ use crate::descriptor_lifetimes::DescriptorPathSegment;
+ use semantic_vocabulary::{
+     CanonicalStructuralPathSegment, Proposition, PropositionContext, ScalarTerm, ScalarType,
+@@ -39,9 +40,16 @@ impl PayloadScalarObservation {
+     /// may provide an expression without changing its original entry snapshot.
+     /// Neither component survives a conflicting or absent incoming component.
+     pub(super) fn intersect(retained: &mut Vec<Self>, incoming: &[Self]) -> bool {
++        let mut scan = Scope::fine(Label::ObservationsMeet);
++        scan.add(Metric::A, retained.len());
++        scan.add(Metric::B, incoming.len());
+         let mut changed = false;
+         retained.retain_mut(|observation| {
+-            let mut rows = incoming.iter().filter(|row| row.path == observation.path);
++            scan.add(Metric::Visited, 1);
++            let mut rows = incoming.iter().filter(|row| {
++                scan.add(Metric::Compared, 1);
++                row.path == observation.path
++            });
+             let Some(row) = rows.next() else {
+                 changed = true;
+                 return false;
+@@ -106,8 +114,13 @@ pub(super) fn close_with_shared_requirements<Shared: Borrow<Proposition>>(
+     shared: &[Shared],
+     edge_predicate: Option<&Proposition>,
+ ) {
++    let mut scan = Scope::fine(Label::PredicateClose);
++    scan.add(Metric::A, domains.len());
++    scan.add(Metric::B, contract.scalar_requirements.len());
++    scan.add(Metric::C, shared.len());
+     let mut requirements = None;
+     for domain in domains {
++        scan.add(Metric::Visited, 1);
+         if domain.carrier != contract.carrier
+             || domain.content_projection.is_some()
+             || !domain.establishment_routes.is_empty()
+--- /dev/null
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/reconciliation_probe.rs
+@@ -0,0 +1,87 @@
++//! Temporary, read-only attribution for the Dungeon reconciliation experiment.
++//! Local counters avoid a lock per operation; detailed counts are a separate run.
++
++use std::collections::BTreeMap;
++use std::sync::OnceLock;
++use std::time::Instant;
++
++pub(crate) struct Probe {
++    operation: &'static str,
++    machines: usize,
++    started: Option<Instant>,
++    counting: bool,
++    values: BTreeMap<&'static str, u64>,
++}
++
++impl Probe {
++    pub(crate) fn new(operation: &'static str, machines: usize) -> Self {
++        static MODE: OnceLock<String> = OnceLock::new();
++        let mode = MODE.get_or_init(|| std::env::var("OMEGA_RECONCILE_PROBE").unwrap_or_default());
++        Self {
++            operation,
++            machines,
++            started: matches!(mode.as_str(), "timing" | "counts").then(Instant::now),
++            counting: mode == "counts",
++            values: BTreeMap::new(),
++        }
++    }
++
++    pub(crate) fn count(&mut self, name: &'static str, amount: usize) {
++        if self.counting {
++            *self.values.entry(name).or_default() += amount as u64;
++        }
++    }
++
++    pub(crate) fn clock(&self) -> Option<Instant> {
++        self.started.map(|_| Instant::now())
++    }
++
++    pub(crate) fn elapsed(&mut self, name: &'static str, started: Option<Instant>) {
++        if let Some(started) = started {
++            *self.values.entry(name).or_default() +=
++                u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
++        }
++    }
++}
++
++impl Drop for Probe {
++    fn drop(&mut self) {
++        let Some(started) = self.started else {
++            return;
++        };
++        let elapsed = started.elapsed().as_nanos();
++        let values = self
++            .values
++            .iter()
++            .map(|(name, value)| format!("\t{name}={value}"))
++            .collect::<String>();
++        eprintln!(
++            "RECONCILE\t{}\t{}\t{}{}",
++            self.operation, self.machines, elapsed, values
++        );
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn counts_are_local_and_disabled_without_counting() {
++        let mut probe = Probe {
++            operation: "calibration",
++            machines: 0,
++            started: None,
++            counting: false,
++            values: BTreeMap::new(),
++        };
++        probe.count("visits", 2);
++        assert!(probe.values.is_empty());
++        probe.counting = true;
++        probe.count("visits", 2);
++        probe.count("visits", 3);
++        assert_eq!(probe.values["visits"], 5);
++        probe.elapsed("time_ns", None);
++        assert!(!probe.values.contains_key("time_ns"));
++    }
++}
+--- /dev/null
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/replay_probe.rs
+@@ -0,0 +1,463 @@
++//! Temporary query-scoped attribution. No semantic objects or locks are retained.
++//! Exclusive wall spans partition each source root; counts run without timers.
++use std::cell::RefCell;
++use std::sync::OnceLock;
++use std::time::Instant;
++
++#[derive(Clone, Copy, PartialEq, Eq)]
++enum Mode {
++    Off,
++    Coarse,
++    Fine,
++    Counts,
++}
++impl Mode {
++    fn name(self) -> &'static str {
++        match self {
++            Self::Off => "off",
++            Self::Coarse => "coarse",
++            Self::Fine => "fine",
++            Self::Counts => "counts",
++        }
++    }
++    fn timed(self) -> bool {
++        matches!(self, Self::Coarse | Self::Fine)
++    }
++}
++fn mode() -> Mode {
++    static MODE: OnceLock<Mode> = OnceLock::new();
++    *MODE.get_or_init(
++        || match std::env::var("OMEGA_REPLAY_SCAN_PROFILE").as_deref() {
++            Ok("coarse") => Mode::Coarse,
++            Ok("fine") => Mode::Fine,
++            Ok("counts") => Mode::Counts,
++            _ => Mode::Off,
++        },
++    )
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++#[repr(usize)]
++pub(super) enum Label {
++    Source,
++    Replay,
++    Setup,
++    Position,
++    BeforeClone,
++    BeforeRetire,
++    Operation,
++    NormalizeAfter,
++    CloseAfter,
++    Successors,
++    Edge,
++    EdgeClone,
++    EdgePredicate,
++    EdgeCapture,
++    PredicateRetention,
++    EdgeValues,
++    EdgeRetire,
++    EdgeTransform,
++    EdgeAppend,
++    EdgeNormalize,
++    EdgeFinish,
++    Join,
++    Result,
++    Publish,
++    Contract,
++    ContractClone,
++    Meet,
++    MeetHeaders,
++    MeetPayloads,
++    RetainSnapshot,
++    RetainPremises,
++    RetainCaptured,
++    Union,
++    MembershipMeet,
++    ObservationsMeet,
++    Retire,
++    RetireAmbient,
++    RetireShared,
++    RetireObservations,
++    RetireLocals,
++    PayloadRetire,
++    Canonicalize,
++    PredicateClose,
++    Contains,
++    Count,
++}
++const LABELS: [&str; Label::Count as usize] = [
++    "source",
++    "replay",
++    "setup",
++    "position",
++    "before_clone",
++    "before_retire",
++    "operation",
++    "normalize_after",
++    "close_after",
++    "successors",
++    "edge",
++    "edge_clone",
++    "edge_predicate",
++    "edge_capture",
++    "predicate_retention",
++    "edge_values",
++    "edge_retire",
++    "edge_transform",
++    "edge_append",
++    "edge_normalize",
++    "edge_finish",
++    "join",
++    "result",
++    "publish",
++    "contract",
++    "contract_clone",
++    "meet",
++    "meet_headers",
++    "meet_payloads",
++    "retain_snapshot",
++    "retain_premises",
++    "retain_captured",
++    "canonical_union",
++    "membership_meet",
++    "observations_meet",
++    "retire",
++    "retire_ambient",
++    "retire_shared",
++    "retire_observations",
++    "retire_locals",
++    "payload_retire",
++    "canonicalize",
++    "predicate_close",
++    "contains",
++];
++#[derive(Clone, Copy)]
++#[repr(usize)]
++pub(super) enum Metric {
++    A,
++    B,
++    C,
++    Visited,
++    Compared,
++    Advanced,
++    Cloned,
++    Removed,
++    Detached,
++    Changed,
++    Rosters,
++    Shrinks,
++    Same,
++    Alias,
++    Count,
++}
++const METRICS: [&str; Metric::Count as usize] = [
++    "rows_a", "rows_b", "rows_c", "visited", "compared", "advanced", "cloned", "removed",
++    "detached", "changed", "rosters", "shrinks", "same", "alias",
++];
++#[derive(Clone, Copy, Default)]
++struct Entry {
++    calls: u64,
++    inclusive: u128,
++    exclusive: u128,
++    work: [u64; Metric::Count as usize],
++}
++struct Frame {
++    label: Label,
++    started: Instant,
++    children: u128,
++}
++struct Query {
++    machine: u64,
++    block: usize,
++    operation: usize,
++    ns: u128,
++    steps: u64,
++    edges: u64,
++    meets: u64,
++    replayed: bool,
++}
++struct Record {
++    mode: Mode,
++    machines: usize,
++    active: bool,
++    stack: Vec<Frame>,
++    entries: [Entry; Label::Count as usize],
++    queries: Vec<Query>,
++}
++impl Record {
++    fn new(mode: Mode, machines: usize) -> Self {
++        Self {
++            mode,
++            machines,
++            active: false,
++            stack: Vec::with_capacity(16),
++            entries: [Entry::default(); Label::Count as usize],
++            queries: Vec::new(),
++        }
++    }
++    fn finish_timed(&mut self, label: Label, elapsed: u128) {
++        let frame = self.stack.pop().expect("profile scope owns its frame");
++        assert_eq!(frame.label, label);
++        let entry = &mut self.entries[label as usize];
++        entry.calls += 1;
++        entry.inclusive += elapsed;
++        entry.exclusive += elapsed
++            .checked_sub(frame.children)
++            .expect("nested wall intervals do not overlap");
++        if let Some(parent) = self.stack.last_mut() {
++            parent.children += elapsed;
++        }
++    }
++}
++thread_local! { static STATE: RefCell<Option<Record>> = const { RefCell::new(None) }; }
++
++pub struct Batch(bool);
++impl Batch {
++    pub fn begin(machines: usize) -> Self {
++        let mode = mode();
++        if mode == Mode::Off {
++            return Self(false);
++        }
++        Self(STATE.with(|slot| {
++            let mut slot = slot.borrow_mut();
++            if slot.is_some() {
++                return false;
++            }
++            *slot = Some(Record::new(mode, machines));
++            true
++        }))
++    }
++}
++impl Drop for Batch {
++    fn drop(&mut self) {
++        if !self.0 {
++            return;
++        }
++        let Some(mut record) = STATE.with(|slot| slot.borrow_mut().take()) else {
++            return;
++        };
++        assert!(!record.active && record.stack.is_empty());
++        let root = record.entries[Label::Source as usize];
++        if record.mode.timed() {
++            assert_eq!(
++                record.entries.iter().map(|e| e.exclusive).sum::<u128>(),
++                root.inclusive
++            );
++        }
++        eprintln!(
++            "SCAN_BATCH\t{}\t{}\troots={}\treplays={}\twall_ns={}",
++            record.mode.name(),
++            record.machines,
++            record.queries.len(),
++            record.queries.iter().filter(|q| q.replayed).count(),
++            root.inclusive
++        );
++        for (name, entry) in LABELS.iter().zip(record.entries) {
++            if entry.calls == 0 {
++                continue;
++            }
++            let counters = METRICS
++                .iter()
++                .zip(entry.work)
++                .map(|(key, value)| format!("\t{key}={value}"))
++                .collect::<String>();
++            eprintln!(
++                "SCAN\t{}\t{}\t{}\tcalls={}\tinclusive_ns={}\texclusive_ns={}{}",
++                record.mode.name(),
++                record.machines,
++                name,
++                entry.calls,
++                entry.inclusive,
++                entry.exclusive,
++                counters
++            );
++        }
++        record
++            .queries
++            .sort_by_key(|q| std::cmp::Reverse((q.ns, q.edges)));
++        for query in record.queries.iter().filter(|q| q.replayed).take(8) {
++            eprintln!(
++                "SCAN_QUERY\t{}\t{}\tmachine={}\tblock={}\toperation={}\twall_ns={}\tsteps={}\tedges={}\tmeets={}",
++                record.mode.name(),
++                record.machines,
++                query.machine,
++                query.block,
++                query.operation,
++                query.ns,
++                query.steps,
++                query.edges,
++                query.meets
++            );
++        }
++    }
++}
++
++pub struct Source {
++    active: bool,
++    machine: u64,
++    block: usize,
++    operation: usize,
++    previous: [u64; 4],
++}
++impl Source {
++    pub fn begin(machine: u64, block: usize, operation: usize) -> Self {
++        let mut result = Self {
++            active: false,
++            machine,
++            block,
++            operation,
++            previous: [0; 4],
++        };
++        STATE.with(|slot| {
++            let mut slot = slot.borrow_mut();
++            let Some(record) = slot.as_mut().filter(|record| !record.active) else {
++                return;
++            };
++            result.previous = [Label::Replay, Label::Position, Label::Edge, Label::Meet]
++                .map(|label| record.entries[label as usize].calls);
++            record.active = true;
++            result.active = true;
++            if record.mode.timed() {
++                record.stack.push(Frame {
++                    label: Label::Source,
++                    started: Instant::now(),
++                    children: 0,
++                });
++            }
++        });
++        result
++    }
++}
++impl Drop for Source {
++    fn drop(&mut self) {
++        if !self.active {
++            return;
++        }
++        STATE.with(|slot| {
++            let mut slot = slot.borrow_mut();
++            let record = slot.as_mut().unwrap();
++            let elapsed = if record.mode.timed() {
++                assert_eq!(record.stack.len(), 1);
++                let elapsed = record.stack.last().unwrap().started.elapsed().as_nanos();
++                record.finish_timed(Label::Source, elapsed);
++                elapsed
++            } else {
++                record.entries[Label::Source as usize].calls += 1;
++                0
++            };
++            let current = [Label::Replay, Label::Position, Label::Edge, Label::Meet]
++                .map(|label| record.entries[label as usize].calls);
++            record.queries.push(Query {
++                machine: self.machine,
++                block: self.block,
++                operation: self.operation,
++                ns: elapsed,
++                steps: current[1] - self.previous[1],
++                edges: current[2] - self.previous[2],
++                meets: current[3] - self.previous[3],
++                replayed: current[0] > self.previous[0],
++            });
++            record.active = false;
++        });
++    }
++}
++
++pub(super) struct Scope {
++    label: Label,
++    timed: bool,
++    counting: bool,
++    work: [u64; Metric::Count as usize],
++}
++impl Scope {
++    pub(super) fn coarse(label: Label) -> Self {
++        Self::new(label, false)
++    }
++    pub(super) fn fine(label: Label) -> Self {
++        Self::new(label, true)
++    }
++    fn new(label: Label, detail: bool) -> Self {
++        let mut result = Self {
++            label,
++            timed: false,
++            counting: false,
++            work: [0; Metric::Count as usize],
++        };
++        STATE.with(|slot| {
++            let mut slot = slot.borrow_mut();
++            let Some(record) = slot.as_mut().filter(|record| record.active) else {
++                return;
++            };
++            result.counting = record.mode == Mode::Counts;
++            result.timed = record.mode.timed() && (!detail || record.mode == Mode::Fine);
++            if result.timed {
++                record.stack.push(Frame {
++                    label,
++                    started: Instant::now(),
++                    children: 0,
++                });
++            }
++        });
++        result
++    }
++    pub(super) fn counting(&self) -> bool {
++        self.counting
++    }
++    #[inline]
++    pub(super) fn add(&mut self, metric: Metric, value: usize) {
++        if self.counting {
++            self.work[metric as usize] += value as u64;
++        }
++    }
++}
++impl Drop for Scope {
++    fn drop(&mut self) {
++        if !self.timed && !self.counting {
++            return;
++        }
++        STATE.with(|slot| {
++            let mut slot = slot.borrow_mut();
++            let record = slot.as_mut().expect("source scope owns profile state");
++            if self.timed {
++                let elapsed = record.stack.last().unwrap().started.elapsed().as_nanos();
++                record.finish_timed(self.label, elapsed);
++            }
++            if self.counting {
++                let entry = &mut record.entries[self.label as usize];
++                entry.calls += 1;
++                for (total, value) in entry.work.iter_mut().zip(self.work) {
++                    *total += value;
++                }
++            }
++        });
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn payload_profile_exclusive_spans_partition_nested_time() {
++        let mut record = Record::new(Mode::Fine, 0);
++        for label in [Label::Source, Label::Meet, Label::RetainSnapshot] {
++            record.stack.push(Frame {
++                label,
++                started: Instant::now(),
++                children: 0,
++            });
++        }
++        record.finish_timed(Label::RetainSnapshot, 20);
++        record.finish_timed(Label::Meet, 50);
++        record.finish_timed(Label::Source, 80);
++        assert_eq!(
++            record
++                .entries
++                .iter()
++                .map(|entry| entry.exclusive)
++                .sum::<u128>(),
++            80
++        );
++        assert_eq!(record.entries[Label::Meet as usize].exclusive, 30);
++        assert_eq!(record.entries[Label::Source as usize].exclusive, 30);
++        assert!(record.stack.is_empty());
++    }
++}

@@ -4,7 +4,9 @@
 //! selected program and pre-layout rows directly; they do not manufacture
 //! selection authority.
 
-use crate::resolved_selected_form_layout::order_suite::{branch, instruction, successor};
+use crate::resolved_selected_form_layout::order_suite::{
+    block_with, branch, function_from_blocks, instruction, successor,
+};
 use isa_aarch64::{
     aarch64_physical_register_model, encode_aarch64_selected_conditional_branch_form,
     encode_aarch64_selected_jump_form,
@@ -20,10 +22,9 @@ use physical_instructions::{
 use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
     MachineAlternativeKey, MachineLatencyKnowledge, MachineSizeKnowledge, SelectedBlock,
-    SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionKind,
-    SelectedTerminator,
+    SelectedFunction, SelectedInstruction, SelectedInstructionKind, SelectedTerminator,
 };
-use semantic_vocabulary::{BlockId, EdgeId, MachineId};
+use semantic_vocabulary::EdgeId;
 use target::Architecture;
 
 use super::validate;
@@ -50,40 +51,6 @@ fn returned(source: u32) -> SelectedTerminator {
 
 fn block(id: u32, terminator: SelectedTerminator) -> SelectedBlock {
     block_with(id, Vec::new(), terminator)
-}
-
-fn block_with(
-    id: u32,
-    instructions: Vec<SelectedInstruction>,
-    terminator: SelectedTerminator,
-) -> SelectedBlock {
-    SelectedBlock {
-        id: SelectedBlockId(id),
-        origin: selected_instructions::SelectedBlockOrigin::Source(
-            BlockId::new(u64::from(id) + 1).unwrap(),
-        ),
-        instructions,
-        terminator,
-    }
-}
-
-fn function(blocks: Vec<SelectedBlock>) -> SelectedFunction {
-    SelectedFunction {
-        machine: MachineId::new(1).unwrap(),
-        attachment: None,
-        nominal_cleanup_subject: None,
-        provenance: Default::default(),
-        structural: None,
-        local_storage_slots: Vec::new(),
-        outgoing_arguments: Vec::new(),
-        calls: Vec::new(),
-        normalized_foreign_calls: Vec::new(),
-        memory_accesses: Vec::new(),
-        boundary_settlements: Vec::new(),
-        entry_block: SelectedBlockId(0),
-        virtual_registers: Vec::new(),
-        blocks: blocks.into(),
-    }
 }
 
 fn physical() -> register_model::ValidatedPhysicalRegisterModel {
@@ -333,7 +300,7 @@ fn taken_edge_beyond_imm19_widens_to_inverted_skip_plus_unconditional_branch() {
     let padding: Vec<SelectedInstruction> = (0..PAD_BEYOND_IMM19 as u32)
         .map(|index| instruction(1000 + index, SelectedInstructionKind::CopyI64))
         .collect();
-    let selected = function(vec![
+    let selected = function_from_blocks(vec![
         block(0, branch(0, 2, 1)),
         block_with(1, padding, jump(1, 2)),
         block(2, returned(2)),
@@ -378,7 +345,7 @@ fn backward_taken_edge_beyond_imm19_widens() {
         .map(|index| instruction(2000 + index, SelectedInstructionKind::CopyI64))
         .collect();
     // Taken edge jumps back to the entry block from past the imm19 range.
-    let selected = function(vec![
+    let selected = function_from_blocks(vec![
         block(0, jump(0, 1)),
         block_with(1, padding, branch(1, 0, 2)),
         block(2, returned(2)),
@@ -400,7 +367,7 @@ fn in_range_branch_keeps_the_canonical_four_byte_form() {
     let padding: Vec<SelectedInstruction> = (0..4u32)
         .map(|index| instruction(3000 + index, SelectedInstructionKind::CopyI64))
         .collect();
-    let selected = function(vec![
+    let selected = function_from_blocks(vec![
         block(0, branch(0, 2, 1)),
         block_with(1, padding, jump(1, 2)),
         block(2, returned(2)),

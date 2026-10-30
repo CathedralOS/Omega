@@ -138,25 +138,12 @@ struct Candidate {
 pub(crate) fn plan_elf_indexed_section_payloads(
     section_headers: ValidatedElfSectionHeaderTableTemplate,
 ) -> Result<ValidatedElfIndexedSectionPayloadPlan, Box<ElfIndexedSectionPayloadPlanningError>> {
-    checked::plan_candidate(
-        section_headers,
-        derive_contents,
-        |section_headers, contents| {
-            non_authoritative_payload_roster_compatibility_fingerprint(&section_headers, &contents)
-        },
-        |section_headers, contents, fingerprint| Candidate {
-            section_headers: section_headers,
-            contents: contents,
-            non_authoritative_payload_roster_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.section_headers,
-        |section_headers, diagnostic| {
-            Box::new(ElfIndexedSectionPayloadPlanningError {
-                section_headers: section_headers,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: section_headers,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_payload_roster_compatibility_fingerprint,
+        error: ElfIndexedSectionPayloadPlanningError,
     )
 }
 

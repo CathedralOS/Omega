@@ -122,3 +122,10 @@ is inferred from these checks or the small merge-queue admission check.
 32 diagnostic replays and the exact integrated source patch. Original native
 source remains unchanged through the result-record commit. Publication follows
 the normal PR/merge-queue path; an open PR alone does not establish landing.
+
+Published through [PR #850](https://github.com/CathedralOS/Omega/pull/850) as
+`90ffeba2d0b85b6b0eedb57c02dbd6d8437d83f2`. The exact submitted head matched,
+both required admission runs passed, and the published commit was verified as
+an ancestor of fetched remote main. [Publication readback](publication.json)
+keeps the original runtime producer/capture identities separate. Post-merge
+smoke was pending at this readback, not reported as green.

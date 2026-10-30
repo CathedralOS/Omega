@@ -1,0 +1,2 @@
+
+thread 'omega-check-19' (858216) has overflowed its stack

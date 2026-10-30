@@ -1,0 +1,1875 @@
+
+************* Path validation summary **************
+Response                         Time (ms)     Location
+OK                                             C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\build\pass-producer\debug
+
+************* Preparing the environment for Debugger Extensions Gallery repositories **************
+   ExtensionRepository : Implicit
+   UseExperimentalFeatureForNugetShare : true
+   AllowNugetExeUpdate : true
+   NonInteractiveNuget : true
+   AllowNugetMSCredentialProviderInstall : true
+   AllowParallelInitializationOfLocalRepositories : true
+
+   -- Configuring repositories
+      ----> Repository : LocalInstalled, Enabled: true
+      ----> Repository : UserExtensions, Enabled: true
+
+>>>>>>>>>>>>> Preparing the environment for Debugger Extensions Gallery repositories completed, duration 0.000 seconds
+
+************* Waiting for Debugger Extensions Gallery to Initialize **************
+
+>>>>>>>>>>>>> Waiting for Debugger Extensions Gallery to Initialize completed, duration 0.219 seconds
+   ----> Repository : UserExtensions, Enabled: true, Packages count: 0
+   ----> Repository : LocalInstalled, Enabled: true, Packages count: 46
+
+Microsoft (R) Windows Debugger Version 10.0.29617.1000 AMD64
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+*** wait with pending attach
+
+************* Path validation summary **************
+Response                         Time (ms)     Location
+OK                                             C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\build\pass-producer\debug
+Symbol search path is: C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\build\pass-producer\debug
+Executable search path is: 
+WARNING: Process 906196 is not attached as a debuggee
+         The process can be examined but debug events will not be received
+..............
+(dd3d4.e06b0): Wake debugger - code 80000007 (first chance)
+
++------------------------------------------------------------------------+
+| This target supports Hardware-enforced Stack Protection. A HW based    |
+| "Shadow Stack" may be available to assist in debugging and analysis.   |
+| See aka.ms/userhsp for more info.                                      |
+|                                                                        |
+| dps @ssp                                                               |
+|                                                                        |
++------------------------------------------------------------------------+
+
+ntdll!NtWaitForSingleObject+0x14:
+00007ffa`f35232b4 c3              ret
+0:000> cdb: Reading initial command '~* k 15; q'
+
+.  0  Id: dd3d4.e06b0 Suspend: 1 Teb: 00000046`2d857000 Unfrozen "main"
+Child-SP          RetAddr               Call Site
+00000046`2daff488 00007ffa`f056895f     ntdll!NtWaitForSingleObject+0x14
+*** WARNING: Unable to verify checksum for C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\build\contract-query-publication\producer\omega.exe
+00000046`2daff490 00007ff7`e503c151     KERNELBASE!WaitForSingleObjectEx+0xaf
+00000046`2daff530 00007ff7`de438925     omega!std::sys::thread::windows::Thread::join+0x21
+00000046`2daff590 00007ff7`de44a866     omega!RNvCsgZ5qI4WRVXI_5omega4main+0x215
+00000046`2daff7e0 00007ff7`e504d5f7     omega!RINvMs_NtCskVhOHrTIupv_15package_manager13build_sessionNtB5_19PackageBuildSession7disposeNtNtB7_15package_manager21PackageCommandOutcomeNtB1r_19PackageCommandErrorECsgZ5qI4WRVXI_5omega+0x32c6
+(Inline Function) --------`--------     omega!std::rt::lang_start_internal::closure$0+0xa0
+(Inline Function) --------`--------     omega!std::panicking::catch_unwind::do_call+0xa0
+(Inline Function) --------`--------     omega!std::panicking::catch_unwind+0xb3
+(Inline Function) --------`--------     omega!std::panic::catch_unwind+0xb3
+00000046`2daff810 00007ff7`de43a0dc     omega!std::rt::lang_start_internal+0xd7
+00000046`2daff8d0 00007ff7`e5082cac     omega!main+0x2c
+(Inline Function) --------`--------     omega!invoke_main+0x22
+00000046`2daff910 00007ffa`f25ae8d7     omega!__scrt_common_main_seh+0x10c
+00000046`2daff950 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`2daff980 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+   1  Id: dd3d4.dde8c Suspend: 1 Teb: 00000046`2d85f000 Unfrozen "WindhawkMainLoopThreadAttachExempt"
+Child-SP          RetAddr               Call Site
+00000046`2deffa98 00007ffa`f056f233     ntdll!ZwWaitForMultipleObjects+0x14
+00000046`2deffaa0 00007ffa`f056f101     KERNELBASE!WaitForMultipleObjectsEx+0x123
+00000046`2deffd90 00007ffa`cf6cd1ad     KERNELBASE!WaitForMultipleObjects+0x11
+00000046`2deffdd0 00007ffa`cf6cd846     windhawk!GlobalHookSessionStart+0x10cd
+00000046`2deffe80 00007ffa`cf6cd7d7     windhawk!GlobalHookSessionStart+0x1766
+00000046`2deffec0 00007ffa`cf6cd7fc     windhawk!GlobalHookSessionStart+0x16f7
+00000046`2deffef0 00007ffa`f25ae8d7     windhawk!GlobalHookSessionStart+0x171c
+00000046`2defff20 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`2defff50 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+   2  Id: dd3d4.e0a6c Suspend: 1 Teb: 00000046`2d861000 Unfrozen "omega-command"
+Child-SP          RetAddr               Call Site
+00000046`3deed4b8 00007ffa`f056895f     ntdll!NtWaitForSingleObject+0x14
+00000046`3deed4c0 00007ff7`e503c151     KERNELBASE!WaitForSingleObjectEx+0xaf
+00000046`3deed560 00007ff7`de818e24     omega!std::sys::thread::windows::Thread::join+0x21
+00000046`3deed5c0 00007ff7`de802823     omega!RNvMs1_NtNtCs3ntJ5kfyt9h_3std6thread9lifecycleINtB5_9JoinInnerINtNtCshDyaaFUO7lt_4core6result6ResultNtNtNtCskZ8xpZUAwRa_8compiler7checked14package_review20PackageReviewProductNtB1C_20PackageReviewFailureEE4joinB1G_+0x24
+00000046`3deed620 00007ff7`de9017ad     omega!RINvNtNtCs3ntJ5kfyt9h_3std6thread6scoped5scopeNCINvNtNtNtCskZ8xpZUAwRa_8compiler7checked8checking14compile_thread21run_on_compile_threadNtNtBR_14package_review20PackageReviewProductNtB2c_20PackageReviewFailureNCNvMs0_B2c_NtNtBR_19compilation_session18CompilationSession20review_package_build0E0INtNtCshDyaaFUO7lt_4core6result6ResultB2a_B2T_EEBT_+0x383
+00000046`3deeec00 00007ff7`de86065e     omega!RINvNtNtNtCskZ8xpZUAwRa_8compiler7checked8checking14compile_thread21run_on_compile_threadNtNtB6_14package_review20PackageReviewProductNtB1r_20PackageReviewFailureNCNvMs0_B1r_NtNtB6_19compilation_session18CompilationSession20review_package_build0EB8_+0x12d
+00000046`3def4940 00007ff7`de540f96     omega!RNvMs0_NtNtCskZ8xpZUAwRa_8compiler7checked14package_reviewNtNtB7_19compilation_session18CompilationSession20review_package_build+0x4e
+00000046`3def4c00 00007ff7`de533ba5     omega!RNvNtCseqmo7MxpvdJ_11omega_build14package_review12execute_pass+0x19d6
+00000046`3def8130 00007ff7`de694a46     omega!RINvNtNtNtNtCshDyaaFUO7lt_4core5slice4sort8unstable9quicksort9quicksortTjTjjNtNtCskZ8xpZUAwRa_8compiler17product_execution18CompilationProductINtNtBa_6option6OptionNtNtCsjpw6SoBeySA_16package_evidence21permission_acceptance28TerminalPermissionAcceptanceEEINtNtBa_6result6ResultNtNtCseqmo7MxpvdJ_11omega_build15build_execution19PreparedPackageRootNtNtNtB1g_7checked19package_compilation21PackageCompileFailureEENCINvMB8_SB17_20sort_unstable_by_keyjNCINvB4t_16prepare_packagesB19_Es1_0E0EB4v_+0x565
+00000046`3def81c0 00007ff7`de69523a     omega!RNvNtNtNtCskVhOHrTIupv_15package_manager10resolution6source10projection21project_package_build+0xfb6
+00000046`3def8a10 00007ff7`de6ee83b     omega!RNvNtNtNtCskVhOHrTIupv_15package_manager6review9candidate6passes24review_resolved_packages+0x29a
+00000046`3def9060 00007ff7`de68610a     omega!RNvNtNtCskVhOHrTIupv_15package_manager10operations14package_change29review_package_change_reusing+0x12b
+00000046`3def9870 00007ff7`de550a08     omega!RNvMs1_NtCskVhOHrTIupv_15package_manager15package_managerNtB5_27PackageCommandReviewRequest6review+0x56a
+00000046`3defa3c0 00007ff7`de451808     omega!RNvNtCseqmo7MxpvdJ_11omega_build16package_commands23execute_package_command+0xe78
+00000046`3defeec0 00007ff7`de439036     omega!RNvNtNtCsgZ5qI4WRVXI_5omega3cli8packages3run+0x2e8
+00000046`3deff660 00007ff7`de44a8a9     omega!RNvCsgZ5qI4WRVXI_5omega8dispatch+0x346
+00000046`3deffaf0 00007ff7`de438388     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvCsgZ5qI4WRVXI_5omega4main0uEB1b_+0x9
+00000046`3deffb20 00007ff7`e5057253     omega!RINvNtNtCshDyaaFUO7lt_4core4iter8adapters11try_processINtNtB2_3map3MapINtNtNtB6_5slice4iter11ChunksExacthENCINvNtNtNtCsgZ5qI4WRVXI_5omega3cli9arguments9execution15parse_argumentsINtNtB2_4skip4SkipNtNtCs3ntJ5kfyt9h_3std3env6ArgsOsEEs0_0EhINtNtB6_6result6ResultzNtNtCshZeGcpa4EEh_5alloc6string6StringENCINvXso_B3Q_IB3O_INtNtB4e_3vec3VechEB4a_EINtNtNtB4_6traits7collect12FromIteratorIB3O_hB4a_EE9from_iterBQ_E0B55_EB1R_+0x218
+00000046`3deffe40 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`3deffef0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`3defff20 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+   3  Id: dd3d4.e05a8 Suspend: 1 Teb: 00000046`2d865000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`4e0ff178 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`4e0ff180 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`4e0ff1f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`4e0ff230 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`4e0ff280 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`4e0ff360 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`4e0ff400 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`4e0ff6c0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`4e0ff750 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`4e0ff950 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`4e0ffa00 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`4e0ffa30 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+   4  Id: dd3d4.dfa5c Suspend: 1 Teb: 00000046`2d867000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`4e2ff578 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`4e2ff580 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`4e2ff5f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`4e2ff630 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`4e2ff680 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`4e2ff760 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`4e2ff800 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`4e2ffab0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`4e2ffb40 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`4e2ffd40 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`4e2ffdf0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`4e2ffe20 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+   5  Id: dd3d4.e0b50 Suspend: 1 Teb: 00000046`2d869000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`4e4fef78 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`4e4fef80 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`4e4feff0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`4e4ff030 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`4e4ff080 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`4e4ff160 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`4e4ff200 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`4e4ff490 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`4e4ff520 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`4e4ff720 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`4e4ff7d0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`4e4ff800 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+   6  Id: dd3d4.e0af0 Suspend: 1 Teb: 00000046`2d86b000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`4e6ff0f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`4e6ff100 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`4e6ff170 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`4e6ff1b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`4e6ff200 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`4e6ff2e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`4e6ff380 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`4e6ff630 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`4e6ff6c0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`4e6ff8c0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`4e6ff970 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`4e6ff9a0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+   7  Id: dd3d4.df664 Suspend: 1 Teb: 00000046`2d86d000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`4e8ff3f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`4e8ff400 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`4e8ff470 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`4e8ff4b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`4e8ff500 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`4e8ff5e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`4e8ff680 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`4e8ff900 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`4e8ff990 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`4e8ffb90 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`4e8ffc40 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`4e8ffc70 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+   8  Id: dd3d4.de88c Suspend: 1 Teb: 00000046`2d86f000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`4eafef78 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`4eafef80 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`4eafeff0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`4eaff030 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`4eaff080 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`4eaff160 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`4eaff200 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`4eaff4c0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`4eaff550 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`4eaff750 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`4eaff800 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`4eaff830 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+   9  Id: dd3d4.df52c Suspend: 1 Teb: 00000046`2d871000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`4ecff4f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`4ecff500 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`4ecff570 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`4ecff5b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`4ecff600 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`4ecff6e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`4ecff780 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`4ecffa30 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`4ecffac0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`4ecffcc0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`4ecffd70 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`4ecffda0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  10  Id: dd3d4.e0318 Suspend: 1 Teb: 00000046`2d873000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`4eeff678 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`4eeff680 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`4eeff6f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`4eeff730 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`4eeff780 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`4eeff860 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`4eeff900 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`4eeffb80 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`4eeffc10 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`4eeffe10 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`4eeffec0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`4eeffef0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  11  Id: dd3d4.dfbe0 Suspend: 1 Teb: 00000046`2d875000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`4f0ff2f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`4f0ff300 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`4f0ff370 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`4f0ff3b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`4f0ff400 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`4f0ff4e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`4f0ff580 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`4f0ff800 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`4f0ff890 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`4f0ffa90 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`4f0ffb40 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`4f0ffb70 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  12  Id: dd3d4.e035c Suspend: 1 Teb: 00000046`2d877000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`4f2ff178 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`4f2ff180 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`4f2ff1f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`4f2ff230 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`4f2ff280 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`4f2ff360 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`4f2ff400 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`4f2ff690 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`4f2ff720 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`4f2ff920 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`4f2ff9d0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`4f2ffa00 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  13  Id: dd3d4.e08f4 Suspend: 1 Teb: 00000046`2d879000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`4f4ff5f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`4f4ff600 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`4f4ff670 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`4f4ff6b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`4f4ff700 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`4f4ff7e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`4f4ff880 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`4f4ffb00 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`4f4ffb90 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`4f4ffd90 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`4f4ffe40 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`4f4ffe70 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  14  Id: dd3d4.e0a08 Suspend: 1 Teb: 00000046`2d87b000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`4f6ff3f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`4f6ff400 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`4f6ff470 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`4f6ff4b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`4f6ff500 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`4f6ff5e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`4f6ff680 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`4f6ff940 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`4f6ff9d0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`4f6ffbd0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`4f6ffc80 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`4f6ffcb0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  15  Id: dd3d4.e0a30 Suspend: 1 Teb: 00000046`2d87d000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`4f8ff5f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`4f8ff600 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`4f8ff670 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`4f8ff6b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`4f8ff700 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`4f8ff7e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`4f8ff880 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`4f8ffb70 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`4f8ffc00 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`4f8ffe00 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`4f8ffeb0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`4f8ffee0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  16  Id: dd3d4.e0a48 Suspend: 1 Teb: 00000046`2d87f000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`4faff678 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`4faff680 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`4faff6f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`4faff730 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`4faff780 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`4faff860 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`4faff900 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`4faffb90 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`4faffc20 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`4faffe20 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`4faffed0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`4fafff00 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  17  Id: dd3d4.e08a8 Suspend: 1 Teb: 00000046`2d881000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`4fcff2f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`4fcff300 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`4fcff370 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`4fcff3b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`4fcff400 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`4fcff4e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`4fcff580 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`4fcff860 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`4fcff8f0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`4fcffaf0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`4fcffba0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`4fcffbd0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  18  Id: dd3d4.e0a38 Suspend: 1 Teb: 00000046`2d883000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`4feff178 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`4feff180 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`4feff1f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`4feff230 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`4feff280 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`4feff360 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`4feff400 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`4feff6c0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`4feff750 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`4feff950 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`4feffa00 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`4feffa30 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  19  Id: dd3d4.deb50 Suspend: 1 Teb: 00000046`2d885000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`500ff178 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`500ff180 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`500ff1f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`500ff230 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`500ff280 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`500ff360 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`500ff400 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`500ff6c0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`500ff750 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`500ff950 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`500ffa00 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`500ffa30 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  20  Id: dd3d4.dbcb4 Suspend: 1 Teb: 00000046`2d887000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`502ff2f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`502ff300 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`502ff370 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`502ff3b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`502ff400 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`502ff4e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`502ff580 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`502ff850 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`502ff8e0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`502ffae0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`502ffb90 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`502ffbc0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  21  Id: dd3d4.df508 Suspend: 1 Teb: 00000046`2d889000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`504feff8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`504ff000 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`504ff070 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`504ff0b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`504ff100 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`504ff1e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`504ff280 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`504ff550 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`504ff5e0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`504ff7e0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`504ff890 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`504ff8c0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  22  Id: dd3d4.dfb70 Suspend: 1 Teb: 00000046`2d88b000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`506ff5f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`506ff600 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`506ff670 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`506ff6b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`506ff700 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`506ff7e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`506ff880 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`506ffb10 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`506ffba0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`506ffda0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`506ffe50 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`506ffe80 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  23  Id: dd3d4.dfb94 Suspend: 1 Teb: 00000046`2d88d000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`508feff8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`508ff000 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`508ff070 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`508ff0b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`508ff100 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`508ff1e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`508ff280 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`508ff540 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`508ff5d0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`508ff7d0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`508ff880 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`508ff8b0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  24  Id: dd3d4.dd5a4 Suspend: 1 Teb: 00000046`2d88f000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`50aff578 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`50aff580 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`50aff5f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`50aff630 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`50aff680 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`50aff760 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`50aff800 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`50affaa0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`50affb30 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`50affd30 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`50affde0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`50affe10 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  25  Id: dd3d4.e0a3c Suspend: 1 Teb: 00000046`2d891000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`50cff678 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`50cff680 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`50cff6f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`50cff730 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`50cff780 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`50cff860 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`50cff900 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`50cffba0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`50cffc30 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`50cffe30 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`50cffee0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`50cfff10 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  26  Id: dd3d4.e0a2c Suspend: 1 Teb: 00000046`2d893000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`50eff078 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`50eff080 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`50eff0f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`50eff130 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`50eff180 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`50eff260 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`50eff300 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`50eff5c0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`50eff650 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`50eff850 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`50eff900 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`50eff930 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  27  Id: dd3d4.e0a98 Suspend: 1 Teb: 00000046`2d895000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`510fef78 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`510fef80 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`510feff0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`510ff030 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`510ff080 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`510ff160 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`510ff200 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`510ff4b0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`510ff540 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`510ff740 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`510ff7f0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`510ff820 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  28  Id: dd3d4.e0514 Suspend: 1 Teb: 00000046`2d897000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`512feef8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`512fef00 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`512fef70 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`512fefb0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`512ff000 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`512ff0e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`512ff180 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`512ff470 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`512ff500 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`512ff700 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`512ff7b0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`512ff7e0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  29  Id: dd3d4.e042c Suspend: 1 Teb: 00000046`2d899000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`514feef8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`514fef00 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`514fef70 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`514fefb0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`514ff000 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`514ff0e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`514ff180 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`514ff470 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`514ff500 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`514ff700 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`514ff7b0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`514ff7e0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  30  Id: dd3d4.e0aa8 Suspend: 1 Teb: 00000046`2d89b000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`516ff378 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`516ff380 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`516ff3f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`516ff430 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`516ff480 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`516ff560 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`516ff600 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`516ff8d0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`516ff960 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`516ffb60 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`516ffc10 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`516ffc40 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  31  Id: dd3d4.df0e4 Suspend: 1 Teb: 00000046`2d89d000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`518ff4f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`518ff500 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`518ff570 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`518ff5b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`518ff600 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`518ff6e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`518ff780 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`518ffa10 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`518ffaa0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`518ffca0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`518ffd50 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`518ffd80 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  32  Id: dd3d4.df884 Suspend: 1 Teb: 00000046`2d89f000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`51aff678 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`51aff680 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`51aff6f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`51aff730 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`51aff780 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`51aff860 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`51aff900 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`51affbd0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`51affc60 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`51affe60 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`51afff10 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`51afff40 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  33  Id: dd3d4.e0a10 Suspend: 1 Teb: 00000046`2d8a1000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`51cff5f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`51cff600 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`51cff670 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`51cff6b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`51cff700 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`51cff7e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`51cff880 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`51cffb60 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`51cffbf0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`51cffdf0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`51cffea0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`51cffed0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  34  Id: dd3d4.e0ad8 Suspend: 1 Teb: 00000046`2d8a3000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`51eff6f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`51eff700 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`51eff770 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`51eff7b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`51eff800 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`51eff8e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`51eff980 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`51effc00 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`51effc90 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`51effe90 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`51efff40 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`51efff70 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  35  Id: dd3d4.e0a94 Suspend: 1 Teb: 00000046`2d8a5000 Unfrozen "omega-parse-0"
+Child-SP          RetAddr               Call Site
+00000046`61eff3f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`61eff400 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`61eff470 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`61eff4b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`61eff500 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`61eff5e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`61eff680 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`61eff930 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`61eff9c0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`61effbc0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`61effc70 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`61effca0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  36  Id: dd3d4.de1cc Suspend: 1 Teb: 00000046`2d8a7000 Unfrozen "omega-parse-1"
+Child-SP          RetAddr               Call Site
+00000046`71eff178 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`71eff180 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`71eff1f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`71eff230 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`71eff280 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`71eff360 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`71eff400 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`71eff690 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`71eff720 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`71eff920 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`71eff9d0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`71effa00 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  37  Id: dd3d4.de6d8 Suspend: 1 Teb: 00000046`2d8a9000 Unfrozen "omega-parse-2"
+Child-SP          RetAddr               Call Site
+00000046`0ffff6f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`0ffff700 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`0ffff770 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`0ffff7b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`0ffff800 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`0ffff8e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`0ffff980 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`0ffffc10 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`0ffffca0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`0ffffea0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`0fffff50 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`0fffff80 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  38  Id: dd3d4.dcbe8 Suspend: 1 Teb: 00000046`2d8ab000 Unfrozen "omega-parse-3"
+Child-SP          RetAddr               Call Site
+00000046`1fffeff8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`1ffff000 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`1ffff070 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`1ffff0b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`1ffff100 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`1ffff1e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`1ffff280 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`1ffff520 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`1ffff5b0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`1ffff7b0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`1ffff860 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`1ffff890 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  39  Id: dd3d4.e0ad4 Suspend: 1 Teb: 00000046`2d8ad000 Unfrozen "omega-parse-4"
+Child-SP          RetAddr               Call Site
+00000046`81eff1f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`81eff200 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`81eff270 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`81eff2b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`81eff300 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`81eff3e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`81eff480 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`81eff730 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`81eff7c0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`81eff9c0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`81effa70 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`81effaa0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  40  Id: dd3d4.e0aa0 Suspend: 1 Teb: 00000046`2d8af000 Unfrozen "omega-parse-5"
+Child-SP          RetAddr               Call Site
+00000046`91eff078 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`91eff080 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`91eff0f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`91eff130 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`91eff180 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`91eff260 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`91eff300 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`91eff580 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`91eff610 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`91eff810 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`91eff8c0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`91eff8f0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  41  Id: dd3d4.dfe6c Suspend: 1 Teb: 00000046`2d8b1000 Unfrozen "omega-parse-6"
+Child-SP          RetAddr               Call Site
+00000046`a1eff078 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`a1eff080 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`a1eff0f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`a1eff130 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`a1eff180 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`a1eff260 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`a1eff300 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`a1eff5e0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`a1eff670 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`a1eff870 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`a1eff920 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`a1eff950 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  42  Id: dd3d4.e0a70 Suspend: 1 Teb: 00000046`2d8b3000 Unfrozen "omega-parse-7"
+Child-SP          RetAddr               Call Site
+00000046`b1eff478 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`b1eff480 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`b1eff4f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`b1eff530 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`b1eff580 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`b1eff660 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`b1eff700 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`b1eff9e0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`b1effa70 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`b1effc70 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`b1effd20 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`b1effd50 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  43  Id: dd3d4.e0a64 Suspend: 1 Teb: 00000046`2d8b5000 Unfrozen "omega-parse-8"
+Child-SP          RetAddr               Call Site
+00000046`c1eff478 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`c1eff480 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`c1eff4f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`c1eff530 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`c1eff580 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`c1eff660 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`c1eff700 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`c1eff9b0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`c1effa40 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`c1effc40 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`c1effcf0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`c1effd20 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  44  Id: dd3d4.e06b4 Suspend: 1 Teb: 00000046`2d8b7000 Unfrozen "omega-parse-9"
+Child-SP          RetAddr               Call Site
+00000046`d1eff278 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`d1eff280 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`d1eff2f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`d1eff330 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`d1eff380 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`d1eff460 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`d1eff500 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`d1eff7c0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`d1eff850 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`d1effa50 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`d1effb00 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`d1effb30 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  45  Id: dd3d4.e0b0c Suspend: 1 Teb: 00000046`2d8b9000 Unfrozen "omega-parse-10"
+Child-SP          RetAddr               Call Site
+00000046`e1eff0f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`e1eff100 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`e1eff170 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`e1eff1b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`e1eff200 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`e1eff2e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`e1eff380 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`e1eff650 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`e1eff6e0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`e1eff8e0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`e1eff990 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`e1eff9c0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  46  Id: dd3d4.e0754 Suspend: 1 Teb: 00000046`2d8bb000 Unfrozen "omega-parse-11"
+Child-SP          RetAddr               Call Site
+00000046`f1eff0f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000046`f1eff100 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000046`f1eff170 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000046`f1eff1b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000046`f1eff200 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000046`f1eff2e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000046`f1eff380 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000046`f1eff660 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000046`f1eff6f0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000046`f1eff8f0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`f1eff9a0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`f1eff9d0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  47  Id: dd3d4.e0588 Suspend: 1 Teb: 00000046`2d8bd000 Unfrozen "omega-parse-12"
+Child-SP          RetAddr               Call Site
+00000047`01eff178 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000047`01eff180 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000047`01eff1f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000047`01eff230 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000047`01eff280 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000047`01eff360 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000047`01eff400 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000047`01eff690 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000047`01eff720 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000047`01eff920 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000047`01eff9d0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000047`01effa00 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  48  Id: dd3d4.e09a8 Suspend: 1 Teb: 00000046`2d8bf000 Unfrozen "omega-parse-13"
+Child-SP          RetAddr               Call Site
+00000047`11efeff8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000047`11eff000 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000047`11eff070 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000047`11eff0b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000047`11eff100 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000047`11eff1e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000047`11eff280 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000047`11eff500 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000047`11eff590 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000047`11eff790 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000047`11eff840 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000047`11eff870 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  49  Id: dd3d4.e09c4 Suspend: 1 Teb: 00000046`2d8c1000 Unfrozen "omega-parse-14"
+Child-SP          RetAddr               Call Site
+00000047`21eff4f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000047`21eff500 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000047`21eff570 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000047`21eff5b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000047`21eff600 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000047`21eff6e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000047`21eff780 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000047`21effa20 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000047`21effab0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000047`21effcb0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000047`21effd60 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000047`21effd90 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  50  Id: dd3d4.e0614 Suspend: 1 Teb: 00000046`2d8c3000 Unfrozen "omega-parse-15"
+Child-SP          RetAddr               Call Site
+00000047`31eff0f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000047`31eff100 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000047`31eff170 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000047`31eff1b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000047`31eff200 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000047`31eff2e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000047`31eff380 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000047`31eff610 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000047`31eff6a0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000047`31eff8a0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000047`31eff950 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000047`31eff980 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  51  Id: dd3d4.e0bf8 Suspend: 1 Teb: 00000046`2d8c5000 Unfrozen "omega-parse-16"
+Child-SP          RetAddr               Call Site
+00000047`41eff578 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000047`41eff580 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000047`41eff5f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000047`41eff630 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000047`41eff680 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000047`41eff760 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000047`41eff800 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000047`41effaa0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000047`41effb30 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000047`41effd30 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000047`41effde0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000047`41effe10 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  52  Id: dd3d4.e0bf4 Suspend: 1 Teb: 00000046`2d8c7000 Unfrozen "omega-parse-17"
+Child-SP          RetAddr               Call Site
+00000047`51eff3f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000047`51eff400 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000047`51eff470 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000047`51eff4b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000047`51eff500 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000047`51eff5e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000047`51eff680 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000047`51eff950 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000047`51eff9e0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000047`51effbe0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000047`51effc90 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000047`51effcc0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  53  Id: dd3d4.e0b28 Suspend: 1 Teb: 00000046`2d8c9000 Unfrozen "omega-parse-18"
+Child-SP          RetAddr               Call Site
+00000047`61eff578 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000047`61eff580 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000047`61eff5f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000047`61eff630 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000047`61eff680 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000047`61eff760 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000047`61eff800 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000047`61effab0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000047`61effb40 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000047`61effd40 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000047`61effdf0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000047`61effe20 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  54  Id: dd3d4.e0550 Suspend: 1 Teb: 00000046`2d8cb000 Unfrozen "omega-parse-19"
+Child-SP          RetAddr               Call Site
+00000047`71eff078 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000047`71eff080 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000047`71eff0f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000047`71eff130 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000047`71eff180 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000047`71eff260 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000047`71eff300 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000047`71eff5f0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000047`71eff680 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000047`71eff880 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000047`71eff930 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000047`71eff960 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  55  Id: dd3d4.e0b04 Suspend: 1 Teb: 00000046`2d8cd000 Unfrozen "omega-parse-20"
+Child-SP          RetAddr               Call Site
+00000047`81eff2f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000047`81eff300 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000047`81eff370 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000047`81eff3b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000047`81eff400 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000047`81eff4e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000047`81eff580 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000047`81eff860 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000047`81eff8f0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000047`81effaf0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000047`81effba0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000047`81effbd0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  56  Id: dd3d4.e0bc0 Suspend: 1 Teb: 00000046`2d8cf000 Unfrozen "omega-parse-21"
+Child-SP          RetAddr               Call Site
+00000047`91eff4f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000047`91eff500 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000047`91eff570 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000047`91eff5b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000047`91eff600 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000047`91eff6e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000047`91eff780 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000047`91effa30 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000047`91effac0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000047`91effcc0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000047`91effd70 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000047`91effda0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  57  Id: dd3d4.e0bc4 Suspend: 1 Teb: 00000046`2d8d1000 Unfrozen "omega-parse-22"
+Child-SP          RetAddr               Call Site
+00000047`a1eff6f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000047`a1eff700 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000047`a1eff770 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000047`a1eff7b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000047`a1eff800 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000047`a1eff8e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000047`a1eff980 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000047`a1effc00 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000047`a1effc90 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000047`a1effe90 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000047`a1efff40 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000047`a1efff70 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  58  Id: dd3d4.e0388 Suspend: 1 Teb: 00000046`2d8d3000 Unfrozen "omega-parse-23"
+Child-SP          RetAddr               Call Site
+00000047`b1eff178 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000047`b1eff180 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000047`b1eff1f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000047`b1eff230 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000047`b1eff280 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000047`b1eff360 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000047`b1eff400 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000047`b1eff6b0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000047`b1eff740 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000047`b1eff940 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000047`b1eff9f0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000047`b1effa20 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  59  Id: dd3d4.e0bc8 Suspend: 1 Teb: 00000046`2d8d5000 Unfrozen "omega-parse-24"
+Child-SP          RetAddr               Call Site
+00000047`c1eff578 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000047`c1eff580 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000047`c1eff5f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000047`c1eff630 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000047`c1eff680 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000047`c1eff760 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000047`c1eff800 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000047`c1effaf0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000047`c1effb80 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000047`c1effd80 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000047`c1effe30 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000047`c1effe60 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  60  Id: dd3d4.e0b68 Suspend: 1 Teb: 00000046`2d8d7000 Unfrozen "omega-parse-25"
+Child-SP          RetAddr               Call Site
+00000047`d1eff5f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000047`d1eff600 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000047`d1eff670 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000047`d1eff6b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000047`d1eff700 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000047`d1eff7e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000047`d1eff880 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000047`d1effb30 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000047`d1effbc0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000047`d1effdc0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000047`d1effe70 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000047`d1effea0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  61  Id: dd3d4.e04a8 Suspend: 1 Teb: 00000046`2d8d9000 Unfrozen "omega-parse-26"
+Child-SP          RetAddr               Call Site
+00000047`e1eff378 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000047`e1eff380 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000047`e1eff3f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000047`e1eff430 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000047`e1eff480 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000047`e1eff560 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000047`e1eff600 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000047`e1eff8e0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000047`e1eff970 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000047`e1effb70 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000047`e1effc20 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000047`e1effc50 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  62  Id: dd3d4.deb68 Suspend: 1 Teb: 00000046`2d8db000 Unfrozen "omega-parse-27"
+Child-SP          RetAddr               Call Site
+00000047`f1eff478 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000047`f1eff480 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000047`f1eff4f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000047`f1eff530 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000047`f1eff580 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000047`f1eff660 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000047`f1eff700 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000047`f1eff9b0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000047`f1effa40 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000047`f1effc40 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000047`f1effcf0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000047`f1effd20 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  63  Id: dd3d4.e0ae8 Suspend: 1 Teb: 00000046`2d8dd000 Unfrozen "omega-parse-28"
+Child-SP          RetAddr               Call Site
+00000048`01eff1f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000048`01eff200 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000048`01eff270 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000048`01eff2b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000048`01eff300 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000048`01eff3e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000048`01eff480 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000048`01eff700 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000048`01eff790 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000048`01eff990 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000048`01effa40 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000048`01effa70 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  64  Id: dd3d4.e0a24 Suspend: 1 Teb: 00000046`2d8df000 Unfrozen "omega-parse-29"
+Child-SP          RetAddr               Call Site
+00000048`11efeef8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000048`11efef00 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000048`11efef70 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000048`11efefb0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000048`11eff000 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000048`11eff0e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000048`11eff180 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000048`11eff440 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000048`11eff4d0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000048`11eff6d0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000048`11eff780 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000048`11eff7b0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  65  Id: dd3d4.df894 Suspend: 1 Teb: 00000046`2d8e1000 Unfrozen "omega-parse-30"
+Child-SP          RetAddr               Call Site
+00000048`21eff4f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000048`21eff500 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000048`21eff570 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000048`21eff5b0 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000048`21eff600 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000048`21eff6e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000048`21eff780 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000048`21effa30 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000048`21effac0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000048`21effcc0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000048`21effd70 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000048`21effda0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  66  Id: dd3d4.e0564 Suspend: 1 Teb: 00000046`2d8e3000 Unfrozen "omega-parse-31"
+Child-SP          RetAddr               Call Site
+00000048`31eff578 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000048`31eff580 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000048`31eff5f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000048`31eff630 00007ff7`e50d5acd     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000048`31eff680 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x25d
+00000048`31eff760 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000048`31eff800 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000048`31effac0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000048`31effb50 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000048`31effd50 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000048`31effe00 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000048`31effe30 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  67  Id: dd3d4.e0a78 Suspend: 1 Teb: 00000046`2d8e5000 Unfrozen "omega-check-0"
+Child-SP          RetAddr               Call Site
+00000048`41eff078 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000048`41eff080 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000048`41eff0f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000048`41eff130 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000048`41eff180 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000048`41eff260 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000048`41eff300 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000048`41eff5e0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000048`41eff670 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000048`41eff870 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000048`41eff920 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000048`41eff950 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  68  Id: dd3d4.df094 Suspend: 1 Teb: 00000046`2d8e7000 Unfrozen "omega-check-1"
+Child-SP          RetAddr               Call Site
+00000048`51eff2f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000048`51eff300 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000048`51eff370 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000048`51eff3b0 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000048`51eff400 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000048`51eff4e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000048`51eff580 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000048`51eff820 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000048`51eff8b0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000048`51effab0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000048`51effb60 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000048`51effb90 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  69  Id: dd3d4.e0a44 Suspend: 1 Teb: 00000046`2d8e9000 Unfrozen "omega-check-2"
+Child-SP          RetAddr               Call Site
+00000048`61efef78 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000048`61efef80 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000048`61efeff0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000048`61eff030 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000048`61eff080 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000048`61eff160 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000048`61eff200 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000048`61eff4d0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000048`61eff560 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000048`61eff760 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000048`61eff810 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000048`61eff840 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  70  Id: dd3d4.e0ac8 Suspend: 1 Teb: 00000046`2d8eb000 Unfrozen "omega-check-3"
+Child-SP          RetAddr               Call Site
+00000048`71efef78 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000048`71efef80 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000048`71efeff0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000048`71eff030 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000048`71eff080 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000048`71eff160 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000048`71eff200 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000048`71eff4e0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000048`71eff570 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000048`71eff770 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000048`71eff820 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000048`71eff850 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  71  Id: dd3d4.e09e4 Suspend: 1 Teb: 00000046`2d8ed000 Unfrozen "omega-check-4"
+Child-SP          RetAddr               Call Site
+00000048`81eff378 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000048`81eff380 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000048`81eff3f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000048`81eff430 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000048`81eff480 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000048`81eff560 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000048`81eff600 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000048`81eff8d0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000048`81eff960 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000048`81effb60 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000048`81effc10 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000048`81effc40 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  72  Id: dd3d4.e0ab4 Suspend: 1 Teb: 00000046`2d8ef000 Unfrozen "omega-check-5"
+Child-SP          RetAddr               Call Site
+00000048`91eff0f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000048`91eff100 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000048`91eff170 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000048`91eff1b0 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000048`91eff200 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000048`91eff2e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000048`91eff380 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000048`91eff640 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000048`91eff6d0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000048`91eff8d0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000048`91eff980 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000048`91eff9b0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  73  Id: dd3d4.e0ab0 Suspend: 1 Teb: 00000046`2d8f1000 Unfrozen "omega-check-6"
+Child-SP          RetAddr               Call Site
+00000048`a1eff378 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000048`a1eff380 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000048`a1eff3f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000048`a1eff430 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000048`a1eff480 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000048`a1eff560 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000048`a1eff600 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000048`a1eff880 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000048`a1eff910 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000048`a1effb10 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000048`a1effbc0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000048`a1effbf0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  74  Id: dd3d4.e0ac4 Suspend: 1 Teb: 00000046`2d8f3000 Unfrozen "omega-check-7"
+Child-SP          RetAddr               Call Site
+00000048`b1eff178 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000048`b1eff180 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000048`b1eff1f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000048`b1eff230 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000048`b1eff280 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000048`b1eff360 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000048`b1eff400 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000048`b1eff6d0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000048`b1eff760 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000048`b1eff960 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000048`b1effa10 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000048`b1effa40 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  75  Id: dd3d4.df760 Suspend: 1 Teb: 00000046`2d8f5000 Unfrozen "omega-check-8"
+Child-SP          RetAddr               Call Site
+00000048`c1eff178 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000048`c1eff180 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000048`c1eff1f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000048`c1eff230 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000048`c1eff280 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000048`c1eff360 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000048`c1eff400 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000048`c1eff6b0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000048`c1eff740 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000048`c1eff940 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000048`c1eff9f0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000048`c1effa20 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  76  Id: dd3d4.e087c Suspend: 1 Teb: 00000046`2d8f7000 Unfrozen "omega-check-9"
+Child-SP          RetAddr               Call Site
+00000048`d1eff078 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000048`d1eff080 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000048`d1eff0f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000048`d1eff130 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000048`d1eff180 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000048`d1eff260 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000048`d1eff300 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000048`d1eff5f0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000048`d1eff680 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000048`d1eff880 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000048`d1eff930 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000048`d1eff960 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  77  Id: dd3d4.e0494 Suspend: 1 Teb: 00000046`2d8f9000 Unfrozen "omega-check-10"
+Child-SP          RetAddr               Call Site
+00000048`e1eff3f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000048`e1eff400 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000048`e1eff470 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000048`e1eff4b0 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000048`e1eff500 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000048`e1eff5e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000048`e1eff680 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000048`e1eff950 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000048`e1eff9e0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000048`e1effbe0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000048`e1effc90 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000048`e1effcc0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  78  Id: dd3d4.e0a54 Suspend: 1 Teb: 00000046`2d8fb000 Unfrozen "omega-check-11"
+Child-SP          RetAddr               Call Site
+00000048`f1eff5f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000048`f1eff600 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000048`f1eff670 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000048`f1eff6b0 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000048`f1eff700 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000048`f1eff7e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000048`f1eff880 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000048`f1effb60 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000048`f1effbf0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000048`f1effdf0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000048`f1effea0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000048`f1effed0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  79  Id: dd3d4.dfac8 Suspend: 1 Teb: 00000046`2d8fd000 Unfrozen "omega-check-12"
+Child-SP          RetAddr               Call Site
+00000049`01eff4f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000049`01eff500 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000049`01eff570 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000049`01eff5b0 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000049`01eff600 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000049`01eff6e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000049`01eff780 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000049`01effa70 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000049`01effb00 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000049`01effd00 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000049`01effdb0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000049`01effde0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  80  Id: dd3d4.e0870 Suspend: 1 Teb: 00000046`2d8ff000 Unfrozen "omega-check-13"
+Child-SP          RetAddr               Call Site
+00000049`11eff578 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000049`11eff580 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000049`11eff5f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000049`11eff630 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000049`11eff680 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000049`11eff760 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000049`11eff800 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000049`11effac0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000049`11effb50 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000049`11effd50 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000049`11effe00 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000049`11effe30 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  81  Id: dd3d4.df490 Suspend: 1 Teb: 00000046`2d901000 Unfrozen "omega-check-14"
+Child-SP          RetAddr               Call Site
+00000049`21eff0f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000049`21eff100 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000049`21eff170 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000049`21eff1b0 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000049`21eff200 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000049`21eff2e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000049`21eff380 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000049`21eff630 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000049`21eff6c0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000049`21eff8c0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000049`21eff970 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000049`21eff9a0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  82  Id: dd3d4.e006c Suspend: 1 Teb: 00000046`2d903000 Unfrozen "omega-check-15"
+Child-SP          RetAddr               Call Site
+00000049`31efef78 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000049`31efef80 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000049`31efeff0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000049`31eff030 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000049`31eff080 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000049`31eff160 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000049`31eff200 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000049`31eff4d0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000049`31eff560 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000049`31eff760 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000049`31eff810 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000049`31eff840 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  83  Id: dd3d4.e00ac Suspend: 1 Teb: 00000046`2d905000 Unfrozen "omega-check-16"
+Child-SP          RetAddr               Call Site
+00000049`41eff478 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000049`41eff480 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000049`41eff4f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000049`41eff530 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000049`41eff580 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000049`41eff660 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000049`41eff700 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000049`41eff9d0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000049`41effa60 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000049`41effc60 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000049`41effd10 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000049`41effd40 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  84  Id: dd3d4.de028 Suspend: 1 Teb: 00000046`2d907000 Unfrozen "omega-check-17"
+Child-SP          RetAddr               Call Site
+00000049`51eff078 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000049`51eff080 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000049`51eff0f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000049`51eff130 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000049`51eff180 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000049`51eff260 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000049`51eff300 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000049`51eff5a0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000049`51eff630 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000049`51eff830 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000049`51eff8e0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000049`51eff910 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  85  Id: dd3d4.de8d0 Suspend: 1 Teb: 00000046`2d909000 Unfrozen "omega-check-18"
+Child-SP          RetAddr               Call Site
+00000049`61eff5f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000049`61eff600 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000049`61eff670 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000049`61eff6b0 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000049`61eff700 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000049`61eff7e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000049`61eff880 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000049`61effb60 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000049`61effbf0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000049`61effdf0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000049`61effea0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000049`61effed0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  86  Id: dd3d4.dfc88 Suspend: 1 Teb: 00000046`2d90b000 Unfrozen "omega-check-19"
+Child-SP          RetAddr               Call Site
+00000049`71eff578 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000049`71eff580 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000049`71eff5f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000049`71eff630 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000049`71eff680 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000049`71eff760 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000049`71eff800 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000049`71effab0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000049`71effb40 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000049`71effd40 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000049`71effdf0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000049`71effe20 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  87  Id: dd3d4.df058 Suspend: 1 Teb: 00000046`2d90d000 Unfrozen "omega-check-20"
+Child-SP          RetAddr               Call Site
+00000049`81eff2f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000049`81eff300 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000049`81eff370 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000049`81eff3b0 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000049`81eff400 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000049`81eff4e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000049`81eff580 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000049`81eff840 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000049`81eff8d0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000049`81effad0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000049`81effb80 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000049`81effbb0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  88  Id: dd3d4.e0688 Suspend: 1 Teb: 00000046`2d90f000 Unfrozen "omega-check-21"
+Child-SP          RetAddr               Call Site
+00000049`91eff2f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000049`91eff300 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000049`91eff370 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000049`91eff3b0 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000049`91eff400 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000049`91eff4e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000049`91eff580 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000049`91eff810 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000049`91eff8a0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000049`91effaa0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000049`91effb50 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000049`91effb80 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  89  Id: dd3d4.df438 Suspend: 1 Teb: 00000046`2d911000 Unfrozen "omega-check-22"
+Child-SP          RetAddr               Call Site
+00000049`a1eff3f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000049`a1eff400 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000049`a1eff470 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000049`a1eff4b0 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000049`a1eff500 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000049`a1eff5e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000049`a1eff680 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000049`a1eff950 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000049`a1eff9e0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000049`a1effbe0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000049`a1effc90 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000049`a1effcc0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  90  Id: dd3d4.e0500 Suspend: 1 Teb: 00000046`2d913000 Unfrozen "omega-check-23"
+Child-SP          RetAddr               Call Site
+00000049`b1efeff8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000049`b1eff000 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000049`b1eff070 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000049`b1eff0b0 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000049`b1eff100 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000049`b1eff1e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000049`b1eff280 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000049`b1eff550 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000049`b1eff5e0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000049`b1eff7e0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000049`b1eff890 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000049`b1eff8c0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  91  Id: dd3d4.e09d4 Suspend: 1 Teb: 00000046`2d915000 Unfrozen "omega-check-24"
+Child-SP          RetAddr               Call Site
+00000049`c1eff4f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000049`c1eff500 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000049`c1eff570 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000049`c1eff5b0 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000049`c1eff600 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000049`c1eff6e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000049`c1eff780 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000049`c1effa50 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000049`c1effae0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000049`c1effce0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000049`c1effd90 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000049`c1effdc0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  92  Id: dd3d4.e098c Suspend: 1 Teb: 00000046`2d917000 Unfrozen "omega-check-25"
+Child-SP          RetAddr               Call Site
+00000049`d1efef78 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000049`d1efef80 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000049`d1efeff0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000049`d1eff030 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000049`d1eff080 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000049`d1eff160 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000049`d1eff200 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000049`d1eff4c0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000049`d1eff550 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000049`d1eff750 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000049`d1eff800 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000049`d1eff830 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  93  Id: dd3d4.e09d8 Suspend: 1 Teb: 00000046`2d919000 Unfrozen "omega-check-26"
+Child-SP          RetAddr               Call Site
+00000049`e1eff178 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000049`e1eff180 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000049`e1eff1f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000049`e1eff230 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000049`e1eff280 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000049`e1eff360 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000049`e1eff400 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000049`e1eff6e0 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000049`e1eff770 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000049`e1eff970 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000049`e1effa20 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000049`e1effa50 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  94  Id: dd3d4.e0894 Suspend: 1 Teb: 00000046`2d91b000 Unfrozen "omega-check-27"
+Child-SP          RetAddr               Call Site
+00000049`f1eff4f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+00000049`f1eff500 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+00000049`f1eff570 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+00000049`f1eff5b0 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+00000049`f1eff600 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+00000049`f1eff6e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+00000049`f1eff780 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+00000049`f1effa40 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+00000049`f1effad0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+00000049`f1effcd0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000049`f1effd80 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000049`f1effdb0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  95  Id: dd3d4.e09e0 Suspend: 1 Teb: 00000046`2d91d000 Unfrozen "omega-check-28"
+Child-SP          RetAddr               Call Site
+0000004a`01eff278 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+0000004a`01eff280 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+0000004a`01eff2f0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+0000004a`01eff330 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+0000004a`01eff380 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+0000004a`01eff460 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+0000004a`01eff500 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+0000004a`01eff780 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+0000004a`01eff810 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+0000004a`01effa10 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+0000004a`01effac0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+0000004a`01effaf0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  96  Id: dd3d4.dfd8c Suspend: 1 Teb: 00000046`2d91f000 Unfrozen "omega-check-29"
+Child-SP          RetAddr               Call Site
+0000004a`11eff2f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+0000004a`11eff300 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+0000004a`11eff370 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+0000004a`11eff3b0 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+0000004a`11eff400 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+0000004a`11eff4e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+0000004a`11eff580 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+0000004a`11eff830 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+0000004a`11eff8c0 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+0000004a`11effac0 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+0000004a`11effb70 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+0000004a`11effba0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  97  Id: dd3d4.e0988 Suspend: 1 Teb: 00000046`2d921000 Unfrozen "omega-check-30"
+Child-SP          RetAddr               Call Site
+0000004a`21efef78 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+0000004a`21efef80 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+0000004a`21efeff0 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+0000004a`21eff030 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+0000004a`21eff080 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+0000004a`21eff160 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+0000004a`21eff200 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+0000004a`21eff490 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+0000004a`21eff520 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+0000004a`21eff720 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+0000004a`21eff7d0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+0000004a`21eff800 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  98  Id: dd3d4.e09f4 Suspend: 1 Teb: 00000046`2d923000 Unfrozen "omega-check-31"
+Child-SP          RetAddr               Call Site
+0000004a`31eff4f8 00007ffa`f33c6d63     ntdll!ZwWaitForAlertByThreadId+0x14
+0000004a`31eff500 00007ffa`f0632638     ntdll!RtlWaitOnAddress+0x213
+0000004a`31eff570 00007ff7`e503c273     KERNELBASE!WaitOnAddress+0x38
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::wait_on_address+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::futex::windows::futex_wait+0x19
+(Inline Function) --------`--------     omega!std::sys::sync::condvar::futex::Condvar::wait_optional_timeout+0x23
+0000004a`31eff5b0 00007ff7`e50d5a95     omega!std::sys::sync::condvar::futex::Condvar::wait+0x33
+0000004a`31eff600 00007ff7`e50d653e     omega!RINvMNtCskm6tC9XJFJR_10rayon_core5sleepNtB3_5Sleep5sleepNCNvMs8_NtB5_8registryNtB10_12WorkerThread15wait_until_cold0EB5_+0x225
+0000004a`31eff6e0 00007ff7`e463880b     omega!RNvMs8_NtCskm6tC9XJFJR_10rayon_core8registryNtB5_12WorkerThread15wait_until_cold+0x17e
+0000004a`31eff780 00007ff7`e4632682     omega!RNvMNtCskm6tC9XJFJR_10rayon_core8registryNtB2_13ThreadBuilder3run+0x24b
+0000004a`31effa70 00007ff7`e463303c     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNvXs0_NtCskm6tC9XJFJR_10rayon_core8registryNtB1f_12DefaultSpawnNtB1f_11ThreadSpawn5spawn0uEB1h_+0x52
+0000004a`31effb00 00007ff7`e5057253     omega!RINvNtNtNtNtCs3ntJ5kfyt9h_3std3sys12thread_local6native4lazy7destroyNtNtCsfxZ9h5tgAKV_15crossbeam_epoch9collector11LocalHandleECskm6tC9XJFJR_10rayon_core+0x23c
+0000004a`31effd00 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+0000004a`31effdb0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+0000004a`31effde0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  99  Id: dd3d4.e008c Suspend: 1 Teb: 00000046`2d92d000 Unfrozen "omega-compile"
+Child-SP          RetAddr               Call Site
+00000046`4ddf5470 00007ff7`e3c4adbb     omega!RNvNtNtNtCsdukMNRKSxy_10validation13machine_calls16effect_inference11invocations29infer_synchronous_invocations+0x7e5
+00000046`4ddf58f0 00007ff7`e41576e3     omega!RNvNtNtCsdukMNRKSxy_10validation13machine_calls18machine_parameters28admit_static_machine_effects+0x8b
+00000046`4ddf5d00 00007ff7`e1b56eb9     omega!RNvNtCsdukMNRKSxy_10validation18program_validation30admit_prepared_program_effects+0x373
+00000046`4ddf6240 00007ff7`e1bc59fd     omega!RNvXsy_NtNtNtNtCsjT0h3fKFDqg_13checked_trees13checked_trees4flow8terminal20result_binding_plansNtB5_24CheckedByteSequenceValueNtNtCshDyaaFUO7lt_4core3cmp9PartialEq2eq.llvm.13074671404297898679+0x10d9
+00000046`4ddf62c0 00007ff7`e1bd4b92     omega!RNvMsn_NtCshZeGcpa4EEh_5alloc4syncINtB5_3ArcNtNtNtNtCsjT0h3fKFDqg_13checked_trees13checked_trees5facts20dynamic_conformances23DynamicConformanceFactsE9drop_slowCsb4geHeRLTIA_28typed_trees_to_checked_trees+0x392d
+00000046`4de36240 00007ff7`e1be8a32     omega!RNvMsn_NtCshZeGcpa4EEh_5alloc4syncINtB5_3ArcNtNtNtNtCsjT0h3fKFDqg_13checked_trees13checked_trees5facts20dynamic_conformances23DynamicConformanceFactsE9drop_slowCsb4geHeRLTIA_28typed_trees_to_checked_trees+0x12ac2
+00000046`4de835f0 00007ff7`e0afa4c3     omega!RNvNtCsb4geHeRLTIA_28typed_trees_to_checked_trees8checking25lower_typed_trees_reusing+0xf2
+00000046`4dea5c60 00007ff7`e0b064b6     omega!RNvMs_NtNtCsj5JfsNceG4S_12psi_compiler18source_compilation10activationNtB4_15ActivatedSource22remove_retained_syntax+0x573
+00000046`4deab180 00007ff7`de8ca5f0     omega!RNvMNtCsj5JfsNceG4S_12psi_compiler15source_checkingNtB2_12CheckRequest5check+0xeb6
+00000046`4decefd0 00007ff7`de893f05     omega!RINvMs_NtCs86anJdk0SMo_9artifacts15compile_timingsNtB5_14CompileTimings13record_resultNtNtCsj5JfsNceG4S_12psi_compiler15source_checking13CheckedSourceINtNtCshZeGcpa4EEh_5alloc3vec3VecNtNtCsiwbcnO1mmP9_11diagnostics10diagnostic10DiagnosticENCNvNtNtNtCskZ8xpZUAwRa_8compiler7checked8checking15source_checking20check_product_sources3_0EB3Z_+0x2d0
+00000046`4ded9080 00007ff7`de8428f8     omega!RNvNtNtNtCskZ8xpZUAwRa_8compiler7checked8checking15source_checking20check_product_source+0x895
+00000046`4dee3910 00007ff7`de904772     omega!RINvMNtNtCskZ8xpZUAwRa_8compiler7checked13product_batchNtNtB5_19compilation_session18CompilationSession18select_build_batchuEB7_+0x798
+00000046`4def1a30 00007ff7`de8a918d     omega!RINvNtNtNtCskZ8xpZUAwRa_8compiler7checked8checking14compile_thread21run_on_compile_threadNtNtCs70t7xJumlo0_20compilation_products19checked_compilation18CheckedCompilationNtNtB1t_16compile_outcomes14CompileFailureNCNvMs3_NtB6_19package_compilationNtNtB6_19compilation_session18CompilationSession19check_package_build0EB8_+0xd2
+00000046`4def8340 00007ff7`de812901     omega!RINvNtNtCs3ntJ5kfyt9h_3std3sys9backtrace28___rust_begin_short_backtraceNCNCINvNtNtNtCskZ8xpZUAwRa_8compiler7checked8checking14compile_thread21run_on_compile_threadNtNtB1i_14package_review20PackageReviewProductNtB2D_20PackageReviewFailureNCNvMs0_B2D_NtNtB1i_19compilation_session18CompilationSession20review_package_build0E00INtNtCshDyaaFUO7lt_4core6result6ResultB2B_B3l_EEB1k_+0xcd
+00000046`4defe080 00007ff7`e5057253     omega!RINvNtNtNtNtCshDyaaFUO7lt_4core5slice4sort6stable9quicksort9quicksortINtNtCs46oX09Um5l4_5arena6handle6HandleNtNtCsiNw0robgYvv_7symbols6symbol6SymbolENCINvMNtCshZeGcpa4EEh_5alloc5sliceSB15_11sort_by_keyTmmENCINvNtNtCsgv267PCDXwH_17provider_planning15target_machines20provider_publication24provider_selection_rootsINtNtNtNtBa_4iter8adapters5chain5ChainINtNtB55_7flatten7FlatMapINtNtB8_4iter4IterNtNtCsaXj1RqKDV7w_21build_time_evaluation21provider_declarations22TargetProviderDefaultsERINtNtB2v_3vec3VecNtNtB6l_9selection17ProviderSelectionENCNvNtNtCskZ8xpZUAwRa_8compiler8terminal17terminal_artifact23retained_boundary_roots0EIB62_B82_EEEs2_0E0EB8M_+0x1231
+00000046`4deff840 00007ffa`f25ae8d7     omega!std::sys::thread::windows::impl$0::new::thread_start+0x1e3
+00000046`4deff8f0 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`4deff920 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+ 100  Id: dd3d4.e20d4 Suspend: 1 Teb: 00000046`2d937000 Unfrozen
+Child-SP          RetAddr               Call Site
+00000046`2dbff4a8 00007ffa`f343e02e     ntdll!ZwWaitForWorkViaWorkerFactory+0x14
+00000046`2dbff4b0 00007ffa`f25ae8d7     ntdll!RtlRaiseStatus+0x1c3e
+00000046`2dbff810 00007ffa`f33c8d9c     KERNEL32!BaseThreadInitThunk+0x17
+00000046`2dbff840 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+quit:
+NatVis script unloaded from 'C:\Program Files\WindowsApps\Microsoft.WinDbg_1.2606.22001.0_x64__8wekyb3d8bbwe\amd64\Visualizers\atlmfc.natvis'
+NatVis script unloaded from 'C:\Program Files\WindowsApps\Microsoft.WinDbg_1.2606.22001.0_x64__8wekyb3d8bbwe\amd64\Visualizers\concurrency.natvis'
+NatVis script unloaded from 'C:\Program Files\WindowsApps\Microsoft.WinDbg_1.2606.22001.0_x64__8wekyb3d8bbwe\amd64\Visualizers\cpp_rest.natvis'
+NatVis script unloaded from 'C:\Program Files\WindowsApps\Microsoft.WinDbg_1.2606.22001.0_x64__8wekyb3d8bbwe\amd64\Visualizers\ObjectiveC.natvis'
+NatVis script unloaded from 'C:\Program Files\WindowsApps\Microsoft.WinDbg_1.2606.22001.0_x64__8wekyb3d8bbwe\amd64\Visualizers\stl.natvis'
+NatVis script unloaded from 'C:\Program Files\WindowsApps\Microsoft.WinDbg_1.2606.22001.0_x64__8wekyb3d8bbwe\amd64\Visualizers\Windows.Data.Json.natvis'
+NatVis script unloaded from 'C:\Program Files\WindowsApps\Microsoft.WinDbg_1.2606.22001.0_x64__8wekyb3d8bbwe\amd64\Visualizers\Windows.Devices.Geolocation.natvis'
+NatVis script unloaded from 'C:\Program Files\WindowsApps\Microsoft.WinDbg_1.2606.22001.0_x64__8wekyb3d8bbwe\amd64\Visualizers\Windows.Devices.Sensors.natvis'
+NatVis script unloaded from 'C:\Program Files\WindowsApps\Microsoft.WinDbg_1.2606.22001.0_x64__8wekyb3d8bbwe\amd64\Visualizers\Windows.Media.natvis'
+NatVis script unloaded from 'C:\Program Files\WindowsApps\Microsoft.WinDbg_1.2606.22001.0_x64__8wekyb3d8bbwe\amd64\Visualizers\windows.natvis'
+NatVis script unloaded from 'C:\Program Files\WindowsApps\Microsoft.WinDbg_1.2606.22001.0_x64__8wekyb3d8bbwe\amd64\Visualizers\winrt.natvis'

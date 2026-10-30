@@ -1,0 +1,27 @@
+{
+  "pull_request": "https://github.com/CathedralOS/Omega/pull/850",
+  "state": "MERGED",
+  "source_head": "60eaea1fa8b5ae83bad93ae1dee7560b7a528c70",
+  "published_commit": "90ffeba2d0b85b6b0eedb57c02dbd6d8437d83f2",
+  "merged_at": "2026-10-30T02:00:22Z",
+  "fetched_main": "90ffeba2d0b85b6b0eedb57c02dbd6d8437d83f2",
+  "published_ancestor_of_fetched_main": true,
+  "pull_request_admission": {
+    "status": "success",
+    "url": "https://github.com/CathedralOS/Omega/actions/runs/40988456648"
+  },
+  "merge_group_admission": {
+    "status": "success",
+    "head": "90ffeba2d0b85b6b0eedb57c02dbd6d8437d83f2",
+    "url": "https://github.com/CathedralOS/Omega/actions/runs/40988897212"
+  },
+  "post_merge_smoke": {
+    "status_at_publication_readback": "pending",
+    "url": "https://github.com/CathedralOS/Omega/actions/runs/40989130150"
+  },
+  "runtime_producer_revision": "19554817237e17c4a003286d916842aaa23a24b4",
+  "runtime_producer_sha256": "808ee3ff1725341e2612c5279e9072741a53c2c2201208f695772ee61c46b4e8",
+  "qualification_capture_revision": "b37316dc86fbaee49ca0ae34cfd28460d13a1502",
+  "claim": "2aa09636534c47b7952ec96f565dbd41",
+  "evidence_boundary": "Publication and source identity readback; no local rebuild or new runtime observation of the published merge commit is inferred."
+}

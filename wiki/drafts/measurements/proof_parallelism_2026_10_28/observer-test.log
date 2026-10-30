@@ -1,0 +1,485 @@
+warning: unused import: `compiler_storage::Record`
+  --> omega-rust\psi\foundation\arena\src\arena.rs:13:5
+   |
+13 | use compiler_storage::Record;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `compiler_storage::Record`
+ --> omega-rust\psi\foundation\arena\src\handle\handle_span.rs:1:5
+  |
+1 | use compiler_storage::Record;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `compiler_storage::Record`
+ --> omega-rust\psi\foundation\arena\src\paged_arena_set\mod.rs:7:5
+  |
+7 | use compiler_storage::Record;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `compiler_storage::Record`
+  --> omega-rust\psi\foundation\arena\src\paged_arena_set\page.rs:10:5
+   |
+10 | use compiler_storage::Record;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `compiler_storage::Record`
+ --> omega-rust\psi\foundation\arena\src\handle\mod.rs:8:5
+  |
+8 | use compiler_storage::Record;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `compiler_storage::Record`
+  --> omega-rust\psi\foundation\arena\src\hierarchy_arena\mod.rs:11:5
+   |
+11 | use compiler_storage::Record;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `compiler_storage::Record`
+ --> omega-rust\psi\foundation\arena\src\ordered_root_arena\mod.rs:1:5
+  |
+1 | use compiler_storage::Record;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `arena` (lib) generated 7 warnings
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\foundation\diagnostics\src\diagnostic.rs:172:13
+    |
+172 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\foundation\diagnostics\src\diagnostic.rs:183:13
+    |
+183 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `diagnostics` (lib) generated 2 warnings
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\compilation\representations\terminal-psi\src\terminal_module\identity\table.rs:296:13
+    |
+296 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\compilation\representations\terminal-psi\src\terminal_module\identity\table.rs:305:13
+    |
+305 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `terminal-psi` (lib) generated 2 warnings
+warning: unused doc comment
+   --> omega-rust\psi\compilation\representations\checked-trees\src\checked_trees\facts\contract_plans.rs:231:1
+    |
+231 | / /// Domain-separated commitment to one machine's complete canonical public
+232 | | /// contract, declared through `typed_trees`'s shared digest carrier.
+    | |_--------------------------------------------------------------------^
+    |   |
+    |   rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+    = note: `#[warn(unused_doc_comments)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused doc comment
+  --> omega-rust\psi\compilation\representations\checked-trees\src\checked_trees\operators.rs:30:1
+   |
+30 | / /// Collision-resistant commitment to the exact selected ProviderPlan.
+31 | | ///
+32 | | /// Psi owns this opaque byte carrier so checked operator evidence can retain
+33 | | /// Omega's plan digest without introducing an upward dependency on
+34 | | /// `effects`. The provider-planning boundary is responsible for copying
+35 | | /// the digest from the exact selected plan.
+   | |_-------------------------------------------^
+   |   |
+   |   rustdoc does not generate documentation for macro invocations
+   |
+   = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: `checked-trees` (lib) generated 2 warnings
+warning: unused import: `AppliedTraitScope`
+ --> omega-rust\psi\compilation\checking\src\declarations\traits\conformance\bounds.rs:9:37
+  |
+9 | use typed_trees::trait_definition::{AppliedTraitScope, TraitDefinition};
+  |                                     ^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `symbols::SymbolHandle`
+ --> omega-rust\psi\compilation\checking\src\declarations\traits\conformance\signature_matching\region_application.rs:8:5
+  |
+8 | use symbols::SymbolHandle;
+  |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::BTreeSet`
+  --> omega-rust\psi\compilation\checking\src\machine_calls\call_cycles.rs:14:5
+   |
+14 | use std::collections::BTreeSet;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `diagnostics::Diagnostic`
+  --> omega-rust\psi\compilation\checking\src\machine_calls\call_cycles\rank_components.rs:13:5
+   |
+13 | use diagnostics::Diagnostic;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `MachineSymbols`
+ --> omega-rust\psi\compilation\checking\src\machine_calls\calls\write_frames\parameter_relative_origins.rs:6:36
+  |
+6 | use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
+  |                                    ^^^^^^^^^^^^^^
+
+warning: unused import: `symbols::SymbolHandle`
+  --> omega-rust\psi\compilation\checking\src\machine_calls\calls\write_frames\place_paths\scalar_coordinates.rs:11:5
+   |
+11 | use symbols::SymbolHandle;
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `MachineSymbols`
+ --> omega-rust\psi\compilation\checking\src\machine_calls\calls\write_frames\reference_subjects.rs:5:32
+  |
+5 |     FrameSourcePlace, Machine, MachineSymbols, State, StateParameter, StatementNode,
+  |                                ^^^^^^^^^^^^^^
+
+warning: unused import: `super::super as frames`
+ --> omega-rust\psi\compilation\checking\src\machine_calls\calls\write_frames\stored_calls\slot_relations.rs:4:5
+  |
+4 | use super::super as frames;
+  |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `super::super as frames`
+ --> omega-rust\psi\compilation\checking\src\machine_calls\calls\write_frames\stored_calls\instantiation.rs:4:5
+  |
+4 | use super::super as frames;
+  |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `super::super as frames`
+ --> omega-rust\psi\compilation\checking\src\machine_calls\calls\write_frames\stored_calls\transfers.rs:4:5
+  |
+4 | use super::super as frames;
+  |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `captured_reference_projection_sources`
+  --> omega-rust\psi\compilation\checking\src\machine_calls\calls\write_frames\stored_origins.rs:60:44
+   |
+60 |     captured_reference_projection_origins, captured_reference_projection_sources,
+   |                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `InvocationReferenceSubject`
+  --> omega-rust\psi\compilation\checking\src\machine_calls\calls\write_frames.rs:77:66
+   |
+77 | pub(crate) use demand::{CallFrameCaches, InvocationEntrySubject, InvocationReferenceSubject};
+   |                                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `immutable_runtime_parameter`
+   --> omega-rust\psi\compilation\checking\src\machine_calls\calls.rs:920:5
+    |
+920 |     immutable_runtime_parameter,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unnecessary parentheses around pattern
+   --> omega-rust\psi\compilation\checking\src\machine_calls\static_bindings.rs:651:16
+    |
+651 |         && let (TypeParameterKind::Const {
+    |                ^
+...
+656 |         }) = parameter.kind
+    |          ^
+    |
+    = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default
+help: remove these parentheses
+    |
+651 ~         && let TypeParameterKind::Const {
+652 |             type_reference: expected,
+...
+655 |             type_reference: expected,
+656 ~         } = parameter.kind
+    |
+
+warning: unused import: `same_value`
+  --> omega-rust\psi\compilation\checking\src\proof_contracts\arithmetic_domains\ordered_values.rs:32:46
+   |
+32 | pub(super) use congruence::{ValueComparison, same_value};
+   |                                              ^^^^^^^^^^
+
+warning: unused import: `BTreeMap`
+ --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\ranking_range\lengths.rs:9:5
+  |
+9 |     BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
+  |     ^^^^^^^^
+
+warning: unnecessary parentheses around pattern
+    --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment.rs:2551:28
+     |
+2551 |                     && let (typed_trees::data::TypeParameterKind::Const { type_reference }
+     |                            ^
+2552 |                     | typed_trees::data::TypeParameterKind::Value { type_reference }) =
+     |                                                                                     ^
+     |
+help: remove these parentheses
+     |
+2551 ~                     && let typed_trees::data::TypeParameterKind::Const { type_reference }
+2552 ~                     | typed_trees::data::TypeParameterKind::Value { type_reference } =
+     |
+
+warning: unused imports: `ContentBackingAddressGoal`, `ContentConservationImplication`, `completed_value_content_conservation_dependencies`, `completed_value_has_content_conservation_candidate`, `completed_value_preserves_entry_projection`, `completed_value_proves_backing_addresses`, and `completed_value_proves_content_conservation`
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment.rs:135:34
+    |
+135 |     ConditionalContentGuarantee, ContentBackingAddressGoal, ContentConservationDependencies,
+    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+136 |     ContentConservationImplication, completed_value_content_conservation_dependencies,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+137 |     completed_value_has_content_conservation_candidate, completed_value_preserves_entry_projection,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+138 |     completed_value_proves_backing_addresses, completed_value_proves_content_conservation,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `CapturedIntegerOperation`, `CapturedNumericObservations`, `CapturedScalarAssociation`, `CapturedScalarObservation`, `NumericObservationDemand`, and `captured_numeric_observations`
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment.rs:142:5
+    |
+142 |     CapturedIntegerOperation, CapturedNumericObservations, CapturedScalarAssociation,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^
+143 |     CapturedScalarObservation, NumericObservationDemand, captured_numeric_observations,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `anonymous_integer_math_literal`
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment.rs:150:5
+    |
+150 |     anonymous_integer_math_literal, anonymous_integer_value, proof_integer_expression,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `is_citation_statement`
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment.rs:189:64
+    |
+189 |     collect_citation_equations, instantiated_fact_established, is_citation_statement,
+    |                                                                ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unnecessary parentheses around pattern
+  --> omega-rust\psi\compilation\checking\src\value_custody\const_expressions.rs:89:16
+   |
+89 |         if let (TypeParameterKind::Const {
+   |                ^
+...
+94 |         }) = parameter.kind
+   |          ^
+   |
+help: remove these parentheses
+   |
+89 ~         if let TypeParameterKind::Const {
+90 |             type_reference: expected,
+...
+93 |             type_reference: expected,
+94 ~         } = parameter.kind
+   |
+
+warning: unused variable: `dispatched`
+   --> omega-rust\psi\compilation\checking\src\machine_calls\call_cycles\runtime_ranking.rs:187:9
+    |
+187 |     let dispatched = dispatched_implementations(program);
+    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_dispatched`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unreachable pattern
+   --> omega-rust\psi\compilation\checking\src\machine_calls\calls\write_frames\type_capabilities.rs:222:11
+    |
+212 |         | TypeReferenceNode::DynamicTrait { .. } => false,
+    |           -------------------------------------- matches all the relevant values
+...
+222 |         | TypeReferenceNode::DynamicTrait { .. } => {
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `symbols`
+  --> omega-rust\psi\compilation\checking\src\program_validation\statements\transition_statements.rs:22:55
+   |
+22 |     let (program, machine, state_name, current_state, symbols, writable_roots) = scope.reads();
+   |                                                       ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_symbols`
+
+warning: unused variable: `machine_symbols`
+  --> omega-rust\psi\compilation\checking\src\program_validation\statements\transition_statements.rs:23:9
+   |
+23 |     let machine_symbols = scope.machine_symbols;
+   |         ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_machine_symbols`
+
+warning: variable does not need to be mutable
+    --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment\normal_returns.rs:1552:13
+     |
+1552 |         let mut outcomes: Vec<NormalReturnPath<'program>> = contexts
+     |             ----^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `result_presentation`
+    --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment\normal_returns.rs:2765:38
+     |
+2765 |         if let (Some(captured), Some(result_presentation)) = (&captured, &result_presentation)
+     |                                      ^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_result_presentation`
+
+warning: type `ReturnedFieldTrace` is more private than the item `structural_judgment::StructuralJudge::returned_field_trace`
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment.rs:461:5
+    |
+461 | /     pub(super) returned_field_trace:
+462 | |         Option<Arc<std::sync::Mutex<returned_fields::ReturnedFieldTrace>>>,
+    | |__________________________________________________________________________^ field `structural_judgment::StructuralJudge::returned_field_trace` is reachable at visibility `pub(in crate::proof_contracts::contract_entailment)`
+    |
+note: but type `ReturnedFieldTrace` is only usable at visibility `pub(in crate::proof_contracts::contract_entailment::structural_judgment)`
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment\returned_fields.rs:31:1
+    |
+ 31 | pub(in crate::proof_contracts::contract_entailment::structural_judgment) struct ReturnedFieldTrace {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = note: `#[warn(private_interfaces)]` on by default
+
+warning: fields `aliases`, `divergent`, and `stored` are never read
+   --> omega-rust\psi\compilation\checking\src\machine_calls\calls\write_frames\caller_aliases.rs:266:5
+    |
+264 | struct AssignmentEvidence {
+    |        ------------------ fields in this struct
+265 |     target: AssignmentWriteTarget,
+266 |     aliases: Vec<(String, FramePlaceOrigin)>,
+    |     ^^^^^^^
+267 |     divergent: Vec<(String, Vec<FramePlaceOrigin>)>,
+    |     ^^^^^^^^^
+268 |     stored: Vec<StoredLocalOrigins>,
+    |     ^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `paths_overlap` is never used
+    --> omega-rust\psi\compilation\checking\src\machine_calls\reference_result_custody\captured_returns.rs:1196:15
+     |
+1196 | pub(super) fn paths_overlap(left: &[facts::PlaceSegment], right: &[facts::PlaceSegment]) -> bool {
+     |               ^^^^^^^^^^^^^
+
+warning: variant `CompletedCall` is never constructed
+  --> omega-rust\psi\compilation\checking\src\proof_contracts\arithmetic_domains\ordered_values.rs:65:5
+   |
+43 | pub(crate) enum Operand {
+   |                 ------- variant in this enum
+...
+65 |     CompletedCall {
+   |     ^^^^^^^^^^^^^
+   |
+   = note: `Operand` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: method `literal_comparisons` is never used
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\arithmetic_domains\ordered_values.rs:376:8
+    |
+373 | impl Relation {
+    | ------------- method in this implementation
+...
+376 |     fn literal_comparisons(
+    |        ^^^^^^^^^^^^^^^^^^^
+
+warning: function `same_value` is never used
+  --> omega-rust\psi\compilation\checking\src\proof_contracts\arithmetic_domains\ordered_values\congruence.rs:59:55
+   |
+59 | pub(in crate::proof_contracts::arithmetic_domains) fn same_value(
+   |                                                       ^^^^^^^^^^
+
+warning: methods `prove_base_lower_bound` and `prove_scaled_lower_bound` are never used
+  --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\arithmetic_judgment\difference_matrix.rs:45:19
+   |
+11 | impl<'program> Engine<'program> {
+   | ------------------------------- methods in this implementation
+...
+45 |     pub(super) fn prove_base_lower_bound(&self, polynomial: &Polynomial, bound: &BigInt) -> bool {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^
+...
+49 |     pub(super) fn prove_scaled_lower_bound(
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `stored_bound` is never used
+  --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\arithmetic_judgment\difference_matrix\bounds.rs:52:19
+   |
+17 | impl DifferenceBounds {
+   | --------------------- method in this implementation
+...
+52 |     pub(super) fn stored_bound(&self, from: &str, to: &str) -> Option<&BigInt> {
+   |                   ^^^^^^^^^^^^
+
+warning: function `is_empty_body_statement_call` is never used
+  --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\content_conservation.rs:61:15
+   |
+61 | pub(super) fn is_empty_body_statement_call(
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `application_is_independent` is never used
+    --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment.rs:1146:19
+     |
+ 564 | impl<'program> StructuralJudge<'program> {
+     | ---------------------------------------- method in this implementation
+...
+1146 |     pub(super) fn application_is_independent(
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `for_goal` is never used
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment\integer_predicates.rs:134:8
+    |
+133 | impl<'program> PreparedIntegerPremises<'program> {
+    | ------------------------------------------------ method in this implementation
+134 |     fn for_goal(&self) -> IntegerObservations<'program> {
+    |        ^^^^^^^^
+
+warning: method `reset_for_goal` is never used
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment\integer_predicates.rs:195:8
+    |
+194 | impl<'program> IntegerObservations<'program> {
+    | -------------------------------------------- method in this implementation
+195 |     fn reset_for_goal(&mut self, prepared: &PreparedIntegerPremises<'program>) {
+    |        ^^^^^^^^^^^^^^
+
+warning: methods `has_potential_integer_premises`, `potential_integer_premises_len`, and `rewrites_ptr` are never used
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment\integer_predicates.rs:399:60
+    |
+398 | impl<'program> StructuralJudge<'program> {
+    | ---------------------------------------- methods in this implementation
+399 |     pub(in crate::proof_contracts::contract_entailment) fn has_potential_integer_premises(
+    |                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+405 |     pub(in crate::proof_contracts::contract_entailment) fn potential_integer_premises_len(
+    |                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+920 |     pub(in crate::proof_contracts::contract_entailment) fn rewrites_ptr(&self) -> usize {
+    |                                                            ^^^^^^^^^^^^
+
+warning: method `observe_storage_writes` is never used
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment\storage_effects.rs:323:60
+    |
+216 | impl StructuralJudge<'_> {
+    | ------------------------ method in this implementation
+...
+323 |     pub(in crate::proof_contracts::contract_entailment) fn observe_storage_writes(
+    |                                                            ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `recorded_float_comparison` and `recorded_float_nan_classification` are never used
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment\value_predicates.rs:642:8
+    |
+ 34 | impl StructuralJudge<'_> {
+    | ------------------------ methods in this implementation
+...
+642 |     fn recorded_float_comparison(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+720 |     fn recorded_float_nan_classification(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+   Compiling validation v0.1.0 (P:\omega-rust\psi\compilation\checking)
+warning: `validation` (lib) generated 43 warnings (run `cargo fix --lib -p validation` to apply 27 suggestions)
+warning: `validation` (lib test) generated 41 warnings (41 duplicates)
+    Finished `test` profile [optimized] target(s) in 41.69s
+────────────
+ Nextest run ID e71e153b-da2b-4681-bb82-70a1dd86baed with nextest profile: default
+    Starting 1 test across 1 binary (24 tests skipped)
+        PASS [   0.145s] (1/1) validation checking_measurement::tests::context_comparison_uses_values_and_checking_policy
+────────────
+     Summary [   0.147s] 1 test run: 1 passed, 24 skipped
+mbx[cache]: 0 hits, 1 misses; 0 B downloaded, 0 B uploaded, 12.7 MiB stored locally
+mbx[savings]: 1.8 TiB logical of files removed by collection so far

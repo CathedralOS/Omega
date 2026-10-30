@@ -1,0 +1,18 @@
+{
+  "observed_revision": "cddd308a3897564867c96dee274ac333b9902879",
+  "id": "0641f2d80e1944e79407a3886a143d4a",
+  "exit": 0,
+  "invalidations": [],
+  "receipt_sha256": "2e4b4a7d738e1fdcd14783b7816e734ac66bcb583c8aa885a9f6ae0e93e11245",
+  "compiler_profiles": [
+    {
+      "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\lazy-reference\\omega.exe",
+      "profile": {
+        "opt_level": "1",
+        "schema": "omega-compiler-build-profile-v1"
+      },
+      "sha256": "379a5b851627c37fa53e6bd4f1fb8e6a7b75178c0cb18628b94c94faec0e5c8f"
+    }
+  ],
+  "scope": "Pinned native replay on source-equivalent clean checkpoint; original producer build identity and preparatory Terminal observation are preserved."
+}

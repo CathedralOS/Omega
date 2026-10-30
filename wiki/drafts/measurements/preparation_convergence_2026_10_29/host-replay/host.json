@@ -1,0 +1,128 @@
+[
+  {
+    "label": "convergence",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-runtime_numeric_operand_order_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 1.5683066999990842,
+    "transcript": "host-00.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308"
+  },
+  {
+    "label": "convergence",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-runtime_numeric_operand_single_evaluation_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 1.5398731999957818,
+    "transcript": "host-01.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308"
+  },
+  {
+    "label": "convergence",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-selected_contract_equation_reentry_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 0.6649648999955389,
+    "transcript": "host-02.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308"
+  },
+  {
+    "label": "convergence",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-runtime_reference_call_scalar_snapshot_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 0.6416143999958877,
+    "transcript": "host-03.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308"
+  },
+  {
+    "label": "convergence",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-copied_call_argument_snapshot_through_match_join_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 0.6401369999948656,
+    "transcript": "host-04.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308"
+  },
+  {
+    "label": "convergence",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-selected_applied_synchronous_chain_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 1.0911753999971552,
+    "transcript": "host-05.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308"
+  },
+  {
+    "label": "convergence",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-selected_synchronous_helper_ceiling_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 0.6780575000011595,
+    "transcript": "host-06.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308"
+  },
+  {
+    "label": "pre-convergence",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\contract-query-publication\\producer\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\baseline-selected_applied_synchronous_chain_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 0.8622795999981463,
+    "transcript": "host-07.txt",
+    "producer_sha256": "5f0e2fc5dde252263b64b47a6dd593fb3a41c19585f78f45ccd15998b897501e"
+  },
+  {
+    "label": "pre-convergence",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\contract-query-publication\\producer\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\baseline-selected_synchronous_helper_ceiling_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 0.7019217000051867,
+    "transcript": "host-08.txt",
+    "producer_sha256": "5f0e2fc5dde252263b64b47a6dd593fb3a41c19585f78f45ccd15998b897501e"
+  }
+]

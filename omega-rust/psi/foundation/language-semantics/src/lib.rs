@@ -19,7 +19,9 @@
 
 pub(crate) use optimization::codec_bytes;
 
+mod boundary_bodies;
 pub mod build_requests;
+pub use boundary_bodies::BoundaryBodySelection;
 pub mod byte_predicates;
 pub mod const_value;
 pub mod content;
@@ -56,8 +58,8 @@ pub use permissions::{
     PermissionProvenance,
 };
 pub use semantic_domains::{
-    DomainEstablishmentRoute, DomainSemanticRole, DomainSemanticRoles, QualificationEvidenceOrigin,
-    SemanticDomainTable,
+    BoundaryQualificationIssuer, DomainEstablishmentRoute, DomainSemanticRole, DomainSemanticRoles,
+    QualificationEvidenceOrigin, SemanticDomainTable,
 };
 pub use semantic_identities::{
     ExternalBindingId, RankingViewId, SemanticDomainId, ServiceReachId, ServiceReachRowId,

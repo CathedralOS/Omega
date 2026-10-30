@@ -1,0 +1,52 @@
+RECONCILE	places	7	22100
+RECONCILE	residences	7	34100
+COPY_CALIBRATION	iterations=20000	wall_ns=1467300	interval_ns=646500	min_ns=0	max_ns=1800
+RECONCILE	memberships	7	300
+SCAN_BATCH	fine	7	roots=0	replays=0	wall_ns=0
+RECONCILE	places	2	2400
+RECONCILE	residences	2	4700
+RECONCILE	memberships	2	0
+SCAN_BATCH	fine	2	roots=0	replays=0	wall_ns=0
+RECONCILE	places	202	241200
+RECONCILE	residences	202	74300
+RECONCILE	memberships	202	3147625600	analysis_drop_ns=2415700	discovery_ns=96400	graph_drop_ns=2274900	graph_preparation_ns=244902200	history_creation_ns=30200	history_drop_ns=16182600	leaf_query_formation_ns=43900	leaf_root_lookup_ns=207400	merge_ns=1764000	operand_queries_ns=40541200	payload_contract_queries_ns=6014400	payload_target_queries_ns=4742300	reachability_drop_ns=200	reference_context_drop_ns=6613000	reference_queries_ns=740262000	source_contract_queries_ns=2074224300	types_drop_ns=14900	view_queries_ns=6536700
+SCAN_BATCH	fine	202	roots=418	replays=173	wall_ns=2074122300
+SCAN	fine	202	source	calls=418	inclusive_ns=2074122300	exclusive_ns=1820000	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+COPY_HIST	fine	202	source	min_ns=0	max_ns=654416600	b0=211	b1=21	b2=8	b3=5	b4=0	b5=0	b6=7	b7=31	b8=39	b9=31	b10=11	b11=4	b12=26	b13=20	b14=0	b15=4
+SCAN	fine	202	replay	calls=173	inclusive_ns=2072302300	exclusive_ns=1650070600	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+COPY_HIST	fine	202	replay	min_ns=4600	max_ns=654288600	b0=0	b1=0	b2=0	b3=0	b4=0	b5=0	b6=8	b7=38	b8=34	b9=28	b10=11	b11=4	b12=28	b13=18	b14=0	b15=4
+SCAN	fine	202	meet	calls=14270	inclusive_ns=422231700	exclusive_ns=110310300	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+COPY_HIST	fine	202	meet	min_ns=300	max_ns=673200	b0=0	b1=0	b2=11	b3=63	b4=49	b5=41	b6=1035	b7=9141	b8=1734	b9=1233	b10=307	b11=318	b12=338	b13=0	b14=0	b15=0
+SCAN	fine	202	retain_snapshot	calls=28540	inclusive_ns=311921400	exclusive_ns=61753900	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+COPY_HIST	fine	202	retain_snapshot	min_ns=0	max_ns=337200	b0=336	b1=74	b2=159	b3=41	b4=1664	b5=5900	b6=17948	b7=439	b8=327	b9=440	b10=633	b11=569	b12=10	b13=0	b14=0	b15=0
+SCAN	fine	202	cow_shared	calls=14456	inclusive_ns=18873700	exclusive_ns=18873700	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+COPY_HIST	fine	202	cow_shared	min_ns=0	max_ns=83300	b0=10	b1=520	b2=9548	b3=2516	b4=399	b5=462	b6=335	b7=491	b8=167	b9=7	b10=1	b11=0	b12=0	b13=0	b14=0	b15=0
+SCAN	fine	202	cow_unique	calls=9324	inclusive_ns=396000	exclusive_ns=396000	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+COPY_HIST	fine	202	cow_unique	min_ns=0	max_ns=400	b0=9295	b1=27	b2=2	b3=0	b4=0	b5=0	b6=0	b7=0	b8=0	b9=0	b10=0	b11=0	b12=0	b13=0	b14=0	b15=0
+SCAN	fine	202	snapshot_filter	calls=23780	inclusive_ns=230897800	exclusive_ns=230897800	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+COPY_HIST	fine	202	snapshot_filter	min_ns=500	max_ns=230200	b0=0	b1=0	b2=2	b3=33	b4=696	b5=18746	b6=2405	b7=232	b8=270	b9=383	b10=587	b11=426	b12=0	b13=0	b14=0	b15=0
+SCAN_QUERY	fine	202	machine=140	block=140	operation=1	wall_ns=654416600	steps=0	edges=0	meets=571
+SCAN_QUERY	fine	202	machine=140	block=140	operation=1	wall_ns=603226000	steps=0	edges=0	meets=571
+SCAN_QUERY	fine	202	machine=53	block=27	operation=1	wall_ns=386537400	steps=0	edges=0	meets=6564
+SCAN_QUERY	fine	202	machine=53	block=27	operation=1	wall_ns=383177900	steps=0	edges=0	meets=6564
+SCAN_QUERY	fine	202	machine=53	block=30	operation=0	wall_ns=1660400	steps=0	edges=0	meets=0
+SCAN_QUERY	fine	202	machine=53	block=30	operation=0	wall_ns=1520300	steps=0	edges=0	meets=0
+SCAN_QUERY	fine	202	machine=140	block=140	operation=2	wall_ns=1406100	steps=0	edges=0	meets=0
+SCAN_QUERY	fine	202	machine=140	block=140	operation=2	wall_ns=1401300	steps=0	edges=0	meets=0
+    40.547 ms  prepare: project -> prepared sources
+ 26211.734 ms  compile: sources -> requested product
+    83.250 ms  publish: retained product -> published product
+    28.415 ms  Source ingress: SourceFiles -> SyntaxTrees
+     5.207 ms  Step: assemble: PreparedSources -> AssembledSyntax
+   274.911 ms  Stage 03: SyntaxTrees -> SymbolResolvedTrees
+   449.016 ms  Stage 04: SymbolResolvedTrees -> TypedTrees
+  1478.581 ms  Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)
+  9839.290 ms  Stage 05: TypedTrees -> CheckedTrees
+   545.366 ms  Step: settle: CheckedTrees -> SelectedExecution
+  5722.181 ms  terminal-production: CheckedTrees -> CanonicalTerminalArtifact
+  5667.884 ms  terminal-production/lowering: CheckedTrees -> LoweredPsi
+     0.004 ms  terminal-production/machine-selection: CheckedTrees -> TerminalMachine
+    10.699 ms  terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi
+     2.907 ms  terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt
+    40.165 ms  terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact
+ 27164.113 ms  total elapsed

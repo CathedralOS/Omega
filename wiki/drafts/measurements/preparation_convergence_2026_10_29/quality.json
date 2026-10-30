@@ -1,0 +1,450 @@
+[
+  {
+    "fixture": "pass/calls/runtime_numeric_operand_order_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "update",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-runtime_numeric_operand_order_exit\\input",
+      "--target",
+      "windows_x86_64"
+    ],
+    "exit": 3,
+    "seconds": 166.85139160000108,
+    "transcript": "quality\\candidate-runtime_numeric_operand_order_exit\\00.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "30acb6433f417e223a8c6c2526aa03bc85d8dce44620bc39bdfd159578a11f00"
+  },
+  {
+    "fixture": "pass/calls/runtime_numeric_operand_order_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "update",
+      "--resume",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-runtime_numeric_operand_order_exit\\input"
+    ],
+    "exit": 0,
+    "seconds": 4.557170899999619,
+    "transcript": "quality\\candidate-runtime_numeric_operand_order_exit\\01.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "30acb6433f417e223a8c6c2526aa03bc85d8dce44620bc39bdfd159578a11f00"
+  },
+  {
+    "fixture": "pass/calls/runtime_numeric_operand_order_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-runtime_numeric_operand_order_exit\\native",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-runtime_numeric_operand_order_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 8.048740699996415,
+    "transcript": "quality\\candidate-runtime_numeric_operand_order_exit\\02.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "30acb6433f417e223a8c6c2526aa03bc85d8dce44620bc39bdfd159578a11f00",
+    "artifact_sha256": "7ccbfb89151d286167c97d51c39092b03e33ccf79762dbd9802205578209eb66",
+    "native_exit": 0
+  },
+  {
+    "fixture": "pass/calls/runtime_numeric_operand_order_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-runtime_numeric_operand_order_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 1.5582259000002523,
+    "transcript": "quality\\candidate-runtime_numeric_operand_order_exit\\03.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "30acb6433f417e223a8c6c2526aa03bc85d8dce44620bc39bdfd159578a11f00",
+    "native_sha256": "7ccbfb89151d286167c97d51c39092b03e33ccf79762dbd9802205578209eb66",
+    "terminal_sha256": "79a49d7a38486d14843d3f478a47c58cb7f17d5004554d15e7a07449023cd3c8"
+  },
+  {
+    "fixture": "pass/calls/runtime_numeric_operand_single_evaluation_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "update",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-runtime_numeric_operand_single_evaluation_exit\\input",
+      "--target",
+      "windows_x86_64"
+    ],
+    "exit": 3,
+    "seconds": 161.3955752999973,
+    "transcript": "quality\\candidate-runtime_numeric_operand_single_evaluation_exit\\04.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "ac844f079f13e30c249930db40ff91ff9bd564097b3fd94e623d83a6ba3c43ed"
+  },
+  {
+    "fixture": "pass/calls/runtime_numeric_operand_single_evaluation_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "update",
+      "--resume",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-runtime_numeric_operand_single_evaluation_exit\\input"
+    ],
+    "exit": 0,
+    "seconds": 4.158822400000645,
+    "transcript": "quality\\candidate-runtime_numeric_operand_single_evaluation_exit\\05.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "ac844f079f13e30c249930db40ff91ff9bd564097b3fd94e623d83a6ba3c43ed"
+  },
+  {
+    "fixture": "pass/calls/runtime_numeric_operand_single_evaluation_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-runtime_numeric_operand_single_evaluation_exit\\native",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-runtime_numeric_operand_single_evaluation_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 7.746516899998824,
+    "transcript": "quality\\candidate-runtime_numeric_operand_single_evaluation_exit\\06.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "ac844f079f13e30c249930db40ff91ff9bd564097b3fd94e623d83a6ba3c43ed",
+    "artifact_sha256": "e7062df5782867db94d35677266e65773b72185ce932098ace4f6e188956c4d2",
+    "native_exit": 0
+  },
+  {
+    "fixture": "pass/calls/runtime_numeric_operand_single_evaluation_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-runtime_numeric_operand_single_evaluation_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 1.4440534000023035,
+    "transcript": "quality\\candidate-runtime_numeric_operand_single_evaluation_exit\\07.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "ac844f079f13e30c249930db40ff91ff9bd564097b3fd94e623d83a6ba3c43ed",
+    "native_sha256": "e7062df5782867db94d35677266e65773b72185ce932098ace4f6e188956c4d2",
+    "terminal_sha256": "5c3da279200be4246bc6127dd868d72cdaeae03b45acac4780e9073b55bb0764"
+  },
+  {
+    "fixture": "pass/calls/selected_contract_equation_reentry_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "update",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-selected_contract_equation_reentry_exit\\input",
+      "--target",
+      "windows_x86_64"
+    ],
+    "exit": 0,
+    "seconds": 1.9913799999994808,
+    "transcript": "quality\\candidate-selected_contract_equation_reentry_exit\\08.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "cbb1c1a619d500a47cf21662e54aa62bdc8d2aa98aea8cc14bb58cb3fbfc5f5d"
+  },
+  {
+    "fixture": "pass/calls/selected_contract_equation_reentry_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "update",
+      "--resume",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-selected_contract_equation_reentry_exit\\input"
+    ],
+    "exit": 1,
+    "seconds": 0.15504409999994095,
+    "transcript": "quality\\candidate-selected_contract_equation_reentry_exit\\09.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "cbb1c1a619d500a47cf21662e54aa62bdc8d2aa98aea8cc14bb58cb3fbfc5f5d"
+  },
+  {
+    "fixture": "pass/calls/selected_contract_equation_reentry_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-selected_contract_equation_reentry_exit\\native",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-selected_contract_equation_reentry_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 1.7957181000019773,
+    "transcript": "quality\\candidate-selected_contract_equation_reentry_exit\\10.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "cbb1c1a619d500a47cf21662e54aa62bdc8d2aa98aea8cc14bb58cb3fbfc5f5d",
+    "artifact_sha256": "3c8ff49dd9e22cfbf449f5951d6df2d709bed4f321a9c8c9c59a8481cc72cf85",
+    "native_exit": 0
+  },
+  {
+    "fixture": "pass/calls/selected_contract_equation_reentry_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-selected_contract_equation_reentry_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 0.5541053999986616,
+    "transcript": "quality\\candidate-selected_contract_equation_reentry_exit\\11.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "cbb1c1a619d500a47cf21662e54aa62bdc8d2aa98aea8cc14bb58cb3fbfc5f5d",
+    "native_sha256": "3c8ff49dd9e22cfbf449f5951d6df2d709bed4f321a9c8c9c59a8481cc72cf85",
+    "terminal_sha256": "e891ffbb66ef262cce611b8e2e878f78930bd4aa89c8e7ab064e2e4f4340af5b"
+  },
+  {
+    "fixture": "pass/borrows/runtime_reference_call_scalar_snapshot_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "update",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-runtime_reference_call_scalar_snapshot_exit\\input",
+      "--target",
+      "windows_x86_64"
+    ],
+    "exit": 0,
+    "seconds": 2.0542484000034165,
+    "transcript": "quality\\candidate-runtime_reference_call_scalar_snapshot_exit\\12.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "30b57a72075d7f8d09cbb0359f378a7a4ea033045726eb2899bc5a9fcd94f7bb"
+  },
+  {
+    "fixture": "pass/borrows/runtime_reference_call_scalar_snapshot_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "update",
+      "--resume",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-runtime_reference_call_scalar_snapshot_exit\\input"
+    ],
+    "exit": 1,
+    "seconds": 0.15175379999709548,
+    "transcript": "quality\\candidate-runtime_reference_call_scalar_snapshot_exit\\13.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "30b57a72075d7f8d09cbb0359f378a7a4ea033045726eb2899bc5a9fcd94f7bb"
+  },
+  {
+    "fixture": "pass/borrows/runtime_reference_call_scalar_snapshot_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-runtime_reference_call_scalar_snapshot_exit\\native",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-runtime_reference_call_scalar_snapshot_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 1.820435699999507,
+    "transcript": "quality\\candidate-runtime_reference_call_scalar_snapshot_exit\\14.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "30b57a72075d7f8d09cbb0359f378a7a4ea033045726eb2899bc5a9fcd94f7bb",
+    "artifact_sha256": "008150fa7f10c960a7b55fb502dff4d149bc772cc0687ab25845da2a58908764",
+    "native_exit": 0
+  },
+  {
+    "fixture": "pass/borrows/runtime_reference_call_scalar_snapshot_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-runtime_reference_call_scalar_snapshot_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 0.5516531000030227,
+    "transcript": "quality\\candidate-runtime_reference_call_scalar_snapshot_exit\\15.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "30b57a72075d7f8d09cbb0359f378a7a4ea033045726eb2899bc5a9fcd94f7bb",
+    "native_sha256": "008150fa7f10c960a7b55fb502dff4d149bc772cc0687ab25845da2a58908764",
+    "terminal_sha256": "28215655b4e80ec0be7d20bc0a4c24c5ded03fceea20b9d409a1a487aea01972"
+  },
+  {
+    "fixture": "pass/facts/copied_call_argument_snapshot_through_match_join_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "update",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-copied_call_argument_snapshot_through_match_join_exit\\input",
+      "--target",
+      "windows_x86_64"
+    ],
+    "exit": 0,
+    "seconds": 1.9769751000058022,
+    "transcript": "quality\\candidate-copied_call_argument_snapshot_through_match_join_exit\\16.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "c18ec1b1ab65aff37eb08db26e8e7cea8bf220bce466c91ef6a7066bf7759ab0"
+  },
+  {
+    "fixture": "pass/facts/copied_call_argument_snapshot_through_match_join_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "update",
+      "--resume",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-copied_call_argument_snapshot_through_match_join_exit\\input"
+    ],
+    "exit": 1,
+    "seconds": 0.1568459999980405,
+    "transcript": "quality\\candidate-copied_call_argument_snapshot_through_match_join_exit\\17.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "c18ec1b1ab65aff37eb08db26e8e7cea8bf220bce466c91ef6a7066bf7759ab0"
+  },
+  {
+    "fixture": "pass/facts/copied_call_argument_snapshot_through_match_join_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-copied_call_argument_snapshot_through_match_join_exit\\native",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-copied_call_argument_snapshot_through_match_join_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 1.7794541000039317,
+    "transcript": "quality\\candidate-copied_call_argument_snapshot_through_match_join_exit\\18.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "c18ec1b1ab65aff37eb08db26e8e7cea8bf220bce466c91ef6a7066bf7759ab0",
+    "artifact_sha256": "586bc5ac68c2b3cf85bb23491370e83398cff813cfbe671968c751e2b30dc1a0",
+    "native_exit": 0
+  },
+  {
+    "fixture": "pass/facts/copied_call_argument_snapshot_through_match_join_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-copied_call_argument_snapshot_through_match_join_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 0.5594006999963312,
+    "transcript": "quality\\candidate-copied_call_argument_snapshot_through_match_join_exit\\19.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "c18ec1b1ab65aff37eb08db26e8e7cea8bf220bce466c91ef6a7066bf7759ab0",
+    "native_sha256": "586bc5ac68c2b3cf85bb23491370e83398cff813cfbe671968c751e2b30dc1a0",
+    "terminal_sha256": "e34bae6170b23b82cce4328ef027c19be9ce6c3b6866601a1f49c396669d9919"
+  },
+  {
+    "fixture": "fail/calls/authored_numeric_name_requires",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "--check",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-authored_numeric_name_requires\\input\\main.omg"
+    ],
+    "exit": 1,
+    "seconds": 0.981999800002086,
+    "transcript": "quality\\candidate-authored_numeric_name_requires\\20.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "efc010e06bb1fddfd534a7a9f38e6a5a35d4565a726f816dda2745f3c22d4403",
+    "expected": [
+      "requires"
+    ],
+    "matched": true
+  },
+  {
+    "fixture": "fail/calls/selected_contract_equation_reentry_unproved_requirement",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "--check",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-selected_contract_equation_reentry_unproved_requirement\\input\\main.omg"
+    ],
+    "exit": 1,
+    "seconds": 0.978790699999081,
+    "transcript": "quality\\candidate-selected_contract_equation_reentry_unproved_requirement\\21.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "be9246b95e2b785a7e6b3658ddf10d022781833dfaaba179031ce89c92e97868",
+    "expected": [
+      "cannot prove requires contract for call abs_i32"
+    ],
+    "matched": true
+  },
+  {
+    "fixture": "fail/arithmetic/numeric_operand_abs_unrepresentable",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "--check",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-numeric_operand_abs_unrepresentable\\input\\main.omg"
+    ],
+    "exit": 1,
+    "seconds": 5.147231700000702,
+    "transcript": "quality\\candidate-numeric_operand_abs_unrepresentable\\22.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "44af9d36521dd5b6d5062c74120c2a0b019d92a5fef0e24812b695ac948b6926",
+    "expected": [
+      "value call to `abs_i32` violates required fact `value > -2147483648`"
+    ],
+    "matched": true
+  },
+  {
+    "fixture": "fail/calls/closed_constructor_requires_restricted_nested_call_rejected",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "--check",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-closed_constructor_requires_restricted_nested_call_rejected\\input\\main.omg"
+    ],
+    "exit": 1,
+    "seconds": 5.022734799997124,
+    "transcript": "quality\\candidate-closed_constructor_requires_restricted_nested_call_rejected\\23.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "6e9be0f33a8fe89a8a88bc9c28cc8e8234abd8a4902e60a921d6fc300f63e187",
+    "expected": [
+      "value call to `restricted` violates required fact `false`"
+    ],
+    "matched": true
+  },
+  {
+    "fixture": "fail/borrow/scalar_reference_result_does_not_preserve_mutated_bound",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "--check",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-scalar_reference_result_does_not_preserve_mutated_bound\\input\\main.omg"
+    ],
+    "exit": 1,
+    "seconds": 0.9912746000045445,
+    "transcript": "quality\\candidate-scalar_reference_result_does_not_preserve_mutated_bound\\24.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "2fded616d38c11fe819788b6ea3a97f63901a0012c85ee6d10d3ddc4deb24456",
+    "expected": [
+      "cannot prove index",
+      "within length 2"
+    ],
+    "matched": true
+  },
+  {
+    "fixture": "fail/calls/copied_argument_ensures_cannot_restore_callee_mutated_source",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "--check",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\cases\\candidate-copied_argument_ensures_cannot_restore_callee_mutated_source\\input\\main.omg"
+    ],
+    "exit": 1,
+    "seconds": 0.9842728000003262,
+    "transcript": "quality\\candidate-copied_argument_ensures_cannot_restore_callee_mutated_source\\25.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+    "source_sha256": "ad21f8d978e8452defa96c41e7eb023b6a0c61d0169dbbdf9788c96b4d3a95c4",
+    "expected": [
+      "cannot prove requires contract for call take_ascii"
+    ],
+    "matched": true
+  }
+]

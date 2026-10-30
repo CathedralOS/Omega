@@ -1,0 +1,4 @@
+* -text
+raw/** -whitespace
+*.patch -whitespace
+*.gz -diff

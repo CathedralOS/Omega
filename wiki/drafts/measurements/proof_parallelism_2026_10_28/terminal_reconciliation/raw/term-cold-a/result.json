@@ -1,0 +1,164 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\terminal-breakdown\\omega.exe",
+    "--timings",
+    "--target",
+    "windows_x86_64",
+    "--build-dir",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\term-cold-a\\native",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+  ],
+  "wall_seconds": 29.701355699995474,
+  "exit_code": 0,
+  "cpu_seconds": 35.9375,
+  "peak_working_set_bytes": 1912573952,
+  "peak_commit_bytes": 3519778816,
+  "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+  "runtime_wall_seconds": 0.10573519999888958,
+  "producer": "terminal-breakdown",
+  "compiler_sha256": "20518efd27fcb0afce5d940f050a2f576883d98d5c073f3983932c463fbb410f",
+  "mode": "off",
+  "workers": 0,
+  "phase_profile": false,
+  "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+  "accepted_lock_sha256": "5e914b7fcfe33d9ddd035cb7fd19f7a1c2d57431b22789ff6a88537d4bbb46a5",
+  "cache_mode": "fresh private cache",
+  "reconciliation_mode": "timing",
+  "entry_detail": false,
+  "attribution": {
+    "rows": [
+      {
+        "operation": "places",
+        "machines": 7,
+        "wall_ns": 20000,
+        "metrics": {}
+      },
+      {
+        "operation": "residences",
+        "machines": 7,
+        "wall_ns": 24700,
+        "metrics": {}
+      },
+      {
+        "operation": "memberships",
+        "machines": 7,
+        "wall_ns": 1900,
+        "metrics": {}
+      },
+      {
+        "operation": "places",
+        "machines": 2,
+        "wall_ns": 2700,
+        "metrics": {}
+      },
+      {
+        "operation": "residences",
+        "machines": 2,
+        "wall_ns": 6700,
+        "metrics": {}
+      },
+      {
+        "operation": "memberships",
+        "machines": 2,
+        "wall_ns": 200,
+        "metrics": {}
+      },
+      {
+        "operation": "places",
+        "machines": 202,
+        "wall_ns": 302100,
+        "metrics": {}
+      },
+      {
+        "operation": "residences",
+        "machines": 202,
+        "wall_ns": 93600,
+        "metrics": {}
+      },
+      {
+        "operation": "memberships",
+        "machines": 202,
+        "wall_ns": 3617724800,
+        "metrics": {
+          "analysis_drop_ns": 5005300,
+          "discovery_ns": 126500,
+          "graph_drop_ns": 3856100,
+          "graph_preparation_ns": 252703800,
+          "history_creation_ns": 41600,
+          "history_drop_ns": 22802700,
+          "leaf_query_formation_ns": 79000,
+          "leaf_root_lookup_ns": 344000,
+          "merge_ns": 2556400,
+          "operand_queries_ns": 48583100,
+          "payload_contract_queries_ns": 7436100,
+          "payload_target_queries_ns": 6693600,
+          "reachability_drop_ns": 100,
+          "reference_context_drop_ns": 9454600,
+          "reference_queries_ns": 728501000,
+          "source_contract_queries_ns": 2504973800,
+          "types_drop_ns": 25800,
+          "view_queries_ns": 7347000
+        }
+      }
+    ],
+    "totals_ns": {
+      "places": 324800,
+      "residences": 125000,
+      "memberships": 3617726900
+    },
+    "membership_parts": {
+      "analysis_drop_ns": 5005300,
+      "discovery_ns": 126500,
+      "graph_drop_ns": 3856100,
+      "graph_preparation_ns": 252703800,
+      "history_creation_ns": 41600,
+      "history_drop_ns": 22802700,
+      "leaf_query_formation_ns": 79000,
+      "leaf_root_lookup_ns": 344000,
+      "merge_ns": 2556400,
+      "operand_queries_ns": 48583100,
+      "payload_contract_queries_ns": 7436100,
+      "payload_target_queries_ns": 6693600,
+      "reachability_drop_ns": 100,
+      "reference_context_drop_ns": 9454600,
+      "reference_queries_ns": 728501000,
+      "source_contract_queries_ns": 2504973800,
+      "types_drop_ns": 25800,
+      "view_queries_ns": 7347000,
+      "residual_ns": 17196400,
+      "reference_graph_ns": 728041900,
+      "reference_other_ns": 459100
+    },
+    "windows": {
+      "REFERENCE": 418
+    },
+    "graphs": [
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 245515000
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 243141800
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 239385100
+      }
+    ],
+    "cache": {
+      "cold": 1
+    },
+    "replay_details": {
+      "SOURCE": {},
+      "REFERENCE": {},
+      "unscoped": {}
+    }
+  }
+}

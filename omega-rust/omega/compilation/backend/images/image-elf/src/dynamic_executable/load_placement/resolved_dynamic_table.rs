@@ -211,25 +211,12 @@ struct Candidate {
 pub(crate) fn apply_elf_dynamic_address_fixups(
     placed_section_headers: ValidatedElfPlacedSectionHeaderTable,
 ) -> Result<ValidatedElfResolvedDynamicTable, Box<ElfDynamicAddressApplicationError>> {
-    checked::plan_candidate(
-        placed_section_headers,
-        derive_contents,
-        |placed_section_headers, contents| {
-            non_authoritative_resolved_compatibility_fingerprint(&placed_section_headers, &contents)
-        },
-        |placed_section_headers, contents, fingerprint| Candidate {
-            placed_section_headers: placed_section_headers,
-            contents: contents,
-            non_authoritative_resolved_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.placed_section_headers,
-        |placed_section_headers, diagnostic| {
-            Box::new(ElfDynamicAddressApplicationError {
-                placed_section_headers: placed_section_headers,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: placed_section_headers,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_resolved_compatibility_fingerprint,
+        error: ElfDynamicAddressApplicationError,
     )
 }
 

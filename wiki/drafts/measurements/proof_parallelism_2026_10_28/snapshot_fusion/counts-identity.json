@@ -1,0 +1,11 @@
+[
+  {
+    "producer": "snapshot-fusion-counts",
+    "compiler_sha256": "485fef52e9fcc3790bf18ea8ebe05f50bea724a4cc83083b0c422a1e71076203",
+    "accepted_lock_sha256": "9ef826c040825cbc1b59212d8ed872d2b554e53158dd88fda1c0f875de5c3d1a",
+    "build_profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  }
+]

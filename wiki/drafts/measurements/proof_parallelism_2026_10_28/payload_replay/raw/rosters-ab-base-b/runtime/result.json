@@ -1,0 +1,9 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\rosters-ab-base-b\\native\\omega-program.exe"
+  ],
+  "wall_seconds": 0.12243259999377187,
+  "exit_code": 0,
+  "cpu_seconds": 0.109375,
+  "peak_working_set_bytes": 5906432
+}

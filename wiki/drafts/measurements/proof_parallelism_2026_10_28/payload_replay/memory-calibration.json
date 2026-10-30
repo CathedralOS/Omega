@@ -1,0 +1,11 @@
+{
+  "command": [
+    "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+    "-c",
+    "x=bytearray(64*1024*1024); print(len(x))"
+  ],
+  "wall_seconds": 0.21120230000815354,
+  "exit_code": 0,
+  "cpu_seconds": 0.203125,
+  "peak_working_set_bytes": 79622144
+}

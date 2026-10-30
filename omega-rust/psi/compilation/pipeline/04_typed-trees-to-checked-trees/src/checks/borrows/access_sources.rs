@@ -75,6 +75,7 @@ pub(in crate::checks::borrows) fn resolve_all(
     )?;
     let place = CapturedPlace {
         incoming_reference: Default::default(),
+        incoming_owner_path: Default::default(),
         root: source.root,
         segments: source.segments,
     };
@@ -136,7 +137,7 @@ pub(in crate::checks::borrows) fn resolve_descriptor_all(
     descriptor_loads::resolve(program, facts, state, statement_index, constraints, place)
 }
 
-fn retain_captured_lineage(
+pub(super) fn retain_captured_lineage(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
