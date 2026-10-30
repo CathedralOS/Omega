@@ -1,0 +1,12 @@
+{
+  "source_revision": "ad7c6890a8971c1609006e1965ba4e4626f30591",
+  "producer": {
+    "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\target\\release\\omega.exe",
+    "sha256": "47df422bd6f671306aaf90c7c8ea619eda9b4110da7381aa87a6bb36cfd8753c",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "3"
+    }
+  },
+  "cargo_output_sha256": "1515cc270c77e1652c79c14246a452ebc8d42fef759566e76a58cf86f499c21b"
+}

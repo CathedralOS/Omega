@@ -43,9 +43,7 @@ fn establishes_scalar_predicates_inner(
     constraint: &typed_trees::types::DomainConstraint,
     visited: &mut Vec<(symbols::SymbolHandle, language_semantics::SemanticDomainId)>,
 ) -> bool {
-    if domain.alias.is_some()
-        || visited.contains(&(domain.symbol, domain.semantic_id))
-    {
+    if domain.alias.is_some() || visited.contains(&(domain.symbol, domain.semantic_id)) {
         return false;
     }
     visited.push((domain.symbol, domain.semantic_id));

@@ -2,18 +2,18 @@
 //! supplies its ordinary field frontier; observing beyond it requires a matched
 //! frozen reference load from the frame owner. Never expand pointer-type graphs:
 //! recursive types do not define a finite set of observable field paths.
-use super::{CurrentScalarValues, field_storage_path};
-use symbols::SymbolHandle;
+use super::CurrentScalarValues;
+use super::scalar_fields::{ScalarProjection, capture_path};
 use validation::ScopedArithmeticValue;
 
 /// Paths are declaration identities, shared across a call component so a private
 /// forwarder need not repeat the caller's rank expression. Suffixes let an actual
 /// projected from a larger record retain the same selected declaration path.
-pub(crate) fn parameter_field_paths(
+pub(crate) fn parameter_projection_paths(
     program: &dyn validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-) -> Vec<Vec<SymbolHandle>> {
+) -> Vec<Vec<facts::PlaceSegment>> {
     let mut pending = Vec::new();
     for (_, statement) in program
         .statement_table
@@ -45,9 +45,11 @@ pub(crate) fn parameter_field_paths(
             continue;
         }
         seen.push(expression);
-        if let Some((root, path)) = field_storage_path(program, expression)
+        if let Some(place) = validation::canonical_place_from_expression(program, expression)
+            && let facts::PlaceRoot::Symbol(root) = place.root
             && program.state_parameter_by_symbol(state, root).is_some()
         {
+            let path = place.segments;
             for start in 0..path.len() {
                 let suffix = path[start..].to_vec();
                 if !paths.contains(&suffix) {
@@ -73,7 +75,7 @@ impl CurrentScalarValues<'_> {
     /// leaves inside the record need separate load evidence and are not walked.
     pub(super) fn seed_parameter_fields(
         &mut self,
-        requested: &[Vec<SymbolHandle>],
+        requested: &[Vec<facts::PlaceSegment>],
         frames: Option<&validation::CallFrameResolver<'_>>,
     ) {
         for parameter in self.program.state_parameters(self.state) {
@@ -162,9 +164,13 @@ impl CurrentScalarValues<'_> {
                                 self.program,
                                 parameter.symbol,
                                 super::scalar_fields::CapturedScalarField {
-                                    path,
+                                    path: path
+                                        .iter()
+                                        .map(|symbol| ScalarProjection::Field(*symbol))
+                                        .collect(),
                                     carrier,
                                     read_dependencies: Vec::new(),
+                                    sources: Vec::new(),
                                     value: ScopedArithmeticValue::Atom {
                                         identity,
                                         unsigned: super::unsigned(carrier),
@@ -214,19 +220,28 @@ impl CurrentScalarValues<'_> {
             let Some(&first) = order.indices().first() else {
                 continue;
             };
-            for path in requested {
-                if self
-                    .fields
-                    .iter()
-                    .any(|field| field.owner == parameter.symbol && field.path == *path)
-                {
+            for coordinate in requested {
+                let Some(path) = capture_path(coordinate, |selector| {
+                    super::scalar_fields::entry_selector_value(
+                        self.occurrence(),
+                        selector,
+                        &self.current,
+                        &self.fields,
+                    )
+                }) else {
+                    continue;
+                };
+                if self.fields.iter().any(|field| {
+                    field.owner == parameter.symbol
+                        && super::scalar_fields::same_projection(
+                            self.occurrence(),
+                            &field.path,
+                            &path,
+                        )
+                }) {
                     continue;
                 }
-                let coordinate = path
-                    .iter()
-                    .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
-                    .collect::<Vec<_>>();
-                let Some(field) = validation::structural_scalar_field_at_coordinate(
+                let Some(field) = validation::structural_scalar_coordinate(
                     self.program,
                     self.program.state_parameters(self.state),
                     parameter.symbol,
@@ -234,27 +249,41 @@ impl CurrentScalarValues<'_> {
                 ) else {
                     continue;
                 };
-                let Some(sources) = frames.coordinate_sources_before_statement(
-                    self.machine,
-                    self.state,
-                    first,
-                    parameter.symbol,
-                    &coordinate,
-                ) else {
+                let Some(sources) = field
+                    .source_requirements
+                    .iter()
+                    .map(|requirement| {
+                        frames
+                            .coordinate_sources_before_statement(
+                                self.machine,
+                                self.state,
+                                first,
+                                parameter.symbol,
+                                requirement,
+                            )
+                            .filter(|sources| !sources.is_empty())
+                    })
+                    .collect::<Option<Vec<_>>>()
+                else {
                     continue;
                 };
-                let read_dependencies = sources.into_iter().map(|source| source.path).collect();
+                let read_dependencies = sources
+                    .into_iter()
+                    .flatten()
+                    .map(|source| source.path)
+                    .collect();
                 self.fields
                     .push(super::scalar_fields::ScalarField::for_owner(
                         self.program,
                         parameter.symbol,
                         super::scalar_fields::CapturedScalarField {
-                            path: path.clone(),
+                            path,
                             carrier: field.primitive_type,
                             read_dependencies,
+                            sources: Vec::new(),
                             value: ScopedArithmeticValue::Atom {
                                 identity: format!(
-                                    "state:{:?}:parameter:{:?}:field:{path:?}",
+                                    "state:{:?}:parameter:{:?}:field:{coordinate:?}",
                                     self.state.symbol, parameter.symbol
                                 ),
                                 unsigned: super::unsigned(field.primitive_type),

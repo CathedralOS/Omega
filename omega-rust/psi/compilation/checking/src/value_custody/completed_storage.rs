@@ -60,7 +60,7 @@ impl StoredOperand {
 }
 
 mod backing;
-pub use backing::{direct_referent_places, reference_backing_places};
+pub use backing::{direct_referent_places, projectable_reference_places, reference_backing_places};
 mod captures;
 mod descriptor_suppliers;
 mod reference_captures;

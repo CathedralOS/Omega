@@ -18,7 +18,9 @@ mod entry_values;
 mod private_entry_ram;
 mod provider_installation;
 mod scalar_applications;
+mod synchronous_calls;
 mod target_families;
+pub use synchronous_calls::{SynchronousCallClosure, SynchronousCallGraph};
 
 pub use component_provider::{AdmittedComponentProvider, admit_component_provider};
 pub use entry_values::{
@@ -42,7 +44,7 @@ pub use scalar_applications::{
 };
 pub use target_families::{
     AdmittedTargetMachineSelections, TargetMachineSelection, TargetMachineSelectionError,
-    admit_target_machine_selections, resolve_target_machine_member,
+    admit_target_machine_selections, admitted_boundary_member, resolve_target_machine_member,
 };
 
 mod target_layouts;

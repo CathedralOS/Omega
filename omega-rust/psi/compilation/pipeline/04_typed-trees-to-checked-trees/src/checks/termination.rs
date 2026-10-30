@@ -200,11 +200,15 @@ pub(crate) fn admit_machine_rankings(
                 let path = admitted
                     .path_segments
                     .insert_many(coordinate.coordinate.path.clone());
+                let entry_indexes = admitted
+                    .entry_indexes
+                    .insert_many(coordinate.entry_indexes.clone());
                 let selected = admitted
                     .coordinates
                     .insert(checked_trees::CheckedRankCoordinate {
                         parameter: coordinate.parameter,
                         path,
+                        entry_indexes,
                     });
                 let measure = match coordinate.observation {
                     validation::RankPremiseObservation::Value => {
@@ -220,6 +224,7 @@ pub(crate) fn admit_machine_rankings(
                     }
                 };
                 checked_trees::CheckedStateNaturalRank {
+                    function: coordinate.function,
                     state: coordinate.state,
                     parameter: coordinate.parameter,
                     parameter_position: coordinate.parameter_position,

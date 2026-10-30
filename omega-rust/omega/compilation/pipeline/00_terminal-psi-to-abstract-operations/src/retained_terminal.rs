@@ -8,6 +8,7 @@ pub use codec::{recover_native_derivation_inputs, retain_native_derivation_input
 mod component_inputs;
 pub use component_inputs::{
     AdmittedNativeComponentCall, ComponentExportInput, ComponentNativeInputs,
+    RetainedComponentNativeInputs,
 };
 
 mod native_providers;

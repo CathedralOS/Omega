@@ -1003,12 +1003,7 @@ pub(super) fn clone_single_specialized_machine(
         .collect::<Vec<_>>();
     program.evidence_forwardings.extend(evidence_forwardings);
     program.push_machine(cloned);
-    // Static targets were remapped with the body. Only service calls whose
-    // types have just closed need binding, within this producer's new instance.
-    // Preserve every diagnostic rather than flattening a failed binding into a
-    // provisional target for a later whole-roster repair.
     let instance = typed_trees::references::DeclarationSelection::from_symbols([instance_symbol]);
-    validation::resolve_selected_dynamic_call_targets(program, &instance)?;
     let operator_realizations = closed_operator_realizations_for_machine(program, instance_symbol)
         .map_err(|diagnostic| vec![diagnostic])?;
     let binding_application = if capture.is_some() {
@@ -1047,6 +1042,12 @@ pub(super) fn clone_single_specialized_machine(
                 accepted_template_commitment,
             });
     }
+
+    // Binding a copied requirement needs the complete source-to-instance
+    // derivation, including an invocation layered over a map capture. Publish
+    // that receipt first; otherwise a lexical sibling can lose its selecting
+    // application while the new body's types are already closed.
+    validation::resolve_selected_dynamic_call_targets(program, &instance)?;
 
     // Exact type/const/evidence substitution and retained tuple copying are
     // complete. Publish canonical domain identities with the whole instance,

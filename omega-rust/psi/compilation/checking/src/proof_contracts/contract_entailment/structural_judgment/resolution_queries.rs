@@ -1,8 +1,10 @@
 //! Active application questions belong to the whole cloned judge tree.
 //!
 //! Integer premise projection can return to the resolver with a fresh local
-//! depth. Retain the exact question and its premise context until its body
-//! finishes instead of treating that return as a new independent computation.
+//! depth. Retain the exact question and its premise context until its contract
+//! or body finishes instead of treating that return as a new independent
+//! computation. The caller chooses its term mode before entering the question;
+//! guarding contract equations must not change the surrounding proof meaning.
 
 use super::{StructuralJudge, StructuralTerm};
 use std::sync::Arc;
@@ -14,9 +16,8 @@ pub(super) struct ApplicationResolution<'program> {
 }
 
 impl<'program> StructuralJudge<'program> {
-    pub(super) fn resolving_application(&self, application: &StructuralTerm) -> Option<Self> {
+    pub(super) fn resolving_application(mut self, application: &StructuralTerm) -> Option<Self> {
         let mut context = self.clone();
-        context.specification_terms = true;
         // The context holds its semantic owners, not the active query chain.
         // The separate predecessor edge below keeps this an acyclic history.
         context.active_application = None;
@@ -29,14 +30,12 @@ impl<'program> StructuralJudge<'program> {
             }
             previous = active.previous.as_deref();
         }
-        let mut resolving = self.clone();
-        resolving.specification_terms = true;
-        resolving.active_application = Some(Arc::new(ApplicationResolution {
+        self.active_application = Some(Arc::new(ApplicationResolution {
             application: application.clone(),
             context,
             previous: self.active_application.clone(),
         }));
-        Some(resolving)
+        Some(self)
     }
 
     /// Opaque leaf retention must not omit mutable dependency collection.

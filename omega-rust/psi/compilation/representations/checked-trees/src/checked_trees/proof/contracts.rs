@@ -354,6 +354,7 @@ pub struct ProofOutputCallFact {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StaticRequirementDispatchFact {
     pub selection_application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    pub evidence_parameter: SymbolHandle,
     /// Compact report coordinate; authority uses `application_commitment`.
     pub application_report_fingerprint: u64,
     pub application_commitment: typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
@@ -369,6 +370,7 @@ impl From<&typed_trees::typed_trees::StaticRequirementDispatch> for StaticRequir
     fn from(dispatch: &typed_trees::typed_trees::StaticRequirementDispatch) -> Self {
         Self {
             selection_application: dispatch.selection_application,
+            evidence_parameter: dispatch.evidence_parameter,
             application_report_fingerprint: dispatch.application_report_fingerprint,
             application_commitment: dispatch.application_commitment,
             declaring_trait: dispatch.declaring_trait,

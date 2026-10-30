@@ -54,8 +54,8 @@ impl<'a> Reviewer<'a> {
     }
 
     pub(super) fn expand_boundary(&mut self, boundary: BoundaryMachineId) -> Result<(), String> {
-        // Provider planning's selected synchronous-invocation cycle check
-        // already rejects a cycle through the selected providers; this set
+        // Canonical provider admission already rejects cycles through every
+        // installed provider instance; this set
         // only bounds the recursion so a repeated boundary is expanded once
         // rather than re-checked.
         if !self.expanded.insert(boundary) {

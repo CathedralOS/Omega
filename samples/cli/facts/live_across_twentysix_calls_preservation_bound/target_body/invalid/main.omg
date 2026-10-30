@@ -205,13 +205,13 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedProbe {
     machine compute_target_body(saved: u64) -> i32
-        reaches SelectedBodyCheck crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
         requires saved >= 39 && saved <= 80;
 }
 
 X86Probe satisfies SelectedProbe {
     machine compute_target_body(saved: u64) -> i32
-        reaches SelectedBodyCheck crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
         requires saved >= 39 && saved <= 80
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -255,7 +255,7 @@ X86Probe satisfies SelectedProbe {
 
 ArmProbe satisfies SelectedProbe {
     machine compute_target_body(saved: u64) -> i32
-        reaches SelectedBodyCheck crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
         requires saved >= 39 && saved <= 80
     {
         SelectedBodyCheck::require_tag(29u64);

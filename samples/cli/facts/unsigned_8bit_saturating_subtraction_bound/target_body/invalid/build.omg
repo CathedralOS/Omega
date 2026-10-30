@@ -1,7 +1,18 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "unsigned_8bit_saturating_subtraction_bound_target_body_invalid");
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, x86_entry);
+    Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, arm_entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, arm_entry);
+    Build::bind(builder, macos_x86_64::ProgramEntry, x86_entry);
+    Build::select_provider<SelectedProbe, ArmProbe>(builder, linux_arm64);
+    Build::select_provider<SelectedBodyCheck, ArmBodyCheck>(builder, linux_arm64);
+    Build::select_provider<SelectedProbe, X86Probe>(builder, linux_x86_64);
+    Build::select_provider<SelectedBodyCheck, X86BodyCheck>(builder, linux_x86_64);
+    Build::select_provider<SelectedProbe, ArmProbe>(builder, macos_arm64);
+    Build::select_provider<SelectedBodyCheck, ArmBodyCheck>(builder, macos_arm64);
+    Build::select_provider<SelectedProbe, X86Probe>(builder, macos_x86_64);
+    Build::select_provider<SelectedBodyCheck, X86BodyCheck>(builder, macos_x86_64);
+    Build::select_provider<SelectedProbe, X86Probe>(builder, windows_x86_64);
+    Build::select_provider<SelectedBodyCheck, X86BodyCheck>(builder, windows_x86_64);
 }

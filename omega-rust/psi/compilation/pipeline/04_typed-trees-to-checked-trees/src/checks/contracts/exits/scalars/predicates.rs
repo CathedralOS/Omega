@@ -228,7 +228,7 @@ impl ExitScalars<'_, '_> {
             }
             predicates.extend(transported.predicates);
         }
-        crate::facts::boolean_predicates::truth(&predicates, &required, |place| {
+        let mut ordinary = |place: &validation::CanonicalPlace| {
             prover::boolean_value_at_place(
                 self.program,
                 &self.facts.operators,
@@ -252,6 +252,22 @@ impl ExitScalars<'_, '_> {
                     place,
                 )
             })
-        })
+        };
+        crate::facts::boolean_predicates::truth(&predicates, &required, &mut ordinary).or_else(
+            || {
+                // Normal return composes the same authenticated captured equations
+                // as invocation and cleanup. Whole-proposition Boolean closure alone
+                // does not carry a scalar through a declared return equation.
+                prover::call_guarantees::proves_captured_predicates(
+                    self.program,
+                    &self.facts.semantic,
+                    self.contexts,
+                    &predicates,
+                    &required,
+                    ordinary,
+                )
+                .then_some(true)
+            },
+        )
     }
 }

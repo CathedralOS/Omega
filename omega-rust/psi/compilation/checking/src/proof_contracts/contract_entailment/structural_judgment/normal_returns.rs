@@ -20,7 +20,7 @@ use super::super::specification_calls::{
     AppliedProofBindings, SelectedCallContract, owner_contracts, owner_leading_operands,
     owner_return_type, owner_symbol, selected_call_contract,
 };
-use super::selected_contracts::bound_term;
+
 use super::value_predicates::boolean_term;
 use super::{MembershipGuarantee, StructuralJudge, StructuralJudgment, StructuralTerm};
 use crate::expression_traversal::children;
@@ -319,6 +319,7 @@ impl<'program> StructuralJudge<'program> {
                     .try_fold(subject.clone(), |value, field| {
                         super::super::observed_projections::project_declared_field(
                             self.program,
+                            self,
                             value,
                             field,
                         )
@@ -2616,18 +2617,11 @@ impl<'program> StructuralJudge<'program> {
         // A saved local now resolves to this occurrence, so the callee's case
         // tags must classify it here; the citation route's saved-binding tags
         // never meet that environment term. Tags never become value equations.
-        let tag_callee = match owner {
-            SelectedCallContract::Concrete(machine, _)
-                if parameters.iter().all(|parameter| {
-                    bindings
-                        .iter()
-                        .any(|(symbol, _)| *symbol == parameter.symbol)
-                }) =>
-            {
-                Some(machine)
-            }
-            _ => None,
-        };
+        let tags_have_complete_bindings = parameters.iter().all(|parameter| {
+            bindings
+                .iter()
+                .any(|(symbol, _)| *symbol == parameter.symbol)
+        });
         let tag_map = parameters
             .iter()
             .filter_map(|parameter| {
@@ -2674,8 +2668,7 @@ impl<'program> StructuralJudge<'program> {
                     // its exact detached occurrence, never a live caller name
                     // or the result's borrowed referent. Later writes change
                     // the observed subject and cannot reuse this snapshot.
-                    if let Some(subject) = bound_term(
-                        program,
+                    if let Some(subject) = self.bound_contract_term(
                         guarantee.value,
                         callable,
                         parameters,
@@ -2703,9 +2696,9 @@ impl<'program> StructuralJudge<'program> {
                 let ProofFact::Expression(guarantee) = fact else {
                     continue;
                 };
-                if let Some(callee) = tag_callee {
-                    self.instantiated_case_guarantees(
-                        callee,
+                if tags_have_complete_bindings {
+                    self.instantiated_contract_case_guarantees(
+                        &owner,
                         *guarantee,
                         &tag_map,
                         &mut case_guarantees,

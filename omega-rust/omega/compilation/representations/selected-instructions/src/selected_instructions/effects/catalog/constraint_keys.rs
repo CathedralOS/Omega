@@ -154,40 +154,40 @@ impl SelectedConstraintKeys {
         Some(match semantic {
             MachineSemanticKind::PlacedScalarAccess(form) => {
                 return if form.write {
-                    self.placed_write
+                    self.rows.placed_write
                 } else {
-                    self.placed_read
+                    self.rows.placed_read
                 };
             }
-            MachineSemanticKind::PortWrite => return self.port_write,
-            MachineSemanticKind::SystemRegisterRead => return self.system_register_read,
-            MachineSemanticKind::SystemRegisterWrite => return self.system_register_write,
-            MachineSemanticKind::ControlRegisterRead => return self.control_register_read,
-            MachineSemanticKind::ControlRegisterWrite => return self.control_register_write,
-            MachineSemanticKind::PortRegisterRead => return self.port_register_read,
-            MachineSemanticKind::PortRegisterWrite => return self.port_register_write,
-            MachineSemanticKind::ModelSpecificRead => return self.model_specific_read,
-            MachineSemanticKind::ModelSpecificWrite => return self.model_specific_write,
-            MachineSemanticKind::ProcessorHalt => return self.processor_halt,
-            MachineSemanticKind::InterruptControl => return self.interrupt_control,
-            MachineSemanticKind::MemoryFence => return self.memory_fence,
-            MachineSemanticKind::AtomicFence => return self.atomic_fence,
+            MachineSemanticKind::PortWrite => return self.rows.port_write,
+            MachineSemanticKind::SystemRegisterRead => return self.rows.system_register_read,
+            MachineSemanticKind::SystemRegisterWrite => return self.rows.system_register_write,
+            MachineSemanticKind::ControlRegisterRead => return self.rows.control_register_read,
+            MachineSemanticKind::ControlRegisterWrite => return self.rows.control_register_write,
+            MachineSemanticKind::PortRegisterRead => return self.rows.port_register_read,
+            MachineSemanticKind::PortRegisterWrite => return self.rows.port_register_write,
+            MachineSemanticKind::ModelSpecificRead => return self.rows.model_specific_read,
+            MachineSemanticKind::ModelSpecificWrite => return self.rows.model_specific_write,
+            MachineSemanticKind::ProcessorHalt => return self.rows.processor_halt,
+            MachineSemanticKind::InterruptControl => return self.rows.interrupt_control,
+            MachineSemanticKind::MemoryFence => return self.rows.memory_fence,
+            MachineSemanticKind::AtomicFence => return self.rows.atomic_fence,
             MachineSemanticKind::AtomicAccess(form) => {
                 return match form.operation {
-                    crate::AtomicOperation::Load => self.atomic_load,
-                    crate::AtomicOperation::Store => self.atomic_store,
-                    crate::AtomicOperation::CompareExchange => self.atomic_compare_exchange,
+                    crate::AtomicOperation::Load => self.rows.atomic_load,
+                    crate::AtomicOperation::Store => self.rows.atomic_store,
+                    crate::AtomicOperation::CompareExchange => self.rows.atomic_compare_exchange,
                     crate::AtomicOperation::FetchAnd
                     | crate::AtomicOperation::FetchOr
-                    | crate::AtomicOperation::FetchXor => self.atomic_bitwise_update,
-                    _ => self.atomic_update,
+                    | crate::AtomicOperation::FetchXor => self.rows.atomic_bitwise_update,
+                    _ => self.rows.atomic_update,
                 };
             }
             MachineSemanticKind::NearestIeeeFloatArithmetic(form) => {
                 if form.operation.rounding_direction().is_some() {
                     return match form.operand_count() {
-                        1 => self.ieee_float_directed_unary,
-                        2 => self.ieee_float_directed_binary,
+                        1 => self.rows.ieee_float_directed_unary,
+                        2 => self.rows.ieee_float_directed_binary,
                         _ => None,
                     };
                 }
@@ -209,61 +209,63 @@ impl SelectedConstraintKeys {
                         | crate::IeeeFloatArithmeticOperation::TruncateToInteger {
                             domain: crate::IeeeFloatToIntegerDomain::Trapping,
                             ..
-                        } => self.ieee_float_conversion_control,
-                        _ => self.ieee_float_unary,
+                        } => self.rows.ieee_float_conversion_control,
+                        _ => self.rows.ieee_float_unary,
                     },
-                    2 => self.ieee_float_arithmetic,
-                    3 => self.ieee_float_ternary,
+                    2 => self.rows.ieee_float_arithmetic,
+                    3 => self.rows.ieee_float_ternary,
                     _ => None,
                 };
             }
             MachineSemanticKind::FloatResultPolicy(form) => {
                 return match form.policy {
-                    crate::FloatResultPolicyKind::Trapping => self.float_result_trapping,
-                    crate::FloatResultPolicyKind::Saturating => self.float_result_saturating,
+                    crate::FloatResultPolicyKind::Trapping => self.rows.float_result_trapping,
+                    crate::FloatResultPolicyKind::Saturating => self.rows.float_result_saturating,
                 };
             }
-            MachineSemanticKind::CopyBytes => return self.copy_bytes,
-            MachineSemanticKind::ZeroBytes => return self.zero_bytes,
-            MachineSemanticKind::ScanByteSequence => return self.scan_byte_sequence,
-            MachineSemanticKind::LoadEncodedScalar => return self.load_encoded_scalar,
-            MachineSemanticKind::StoreEncodedScalar => return self.store_encoded_scalar,
-            MachineSemanticKind::CompareByteSequences => return self.compare_byte_sequences,
-            MachineSemanticKind::Float32ToBits => return self.float32_to_bits,
-            MachineSemanticKind::Float64ToBits => return self.float64_to_bits,
-            MachineSemanticKind::BitsToFloat32 => return self.bits_to_float32,
-            MachineSemanticKind::BitsToFloat64 => return self.bits_to_float64,
-            MachineSemanticKind::HostedReadByte => return self.hosted_read_byte,
-            MachineSemanticKind::HostedWriteByteI32 => return self.hosted_write_byte_i32,
-            MachineSemanticKind::SaveFloatingControl => return self.save_floating_control,
-            MachineSemanticKind::RestoreFloatingControl => return self.restore_floating_control,
-            MachineSemanticKind::Crash => self.crash,
-            MachineSemanticKind::HostedExitProcessI32 => return self.hosted_exit_process_i32,
-            MachineSemanticKind::Store => return self.store,
-            MachineSemanticKind::AddressOffset => return self.address_offset,
-            MachineSemanticKind::Load8Indexed => return self.load8_indexed,
-            MachineSemanticKind::Load64 => return self.load64,
+            MachineSemanticKind::CopyBytes => return self.rows.copy_bytes,
+            MachineSemanticKind::ZeroBytes => return self.rows.zero_bytes,
+            MachineSemanticKind::ScanByteSequence => return self.rows.scan_byte_sequence,
+            MachineSemanticKind::LoadEncodedScalar => return self.rows.load_encoded_scalar,
+            MachineSemanticKind::StoreEncodedScalar => return self.rows.store_encoded_scalar,
+            MachineSemanticKind::CompareByteSequences => return self.rows.compare_byte_sequences,
+            MachineSemanticKind::Float32ToBits => return self.rows.float32_to_bits,
+            MachineSemanticKind::Float64ToBits => return self.rows.float64_to_bits,
+            MachineSemanticKind::BitsToFloat32 => return self.rows.bits_to_float32,
+            MachineSemanticKind::BitsToFloat64 => return self.rows.bits_to_float64,
+            MachineSemanticKind::HostedReadByte => return self.rows.hosted_read_byte,
+            MachineSemanticKind::HostedWriteByteI32 => return self.rows.hosted_write_byte_i32,
+            MachineSemanticKind::SaveFloatingControl => return self.rows.save_floating_control,
+            MachineSemanticKind::RestoreFloatingControl => {
+                return self.rows.restore_floating_control;
+            }
+            MachineSemanticKind::Crash => self.rows.crash,
+            MachineSemanticKind::HostedExitProcessI32 => return self.rows.hosted_exit_process_i32,
+            MachineSemanticKind::Store => return self.rows.store,
+            MachineSemanticKind::AddressOffset => return self.rows.address_offset,
+            MachineSemanticKind::Load8Indexed => return self.rows.load8_indexed,
+            MachineSemanticKind::Load64 => return self.rows.load64,
             MachineSemanticKind::LoadPacked3
             | MachineSemanticKind::LoadPacked5
             | MachineSemanticKind::LoadPacked6
-            | MachineSemanticKind::LoadPacked7 => return self.load_packed,
-            MachineSemanticKind::StorePacked => return self.store_packed,
-            MachineSemanticKind::Load8 => return self.load8,
-            MachineSemanticKind::Load16 => return self.load16,
-            MachineSemanticKind::Load32 => return self.load32,
-            MachineSemanticKind::Store64 => return self.store64,
-            MachineSemanticKind::FrameAddress => return self.frame_address,
+            | MachineSemanticKind::LoadPacked7 => return self.rows.load_packed,
+            MachineSemanticKind::StorePacked => return self.rows.store_packed,
+            MachineSemanticKind::Load8 => return self.rows.load8,
+            MachineSemanticKind::Load16 => return self.rows.load16,
+            MachineSemanticKind::Load32 => return self.rows.load32,
+            MachineSemanticKind::Store64 => return self.rows.store64,
+            MachineSemanticKind::FrameAddress => return self.rows.frame_address,
             MachineSemanticKind::ImageAddress => {
-                return self.byte_literal_image_address;
+                return self.rows.byte_literal_image_address;
             }
             MachineSemanticKind::CallUnit | MachineSemanticKind::InvokeNoNormal => return None,
-            MachineSemanticKind::CompareI64Zero => self.compare_i64_zero,
-            MachineSemanticKind::MaterializeI64 => self.materialize_i64,
-            MachineSemanticKind::MaterializeBooleanEqual => self.materialize_boolean,
-            MachineSemanticKind::MaterializeBooleanU64LessThan => self.materialize_boolean,
-            MachineSemanticKind::MaterializeBooleanI64LessThan => self.materialize_boolean,
-            MachineSemanticKind::MaterializeBooleanU64LessOrEqual => self.materialize_boolean,
-            MachineSemanticKind::MaterializeBooleanI64LessOrEqual => self.materialize_boolean,
+            MachineSemanticKind::CompareI64Zero => self.rows.compare_i64_zero,
+            MachineSemanticKind::MaterializeI64 => self.rows.materialize_i64,
+            MachineSemanticKind::MaterializeBooleanEqual => self.rows.materialize_boolean,
+            MachineSemanticKind::MaterializeBooleanU64LessThan => self.rows.materialize_boolean,
+            MachineSemanticKind::MaterializeBooleanI64LessThan => self.rows.materialize_boolean,
+            MachineSemanticKind::MaterializeBooleanU64LessOrEqual => self.rows.materialize_boolean,
+            MachineSemanticKind::MaterializeBooleanI64LessOrEqual => self.rows.materialize_boolean,
 
             MachineSemanticKind::CopyI64
             | MachineSemanticKind::ZeroExtendU8
@@ -271,29 +273,29 @@ impl SelectedConstraintKeys {
             | MachineSemanticKind::SignExtendI8
             | MachineSemanticKind::SignExtendI16
             | MachineSemanticKind::SignExtendI32
-            | MachineSemanticKind::ZeroExtendU32 => self.copy_i64,
+            | MachineSemanticKind::ZeroExtendU32 => self.rows.copy_i64,
             MachineSemanticKind::ByteViewAddress
             | MachineSemanticKind::ExactAddI64
-            | MachineSemanticKind::WrappingAddI64 => self.add_i64,
+            | MachineSemanticKind::WrappingAddI64 => self.rows.add_i64,
             // x64 AND/OR/XOR clobber flags, unlike the flag-preserving LEA
             // addition; NOT and its guarding copy do not.
-            MachineSemanticKind::BitwiseAndI64 => self.subtract_i64,
-            MachineSemanticKind::BitwiseOrI64 => self.subtract_i64,
-            MachineSemanticKind::BitwiseXorI64 => self.subtract_i64,
-            MachineSemanticKind::BitwiseNotI64 => self.copy_i64,
-            MachineSemanticKind::ExactAddI64Immediate => self.add_i64_immediate,
-            MachineSemanticKind::ExactSubtractI64 => self.subtract_i64,
-            MachineSemanticKind::WrappingSubtractI64 => self.subtract_i64,
-            MachineSemanticKind::ExactMultiplyI64 => self.multiply_i64,
-            MachineSemanticKind::WrappingMultiplyI64 => self.multiply_i64,
-            MachineSemanticKind::ExactDivideU64 => self.divide_u64,
-            MachineSemanticKind::ExactRemainderU64 => self.remainder_u64,
-            MachineSemanticKind::WrappingRemainderI64 => self.remainder_i64,
-            MachineSemanticKind::WrappingDivideI64 => self.divide_i64,
+            MachineSemanticKind::BitwiseAndI64 => self.rows.subtract_i64,
+            MachineSemanticKind::BitwiseOrI64 => self.rows.subtract_i64,
+            MachineSemanticKind::BitwiseXorI64 => self.rows.subtract_i64,
+            MachineSemanticKind::BitwiseNotI64 => self.rows.copy_i64,
+            MachineSemanticKind::ExactAddI64Immediate => self.rows.add_i64_immediate,
+            MachineSemanticKind::ExactSubtractI64 => self.rows.subtract_i64,
+            MachineSemanticKind::WrappingSubtractI64 => self.rows.subtract_i64,
+            MachineSemanticKind::ExactMultiplyI64 => self.rows.multiply_i64,
+            MachineSemanticKind::WrappingMultiplyI64 => self.rows.multiply_i64,
+            MachineSemanticKind::ExactDivideU64 => self.rows.divide_u64,
+            MachineSemanticKind::ExactRemainderU64 => self.rows.remainder_u64,
+            MachineSemanticKind::WrappingRemainderI64 => self.rows.remainder_i64,
+            MachineSemanticKind::WrappingDivideI64 => self.rows.divide_i64,
             // The exact signed forms share the signed divide rows: the same
             // RAX/RDX/RCX pinning serves both policies.
-            MachineSemanticKind::ExactDivideI64 => self.divide_i64,
-            MachineSemanticKind::ExactRemainderI64 => self.remainder_i64,
+            MachineSemanticKind::ExactDivideI64 => self.rows.divide_i64,
+            MachineSemanticKind::ExactRemainderI64 => self.rows.remainder_i64,
             // Every shift reads its value and count sources and defines the
             // result through the same two-source row; x86-64 pins the count
             // to `rcx` while AArch64 leaves all three allocatable.
@@ -302,60 +304,64 @@ impl SelectedConstraintKeys {
             | MachineSemanticKind::WrappingShiftRightU64
             | MachineSemanticKind::ExactShiftLeftI64
             | MachineSemanticKind::ExactShiftRightI64
-            | MachineSemanticKind::ExactShiftRightU64 => self.shift_i64,
+            | MachineSemanticKind::ExactShiftRightU64 => self.rows.shift_i64,
             // Operand shape, not carrier, selects the constraint row: the u64
             // add and every unsigned subtract are three-operand forms, unsigned
             // division shares the exact unsigned divide row, and everything
             // else clamps through the early-clobber bound scratch.
-            MachineSemanticKind::SaturatingAdd(SaturatingCarrier::U64) => self.saturating_add_u64,
-            MachineSemanticKind::SaturatingAdd(_) => self.saturating_add_clamped,
+            MachineSemanticKind::SaturatingAdd(SaturatingCarrier::U64) => {
+                self.rows.saturating_add_u64
+            }
+            MachineSemanticKind::SaturatingAdd(_) => self.rows.saturating_add_clamped,
             MachineSemanticKind::SaturatingSubtract(carrier) if !carrier.is_signed() => {
-                self.saturating_subtract_unsigned
+                self.rows.saturating_subtract_unsigned
             }
-            MachineSemanticKind::SaturatingSubtract(_) => self.saturating_subtract_clamped,
+            MachineSemanticKind::SaturatingSubtract(_) => self.rows.saturating_subtract_clamped,
             MachineSemanticKind::SaturatingDivide(carrier) if !carrier.is_signed() => {
-                self.divide_u64
+                self.rows.divide_u64
             }
-            MachineSemanticKind::SaturatingDivide(_) => self.saturating_divide_signed,
+            MachineSemanticKind::SaturatingDivide(_) => self.rows.saturating_divide_signed,
             // The mathematical remainder always lies inside its carrier, so
             // saturating remainder shares the ordinary signed and unsigned
             // remainder rows rather than owning a clamped form.
             MachineSemanticKind::SaturatingRemainder(carrier) if !carrier.is_signed() => {
-                self.remainder_u64
+                self.rows.remainder_u64
             }
-            MachineSemanticKind::SaturatingRemainder(_) => self.remainder_i64,
+            MachineSemanticKind::SaturatingRemainder(_) => self.rows.remainder_i64,
             // Only u64 needs the full product's high half beyond what the
             // clamped four-operand row provides; on x86-64 that is `MUL` on
             // fixed RAX:RDX.
             MachineSemanticKind::SaturatingMultiply(SaturatingCarrier::U64) => {
-                self.saturating_multiply_u64
+                self.rows.saturating_multiply_u64
             }
-            MachineSemanticKind::SaturatingMultiply(_) => self.saturating_multiply_clamped,
+            MachineSemanticKind::SaturatingMultiply(_) => self.rows.saturating_multiply_clamped,
             // Operand shape selects the Trapping row: division and the u64
             // multiply need the x86-64 RAX:RDX pair, shifts need the x86-64
             // CL count, a conversion reads one input, and every other form
             // is the allocatable four-operand row.
             MachineSemanticKind::TrappingInteger(form) => match form.operation {
                 TrappingOperation::Divide | TrappingOperation::Remainder => {
-                    self.trapping_fixed_pair
+                    self.rows.trapping_fixed_pair
                 }
                 TrappingOperation::Multiply if matches!(form.carrier, SaturatingCarrier::U64) => {
-                    self.trapping_fixed_pair
+                    self.rows.trapping_fixed_pair
                 }
-                TrappingOperation::ShiftLeft | TrappingOperation::ShiftRight => self.trapping_shift,
-                TrappingOperation::Convert { .. } => self.trapping_convert,
+                TrappingOperation::ShiftLeft | TrappingOperation::ShiftRight => {
+                    self.rows.trapping_shift
+                }
+                TrappingOperation::Convert { .. } => self.rows.trapping_convert,
                 TrappingOperation::Add
                 | TrappingOperation::Subtract
-                | TrappingOperation::Multiply => self.trapping_binary,
+                | TrappingOperation::Multiply => self.rows.trapping_binary,
             },
-            MachineSemanticKind::ExactSubtractI64Immediate => self.subtract_i64_immediate,
-            MachineSemanticKind::ConditionalBranchNonZero => self.conditional_branch,
-            MachineSemanticKind::ReturnScalar => self.return_i64,
-            MachineSemanticKind::ReturnUnit => self.return_unit,
-            MachineSemanticKind::CompareI64 => self.compare_i64,
-            MachineSemanticKind::CompareI64Immediate => self.compare_i64_immediate,
-            MachineSemanticKind::ConditionalBranchU64LessThan => self.conditional_branch,
-            MachineSemanticKind::ConditionalBranchI64LessThan => self.conditional_branch,
+            MachineSemanticKind::ExactSubtractI64Immediate => self.rows.subtract_i64_immediate,
+            MachineSemanticKind::ConditionalBranchNonZero => self.rows.conditional_branch,
+            MachineSemanticKind::ReturnScalar => self.rows.return_i64,
+            MachineSemanticKind::ReturnUnit => self.rows.return_unit,
+            MachineSemanticKind::CompareI64 => self.rows.compare_i64,
+            MachineSemanticKind::CompareI64Immediate => self.rows.compare_i64_immediate,
+            MachineSemanticKind::ConditionalBranchU64LessThan => self.rows.conditional_branch,
+            MachineSemanticKind::ConditionalBranchI64LessThan => self.rows.conditional_branch,
             MachineSemanticKind::CallScalar
             | MachineSemanticKind::CallAggregate
             | MachineSemanticKind::ReturnAggregate => return None,
@@ -364,7 +370,7 @@ impl SelectedConstraintKeys {
             // evaluated boundary plan selects the row, so the semantic keeps
             // failing closed at single-key lookup.
             MachineSemanticKind::NormalizedForeignCall => return None,
-            MachineSemanticKind::Jump => self.jump,
+            MachineSemanticKind::Jump => self.rows.jump,
         })
     }
 

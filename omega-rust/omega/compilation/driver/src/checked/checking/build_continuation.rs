@@ -472,7 +472,6 @@ pub(super) fn complete_product_frontend(
 ) -> Result<
     (
         typed_trees::TypedTrees,
-        Vec<build_time_evaluation::PreCheckEvaluation>,
         build_time_evaluation::SourceCompletionAccounting,
         Arc<compilation_products::ComputedBuildConfig>,
         BuildAdmission,
@@ -533,16 +532,12 @@ pub(super) fn complete_product_frontend(
     } else {
         source.finish()
     };
-    let bindings = provider_planning::program_entry::collect_root_bindings(
-        &prepared.typed,
-        &computed_build_config.root_binding_requests,
-    )?;
+    let bindings = prepared.admit_root_bindings(&computed_build_config.root_binding_requests)?;
     Arc::make_mut(&mut computed_build_config)
         .config
         .root_bindings = bindings;
     Ok((
         prepared.typed,
-        prepared.pending_pre_checks,
         prepared.accounting,
         computed_build_config,
         admission,

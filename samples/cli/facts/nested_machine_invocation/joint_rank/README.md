@@ -144,6 +144,14 @@ Reset, whole-record replacement, alias-write and pointer-reseat controls under
 `controls/borrowed_*/` must still fail the same rank obligation. Saved entry
 coordinates grant no permission to reuse invalidated current observations.
 
+## Paired cursor and bound coordinates
+
+Each place also carries the same private-cycle fact through `bounded_distance/`.
+The [requirement mapping and controls](parameter/bounded_distance/README.md)
+cover exact cursor/slice-bound transport, fixed-width natural normalization,
+independent entry formation, conserved upper coordinates and clamped-view
+counterfactuals. The original counter operation and empty path remain observable.
+
 ## Stored-reference coordinates
 
 The `borrowed_value/stored_reference/` child in every place carries the same
@@ -167,3 +175,23 @@ while access, lineage and original backing remain independent obligations.
 The frozen local source refuses on `54fa5d06d77` before this repair. Further
 reference loads without independently retained evidence, indexed/case private
 coordinates and the parent's other accepted requirements remain unfinished.
+
+[Effectful decrement operands](local/borrowed_value/stored_reference/operand_effects/README.md)
+carry that same fact across all nine places while temporarily replacing and
+restoring stored references. The operand result, caller-visible audit and
+unchanged spare distinguish completed captures from reloaded descriptor homes.
+
+## Indexed scalar coordinates
+
+The same fact's `indexed_value/` production carries a runtime selector beside
+its readable fixed-array backing through all nine places. Both selectors and
+the seven/empty paths are observable, with untouched-neighbor canaries.
+[Entry formation, snapshot identity, read lowering and controls](local/indexed_value/README.md)
+separate admitted index bounds from source syntax and declaration geometry.
+
+## Case payload coordinates
+
+Each place's `case_value/` carries the same private-cycle fact through an
+independently classified Pending payload. The [requirement mapping and controls](local/case_value/README.md)
+cover declaration-owned case formation, public result guarantees, nested payload
+fields and computed construction, with strict-descent twins in every place.

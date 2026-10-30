@@ -12,60 +12,94 @@ requires value >= 40i8 && value <= 63i8
     }
 }
 
-linux_x86_64 machine exercise(base: i8) -> i8 crashes Trap {
-    let combined: i8 = base | 32i8;
-    transition combined >= 40i8 && combined <= 64i8 {
-        true -> step(combined)
-        _ -> bad()
-    }
-    machine step(c: i8) -> i8 {
-        verify_combined(c)
-    }
-    machine bad() -> i8 { crash Trap; }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine exercise(base: i8) -> i8 crashes Trap {
-    let combined: i8 = base | 32i8;
-    transition combined >= 40i8 && combined <= 64i8 {
-        true -> step(combined)
-        _ -> bad()
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    machine step(c: i8) -> i8 {
-        verify_combined(c)
-    }
-    machine bad() -> i8 { crash Trap; }
 }
 
-macos_arm64 machine exercise(base: i8) -> i8 crashes Trap {
-    let combined: i8 = base | 32i8;
-    transition combined >= 40i8 && combined <= 64i8 {
-        true -> step(combined)
-        _ -> bad()
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    machine step(c: i8) -> i8 {
-        verify_combined(c)
-    }
-    machine bad() -> i8 { crash Trap; }
 }
 
-windows_x86_64 machine exercise(base: i8) -> i8 crashes Trap {
-    let combined: i8 = base | 32i8;
-    transition combined >= 40i8 && combined <= 64i8 {
-        true -> step(combined)
-        _ -> bad()
-    }
-    machine step(c: i8) -> i8 {
-        verify_combined(c)
-    }
-    machine bad() -> i8 { crash Trap; }
+boundary trait SelectedProbe {
+    machine exercise(base: i8) -> i8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        crashes Trap;
 }
 
-machine main() crashes Trap {
-    let rc: i8 = exercise(20i8);
+X86Probe satisfies SelectedProbe {
+    machine exercise(base: i8) -> i8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let combined: i8 = base | 32i8;
+        transition combined >= 40i8 && combined <= 64i8 {
+            true -> step(combined)
+            _ -> bad()
+        }
+        machine step(c: i8) -> i8 {
+            verify_combined(c)
+        }
+        machine bad() -> i8 { crash Trap; }
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine exercise(base: i8) -> i8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let combined: i8 = base | 32i8;
+        transition combined >= 40i8 && combined <= 64i8 {
+            true -> step(combined)
+            _ -> bad()
+        }
+        machine step(c: i8) -> i8 {
+            verify_combined(c)
+        }
+        machine bad() -> i8 { crash Trap; }
+    }
+}
+
+
+
+
+
+
+
+
+
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
+    let rc: i8 = SelectedProbe::exercise(20i8);
     transition rc == 0i8 {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

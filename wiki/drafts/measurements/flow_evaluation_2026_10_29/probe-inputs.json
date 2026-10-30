@@ -1,0 +1,11 @@
+{
+  "source_base": "a3ea073731aae4522c3abc5583ca20814d2bf465",
+  "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+  "opt_level": 1,
+  "sources": {
+    "phase-baseline.rs": "6aeda0daca23f665b36e571ee8329d68730bfb4691b436ba44832157eb4fa0a1",
+    "phase-candidate.rs": "f62bd1631a3e106203720ced8507b5cd394e13612f159d8208b910cb12fd93fa",
+    "probe-baseline.rs": "f58ac56db743926ba81bfa28158d640712e01bcaef990c4a8ec70e8ae14d16ad",
+    "probe-candidate.rs": "b548ae981f2ee165ba31f95e4a9d995c1152f6684f440759f273cc22b73ccd04"
+  }
+}

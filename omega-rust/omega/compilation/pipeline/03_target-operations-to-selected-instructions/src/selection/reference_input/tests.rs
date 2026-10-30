@@ -83,7 +83,7 @@ fn catalog() -> Vec<StructuralTypeDeclaration> {
             4,
             StructuralTypeShape::FixedArray {
                 element: type_id(3),
-                length: 4,
+                length: terminal_psi::ArrayExtent::Literal(4),
             },
         ),
     ]

@@ -352,6 +352,13 @@ pub(crate) fn route_conformance_requirement_calls(
             plan.machine,
             inputs,
             &mut |site| {
+                // A qualified application names its complete public slot, not
+                // whichever application this lexical map supplies. Preserve
+                // that requirement for typed application formation; equality
+                // of declaration symbols alone cannot authorize rerouting.
+                if site.requirement_application.is_valid() {
+                    return None;
+                }
                 let routed = routed_target(
                     site.target_symbol,
                     site.member,

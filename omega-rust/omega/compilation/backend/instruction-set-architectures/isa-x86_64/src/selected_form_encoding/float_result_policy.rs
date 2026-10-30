@@ -81,9 +81,9 @@ pub(crate) fn declaration(
     form: FloatResultPolicyForm,
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
-    super::alternative_declaration(
-        constraint,
+    MachineEffectDeclaration::single(
         MachineSemanticKind::FloatResultPolicy(form),
+        constraint,
         MachineMemoryEffect::NoneV1,
         if form.can_trap() {
             MachineTrapBehavior::TrappingIntegerV1

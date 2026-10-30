@@ -44,6 +44,7 @@ pub(super) fn state_rank(
                 return None;
             }
             Some(checked_trees::CheckedStateNaturalRank {
+                function: checked_trees::CheckedNaturalRankFunction::Identity,
                 observation: Default::default(),
                 state: state.symbol,
                 parameter: parameter.symbol,
@@ -67,6 +68,7 @@ pub(super) fn state_rank(
                 return None;
             }
             Some(checked_trees::CheckedStateNaturalRank {
+                function: checked_trees::CheckedNaturalRankFunction::Identity,
                 observation: Default::default(),
                 state: state.symbol,
                 parameter: lower.symbol,

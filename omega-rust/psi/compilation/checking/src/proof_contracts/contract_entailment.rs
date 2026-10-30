@@ -91,12 +91,14 @@ pub(crate) mod call_projection_identity;
 mod const_ranges;
 pub(crate) mod content_conservation;
 mod contract_refinement;
+mod declaration_projections;
 mod exit_coverage;
 mod fact_mentions;
 mod inductive_judgment;
 pub(crate) mod law_conformance;
 pub(crate) mod numeric_observations;
 mod observed_projections;
+pub use declaration_projections::declaration_projection_cases_hold;
 mod operand_fits;
 mod proof_edges;
 pub(crate) mod proof_integer;
@@ -1083,6 +1085,7 @@ fn fact_call_targets(
     }
 }
 
+pub(crate) use structural_terms::denotation_preserving_conversion;
 pub(crate) use structural_terms::immutable_entry_boolean_projection;
 pub(crate) use structural_terms::source_operations_have_same_meaning;
 

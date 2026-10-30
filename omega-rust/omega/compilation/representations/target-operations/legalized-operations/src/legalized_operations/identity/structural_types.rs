@@ -465,7 +465,10 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
     }
 }
 
-fn encode_authored_field_storage(
+/// One authored field's storage row: the tag of the storage that declared it,
+/// then that tag's payload. The plan identity and the recovery codec write the
+/// same row, so its spelling lives beside the type it reads.
+pub fn encode_authored_field_storage(
     bytes: &mut Vec<u8>,
     storage: Option<&semantic_vocabulary::AuthoredFieldStorage>,
 ) {

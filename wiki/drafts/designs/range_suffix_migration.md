@@ -340,6 +340,35 @@ than silently ignoring it. `layouts/access_plan_inaccessible_seed` and
 `layouts/placed_view_source_access_compile` exercise the public construction
 route and repeated replacement; they do not claim a hosted runtime entry.
 
+## Audited filesystem parameter history
+
+The original 16 positions at `7a9a7b8287` are four `name_len` parameters in
+each `std/targets/{linux_arm64,linux_x86_64,macos_arm64,macos_x86_64}/filesystem_impl.omg`.
+Commit `b3bc01f500a7` replaces every `u64[0..=255]` with bare `u64` and
+`requires name_len <= 255`; the unsigned carrier retains the zero lower bound.
+Provider consolidation (`6d0b8da07bdd`, `323fbc4788cd`) moves their operations
+to the shared [POSIX adapter](../../../source/library/std/posix_filesystem_adapter.omg).
+
+| Original declaration in each of four targets | Current shared declaration | Preserved requirement |
+| --- | --- | --- |
+| `rds_rm_child_go.name_len` | `posix_filesystem_rda_step::rds_rm_child_go.name_len` | `name_len <= 255` |
+| `rds_kind.name_len` | `posix_filesystem_rda_step::rds_kind.name_len` | `name_len <= 255` |
+| `rds_unlink.name_len` | `posix_filesystem_rda_step::rds_unlink.name_len` | `name_len <= 255` |
+| `rds_descend.name_len` | `posix_filesystem_rda_step::rds_descend.name_len` | `name_len <= 255` |
+
+Commit `e95da6c81fa8` canonicalizes a later, different 16-position filesystem
+cohort: ten shared-adapter parameters (five name-length and five release-stack
+parameters), plus six directory-offset results across Linux ARM64, Linux x86-64
+and macOS ARM64. Those results retain `18 <= result <= 20` or
+`19 <= result <= 21` as `ensures`. Its count is not the original 16-parameter
+inventory; its additional callback parameter is outside both filesystem counts.
+
+This reconciles source positions, not complete filesystem execution acceptance.
+Matching-host native/Terminal service and occurrence-bound release obligations
+remain under **FILESYSTEM-PLATFORM-SERVICES**. Historical compile/native records
+do not establish all of them or authorize parser retirement; the parent still
+requires the remaining customer audit and applicable runtime evidence.
+
 ## Audited IEEE conversion contracts
 
 The 29 historical scalar positions in the three IEEE conversion customers and

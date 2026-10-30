@@ -202,9 +202,9 @@ pub(crate) fn declaration(
     form: IeeeFloatArithmeticForm,
     constraint: RegisterConstraintKey,
 ) -> Result<MachineEffectDeclaration, Error> {
-    Ok(super::alternative_declaration(
-        constraint,
+    Ok(MachineEffectDeclaration::single(
         MachineSemanticKind::NearestIeeeFloatArithmetic(form),
+        constraint,
         if form.operation.rounding_direction().is_some() {
             MachineMemoryEffect::TemporaryStackStorageV1
         } else {

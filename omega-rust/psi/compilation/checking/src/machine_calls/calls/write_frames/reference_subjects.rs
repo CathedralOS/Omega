@@ -624,14 +624,14 @@ pub(super) fn value_origins(
     )?;
     let mut captured = Vec::new();
     for origin in origins {
-        for origin in captured_value_origins(program, expression, &origin, aliases, stored) {
-            let origin = origin?;
-            if origin.precision != FramePathPrecision::Exact {
-                return None;
-            }
-            validate_source_projection(program, machine, state, index, &origin.source, stored)?;
-            push_unique_origin(&mut captured, origin);
+        // The initializer owner completed the load at this prefix. Validation
+        // must not read another slot merely because its captured backing has
+        // the same coordinates as a descriptor which has since been replaced.
+        if origin.precision != FramePathPrecision::Exact {
+            return None;
         }
+        validate_source_projection(program, machine, state, index, &origin.source, stored)?;
+        push_unique_origin(&mut captured, origin);
     }
     (!captured.is_empty()).then_some(captured)
 }
@@ -718,33 +718,23 @@ pub(super) fn backing_origins(
     )?;
     let mut captured = Vec::new();
     for origin in origins {
-        for origin in captured_value_origins(program, expression, &origin, aliases, stored) {
-            let origin = origin?;
-            if (!origin.source.root.is_valid() && !origin.source.is_static())
-                || !origin.source.builtin_coordinates
-            {
-                return None;
-            }
-            if !origin.source.is_static() {
-                // Exact aliases retain the declared-value checks used by
-                // singleton consumers. Captured alternatives never weaken
-                // loaded-reference or nominal-selector authentication.
-                if origin.precision == FramePathPrecision::Exact {
-                    declared_initializer_origins(
-                        program, machine, expression, symbols, inference, false, aliases, stored,
-                    )?;
-                }
-                validate_backing_projection(
-                    program,
-                    machine,
-                    state,
-                    index,
-                    &origin.source,
-                    stored,
+        if (!origin.source.root.is_valid() && !origin.source.is_static())
+            || !origin.source.builtin_coordinates
+        {
+            return None;
+        }
+        if !origin.source.is_static() {
+            // Exact aliases retain the declared-value checks used by
+            // singleton consumers. Captured alternatives never weaken
+            // loaded-reference or nominal-selector authentication.
+            if origin.precision == FramePathPrecision::Exact {
+                declared_initializer_origins(
+                    program, machine, expression, symbols, inference, false, aliases, stored,
                 )?;
             }
-            push_unique_origin(&mut captured, origin);
+            validate_backing_projection(program, machine, state, index, &origin.source, stored)?;
         }
+        push_unique_origin(&mut captured, origin);
     }
     (!captured.is_empty()).then_some(captured)
 }

@@ -245,7 +245,7 @@ pub(super) fn validate(
                     ) && super::super::operation_contracts::structural_source_contract(
                         function, binding.argument.place,
                     ).is_some_and(|source| {
-                        let access = source.backing_access(types.values().copied());
+                        let Some(access) = source.backing_access(types.values().copied()) else { return false; };
                         (if matches!(
                             parameter.access,terminal_psi::exclusive_borrow_pair_pattern!()) {
                             super::super::operation_contracts::structural_access_can_supply(
@@ -631,6 +631,7 @@ fn source_contract(
                 // A returned/copied view presents its descriptor's loan,
                 // rather than lending owned payload storage. View establishments
                 // already report their exact source-derived access.
+                let backing = source.backing_access(types.values().copied())?;
                 let access = if source.access == StructuralAccess::Owned
                     && types
                         .get(&source.structural_type)
@@ -643,11 +644,7 @@ fn source_contract(
                                     )
                             )
                         }) {
-                    match source.multiplicity {
-                        StructuralMultiplicity::Unrestricted => StructuralAccess::SharedBorrow,
-                        StructuralMultiplicity::Affine => StructuralAccess::MutableBorrow,
-                        StructuralMultiplicity::Linear => return None,
-                    }
+                    backing
                 } else {
                     source.access
                 };

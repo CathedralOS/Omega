@@ -55,9 +55,9 @@ pub(crate) fn declaration(
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
     let restore = semantic == MachineSemanticKind::RestoreFloatingControl;
-    super::alternative_declaration(
-        constraint,
+    MachineEffectDeclaration::single(
         semantic,
+        constraint,
         if restore {
             MachineMemoryEffect::ReadFrameStorageV1
         } else {

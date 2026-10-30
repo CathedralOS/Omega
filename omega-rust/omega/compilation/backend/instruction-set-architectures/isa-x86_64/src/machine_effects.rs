@@ -1,12 +1,12 @@
-use register_model::ValidatedRegisterConstraintCatalog;
+use register_model::{TargetRegisterEnvironmentConstraintKeys, ValidatedRegisterConstraintCatalog};
 use selected_instructions::{
-    IsaCatalogValidation, MachineAlternative, MachineAlternativeApplicability,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectCatalog, MachineEffectCatalogValidationError, MachineEffectDeclaration,
+    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey, MachineBarrier,
+    MachineCallEffect, MachineCleanupEffect, MachineEffectCatalog, MachineEffectDeclaration,
     MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
     MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
-    SaturatingCarrier, SaturatingOperation, SelectedConstraintKeys, ValidatedMachineEffectCatalog,
+    SaturatingCarrier, SaturatingOperation, SelectedConstraintKeys,
+    isa_machine_effect_catalog_plumbing,
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -27,21 +27,13 @@ use crate::{
     x86_64_system_v_register_call_keys,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum X86_64MachineEffectCatalogValidationError {
-    TargetArchitectureMismatch,
-    UnsupportedTargetAbi,
-    Structural(MachineEffectCatalogValidationError),
-    TargetSemanticMismatch,
-}
-
-impl std::fmt::Display for X86_64MachineEffectCatalogValidationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid x86-64 machine effects: {self:?}")
-    }
-}
-
-impl std::error::Error for X86_64MachineEffectCatalogValidationError {}
+isa_machine_effect_catalog_plumbing!(
+    X86_64MachineEffectCatalogValidationError,
+    validate_x86_64_machine_effect_catalog,
+    Architecture::X86_64,
+    "x86-64",
+    x86_64_machine_effect_catalog
+);
 
 pub fn x86_64_machine_effect_catalog(
     target: NativeTarget,
@@ -167,32 +159,6 @@ pub fn x86_64_machine_effect_catalog(
     })
 }
 
-pub fn validate_x86_64_machine_effect_catalog(
-    target: NativeTarget,
-    constraints: &ValidatedRegisterConstraintCatalog,
-    catalog: MachineEffectCatalog,
-) -> Result<ValidatedMachineEffectCatalog, X86_64MachineEffectCatalogValidationError> {
-    selected_instructions::validate_isa_machine_effect_catalog(
-        Architecture::X86_64,
-        target,
-        constraints,
-        catalog,
-        x86_64_machine_effect_catalog,
-    )
-    .map_err(|failure| match failure {
-        IsaCatalogValidation::ArchitectureMismatch => {
-            X86_64MachineEffectCatalogValidationError::TargetArchitectureMismatch
-        }
-        IsaCatalogValidation::Structural(error) => {
-            X86_64MachineEffectCatalogValidationError::Structural(error)
-        }
-        IsaCatalogValidation::SemanticMismatch => {
-            X86_64MachineEffectCatalogValidationError::TargetSemanticMismatch
-        }
-        IsaCatalogValidation::Builder(error) => error,
-    })
-}
-
 /// The x86-64 encoding matrix declares one call/return ABI family per
 /// supported (architecture, object-format) pair: Linux System-V under ELF
 /// and Microsoft x64 under COFF. Windows and UEFI share the COFF row because
@@ -247,8 +213,7 @@ pub fn x86_64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         X86_64SelectedAbi::Microsoft => X86_64_MICROSOFT_RETURN_UNIT,
     };
     Some({
-        let mut completed = SelectedConstraintKeys {
-            invoke_no_normal: Vec::new(),
+        let rows = TargetRegisterEnvironmentConstraintKeys {
             port_write: Some(crate::X86_64_PORT_WRITE),
             system_register_read: Some(crate::X86_64_FLAGS_SNAPSHOT),
             system_register_write: Some(crate::X86_64_FLAGS_RESTORE),
@@ -397,6 +362,10 @@ pub fn x86_64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_i64,
             return_unit,
         };
+        let mut completed = SelectedConstraintKeys {
+            rows,
+            invoke_no_normal: Vec::new(),
+        };
         completed.invoke_no_normal = completed.ordinary_call_constraints();
         completed
     })
@@ -418,15 +387,8 @@ fn declaration(
         | MachineSemanticKind::SaturatingDivide(_)
         | MachineSemanticKind::SaturatingRemainder(_)
         | MachineSemanticKind::SaturatingMultiply(_)
-        | MachineSemanticKind::TrappingInteger(_) => {
-            vec![alternative(
-                semantic,
-                0,
-                MachineAlternativeApplicability::Always,
-                size(semantic),
-            )]
-        }
-        MachineSemanticKind::BitwiseAndI64
+        | MachineSemanticKind::TrappingInteger(_)
+        | MachineSemanticKind::BitwiseAndI64
         | MachineSemanticKind::BitwiseOrI64
         | MachineSemanticKind::BitwiseNotI64
         | MachineSemanticKind::BitwiseXorI64

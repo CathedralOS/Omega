@@ -21,6 +21,8 @@ use terminal_psi::TerminalMachineProvenance;
 pub(super) struct TerminalBehaviorExclusions<'a> {
     authored: &'a [effects::AuthoredBehaviorExclusion],
     providers: &'a effects::SelectedProviderPlanFacts,
+    native_sources:
+        &'a Result<std::sync::Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
     profile: target::TargetProfile,
 }
 
@@ -28,11 +30,16 @@ impl<'a> TerminalBehaviorExclusions<'a> {
     pub(super) fn new(
         authored: &'a [effects::AuthoredBehaviorExclusion],
         providers: &'a effects::SelectedProviderPlanFacts,
+        native_sources: &'a Result<
+            std::sync::Arc<backend_plan::NativeProviderSources>,
+            Vec<Diagnostic>,
+        >,
         profile: target::TargetProfile,
     ) -> Option<Self> {
         (!authored.is_empty()).then_some(Self {
             authored,
             providers,
+            native_sources,
             profile,
         })
     }
@@ -51,6 +58,17 @@ impl psi_compiler::TerminalCompositionAdmission for TerminalBehaviorExclusions<'
             // declares: nothing in it can invoke that service.
             return Ok(());
         }
+        // Read the associations in this actual unoptimized composition, not a
+        // checked-source reconstruction that native publication would replace.
+        // Deferred native preparation errors matter only when this composition
+        // actually has an exclusion to establish.
+        let sources = self.native_sources.as_ref().map_err(Clone::clone)?;
+        let providers = backend_plan::close_checked_provider_specializations(
+            self.providers.clone(),
+            &sources.declarations,
+            module,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
         // Admit this selected execution, not every retained target sibling.
         // Prohibited possible behavior and incomplete evidence both refuse;
         // neither is a claim that a runtime execution was observed.
@@ -58,7 +76,7 @@ impl psi_compiler::TerminalCompositionAdmission for TerminalBehaviorExclusions<'
             module,
             &[entry],
             &exclusions,
-            self.providers,
+            &providers,
             self.profile.target_name(),
         );
         match report.verdict() {
@@ -88,9 +106,9 @@ fn behavior_exclusion_diagnostics(
         // The rejection points at the authored `exclude_*` selection that
         // named the requirement, not an internal Terminal coordinate, and
         // names it as authored rather than by its hermetic identity.
-        let row = authored
-            .iter()
-            .find(|row| row.resolve(module) == Some(prohibited.exclusion));
+        let row = authored.iter().find(|row| {
+            effects::resolve_authored_behavior_exclusion(row, module) == Some(prohibited.exclusion)
+        });
         let excluded = row
             .and_then(AuthoredBehaviorExclusion::authored_label)
             .unwrap_or_else(|| prohibited.exclusion.describe(module));

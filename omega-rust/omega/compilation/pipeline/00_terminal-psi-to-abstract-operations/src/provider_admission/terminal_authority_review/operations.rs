@@ -1,16 +1,10 @@
-//! Exhaustive abstract-operation to terminal-authority edge classification.
+//! Exhaustive native physical-authority classification.
+//! Synchronous call closure is owned by Terminal installation, not this matcher.
 
 use abstract_operations::AbstractOperation;
-use semantic_vocabulary::{BoundaryMachineId, MachineId};
 
-pub(super) enum AuthorityEdge {
+pub(super) enum PhysicalAuthorityUse {
     None,
-    Internal(MachineId),
-    Dynamic {
-        interface: u32,
-        slot: u32,
-    },
-    Boundary(BoundaryMachineId),
     CheckedPortWrite {
         service: semantic_vocabulary::ServiceId,
         port: u16,
@@ -25,21 +19,19 @@ pub(super) enum AuthorityEdge {
 
 /// Exhaustive match: adding an abstract operation forces an explicit D45
 /// decision rather than silently treating a new call/physical role as pure.
-pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
+pub(super) fn physical_authority_use(operation: &AbstractOperation) -> PhysicalAuthorityUse {
     match operation {
-        AbstractOperation::EstablishNativeCodeLayout { .. } | AbstractOperation::EstablishActivationClaim { .. } | AbstractOperation::SplitActivationClaim { .. } | AbstractOperation::MergeActivationClaim { .. } | AbstractOperation::ReleaseActivationClaim { .. } => AuthorityEdge::None,
-        AbstractOperation::CallStructural { callee, .. } => match callee {
-            abstract_operations::AbstractCallTarget::Machine(machine) => AuthorityEdge::Internal(*machine),
-            abstract_operations::AbstractCallTarget::Dynamic { interface, slot, .. } => AuthorityEdge::Dynamic { interface: *interface, slot: *slot },
-        },
-        AbstractOperation::Call { callee, .. } | AbstractOperation::InvokeNoNormal { callee, .. } => AuthorityEdge::Internal(*callee),
-        AbstractOperation::BoundaryCall { boundary, .. }
-        | AbstractOperation::ExternalCompletion { boundary, .. } => AuthorityEdge::Boundary(*boundary),
+        AbstractOperation::EstablishNativeCodeLayout { .. } | AbstractOperation::EstablishActivationClaim { .. } | AbstractOperation::SplitActivationClaim { .. } | AbstractOperation::MergeActivationClaim { .. } | AbstractOperation::ReleaseActivationClaim { .. } => PhysicalAuthorityUse::None,
+        AbstractOperation::CallStructural { .. }
+        | AbstractOperation::Call { .. }
+        | AbstractOperation::InvokeNoNormal { .. }
+        | AbstractOperation::BoundaryCall { .. }
+        | AbstractOperation::ExternalCompletion { .. } => PhysicalAuthorityUse::None,
         AbstractOperation::PortWrite { service, port, psi_operation, .. } => {
-            AuthorityEdge::CheckedPortWrite { service: *service, port: *port, operation: *psi_operation }
+            PhysicalAuthorityUse::CheckedPortWrite { service: *service, port: *port, operation: *psi_operation }
         }
         AbstractOperation::RegisterAccess { service, event, psi_operation, .. } => {
-            AuthorityEdge::CheckedRegister {
+            PhysicalAuthorityUse::CheckedRegister {
                 service: *service,
                 register_operation: event.operation(),
                 operation: *psi_operation,
@@ -102,6 +94,6 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         | AbstractOperation::StructuralCase { .. }
         | abstract_operations::return_or_return_unit_pattern!(..)
         | AbstractOperation::ReturnStructural { .. }
-        | AbstractOperation::Crash { .. } => AuthorityEdge::None,
+        | AbstractOperation::Crash { .. } => PhysicalAuthorityUse::None,
     }
 }

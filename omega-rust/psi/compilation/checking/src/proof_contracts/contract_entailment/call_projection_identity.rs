@@ -342,8 +342,14 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
                             }],
                         )
                     });
-                    let expected =
-                        bound_index(program, *owner, self.parameters, &bindings, *required);
+                    let expected = bound_index(
+                        program,
+                        &entry.judge,
+                        *owner,
+                        self.parameters,
+                        &bindings,
+                        *required,
+                    );
                     actual.zip(expected).map(|(actual, expected)| {
                         // Equality consumes the normal observer's established equations,
                         // just as ordinary contract judgment does. Distinct completed
@@ -392,8 +398,7 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
                     let (value, primitive) =
                         match program.type_reference_table.type_reference(*argument) {
                             typed_trees::types::TypeReferenceNode::ConstExpression(expression) => (
-                                super::structural_judgment::selected_contracts::bound_term(
-                                    program,
+                                entry.judge.bound_contract_term(
                                     *expression,
                                     *owner,
                                     self.parameters,
@@ -463,6 +468,7 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
 
 fn bound_index(
     program: &dyn crate::CheckingInput,
+    judge: &super::structural_judgment::StructuralJudge<'_>,
     owner: SymbolHandle,
     parameters: &[StateParameter],
     bindings: &[(SymbolHandle, StructuralTerm)],
@@ -472,9 +478,8 @@ fn bound_index(
         return literal.value_bignum().map(StructuralTerm::Integer);
     }
     match program.type_reference_table.type_reference(argument) {
-        typed_trees::types::TypeReferenceNode::ConstExpression(expression) => {
-            super::structural_judgment::selected_contracts::bound_term(
-                program,
+        typed_trees::types::TypeReferenceNode::ConstExpression(expression) => judge
+            .bound_contract_term(
                 *expression,
                 owner,
                 parameters,
@@ -483,8 +488,7 @@ fn bound_index(
                 &[],
                 None,
                 0,
-            )
-        }
+            ),
         typed_trees::types::TypeReferenceNode::Named { symbol, .. } => bindings
             .iter()
             .find(|(formal, _)| formal == symbol)

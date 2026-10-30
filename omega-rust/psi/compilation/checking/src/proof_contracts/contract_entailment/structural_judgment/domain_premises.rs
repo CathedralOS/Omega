@@ -688,19 +688,16 @@ impl StructuralJudge<'_> {
                     literal.value_bignum().map(StructuralTerm::Integer)
                 } else {
                     match program.type_reference_table.type_reference(argument) {
-                        TypeReferenceNode::ConstExpression(expression) => {
-                            super::selected_contracts::bound_term(
-                                program,
-                                *expression,
-                                callable,
-                                parameters,
-                                callable,
-                                bindings,
-                                &[],
-                                Some(value),
-                                0,
-                            )
-                        }
+                        TypeReferenceNode::ConstExpression(expression) => self.bound_contract_term(
+                            *expression,
+                            callable,
+                            parameters,
+                            callable,
+                            bindings,
+                            &[],
+                            Some(value),
+                            0,
+                        ),
                         TypeReferenceNode::Named { symbol, .. } => bindings
                             .iter()
                             .find(|(formal, _)| formal == symbol)

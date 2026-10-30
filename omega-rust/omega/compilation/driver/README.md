@@ -607,12 +607,17 @@ ABI homes, complete call/relocation replay, and a genuinely reachable authored
 entry. Use rooted provider and callback controls retaining complete argument,
 result, and resource custody; metadata-only receipt tests do not close the route.
 
-Native callback arguments separately enter the realization request. Their
-[backend placement](../backend/plans/backend-plan/src/callback_placements.rs)
-owns destination application selection and consistency: a direct callback
-parameter or a record-field root, with its exact native ordinal and placement.
-Proposal production, retained-product replay and native admission consume that
-same checked projection; ABI/context replay and occurrence joins remain separate.
+Canonical callback applications and target calling applications enter the
+realization request separately. Stage 00's
+[callback settlement](../pipeline/00_terminal-psi-to-abstract-operations/src/callback_settlement/placement.rs)
+joins their exact requirement and static binder ordinal, then produces the
+[backend placement](../backend/plans/backend-plan/src/callback_placements.rs):
+a direct callback parameter or record-field root with its native ordinal and
+placement. Persisted inputs retain those canonical applications, not derived
+placements. Fresh and recovered products use the same placement operation.
+Source preparation retains only declaration checks and callback roots needed
+for pre-optimization behavior admission, including dormant registrar uses.
+ABI/context replay and occurrence joins remain separate.
 The
 [target-side carrier](../pipeline/02_abstract-operations-to-target-operations/src/lowering/coordination/native_callbacks.rs)
 binds a Terminal operation, placement index, private function, native parameter

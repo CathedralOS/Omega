@@ -145,7 +145,7 @@ pub(super) fn append(
 /// native callback's machine are materialized at each call. Each closed
 /// application therefore rebinds to the template row itself, and the row
 /// names the template as its own realization.
-fn append_leaf_rows(
+pub(super) fn append_leaf_rows(
     typed: &checked_trees::typed_trees::TypedTrees,
     plan: &ProviderPlan,
     row: &crate::provider_planning::ProviderPlanRow,

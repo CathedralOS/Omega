@@ -29,6 +29,7 @@ pub enum CheckedRankValueDerivation {
 pub struct CheckedRankCoordinate {
     pub parameter: SymbolHandle,
     pub path: HandleSpan<PlaceSegment>,
+    pub entry_indexes: HandleSpan<crate::CheckedEntryIndexBound>,
 }
 
 /// Binding-time provenance for a stable state-local captured value.
@@ -161,6 +162,7 @@ pub struct CheckedRuntimeNaturalState {
     pub parameter_position: u32,
     pub primitive_type: typed_trees::types::PrimitiveType,
     pub observation: CheckedRankObservation,
+    pub function: crate::CheckedNaturalRankFunction,
 }
 
 impl Default for CheckedRuntimeNaturalState {
@@ -173,6 +175,7 @@ impl Default for CheckedRuntimeNaturalState {
             parameter_position: 0,
             primitive_type: typed_trees::types::PrimitiveType::Bool,
             observation: CheckedRankObservation::Value,
+            function: crate::CheckedNaturalRankFunction::Identity,
         }
     }
 }
@@ -239,6 +242,7 @@ pub struct CheckedRankArrivalPlan {
     pub states: Arena<CheckedStateRankCorrespondence>,
     pub bindings: Arena<CheckedRankCoordinateBinding>,
     pub coordinates: Arena<CheckedRankCoordinate>,
+    pub entry_indexes: Arena<crate::CheckedEntryIndexBound>,
     pub path_segments: Arena<PlaceSegment>,
     pub transports: Arena<CheckedRankCoordinateTransport>,
     pub receiving: Arena<CheckedRankReceivingCoordinate>,

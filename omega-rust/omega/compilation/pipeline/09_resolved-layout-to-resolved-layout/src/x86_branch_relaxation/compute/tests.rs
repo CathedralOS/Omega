@@ -24,7 +24,7 @@ use super::{
 
 use super::super::{
     X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
-    X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
+    X86BranchRelaxationIdentity, X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
     error::{OptimizedX86BranchRelaxationError, X86BranchRelaxationWorkAxis},
     identity::{RevisionRoots, artifact_identity, revision_identity},
     validation::ensure_x86_target,
@@ -334,41 +334,68 @@ fn return_row(
     }
 }
 
-#[test]
-fn eligible_near_branch_shrinks_and_reflow_settles_on_the_short_form() {
+/// A near branch is eligible exactly once it has a rel8 displacement: reflow
+/// must settle the function on the short form, keep the displacement as
+/// evidence, and the next inspection must report the form already short.
+/// Forward and backward branches differ only in the fixture, the block the
+/// branch sits in, the displacement's sign, and the offsets it moves, so the
+/// body states the shared expectation once.
+fn assert_near_branch_relaxes_to_the_short_form(
+    source: ResolvedSelectedFunctionLayout,
+    branch_block: usize,
+    displacement: i64,
+    short_bytes: [u8; 2],
+    offsets: &[(usize, u64)],
+) -> Vec<ResolvedSelectedFunctionLayout> {
     let physical = physical();
-    let source = function(127);
     assert_eq!(
-        inspect_production_branch(&source, 0, 0, &physical).unwrap(),
+        inspect_production_branch(&source, branch_block, 0, &physical).unwrap(),
         (
             X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
-            Some(127),
+            Some(displacement),
         )
     );
     let short =
-        encode_x86_64_selected_short_nonzero_branch_form(&physical, alternative(), 127).unwrap();
+        encode_x86_64_selected_short_nonzero_branch_form(&physical, alternative(), displacement)
+            .unwrap();
     let mut produced = vec![source.clone()];
-    produced[0].blocks[0].instructions[0].bytes = short.bytes().to_vec();
+    produced[0].blocks[branch_block].instructions[0].bytes = short.bytes().to_vec();
     reflow_production_functions(&mut produced, &physical).unwrap();
     assert_eq!(source.byte_count - produced[0].byte_count, 4);
-    assert_eq!(produced[0].blocks[0].instructions[0].bytes, [0x75, 0x7f]);
-    assert_eq!(produced[0].blocks[1].offset, 2);
-    assert_eq!(produced[0].blocks[2].offset, 129);
     assert_eq!(
-        produced[0].blocks[0].instructions[0]
+        produced[0].blocks[branch_block].instructions[0].bytes,
+        short_bytes
+    );
+    for &(block, offset) in offsets {
+        assert_eq!(produced[0].blocks[block].offset, offset);
+    }
+    assert_eq!(
+        produced[0].blocks[branch_block].instructions[0]
             .branch
             .as_deref()
             .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
             .unwrap()
             .byte_displacement,
-        127
+        displacement
     );
     assert_eq!(
-        inspect_production_branch(&produced[0], 0, 0, &physical).unwrap(),
+        inspect_production_branch(&produced[0], branch_block, 0, &physical).unwrap(),
         (X86BranchRelaxationAttemptOutcome::AlreadyShort, None,)
     );
+    produced
+}
+
+#[test]
+fn eligible_near_branch_shrinks_and_reflow_settles_on_the_short_form() {
+    let mut produced = assert_near_branch_relaxes_to_the_short_form(
+        function(127),
+        0,
+        127,
+        [0x75, 0x7f],
+        &[(1, 2), (2, 129)],
+    );
     let fixed_point = produced.clone();
-    reflow_production_functions(&mut produced, &physical).unwrap();
+    reflow_production_functions(&mut produced, &physical()).unwrap();
     assert_eq!(produced, fixed_point);
 }
 
@@ -496,109 +523,108 @@ fn non_x86_target_is_rejected_before_any_relaxation_work() {
     );
 }
 
+/// One relaxed roster rehashed by the two corruption tests: the revision
+/// roots, the recorded selection and the work the rel8 policy charged for it.
+struct IdentityFixture {
+    roots: RevisionRoots,
+    functions: Vec<ResolvedSelectedFunctionLayout>,
+    action: X86BranchRelaxationAction,
+    attempts: Vec<X86BranchRelaxationAttempt>,
+    budget: OptimizationWorkBudget,
+    usage: OptimizationWorkUsage,
+    output: ResolvedSelectedFormLayoutIdentity,
+    output_revision: X86BranchRelaxationRevisionIdentity,
+}
+
+impl IdentityFixture {
+    fn new() -> Self {
+        let roots = RevisionRoots {
+            source: ResolvedSelectedFormLayoutIdentity::from_bytes([1; 32]),
+            selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes([2; 32]),
+            machine: physical_instructions::PostAllocationMachineIdentity::from_bytes([3; 32]),
+            pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([4; 32]),
+            target: NativeTarget::linux_x64(),
+        };
+        let functions = vec![function(1)];
+        let input = revision_identity(roots, &functions);
+        Self {
+            roots,
+            functions,
+            action: X86BranchRelaxationAction {
+                iteration: 1,
+                input,
+                output: X86BranchRelaxationRevisionIdentity::from_bytes([5; 32]),
+                instruction: SelectedInstructionId(0),
+                old_offset: 0,
+                new_offset: 0,
+                old_displacement: 1,
+                new_displacement: 1,
+                old_bytes: vec![0x0f, 0x85, 1, 0, 0, 0],
+                new_bytes: vec![0x75, 1],
+            },
+            attempts: vec![X86BranchRelaxationAttempt {
+                iteration: 1,
+                input,
+                instruction: SelectedInstructionId(0),
+                offset: 0,
+                byte_displacement: 1,
+                encoded_bytes: 6,
+                outcome: X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
+            }],
+            budget: OptimizationWorkBudget::new(8, 8, 8, 8, 8).unwrap(),
+            usage: OptimizationWorkUsage {
+                rule_evaluations: 1,
+                candidates: 1,
+                validation_steps: 1,
+                commits: 1,
+                iterations: 2,
+            },
+            output: ResolvedSelectedFormLayoutIdentity::from_bytes([6; 32]),
+            output_revision: X86BranchRelaxationRevisionIdentity::from_bytes([7; 32]),
+        }
+    }
+
+    /// Rehash the fixture under the rel8 policy with the given roster and
+    /// action list.
+    fn identity(
+        &self,
+        attempts: &[X86BranchRelaxationAttempt],
+        actions: &[X86BranchRelaxationAction],
+    ) -> X86BranchRelaxationIdentity {
+        artifact_identity(
+            self.roots,
+            X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1,
+            self.budget,
+            self.usage,
+            self.output,
+            self.output_revision,
+            attempts,
+            actions,
+            &self.functions,
+        )
+    }
+}
+
 #[test]
 fn corrupted_action_changes_the_artifact_identity() {
-    let roots = RevisionRoots {
-        source: ResolvedSelectedFormLayoutIdentity::from_bytes([1; 32]),
-        selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes([2; 32]),
-        machine: physical_instructions::PostAllocationMachineIdentity::from_bytes([3; 32]),
-        pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([4; 32]),
-        target: NativeTarget::linux_x64(),
-    };
-    let functions = vec![function(1)];
-    let input = revision_identity(roots, &functions);
-    let action = X86BranchRelaxationAction {
-        iteration: 1,
-        input,
-        output: X86BranchRelaxationRevisionIdentity::from_bytes([5; 32]),
-        instruction: SelectedInstructionId(0),
-        old_offset: 0,
-        new_offset: 0,
-        old_displacement: 1,
-        new_displacement: 1,
-        old_bytes: vec![0x0f, 0x85, 1, 0, 0, 0],
-        new_bytes: vec![0x75, 1],
-    };
-    let attempts = vec![X86BranchRelaxationAttempt {
-        iteration: 1,
-        input,
-        instruction: SelectedInstructionId(0),
-        offset: 0,
-        byte_displacement: 1,
-        encoded_bytes: 6,
-        outcome: X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
-    }];
-    let budget = OptimizationWorkBudget::new(8, 8, 8, 8, 8).unwrap();
-    let usage = OptimizationWorkUsage {
-        rule_evaluations: 1,
-        candidates: 1,
-        validation_steps: 1,
-        commits: 1,
-        iterations: 2,
-    };
-    let output = ResolvedSelectedFormLayoutIdentity::from_bytes([6; 32]);
-    let output_revision = X86BranchRelaxationRevisionIdentity::from_bytes([7; 32]);
-    let identity = artifact_identity(
-        roots,
-        X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1,
-        budget,
-        usage,
-        output,
-        output_revision,
-        &attempts,
-        std::slice::from_ref(&action),
-        &functions,
-    );
-    let mut corrupted = action.clone();
+    let fixture = IdentityFixture::new();
+    let identity = fixture.identity(&fixture.attempts, std::slice::from_ref(&fixture.action));
+    let mut corrupted = fixture.action.clone();
     corrupted.new_bytes = vec![0x74, 1];
-    let corrupted_identity = artifact_identity(
-        roots,
-        X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1,
-        budget,
-        usage,
-        output,
-        output_revision,
-        &attempts,
-        std::slice::from_ref(&corrupted),
-        &functions,
-    );
+    let corrupted_identity = fixture.identity(&fixture.attempts, std::slice::from_ref(&corrupted));
     assert_ne!(identity, corrupted_identity);
 }
 
 #[test]
 fn backward_branch_at_the_i8_floor_relaxes_to_the_short_form() {
-    let physical = physical();
     // The taken block covers bytes 0..126, so the branch sits at 126 and the
     // prospective rel8 displacement 0-(126+2) is exactly -128.
-    let source = backward_conditional_function(126);
-    assert_eq!(
-        inspect_production_branch(&source, 1, 0, &physical).unwrap(),
-        (
-            X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
-            Some(-128),
-        )
-    );
-    let short =
-        encode_x86_64_selected_short_nonzero_branch_form(&physical, alternative(), -128).unwrap();
-    let mut produced = vec![source.clone()];
-    produced[0].blocks[1].instructions[0].bytes = short.bytes().to_vec();
-    reflow_production_functions(&mut produced, &physical).unwrap();
-    assert_eq!(source.byte_count - produced[0].byte_count, 4);
-    assert_eq!(produced[0].blocks[1].instructions[0].bytes, [0x75, 0x80]);
-    assert_eq!(produced[0].blocks[1].offset, 126);
-    assert_eq!(produced[0].blocks[2].offset, 128);
-    assert_eq!(
-        produced[0].blocks[1].instructions[0]
-            .branch
-            .as_deref()
-            .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
-            .unwrap()
-            .byte_displacement,
-        -128
-    );
-    assert_eq!(
-        inspect_production_branch(&produced[0], 1, 0, &physical).unwrap(),
-        (X86BranchRelaxationAttemptOutcome::AlreadyShort, None,)
+    assert_near_branch_relaxes_to_the_short_form(
+        backward_conditional_function(126),
+        1,
+        -128,
+        [0x75, 0x80],
+        &[(1, 126), (2, 128)],
     );
 }
 
@@ -696,60 +722,13 @@ fn drifted_recorded_branch_effects_are_rejected() {
 
 #[test]
 fn corrupted_attempt_outcome_changes_the_artifact_identity() {
-    let roots = RevisionRoots {
-        source: ResolvedSelectedFormLayoutIdentity::from_bytes([1; 32]),
-        selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes([2; 32]),
-        machine: physical_instructions::PostAllocationMachineIdentity::from_bytes([3; 32]),
-        pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([4; 32]),
-        target: NativeTarget::linux_x64(),
-    };
-    let functions = vec![function(1)];
-    let input = revision_identity(roots, &functions);
-    let attempts = vec![X86BranchRelaxationAttempt {
-        iteration: 1,
-        input,
-        instruction: SelectedInstructionId(0),
-        offset: 0,
-        byte_displacement: 1,
-        encoded_bytes: 6,
-        outcome: X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
-    }];
-    let budget = OptimizationWorkBudget::new(8, 8, 8, 8, 8).unwrap();
-    let usage = OptimizationWorkUsage {
-        rule_evaluations: 1,
-        candidates: 1,
-        validation_steps: 1,
-        commits: 1,
-        iterations: 2,
-    };
-    let output = ResolvedSelectedFormLayoutIdentity::from_bytes([6; 32]);
-    let output_revision = X86BranchRelaxationRevisionIdentity::from_bytes([7; 32]);
-    let identity = artifact_identity(
-        roots,
-        X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1,
-        budget,
-        usage,
-        output,
-        output_revision,
-        &attempts,
-        &[],
-        &functions,
-    );
+    let fixture = IdentityFixture::new();
+    let identity = fixture.identity(&fixture.attempts, &[]);
     // An attempt roster that reports the terminal decline instead of the
     // recorded selection rehashes differently.
-    let mut corrupted_attempts = attempts.clone();
+    let mut corrupted_attempts = fixture.attempts.clone();
     corrupted_attempts[0].outcome = X86BranchRelaxationAttemptOutcome::AlreadyShort;
-    let corrupted_identity = artifact_identity(
-        roots,
-        X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1,
-        budget,
-        usage,
-        output,
-        output_revision,
-        &corrupted_attempts,
-        &[],
-        &functions,
-    );
+    let corrupted_identity = fixture.identity(&corrupted_attempts, &[]);
     assert_ne!(identity, corrupted_identity);
 }
 

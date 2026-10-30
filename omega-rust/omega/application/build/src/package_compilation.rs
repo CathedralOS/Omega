@@ -72,7 +72,8 @@ pub fn compile_packages(
             }
         }
 
-        for ((position, root), product) in compiler.complete_package_products(products)? {
+        let products = compiler.complete_package_products(products)?;
+        for ((position, root), product) in crate::native_completion::complete_products(products) {
             outcomes.push((
                 position,
                 product.map_err(|error| PackageCompileFailure {

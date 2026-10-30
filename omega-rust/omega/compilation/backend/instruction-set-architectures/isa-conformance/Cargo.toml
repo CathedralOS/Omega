@@ -1,0 +1,9 @@
+[package]
+name = "isa-conformance"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+register-model = { path = "../../register-model" }
+selected-instructions = { path = "../../../representations/selected-instructions" }

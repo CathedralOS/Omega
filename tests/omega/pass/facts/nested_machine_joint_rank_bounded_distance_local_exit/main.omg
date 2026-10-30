@@ -1,0 +1,46 @@
+// A private helper preserves the invocation rank on a tail edge, and every complete cycle strictly descends while advancing the explicit counter once.
+// Expected exit: 0
+machine count(counter: &mut u64, items: &[u8], cursor: u64)
+requires cursor <= items.len
+terminates;
+terminates by (cursor, items.len) -> Nat::BoundedDistance;
+{
+    transition cursor < items.len {
+        true -> forward(counter, items, cursor)
+        false -> done()
+    }
+    machine forward(counter: &mut u64, view: &[u8], position: u64)
+    requires position < view.len
+    {
+        counter = ((counter as u64 in Wrapping) + 1) as u64;
+        transition { _ -> count(counter, view, position + 1) }
+    }
+    machine done() {}
+}
+machine perform(counter: &mut u64, items: &[u8], select: bool)
+requires items.len == 7
+{
+    let cursor: u64 = match select { true -> 0 false -> 7 };
+    count(counter, items, cursor);
+}
+machine exercise(view: &[u8])
+requires view.len == 7
+crashes Trap
+{
+    let mut counter: u64 = 3;
+    perform(&mut counter, view, true);
+    transition counter == 10 { true -> complete(view, counter) false -> bad() }
+    machine complete(view: &[u8], previous: u64)
+    requires view.len == 7 && previous == 10
+    {
+        let mut counter: u64 = previous;
+        perform(&mut counter, view, false);
+        transition counter == 10 { true -> done() false -> bad() }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine main() crashes Trap {
+    let items: [u8; 7];
+    exercise(&items[..]);
+}

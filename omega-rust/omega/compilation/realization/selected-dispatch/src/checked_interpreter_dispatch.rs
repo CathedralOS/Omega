@@ -23,7 +23,12 @@ pub fn prepare_checked_interpreter_dispatch(
     calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
 ) -> Result<CheckedInterpreterDispatch, Vec<Diagnostic>> {
     let checked = &execution.program;
-    let selected_provider_plans = &execution.selected_provider_plan_facts;
+    let selected_instances = provider_planning::project_checked_provider_instances(
+        &checked.typed,
+        &checked.facts,
+        &execution.selected_provider_plan_facts,
+    )?;
+    let selected_provider_plans = &selected_instances;
     let selected_provider_provenance = &execution.selected_provider_provenance;
     if selected_provider_provenance.iter().any(|provider| {
         selected_provider_plans

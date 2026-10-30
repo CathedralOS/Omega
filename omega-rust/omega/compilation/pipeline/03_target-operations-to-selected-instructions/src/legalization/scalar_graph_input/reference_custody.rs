@@ -79,88 +79,11 @@ pub(in crate::legalization) struct Leaf {
     placed: Option<target_operations::TargetPlacedInterpretation>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(in crate::legalization) enum Root {
-    /// A mutable borrowed parameter or activation-local primitive place.
-    Place(PlaceId),
-    /// One leaf of an owned reference-bearing ingress parameter; the referent
-    /// storage belongs to the caller, so no local pointer exists for it.
-    Ingress(PlaceId, Vec<StructuralPathSegment>),
-    /// One permission whose selected static path is carried by its pointer.
-    Alternatives(Vec<target_operations::TargetReferenceOrigin>),
-}
-
-impl Root {
-    /// Compose declaration-relative interpretation without changing the
-    /// original storage place or any descriptor/parent residence identity.
-    fn projected(&self, suffix: &[StructuralPathSegment]) -> Self {
-        self.projected_family(
-            &suffix
-                .iter()
-                .cloned()
-                .map(terminal_psi::ReferenceOriginProjection::Exact)
-                .collect::<Vec<_>>(),
-            semantic_vocabulary::ReferenceOriginExtent::Projected,
-        )
-    }
-
-    fn projected_family(
-        &self,
-        suffix: &[terminal_psi::ReferenceOriginProjection],
-        extent: semantic_vocabulary::ReferenceOriginExtent,
-    ) -> Self {
-        if suffix.is_empty() && extent == semantic_vocabulary::ReferenceOriginExtent::Projected {
-            return self.clone();
-        }
-        let mut origins = self.origins();
-        for origin in &mut origins {
-            if origin.extent == semantic_vocabulary::ReferenceOriginExtent::Projected {
-                origin.path.extend_from_slice(suffix);
-                origin.extent = extent;
-            }
-        }
-        // Incoming contents name a captured pointer value. Its slot identity
-        // is not the physical storage of the pointee, even for one exact path.
-        if origins.len() == 1
-            && let Some(path) = origins[0].exact_path()
-            && let target_operations::TargetReferenceOriginBase::Storage { root } = origins[0].base
-        {
-            Self::Ingress(root, path)
-        } else {
-            origins.sort();
-            origins.dedup();
-            Self::Alternatives(origins)
-        }
-    }
-    pub(in crate::legalization) fn origins(&self) -> Vec<target_operations::TargetReferenceOrigin> {
-        match self {
-            Self::Place(root) => vec![target_operations::TargetReferenceOrigin {
-                base: target_operations::TargetReferenceOriginBase::Storage { root: *root },
-                extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
-                path: Vec::new(),
-            }],
-            Self::Ingress(root, path) => vec![target_operations::TargetReferenceOrigin {
-                base: target_operations::TargetReferenceOriginBase::Storage { root: *root },
-                extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
-                path: path
-                    .iter()
-                    .cloned()
-                    .map(terminal_psi::ReferenceOriginProjection::Exact)
-                    .collect(),
-            }],
-            Self::Alternatives(origins) => origins.clone(),
-        }
-    }
-
-    pub(in crate::legalization) fn contains_place(&self, place: PlaceId) -> bool {
-        match self {
-            Self::Place(root) | Self::Ingress(root, _) => *root == place,
-            Self::Alternatives(origins) => origins
-                .iter()
-                .any(|origin| origin.base.root_place() == Some(place)),
-        }
-    }
-}
+/// The referent root of one custody occurrence. Production lowering states this
+/// shape once (`abstract_operations_to_target_operations::ReferenceRoot`); the
+/// replay resolves the same three cases against the optimized source graph
+/// rather than declaring a second spelling of them.
+pub(in crate::legalization) use abstract_operations_to_target_operations::ReferenceRoot as Root;
 
 /// Turn captured origins into typed storage cursors. An ingress reference
 /// names its incoming descriptor in custody; its pointee is external storage
@@ -3239,6 +3162,7 @@ pub(in crate::legalization) fn apply_terminator(
                 types,
                 retirements::DisposalEvent::Edge(edge),
             )?;
+            borrowed_arrivals::expire_coordinates(&mut exit, target);
             exit.prune_retired();
             exit.validate_occurrences()?;
             exits.push((

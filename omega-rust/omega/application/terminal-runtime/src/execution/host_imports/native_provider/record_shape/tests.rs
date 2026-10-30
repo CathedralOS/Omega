@@ -102,6 +102,8 @@ impl Fixture {
                 native_parameter_rows: Default::default(),
                 callback_layouts: Default::default(),
                 callback_layout_rows: Default::default(),
+                callback_bindings: Default::default(),
+                callback_binding_rows: Default::default(),
             },
             codec: StorageCodec {
                 references: Vec::new(),

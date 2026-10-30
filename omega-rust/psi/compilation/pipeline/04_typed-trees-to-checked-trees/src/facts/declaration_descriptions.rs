@@ -2,8 +2,8 @@
 //!
 //! This is the identity projection formerly reconstructed by stage05. Only
 //! declaration coordinates and checked commitments survive, not source bodies.
-//! A private constant-closure transform refreshes its live descriptions while
-//! preserving the descriptions of declarations already removed by selection.
+//! Checking owns this publication; later consumers read the frozen inventory
+//! rather than requesting a source-signature refresh.
 
 use checked_trees::{
     CheckedDeclarationCapture, CheckedDeclarationDescription, CheckedDeclarationDescriptions,
@@ -12,7 +12,7 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
-pub fn retain_declaration_descriptions(checked: &mut CheckedTrees) {
+pub(crate) fn retain_declaration_descriptions(checked: &mut CheckedTrees) {
     let mut descriptions = CheckedDeclarationDescriptions::default();
     for machine in checked.typed.machines() {
         let row = match describe(checked, &mut descriptions, machine.symbol) {
@@ -24,8 +24,8 @@ pub fn retain_declaration_descriptions(checked: &mut CheckedTrees) {
         };
         descriptions.machines.insert(row);
     }
-    // A target-closed private view may have changed the live signatures; it
-    // cannot overwrite a dormant declaration with an invented body or erase it.
+    // Preserve any previously retained dormant declaration. A missing body is
+    // not authority to invent a replacement description or erase its identity.
     let previous = &checked.facts.declaration_descriptions;
     for (_, row) in previous.machines.iter() {
         if checked.machine(row.machine()).is_some() {

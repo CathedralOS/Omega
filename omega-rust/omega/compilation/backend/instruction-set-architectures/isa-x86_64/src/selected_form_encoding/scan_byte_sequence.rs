@@ -809,9 +809,10 @@ fn request(
 
 #[cfg(test)]
 mod tests {
-    use super::super::{
-        SelectedInstructionKind, encode_x86_64_selected_form,
-        validate_x86_64_selected_form_encoding,
+    use super::super::SelectedInstructionKind;
+    use super::super::tests::{
+        assert_byte_loop_catalog_contract,
+        assert_loop_form_round_trips_and_rejects_every_changed_bit,
     };
     use super::{MachineAlternativeFamily, MachineAlternativeKey, encode, validate};
     use selected_instructions::ByteSequencePredicate;
@@ -822,43 +823,14 @@ mod tests {
 
     #[test]
     fn scan_byte_sequence_catalog_requires_early_clobbers_and_memory_effect() {
-        let physical = register_model::validate_physical_register_model(
-            crate::x86_64_physical_register_model(),
-        )
-        .unwrap();
-        let catalog = crate::x86_64_register_constraint_catalog(&physical);
-        let constraints =
-            crate::validate_x86_64_register_constraint_catalog(catalog.clone(), &physical).unwrap();
-        crate::selected_form_encoding::tests::assert_early_clobber_required(
-            &catalog,
-            &physical,
+        assert_byte_loop_catalog_contract(
             crate::X86_64_SCAN_BYTE_SEQUENCE,
             &[2, 3],
+            selected_instructions::MachineSemanticKind::ScanByteSequence,
+            selected_instructions::MachineMemoryEffect::ScanByteSequenceV1,
+            &[0, 1],
+            &[2, 3, 4],
         );
-        for target in [
-            target::NativeTarget::linux_x64(),
-            target::NativeTarget::windows_x64(),
-        ] {
-            let effects = crate::x86_64_machine_effect_catalog(target, &constraints).unwrap();
-            crate::validate_x86_64_machine_effect_catalog(target, &constraints, effects.clone())
-                .unwrap();
-            let row = effects
-                .declarations
-                .iter()
-                .find(|row| {
-                    row.semantic == selected_instructions::MachineSemanticKind::ScanByteSequence
-                })
-                .unwrap();
-            assert_eq!(
-                row.memory,
-                selected_instructions::MachineMemoryEffect::ScanByteSequenceV1
-            );
-            assert_eq!(row.alternatives[0].encoded.external_operand_reads, [0, 1]);
-            assert_eq!(
-                row.alternatives[0].encoded.external_operand_writes,
-                [2, 3, 4]
-            );
-        }
     }
 
     #[test]
@@ -872,36 +844,21 @@ mod tests {
             variant: 0,
         };
         for predicate in ByteSequencePredicate::ALL {
-            for names in [
-                ["r13", "r14", "r15", "r12", "rbp"],
-                ["rax", "rcx", "rdx", "rsi", "rdi"],
-            ] {
-                let operands = names.map(|name| physical.model().view_named(name).unwrap().id);
-                let encoded = encode(&physical, predicate, alternative, &operands, 0).unwrap();
-                assert_eq!(
-                    encode_x86_64_selected_form(&physical, kind(predicate), alternative, &operands)
-                        .unwrap(),
-                    encoded
-                );
-                validate_x86_64_selected_form_encoding(
-                    &physical,
-                    kind(predicate),
-                    alternative,
-                    &operands,
-                    encoded.bytes(),
-                )
-                .unwrap();
-                crate::selected_form_encoding::assert_every_bit_flip_rejected(
-                    encoded.bytes(),
-                    |changed| {
-                        validate(&physical, predicate, alternative, &operands, 0, changed).is_err()
-                    },
-                );
-                super::super::assert_byte_fragility(encoded.bytes(), |bytes| {
-                    validate(&physical, predicate, alternative, &operands, 0, bytes).is_err()
-                });
-                assert!(encode(&physical, predicate, alternative, &operands, 1).is_err());
-            }
+            assert_loop_form_round_trips_and_rejects_every_changed_bit(
+                &physical,
+                kind(predicate),
+                alternative,
+                &[
+                    &["r13", "r14", "r15", "r12", "rbp"],
+                    &["rax", "rcx", "rdx", "rsi", "rdi"],
+                ],
+                |operands, displacement| {
+                    encode(&physical, predicate, alternative, operands, displacement)
+                },
+                |operands, bytes| {
+                    validate(&physical, predicate, alternative, operands, 0, bytes).is_err()
+                },
+            );
         }
     }
 }

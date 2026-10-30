@@ -370,6 +370,36 @@ impl<'a> Replay<'a> {
         }
         Some(locations)
     }
+    /// Reborrowing a whole ordinary referent captures the pointer in its
+    /// descriptor, rather than a recipe which reloads that descriptor later.
+    /// Borrowing a descriptor slot itself still captures the slot's address.
+    fn reference_referent_carrier(
+        &self,
+        machine: &DescriptorMachine,
+        location: &DescriptorLocation,
+    ) -> Option<Option<DescriptorLocation>> {
+        if !self.slot_kind.tracks_references() {
+            return Some(None);
+        }
+        let Some((DescriptorPathSegment::Referent, path)) = location.path.split_last() else {
+            return Some(None);
+        };
+        let root_type = *machine.place_types.get(&location.root)?;
+        let endpoint = crate::descriptor_lifetimes::descriptor_location_type(
+            self.types,
+            root_type,
+            &location.path,
+        )?;
+        Some(
+            (!self.slot_kind.is_slot(self.types, endpoint)
+                && !is_descriptor(self.types.iter(), endpoint))
+            .then(|| DescriptorLocation {
+                root: location.root,
+                path: path.to_vec(),
+            }),
+        )
+    }
+
     pub(super) fn read(
         &self,
         machine: &DescriptorMachine,
@@ -387,24 +417,8 @@ impl<'a> Replay<'a> {
         // the pointer captured in its carrier. An incoming reference field is
         // an Incoming slot, not an inline subtree of the containing argument.
         // A descriptor endpoint instead needs its own contents observation.
-        if self.slot_kind.tracks_references()
-            && let Some((DescriptorPathSegment::Referent, path)) = location.path.split_last()
-        {
-            let root_type = *machine.place_types.get(&location.root)?;
-            let endpoint = crate::descriptor_lifetimes::descriptor_location_type(
-                self.types,
-                root_type,
-                &location.path,
-            )?;
-            if !self.slot_kind.is_slot(self.types, endpoint)
-                && !is_descriptor(self.types.iter(), endpoint)
-            {
-                let carrier = DescriptorLocation {
-                    root: location.root,
-                    path: path.to_vec(),
-                };
-                return self.read(machine, state, &carrier);
-            }
+        if let Some(carrier) = self.reference_referent_carrier(machine, &location)? {
+            return self.read(machine, state, &carrier);
         }
         // The pointer temporary's origin is the pointee carrier. An unfilled
         // child slot on the temporary is not an invalidated owned subtree.
@@ -673,20 +687,22 @@ impl<'a> Replay<'a> {
                     destination.clone(),
                 ))
             }) {
-                // Borrowing a pointer slot captures its address. Loading or
-                // moving that slot instead captures the pointer it contains.
-                // Referent reads subsequently follow this storage alias, so
-                // copying descendants into the pointer's own carrier would
-                // both duplicate and misplace their contents.
-                let storage = self.canonical_storage(machine, before, source)?;
+                // Borrowing a pointer slot captures its address; reborrowing
+                // its whole ordinary referent captures the pointer it contains
+                // now. The latter must survive replacement of that slot.
+                // Storage aliases alone transport descendant slots; copying
+                // them into a captured pointer would misplace their contents.
+                let value =
+                    if let Some(carrier) = self.reference_referent_carrier(machine, source)? {
+                        self.read(machine, before, &carrier)
+                    } else {
+                        let storage = self.canonical_storage(machine, before, source)?;
+                        Some(BTreeSet::from([Origin::Storage(storage)]))
+                    };
                 merge_value(
                     &mut assigned,
                     canonical(destination)?,
-                    self.project(
-                        machine,
-                        Some(BTreeSet::from([Origin::Storage(storage)])),
-                        projection,
-                    ),
+                    self.project(machine, value, projection),
                 );
                 continue;
             }

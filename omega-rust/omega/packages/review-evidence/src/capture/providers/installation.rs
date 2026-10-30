@@ -13,6 +13,7 @@ pub(super) use dependencies::validate_installation_dependency_order;
 
 pub(crate) fn project_selected_installation_reach(
     compilation: &PackageReviewInput<'_>,
+    selected: &effects::SelectedProviderPlanFacts,
     plan: &ProviderPlan,
     schema: ProviderSchemaDeclaration,
     requirement_symbol: SymbolHandle,
@@ -85,19 +86,11 @@ pub(crate) fn project_selected_installation_reach(
         return Ok(None);
     };
 
-    let retained = compilation
-        .custody
-        .execution()
-        .selected_provider_plan_facts
+    let retained = selected
         .installation_reach_resolutions()
         .iter()
         .filter(|resolution| {
-            compilation
-                .custody
-                .execution()
-                .selected_provider_plan_facts
-                .identities()
-                .text(resolution.requirement_identity)
+            selected.identities().text(resolution.requirement_identity)
                 == Some(requirement_identity.path())
         })
         .collect::<Vec<_>>();
@@ -164,10 +157,7 @@ pub(crate) fn project_selected_installation_reach(
     // substitutes the checked dependencies under this exact plan, independently
     // of the producer's pending-row iteration. A broad bound is not the selected
     // child's concrete contribution, and cannot replace it in the projection.
-    let resolved_names = compilation
-        .custody
-        .execution()
-        .selected_provider_plan_facts
+    let resolved_names = selected
         .resolve_installation_reach_for_plan(
             &concrete_names,
             &dependencies

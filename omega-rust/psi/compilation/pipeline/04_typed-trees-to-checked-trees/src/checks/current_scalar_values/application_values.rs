@@ -88,7 +88,13 @@ impl CurrentScalarValues<'_> {
                     } else {
                         self.captured_scalar_fields(actual, 0)
                             .into_iter()
-                            .find(|field| field.path == path)?
+                            .find(|field| {
+                                field.path
+                                    == path
+                                        .iter()
+                                        .map(|symbol| super::ScalarProjection::Field(*symbol))
+                                        .collect::<Vec<_>>()
+                            })?
                             .value
                     };
                     bindings.push(ScopedArithmeticBinding {

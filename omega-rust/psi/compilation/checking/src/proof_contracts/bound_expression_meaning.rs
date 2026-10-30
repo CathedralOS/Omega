@@ -631,10 +631,12 @@ pub fn applied_case_membership_variant(
     Some(selected)
 }
 
-/// Rejoin membership in an abstract signature's exact parameter scope. A
-/// parameter from another declaration cannot supply this subject's carrier.
-pub fn has_exact_parameter_case_membership_meaning(
+/// Rejoin membership in this declaration's exact observation scope. Parameters
+/// remain telescope-owned; reserved result observations retain their authored
+/// callable owner. A global declaration lookup supplies neither identity.
+pub fn has_exact_declaration_case_membership_meaning(
     program: &dyn crate::CheckingInput,
+    declaration_owner: symbols::SymbolHandle,
     parameters: &[typed_trees::signature::StateParameter],
     expression: ExpressionHandle,
     comparison: &typed_trees::expression::TableBinaryExpression,
@@ -644,6 +646,11 @@ pub fn has_exact_parameter_case_membership_meaning(
             crate::value_custody::places::parameter_scoped_type_reference(
                 program, parameters, subject,
             )
+            .or_else(|| {
+                crate::reserved_result_place(program, subject)
+                    .filter(|result| result.machine_symbol == declaration_owner)
+                    .map(|result| result.type_reference)
+            })
         })
     })
 }
