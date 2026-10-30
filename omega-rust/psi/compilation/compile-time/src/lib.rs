@@ -53,7 +53,7 @@ pub use language_semantics::wire::WireCompatibilityDemand;
 pub use build_time_values::BuildTimeValue;
 pub use checked_interpreter::{
     CURRENT_EVALUATION_SEMANTICS, EvaluationUsage, MeasuredEvaluation,
-    SelectedBuildTimeBinaryOperator, SelectedBuildTimeMachineBody,
+    SelectedBuildTimeBinaryOperator,
 };
 pub use const_evaluation::const_domain_facts::evaluate_const_domain_facts;
 pub use const_evaluation::const_generic_calls::evaluate_const_generic_calls;

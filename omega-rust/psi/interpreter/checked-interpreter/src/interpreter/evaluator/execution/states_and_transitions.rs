@@ -46,7 +46,6 @@ impl<'program> Evaluator<'program> {
             boundary_adapter_dispatch: &[],
             selected_product_float_comparisons: None,
             selected_build_time_operators: &[],
-            selected_build_time_machine_bodies: &[],
             x86_flags: None,
             semantic_float_evaluation: false,
             stdout: Vec::new(),

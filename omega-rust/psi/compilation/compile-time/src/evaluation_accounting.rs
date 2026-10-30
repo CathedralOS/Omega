@@ -13,7 +13,7 @@ use checked_interpreter::{
 };
 use typed_trees::TypedTrees;
 
-use crate::{BuildTimeValue, SelectedBuildTimeBinaryOperator, SelectedBuildTimeMachineBody};
+use crate::{BuildTimeValue, SelectedBuildTimeBinaryOperator};
 
 mod canonical_scalar;
 pub use canonical_scalar::CanonicalScalarEvaluationReceipt;
@@ -85,7 +85,6 @@ pub struct PureEvaluationReceipt {
     machine: symbols::SymbolHandle,
     arguments: Vec<BuildTimeValue>,
     operators: Vec<SelectedBuildTimeBinaryOperator>,
-    machine_bodies: Vec<SelectedBuildTimeMachineBody>,
     outcome: PureEvaluationOutcome,
     semantics: EvaluationSemanticsIdentity,
 }
@@ -117,9 +116,6 @@ impl PureEvaluationReceipt {
     pub fn operators(&self) -> &[SelectedBuildTimeBinaryOperator] {
         &self.operators
     }
-    pub fn machine_bodies(&self) -> &[SelectedBuildTimeMachineBody] {
-        &self.machine_bodies
-    }
     pub fn outcome(&self) -> &PureEvaluationOutcome {
         &self.outcome
     }
@@ -142,7 +138,6 @@ impl PureEvaluationReceipt {
             return Err("source-completion evaluator semantics changed".to_owned());
         }
         if let Some(usage) = self.usage() {
-            SelectedBuildTimeMachineBody::validate_all(self.program.typed(), &self.machine_bodies)?;
             if usage.schema() != checked_interpreter::CURRENT_EVALUATION_USAGE_SCHEMA
                 || usage.schedule() != checked_interpreter::CURRENT_EVALUATION_STEP_SCHEDULE
                 || usage.fuel_ceiling() != checked_interpreter::pure_evaluation_step_ceiling()
@@ -475,15 +470,12 @@ impl EvaluationAccounting {
                     request.entry,
                     request.arguments.clone(),
                     request.operators.to_vec(),
-                    request.machine_bodies.to_vec(),
                 )
             });
         let evaluation =
             checked_interpreter::evaluate_prepared_build_time_machine(program, request);
-        if let (
-            Some(receipts),
-            Some((ordinal, program, entry, arguments, operators, machine_bodies)),
-        ) = (&self.state, input)
+        if let (Some(receipts), Some((ordinal, program, entry, arguments, operators))) =
+            (&self.state, input)
         {
             let machine = match entry {
                 BuildMachineEntry::Symbol(symbol) => symbol,
@@ -498,7 +490,6 @@ impl EvaluationAccounting {
                 machine,
                 arguments,
                 operators,
-                machine_bodies,
                 outcome: match &evaluation {
                     Ok(evaluation) => PureEvaluationOutcome::Returned {
                         value: evaluation.value().clone(),

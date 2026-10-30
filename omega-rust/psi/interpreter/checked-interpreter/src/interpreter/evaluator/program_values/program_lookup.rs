@@ -14,12 +14,7 @@ impl<'program> Evaluator<'program> {
         &self,
         symbol: symbols::SymbolHandle,
     ) -> Option<&'program Machine> {
-        let selected = self
-            .selected_build_time_machine_bodies
-            .iter()
-            .find(|selected| selected.family == symbol)
-            .map_or(symbol, |selected| selected.body);
-        self.program.machine(selected)
+        self.program.machine(symbol)
     }
 
     pub(in crate::interpreter::evaluator) fn find_state(

@@ -24,10 +24,6 @@ pub struct InterpretOptions<'bindings> {
     /// Explicit Product execution associations, separate from immutable Psi.
     pub boundary_adapters: &'bindings [checked_trees::CheckedBoundaryAdapterDispatch],
     pub float_comparisons: &'bindings [checked_trees::CheckedSelectedFloatComparisonExecution],
-    /// The realization owner's exact family-body selections for this target.
-    /// A call bound to a target family resolves to the selected member's
-    /// checked body through these, never to a body the interpreter invents.
-    pub machine_bodies: &'bindings [SelectedBuildTimeMachineBody],
     /// The realization owner's supplied x86 processor flags image, captured
     /// from the executing host. `pushfq` observes this environment and `popfq`
     /// restores its arithmetic bits; both decline without it rather than
@@ -136,51 +132,6 @@ pub enum BuildMachineEntry<'a> {
     Symbol(SymbolHandle),
 }
 
-/// An exact family-body selection supplied by the realization owner. Psi knows
-/// membership, not deployment policy: the caller chooses a retained checked body
-/// and both admission and execution consume that same identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-pub struct SelectedBuildTimeMachineBody {
-    pub family: SymbolHandle,
-    pub body: SymbolHandle,
-}
-
-impl SelectedBuildTimeMachineBody {
-    /// Membership alone confers no execution authority. A selected external or
-    /// deferred member remains subject to the ordinary admission/body checks;
-    /// unrelated nonexecuting families may be retained in a realization map.
-    pub fn validate_all(program: &TypedTrees, selections: &[Self]) -> Result<(), String> {
-        for (position, selected) in selections.iter().enumerate() {
-            let family = program
-                .target_machine_families
-                .iter()
-                .find(|family| family.canonical == selected.family)
-                .ok_or_else(|| "build-time body selection names no retained family".to_owned())?;
-            if !program
-                .machine(selected.family)
-                .is_some_and(|machine| machine.target_family_interface)
-                || !family
-                    .members
-                    .iter()
-                    .any(|member| member.machine == selected.body)
-                || program.machine(selected.body).is_none()
-            {
-                return Err(
-                    "build-time body selection is not a retained member of its exact family"
-                        .to_owned(),
-                );
-            }
-            if selections[..position]
-                .iter()
-                .any(|previous| previous.family == selected.family)
-            {
-                return Err("build-time family has more than one selected body".to_owned());
-            }
-        }
-        Ok(())
-    }
-}
-
 /// One build-time machine evaluation: the machine, its arguments, the selected
 /// build-time operators a structured evaluation may call, and the sponsor an
 /// argument evaluation charges for its result custody.
@@ -191,7 +142,6 @@ pub struct BuildMachineEvaluationRequest<'a> {
     pub entry: BuildMachineEntry<'a>,
     pub arguments: Vec<BuildTimeValue>,
     pub operators: &'a [SelectedBuildTimeBinaryOperator],
-    pub machine_bodies: &'a [SelectedBuildTimeMachineBody],
 }
 
 /// The immutable source and facts available to a compiler invocation. Early
@@ -229,7 +179,6 @@ impl<'a> BuildMachineEvaluationRequest<'a> {
             entry: BuildMachineEntry::Name(machine_name),
             arguments,
             operators: &[],
-            machine_bodies: &[],
         }
     }
 
@@ -240,7 +189,6 @@ impl<'a> BuildMachineEvaluationRequest<'a> {
             entry: BuildMachineEntry::Symbol(machine_symbol),
             arguments,
             operators: &[],
-            machine_bodies: &[],
         }
     }
 }
@@ -300,13 +248,7 @@ pub fn evaluate_prepared_build_time_machine(
     program: BuildMachineProgram<'_>,
     request: BuildMachineEvaluationRequest<'_>,
 ) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, String> {
-    evaluate_structured_return(
-        program,
-        request.entry,
-        request.arguments,
-        request.operators,
-        request.machine_bodies,
-    )
+    evaluate_structured_return(program, request.entry, request.arguments, request.operators)
 }
 
 fn evaluate_const_on_current_thread(
@@ -344,10 +286,8 @@ fn evaluate_structured_return(
     entry: BuildMachineEntry<'_>,
     arguments: Vec<build_time_values::BuildTimeValue>,
     operators: &[crate::SelectedBuildTimeBinaryOperator],
-    machine_bodies: &[SelectedBuildTimeMachineBody],
 ) -> Result<BuildTimeOperationEvaluation<build_time_values::BuildTimeValue>, String> {
     let typed = program.typed();
-    SelectedBuildTimeMachineBody::validate_all(typed, machine_bodies)?;
     if operators
         .iter()
         .any(|operator| operator.has_crash_contract(typed))
@@ -362,7 +302,6 @@ fn evaluate_structured_return(
             .spawn_scoped(scope, || {
                 let mut evaluator = Evaluator::new_build(program);
                 evaluator.selected_build_time_operators = operators;
-                evaluator.selected_build_time_machine_bodies = machine_bodies;
                 evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, None);
                 let result = match entry {
                     BuildMachineEntry::Name(machine_name) => {
@@ -405,12 +344,6 @@ fn interpret_on_current_thread(
     let mut evaluator = Evaluator::new_checked(checked, stdin);
     evaluator.boundary_adapter_dispatch = options.boundary_adapters;
     evaluator.selected_product_float_comparisons = Some(options.float_comparisons);
-    if let Err(message) =
-        SelectedBuildTimeMachineBody::validate_all(&checked.typed, options.machine_bodies)
-    {
-        return evaluator.error_outcome(message);
-    }
-    evaluator.selected_build_time_machine_bodies = options.machine_bodies;
     evaluator.x86_flags = match options.x86_flags {
         Some(image) => match language_core::inline_assembly::X86FlagsEnvironment::new(image) {
             Ok(environment) => Some(environment),
