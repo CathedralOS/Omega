@@ -359,6 +359,45 @@ refused. This amendment retains all definitions, observations and assessments;
 it does not create an assessment, grant reuse or satisfy final review.
 Do not amend a command/expected result merely to turn a failure into acceptance.
 
+### Restart after rewritten ancestry
+
+A justified rebase or squash can remove the original private base from the
+candidate's ancestry. `assess` and `amend` deliberately refuse that incompatible
+history. Use `restart` to begin fresh acceptance while retaining the old state,
+observations, receipts, source refs and producers unchanged:
+
+```text
+python3 tools/qualification.py restart --state build/qualification.json --revision LAST_REVISION --successor build/qualification-restarted.json --candidate FULL_CLEAN_HEAD --base FULL_CANONICAL_BASE --config build/qualification-config.json --reason "actual conflict resolution rewrote the private base"
+python3 tools/qualification.py run-pending --state build/qualification-restarted.json --revision 0 --base FULL_CANONICAL_BASE
+```
+
+The predecessor must be the registered active state of this same worktree with
+the exact revision and no running capture. Its original base must no longer be
+an ancestor of the exact clean candidate; the new base must be an ancestor, and
+canonical contract checks still apply. Ordinary compatible history uses
+`assess`/`amend`, not restart. A reviewed replacement configuration may change
+non-final scope, but must retain final-candidate check IDs, kinds and final
+policies. Review its complete closure and oracles as for an amendment.
+
+The successor starts at revision zero with no runs, assessments or source-reuse
+attestations. Every configured check must run fresh, including final review.
+Its predecessor link records the old state's absolute path, streaming SHA-256,
+revision, original base/candidate and configuration digest, plus the reason and
+exact new candidate/base. The old history is loaded once for validation, never
+copied or rewritten. Keep that state and all its referenced evidence; the link
+is provenance, not acceptance or a backup.
+
+Under the existing locks, the tool writes the empty successor before atomically
+replacing the active registration. If activation fails, the predecessor stays
+active and the unactivated successor cannot run or mutate. Preserve both and
+repeat the identical restart request: only an unchanged, unstarted successor
+can be activated. A different request or modified successor refuses. If the
+response was lost after activation, inspect `build/qualification-active.json`
+and the successor's status; do not repeat the mutation. Once switched, old-state
+mutations refuse, while its historical status and evidence remain readable.
+No manual deletion of the active registration or alteration of ancestry is
+needed. This operation supplies no runtime or publication acceptance.
+
 ## Submit the qualified source
 
 `start` registers the active state in `build/qualification-active.json` in its
