@@ -12,6 +12,7 @@ use symbols::SymbolHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CapturedStorageReadBacking {
+    pub(crate) sources: Vec<super::super::LocalWriteSource>,
     pub(crate) values: Vec<String>,
     pub(crate) bindings: Vec<String>,
 }

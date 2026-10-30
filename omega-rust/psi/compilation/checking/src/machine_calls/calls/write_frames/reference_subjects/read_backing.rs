@@ -23,7 +23,9 @@ pub(in crate::machine_calls::calls::write_frames) fn capture(
     }
     let mut values = vec![super::super::frame_coordinate_path(program, root, path)?];
     let mut bindings = Vec::new();
+    let mut sources = Vec::new();
     for read in reads {
+        sources.push(read.source.origin.clone().into());
         if !values.contains(&read.source.origin.path) {
             values.push(read.source.origin.path);
         }
@@ -39,5 +41,9 @@ pub(in crate::machine_calls::calls::write_frames) fn capture(
             }
         }
     }
-    Some(CapturedStorageReadBacking { values, bindings })
+    Some(CapturedStorageReadBacking {
+        sources,
+        values,
+        bindings,
+    })
 }

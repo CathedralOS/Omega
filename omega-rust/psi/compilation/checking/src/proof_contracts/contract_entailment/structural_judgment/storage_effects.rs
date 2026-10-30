@@ -26,6 +26,8 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::TypeReferenceHandle;
 
+mod read_backing;
+
 type StorageScope<'scope> = Option<(&'scope Machine, &'scope State)>;
 
 /// A canonical place with live selectors replaced by completed value identities.
@@ -194,7 +196,7 @@ pub(super) struct CapturedStorageValue {
     pub(super) entry: Option<super::StructuralTerm>,
     pub(super) current: Option<super::StructuralTerm>,
     pub(super) completed_read: Option<(ExpressionHandle, usize)>,
-    pub(super) backing: Option<crate::machine_calls::calls::CapturedStorageReadBacking>,
+    pub(super) backing: Option<read_backing::CapturedScalarReadBacking>,
 }
 
 /// One authenticated store destination, frozen before replacement evaluation.
@@ -395,6 +397,7 @@ impl StructuralJudge<'_> {
             let Some(value) = self.declaration_term(expression) else {
                 continue;
             };
+            let backing = self.freeze_scalar_read_backing(state, backing);
             self.retain_storage_value(place.clone(), value, true);
             if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
                 .iter_mut()
@@ -676,7 +679,10 @@ impl StructuralJudge<'_> {
             return None;
         }
         let place = self.captured_storage_coordinate(scope, expression)?;
-        self.current_storage_value(&place)
+        self.current_storage_value(&place).or_else(|| {
+            let (machine, state) = scope?;
+            self.current_backing_value(machine, state, expression)
+        })
     }
 
     pub(super) fn current_storage_value(
@@ -830,6 +836,7 @@ impl StructuralJudge<'_> {
                 &crate::canonical_place_from_expression(self.program, expression)?.segments,
             )
         });
+        let backing = backing.map(|backing| self.freeze_scalar_read_backing(state, backing));
         self.retain_storage_value(place.clone(), value, entry);
         if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
             .iter_mut()
