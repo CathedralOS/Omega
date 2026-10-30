@@ -10,10 +10,13 @@ The positive binds all four hosted targets. Actual acceptance requires native/Te
 
 The [twin](invalid/main.omg) changes only decrement1→0. Its strict-descent refusal is independent of the formation controls: [missing selector bound](controls/missing_selector_bound/main.omg) cannot form the partial indexed read, and [case on another selector](controls/other_selector_case/main.omg) cannot authorize this payload.
 
-## Current gap
+## Evidence
 
-Fixed baseline: `b48cf554bbd15b26d4efc40bb629fd26be7c5dc5`, optimized CLI SHA256 `7a57d0e6230c64ebd3e3a82a9e28eba43c64161fbe6aa95023c5abebd3d5040a`.
-The valid frozen source wrongly refuses three Requires payload formations, despite earlier bounds and exact indexed case premises. The first barrier is specification-premise intake dropping authenticated indexed structural terms. Further caller fact transport, rank correspondence and native realization remain to be established. Baseline manifests and raw observations live under `build/nested-frontier/`; the initial malformed authored case comparison is retained separately and is not compiler-defect evidence.
+Fixed baseline: `b48cf554bbd15b26d4efc40bb629fd26be7c5dc5`, optimized CLI SHA256 `7a57d0e6230c64ebd3e3a82a9e28eba43c64161fbe6aa95023c5abebd3d5040a`. It wrongly refuses payload formation after preceding bounds and exact indexed case premises.
+
+Producer `08e4333b0db` (CLI SHA256 `5945fb35c6a6d01409826e806375f935c91497fedca894ddd35c36ab2aa2c4c0`) executes all nine places with native exit0 and Terminal Psi exit0 on `macos_arm64`. Each exact decrement0 twin rejects strict cycle non-descent. Authenticated indexed substitution, declaration-scoped type meaning, scalar stored-value classification and completed-value tag correspondence preserve the ordinary proof path. A mutable selector and an alternate Empty element still refuse case requirements. No source write order was changed.
+
+Raw producer/source/oracle records are retained under `build/nested-frontier/`. Pinned positives and twins are `tests/omega/{pass,fail}/facts/nested_machine_joint_rank_indexed_payload_<place>_{exit,rejected}`. This is matching-host evidence; the other three declared targets remain unexecuted here. Declared-view/dependent-distance measures and the parent's other acceptance remain open.
 
 ## Required acceptance
 
@@ -26,4 +29,4 @@ The valid frozen source wrongly refuses three Requires payload formations, despi
 - Omega03–06: native indexed reads/stores and constant-stack private cycles preserve the counter, both element stamps and surrounding canaries. Portable composed WCSU remains parent acceptance.
 - Omega07–09: native execution must agree with Terminal Psi on the authored oracle. Pin the completed nine-place row and twins under `tests/omega/{pass,fail}/facts/`; cross-host execution remains separately unverified.
 
-This local baseline is unfinished. Complete the same production across all nine places and every necessary compiler layer before closing this step. The broader parent remains open.
+The nine-place execution row establishes this indexed-case production. The broader parent remains open.
