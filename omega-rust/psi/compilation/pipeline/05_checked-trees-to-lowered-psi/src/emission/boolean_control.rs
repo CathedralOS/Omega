@@ -251,7 +251,6 @@ pub(crate) struct LoweredBooleanDecisionTarget {
     pub(crate) arguments: Vec<ValueId>,
 }
 
-#[allow(clippy::too_many_arguments)]
 /// The identity of the guard block reserved at `block_index`. Reserved blocks
 /// are dense from `first_block_identity`, so the index is the whole offset.
 fn reserved_guard_block(first_block_identity: u64, block_index: usize) -> BlockId {
@@ -265,6 +264,7 @@ fn reserved_guard_block(first_block_identity: u64, block_index: usize) -> BlockI
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 /// A fresh block a case edge enters with exactly `parameters`, jumping on to
 /// `target` with its arguments. The arguments are values of the dispatching
 /// block's namespace, which dominates this one.
