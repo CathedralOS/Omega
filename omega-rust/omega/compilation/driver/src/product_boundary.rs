@@ -626,6 +626,46 @@ fn installation_reach_settlement_consumes_prepared_rows() {
 }
 
 #[test]
+fn checked_operator_choice_consumes_retained_candidates() {
+    let admission = include_str!(
+        "../../realization/provider-planning/src/provider_planning/operator_provider_evidence.rs"
+    );
+    let dispatch = include_str!(
+        "../../realization/selected-dispatch/src/selected_dispatch/operator_adapter.rs"
+    );
+    for consumer in [admission, dispatch] {
+        assert!(consumer.contains("selected_checked_operator_body"));
+        for forbidden in [
+            "specialized_provider_machines",
+            "machine_specializations",
+            "machine_trait_conformances",
+            "resolve_satisfied_checked_operator",
+            "resolve_specialized_checked_operator",
+        ] {
+            assert!(
+                !consumer.contains(forbidden),
+                "operator body choice reconstructs {forbidden}"
+            );
+        }
+    }
+    assert!(admission.contains("boundary_declarations"));
+    assert!(admission.contains("boundary_body_candidates"));
+    assert!(admission.contains(".span(application.body_candidates)"));
+    let policy = include_str!("../../realization/provider-selection/src/checked_bodies.rs");
+    for forbidden in [
+        "checked_trees",
+        "TypedTrees",
+        "SymbolHandle",
+        "provider_planning",
+    ] {
+        assert!(
+            !policy.contains(forbidden),
+            "checked-body policy reopens {forbidden}"
+        );
+    }
+}
+
+#[test]
 fn qualification_grants_consume_prepared_issuer_evidence() {
     let binding = include_str!("../../realization/provider-planning/src/provider_planning.rs");
     assert!(binding.contains(".admitted_qualification_issuers()"));

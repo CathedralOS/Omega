@@ -853,6 +853,14 @@ source-free grant policy consumes those occurrences, including uncalled bodies a
 the Check stop, and preserves declaring-owner preference and ambiguous-grant
 refusal without rescanning typed traits or signatures.
 
+Psi retains checked operator declaration eligibility separately from closed
+application body candidates. Open or dormant declarations do not root bodies or
+establish executable coverage. Omega admission and checked dispatch join selected
+plans to that inventory through one source-free choice operation, preserving
+provider/package identity, effective target context, scope and application
+coordinates. Neither consumer rediscovers specialization or source satisfaction;
+the exact application's existing body span supplies its executable alternatives.
+
 `omega/compilation/driver/` owns only compilation orchestration.
 [`omega/compilation/native-production/`](omega/compilation/native-production/README.md)
 owns the source-free Terminal-to-image sequence. Its entry is
