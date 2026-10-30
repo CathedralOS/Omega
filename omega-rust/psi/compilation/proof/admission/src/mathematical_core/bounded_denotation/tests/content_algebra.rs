@@ -1,4 +1,5 @@
 use super::*;
+use crate::proof_node;
 
 fn content_algebra() -> ContentAlgebra {
     ContentAlgebra {
@@ -126,10 +127,7 @@ fn reflexive_content_conservation_is_refl_in_the_kernel() {
     let separate = ContentTerm::separate([content_term(root, "a"), content_term(root, "b")])
         .expect("separation");
     let proposition = conservation(&algebra, &separate, &separate);
-    let proof = ProofNode {
-        conclusion: proposition.clone(),
-        rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
-    };
+    let proof = proof_node!(proposition.clone() => ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality));
     let denoted =
         verify_bounded_certificate(&context, &proposition, &[], &[], &proof, &mut budget())
             .expect("reflexive conservation verifies as refl");

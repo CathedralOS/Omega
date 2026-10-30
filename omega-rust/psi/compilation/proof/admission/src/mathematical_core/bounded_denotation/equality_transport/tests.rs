@@ -1,6 +1,8 @@
 use super::super::Elaboration;
 use crate::proof::assumption_proof;
-use crate::{Budget, ProofNode, ProofRule, value_context, verify_mathematical_certificate};
+use crate::{
+    Budget, ProofNode, ProofRule, proof_node, value_context, verify_mathematical_certificate,
+};
 use semantic_vocabulary::{IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType, ValueId};
 use std::collections::BTreeSet;
 
@@ -29,10 +31,7 @@ fn check(premise: Proposition, goal: Proposition, equations: &[(u64, u64)]) {
             equalities: axioms
                 .iter()
                 .enumerate()
-                .map(|(index, conclusion)| ProofNode {
-                    conclusion: conclusion.clone(),
-                    rule: ProofRule::SemanticAxiom { index },
-                })
+                .map(|(index, conclusion)| proof_node!(conclusion.clone() => ProofRule::SemanticAxiom { index }))
                 .collect(),
         },
     };
@@ -109,10 +108,7 @@ fn nested_identity_requiring_unlicensed_reversal_rejects() {
             equalities: axioms
                 .iter()
                 .enumerate()
-                .map(|(index, conclusion)| ProofNode {
-                    conclusion: conclusion.clone(),
-                    rule: ProofRule::SemanticAxiom { index },
-                })
+                .map(|(index, conclusion)| proof_node!(conclusion.clone() => ProofRule::SemanticAxiom { index }))
                 .collect(),
         },
     };

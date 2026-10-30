@@ -4,6 +4,7 @@ use super::{
 };
 use crate::PrimitiveJudgment;
 use crate::proof::semantic_axiom_proof;
+use crate::proof_node;
 use crate::value_context;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType};
 
@@ -32,10 +33,7 @@ fn fixture(
             Proposition::LessOrEqual(left, right)
         })
     };
-    let mut proof = ProofNode {
-        conclusion: order(literal(1), literal(2)),
-        rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-    };
+    let mut proof = proof_node!(order(literal(1), literal(2)) => ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation));
     let mut axioms = Vec::new();
     for endpoint in 0..2 {
         let scalar = value(endpoint as u64 + 1);

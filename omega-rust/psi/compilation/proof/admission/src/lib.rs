@@ -157,6 +157,21 @@ pub(crate) fn affine_witness(
     }
 }
 
+/// A checked proof node over its conclusion and rule, in the `=>` form the
+/// other test constructors use: a plain call would let rustfmt re-emit the
+/// vertical argument list this macro removes.
+#[cfg(test)]
+macro_rules! proof_node {
+    ($conclusion:expr => $rule:expr) => {
+        ProofNode {
+            conclusion: $conclusion,
+            rule: $rule,
+        }
+    };
+}
+#[cfg(test)]
+pub(crate) use proof_node;
+
 macro_rules! debug_display {
     ($type:ty) => {
         impl std::fmt::Display for $type {

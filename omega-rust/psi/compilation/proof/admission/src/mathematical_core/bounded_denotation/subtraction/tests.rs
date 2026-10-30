@@ -8,7 +8,7 @@ use semantic_vocabulary::{
 
 use crate::proof::assumption_proof;
 use crate::{
-    Budget, ProofNode, ProofRule, value_context, verify_bounded_certificate,
+    Budget, ProofNode, ProofRule, proof_node, value_context, verify_bounded_certificate,
     verify_mathematical_certificate,
 };
 
@@ -142,10 +142,7 @@ fn mismatched_decrement_and_reversed_goal_still_reject() {
         &reversed,
         &assumptions,
         &[],
-        &ProofNode {
-            conclusion: reversed.clone(),
-            rule: proof.rule.clone(),
-        },
+        &proof_node!(reversed.clone() => proof.rule.clone()),
     );
     let ProofRule::IntegerSubtractOrder { positive, .. } = &mut proof.rule else {
         unreachable!()

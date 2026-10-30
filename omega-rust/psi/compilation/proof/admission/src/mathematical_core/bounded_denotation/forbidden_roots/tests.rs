@@ -8,7 +8,7 @@ use super::super::{Elaboration, verify_bounded_certificate_on_current_thread};
 use super::Law;
 use crate::{
     Budget, CorrelatedAffineBranchWitness, IntegerCorrelatedForbiddenRootWitness, ProofError,
-    ProofNode, ProofRule, correlated_step, value_context,
+    ProofNode, ProofRule, correlated_step, proof_node, value_context,
 };
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
@@ -155,10 +155,7 @@ fn safe_fixture() -> Fixture {
         premises: vec![lower, upper],
         parameters: BTreeSet::from([ValueId::new(1).expect("root")]),
         goal: goal.clone(),
-        proof: ProofNode {
-            conclusion: goal,
-            rule: ProofRule::IntegerCorrelatedForbiddenRoots { witness },
-        },
+        proof: proof_node!(goal => ProofRule::IntegerCorrelatedForbiddenRoots { witness }),
     }
 }
 
@@ -222,10 +219,7 @@ fn negative_multiplier_fixture() -> Fixture {
         premises: vec![lower, upper],
         parameters: BTreeSet::from([ValueId::new(1).expect("root")]),
         goal: goal.clone(),
-        proof: ProofNode {
-            conclusion: goal,
-            rule: ProofRule::IntegerCorrelatedForbiddenRoots { witness },
-        },
+        proof: proof_node!(goal => ProofRule::IntegerCorrelatedForbiddenRoots { witness }),
     }
 }
 
@@ -372,10 +366,7 @@ fn forbidden_roots_out_of_interval_root_refutes_case() {
         premises: vec![lower, upper],
         parameters: BTreeSet::from([ValueId::new(1).expect("root")]),
         goal: goal.clone(),
-        proof: ProofNode {
-            conclusion: goal,
-            rule: ProofRule::IntegerCorrelatedForbiddenRoots { witness },
-        },
+        proof: proof_node!(goal => ProofRule::IntegerCorrelatedForbiddenRoots { witness }),
     };
     check(
         &fixture,
@@ -443,10 +434,7 @@ fn forbidden_roots_rejects_mutated_witness() {
     };
     let mut drifted = witness.clone();
     drifted.dividend.steps[0].definition_axiom = 3;
-    let proof = ProofNode {
-        conclusion: fixture.goal.clone(),
-        rule: ProofRule::IntegerCorrelatedForbiddenRoots { witness: drifted },
-    };
+    let proof = proof_node!(fixture.goal.clone() => ProofRule::IntegerCorrelatedForbiddenRoots { witness: drifted });
     assert!(
         verify_bounded_certificate_on_current_thread(
             &fixture.context,
