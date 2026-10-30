@@ -1821,6 +1821,15 @@ pass/facts/abi_multi_arg_spill_through_other_machine_exit built 3072ms exit:0 in
 pass/facts/abi_multi_arg_spill_through_other_state_exit built 2808ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/abi_multi_arg_spill_through_parameter_exit built 3728ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/abi_multi_arg_spill_through_target_body_exit built 4627ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/abstract_signature_call_generic_actual_through_call_result_exit built 2710ms exit:0 interpreter-exit:0 interpreter:agrees @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_const_name_exit built 2703ms exit:0 interpreter-exit:0 interpreter:agrees @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_field_exit built 2696ms exit:0 interpreter-exit:0 interpreter:agrees @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_local_exit built 2751ms exit:0 interpreter-exit:0 interpreter:agrees @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_match_join_exit built 2787ms exit:0 interpreter-exit:0 interpreter:agrees @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_other_machine_exit built 2817ms exit:0 interpreter-exit:0 interpreter:agrees @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_other_state_exit built 2730ms exit:0 interpreter-exit:0 interpreter:agrees @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_parameter_exit built 2385ms exit:0 interpreter-exit:0 interpreter:agrees @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_target_body_exit built 1798ms exit:0 interpreter-exit:0 interpreter:agrees @3caadfad789f+wt
 pass/facts/abstract_signature_call_through_call_result_exit built 1938ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/abstract_signature_call_through_const_name_exit built 1852ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/abstract_signature_call_through_field_exit built 2466ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042

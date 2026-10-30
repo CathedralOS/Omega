@@ -8,6 +8,37 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585", "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6", "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.", "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd", "schema": "omega-corpus-context-v1"}
+fail/facts/abstract_signature_call_generic_actual_through_call_result_rejected rejected 746ms expected @3caadfad789f+wt
+	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_const_name_rejected rejected 736ms expected @3caadfad789f+wt
+	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_field_rejected rejected 628ms expected @3caadfad789f+wt
+	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_local_rejected rejected 764ms expected @3caadfad789f+wt
+	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_match_join_rejected rejected 572ms expected @3caadfad789f+wt
+	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_other_machine_rejected rejected 693ms expected @3caadfad789f+wt
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_other_state_rejected rejected 726ms expected @3caadfad789f+wt
+	machine `check` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_parameter_rejected rejected 607ms expected @3caadfad789f+wt
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_target_body_rejected rejected 609ms expected @3caadfad789f+wt
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
 fail/facts/nested_machine_joint_rank_copied_payload_call_result_rejected rejected 850ms expected @e6f74b4c381f
 	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
 fail/facts/nested_machine_joint_rank_copied_payload_const_name_rejected rejected 770ms expected @e6f74b4c381f
@@ -2588,6 +2619,15 @@ pass/facts/abstract_signature_call_constant_initializer_through_parameter_exit c
 pass/facts/abstract_signature_call_constant_initializer_through_target_body_exit checked 3507ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/abstract_signature_call_constant_initializer_unexecuted_body_dependency_exit rejected 444ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	constant initializer: constant call lost its exact authored target selection: owner witness, call TableCallExpression { authored_call_selection: None, authored_call_binding: None, build_selection: Handle { arena_index: 0, generation: 0 }, authored_machine_application: Handle { arena_index: 0, generation: 0 }, exact_coercion_target: Handle { arena_index: 0, generation: 0 }, requirement_application: Handle { arena_index: 0, generation: 0 }, receiver: Handle { arena_index: 0, generation: 0 }, target_symbol: Handle { arena_index: 1638, generation: 1 }, static_machine_parameter: Handle { arena_index: 0, generation: 0 }, target: "unexecuted", static_requirement_dispatch: None, machine_arguments: [], quotient_operation: None, private_layout_operation: None, layout_query: None, native_code_layout: None, arguments: HandleSpan { start: Handle { arena_index: 383, generation: 1 }, count: 1 }, evidence_arguments: [], operational_acknowledgement: CallOperationalAcknowledgement { origin: Source, acknowledges_suspend: false, acknowledges_block: false } }, retained [(AuthoredDeclarationSelectionOccurrenceId(1210), Some((Call, SourceSpan { source_id: SourceId(24), span: Span { start: 407, end: 417 } }, Resolved(ResolvedAuthoredDeclarationSelection { selected_symbol: Handle { arena_index: 1638, generation: 1 } }))))]
+pass/facts/abstract_signature_call_generic_actual_through_call_result_exit checked 2718ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_const_name_exit checked 2652ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_field_exit checked 2586ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_local_exit checked 2947ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_match_join_exit checked 2898ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_other_machine_exit checked 2788ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_other_state_exit checked 2432ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_parameter_exit checked 2505ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_target_body_exit checked 2852ms check-target:macos_arm64 @3caadfad789f+wt
 pass/facts/abstract_signature_call_through_call_result_exit checked 3978ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/abstract_signature_call_through_const_name_exit checked 3998ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/abstract_signature_call_through_field_exit checked 3917ms check-target:macos_arm64 @ccdb99ca2214

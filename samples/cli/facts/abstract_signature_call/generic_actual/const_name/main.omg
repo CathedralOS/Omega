@@ -1,0 +1,40 @@
+// A call inside a generic abstract signature is the premise under the exact
+// type actual. The signature records that call's result, and the caller reads
+// the record.
+// Place: const_name.
+// Expected exit: 0
+machine premise<T>(kept: T) -> bool {
+    true
+}
+
+machine hold(direct: bool) -> bool
+requires direct == true
+{
+    direct
+}
+
+machine witness<T>(kept: T) -> bool
+requires premise<T>(kept)
+{
+    premise<T>(kept)
+}
+
+machine apply<T, machine Observe>(kept: T) -> bool
+requires machine Observe(kept: T) -> bool
+requires premise<T>(kept);
+requires premise<T>(kept)
+{
+    Observe(kept)
+}
+
+const KEPT: bool = true;
+
+machine main() crashes Trap {
+    let direct: bool = apply<bool, witness<bool>>(KEPT);
+    transition hold(direct) {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
