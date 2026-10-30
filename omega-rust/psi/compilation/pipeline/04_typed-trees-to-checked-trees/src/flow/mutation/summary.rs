@@ -1202,8 +1202,16 @@ pub(super) fn captured_argument_write_regions(
     })();
     if result.is_none() && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
         eprintln!(
-            "CHECKSITE captured-write-projection-refusal machine={} state={} statement={statement_index} position={position} parameter={parameter_type:?} relative={relative:?} destination={destination:?} captured={captured:?}",
-            machine.name, state.name
+            "CHECKSITE captured-write-projection-refusal machine={} state={} statement={statement_index} position={position} parameter={parameter_type:?} relative={relative:?} destination={destination:?} captured={:?}",
+            machine.name,
+            state.name,
+            captured.as_ref().map(|origins| (
+                &origins.arguments,
+                origins.references.as_ref().map(|rows| rows
+                    .iter()
+                    .map(|row| (row.local_symbol, &row.local_segments, &row.source))
+                    .collect::<Vec<_>>())
+            ))
         );
     }
     result
