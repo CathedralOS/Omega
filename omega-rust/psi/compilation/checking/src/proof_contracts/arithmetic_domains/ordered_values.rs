@@ -28,6 +28,7 @@ use crate::proof_contracts::arithmetic_domains::place_paths::place_paths_overlap
 use crate::value_custody::places::collection_length_receiver;
 use symbols::SymbolHandle;
 
+mod captured_references;
 mod congruence;
 pub(super) use congruence::ValueComparison;
 mod match_joins;
@@ -498,13 +499,11 @@ fn build_operand(
         ExpressionNode::Borrow(borrow) => {
             build_operand(program, machine, state, borrow.target, depth + 1, frames)
         }
-        // A match alias is a dependency on the completed subject value, not
-        // another evaluation of its initializer: its operand identity is the
-        // source subject's, so arm markers and arm reads agree on one path
-        // and source writes retire it through the same invalidation frame.
-        ExpressionNode::SavedSubject(saved) => program
-            .saved_value_source(saved)
-            .and_then(|source| build_operand(program, machine, state, source, depth + 1, frames)),
+        // A saved subject is an already completed value, not another
+        // evaluation of the source expression or its mutable selectors.
+        ExpressionNode::SavedSubject(_) => {
+            captured_references::operand(program, machine, state, expression, frames)
+        }
         ExpressionNode::Integer(literal) => {
             Some(Operand::Integer(literal.clone(), literal.landing()))
         }
@@ -512,23 +511,16 @@ fn build_operand(
             if !path.symbol.is_valid() || path.symbol != path.head_symbol {
                 return None;
             }
-            // An immutable binding initialized to a borrow denotes the
-            // referent place: dispatch-subject materialization captures a
-            // noncopyable subject as `&subject`, and the same holds for an
-            // authored `let s = &x`. Facts keyed under the binding's generated
-            // name could reach no consumer -- arm bindings and the requires
-            // they satisfy read the referent path. Ordinary write invalidation
-            // retires them on any referent write.
-            if let Some((_, local)) = program.state_local_declaration(state, path.symbol) {
-                if !local.is_mutable
-                    && let Some(initializer) = local.ordinary_value_initializer()
-                    && matches!(
-                        program.expression_table.expression(initializer),
-                        ExpressionNode::Borrow(_)
-                    )
-                {
-                    return build_operand(program, machine, state, initializer, depth + 1, frames);
-                }
+            // Resolve the actual completed descriptor at this read. Missing
+            // exact origins leave the named value opaque; its source recipe
+            // cannot replace the captured address or selector epoch.
+            if crate::expression_result_type_reference(program, machine, state, expression)
+                .and_then(|reference| crate::reference_shell(program, reference))
+                .is_some()
+                && let Some(captured) =
+                    captured_references::operand(program, machine, state, expression, frames)
+            {
+                return Some(captured);
             }
             let parameters = program.state_parameters(state);
             let local = program

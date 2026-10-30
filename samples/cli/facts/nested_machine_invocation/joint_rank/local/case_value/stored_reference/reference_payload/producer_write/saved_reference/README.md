@@ -51,3 +51,8 @@ Unknown storage geometry grants no borrowing or vacancy.
 | other_state | [program](../../../../../../other_state/case_value/stored_reference/reference_payload/producer_write/saved_reference/main.omg) | [invalid](../../../../../../other_state/case_value/stored_reference/reference_payload/producer_write/saved_reference/invalid/main.omg) |
 | other_machine | [program](../../../../../../other_machine/case_value/stored_reference/reference_payload/producer_write/saved_reference/main.omg) | [invalid](../../../../../../other_machine/case_value/stored_reference/reference_payload/producer_write/saved_reference/invalid/main.omg) |
 | target_body | [program](../../../../../../target_body/case_value/stored_reference/reference_payload/producer_write/saved_reference/main.omg) | [invalid](../../../../../../target_body/case_value/stored_reference/reference_payload/producer_write/saved_reference/invalid/main.omg) |
+
+Ordered guards use completed reference storage rather than replaying a saved
+initializer after its selectors change. The [unchanged-index runtime control](../../../../../../../../../../../tests/omega/pass/borrows/reference_selector_guard_current_index_exit/main.omg) and
+[rebound-index reject control](../../../../../../../../../../../tests/omega/fail/borrows/reference_selector_guard_rebound_index_rejected/main.omg) pin this identity:
+a guard on the saved element cannot prove subtraction on a later selected element.
