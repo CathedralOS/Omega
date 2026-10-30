@@ -39,15 +39,26 @@ pub fn evaluate_fixed_layout_applications(
     {
         return Ok(());
     }
-    typed_trees_to_typed_trees::specialize_static_machine_calls(typed)?;
+    typed_trees_to_typed_trees::prepare_execution_applications(typed)?;
     let defaults = crate::provider_declarations::retain_provider_defaults(
         crate::provider_declarations::ProviderPlanningContext::new(
             typed,
             source::DependencyScope::Product,
         ),
     )?;
-    let topology =
+    let mut topology =
         typed_trees::typed_trees::calls::application_graph::source_application_plan(typed);
+    let dynamic = validation::describe_dynamic_conformances(typed)?;
+    let symbols = &mut topology.symbols;
+    topology.machines.for_each_mut(|_, machine| {
+        machine.dynamic_realizations = symbols.insert_many(
+            dynamic
+                .selections
+                .iter()
+                .filter(|selection| selection.machine == machine.machine)
+                .flat_map(|selection| selection.rows.iter().map(|row| row.realization_machine)),
+        );
+    });
     let operational = validation::infer_operational_may(typed);
     let applications =
         semantic_vocabulary::proof_applications::ProofApplications::new(&topology, &operational);

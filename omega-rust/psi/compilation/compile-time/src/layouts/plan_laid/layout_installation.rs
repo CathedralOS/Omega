@@ -207,7 +207,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
             ));
         }
     }
-    typed_trees_to_typed_trees::specialize_static_machine_calls(typed)?;
+    typed_trees_to_typed_trees::prepare_execution_applications(typed)?;
     // A continuation replaces only the applications it owns. Earlier source
     // continuations and their arena-backed field/target rows remain available
     // to later dependencies; clearing the whole catalog loses that custody.

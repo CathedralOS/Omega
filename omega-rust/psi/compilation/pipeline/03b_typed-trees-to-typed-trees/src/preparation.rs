@@ -445,8 +445,9 @@ fn normalize_open_index_identities(
     .map_err(|diagnostic| vec![diagnostic])
 }
 
-/// Resume canonical constant dependencies by closing complete static tuples.
-/// This does not form numeric destinations: pending evaluation is not authority
+/// Prepare the append-only ordinary and finite dynamic execution applications.
+/// Existing instance keys make repeated consumers idempotent. This does not
+/// form numeric destinations: pending evaluation is not authority
 /// to round the caller's canonical program. Private execution instead enters
 /// [`prepare_constant_execution`]; final source admission uses the full stage.
 ///
@@ -454,11 +455,20 @@ fn normalize_open_index_identities(
 /// preparation runs while const endpoint folds are still outstanding, so an
 /// underivable tuple is interim evidence, not a rejected program. The
 /// authoritative checking pass enforces the complete-tuple gate itself.
-pub fn specialize_static_machine_calls(
+pub fn prepare_execution_applications(
     program: &mut typed_trees::TypedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     selections::retain_static_argument_contexts(program);
-    specialize_machine_calls(program, false)?;
+    loop {
+        specialize_machine_calls(program, false)?;
+        // Dynamic finite rosters own ordinary specialized member bodies too.
+        // A generated body can expose another ordinary call or selector; close
+        // both with their existing producers before any physical-layout demand
+        // is described. Later full preparation reuses these exact instances.
+        if crate::monomorphization::generate_dynamic_family_specializations(program)? == 0 {
+            break;
+        }
+    }
     // This private preparation can execute before ordinary source checking.
     // Admit its completed static edges once at that execution boundary, never
     // inside the executable derivation loop.
@@ -483,7 +493,7 @@ pub fn prepare_constant_execution(
     selections::retain_static_argument_contexts(&mut program);
     selections::bind_pre_specialization_authored_selections(&mut program)
         .map_err(|diagnostic| vec![diagnostic])?;
-    specialize_static_machine_calls(&mut program)?;
+    prepare_execution_applications(&mut program)?;
     settle_value_destinations(&mut program)?;
     crate::constructed_results::retain_constructed_result_types(&mut program)?;
     crate::assignment_destinations::prepare(&mut program);
