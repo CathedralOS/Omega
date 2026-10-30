@@ -73,13 +73,17 @@ The owner-private hosted snapshot is registered in `hosting.json`. To update it:
   require matched recorded inputs and provenance; missing baselines stay unpaired.
   See the [benchmark recorder](../benchmark/README.md) to add measurements. Commit
   its normal record updates; the next dashboard export discovers their history.
-- **Native history chart:** the last recorded golden per UTC day across the
+- **Native history chart:** the last recorded native-only or dual-engine golden per UTC day across the
   30 days before the inspected HEAD, at its real commit timestamp. The blue area counts valid programs
   with recorded exits. All available hosts share count and date axes by default;
   the target selector can isolate a host. Cohorts may grow or shrink, so this
   is not a fixed-cohort success rate. Point selection
   exposes the exact count, timestamp and golden revision. No daily points are
   invented between records.
+  Current host counts and cohorts use the most recently committed execution golden
+  (dual-engine wins a timestamp tie). Sources are selected whole, never unioned or
+  chosen for the largest passing count; chart points link to their own golden.
+  A dual-engine file's exit facts count native execution, not automatic engine agreement.
 - **Fact observation chart:** categorical bars aggregate the grid's selected
   target into recorded pass, historical/qualified pass, recorded failure and
   unmeasured places. All four counts are directly labeled in a full-width chart

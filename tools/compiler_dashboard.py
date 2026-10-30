@@ -125,14 +125,21 @@ def collect_native(repository, warnings):
     hosts = []
     for target in TARGETS:
         relative = f"tests/omega/corpus_native_{target}.txt"
-        golden = repository / relative
-        host = {"target": target, "path": relative, "available": golden.is_file()}
+        paths = [f"tests/omega/corpus_{mode}_{target}.txt" for mode in ("native", "both")
+                 if (repository / f"tests/omega/corpus_{mode}_{target}.txt").is_file()]
+        host = {"target": target, "path": relative, "available": bool(paths), "golden_paths": paths}
         if host["available"]:
             try:
+                dated = [(git(repository, "log", "-1", "--format=%cI", "--", path), path)
+                         for path in paths]
+                updated, relative = max(dated, key=lambda entry: (instant(entry[0]), "corpus_both_" in entry[1]))
+                golden = repository / relative
+                host["path"] = relative
+                host["mode"] = "both" if "corpus_both_" in relative else "native"
                 records = [row for row in corpus_records.read(golden) if row["tier"] in ("pass", "run")]
                 host["counts"] = native_scoreboard(records, oracle_lookup(repository, golden, None, target))
                 host["stamps"] = dict(Counter(row.get("recorded_at") or "unstamped" for row in records))
-                host["golden_updated"] = git(repository, "log", "-1", "--format=%cI", "--", relative)
+                host["golden_updated"] = updated
                 host["cohort"] = collect_cohort(repository, target, records)
                 if target in COHORT_BASELINES and not host["cohort"]["available"]:
                     warnings.append(f"Cohort baseline unavailable for {target}: {host['cohort']['error']}")
@@ -191,6 +198,14 @@ def collect_cohort(repository, target, current):
 
 def native_history(repository, relative, warnings=None):
     """Last committed golden per recorded day; never invent observations in gaps."""
+    if not isinstance(relative, str):
+        days = {}
+        for path in relative:
+            for point in native_history(repository, path, warnings):
+                day = instant(point["date"]).astimezone(timezone.utc).date()
+                if day not in days or instant(point["date"]) >= instant(days[day]["date"]):
+                    days[day] = point
+        return sorted(days.values(), key=lambda point: instant(point["date"]))
     history = []
     anchor = instant(git(repository, "show", "-s", "--format=%cI", "HEAD"))
     since = (anchor - timedelta(days=30)).isoformat()
@@ -210,7 +225,7 @@ def native_history(repository, relative, warnings=None):
             continue
         valid = [row for row in records if row["tier"] in ("pass", "run")]
         counts = native_scoreboard(valid)
-        history.append({"revision": revision, "date": committed,
+        history.append({"revision": revision, "date": committed, "path": relative,
                         "executed": counts["executed"], "fixtures": counts["fixtures"]})
     return history
 
@@ -253,7 +268,7 @@ def collect(repository, evidence_root):
         host["history"] = []
         if host["available"]:
             try:
-                host["history"] = native_history(repository, host["path"], warnings)
+                host["history"] = native_history(repository, host["golden_paths"], warnings)
             except (OSError, ValueError) as error:
                 warnings.append(f"Cannot read native history {host['target']}: {error}")
     if git(repository, "rev-parse", "HEAD") != revision:
