@@ -12,7 +12,8 @@ use typed_trees::types::PrimitiveType;
 use typed_trees::{expression::ExpressionHandle, machine::Machine, state::State};
 
 #[derive(Clone, PartialEq)]
-pub(super) struct CapturedScalarReadBacking {
+pub(in crate::proof_contracts::contract_entailment::structural_judgment) struct CapturedScalarReadBacking
+{
     dependencies: CapturedStorageReadBacking,
     identity: Option<(CapturedStorageCoordinate, PrimitiveType)>,
 }
