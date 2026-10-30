@@ -5,6 +5,7 @@
 
 use super::requirement_applications::selected_applications;
 use super::{CallSite, Diagnostic, SymbolHandle, TypedTrees};
+use crate::expression_roots::append_statement_roots;
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
 macro_rules! err {
@@ -28,13 +29,7 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
                 }
             }
             let mut expressions = Vec::new();
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                validation::collect_statement_expression_trees(
-                    program,
-                    statement,
-                    &mut expressions,
-                );
-            }
+            append_statement_roots(program, state, &mut expressions);
             for handle in expressions {
                 if let Some(call) = program.expression_table.call_node(handle) {
                     calls.push((
