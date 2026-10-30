@@ -7,7 +7,7 @@ use terminal_psi::{
 };
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
-use crate::custody::project_structural_value;
+use crate::custody::{literal_fixed_array, project_structural_value};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{TerminalExecution, operation_kind};
 use crate::values::StructuralByteSequenceRuntimeField;
@@ -307,18 +307,8 @@ impl TerminalExecution<'_> {
                 carrier_path,
                 requires_mutation,
             )?;
-            let StructuralTypeShape::FixedArray {
-                element: backing_element,
-                ..
-            } = self
-                .program
-                .structural_types()
-                .get(&collection.structural_type)
-                .ok_or_else(malformed)?
-                .shape
-            else {
-                return Err(malformed());
-            };
+            let (backing_element, _) =
+                literal_fixed_array(&self.program.structural_types(), collection.structural_type)?;
             if element != backing_element {
                 return Err(malformed());
             }
